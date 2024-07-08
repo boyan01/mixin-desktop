@@ -5,7 +5,7 @@ use sdk::KeyStore;
 #[tokio::main]
 async fn main() {
     println!("Hello, world!");
-    let a = sdk::client::Client::new(Credential::KeyStore(
+    let a = sdk::Client::new(Credential::KeyStore(
         KeyStore {
             app_id: "a82e1a6a-75c9-4013-80bc-10183eef49a2".to_string(),
             session_id: "74ed2dbd-a2fa-4764-8718-f1489e6c4b07".to_string(),

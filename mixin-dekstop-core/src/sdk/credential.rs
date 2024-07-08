@@ -21,12 +21,16 @@ pub struct KeyStore {
 }
 
 impl Credential {
-    pub(crate) fn sign_authentication_token(&self, method: Method, url: &String, body: &String) -> Result<String, String> {
+    pub(crate) fn sign_authentication_token(&self, method: &Method, path: &String, body: impl AsRef<[u8]>) -> Result<String, String> {
         match self {
             Credential::KeyStore(key_store) => {
                 let now = SystemTime::now();
                 let expire = now.add(Duration::from_secs(60 * 60 * 24 * 30 * 3));
-                let sum = Sha256::digest(format!("{}{}{}", method.as_str(), url, body));
+                let mut cipher = Sha256::new();
+                cipher.update(method.as_str());
+                cipher.update(path);
+                cipher.update(body);
+                let sum = cipher.finalize();
                 let claims = Claims {
                     uid: key_store.app_id.clone(),
                     sid: key_store.session_id.clone(),
@@ -77,10 +81,7 @@ pub(crate) fn b64_encode(input: &[u8]) -> String {
 /// Serializes a struct to JSON and encodes it in base64
 pub(crate) fn b64_encode_part<T: Serialize>(input: &T) -> Result<String, String> {
     match serde_json::to_vec(input) {
-        Ok(json) => {
-            println!("json: {}", std::str::from_utf8(&json).unwrap());
-            Ok(b64_encode(&json))
-        }
+        Ok(json) => Ok(b64_encode(&json)),
         Err(err) => Err(err.to_string())
     }
 }

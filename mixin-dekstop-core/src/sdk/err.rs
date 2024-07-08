@@ -1,4 +1,5 @@
-use std::fmt::{Debug, Display, Formatter, write, Write};
+use std::fmt::{Debug, Display, Formatter};
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
