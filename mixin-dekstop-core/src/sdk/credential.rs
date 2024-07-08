@@ -13,6 +13,8 @@ pub enum Credential {
     KeyStore(KeyStore),
     Auth,
 }
+
+#[derive(Serialize, Deserialize)]
 pub struct KeyStore {
     pub app_id: String,
     pub session_id: String,
