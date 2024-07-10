@@ -15,4 +15,7 @@ uuid = { version = "1.9.1", features = ["v4"] }
 base16ct = { version = "0.2.0", features = ["alloc"] }
 ring = "0.17.8"
 ed25519 = "2.2.3"
-base64ct = { version = "1.6.0", features = ["alloc"]}
+base64ct = { version = "1.6.0", features = ["alloc"] }
+diesel = { version = "2.2.0", features = ["sqlite", "r2d2", "chrono"] }
+diesel_migrations = {version = "2.2.0", features = ["sqlite"] }
+chrono = "0.4"

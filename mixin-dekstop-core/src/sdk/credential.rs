@@ -9,11 +9,13 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+#[derive(Clone)]
 pub enum Credential {
     KeyStore(KeyStore),
-    Auth,
+    None,
 }
 
+#[derive(Clone)]
 #[derive(Serialize, Deserialize)]
 pub struct KeyStore {
     pub app_id: String,
@@ -57,9 +59,7 @@ impl Credential {
                 let signature = pk.sign(message.as_bytes());
                 Ok([message, b64_encode(signature.as_ref())].join("."))
             }
-            _ => {
-                Err("not implement".to_string())
-            }
+            Credential::None => Ok("".to_string())
         }
     }
 }

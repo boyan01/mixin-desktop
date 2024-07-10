@@ -1,8 +1,7 @@
 use std::error::Error;
 use std::fs;
-use std::io::Read;
 
-use mixin_dekstop_core::sdk;
+use mixin_dekstop_core::{db, sdk};
 use sdk::Credential;
 use sdk::KeyStore;
 
@@ -10,8 +9,9 @@ use sdk::KeyStore;
 async fn main() -> Result<(), Box<dyn Error>> {
     let file = fs::read("./keystore.json")?;
     let keystore: KeyStore = serde_json::from_slice(&file)?;
-    let a = sdk::Client::new(Credential::KeyStore(keystore));
-    let result = a.get_me().await;
-    println!("a: {:?}", result);
+    let _ = sdk::Client::new(Credential::KeyStore(keystore));
+    // let result = a.get_me().await;
+    let database = db::MixinDatabase::new("".to_string()).await?;
+    let result = database.query_friends().await?;
     Ok(())
 }

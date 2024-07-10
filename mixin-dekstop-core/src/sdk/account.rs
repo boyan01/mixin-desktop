@@ -66,3 +66,19 @@ impl Client {
         Ok(self.request(request).await?)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::fs;
+    use crate::sdk::*;
+    use super::*;
+
+    #[tokio::test]
+    async fn test() {
+        let file = fs::read("./keystore.json").expect("no keystore file");
+        let keystore: KeyStore = serde_json::from_slice(&file).expect("failed to read keystore");
+        let a = Client::new(Credential::KeyStore(keystore));
+        let result = a.get_me().await;
+        println!("account: {:?}", result);
+    }
+}
