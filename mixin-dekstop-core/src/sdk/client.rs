@@ -37,7 +37,7 @@ impl Client {
         T: DeserializeOwned,
     {
         let path = match request.method() {
-            &Method::POST => format!("{}/{}", request.url().path(), request.url().query().or(Some("")).unwrap()),
+            &Method::GET => format!("{}?{}", request.url().path(), request.url().query().or(Some("")).unwrap()),
             _ => request.url().path().to_string(),
         };
         let body: &[u8] = match request.method() {

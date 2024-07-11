@@ -22,6 +22,7 @@ pub struct KeyStore {
     pub session_id: String,
     pub server_public_key: String,
     pub session_private_key: String,
+    pub scp: String,
 }
 
 impl Credential {
@@ -42,7 +43,7 @@ impl Credential {
                     exp: expire.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() as i64,
                     jti: Uuid::new_v4().to_string(),
                     sig: base16ct::lower::encode_string(sum.as_ref()),
-                    scp: "FULL".to_string(),
+                    scp: key_store.scp.clone(),
                 };
                 let header = Header::new(Algorithm::EdDSA);
                 let pks = match base16ct::lower::decode_vec(&key_store.session_private_key) {
