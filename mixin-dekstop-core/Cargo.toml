@@ -18,9 +18,14 @@ ed25519 = "2.2.3"
 base64ct = { version = "1.6.0", features = ["alloc"] }
 diesel = { version = "2.2.0", features = ["sqlite", "r2d2", "chrono"] }
 diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 tokio-tungstenite = { version = "0.23.1", features = ["native-tls"] }
 futures = "0.3"
 flate2 = "1.0"
 rand = "0.8.5"
 futures-channel = "0.3.30"
+log = "0.4"
+simplelog = "0.12.2"
+lazy_static = "1.5.0"
+md5 = "0.7.0"
+libsignal-protocol = { git = "https://github.com/signalapp/libsignal.git", rev = "f10ff5488899965d8d1a8504fbdf9418d04c08f2" }

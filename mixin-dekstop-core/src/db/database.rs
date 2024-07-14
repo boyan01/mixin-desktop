@@ -1,8 +1,9 @@
-use diesel::{Connection, Queryable, result, RunQueryDsl, SqliteConnection};
+use diesel::{Queryable, result, RunQueryDsl, SqliteConnection};
 use diesel::prelude::*;
-use diesel::r2d2::{ConnectionManager, Pool};
+use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
+use crate::db;
 use crate::db::users;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("./migrations");
@@ -20,8 +21,14 @@ impl MixinDatabase {
     }
 }
 
+type Connection = PooledConnection<ConnectionManager<SqliteConnection>>;
 
 impl MixinDatabase {
+    pub(crate) fn get_connection(&self) -> Result<Connection, db::Error> {
+        let c = self.pool.get()?;
+        Ok(c)
+    }
+
     pub async fn query_friends(&self) -> Result<(), result::Error> {
         let mut conn = self.pool.get().expect("Failed to get connection.");
         let a = users::table.select(users::user_id).load::<String>(&mut conn)?;
