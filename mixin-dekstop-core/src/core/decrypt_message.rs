@@ -137,7 +137,7 @@ impl ServiceDecryptMessage {
 
 impl ServiceDecryptMessage {
     async fn process_signal_message(&self, data: &BlazeMessageData) -> Result<(), AnyError> {
-        libsignal_protocol::SignalMessage::new();
+        // libsignal_protocol::SignalMessage::new();
         Ok(())
     }
 }

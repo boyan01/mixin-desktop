@@ -1,16 +1,14 @@
 use chrono::{NaiveDateTime, Utc};
-use diesel::{Queryable, RunQueryDsl};
+use diesel::{Insertable, Queryable, RunQueryDsl, Selectable};
 use diesel::dsl::insert_into;
 use serde_json::json;
 use uuid::Uuid;
 
 use crate::core::util::unique_object_id;
 use crate::db::{Error, MixinDatabase};
-use crate::db::jobs::dsl::*;
 use crate::sdk::blaze_message::{CREATE_MESSAGE, PIN_MESSAGE, RECALL_MESSAGE};
 use crate::sdk::message::{BlazeAckMessage, RecallMessage};
 
-#[derive(Debug, Queryable)]
 pub struct Job {
     pub job_id: String,
     pub action: String,
@@ -45,29 +43,29 @@ impl Job {
         }
     }
 
-    pub fn create_ack_job(act: &str, message_id: &str, status: &str, expire_at: Option<i32>) -> Job {
+    pub fn create_ack_job(act: &str, message_id: &str, status: String, expire_at: Option<i32>) -> Job {
         let m = BlazeAckMessage {
             message_id: message_id.to_string(),
             status: status.to_uppercase(),
             expire_at,
         };
-        let job_id = unique_object_id(&vec![
+        let j_id = unique_object_id(&vec![
             m.message_id.as_str(),
             m.status.as_str(),
             act,
         ]).to_string();
         Job {
-            job_id,
-            action: action.to_string(),
+            job_id: j_id,
+            action: act.to_string(),
             blaze_message: serde_json::to_string(&m).ok(),
             ..Job::new()
         }
     }
 
-    pub fn create_mention_read_ack_job(conversation_id: &str, message_id: &str) -> Job {
+    pub fn create_mention_read_ack_job(cid: &str, message_id: &str) -> Job {
         Job {
             action: CREATE_MESSAGE.to_string(),
-            conversation_id: Some(conversation_id.to_string()),
+            conversation_id: Some(cid.to_string()),
             blaze_message: serde_json::to_string(&BlazeAckMessage {
                 message_id: message_id.to_string(),
                 status: "MENTION_READ".to_string(),
@@ -135,8 +133,8 @@ impl Job {
 
 
 impl MixinDatabase {
-    pub fn insert_job(&self, job: &Job) -> Result<(), Error> {
-        insert_into(jobs).values(job).execute(&mut self.get_connection()?)?;
+    pub async fn insert_job(&self, j: &Job) -> Result<(), Error> {
+        // insert_into(jobs).values(j).execute(&mut self.get_connection()?)?;
         Ok(())
     }
 }

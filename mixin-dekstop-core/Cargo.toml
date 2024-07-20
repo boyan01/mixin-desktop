@@ -23,9 +23,12 @@ tokio-tungstenite = { version = "0.23.1", features = ["native-tls"] }
 futures = "0.3"
 flate2 = "1.0"
 rand = "0.8.5"
+rand_core = "0.5.1"
 futures-channel = "0.3.30"
 log = "0.4"
-simplelog = "0.12.2"
+simplelog = { version = "0.12.2", features = ["test"] }
 lazy_static = "1.5.0"
 md5 = "0.7.0"
 libsignal-protocol = { git = "https://github.com/signalapp/libsignal.git", rev = "f10ff5488899965d8d1a8504fbdf9418d04c08f2" }
+sea-orm = { version = "0.12", features = ["sqlx-sqlite", "runtime-tokio", "macros", "with-chrono"] }
+sqlx = { version = "0.7.4", features = ["runtime-tokio", "sqlx-sqlite", "chrono"] }
