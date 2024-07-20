@@ -7,14 +7,12 @@ use std::sync::Arc;
 use chrono::TimeDelta;
 use log::{debug, error};
 
-use db::message::Message;
-
 use crate::core::AnyError;
 use crate::db;
-use crate::db::flood_message::FloodMessage;
-use crate::db::job::Job;
-use crate::db::jobs::blaze_message;
-use crate::db::MixinDatabase;
+use crate::db::mixin::flood_message::FloodMessage;
+use crate::db::mixin::job::Job;
+use crate::db::mixin::message::Message;
+use crate::db::mixin::MixinDatabase;
 use crate::sdk::blaze_message::{ACKNOWLEDGE_MESSAGE_RECEIPTS, BlazeMessageData, MessageStatus};
 use crate::sdk::message_category;
 use crate::sdk::message_category::MessageCategory;
@@ -27,7 +25,7 @@ struct ServiceDecryptMessage {
 impl ServiceDecryptMessage {
     pub async fn start(&self) -> Result<(), AnyError> {
         loop {
-            let messages = self.database.flood_messages()?;
+            let messages = self.database.flood_messages().await?;
             for m in messages {
                 match self.process_message(&m).await {
                     Err(err) => {
@@ -43,7 +41,7 @@ impl ServiceDecryptMessage {
         let data: BlazeMessageData = serde_json::from_slice(message.data.as_bytes())?;
         if !self.database.is_message_exits(&message.message_id)? {
             // TODO update remote message status
-            self.database.delete_flood_message(&message.message_id)?;
+            self.database.delete_flood_message(&message.message_id).await?;
             return Ok(());
         }
 

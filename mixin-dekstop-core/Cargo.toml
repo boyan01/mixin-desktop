@@ -16,8 +16,6 @@ base16ct = { version = "0.2.0", features = ["alloc"] }
 ring = "0.17.8"
 ed25519 = "2.2.3"
 base64ct = { version = "1.6.0", features = ["alloc"] }
-diesel = { version = "2.2.0", features = ["sqlite", "r2d2", "chrono"] }
-diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
 chrono = { version = "0.4", features = ["serde"] }
 tokio-tungstenite = { version = "0.23.1", features = ["native-tls"] }
 futures = "0.3"
@@ -30,5 +28,5 @@ simplelog = { version = "0.12.2", features = ["test"] }
 lazy_static = "1.5.0"
 md5 = "0.7.0"
 libsignal-protocol = { git = "https://github.com/signalapp/libsignal.git", rev = "f10ff5488899965d8d1a8504fbdf9418d04c08f2" }
-sea-orm = { version = "0.12", features = ["sqlx-sqlite", "runtime-tokio", "macros", "with-chrono"] }
-sqlx = { version = "0.7.4", features = ["runtime-tokio", "sqlx-sqlite", "chrono"] }
+sqlx = { version = "0.7.4", features = ["runtime-tokio", "chrono", "sqlite"] }
+async-trait = "0.1.81"

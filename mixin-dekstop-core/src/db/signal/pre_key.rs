@@ -1,7 +1,6 @@
+use async_trait::async_trait;
 use libsignal_protocol::{Context, error, PreKeyRecord, PreKeyStore, SignalProtocolError};
 use log::error;
-use sea_orm::entity::prelude::*;
-use sea_orm::prelude::async_trait::async_trait;
 use sqlx::Executor;
 
 use crate::db::signal::database::SignalDatabase;

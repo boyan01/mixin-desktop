@@ -1,10 +1,8 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
-use diesel::serialize::IsNull::No;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::{db, sdk};
-use crate::db::flood_message::FloodMessage;
 
 pub(crate) const ACKNOWLEDGE_MESSAGE_RECEIPT: &str = "ACKNOWLEDGE_MESSAGE_RECEIPT";
 pub(crate) const ACKNOWLEDGE_MESSAGE_RECEIPTS: &str = "ACKNOWLEDGE_MESSAGE_RECEIPTS";

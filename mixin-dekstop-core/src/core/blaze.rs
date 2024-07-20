@@ -17,10 +17,8 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, tungstenite, WebSocketStream};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
-
-use crate::db::flood_message::FloodMessage;
-use crate::db::flood_messages::dsl::flood_messages;
-use crate::db::MixinDatabase;
+use crate::db::mixin::flood_message::FloodMessage;
+use crate::db::mixin::MixinDatabase;
 use crate::sdk::{Client, Credential};
 use crate::sdk::blaze_message::{ACKNOWLEDGE_MESSAGE_RECEIPT, BlazeMessage, BlazeMessageData, CREATE_CALL, CREATE_KRAKEN, CREATE_MESSAGE, LIST_PENDING_MESSAGE};
 
@@ -89,7 +87,7 @@ impl Blaze {
                 }
             })
         };
-        let offset = self.database.latest_flood_message_created_at()?;
+        let offset = self.database.latest_flood_message_created_at().await?;
         sender.send_blaze_message(BlazeMessage::new_list_pending_blaze(offset.map(|e| e.and_utc().to_rfc3339()))).await?;
         pin_mut!(send, receive);
         future::select(send, receive).await;
@@ -128,7 +126,7 @@ impl Blaze {
                     data: data_str,
                     created_at: data.created_at.naive_utc(),
                 };
-                self.database.insert_flood_message(flood_message)?;
+                self.database.insert_flood_message(flood_message).await?;
             }
         } else if message.action == CREATE_CALL || message.action == CREATE_KRAKEN {
             warn!("TODO: notify read");

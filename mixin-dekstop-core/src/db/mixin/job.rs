@@ -1,11 +1,10 @@
 use chrono::{NaiveDateTime, Utc};
-use diesel::{Insertable, Queryable, RunQueryDsl, Selectable};
-use diesel::dsl::insert_into;
 use serde_json::json;
 use uuid::Uuid;
 
 use crate::core::util::unique_object_id;
-use crate::db::{Error, MixinDatabase};
+use crate::db::Error;
+use crate::db::mixin::MixinDatabase;
 use crate::sdk::blaze_message::{CREATE_MESSAGE, PIN_MESSAGE, RECALL_MESSAGE};
 use crate::sdk::message::{BlazeAckMessage, RecallMessage};
 
@@ -133,7 +132,7 @@ impl Job {
 
 
 impl MixinDatabase {
-    pub async fn insert_job(&self, j: &Job) -> Result<(), Error> {
+    pub async fn insert_job(&self, job: &Job) -> Result<(), Error> {
         // insert_into(jobs).values(j).execute(&mut self.get_connection()?)?;
         Ok(())
     }

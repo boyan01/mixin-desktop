@@ -1,11 +1,8 @@
 use chrono::NaiveDateTime;
-use diesel::{ExpressionMethods, Insertable, Queryable, QueryDsl, RunQueryDsl};
-use diesel::dsl::{exists, select};
 
-use crate::db::{Error, messages};
-use crate::db::MixinDatabase;
+use crate::db::Error;
+use crate::db::mixin::MixinDatabase;
 
-#[derive(Insertable, Queryable)]
 #[derive(Default)]
 pub struct Message {
     pub message_id: String,
@@ -43,13 +40,10 @@ pub struct Message {
 
 impl MixinDatabase {
     pub fn is_message_exits(&self, message_id: &String) -> Result<bool, Error> {
-        let result = select(exists(messages::table.filter(messages::dsl::message_id.eq(message_id))))
-            .get_result(&mut self.get_connection()?)?;
-        Ok(result)
+        todo!()
     }
 
     pub fn insert_message(&self, message: &Message) -> Result<(), Error> {
-        diesel::insert_into(messages::table).values(message).execute(&mut self.get_connection()?)?;
-        Ok(())
+        todo!()
     }
 }
