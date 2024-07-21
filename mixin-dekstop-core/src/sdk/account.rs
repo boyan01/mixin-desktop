@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::sdk::ApiError;
 use crate::sdk::client::Client;
+use crate::sdk::ApiError;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct App {
@@ -61,17 +61,16 @@ pub struct Account {
 
 impl Client {
     pub async fn get_me(&self) -> Result<Account, ApiError> {
-        let request = self.client.get(format!("{}/me", self.base_url))
-            .build()?;
+        let request = self.client.get(format!("{}/me", self.base_url)).build()?;
         Ok(self.request(request).await?)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use std::fs;
-    use crate::sdk::*;
     use super::*;
+    use crate::sdk::*;
+    use std::fs;
 
     #[tokio::test]
     async fn test() {

@@ -23,8 +23,7 @@ pub(crate) const CREATE_SIGNAL_KEY_MESSAGES: &str = "CREATE_SIGNAL_KEY_MESSAGES"
 pub(crate) const COUNT_SIGNAL_KEYS: &str = "COUNT_SIGNAL_KEYS";
 pub(crate) const SYNC_SIGNAL_KEYS: &str = "SYNC_SIGNAL_KEYS";
 
-#[derive(Serialize, Deserialize)]
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct BlazeMessage {
     pub id: String,
     pub action: String,
@@ -65,7 +64,8 @@ impl Into<String> for MessageStatus {
             MessageStatus::Sent => "SENT",
             MessageStatus::Delivered => "DELIVERED",
             MessageStatus::Read => "READ",
-        }.to_string()
+        }
+        .to_string()
     }
 }
 

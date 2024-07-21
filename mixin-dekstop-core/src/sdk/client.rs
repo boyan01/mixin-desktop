@@ -1,11 +1,11 @@
-use reqwest::{Method, Request};
 use reqwest::header::HeaderValue;
-use serde::{Deserialize, Serialize};
+use reqwest::{Method, Request};
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use sdk::ApiError;
 use sdk::credential::Credential;
+use sdk::ApiError;
 
 use crate::sdk;
 
@@ -37,19 +37,30 @@ impl Client {
         T: DeserializeOwned,
     {
         let path = match request.method() {
-            &Method::GET => format!("{}?{}", request.url().path(), request.url().query().or(Some("")).unwrap()),
+            &Method::GET => format!(
+                "{}?{}",
+                request.url().path(),
+                request.url().query().or(Some("")).unwrap()
+            ),
             _ => request.url().path().to_string(),
         };
         let body: &[u8] = match request.method() {
-            &Method::POST => request.body().map(|body| -> &[u8]{
-                match body.as_bytes() {
-                    None => &[],
-                    Some(bytes) => bytes,
-                }
-            }).unwrap_or(&[]),
+            &Method::POST => request
+                .body()
+                .map(|body| -> &[u8] {
+                    match body.as_bytes() {
+                        None => &[],
+                        Some(bytes) => bytes,
+                    }
+                })
+                .unwrap_or(&[]),
             _ => &[],
         };
-        let signature = self.credential.sign_authentication_token(request.method(), &path.to_string(), &body)?;
+        let signature = self.credential.sign_authentication_token(
+            request.method(),
+            &path.to_string(),
+            &body,
+        )?;
 
         let header = request.headers_mut();
         header.append("Content-Type", HeaderValue::from_static("application/json"));

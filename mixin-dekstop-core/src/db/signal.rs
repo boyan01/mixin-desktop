@@ -2,6 +2,6 @@ use std::error::Error;
 
 use libsignal_protocol::PreKeyStore;
 
-mod database;
-mod pre_key;
-
+pub mod database;
+pub mod pre_key;
+mod signed_pre_key;

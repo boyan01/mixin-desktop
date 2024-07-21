@@ -1,9 +1,6 @@
-use async_trait::async_trait;
-use libsignal_protocol::{Context, error, PreKeyRecord, PreKeyStore, SignalProtocolError};
-use log::error;
-use sqlx::Executor;
+use sqlx::{Executor, Pool, Sqlite};
 
-use crate::db::signal::database::SignalDatabase;
+use crate::db::Error;
 
 #[derive(sqlx::FromRow)]
 pub struct PreKey {
@@ -11,38 +8,31 @@ pub struct PreKey {
     pub record: Vec<u8>,
 }
 
-#[async_trait(? Send)]
-impl PreKeyStore for SignalDatabase {
-    async fn get_pre_key(&self, prekey_id: u32, ctx: Context) -> error::Result<PreKeyRecord> {
+pub struct PreKeyDao(Pool<Sqlite>);
+
+impl PreKeyDao {
+    pub async fn find_pre_key(&self, prekey_id: u32) -> Result<Option<PreKey>, Error> {
         let result = sqlx::query_as::<_, PreKey>("SELECT * FROM prekeys WHERE prekey_id = ?")
             .bind(prekey_id)
-            .fetch_one(&self.pool).await;
-        if let Err(err) = result {
-            error!("Failed to get prekey: {}", err);
-            return Err(SignalProtocolError::InvalidPreKeyId);
-        }
-        let prekey = result.unwrap();
-        Ok(PreKeyRecord::deserialize(&prekey.record)?)
+            .fetch_optional(&self.0)
+            .await?;
+        Ok(result)
     }
 
-    async fn save_pre_key(&mut self, prekey_id: u32, record: &PreKeyRecord, ctx: Context) -> error::Result<()> {
-        let result = sqlx::query("INSERT OR REPLACE INTO prekeys (prekey_id, record) VALUES (?, ?)")
+    pub async fn save_pre_key(&self, prekey_id: u32, record: Vec<u8>) -> Result<(), Error> {
+        let _ = sqlx::query("INSERT OR REPLACE INTO prekeys (prekey_id, record) VALUES (?, ?)")
             .bind(prekey_id)
-            .bind(record.serialize()?)
-            .execute(&self.pool).await;
-        if let Err(err) = result {
-            error!("Failed to save prekey: {}", err);
-            return Err(SignalProtocolError::InvalidPreKeyId);
-        }
+            .bind(record)
+            .execute(&self.0)
+            .await?;
         Ok(())
     }
 
-    async fn remove_pre_key(&mut self, prekey_id: u32, ctx: Context) -> error::Result<()> {
-        if let Err(err) = sqlx::query("DELETE FROM prekeys WHERE prekey_id = ?")
-            .bind(prekey_id).execute(&self.pool).await {
-            error!("Failed to remove prekey: {}", err);
-            return Err(SignalProtocolError::InvalidPreKeyId);
-        }
+    pub async fn delete_pre_key(&self, prekey_id: u32) -> Result<(), Error> {
+        let _ = sqlx::query("DELETE FROM prekeys WHERE prekey_id = ?")
+            .bind(prekey_id)
+            .execute(&self.0)
+            .await?;
         Ok(())
     }
 }

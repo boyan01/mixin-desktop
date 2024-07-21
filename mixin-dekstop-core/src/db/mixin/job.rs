@@ -3,8 +3,8 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::core::util::unique_object_id;
-use crate::db::Error;
 use crate::db::mixin::MixinDatabase;
+use crate::db::Error;
 use crate::sdk::blaze_message::{CREATE_MESSAGE, PIN_MESSAGE, RECALL_MESSAGE};
 use crate::sdk::message::{BlazeAckMessage, RecallMessage};
 
@@ -42,17 +42,19 @@ impl Job {
         }
     }
 
-    pub fn create_ack_job(act: &str, message_id: &str, status: String, expire_at: Option<i32>) -> Job {
+    pub fn create_ack_job(
+        act: &str,
+        message_id: &str,
+        status: String,
+        expire_at: Option<i32>,
+    ) -> Job {
         let m = BlazeAckMessage {
             message_id: message_id.to_string(),
             status: status.to_uppercase(),
             expire_at,
         };
-        let j_id = unique_object_id(&vec![
-            m.message_id.as_str(),
-            m.status.as_str(),
-            act,
-        ]).to_string();
+        let j_id =
+            unique_object_id(&vec![m.message_id.as_str(), m.status.as_str(), act]).to_string();
         Job {
             job_id: j_id,
             action: act.to_string(),
@@ -69,7 +71,8 @@ impl Job {
                 message_id: message_id.to_string(),
                 status: "MENTION_READ".to_string(),
                 expire_at: None,
-            }).ok(),
+            })
+            .ok(),
             ..Self::new()
         }
     }
@@ -85,14 +88,15 @@ impl Job {
 
     pub fn create_send_recall_job(conversation_id: &str, message_id: &str) -> Job {
         let a = json!({
-                "message_id": message_id
-            });
+            "message_id": message_id
+        });
         Job {
             conversation_id: Some(conversation_id.to_string()),
             action: RECALL_MESSAGE.to_string(),
             blaze_message: serde_json::to_string(&RecallMessage {
                 message_id: message_id.to_string(),
-            }).ok(),
+            })
+            .ok(),
             ..Self::new()
         }
     }
@@ -129,7 +133,6 @@ impl Job {
         }
     }
 }
-
 
 impl MixinDatabase {
     pub async fn insert_job(&self, job: &Job) -> Result<(), Error> {

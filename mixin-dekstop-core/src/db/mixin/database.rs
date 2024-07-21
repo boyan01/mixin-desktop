@@ -1,7 +1,7 @@
 use std::error::Error;
 
-use sqlx::{Pool, Sqlite};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::{Pool, Sqlite};
 
 pub struct MixinDatabase {
     pub(crate) pool: Pool<Sqlite>,
@@ -10,14 +10,16 @@ pub struct MixinDatabase {
 impl MixinDatabase {
     pub async fn new(identity_number: String) -> Result<Self, Box<dyn Error>> {
         let pool = SqlitePoolOptions::new()
-            .connect_with(SqliteConnectOptions::new()
-                .filename("signal.db")
-                .create_if_missing(true)).await?;
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename("signal.db")
+                    .create_if_missing(true),
+            )
+            .await?;
         let migrator = sqlx::migrate!("./src/db/mixin/migrations");
         return Ok(MixinDatabase { pool });
     }
 }
-
 
 impl MixinDatabase {}
 

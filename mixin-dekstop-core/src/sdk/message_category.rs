@@ -138,7 +138,10 @@ impl MessageCategory for String {
     }
 
     fn is_fts_message(&self) -> bool {
-        self.ends_with("TEXT") || self.ends_with("DATA") || self.ends_with("POST") || self.ends_with("TRANSCRIPT")
+        self.ends_with("TEXT")
+            || self.ends_with("DATA")
+            || self.ends_with("POST")
+            || self.ends_with("TRANSCRIPT")
     }
 
     fn is_text(&self) -> bool {
@@ -202,12 +205,8 @@ impl MessageCategory for String {
 
     fn is_group_call(&self) -> bool {
         lazy_static! {
-            static ref group_call_categories: HashSet<&'static str> = HashSet::from([
-               KRAKEN_END,
-               KRAKEN_DECLINE,
-               KRAKEN_CANCEL,
-               KRAKEN_INVITE,
-            ]);
+            static ref group_call_categories: HashSet<&'static str> =
+                HashSet::from([KRAKEN_END, KRAKEN_DECLINE, KRAKEN_CANCEL, KRAKEN_INVITE,]);
         }
         group_call_categories.contains(&self.as_str())
     }
@@ -228,40 +227,40 @@ impl MessageCategory for String {
     fn can_recall(&self) -> bool {
         lazy_static! {
             static ref recall_categories: HashSet<&'static str> = HashSet::from([
-                 ENCRYPTED_TEXT,
-                 ENCRYPTED_IMAGE,
-                 ENCRYPTED_VIDEO,
-                 ENCRYPTED_STICKER,
-                 ENCRYPTED_DATA,
-                 ENCRYPTED_CONTACT,
-                 ENCRYPTED_AUDIO,
-                 ENCRYPTED_LIVE,
-                 ENCRYPTED_POST,
-                 ENCRYPTED_LOCATION,
-                 ENCRYPTED_TRANSCRIPT,
-                 SIGNAL_TEXT,
-                 SIGNAL_IMAGE,
-                 SIGNAL_VIDEO,
-                 SIGNAL_STICKER,
-                 SIGNAL_DATA,
-                 SIGNAL_CONTACT,
-                 SIGNAL_AUDIO,
-                 SIGNAL_LIVE,
-                 SIGNAL_POST,
-                 SIGNAL_LOCATION,
-                 SIGNAL_TRANSCRIPT,
-                 PLAIN_TEXT,
-                 PLAIN_IMAGE,
-                 PLAIN_VIDEO,
-                 PLAIN_STICKER,
-                 PLAIN_DATA,
-                 PLAIN_CONTACT,
-                 PLAIN_AUDIO,
-                 PLAIN_LIVE,
-                 PLAIN_POST,
-                 PLAIN_LOCATION,
-                 PLAIN_TRANSCRIPT,
-                 APP_CARD,
+                ENCRYPTED_TEXT,
+                ENCRYPTED_IMAGE,
+                ENCRYPTED_VIDEO,
+                ENCRYPTED_STICKER,
+                ENCRYPTED_DATA,
+                ENCRYPTED_CONTACT,
+                ENCRYPTED_AUDIO,
+                ENCRYPTED_LIVE,
+                ENCRYPTED_POST,
+                ENCRYPTED_LOCATION,
+                ENCRYPTED_TRANSCRIPT,
+                SIGNAL_TEXT,
+                SIGNAL_IMAGE,
+                SIGNAL_VIDEO,
+                SIGNAL_STICKER,
+                SIGNAL_DATA,
+                SIGNAL_CONTACT,
+                SIGNAL_AUDIO,
+                SIGNAL_LIVE,
+                SIGNAL_POST,
+                SIGNAL_LOCATION,
+                SIGNAL_TRANSCRIPT,
+                PLAIN_TEXT,
+                PLAIN_IMAGE,
+                PLAIN_VIDEO,
+                PLAIN_STICKER,
+                PLAIN_DATA,
+                PLAIN_CONTACT,
+                PLAIN_AUDIO,
+                PLAIN_LIVE,
+                PLAIN_POST,
+                PLAIN_LOCATION,
+                PLAIN_TRANSCRIPT,
+                APP_CARD,
             ]);
         }
         recall_categories.contains(&self.as_str())
@@ -318,7 +317,7 @@ impl MessageCategory for String {
                 ENCRYPTED_LOCATION,
                 ENCRYPTED_TRANSCRIPT,
                 MESSAGE_PIN,
-        ]);
+            ]);
         }
         !illegal_categories.contains(&self.as_str())
     }
@@ -339,7 +338,6 @@ impl MessageCategory for String {
             || self == "appButtonGroup"
     }
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -19,9 +19,10 @@ pub struct Error {
 impl Display for ApiError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ApiError::Server(err) => {
-                f.write_fmt(format_args!("{}, status: {} code: {}", err.description, err.status, err.code))
-            }
+            ApiError::Server(err) => f.write_fmt(format_args!(
+                "{}, status: {} code: {}",
+                err.description, err.status, err.code
+            )),
             ApiError::Request(err) => {
                 write!(f, "request err: {err}")
             }
@@ -37,7 +38,6 @@ impl From<Error> for ApiError {
         ApiError::Server(value)
     }
 }
-
 
 impl From<reqwest::Error> for ApiError {
     fn from(value: reqwest::Error) -> Self {

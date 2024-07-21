@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 
-use crate::db::Error;
 use crate::db::mixin::MixinDatabase;
+use crate::db::Error;
 
 #[derive(Default)]
 pub struct Message {

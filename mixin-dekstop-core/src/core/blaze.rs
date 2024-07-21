@@ -2,25 +2,28 @@ use std::error::Error;
 use std::io::{Cursor, Read, Write};
 use std::sync::Arc;
 
-use flate2::Compression;
+use crate::db::mixin::flood_message::FloodMessage;
+use crate::db::mixin::MixinDatabase;
+use crate::sdk::blaze_message::{
+    BlazeMessage, BlazeMessageData, ACKNOWLEDGE_MESSAGE_RECEIPT, CREATE_CALL, CREATE_KRAKEN,
+    CREATE_MESSAGE, LIST_PENDING_MESSAGE,
+};
+use crate::sdk::{Client, Credential};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
-use futures::{future, pin_mut, SinkExt, StreamExt};
+use flate2::Compression;
 use futures::future::err;
 use futures::stream::SplitSink;
+use futures::{future, pin_mut, SinkExt, StreamExt};
 use futures_channel::mpsc::UnboundedSender;
 use log::{debug, error, info, warn};
 use reqwest::header::HeaderValue;
 use reqwest::Method;
 use serde_json::Value;
 use tokio::net::TcpStream;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, tungstenite, WebSocketStream};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
-use crate::db::mixin::flood_message::FloodMessage;
-use crate::db::mixin::MixinDatabase;
-use crate::sdk::{Client, Credential};
-use crate::sdk::blaze_message::{ACKNOWLEDGE_MESSAGE_RECEIPT, BlazeMessage, BlazeMessageData, CREATE_CALL, CREATE_KRAKEN, CREATE_MESSAGE, LIST_PENDING_MESSAGE};
+use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
 
 const WS_HOST: &str = "wss://blaze.mixin.one";
 
@@ -50,19 +53,38 @@ impl SendBlazeMessage for UnboundedSender<Message> {
 }
 
 impl Blaze {
-    pub fn new(database: Arc<MixinDatabase>, client: Client, credential: Credential, user_id: String) -> Self {
-        Blaze { database, client, credential, sender: None, user_id }
+    pub fn new(
+        database: Arc<MixinDatabase>,
+        client: Client,
+        credential: Credential,
+        user_id: String,
+    ) -> Self {
+        Blaze {
+            database,
+            client,
+            credential,
+            sender: None,
+            user_id,
+        }
     }
 
     pub async fn connect(&mut self) -> Result<(), Box<dyn Error>> {
-        let token = self.credential.sign_authentication_token(&Method::GET, &"/".to_string(), [])?;
+        let token =
+            self.credential
+                .sign_authentication_token(&Method::GET, &"/".to_string(), [])?;
 
         let (mut sender, receiver) = futures_channel::mpsc::unbounded();
         self.sender = Some(sender.clone());
 
         let mut request = WS_HOST.into_client_request()?;
-        request.headers_mut().insert("Sec-WebSocket-Protocol", HeaderValue::try_from("Mixin-Blaze-1")?);
-        request.headers_mut().insert("Authorization", HeaderValue::try_from(format!("Bearer {}", token))?);
+        request.headers_mut().insert(
+            "Sec-WebSocket-Protocol",
+            HeaderValue::try_from("Mixin-Blaze-1")?,
+        );
+        request.headers_mut().insert(
+            "Authorization",
+            HeaderValue::try_from(format!("Bearer {}", token))?,
+        );
 
         let (ws_stream, _) = connect_async(request).await?;
         let (sink, stream) = ws_stream.split();
@@ -88,7 +110,11 @@ impl Blaze {
             })
         };
         let offset = self.database.latest_flood_message_created_at().await?;
-        sender.send_blaze_message(BlazeMessage::new_list_pending_blaze(offset.map(|e| e.and_utc().to_rfc3339()))).await?;
+        sender
+            .send_blaze_message(BlazeMessage::new_list_pending_blaze(
+                offset.map(|e| e.and_utc().to_rfc3339()),
+            ))
+            .await?;
         pin_mut!(send, receive);
         future::select(send, receive).await;
         Ok(())
@@ -117,7 +143,8 @@ impl Blaze {
             warn!("todo: handle action ACKNOWLEDGE_MESSAGE_RECEIPT");
         } else if message.action == CREATE_MESSAGE {
             if data.user_id == self.user_id
-                && (data.category.is_none() || data.conversation_id.is_empty()) {
+                && (data.category.is_none() || data.conversation_id.is_empty())
+            {
                 warn!("todo: handle mark status");
             } else {
                 let data_str = serde_json::to_string(&data)?;
@@ -136,4 +163,3 @@ impl Blaze {
         Ok(())
     }
 }
-
