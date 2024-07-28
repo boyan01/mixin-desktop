@@ -1175,6 +1175,7 @@ dependencies = [
 name = "mixin-dekstop-core"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "base16ct",
  "base64ct",
@@ -1198,9 +1199,11 @@ dependencies = [
  "sha3",
  "simplelog",
  "sqlx",
+ "thiserror",
  "tokio",
  "tokio-tungstenite",
  "ulid",
+ "url",
  "uuid",
 ]
 

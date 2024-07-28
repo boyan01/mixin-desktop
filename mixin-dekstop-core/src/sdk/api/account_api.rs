@@ -1,7 +1,19 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
-use crate::sdk::client::Client;
 use crate::sdk::ApiError;
+use crate::sdk::client::ClientRef;
+
+pub struct AccountApi {
+    client: Arc<ClientRef>,
+}
+
+impl AccountApi {
+    pub fn new(client: Arc<ClientRef>) -> Self {
+        AccountApi { client }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct App {
@@ -59,25 +71,21 @@ pub struct Account {
     pub transfer_notification_threshold: i64,
 }
 
-impl Client {
+impl AccountApi {
     pub async fn get_me(&self) -> Result<Account, ApiError> {
-        let request = self.client.get(format!("{}/me", self.base_url)).build()?;
-        Ok(self.request(request).await?)
+        let account: Account = self.client.get("me").await?;
+        Ok(account)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::sdk::*;
-    use std::fs;
+    use crate::sdk::client::tests::new_test_client;
 
     #[tokio::test]
     async fn test() {
-        let file = fs::read("./keystore.json").expect("no keystore file");
-        let keystore: KeyStore = serde_json::from_slice(&file).expect("failed to read keystore");
-        let a = Client::new(Credential::KeyStore(keystore));
-        let result = a.get_me().await;
+        let client = new_test_client().await;
+        let result = client.account_api.get_me().await;
         println!("account: {:?}", result);
     }
 }
