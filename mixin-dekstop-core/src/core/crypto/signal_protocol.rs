@@ -6,39 +6,31 @@ use std::u8;
 
 use base64ct::Encoding;
 use libsignal_protocol::{
-    group_decrypt, message_decrypt, CiphertextMessage, CiphertextMessageType, Context,
-    IdentityKeyStore, PreKeyStore, ProtocolAddress, SenderKeyName, SenderKeyStore, SessionStore,
-    SignedPreKeyStore,
+    CiphertextMessage, CiphertextMessageType, Context, group_decrypt, message_decrypt,
+    ProtocolAddress, SenderKeyName, SignalProtocolError,
 };
 use rand_core::OsRng;
 use ulid::Ulid;
 
+use crate::core::crypto::signal_protocol_store::SignalProtocolStore;
 use crate::db::SignalDatabase;
 use crate::sdk::message_category;
 
 pub struct SignalProtocol {
-    session_store: Box<dyn SessionStore>,
-    identity_store: Box<dyn IdentityKeyStore>,
-    pre_key_store: Box<dyn PreKeyStore>,
-    signed_pre_key_store: Box<dyn SignedPreKeyStore>,
-    sender_key_store: Box<dyn SenderKeyStore>,
+    protocol_store: SignalProtocolStore,
 }
 
 impl SignalProtocol {
-    fn new(db: Arc<SignalDatabase>) -> Self {
+    pub fn new(db: Arc<SignalDatabase>, account_id: String) -> Self {
         SignalProtocol {
-            session_store: Box::new(db.clone()),
-            identity_store: Box::new(db.clone()),
-            pre_key_store: Box::new(db.clone()),
-            signed_pre_key_store: Box::new(db.clone()),
-            sender_key_store: Box::new(db.clone()),
+            protocol_store: SignalProtocolStore::new(db, account_id),
         }
     }
 }
 
-struct ComposeMessageData {
-    resend_message_id: Option<String>,
-    message: CiphertextMessage,
+pub struct ComposeMessageData {
+    pub resend_message_id: Option<String>,
+    pub message: CiphertextMessage,
 }
 
 const CIPHERTEXT_MESSAGE_TYPE_WHISPER: u8 = CiphertextMessageType::Whisper as u8;
@@ -48,11 +40,10 @@ const CIPHERTEXT_MESSAGE_TYPE_SENDER_KEY_DISTRIBUTION: u8 =
     CiphertextMessageType::SenderKeyDistribution as u8;
 
 impl SignalProtocol {
-    pub fn decode_message_data(
-        &self,
-        encoded: &String,
-    ) -> Result<ComposeMessageData, Box<dyn Error>> {
-        if encoded.is_empty() {}
+    pub fn decode_message_data(&self, encoded: &str) -> Result<ComposeMessageData, Box<dyn Error>> {
+        if encoded.is_empty() {
+            return Err(SignalProtocolError::InvalidArgument("Empty message".into()).into());
+        }
         let cipher_text = base64ct::Base64::decode_vec(&encoded)?;
         let message_type = cipher_text[1] >> 4;
 
@@ -97,36 +88,36 @@ impl SignalProtocol {
 
     pub async fn decrypt(
         &self,
-        group_id: String,
-        sender_id: String,
-        data: ComposeMessageData,
-        category: String,
+        group_id: &str,
+        sender_id: &str,
+        data: &ComposeMessageData,
+        category: &str,
         session_id: Option<&str>,
     ) -> Result<Vec<u8>, Box<dyn Error>> {
-        let address = ProtocolAddress::new(sender_id, SignalProtocol::device_id(session_id)?);
+        let address = ProtocolAddress::new(sender_id.to_string(), SignalProtocol::device_id(session_id)?);
 
         let context: Context = None;
 
-        let mut session = *self.session_store;
+        let mut store = self.protocol_store.clone();
         if category == message_category::SIGNAL_KEY {
             let rng = &mut OsRng;
             let message = message_decrypt(
                 &data.message,
                 &address,
-                &mut session,
-                &self.identity_store,
-                &self.pre_key_store,
-                &self.signed_pre_key_store,
+                &mut store.session_store,
+                &mut store.identity_store,
+                &mut store.pre_key_store,
+                &mut store.signed_pre_key_store,
                 rng,
                 context,
             )
             .await?;
             return Ok(message);
         } else {
-            let sender_key_id = SenderKeyName::new(group_id, address)?;
+            let sender_key_id = SenderKeyName::new(group_id.to_string(), address)?;
             let message = group_decrypt(
                 data.message.serialize(),
-                &self.sender_key_store,
+                &mut store.sender_key_store,
                 &sender_key_id,
                 context,
             )
@@ -143,7 +134,7 @@ mod tests {
     #[tokio::test]
     async fn test_signal_protocol() {
         let db = Arc::new(SignalDatabase::connect("".to_string()).await.unwrap());
-        let protocol = SignalProtocol::new(db);
-        protocol.decode_message_data("".to_string()).unwrap();
+        let protocol = SignalProtocol::new(db, "".to_string());
+        protocol.decode_message_data("").unwrap();
     }
 }

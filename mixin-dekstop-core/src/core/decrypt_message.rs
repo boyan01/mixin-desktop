@@ -1,24 +1,21 @@
-use std::any::Any;
 use std::default::Default;
-use std::future::Future;
-use std::ops::Add;
 use std::sync::Arc;
 
 use chrono::TimeDelta;
 use log::{debug, error};
+use serde::de::Unexpected::Str;
 
-use crate::core::crypto::signal_protocol::SignalProtocol;
 use crate::core::AnyError;
-use crate::db;
+use crate::core::crypto::signal_protocol::SignalProtocol;
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::Message;
 use crate::db::mixin::MixinDatabase;
-use crate::sdk::blaze_message::{BlazeMessageData, MessageStatus, ACKNOWLEDGE_MESSAGE_RECEIPTS};
+use crate::sdk::blaze_message::{ACKNOWLEDGE_MESSAGE_RECEIPTS, BlazeMessageData, MessageStatus};
 use crate::sdk::message_category;
 use crate::sdk::message_category::MessageCategory;
 
-struct ServiceDecryptMessage {
+pub struct ServiceDecryptMessage {
     database: Arc<MixinDatabase>,
     signal_protocol: Arc<SignalProtocol>,
     user_id: String,
@@ -152,8 +149,44 @@ impl ServiceDecryptMessage {
 }
 
 impl ServiceDecryptMessage {
+    async fn process_re_decrypted_message(
+        &self,
+        data: &BlazeMessageData,
+        message_id: &str,
+        plain_text: &str,
+    ) -> Result<(), AnyError> {
+        Ok(())
+    }
+
     async fn process_signal_message(&self, data: &BlazeMessageData) -> Result<(), AnyError> {
         let message_data = self.signal_protocol.decode_message_data(&data.data)?;
+        let plain_text = self
+            .signal_protocol
+            .decrypt(
+                &data.conversation_id,
+                &data.user_id,
+                &message_data,
+                &data.category.clone().ok_or("unknown message category")?,
+                Some(&data.session_id),
+            )
+            .await?;
+        if data.category != Some(message_category::SIGNAL_KEY.to_string()) {
+            let plain = std::str::from_utf8(&plain_text)?;
+            if let Some(resend_message_id) = message_data.resend_message_id {
+                self.process_re_decrypted_message(&data, &resend_message_id, plain)
+                    .await?;
+            } else {
+                self.process_decrypt_success(data, plain).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn process_decrypt_success(
+        &self,
+        data: &BlazeMessageData,
+        plain_text: &str,
+    ) -> Result<(), AnyError> {
         Ok(())
     }
 }

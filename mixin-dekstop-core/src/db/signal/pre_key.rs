@@ -8,14 +8,15 @@ pub struct PreKey {
     pub record: Vec<u8>,
 }
 
-pub struct PreKeyDao(Pool<Sqlite>);
+pub struct PreKeyDao(pub(crate) Pool<Sqlite>);
 
 impl PreKeyDao {
-    pub async fn find_pre_key(&self, prekey_id: u32) -> Result<Option<PreKey>, Error> {
-        let result = sqlx::query_as::<_, PreKey>("SELECT * FROM prekeys WHERE prekey_id = ?")
-            .bind(prekey_id)
-            .fetch_optional(&self.0)
-            .await?;
+    pub async fn find_pre_key(&self, prekey_id: u32) -> Result<Option<Vec<u8>>, Error> {
+        let result =
+            sqlx::query_scalar::<_, Vec<u8>>("SELECT record FROM prekeys WHERE prekey_id = ?")
+                .bind(prekey_id)
+                .fetch_optional(&self.0)
+                .await?;
         Ok(result)
     }
 

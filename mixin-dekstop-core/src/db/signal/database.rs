@@ -1,14 +1,19 @@
 use std::error::Error;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use sqlx::ConnectOptions;
 
-pub use crate::db::signal::pre_key::PreKeyDao;
-pub use crate::db::signal::signed_pre_key::SignedPreKeyDao;
+use crate::db::signal::identity::IdentityDao;
+use crate::db::signal::pre_key::PreKeyDao;
+use crate::db::signal::sender_key::SenderKeyDao;
+use crate::db::signal::session::SessionDao;
+use crate::db::signal::signed_pre_key::SignedPreKeyDao;
 
 pub struct SignalDatabase {
     pub pre_key_dao: PreKeyDao,
     pub signed_pre_key_dao: SignedPreKeyDao,
+    pub session_dao: SessionDao,
+    pub sender_key_dao: SenderKeyDao,
+    pub identity_dao: IdentityDao,
 }
 
 impl SignalDatabase {
@@ -25,6 +30,9 @@ impl SignalDatabase {
         Ok(SignalDatabase {
             pre_key_dao: PreKeyDao(pool.clone()),
             signed_pre_key_dao: SignedPreKeyDao(pool.clone()),
+            session_dao: SessionDao(pool.clone()),
+            sender_key_dao: SenderKeyDao(pool.clone()),
+            identity_dao: IdentityDao(pool),
         })
     }
 }
@@ -41,7 +49,7 @@ mod tests {
     #[tokio::test]
     async fn test_connect() -> Result<(), Box<dyn Error>> {
         let _ = TestLogger::init(LevelFilter::Info, Config::default());
-        let mut db = SignalDatabase::connect("".to_string()).await?;
+        let db = SignalDatabase::connect("".to_string()).await?;
         let mut csprng = OsRng;
         let key_pair = KeyPair::generate(&mut csprng);
         db.pre_key_dao
@@ -53,7 +61,7 @@ mod tests {
             .find_pre_key(0)
             .await
             .expect("get prekey error");
-        println!("{:?}", a.unwrap().record);
+        println!("{:x?}", a.unwrap());
         Ok(())
     }
 }
