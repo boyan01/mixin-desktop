@@ -48,7 +48,6 @@ struct User {
 
 impl UserApi {
     pub async fn get_user_by_id(&self, user_id: &str) -> Result<(), ApiError> {
-        let _ = TestLogger::init(LevelFilter::Trace, Config::default());
         let _ = self
             .client
             .get::<User>(&format!("users/{}", user_id))

@@ -135,7 +135,7 @@ pub mod tests {
     use super::*;
 
     pub async fn new_test_client() -> Client {
-        let _ = TestLogger::init(LevelFilter::Info, Config::default());
+        let _ = TestLogger::init(LevelFilter::Trace, Config::default());
         let file = fs::read("./keystore.json").await.expect("no keystore file");
         let keystore: KeyStore = serde_json::from_slice(&file).expect("failed to read keystore");
         Client::new(Credential::KeyStore(keystore))
