@@ -1,9 +1,8 @@
-use std::cell::RefCell;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use libsignal_protocol::{
-    error, Context, Direction, IdentityKey, IdentityKeyPair, IdentityKeyStore, PreKeyRecord,
+    Context, Direction, error, IdentityKey, IdentityKeyPair, IdentityKeyStore, PreKeyRecord,
     PreKeyStore, PrivateKey, ProtocolAddress, SenderKeyName, SenderKeyRecord, SenderKeyStore,
     SessionRecord, SessionStore, SignalProtocolError, SignedPreKeyRecord, SignedPreKeyStore,
 };
@@ -39,6 +38,24 @@ impl SignalProtocolStore {
 #[derive(Clone)]
 pub struct MixinSessionStore {
     db: Arc<SignalDatabase>,
+}
+
+impl MixinSessionStore {
+    pub async fn delete_session(&self, address: &ProtocolAddress) -> anyhow::Result<()> {
+        self.db
+            .session_dao
+            .delete_session(&address.name(), address.device_id())
+            .await
+            .map_err(anyhow::Error::from)
+    }
+
+    pub async fn contain_user_session(&self, recipient_id: &str) -> anyhow::Result<bool> {
+        self.db
+            .session_dao
+            .has_session(recipient_id)
+            .await
+            .map_err(anyhow::Error::from)
+    }
 }
 
 #[async_trait(?Send)]
@@ -78,6 +95,16 @@ impl SessionStore for MixinSessionStore {
 pub struct MixinIdentityKeyStore {
     db: Arc<SignalDatabase>,
     account_id: String,
+}
+
+impl MixinIdentityKeyStore {
+    pub async fn delete_identity(&self, address: &ProtocolAddress) -> anyhow::Result<()> {
+        self.db
+            .identity_dao
+            .delete_identity(address.name())
+            .await
+            .map_err(anyhow::Error::from)
+    }
 }
 
 #[async_trait(?Send)]
@@ -125,6 +152,7 @@ impl IdentityKeyStore for MixinIdentityKeyStore {
                         registration_id: None,
                         public_key: identity.serialize().to_vec(),
                         private_key: None,
+                        timestamp: chrono::Utc::now(),
                     };
                     self.db.identity_dao.save_identity(&identity).await?;
                     Ok(true)
@@ -139,6 +167,7 @@ impl IdentityKeyStore for MixinIdentityKeyStore {
                     registration_id: None,
                     public_key: identity.serialize().to_vec(),
                     private_key: None,
+                    timestamp: chrono::Utc::now(),
                 };
                 self.db.identity_dao.save_identity(&identity).await?;
                 Ok(true)
@@ -266,6 +295,17 @@ impl SignedPreKeyStore for MixinSignedPreKeyStore {
 #[derive(Clone)]
 pub struct MixinSenderKeyStore {
     db: Arc<SignalDatabase>,
+}
+
+impl MixinSenderKeyStore {
+    pub async fn exists_sender_key(&self, group_id: &str, sender_id: &str) -> anyhow::Result<bool> {
+        let result = self
+            .db
+            .sender_key_dao
+            .has_sender_key(group_id, sender_id, 1)
+            .await?;
+        Ok(result)
+    }
 }
 
 #[async_trait(?Send)]

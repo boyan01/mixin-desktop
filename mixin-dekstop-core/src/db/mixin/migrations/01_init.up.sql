@@ -167,8 +167,7 @@ CREATE TABLE IF NOT EXISTS messages
     quote_content    TEXT,
     thumb_url        TEXT,
     caption          TEXT,
-    PRIMARY KEY (message_id),
-    FOREIGN KEY (conversation_id) REFERENCES conversations (conversation_id) ON UPDATE NO ACTION ON DELETE CASCADE
+    PRIMARY KEY (message_id)
 );
 
 CREATE TABLE IF NOT EXISTS messages_history
@@ -295,10 +294,10 @@ CREATE TABLE IF NOT EXISTS users
     is_verified     BOOLEAN,
     created_at      TIMESTAMP,
     mute_until      TIMESTAMP,
-    has_pin         INTEGER,
+    has_pin         BOOLEAN,
     app_id          TEXT,
     biography       TEXT,
-    is_scam         INTEGER,
+    is_scam         BOOLEAN,
     code_url        TEXT,
     code_id         TEXT,
     is_deactivated  BOOLEAN,

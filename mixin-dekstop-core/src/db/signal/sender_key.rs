@@ -38,4 +38,20 @@ impl SenderKeyDao {
         .await?;
         Ok(())
     }
+
+    pub(crate) async fn has_sender_key(
+        &self,
+        group_id: &str,
+        sender_id: &str,
+        device_id: u32,
+    ) -> Result<bool, db::Error> {
+        let result = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM sender_keys WHERE group_id = ? AND sender_id = ?)",
+        )
+        .bind(group_id)
+        .bind(format!("{}:{}", sender_id, device_id))
+        .fetch_one(&self.0)
+        .await?;
+        Ok(result)
+    }
 }

@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use sqlx::FromRow;
 
 use crate::db;
@@ -8,6 +9,7 @@ pub struct Identity {
     pub registration_id: Option<u32>,
     pub public_key: Vec<u8>,
     pub private_key: Option<Vec<u8>>,
+    pub timestamp: DateTime<Utc>,
 }
 
 pub struct IdentityDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
@@ -33,12 +35,13 @@ impl IdentityDao {
 
     pub async fn save_identity(&self, identity: &Identity) -> Result<(), db::Error> {
         let _ = sqlx::query(
-            "INSERT OR REPLACE INTO identities (address, registration_id, public_key, private_key) VALUES (?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO identities (address, registration_id, public_key, private_key, timestamp) VALUES (?, ?, ?, ?, ?)",
         )
         .bind(&identity.address)
         .bind(identity.registration_id)
         .bind(&identity.public_key)
         .bind(&identity.private_key)
+        .bind(&identity.timestamp)
         .execute(&self.0)
         .await?;
         Ok(())

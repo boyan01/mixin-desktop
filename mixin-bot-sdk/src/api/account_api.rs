@@ -1,21 +1,22 @@
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
-
-use crate::sdk::ApiError;
-use crate::sdk::client::ClientRef;
+use crate::api::user_api::UserRelationship;
+use crate::client::ClientRef;
+use crate::ApiError;
 
 pub struct AccountApi {
     client: Arc<ClientRef>,
 }
 
 impl AccountApi {
-    pub fn new(client: Arc<ClientRef>) -> Self {
+    pub(crate) fn new(client: Arc<ClientRef>) -> Self {
         AccountApi { client }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct App {
     pub app_id: String,
     pub app_number: String,
@@ -32,10 +33,10 @@ pub struct App {
     pub redirect_uri: String,
     pub resource_patterns: Vec<String>,
     pub safe_created_at: String,
-    pub updated_at: String,
+    pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Account {
     pub user_id: String,
     pub app: Option<App>,
@@ -61,7 +62,8 @@ pub struct Account {
     pub phone: String,
     pub pin_token: String,
     pub pin_token_base64: String,
-    pub relationship: String,
+    #[serde(default)]
+    pub relationship: UserRelationship,
     pub salt_base64: String,
     pub session_id: String,
     pub spend_public_key: String,
@@ -80,7 +82,7 @@ impl AccountApi {
 
 #[cfg(test)]
 mod test {
-    use crate::sdk::client::tests::new_test_client;
+    use crate::client::tests::new_test_client;
 
     #[tokio::test]
     async fn test() {

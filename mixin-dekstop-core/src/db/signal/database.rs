@@ -1,8 +1,12 @@
 use std::error::Error;
 
+use anyhow::anyhow;
+use libsignal_protocol::{IdentityKeyPair, PrivateKey};
+use rand_core::OsRng;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
-use crate::db::signal::identity::IdentityDao;
+use crate::db;
+use crate::db::signal::identity::{Identity, IdentityDao};
 use crate::db::signal::pre_key::PreKeyDao;
 use crate::db::signal::sender_key::SenderKeyDao;
 use crate::db::signal::session::SessionDao;
@@ -35,11 +39,34 @@ impl SignalDatabase {
             identity_dao: IdentityDao(pool),
         })
     }
+
+    pub async fn init(
+        &self,
+        registration_id: u32,
+        private_key: Option<&[u8]>,
+    ) -> Result<(), db::Error> {
+        let key = if let Some(private_key) = private_key {
+            let private_key = PrivateKey::deserialize(private_key)
+                .map_err(|e| anyhow!("deserialize private key error: {}", e))?;
+            IdentityKeyPair::try_from(private_key).map_err(|e| anyhow!("key pair error: {}", e))?
+        } else {
+            IdentityKeyPair::generate(&mut OsRng)
+        };
+        self.identity_dao
+            .save_identity(&Identity {
+                address: "-1".to_string(),
+                registration_id: Some(registration_id),
+                public_key: key.public_key().serialize().to_vec(),
+                private_key: Some(key.private_key().serialize()),
+                timestamp: chrono::Utc::now(),
+            })
+            .await
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use libsignal_protocol::{KeyPair, PreKeyRecord, PreKeyStore};
+    use libsignal_protocol::{KeyPair, PreKeyRecord};
     use log::LevelFilter;
     use rand_core::OsRng;
     use simplelog::{Config, TestLogger};

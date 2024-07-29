@@ -1,0 +1,6 @@
+[workspace]
+resolver = "2"
+members = [
+    "mixin-bot-sdk",
+    "mixin-dekstop-core",
+]
