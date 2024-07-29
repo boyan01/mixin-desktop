@@ -53,8 +53,7 @@ impl Job {
             status: status.to_uppercase(),
             expire_at,
         };
-        let j_id =
-            unique_object_id(&vec![m.message_id.as_str(), m.status.as_str(), act]).to_string();
+        let j_id = unique_object_id(&[m.message_id.as_str(), m.status.as_str(), act]).to_string();
         Job {
             job_id: j_id,
             action: act.to_string(),

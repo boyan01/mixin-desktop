@@ -70,7 +70,7 @@ impl Credential {
                 let signature = pk.sign(message.as_bytes());
                 Ok([message, b64_encode(signature.as_ref())].join("."))
             }
-            Credential::None => Ok("".to_string()),
+            _ => Err("not implement".to_string()),
         }
     }
 }

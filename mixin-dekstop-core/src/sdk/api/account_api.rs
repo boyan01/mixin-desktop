@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+use crate::sdk::api::user_api::UserRelationship;
 use crate::sdk::ApiError;
 use crate::sdk::client::ClientRef;
 
@@ -61,7 +62,8 @@ pub struct Account {
     pub phone: String,
     pub pin_token: String,
     pub pin_token_base64: String,
-    pub relationship: String,
+    #[serde(default)]
+    pub relationship: UserRelationship,
     pub salt_base64: String,
     pub session_id: String,
     pub spend_public_key: String,

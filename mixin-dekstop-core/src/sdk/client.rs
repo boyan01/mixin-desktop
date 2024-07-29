@@ -48,9 +48,10 @@ pub(crate) struct ClientRef {
 const MIXIN_BASE_URL: &str = "https://api.mixin.one";
 
 #[derive(Serialize, Deserialize)]
-pub(crate) struct MixinResponse {
-    data: Value,
-    error: Option<sdk::Error>,
+#[serde(rename_all = "lowercase")]
+pub(crate) enum MixinResponse {
+    Data(Value),
+    Error(sdk::Error),
 }
 
 impl ClientRef {
@@ -73,33 +74,47 @@ impl ClientRef {
         self.request(request).await
     }
 
+    pub(crate) async fn post<T, B>(&self, path: &str, body: &B) -> Result<T, ApiError>
+    where
+        T: DeserializeOwned,
+        B: ?Sized + Serialize,
+    {
+        let request = self
+            .client
+            .request(Method::POST, format!("{}/{}", self.base_url, path))
+            .body(
+                serde_json::to_string(&body)
+                    .map_err(|e| anyhow!("can not serialize body: {}", e))?,
+            )
+            .build()?;
+        self.request(request).await
+    }
+
     pub(crate) async fn request<T>(&self, mut request: Request) -> Result<T, ApiError>
     where
         T: DeserializeOwned,
     {
         let path = match request.method() {
-            &Method::GET => format!(
-                "{}?{}",
-                request.url().path(),
-                request.url().query().or(Some("")).unwrap()
-            ),
+            &Method::GET => {
+                let path = request.url().path();
+                if let Some(query) = request.url().query() {
+                    format!("{}?{}", path, query)
+                } else {
+                    path.to_string()
+                }
+            }
             _ => request.url().path().to_string(),
         };
         let body: &[u8] = match request.method() {
             &Method::POST => request
                 .body()
-                .map(|body| -> &[u8] {
-                    match body.as_bytes() {
-                        None => &[],
-                        Some(bytes) => bytes,
-                    }
-                })
-                .unwrap_or(&[]),
+                .map(|body| body.as_bytes().unwrap_or_default())
+                .unwrap_or_default(),
             _ => &[],
         };
         let signature = self
             .credential
-            .sign_authentication_token(request.method(), &path.to_string(), &body)
+            .sign_authentication_token(request.method(), &path.to_string(), body)
             .map_err(|e| anyhow!("can not sign request: {}", e))?;
 
         let header = request.headers_mut();
@@ -117,10 +132,10 @@ impl ClientRef {
         debug!("resp: {}", String::from_utf8_lossy(&text));
 
         let result: MixinResponse = serde_json::from_slice(&text)?;
-        if result.error.is_some() {
-            return Err(ApiError::Server(result.error.unwrap()));
+        match result {
+            MixinResponse::Data(data) => Ok(serde_json::from_value(data)?),
+            MixinResponse::Error(err) => Err(ApiError::Server(err)),
         }
-        Ok(serde_json::from_value(result.data)?)
     }
 }
 
