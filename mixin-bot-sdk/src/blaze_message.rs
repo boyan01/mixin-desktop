@@ -4,27 +4,27 @@ use serde_json::{json, Value};
 
 use crate::Error;
 
-pub(crate) const ACKNOWLEDGE_MESSAGE_RECEIPT: &str = "ACKNOWLEDGE_MESSAGE_RECEIPT";
-pub(crate) const ACKNOWLEDGE_MESSAGE_RECEIPTS: &str = "ACKNOWLEDGE_MESSAGE_RECEIPTS";
-pub(crate) const DEVICE_TRANSFER: &str = "DEVICE_TRANSFER";
-pub(crate) const SENDING_MESSAGE: &str = "SENDING_MESSAGE";
-pub(crate) const RECALL_MESSAGE: &str = "RECALL_MESSAGE";
-pub(crate) const PIN_MESSAGE: &str = "PIN_MESSAGE";
-pub(crate) const RESEND_MESSAGES: &str = "RESEND_MESSAGES";
-pub(crate) const CREATE_MESSAGE: &str = "CREATE_MESSAGE";
-pub(crate) const CREATE_CALL: &str = "CREATE_CALL";
-pub(crate) const CREATE_KRAKEN: &str = "CREATE_KRAKEN";
-pub(crate) const LIST_PENDING_MESSAGE: &str = "LIST_PENDING_MESSAGES";
-pub(crate) const RESEND_KEY: &str = "RESEND_KEY";
-pub(crate) const NO_KEY: &str = "NO_KEY";
-pub(crate) const ERROR_ACTION: &str = "ERROR";
-pub(crate) const CONSUME_SESSION_SIGNAL_KEYS: &str = "CONSUME_SESSION_SIGNAL_KEYS";
-pub(crate) const CREATE_SIGNAL_KEY_MESSAGES: &str = "CREATE_SIGNAL_KEY_MESSAGES";
-pub(crate) const COUNT_SIGNAL_KEYS: &str = "COUNT_SIGNAL_KEYS";
-pub(crate) const SYNC_SIGNAL_KEYS: &str = "SYNC_SIGNAL_KEYS";
+pub const ACKNOWLEDGE_MESSAGE_RECEIPT: &str = "ACKNOWLEDGE_MESSAGE_RECEIPT";
+pub const ACKNOWLEDGE_MESSAGE_RECEIPTS: &str = "ACKNOWLEDGE_MESSAGE_RECEIPTS";
+pub const DEVICE_TRANSFER: &str = "DEVICE_TRANSFER";
+pub const SENDING_MESSAGE: &str = "SENDING_MESSAGE";
+pub const RECALL_MESSAGE: &str = "RECALL_MESSAGE";
+pub const PIN_MESSAGE: &str = "PIN_MESSAGE";
+pub const RESEND_MESSAGES: &str = "RESEND_MESSAGES";
+pub const CREATE_MESSAGE: &str = "CREATE_MESSAGE";
+pub const CREATE_CALL: &str = "CREATE_CALL";
+pub const CREATE_KRAKEN: &str = "CREATE_KRAKEN";
+pub const LIST_PENDING_MESSAGE: &str = "LIST_PENDING_MESSAGES";
+pub const RESEND_KEY: &str = "RESEND_KEY";
+pub const NO_KEY: &str = "NO_KEY";
+pub const ERROR_ACTION: &str = "ERROR";
+pub const CONSUME_SESSION_SIGNAL_KEYS: &str = "CONSUME_SESSION_SIGNAL_KEYS";
+pub const CREATE_SIGNAL_KEY_MESSAGES: &str = "CREATE_SIGNAL_KEY_MESSAGES";
+pub const COUNT_SIGNAL_KEYS: &str = "COUNT_SIGNAL_KEYS";
+pub const SYNC_SIGNAL_KEYS: &str = "SYNC_SIGNAL_KEYS";
 
 #[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct BlazeMessage {
+pub struct BlazeMessage {
     pub id: String,
     pub action: String,
     pub params: Option<Value>,
@@ -33,7 +33,7 @@ pub(crate) struct BlazeMessage {
 }
 
 impl BlazeMessage {
-    pub(crate) fn new_list_pending_blaze(offset: Option<String>) -> Self {
+    pub fn new_list_pending_blaze(offset: Option<String>) -> Self {
         BlazeMessage {
             id: uuid::Uuid::new_v4().to_string(),
             action: LIST_PENDING_MESSAGE.to_string(),
@@ -44,10 +44,13 @@ impl BlazeMessage {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialOrd, PartialEq)]
+#[derive(Serialize, Deserialize, PartialOrd, PartialEq, Debug, Eq, Default, Clone, Copy)]
 #[serde(rename_all = "UPPERCASE")]
+#[derive(sqlx::Type)]
+#[sqlx(rename_all = "UPPERCASE")]
 pub enum MessageStatus {
     Failed,
+    #[default]
     Unknown,
     Sending,
     Sent,
@@ -55,9 +58,9 @@ pub enum MessageStatus {
     Read,
 }
 
-impl Into<String> for MessageStatus {
-    fn into(self) -> String {
-        match self {
+impl From<MessageStatus> for &str {
+    fn from(value: MessageStatus) -> Self {
+        match value {
             MessageStatus::Failed => "FAILED",
             MessageStatus::Unknown => "UNKNOWN",
             MessageStatus::Sending => "SENDING",
@@ -65,18 +68,18 @@ impl Into<String> for MessageStatus {
             MessageStatus::Delivered => "DELIVERED",
             MessageStatus::Read => "READ",
         }
-            .to_string()
     }
 }
 
 #[derive(Serialize, Deserialize)]
-pub(crate) struct BlazeMessageData {
+pub struct BlazeMessageData {
     pub conversation_id: String,
     pub user_id: String,
     pub message_id: String,
-    pub category: Option<String>,
+    #[serde(default)]
+    pub category: String,
     pub data: String,
-    pub status: String,
+    pub status: MessageStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub source: String,

@@ -25,7 +25,7 @@ pub struct KeyStore {
 }
 
 impl Credential {
-    pub(crate) fn sign_authentication_token(
+    pub fn sign_authentication_token(
         &self,
         method: &Method,
         path: &String,

@@ -167,8 +167,7 @@ CREATE TABLE IF NOT EXISTS messages
     quote_content    TEXT,
     thumb_url        TEXT,
     caption          TEXT,
-    PRIMARY KEY (message_id),
-    FOREIGN KEY (conversation_id) REFERENCES conversations (conversation_id) ON UPDATE NO ACTION ON DELETE CASCADE
+    PRIMARY KEY (message_id)
 );
 
 CREATE TABLE IF NOT EXISTS messages_history

@@ -23,12 +23,12 @@ pub struct Client {
 impl Client {
     pub fn new(credential: Credential) -> Self {
         let inner = Arc::new(ClientRef::new(credential));
-        return Client {
+        Client {
             inner: inner.clone(),
             user_api: UserApi::new(inner.clone()),
             account_api: AccountApi::new(inner.clone()),
             provisioning_api: ProvisioningApi::new(inner.clone()),
-        };
+        }
     }
 
     pub async fn request<T>(&self, request: Request) -> Result<T, ApiError>
@@ -56,11 +56,11 @@ pub(crate) enum MixinResponse {
 
 impl ClientRef {
     pub fn new(credential: Credential) -> Self {
-        return ClientRef {
+        ClientRef {
             credential,
             base_url: MIXIN_BASE_URL.to_string(),
             client: reqwest::Client::new(),
-        };
+        }
     }
 
     pub(crate) async fn get<T>(&self, path: &str) -> Result<T, ApiError>

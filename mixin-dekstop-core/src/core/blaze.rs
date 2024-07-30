@@ -4,11 +4,11 @@ use std::sync::Arc;
 
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::MixinDatabase;
-use crate::sdk::blaze_message::{
+use sdk::blaze_message::{
     BlazeMessage, BlazeMessageData, ACKNOWLEDGE_MESSAGE_RECEIPT, CREATE_CALL, CREATE_KRAKEN,
     CREATE_MESSAGE, LIST_PENDING_MESSAGE,
 };
-use crate::sdk::{Client, Credential};
+use sdk::{Client, Credential};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -31,7 +31,7 @@ type StreamWriter = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Messag
 
 pub struct Blaze {
     database: Arc<MixinDatabase>,
-    client: Client,
+    client: Arc<Client>,
     credential: Credential,
     user_id: String,
     sender: Option<UnboundedSender<Message>>,
@@ -55,7 +55,7 @@ impl SendBlazeMessage for UnboundedSender<Message> {
 impl Blaze {
     pub fn new(
         database: Arc<MixinDatabase>,
-        client: Client,
+        client: Arc<Client>,
         credential: Credential,
         user_id: String,
     ) -> Self {
@@ -143,7 +143,7 @@ impl Blaze {
             warn!("todo: handle action ACKNOWLEDGE_MESSAGE_RECEIPT");
         } else if message.action == CREATE_MESSAGE {
             if data.user_id == self.user_id
-                && (data.category.is_none() || data.conversation_id.is_empty())
+                && (data.category.is_empty() || data.conversation_id.is_empty())
             {
                 warn!("todo: handle mark status");
             } else {

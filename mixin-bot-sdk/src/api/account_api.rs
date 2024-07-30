@@ -16,7 +16,7 @@ impl AccountApi {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct App {
     pub app_id: String,
     pub app_number: String,

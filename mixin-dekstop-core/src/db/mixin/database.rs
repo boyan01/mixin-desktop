@@ -1,13 +1,15 @@
 use std::error::Error;
 
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
+use crate::db::mixin::message::MessageDao;
 use crate::db::mixin::user::UserDao;
 
 pub struct MixinDatabase {
     pub(crate) pool: Pool<Sqlite>,
     pub user_dao: UserDao,
+    pub message_dao: MessageDao,
 }
 
 impl MixinDatabase {
@@ -15,16 +17,17 @@ impl MixinDatabase {
         let pool = SqlitePoolOptions::new()
             .connect_with(
                 SqliteConnectOptions::new()
-                    .filename("signal.db")
+                    .filename("mixin.db")
                     .create_if_missing(true),
             )
             .await?;
         let migrator = sqlx::migrate!("./src/db/mixin/migrations");
         migrator.run(&pool).await?;
-        return Ok(MixinDatabase {
+        Ok(MixinDatabase {
             pool: pool.clone(),
             user_dao: UserDao(pool.clone()),
-        });
+            message_dao: MessageDao(pool.clone()),
+        })
     }
 }
 

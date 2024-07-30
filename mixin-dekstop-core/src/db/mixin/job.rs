@@ -5,8 +5,8 @@ use uuid::Uuid;
 use crate::core::util::unique_object_id;
 use crate::db::mixin::MixinDatabase;
 use crate::db::Error;
-use crate::sdk::blaze_message::{CREATE_MESSAGE, PIN_MESSAGE, RECALL_MESSAGE};
-use crate::sdk::message::{BlazeAckMessage, RecallMessage};
+use sdk::blaze_message::{CREATE_MESSAGE, PIN_MESSAGE, RECALL_MESSAGE};
+use sdk::message::{BlazeAckMessage, RecallMessage};
 
 pub struct Job {
     pub job_id: String,
@@ -45,7 +45,7 @@ impl Job {
     pub fn create_ack_job(
         act: &str,
         message_id: &str,
-        status: String,
+        status: &str,
         expire_at: Option<i32>,
     ) -> Job {
         let m = BlazeAckMessage {

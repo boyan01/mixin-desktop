@@ -2,21 +2,25 @@ use std::default::Default;
 use std::sync::Arc;
 
 use chrono::TimeDelta;
-use log::{debug, error};
+use log::error;
+use serde_variant::to_variant_name;
 
-use crate::core::crypto::signal_protocol::SignalProtocol;
+use sdk::blaze_message::{ACKNOWLEDGE_MESSAGE_RECEIPTS, BlazeMessageData, MessageStatus};
+use sdk::message_category;
+use sdk::message_category::MessageCategory;
+
 use crate::core::AnyError;
+use crate::core::crypto::signal_protocol::SignalProtocol;
+use crate::core::model::AppService;
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::Message;
 use crate::db::mixin::MixinDatabase;
-use crate::sdk::blaze_message::{BlazeMessageData, MessageStatus, ACKNOWLEDGE_MESSAGE_RECEIPTS};
-use crate::sdk::message_category;
-use crate::sdk::message_category::MessageCategory;
 
 pub struct ServiceDecryptMessage {
     database: Arc<MixinDatabase>,
     signal_protocol: Arc<SignalProtocol>,
+    app_service: Arc<AppService>,
     user_id: String,
 }
 
@@ -25,11 +29,8 @@ impl ServiceDecryptMessage {
         loop {
             let messages = self.database.flood_messages().await?;
             for m in messages {
-                match self.process_message(&m).await {
-                    Err(err) => {
-                        error!("failed to process message: {:?}", err)
-                    }
-                    _ => {}
+                if let Err(err) = self.process_message(&m).await {
+                    error!("failed to process message: {:?}", err)
                 }
             }
         }
@@ -37,7 +38,7 @@ impl ServiceDecryptMessage {
 
     async fn process_message(&self, message: &FloodMessage) -> Result<(), AnyError> {
         let data: BlazeMessageData = serde_json::from_slice(message.data.as_bytes())?;
-        if !self.database.is_message_exits(&message.message_id)? {
+        if !self.database.message_dao.is_message_exits(&message.message_id).await? {
             // TODO update remote message status
             self.database
                 .delete_flood_message(&message.message_id)
@@ -60,13 +61,13 @@ impl ServiceDecryptMessage {
         &self,
         data: &BlazeMessageData,
     ) -> Result<MessageStatus, AnyError> {
-        if data.category == Some(message_category::SIGNAL_KEY.to_string()) {
+        if data.category == message_category::SIGNAL_KEY {
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
                 user_id: data.user_id.clone(),
                 content: Some(data.data.clone()),
-                category: data.category.clone().ok_or("unknown message category")?,
+                category: data.category.clone(),
                 status: MessageStatus::Unknown.into(),
                 ..Message::default()
             };
@@ -79,7 +80,7 @@ impl ServiceDecryptMessage {
         &self,
         data: &BlazeMessageData,
     ) -> Result<MessageStatus, AnyError> {
-        let category = data.category.clone().unwrap_or("".to_string());
+        let category = data.category.clone();
         let mut status = MessageStatus::Delivered;
         let handled = if category.is_illegal_message_category() {
             let message = Message {
@@ -165,11 +166,11 @@ impl ServiceDecryptMessage {
                 &data.conversation_id,
                 &data.user_id,
                 &message_data,
-                &data.category.clone().ok_or("unknown message category")?,
+                &data.category.clone(),
                 Some(&data.session_id),
             )
             .await?;
-        if data.category != Some(message_category::SIGNAL_KEY.to_string()) {
+        if data.category != message_category::SIGNAL_KEY {
             let plain = std::str::from_utf8(&plain_text)?;
             if let Some(resend_message_id) = message_data.resend_message_id {
                 self.process_re_decrypted_message(&data, &resend_message_id, plain)
@@ -186,6 +187,29 @@ impl ServiceDecryptMessage {
         data: &BlazeMessageData,
         plain_text: &str,
     ) -> Result<(), AnyError> {
+        self.app_service.conversation.refresh_user(&[data.user_id.clone()], false).await?;
+        let quote_content = if let Some(quote_message_id) = data.quote_message_id.clone() {
+            let message = self.database.message_dao.find_quote_message_by_id(&quote_message_id).await?;
+            message.map(|m| serde_json::to_string(&m).unwrap_or_default())
+        } else {
+            None
+        };
+        if data.category.is_text() {
+            let message = Message {
+                message_id: data.message_id.clone(),
+                conversation_id: data.conversation_id.clone(),
+                user_id: data.user_id.clone(),
+                category: data.category.clone(),
+                content: Some(plain_text.to_string()),
+                status: data.status,
+                created_at: data.created_at.naive_utc(),
+                quote_message_id: data.quote_message_id.clone(),
+                quote_content,
+                ..Message::default()
+            };
+            // TODO(BIN): handle mention
+            self.insert_message(&message, data).await?
+        }
         Ok(())
     }
 }
@@ -230,7 +254,7 @@ impl ServiceDecryptMessage {
         message: &Message,
         data: &BlazeMessageData,
     ) -> Result<(), AnyError> {
-        self.database.insert_message(message)?;
+        self.database.message_dao.insert_message(message).await?;
         // TODO(BIN): insert fts
         let expire_in = data.expire_in.unwrap_or(0);
         if expire_in > 0 && message.user_id == self.user_id {

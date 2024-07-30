@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let file = fs::read("./keystore.json")?;
     let keystore: KeyStore = serde_json::from_slice(&file)?;
-    let client = sdk::Client::new(Credential::KeyStore(keystore.clone()));
+    let client = Arc::new(sdk::Client::new(Credential::KeyStore(keystore.clone())));
     // let result = a.get_me().await;
     let database = Arc::new(db::mixin::MixinDatabase::new("".to_string()).await?);
     let mut blaze = Blaze::new(

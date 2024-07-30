@@ -17,9 +17,10 @@ impl UserApi {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[derive(Default)]
+#[derive(sqlx::Type)]
+#[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum UserRelationship {
     Friend,
     Me,
@@ -28,7 +29,7 @@ pub enum UserRelationship {
     Blocked,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct User {
     pub user_id: String,
     pub identity_number: String,
@@ -37,16 +38,22 @@ pub struct User {
     pub biography: String,
     #[serde(default)]
     pub full_name: String,
-    pub avatar_url: Option<String>,
-    pub phone: Option<String>,
+    #[serde(default)]
+    pub avatar_url: String,
+    #[serde(default)]
+    pub phone: String,
     pub is_verified: bool,
-    pub created_at: Option<String>,
+    #[serde(default)]
+    pub created_at: DateTime<Utc>,
     pub mute_until: String,
-    pub has_pin: Option<bool>,
+    #[serde(default)]
+    pub has_pin: bool,
     pub app: Option<App>,
     pub is_scam: bool,
-    pub code_id: Option<String>,
-    pub code_url: Option<String>,
+    #[serde(default)]
+    pub code_id: String,
+    #[serde(default)]
+    pub code_url: String,
     pub is_deactivated: Option<bool>,
 }
 
@@ -80,7 +87,7 @@ impl UserApi {
         self.client.get(&format!("users/{user_id}")).await
     }
 
-    pub async fn get_users(&self, ids: &Vec<String>) -> Result<Vec<User>, ApiError> {
+    pub async fn get_users(&self, ids: &[String]) -> Result<Vec<User>, ApiError> {
         self.client.post("users/fetch", ids).await
     }
 

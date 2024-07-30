@@ -14,7 +14,7 @@ use ulid::Ulid;
 
 use crate::core::crypto::signal_protocol_store::SignalProtocolStore;
 use crate::db::SignalDatabase;
-use crate::sdk::message_category;
+use sdk::message_category;
 
 pub struct SignalProtocol {
     protocol_store: SignalProtocolStore,
