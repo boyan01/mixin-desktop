@@ -2,16 +2,16 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::sdk::api::user_api::UserRelationship;
-use crate::sdk::ApiError;
-use crate::sdk::client::ClientRef;
+use crate::api::user_api::UserRelationship;
+use crate::ApiError;
+use crate::client::ClientRef;
 
 pub struct AccountApi {
     client: Arc<ClientRef>,
 }
 
 impl AccountApi {
-    pub fn new(client: Arc<ClientRef>) -> Self {
+    pub(crate) fn new(client: Arc<ClientRef>) -> Self {
         AccountApi { client }
     }
 }
@@ -82,7 +82,7 @@ impl AccountApi {
 
 #[cfg(test)]
 mod test {
-    use crate::sdk::client::tests::new_test_client;
+    use crate::client::tests::new_test_client;
 
     #[tokio::test]
     async fn test() {

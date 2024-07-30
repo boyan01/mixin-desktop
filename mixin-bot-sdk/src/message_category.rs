@@ -1,9 +1,6 @@
-use std::cmp::PartialEq;
 use std::collections::HashSet;
-use std::convert::Into;
 
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
 
 pub const SIGNAL_KEY: &str = "SIGNAL_KEY";
 pub const SIGNAL_TEXT: &str = "SIGNAL_TEXT";

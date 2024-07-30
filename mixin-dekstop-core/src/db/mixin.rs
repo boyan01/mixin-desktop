@@ -6,3 +6,4 @@ pub mod expired_message;
 pub mod flood_message;
 pub mod job;
 pub mod message;
+mod user;

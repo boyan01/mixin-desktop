@@ -1,8 +1,8 @@
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::{db, sdk};
+use crate::Error;
 
 pub(crate) const ACKNOWLEDGE_MESSAGE_RECEIPT: &str = "ACKNOWLEDGE_MESSAGE_RECEIPT";
 pub(crate) const ACKNOWLEDGE_MESSAGE_RECEIPTS: &str = "ACKNOWLEDGE_MESSAGE_RECEIPTS";
@@ -29,7 +29,7 @@ pub(crate) struct BlazeMessage {
     pub action: String,
     pub params: Option<Value>,
     pub data: Option<Value>,
-    pub error: Option<sdk::Error>,
+    pub error: Option<Error>,
 }
 
 impl BlazeMessage {
@@ -65,7 +65,7 @@ impl Into<String> for MessageStatus {
             MessageStatus::Delivered => "DELIVERED",
             MessageStatus::Read => "READ",
         }
-        .to_string()
+            .to_string()
     }
 }
 

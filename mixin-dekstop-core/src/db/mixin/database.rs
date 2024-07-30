@@ -3,8 +3,11 @@ use std::error::Error;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
 
+use crate::db::mixin::user::UserDao;
+
 pub struct MixinDatabase {
     pub(crate) pool: Pool<Sqlite>,
+    pub user_dao: UserDao,
 }
 
 impl MixinDatabase {
@@ -17,7 +20,11 @@ impl MixinDatabase {
             )
             .await?;
         let migrator = sqlx::migrate!("./src/db/mixin/migrations");
-        return Ok(MixinDatabase { pool });
+        migrator.run(&pool).await?;
+        return Ok(MixinDatabase {
+            pool: pool.clone(),
+            user_dao: UserDao(pool.clone()),
+        });
     }
 }
 
