@@ -4,6 +4,12 @@ use sdk::BlazeMessageData;
 
 pub struct MessageSender {}
 
+impl MessageSender {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 pub enum ProcessSignalKeyAction {
     AddParticipant,
     RemoveParticipant,

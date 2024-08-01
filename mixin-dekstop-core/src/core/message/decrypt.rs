@@ -4,19 +4,19 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use base64ct::{Base64, Encoding};
 use chrono::TimeDelta;
-use log::error;
+use log::{debug, error, info};
 use uuid::Uuid;
 
-use sdk::{
-    BlazeAckMessage, CircleConversation, message_category, PinMessagePayload, SafeSnapshotShot,
-    StickerMessage, SYSTEM_USER, SystemCircleAction,
-};
 use sdk::blaze_message::{
-    ACKNOWLEDGE_MESSAGE_RECEIPTS, BlazeMessageData, message_action, MessageStatus, PlainJsonMessage,
-    RESEND_KEY, RESEND_MESSAGES, SnapshotMessage,
+    message_action, BlazeMessageData, MessageStatus, PlainJsonMessage, SnapshotMessage,
     SystemCircleMessage, SystemConversationMessage, SystemUserMessage,
+    ACKNOWLEDGE_MESSAGE_RECEIPTS, RESEND_KEY, RESEND_MESSAGES,
 };
 use sdk::message_category::MessageCategory;
+use sdk::{
+    message_category, BlazeAckMessage, CircleConversation, PinMessagePayload, SafeSnapshotShot,
+    StickerMessage, SystemCircleAction, SYSTEM_USER,
+};
 
 use crate::core::crypto::signal_protocol::SignalProtocol;
 use crate::core::message::sender::{MessageSender, ProcessSignalKeyAction};
@@ -26,9 +26,10 @@ use crate::db::mixin::conversation::ConversationStatus;
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::{MediaStatus, Message};
-use crate::db::mixin::MixinDatabase;
 use crate::db::mixin::participant::Participant;
 use crate::db::mixin::pin_message::{PinMessage, PinMessageMinimal};
+use crate::db::mixin::MixinDatabase;
+use crate::db::SignalDatabase;
 
 pub struct ServiceDecryptMessage {
     database: Arc<MixinDatabase>,
@@ -40,20 +41,48 @@ pub struct ServiceDecryptMessage {
 }
 
 impl ServiceDecryptMessage {
-    pub async fn start(&self) -> Result<()> {
+    pub fn new(
+        database: Arc<MixinDatabase>,
+        signal_database: Arc<SignalDatabase>,
+        app_service: Arc<AppService>,
+        sender: Arc<MessageSender>,
+        user_id: String,
+        identity_number: String,
+    ) -> Self {
+        Self {
+            database,
+            signal_protocol: Arc::new(SignalProtocol::new(signal_database, user_id.clone())),
+            app_service,
+            sender,
+            user_id,
+            identity_number,
+        }
+    }
+
+    pub async fn start(&self) {
         loop {
-            let messages = self.database.flood_messages().await?;
+            let messages = self.database.flood_message_dao.flood_messages().await;
+            if let Err(err) = messages {
+                error!("failed to get messages: {:?}", err);
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                continue;
+            }
+
+            let messages = messages.unwrap();
+            info!("flood message count: {}", messages.len());
             for m in messages {
                 if let Err(err) = self.process_message(&m).await {
                     error!("failed to process message: {:?}", err)
                 }
             }
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
     }
 
     async fn process_message(&self, message: &FloodMessage) -> Result<()> {
         let data: BlazeMessageData = serde_json::from_slice(message.data.as_bytes())?;
-        if !self
+        info!("process message: {} {}", data.message_id, data.category);
+        if self
             .database
             .message_dao
             .is_message_exits(&message.message_id)
@@ -61,6 +90,7 @@ impl ServiceDecryptMessage {
         {
             // TODO update remote message status
             self.database
+                .flood_message_dao
                 .delete_flood_message(&message.message_id)
                 .await?;
             return Ok(());
@@ -73,6 +103,8 @@ impl ServiceDecryptMessage {
             }
             Ok(status) => status,
         };
+
+        info!("message status: {:?}", status);
 
         Ok(())
     }
@@ -682,8 +714,7 @@ impl ServiceDecryptMessage {
                 .await?;
         } else if message.action == message_action::UPDATE {
             if !message.participant_id.is_empty() {
-                &self
-                    .app_service
+                self.app_service
                     .conversation
                     .refresh_user(&[message.participant_id.clone()], true)
                     .await?;
@@ -899,6 +930,10 @@ impl ServiceDecryptMessage {
     }
 
     async fn insert_message(&self, message: &Message, data: &BlazeMessageData) -> Result<()> {
+        info!(
+            "insert message: {:?} {:?}",
+            message.message_id, message.content
+        );
         self.database.message_dao.insert_message(message).await?;
         // TODO(BIN): insert fts
         let expire_in = data.expire_in.unwrap_or(0);

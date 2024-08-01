@@ -25,7 +25,7 @@ pub const SYNC_SIGNAL_KEYS: &str = "SYNC_SIGNAL_KEYS";
 
 pub const SYSTEM_USER: &str = "00000000-0000-0000-0000-000000000000";
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BlazeMessage {
     pub id: String,
     pub action: String,

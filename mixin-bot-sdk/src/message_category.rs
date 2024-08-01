@@ -185,11 +185,11 @@ impl MessageCategory for String {
     }
 
     fn is_app_card(&self) -> bool {
-        self == "appCard"
+        self == APP_CARD
     }
 
     fn is_app_button_group(&self) -> bool {
-        self == "appButtonGroup"
+        self == APP_BUTTON_GROUP
     }
 
     fn is_media(&self) -> bool {
@@ -331,8 +331,8 @@ impl MessageCategory for String {
             || self.is_sticker()
             || self.is_contact()
             || self.is_transcript()
-            || self == "appCard"
-            || self == "appButtonGroup"
+            || self == APP_CARD
+            || self == APP_BUTTON_GROUP
     }
 }
 

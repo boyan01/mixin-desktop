@@ -7,9 +7,9 @@ use sdk::Client;
 
 use crate::db::MixinDatabase;
 
-mod circle;
-mod conversation;
-mod message;
+pub mod circle;
+pub mod conversation;
+pub mod message;
 
 pub struct AppService {
     pub conversation: ConversationService,
