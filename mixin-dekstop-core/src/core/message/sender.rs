@@ -20,7 +20,7 @@ impl MessageSender {
         todo!()
     }
 
-    pub async fn refresh_session(&self, conversation_id: &str, user_ids: &[&str]) -> Result<()> {
+    pub async fn refresh_session(&self, conversation_id: &str, user_ids: &[String]) -> Result<()> {
         todo!()
     }
 }

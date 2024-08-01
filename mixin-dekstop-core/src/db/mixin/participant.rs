@@ -68,4 +68,21 @@ impl ParticipantDao {
         .await?;
         Ok(())
     }
+
+    pub async fn update_participant_role(
+        &self,
+        cid: &str,
+        pid: &str,
+        role: &Option<String>,
+    ) -> Result<(), Error> {
+        let _ = sqlx::query(
+            "UPDATE participants SET role = ? WHERE conversation_id = ? AND user_id = ?",
+        )
+        .bind(role)
+        .bind(cid)
+        .bind(pid)
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
 }

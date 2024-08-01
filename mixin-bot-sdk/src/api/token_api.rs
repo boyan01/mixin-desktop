@@ -1,6 +1,7 @@
 use crate::client::ClientRef;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use chrono::{DateTime, Utc};
 
 pub struct TokenApi {
     client: Arc<ClientRef>,
@@ -22,7 +23,7 @@ pub struct SafeSnapshotShot {
     pub opponent_id: String,
     pub memo: String,
     pub transaction_hash: String,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
     pub trace_id: Option<String>,
     pub confirmations: Option<i32>,
     pub opening_balance: Option<String>,

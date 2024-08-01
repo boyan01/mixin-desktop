@@ -63,4 +63,41 @@ pub struct LocationMessage {
     pub venue_type: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AppButton {
+    pub label: String,
+    pub color: String,
+    pub action: String,
+}
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AppCard {
+    pub app_id: String,
+    #[serde(default)]
+    pub icon_url: String,
+    #[serde(default)]
+    pub cover_url: String,
+    pub title: String,
+    pub description: String,
+    #[serde(default)]
+    pub action: String,
+    #[serde(default)]
+    pub actions: Vec<AppButton>,
+
+    #[serde(default)]
+    pub updated_at: DateTime<Utc>,
+
+    #[serde(default)]
+    pub shareable: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(
+    tag = "action",
+    content = "message_ids",
+    rename_all = "SCREAMING_SNAKE_CASE"
+)]
+pub enum PinMessagePayload {
+    Pin(Vec<String>),
+    Unpin(Vec<String>),
+}

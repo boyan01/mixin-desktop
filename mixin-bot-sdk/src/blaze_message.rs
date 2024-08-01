@@ -137,7 +137,7 @@ pub struct SystemConversationMessage {
     pub participant_id: String,
     pub user_id: Option<String>,
     pub role: Option<String>,
-    pub expire_in: Option<i32>,
+    pub expire_in: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -146,7 +146,7 @@ pub struct SystemUserMessage {
     pub user_id: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SystemCircleAction {
     Create,

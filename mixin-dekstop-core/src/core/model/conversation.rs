@@ -12,6 +12,7 @@ use crate::db::mixin::participant_session::ParticipantSession;
 use crate::db::mixin::user::User;
 use crate::db::MixinDatabase;
 
+#[derive(Clone)]
 pub struct ConversationService {
     db: Arc<MixinDatabase>,
     client: Arc<Client>,

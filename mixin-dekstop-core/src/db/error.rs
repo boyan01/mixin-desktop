@@ -1,20 +1,7 @@
-use std::fmt::{Display, Formatter};
-
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
-    DbError(sqlx::Error),
+    #[error("db error: {0}")]
+    DbError(#[from] sqlx::Error),
+    #[error("unknown error: {0:?}")]
+    Other(#[from] anyhow::Error),
 }
-
-impl From<sqlx::Error> for Error {
-    fn from(value: sqlx::Error) -> Error {
-        Error::DbError(value)
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "db error")
-    }
-}
-
-impl std::error::Error for Error {}

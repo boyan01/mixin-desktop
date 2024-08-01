@@ -5,23 +5,30 @@ use anyhow::{anyhow, Result};
 use base64ct::{Base64, Encoding};
 use chrono::TimeDelta;
 use log::error;
+use uuid::Uuid;
 
+use sdk::{
+    BlazeAckMessage, CircleConversation, message_category, PinMessagePayload, SafeSnapshotShot,
+    StickerMessage, SYSTEM_USER, SystemCircleAction,
+};
 use sdk::blaze_message::{
-    message_action, BlazeMessageData, MessageStatus, PlainJsonMessage, SnapshotMessage,
+    ACKNOWLEDGE_MESSAGE_RECEIPTS, BlazeMessageData, message_action, MessageStatus, PlainJsonMessage,
+    RESEND_KEY, RESEND_MESSAGES, SnapshotMessage,
     SystemCircleMessage, SystemConversationMessage, SystemUserMessage,
-    ACKNOWLEDGE_MESSAGE_RECEIPTS, RESEND_KEY, RESEND_MESSAGES,
 };
 use sdk::message_category::MessageCategory;
-use sdk::{message_category, BlazeAckMessage, SafeSnapshotShot, StickerMessage, SYSTEM_USER};
 
 use crate::core::crypto::signal_protocol::SignalProtocol;
 use crate::core::message::sender::{MessageSender, ProcessSignalKeyAction};
 use crate::core::model::{AppService, AttachmentExtra};
+use crate::core::util::generate_conversation_id;
+use crate::db::mixin::conversation::ConversationStatus;
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::{MediaStatus, Message};
-use crate::db::mixin::participant::Participant;
 use crate::db::mixin::MixinDatabase;
+use crate::db::mixin::participant::Participant;
+use crate::db::mixin::pin_message::{PinMessage, PinMessageMinimal};
 
 pub struct ServiceDecryptMessage {
     database: Arc<MixinDatabase>,
@@ -78,7 +85,7 @@ impl ServiceDecryptMessage {
                 user_id: data.user_id.clone(),
                 content: Some(data.data.clone()),
                 category: data.category.clone(),
-                status: MessageStatus::Unknown.into(),
+                status: MessageStatus::Unknown,
                 ..Message::default()
             };
             self.insert_message(&message, data).await?
@@ -447,14 +454,111 @@ impl ServiceDecryptMessage {
     }
 
     async fn process_grouped_button(&self, data: &BlazeMessageData) -> Result<()> {
+        let content = decode(&data.data)?;
+        let message = Message {
+            message_id: data.message_id.clone(),
+            conversation_id: data.conversation_id.clone(),
+            user_id: data.user_id.clone(),
+            category: data.category.clone(),
+            content: Some(content),
+            status: data.status,
+            created_at: data.created_at.naive_utc(),
+            ..Message::default()
+        };
+        self.insert_message(&message, data).await?;
         Ok(())
     }
 
     async fn process_app_card(&self, data: &BlazeMessageData) -> Result<()> {
+        self.app_service
+            .conversation
+            .refresh_user(&[data.user_id.clone()], false)
+            .await?;
+        let content = decode(&data.data)?;
+
+        let app_card: sdk::AppCard = serde_json::from_str(&content)?;
+        let app = self
+            .database
+            .app_dao
+            .find_app_by_id(&app_card.app_id)
+            .await?;
+        if app.is_none() || app.is_some_and(|a| a.updated_at != app_card.updated_at) {
+            self.app_service
+                .conversation
+                .refresh_user(&[data.user_id.clone()], true)
+                .await?;
+        }
+
+        let message = Message {
+            message_id: data.message_id.clone(),
+            conversation_id: data.conversation_id.clone(),
+            user_id: data.user_id.clone(),
+            category: data.category.clone(),
+            content: Some(content),
+            status: data.status,
+            created_at: data.created_at.naive_utc(),
+            ..Message::default()
+        };
+        self.insert_message(&message, data).await?;
         Ok(())
     }
 
     async fn process_pin(&self, data: &BlazeMessageData) -> Result<()> {
+        let payload: sdk::PinMessagePayload = serde_json::from_str(&data.data)?;
+        match payload {
+            PinMessagePayload::Pin(ids) => {
+                for (i, mid) in ids.iter().enumerate() {
+                    let message = self.database.message_dao.find_message_by_id(mid).await?;
+                    let Some(message) = message else {
+                        continue;
+                    };
+
+                    let pin_message_minimal = PinMessageMinimal {
+                        category: message.category.clone(),
+                        message_id: message.message_id.clone(),
+                        content: if message.category == message_category::PLAIN_TEXT {
+                            message.content.clone()
+                        } else {
+                            None
+                        },
+                    };
+                    self.database
+                        .pin_message_dao
+                        .insert_pin_message(&PinMessage {
+                            message_id: message.message_id.clone(),
+                            conversation_id: message.conversation_id.clone(),
+                            created_at: data.created_at,
+                        })
+                        .await?;
+                    let message = Message {
+                        message_id: if i == 0 {
+                            data.message_id.clone()
+                        } else {
+                            Uuid::new_v4().to_string()
+                        },
+                        conversation_id: data.conversation_id.clone(),
+                        quote_message_id: Some(message.message_id),
+                        user_id: data.user_id.clone(),
+                        status: MessageStatus::Read,
+                        content: Some(serde_json::to_string(&pin_message_minimal)?),
+                        created_at: data.created_at.naive_utc(),
+                        category: message_category::MESSAGE_PIN.to_string(),
+                        ..Message::default()
+                    };
+                    self.insert_message(&message, data).await?;
+                }
+            }
+            PinMessagePayload::Unpin(message_ids) => {
+                self.database
+                    .pin_message_dao
+                    .delete_pin_message(&message_ids)
+                    .await?;
+            }
+        }
+        self.database
+            .message_history_dao
+            .insert(&data.message_id)
+            .await?;
         Ok(())
     }
 
@@ -463,17 +567,21 @@ impl ServiceDecryptMessage {
     }
 }
 
+fn decode(data: &str) -> Result<String> {
+    let decoded = Base64::decode_vec(data)?;
+    Ok(String::from_utf8_lossy(&decoded).to_string())
+}
+
 impl ServiceDecryptMessage {
     async fn process_system_message(&self, data: &BlazeMessageData) -> Result<()> {
-        let decoded = Base64::decode_vec(&data.data)?;
-        let content = String::from_utf8_lossy(&decoded);
+        let content = decode(&data.data)?;
         if data.category == message_category::SYSTEM_CONVERSATION {
             let message: SystemConversationMessage = serde_json::from_str(&content)?;
             self.process_system_conversation_message(data, message)
                 .await?
         } else if data.category == message_category::SYSTEM_USER {
             let message: SystemUserMessage = serde_json::from_str(&content)?;
-            self.process_system_user_message(data, message).await?
+            self.process_system_user_message(message).await?
         } else if data.category == message_category::SYSTEM_CIRCLE {
             let message: SystemCircleMessage = serde_json::from_str(&content)?;
             self.process_system_circle_message(data, message).await?
@@ -541,28 +649,96 @@ impl ServiceDecryptMessage {
                     .await?;
                 self.app_service
                     .conversation
-                    .refresh_user(&[message.participant_id], false)
+                    .refresh_user(&[message.participant_id.clone()], false)
                     .await?;
             } else {
-                let uids: &[&str] = &[&message.participant_id];
+                let user_ids = &[message.participant_id.clone()];
                 self.sender
-                    .refresh_session(&data.conversation_id, uids)
+                    .refresh_session(&data.conversation_id, user_ids)
                     .await?;
                 self.app_service
                     .conversation
-                    .refresh_user(uids, false)
+                    .refresh_user(user_ids, false)
                     .await?;
             }
+        } else if message.action == message_action::REMOVE || message.action == message_action::EXIT
+        {
+            if message.participant_id == self.user_id {
+                self.database
+                    .conversation_dao
+                    .update_status(&data.conversation_id, ConversationStatus::QUIT)
+                    .await?;
+            }
+            self.app_service
+                .conversation
+                .refresh_user(&[message.participant_id.clone()], false)
+                .await?;
+            self.sender
+                .send_process_signal_key(
+                    &data,
+                    ProcessSignalKeyAction::RemoveParticipant,
+                    Some(&message.participant_id),
+                )
+                .await?;
+        } else if message.action == message_action::UPDATE {
+            if !message.participant_id.is_empty() {
+                &self
+                    .app_service
+                    .conversation
+                    .refresh_user(&[message.participant_id.clone()], true)
+                    .await?;
+            } else {
+                self.app_service
+                    .conversation
+                    .refresh_conversation(&data.conversation_id)
+                    .await?;
+            }
+        } else if message.action == message_action::ROLE {
+            self.database
+                .participant_dao
+                .update_participant_role(
+                    &data.conversation_id,
+                    &message.participant_id,
+                    &message.role,
+                )
+                .await?;
+            if message.participant_id != self.user_id || message.role.is_none() {
+                return Ok(());
+            }
+        } else if message.action == message_action::EXPIRE {
+            self.database
+                .conversation_dao
+                .update_expire_in(&data.conversation_id, message.expire_in.unwrap_or_default())
+                .await?;
         }
 
+        let m = Message {
+            message_id: data.message_id.clone(),
+            user_id: data.user_id.clone(),
+            conversation_id: data.conversation_id.clone(),
+            category: data.category.clone(),
+            content: if message.action == message_action::EXPIRE {
+                Some(message.expire_in.unwrap_or_default().to_string())
+            } else {
+                Some("".to_string())
+            },
+            created_at: data.created_at.naive_utc(),
+            status: data.status,
+            action: Some(message.action.clone()),
+            participant_id: Some(message.participant_id.clone()),
+            ..Message::default()
+        };
+        self.insert_message(&m, data).await?;
         Ok(())
     }
 
-    async fn process_system_user_message(
-        &self,
-        data: &BlazeMessageData,
-        message: SystemUserMessage,
-    ) -> Result<()> {
+    async fn process_system_user_message(&self, m: SystemUserMessage) -> Result<()> {
+        if m.action == message_action::UPDATE {
+            self.app_service
+                .conversation
+                .refresh_user(&[m.user_id.clone()], true)
+                .await?;
+        }
         Ok(())
     }
 
@@ -571,6 +747,66 @@ impl ServiceDecryptMessage {
         data: &BlazeMessageData,
         message: SystemCircleMessage,
     ) -> Result<()> {
+        if message.action == SystemCircleAction::Create
+            || message.action == SystemCircleAction::Update
+        {
+            self.app_service
+                .circle
+                .refresh_circle(&message.circle_id)
+                .await?;
+        } else if message.action == SystemCircleAction::Add {
+            self.app_service
+                .circle
+                .sync_circle(&message.circle_id)
+                .await?;
+            if let Some(user_id) = message.user_id.as_ref() {
+                self.app_service
+                    .conversation
+                    .refresh_user(&[user_id.to_string()], false)
+                    .await?;
+            }
+            let conversation_id = message.conversation_id.unwrap_or(
+                generate_conversation_id(
+                    &self.user_id,
+                    message
+                        .user_id
+                        .as_ref()
+                        .ok_or(anyhow!("system_circle_message: user id is empty"))?,
+                )
+                .to_string(),
+            );
+            self.database
+                .circle_conversation_dao
+                .insert(&[CircleConversation {
+                    conversation_id,
+                    circle_id: message.circle_id.clone(),
+                    user_id: message.user_id.clone(),
+                    created_at: data.created_at,
+                    pin_time: None,
+                }])
+                .await?;
+        } else if message.action == SystemCircleAction::Remove {
+            let conversation_id = message.conversation_id.unwrap_or(
+                generate_conversation_id(
+                    &self.user_id,
+                    message
+                        .user_id
+                        .as_ref()
+                        .ok_or(anyhow!("system_circle_message: user id is empty"))?,
+                )
+                .to_string(),
+            );
+            self.database
+                .circle_conversation_dao
+                .delete(&message.circle_id, &conversation_id)
+                .await?;
+        } else if message.action == SystemCircleAction::Delete {
+            self.database.circle_dao.delete(&message.circle_id).await?;
+            self.database
+                .circle_conversation_dao
+                .delete_by_circle(&message.circle_id)
+                .await?;
+        }
         Ok(())
     }
 
@@ -579,6 +815,24 @@ impl ServiceDecryptMessage {
         data: &BlazeMessageData,
         snapshot: SnapshotMessage,
     ) -> Result<()> {
+        self.database.snapshot_dao.insert(&snapshot).await?;
+        self.database
+            .job_dao
+            .insert_job(&Job::create_update_asset_job(&snapshot.asset_id))
+            .await?;
+
+        let message = Message {
+            message_id: data.message_id.clone(),
+            conversation_id: data.conversation_id.clone(),
+            user_id: data.user_id.clone(),
+            category: data.category.clone(),
+            content: Some("".to_string()),
+            snapshot_id: Some(snapshot.snapshot_id),
+            status: data.status,
+            created_at: data.created_at.naive_utc(),
+            ..Message::default()
+        };
+        self.insert_message(&message, data).await?;
         Ok(())
     }
 
@@ -587,6 +841,28 @@ impl ServiceDecryptMessage {
         data: &BlazeMessageData,
         snapshot: SafeSnapshotShot,
     ) -> Result<()> {
+        if !snapshot.transaction_hash.is_empty() {
+            self.database
+                .safe_snapshot_dao
+                .delete_pending_snapshot_by_hash(&snapshot.transaction_hash)
+                .await?;
+        }
+        self.database.safe_snapshot_dao.insert(&snapshot).await?;
+
+        let message = Message {
+            message_id: data.message_id.clone(),
+            conversation_id: data.conversation_id.clone(),
+            user_id: data.sender_id().clone(),
+            category: data.category.clone(),
+            content: Some("".to_string()),
+            snapshot_id: Some(snapshot.snapshot_id),
+            status: data.status,
+            created_at: data.created_at.naive_utc(),
+            action: Some(snapshot.type_field),
+            ..Message::default()
+        };
+        self.insert_message(&message, data).await?;
+
         Ok(())
     }
 
@@ -595,6 +871,24 @@ impl ServiceDecryptMessage {
         data: &BlazeMessageData,
         snapshot: SafeSnapshotShot,
     ) -> Result<()> {
+        self.database.safe_snapshot_dao.insert(&snapshot).await?;
+        let message = Message {
+            message_id: data.message_id.clone(),
+            conversation_id: data.conversation_id.clone(),
+            user_id: data.sender_id().clone(),
+            category: data.category.clone(),
+            content: snapshot.inscription_hash,
+            snapshot_id: Some(snapshot.snapshot_id),
+            status: data.status,
+            created_at: data.created_at.naive_utc(),
+            action: Some(snapshot.type_field),
+            ..Message::default()
+        };
+        self.insert_message(&message, data).await?;
+        self.database
+            .job_dao
+            .insert_job(&Job::create_sync_inscription_message_job(&data.message_id))
+            .await?;
         Ok(())
     }
 }

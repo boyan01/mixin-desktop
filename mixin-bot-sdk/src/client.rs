@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context};
-use reqwest::{Method, Request};
 use reqwest::header::HeaderValue;
-use serde::{Deserialize, Serialize};
+use reqwest::{Method, Request};
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{AccountApi, ApiError, ConversationApi, ProvisioningApi, TokenApi, UserApi};
 use crate::credential::Credential;
+use crate::{AccountApi, ApiError, CircleApi, ConversationApi, ProvisioningApi, TokenApi, UserApi};
 
 pub struct Client {
     inner: Arc<ClientRef>,
@@ -17,6 +17,7 @@ pub struct Client {
     pub provisioning_api: ProvisioningApi,
     pub token_api: TokenApi,
     pub conversation_api: ConversationApi,
+    pub circle_api: CircleApi,
 }
 
 impl Client {
@@ -29,6 +30,9 @@ impl Client {
             provisioning_api: ProvisioningApi::new(inner.clone()),
             token_api: TokenApi::new(inner.clone()),
             conversation_api: ConversationApi::new(inner.clone()),
+            circle_api: CircleApi {
+                client: inner.clone(),
+            },
         }
     }
 

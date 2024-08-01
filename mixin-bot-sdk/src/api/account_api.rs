@@ -1,5 +1,5 @@
 use std::sync::Arc;
-
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::api::user_api::UserRelationship;
@@ -33,7 +33,7 @@ pub struct App {
     pub redirect_uri: String,
     pub resource_patterns: Vec<String>,
     pub safe_created_at: String,
-    pub updated_at: String,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

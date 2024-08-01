@@ -18,6 +18,12 @@ pub fn unique_object_id<T: AsRef<str>>(args: &[T]) -> uuid::Uuid {
     uuid::Builder::from_bytes(bytes).into_uuid()
 }
 
+pub fn generate_conversation_id(sender_id: &str, recipient_id: &str) -> uuid::Uuid {
+    let mut args = vec![sender_id, recipient_id];
+    args.sort();
+    unique_object_id(&args)
+}
+
 #[cfg(test)]
 mod test {
     use crate::core::util::unique_object_id;

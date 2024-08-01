@@ -1,12 +1,13 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
+
 use sdk::blaze_message::MessageStatus;
 
 use crate::db::Error;
 
 pub struct MessageDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
-#[derive(Default)]
+#[derive(Default, sqlx::FromRow)]
 pub struct Message {
     pub message_id: String,
     pub conversation_id: String,
@@ -41,9 +42,7 @@ pub struct Message {
     pub caption: Option<String>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Default)]
-#[derive(sqlx::Type)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, sqlx::Type, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 #[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MediaStatus {
@@ -55,9 +54,7 @@ pub enum MediaStatus {
     Read,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[derive(Serialize, Deserialize)]
-#[derive(sqlx::FromRow)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct QuoteMessage {
     pub message_id: String,
     pub conversation_id: String,
@@ -124,14 +121,37 @@ FROM messages message
 "#;
 
 impl MessageDao {
-    pub async fn find_quote_message_by_id(&self, message_id: &String) -> Result<Option<QuoteMessage>, Error> {
-        let query_str = format!("{} WHERE message.message_id = ?", QUOTE_MESSAGE_QUERY_PREFIX);
-        let result = sqlx::query_as::<_, QuoteMessage>(&query_str).bind(message_id).fetch_optional(&self.0).await?;
+    pub async fn find_quote_message_by_id(
+        &self,
+        message_id: &String,
+    ) -> Result<Option<QuoteMessage>, Error> {
+        let query_str = format!(
+            "{} WHERE message.message_id = ?",
+            QUOTE_MESSAGE_QUERY_PREFIX
+        );
+        let result = sqlx::query_as::<_, QuoteMessage>(&query_str)
+            .bind(message_id)
+            .fetch_optional(&self.0)
+            .await?;
+        Ok(result)
+    }
+
+    pub async fn find_message_by_id(&self, message_id: &String) -> Result<Option<Message>, Error> {
+        let result = sqlx::query_as::<_, Message>("SELECT * FROM messages WHERE message_id = ?")
+            .bind(message_id)
+            .fetch_optional(&self.0)
+            .await?;
         Ok(result)
     }
 
     pub async fn is_message_exits(&self, message_id: &String) -> Result<bool, Error> {
-        todo!()
+        let result = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM messages WHERE message_id = ?)",
+        )
+        .bind(message_id)
+        .fetch_one(&self.0)
+        .await?;
+        Ok(result)
     }
 
     pub async fn insert_message(&self, message: &Message) -> Result<(), Error> {
