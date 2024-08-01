@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use libsignal_protocol::{
-    error, Context, Direction, IdentityKey, IdentityKeyPair, IdentityKeyStore, PreKeyRecord,
+    Context, Direction, error, IdentityKey, IdentityKeyPair, IdentityKeyStore, PreKeyRecord,
     PreKeyStore, PrivateKey, ProtocolAddress, SenderKeyName, SenderKeyRecord, SenderKeyStore,
     SessionRecord, SessionStore, SignalProtocolError, SignedPreKeyRecord, SignedPreKeyStore,
 };
@@ -39,6 +39,16 @@ impl SignalProtocolStore {
 #[derive(Clone)]
 pub struct MixinSessionStore {
     db: Arc<SignalDatabase>,
+}
+
+impl MixinSessionStore {
+    pub async fn contain_user_session(&self, recipient_id: &str) -> anyhow::Result<bool> {
+        self.db
+            .session_dao
+            .has_session(recipient_id)
+            .await
+            .map_err(anyhow::Error::from)
+    }
 }
 
 #[async_trait(?Send)]
@@ -266,6 +276,17 @@ impl SignedPreKeyStore for MixinSignedPreKeyStore {
 #[derive(Clone)]
 pub struct MixinSenderKeyStore {
     db: Arc<SignalDatabase>,
+}
+
+impl MixinSenderKeyStore {
+    pub async fn exists_sender_key(&self, group_id: &str, sender_id: &str) -> anyhow::Result<bool> {
+        let result = self
+            .db
+            .sender_key_dao
+            .has_sender_key(group_id, sender_id, 1)
+            .await?;
+        Ok(result)
+    }
 }
 
 #[async_trait(?Send)]

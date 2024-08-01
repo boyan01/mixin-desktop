@@ -7,10 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::api::account_api::AccountApi;
-use crate::api::provisioning_api::ProvisioningApi;
-use crate::api::user_api::UserApi;
-use crate::ApiError;
+use crate::{AccountApi, ApiError, ConversationApi, ProvisioningApi, TokenApi, UserApi};
 use crate::credential::Credential;
 
 pub struct Client {
@@ -18,6 +15,8 @@ pub struct Client {
     pub user_api: UserApi,
     pub account_api: AccountApi,
     pub provisioning_api: ProvisioningApi,
+    pub token_api: TokenApi,
+    pub conversation_api: ConversationApi,
 }
 
 impl Client {
@@ -28,6 +27,8 @@ impl Client {
             user_api: UserApi::new(inner.clone()),
             account_api: AccountApi::new(inner.clone()),
             provisioning_api: ProvisioningApi::new(inner.clone()),
+            token_api: TokenApi::new(inner.clone()),
+            conversation_api: ConversationApi::new(inner.clone()),
         }
     }
 
@@ -47,7 +48,7 @@ pub(crate) struct ClientRef {
 
 const MIXIN_BASE_URL: &str = "https://api.mixin.one";
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum MixinResponse {
     Data(Value),
@@ -129,14 +130,15 @@ impl ClientRef {
 
         let text = resp.bytes().await?;
 
-        let result: MixinResponse = serde_json::from_slice(&text).with_context(|| {
-            format!(
-                "failed to parse response: {}",
-                String::from_utf8_lossy(&text)
-            )
-        })?;
+        let result: MixinResponse = serde_json::from_slice(&text)
+            .with_context(|| format!("unexpected response: {}", String::from_utf8_lossy(&text)))?;
         match result {
-            MixinResponse::Data(data) => Ok(serde_json::from_value(data)?),
+            MixinResponse::Data(data) => Ok(serde_json::from_value(data).with_context(|| {
+                format!(
+                    "failed to parse response: {}",
+                    String::from_utf8_lossy(&text)
+                )
+            })?),
             MixinResponse::Error(err) => Err(ApiError::Server(err)),
         }
     }
@@ -154,7 +156,9 @@ pub mod tests {
 
     pub async fn new_test_client() -> Client {
         let _ = TestLogger::init(LevelFilter::Trace, Config::default());
-        let file = fs::read("../keystore.json").await.expect("no keystore file");
+        let file = fs::read("../keystore.json")
+            .await
+            .expect("no keystore file");
         let keystore: KeyStore = serde_json::from_slice(&file).expect("failed to read keystore");
         Client::new(Credential::KeyStore(keystore))
     }

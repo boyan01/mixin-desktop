@@ -3,13 +3,27 @@ use std::error::Error;
 use sqlx::{Pool, Sqlite};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
+use crate::db::mixin::conversation::ConversationDao;
+use crate::db::mixin::job::JobDao;
 use crate::db::mixin::message::MessageDao;
+use crate::db::mixin::message_history::MessageHistoryDao;
+use crate::db::mixin::message_mention::MessageMentionDao;
+use crate::db::mixin::participant::ParticipantDao;
+use crate::db::mixin::participant_session::ParticipantSessionDao;
+use crate::db::mixin::sticker::StickerDao;
 use crate::db::mixin::user::UserDao;
 
 pub struct MixinDatabase {
     pub(crate) pool: Pool<Sqlite>,
     pub user_dao: UserDao,
     pub message_dao: MessageDao,
+    pub message_mention_dao: MessageMentionDao,
+    pub sticker_dao: StickerDao,
+    pub job_dao: JobDao,
+    pub message_history_dao: MessageHistoryDao,
+    pub conversation_dao: ConversationDao,
+    pub participant_dao: ParticipantDao,
+    pub participant_session_dao: ParticipantSessionDao,
 }
 
 impl MixinDatabase {
@@ -27,6 +41,13 @@ impl MixinDatabase {
             pool: pool.clone(),
             user_dao: UserDao(pool.clone()),
             message_dao: MessageDao(pool.clone()),
+            message_mention_dao: MessageMentionDao(pool.clone()),
+            sticker_dao: StickerDao(pool.clone()),
+            job_dao: JobDao(pool.clone()),
+            message_history_dao: MessageHistoryDao(pool.clone()),
+            conversation_dao: ConversationDao(pool.clone()),
+            participant_dao: ParticipantDao(pool.clone()),
+            participant_session_dao: ParticipantSessionDao(pool.clone()),
         })
     }
 }

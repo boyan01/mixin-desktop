@@ -15,15 +15,15 @@ pub struct Message {
     pub content: Option<String>,
     pub media_url: Option<String>,
     pub media_mime_type: Option<String>,
-    pub media_size: Option<i32>,
-    pub media_duration: Option<String>,
+    pub media_size: Option<i64>,
+    pub media_duration: String,
     pub media_width: Option<i32>,
     pub media_height: Option<i32>,
     pub media_hash: Option<String>,
     pub thumb_image: Option<String>,
-    pub media_key: Option<String>,
-    pub media_digest: Option<String>,
-    pub media_status: Option<String>,
+    pub media_key: Option<Vec<u8>>,
+    pub media_digest: Option<Vec<u8>>,
+    pub media_status: MediaStatus,
     pub status: MessageStatus,
     pub created_at: NaiveDateTime,
     pub action: Option<String>,
@@ -41,7 +41,7 @@ pub struct Message {
     pub caption: Option<String>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 #[derive(sqlx::Type)]
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -49,12 +49,13 @@ pub struct Message {
 pub enum MediaStatus {
     Pending,
     Done,
+    #[default]
     Canceled,
     Expired,
     Read,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[derive(Serialize, Deserialize)]
 #[derive(sqlx::FromRow)]
 pub struct QuoteMessage {

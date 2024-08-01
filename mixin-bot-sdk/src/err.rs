@@ -8,7 +8,7 @@ pub enum ApiError {
     Server(Error),
     #[error(transparent)]
     Request(#[from] reqwest::Error),
-    #[error("failed to serialize json: {0}")]
+    #[error("failed to serialize json: {0:?}")]
     JsonSerializeError(#[from] serde_json::Error),
     #[error(transparent)]
     Unknown(#[from] anyhow::Error),

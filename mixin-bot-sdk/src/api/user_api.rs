@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::api::account_api::App;
-use crate::ApiError;
 use crate::client::ClientRef;
+use crate::ApiError;
 
 pub struct UserApi {
     client: Arc<ClientRef>,
@@ -45,7 +45,8 @@ pub struct User {
     pub is_verified: bool,
     #[serde(default)]
     pub created_at: DateTime<Utc>,
-    pub mute_until: String,
+    #[serde(default)]
+    pub mute_until: DateTime<Utc>,
     #[serde(default)]
     pub has_pin: bool,
     pub app: Option<App>,
@@ -54,7 +55,8 @@ pub struct User {
     pub code_id: String,
     #[serde(default)]
     pub code_url: String,
-    pub is_deactivated: Option<bool>,
+    #[serde(default)]
+    pub is_deactivated: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -67,7 +69,7 @@ pub enum RelationshipAction {
     Unblock { user_id: String },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UserSession {
     pub user_id: String,
     pub session_id: String,
@@ -87,7 +89,10 @@ impl UserApi {
         self.client.get(&format!("users/{user_id}")).await
     }
 
-    pub async fn get_users(&self, ids: &[String]) -> Result<Vec<User>, ApiError> {
+    pub async fn get_users<T: AsRef<str> + Serialize>(
+        &self,
+        ids: &[T],
+    ) -> Result<Vec<User>, ApiError> {
         self.client.post("users/fetch", ids).await
     }
 
@@ -140,7 +145,7 @@ mod tests {
         let client = new_test_client().await;
         let result = client
             .user_api
-            .get_users(&vec!["cfb018b0-eaf7-40ec-9e07-28a5158f1269".to_string()])
+            .get_users(&["cfb018b0-eaf7-40ec-9e07-28a5158f1269"])
             .await;
         println!("result: {:?}", result);
     }

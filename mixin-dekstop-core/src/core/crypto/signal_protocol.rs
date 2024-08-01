@@ -4,20 +4,22 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::u8;
 
+use anyhow::Result;
 use base64ct::Encoding;
 use libsignal_protocol::{
-    CiphertextMessage, CiphertextMessageType, Context, group_decrypt, message_decrypt,
+    group_decrypt, message_decrypt, CiphertextMessage, CiphertextMessageType, Context,
     ProtocolAddress, SenderKeyName, SignalProtocolError,
 };
 use rand_core::OsRng;
 use ulid::Ulid;
 
-use crate::core::crypto::signal_protocol_store::SignalProtocolStore;
-use crate::db::SignalDatabase;
 use sdk::message_category;
 
+use crate::core::crypto::signal_protocol_store::SignalProtocolStore;
+use crate::db::SignalDatabase;
+
 pub struct SignalProtocol {
-    protocol_store: SignalProtocolStore,
+    pub protocol_store: SignalProtocolStore,
 }
 
 impl SignalProtocol {
@@ -94,7 +96,10 @@ impl SignalProtocol {
         category: &str,
         session_id: Option<&str>,
     ) -> Result<Vec<u8>, Box<dyn Error>> {
-        let address = ProtocolAddress::new(sender_id.to_string(), SignalProtocol::device_id(session_id)?);
+        let address = ProtocolAddress::new(
+            sender_id.to_string(),
+            SignalProtocol::device_id(session_id)?,
+        );
 
         let context: Context = None;
 

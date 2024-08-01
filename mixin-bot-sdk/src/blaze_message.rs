@@ -23,6 +23,8 @@ pub const CREATE_SIGNAL_KEY_MESSAGES: &str = "CREATE_SIGNAL_KEY_MESSAGES";
 pub const COUNT_SIGNAL_KEYS: &str = "COUNT_SIGNAL_KEYS";
 pub const SYNC_SIGNAL_KEYS: &str = "SYNC_SIGNAL_KEYS";
 
+pub const SYSTEM_USER: &str = "00000000-0000-0000-0000-000000000000";
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BlazeMessage {
     pub id: String,
@@ -88,4 +90,96 @@ pub struct BlazeMessageData {
     pub session_id: String,
     pub silent: Option<bool>,
     pub expire_in: Option<i32>,
+}
+
+impl BlazeMessageData {
+    pub fn sender_id(&self) -> &String {
+        if let Some(representative_id) = self.representative_id.as_ref() {
+            representative_id
+        } else {
+            &self.user_id
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PlainJsonMessage {
+    pub action: String,
+    pub messages: Option<Vec<String>>,
+    pub user_id: Option<String>,
+    pub message_id: Option<String>,
+    pub session_id: Option<String>,
+    pub ack_messages: Option<Vec<crate::BlazeAckMessage>>,
+    pub content: Option<String>,
+}
+
+pub mod participant_role {
+    pub const OWNER: &str = "OWNER";
+    pub const ADMIN: &str = "ADMIN";
+}
+
+pub mod message_action {
+    pub const JOIN: &str = "JOIN";
+    pub const EXIT: &str = "EXIT";
+    pub const ADD: &str = "ADD";
+    pub const REMOVE: &str = "REMOVE";
+    pub const CREATE: &str = "CREATE";
+    pub const UPDATE: &str = "UPDATE";
+    pub const ROLE: &str = "ROLE";
+    pub const EXPIRE: &str = "EXPIRE";
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SystemConversationMessage {
+    #[serde(default)]
+    pub action: String,
+    #[serde(default)]
+    pub participant_id: String,
+    pub user_id: Option<String>,
+    pub role: Option<String>,
+    pub expire_in: Option<i32>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SystemUserMessage {
+    pub action: String,
+    pub user_id: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SystemCircleAction {
+    Create,
+    Delete,
+    Update,
+    Add,
+    Remove,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SystemCircleMessage {
+    pub action: SystemCircleAction,
+    pub circle_id: String,
+    pub conversation_id: Option<String>,
+    pub user_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SnapshotMessage {
+    #[serde(rename = "type")]
+    pub type_field: String,
+    pub snapshot_id: String,
+    pub asset_id: String,
+    pub amount: String,
+    pub created_at: DateTime<Utc>,
+    pub opponent_id: Option<String>,
+    pub trace_id: Option<String>,
+    pub transaction_hash: Option<String>,
+    pub sender: Option<String>,
+    pub receiver: Option<String>,
+    pub memo: Option<String>,
+    pub confirmations: Option<i32>,
+    pub snapshot_hash: Option<String>,
+    pub opening_balance: Option<String>,
+    pub closing_balance: Option<String>,
 }

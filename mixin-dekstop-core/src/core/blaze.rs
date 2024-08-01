@@ -2,28 +2,28 @@ use std::error::Error;
 use std::io::{Cursor, Read, Write};
 use std::sync::Arc;
 
-use crate::db::mixin::flood_message::FloodMessage;
-use crate::db::mixin::MixinDatabase;
-use sdk::blaze_message::{
-    BlazeMessage, BlazeMessageData, ACKNOWLEDGE_MESSAGE_RECEIPT, CREATE_CALL, CREATE_KRAKEN,
-    CREATE_MESSAGE, LIST_PENDING_MESSAGE,
-};
-use sdk::{Client, Credential};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use futures::future::err;
 use futures::stream::SplitSink;
 use futures::{future, pin_mut, SinkExt, StreamExt};
 use futures_channel::mpsc::UnboundedSender;
 use log::{debug, error, info, warn};
 use reqwest::header::HeaderValue;
 use reqwest::Method;
-use serde_json::Value;
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{connect_async, tungstenite, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+
+use sdk::blaze_message::{
+    BlazeMessage, BlazeMessageData, ACKNOWLEDGE_MESSAGE_RECEIPT, CREATE_CALL, CREATE_KRAKEN,
+    CREATE_MESSAGE,
+};
+use sdk::{Client, Credential};
+
+use crate::db::mixin::flood_message::FloodMessage;
+use crate::db::mixin::MixinDatabase;
 
 const WS_HOST: &str = "wss://blaze.mixin.one";
 

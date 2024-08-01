@@ -1,31 +1,39 @@
 use std::default::Default;
 use std::sync::Arc;
 
+use anyhow::{anyhow, Result};
+use base64ct::{Base64, Encoding};
 use chrono::TimeDelta;
 use log::error;
-use serde_variant::to_variant_name;
 
-use sdk::blaze_message::{ACKNOWLEDGE_MESSAGE_RECEIPTS, BlazeMessageData, MessageStatus};
-use sdk::message_category;
+use sdk::blaze_message::{
+    message_action, BlazeMessageData, MessageStatus, PlainJsonMessage, SnapshotMessage,
+    SystemCircleMessage, SystemConversationMessage, SystemUserMessage,
+    ACKNOWLEDGE_MESSAGE_RECEIPTS, RESEND_KEY, RESEND_MESSAGES,
+};
 use sdk::message_category::MessageCategory;
+use sdk::{message_category, BlazeAckMessage, SafeSnapshotShot, StickerMessage, SYSTEM_USER};
 
-use crate::core::AnyError;
 use crate::core::crypto::signal_protocol::SignalProtocol;
-use crate::core::model::AppService;
+use crate::core::message::sender::{MessageSender, ProcessSignalKeyAction};
+use crate::core::model::{AppService, AttachmentExtra};
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
-use crate::db::mixin::message::Message;
+use crate::db::mixin::message::{MediaStatus, Message};
+use crate::db::mixin::participant::Participant;
 use crate::db::mixin::MixinDatabase;
 
 pub struct ServiceDecryptMessage {
     database: Arc<MixinDatabase>,
     signal_protocol: Arc<SignalProtocol>,
     app_service: Arc<AppService>,
+    sender: Arc<MessageSender>,
     user_id: String,
+    identity_number: String,
 }
 
 impl ServiceDecryptMessage {
-    pub async fn start(&self) -> Result<(), AnyError> {
+    pub async fn start(&self) -> Result<()> {
         loop {
             let messages = self.database.flood_messages().await?;
             for m in messages {
@@ -36,9 +44,14 @@ impl ServiceDecryptMessage {
         }
     }
 
-    async fn process_message(&self, message: &FloodMessage) -> Result<(), AnyError> {
+    async fn process_message(&self, message: &FloodMessage) -> Result<()> {
         let data: BlazeMessageData = serde_json::from_slice(message.data.as_bytes())?;
-        if !self.database.message_dao.is_message_exits(&message.message_id).await? {
+        if !self
+            .database
+            .message_dao
+            .is_message_exits(&message.message_id)
+            .await?
+        {
             // TODO update remote message status
             self.database
                 .delete_flood_message(&message.message_id)
@@ -57,10 +70,7 @@ impl ServiceDecryptMessage {
         Ok(())
     }
 
-    async fn handle_invalid_message(
-        &self,
-        data: &BlazeMessageData,
-    ) -> Result<MessageStatus, AnyError> {
+    async fn handle_invalid_message(&self, data: &BlazeMessageData) -> Result<MessageStatus> {
         if data.category == message_category::SIGNAL_KEY {
             let message = Message {
                 message_id: data.message_id.clone(),
@@ -76,26 +86,35 @@ impl ServiceDecryptMessage {
         Ok(MessageStatus::Delivered)
     }
 
-    async fn parse_flood_message(
-        &self,
-        data: &BlazeMessageData,
-    ) -> Result<MessageStatus, AnyError> {
-        let category = data.category.clone();
+    async fn parse_flood_message(&self, data: &BlazeMessageData) -> Result<MessageStatus> {
+        let category = &data.category;
         let mut status = MessageStatus::Delivered;
-        let handled = if category.is_illegal_message_category() {
+        self.app_service
+            .conversation
+            .sync_conversation(&data.conversation_id)
+            .await?;
+        let handled: Result<()> = if category.is_illegal_message_category() {
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
                 user_id: data.user_id.clone(),
-                category,
+                category: data.category.clone(),
                 created_at: data.created_at.naive_utc(),
-                status: data.status.clone(),
+                status: data.status,
                 ..Message::default()
             };
-            self.insert_message(&message, &data).await
+            self.insert_message(&message, data).await
         } else if category.is_signal() {
-            // TODO handle message history
-            self.process_signal_message(data).await
+            if data.category == message_category::SIGNAL_KEY {
+                status = MessageStatus::Read;
+                self.database
+                    .message_history_dao
+                    .insert(&data.message_id)
+                    .await
+                    .map_err(anyhow::Error::from)
+            } else {
+                self.process_signal_message(data).await
+            }
         } else if category.is_plain() {
             self.process_plain_message(data).await
         } else if category.is_encrypted() {
@@ -119,26 +138,30 @@ impl ServiceDecryptMessage {
         if let Err(err) = handled {
             error!("failed to process: {:?}", err);
             status = MessageStatus::Delivered;
+            if category.is_location() {
+                status = MessageStatus::Read;
+            }
             self.handle_invalid_message(data).await?;
         }
 
-        Ok(MessageStatus::Failed)
+        Ok(status)
     }
 }
 
 impl ServiceDecryptMessage {
     async fn update_remote_message_status(
         &self,
-        message_id: &String,
+        message_id: &str,
         status: MessageStatus,
-    ) -> Result<(), AnyError> {
+    ) -> Result<()> {
         if status != MessageStatus::Delivered && status != MessageStatus::Read {
             Ok(())
         } else {
             self.database
+                .job_dao
                 .insert_job(&Job::create_ack_job(
                     ACKNOWLEDGE_MESSAGE_RECEIPTS,
-                    message_id.as_str(),
+                    message_id,
                     status.into(),
                     None,
                 ))
@@ -154,12 +177,15 @@ impl ServiceDecryptMessage {
         data: &BlazeMessageData,
         message_id: &str,
         plain_text: &str,
-    ) -> Result<(), AnyError> {
+    ) -> Result<()> {
         Ok(())
     }
 
-    async fn process_signal_message(&self, data: &BlazeMessageData) -> Result<(), AnyError> {
-        let message_data = self.signal_protocol.decode_message_data(&data.data)?;
+    async fn process_signal_message(&self, data: &BlazeMessageData) -> Result<()> {
+        let message_data = self
+            .signal_protocol
+            .decode_message_data(&data.data)
+            .map_err(|e| anyhow!("failed to decode message data: {e}"))?;
         let plain_text = self
             .signal_protocol
             .decrypt(
@@ -169,7 +195,8 @@ impl ServiceDecryptMessage {
                 &data.category.clone(),
                 Some(&data.session_id),
             )
-            .await?;
+            .await
+            .map_err(|e| anyhow!("failed to decrypt message: {e}"))?;
         if data.category != message_category::SIGNAL_KEY {
             let plain = std::str::from_utf8(&plain_text)?;
             if let Some(resend_message_id) = message_data.resend_message_id {
@@ -186,11 +213,16 @@ impl ServiceDecryptMessage {
         &self,
         data: &BlazeMessageData,
         plain_text: &str,
-    ) -> Result<(), AnyError> {
-        self.app_service.conversation.refresh_user(&[data.user_id.clone()], false).await?;
-        let quote_content = if let Some(quote_message_id) = data.quote_message_id.clone() {
-            let message = self.database.message_dao.find_quote_message_by_id(&quote_message_id).await?;
-            message.map(|m| serde_json::to_string(&m).unwrap_or_default())
+    ) -> Result<()> {
+        self.app_service
+            .conversation
+            .refresh_user(&[data.user_id.clone()], false)
+            .await?;
+        let quote_message = if let Some(quote_message_id) = data.quote_message_id.clone() {
+            self.database
+                .message_dao
+                .find_quote_message_by_id(&quote_message_id)
+                .await?
         } else {
             None
         };
@@ -204,56 +236,375 @@ impl ServiceDecryptMessage {
                 status: data.status,
                 created_at: data.created_at.naive_utc(),
                 quote_message_id: data.quote_message_id.clone(),
-                quote_content,
+                quote_content: quote_message
+                    .clone()
+                    .map(|m| serde_json::to_string(&m).unwrap_or_default()),
                 ..Message::default()
             };
-            // TODO(BIN): handle mention
+            self.database
+                .message_mention_dao
+                .parse_and_save_mention_data(
+                    &message.message_id,
+                    &message.conversation_id,
+                    &message.content,
+                    &data.user_id,
+                    &quote_message,
+                    self.user_id.as_str(),
+                    self.identity_number.as_str(),
+                )
+                .await?;
             self.insert_message(&message, data).await?
+        } else if data.category.is_attachment() {
+            let attachment: sdk::AttachmentMessage = serde_json::from_str(plain_text)?;
+            let content = serde_json::to_string(&AttachmentExtra {
+                attachment_id: attachment.attachment_id,
+                message_id: data.message_id.clone(),
+                shareable: attachment.shareable,
+                created_at: None,
+            })?;
+            let message = Message {
+                message_id: data.message_id.clone(),
+                conversation_id: data.conversation_id.clone(),
+                user_id: data.user_id.clone(),
+                category: data.category.clone(),
+                content: Some(content),
+                name: attachment.name,
+                media_mime_type: Some(attachment.mime_type),
+                media_duration: attachment.duration.unwrap_or_default().to_string(),
+                media_size: Some(attachment.size),
+                media_width: attachment.width,
+                media_height: attachment.height,
+                thumb_image: attachment.thumbnail,
+                media_key: attachment.key,
+                media_digest: attachment.digest,
+                status: data.status,
+                created_at: data.created_at.naive_utc(),
+                media_status: MediaStatus::Canceled,
+                quote_message_id: data.quote_message_id.clone(),
+                quote_content: quote_message
+                    .clone()
+                    .map(|m| serde_json::to_string(&m).unwrap_or_default()),
+                ..Message::default()
+            };
+            self.insert_message(&message, data).await?
+            // TODO(BIN): download attachment
+        } else if data.category.is_sticker() {
+            let sticker_message: StickerMessage = serde_json::from_str(plain_text)?;
+            let sticker = self
+                .database
+                .sticker_dao
+                .find_sticker_by_id(&sticker_message.sticker_id)
+                .await?;
+            if sticker.is_none()
+                || sticker.is_some_and(|s| {
+                    s.album_id.is_none() || s.album_id.is_some_and(|a| a.is_empty())
+                })
+            {
+                self.database
+                    .job_dao
+                    .insert_job(&Job::create_update_asset_job(&sticker_message.sticker_id))
+                    .await?;
+            }
+            let message = Message {
+                message_id: data.message_id.clone(),
+                conversation_id: data.conversation_id.clone(),
+                user_id: data.user_id.clone(),
+                category: data.category.clone(),
+                content: Some(plain_text.to_string()),
+                name: Some(sticker_message.name),
+                sticker_id: Some(sticker_message.sticker_id),
+                album_id: sticker_message.album_id,
+                status: data.status,
+                created_at: data.created_at.naive_utc(),
+                quote_message_id: data.quote_message_id.clone(),
+                quote_content: quote_message
+                    .clone()
+                    .map(|m| serde_json::to_string(&m).unwrap_or_default()),
+                ..Message::default()
+            };
+            self.insert_message(&message, data).await?
+        } else if data.category.is_contact() {
+            let contact_message: sdk::ContactMessage = serde_json::from_str(plain_text)?;
+            let users = self
+                .app_service
+                .conversation
+                .refresh_user(&[contact_message.user_id], false)
+                .await?;
+            let user = users.first().ok_or(anyhow!("failed to find user"))?;
+            let message = Message {
+                message_id: data.message_id.clone(),
+                conversation_id: data.conversation_id.clone(),
+                user_id: data.user_id.clone(),
+                category: data.category.clone(),
+                content: Some(plain_text.to_string()),
+                shared_user_id: Some(user.user_id.clone()),
+                status: data.status,
+                created_at: data.created_at.naive_utc(),
+                quote_message_id: data.quote_message_id.clone(),
+                quote_content: quote_message
+                    .clone()
+                    .map(|m| serde_json::to_string(&m).unwrap_or_default()),
+                ..Message::default()
+            };
+            self.insert_message(&message, data).await?
+        } else if data.category.is_live() {
+            let live_message: sdk::LiveMessage = serde_json::from_str(plain_text)?;
+            let message = Message {
+                message_id: data.message_id.clone(),
+                conversation_id: data.conversation_id.clone(),
+                user_id: data.user_id.clone(),
+                category: data.category.clone(),
+                content: Some(plain_text.to_string()),
+                media_width: Some(live_message.width),
+                media_height: Some(live_message.height),
+                media_url: Some(live_message.url),
+                thumb_url: Some(live_message.thumb_url),
+                status: data.status,
+                created_at: data.created_at.naive_utc(),
+                ..Message::default()
+            };
+            self.insert_message(&message, data).await?
+        } else if data.category.is_location() {
+            let location_message: sdk::LocationMessage = serde_json::from_str(plain_text)?;
+            if location_message.latitude == 0.0 || location_message.longitude == 0.0 {
+                return Err(anyhow!("invalid location message: {}", plain_text).into());
+            }
+            let message = Message {
+                message_id: data.message_id.clone(),
+                conversation_id: data.conversation_id.clone(),
+                user_id: data.user_id.clone(),
+                category: data.category.clone(),
+                content: Some(plain_text.to_string()),
+                status: data.status,
+                created_at: data.created_at.naive_utc(),
+                ..Message::default()
+            };
+            self.insert_message(&message, data).await?
+        } else if data.category.is_transcript() {
+            // TODO(BIN): process transcript
+            return Err(anyhow!("transcript message: {}", plain_text).into());
+        }
+        Ok(())
+    }
+
+    async fn process_encrypted_message(&self, data: &BlazeMessageData) -> Result<()> {
+        Ok(())
+    }
+
+    async fn process_plain_message(&self, data: &BlazeMessageData) -> Result<()> {
+        let bytes = Base64::decode_vec(&data.data)?;
+        let content = String::from_utf8_lossy(&bytes);
+        if data.category == message_category::PLAIN_JSON {
+            let plain_json_message: PlainJsonMessage = serde_json::from_str(&content)?;
+            if plain_json_message.action == ACKNOWLEDGE_MESSAGE_RECEIPTS {
+                if let Some(ack_messages) = plain_json_message.ack_messages {
+                    self.mark_message_status(ack_messages).await?
+                }
+            } else if plain_json_message.action == RESEND_MESSAGES {
+                self.process_resend_message(data, plain_json_message)
+                    .await?
+            } else if plain_json_message.action == RESEND_KEY
+                && self
+                    .signal_protocol
+                    .protocol_store
+                    .session_store
+                    .contain_user_session(&data.user_id)
+                    .await?
+            {
+                // TODO(BIN): resend session key
+            }
+            self.database
+                .message_history_dao
+                .insert(&data.message_id)
+                .await?;
+        } else if data.category == message_category::PLAIN_TEXT
+            || data.category == message_category::PLAIN_IMAGE
+            || data.category == message_category::PLAIN_VIDEO
+            || data.category == message_category::PLAIN_DATA
+            || data.category == message_category::PLAIN_AUDIO
+            || data.category == message_category::PLAIN_CONTACT
+            || data.category == message_category::PLAIN_STICKER
+            || data.category == message_category::PLAIN_LIVE
+            || data.category == message_category::PLAIN_POST
+            || data.category == message_category::PLAIN_LOCATION
+            || data.category == message_category::PLAIN_TRANSCRIPT
+        {
+            self.process_decrypt_success(data, &content).await?
         }
         Ok(())
     }
 }
 
-impl ServiceDecryptMessage {
-    async fn process_plain_message(&self, data: &BlazeMessageData) -> Result<(), AnyError> {
-        Ok(())
-    }
-}
-impl ServiceDecryptMessage {
-    async fn process_encrypted_message(&self, data: &BlazeMessageData) -> Result<(), AnyError> {
-        Ok(())
-    }
-}
-impl ServiceDecryptMessage {
-    async fn process_system_message(&self, data: &BlazeMessageData) -> Result<(), AnyError> {
-        Ok(())
-    }
-}
+impl ServiceDecryptMessage {}
 
 impl ServiceDecryptMessage {
-    async fn process_grouped_button(&self, data: &BlazeMessageData) -> Result<(), AnyError> {
-        Ok(())
-    }
-
-    async fn process_app_card(&self, data: &BlazeMessageData) -> Result<(), AnyError> {
-        Ok(())
-    }
-
-    async fn process_pin(&self, data: &BlazeMessageData) -> Result<(), AnyError> {
-        Ok(())
-    }
-
-    async fn process_recall(&self, data: &BlazeMessageData) -> Result<(), AnyError> {
-        Ok(())
-    }
-}
-
-impl ServiceDecryptMessage {
-    async fn insert_message(
+    async fn process_resend_message(
         &self,
-        message: &Message,
         data: &BlazeMessageData,
-    ) -> Result<(), AnyError> {
+        plain_json_message: PlainJsonMessage,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn process_grouped_button(&self, data: &BlazeMessageData) -> Result<()> {
+        Ok(())
+    }
+
+    async fn process_app_card(&self, data: &BlazeMessageData) -> Result<()> {
+        Ok(())
+    }
+
+    async fn process_pin(&self, data: &BlazeMessageData) -> Result<()> {
+        Ok(())
+    }
+
+    async fn process_recall(&self, data: &BlazeMessageData) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl ServiceDecryptMessage {
+    async fn process_system_message(&self, data: &BlazeMessageData) -> Result<()> {
+        let decoded = Base64::decode_vec(&data.data)?;
+        let content = String::from_utf8_lossy(&decoded);
+        if data.category == message_category::SYSTEM_CONVERSATION {
+            let message: SystemConversationMessage = serde_json::from_str(&content)?;
+            self.process_system_conversation_message(data, message)
+                .await?
+        } else if data.category == message_category::SYSTEM_USER {
+            let message: SystemUserMessage = serde_json::from_str(&content)?;
+            self.process_system_user_message(data, message).await?
+        } else if data.category == message_category::SYSTEM_CIRCLE {
+            let message: SystemCircleMessage = serde_json::from_str(&content)?;
+            self.process_system_circle_message(data, message).await?
+        } else if data.category == message_category::SYSTEM_ACCOUNT_SNAPSHOT {
+            let snapshot: SnapshotMessage = serde_json::from_str(&content)?;
+            self.process_snapshot_message(data, snapshot).await?
+        } else if data.category == message_category::SYSTEM_SAFE_SNAPSHOT {
+            let snapshot: SafeSnapshotShot = serde_json::from_str(&content)?;
+            self.process_safe_snapshot_message(data, snapshot).await?
+        } else if data.category == message_category::SYSTEM_SAFE_INSCRIPTION {
+            let snapshot: SafeSnapshotShot = serde_json::from_str(&content)?;
+            self.process_safe_inscription_message(data, snapshot)
+                .await?
+        }
+        Ok(())
+    }
+
+    async fn process_system_conversation_message(
+        &self,
+        data: &BlazeMessageData,
+        message: SystemConversationMessage,
+    ) -> Result<()> {
+        if message.action != message_action::UPDATE {
+            self.app_service
+                .conversation
+                .sync_conversation(&data.conversation_id)
+                .await?
+        }
+        let user_id: &str = message.user_id.as_ref().unwrap_or(data.sender_id());
+        if user_id == SYSTEM_USER {
+            self.database
+                .user_dao
+                .insert_system_user_if_not_exist()
+                .await?
+        }
+
+        if message.action == message_action::JOIN || message.action == message_action::ADD {
+            self.database
+                .participant_dao
+                .insert_participant(&Participant {
+                    conversation_id: data.conversation_id.clone(),
+                    user_id: data.sender_id().to_string(),
+                    role: message.role,
+                    created_at: data.created_at,
+                })
+                .await?;
+            if message.participant_id == self.user_id {
+                self.app_service
+                    .conversation
+                    .refresh_conversation(&data.conversation_id)
+                    .await?;
+            } else if self
+                .signal_protocol
+                .protocol_store
+                .sender_key_store
+                .exists_sender_key(&data.conversation_id, &message.participant_id)
+                .await?
+            {
+                self.sender
+                    .send_process_signal_key(
+                        data,
+                        ProcessSignalKeyAction::AddParticipant,
+                        Some(&message.participant_id),
+                    )
+                    .await?;
+                self.app_service
+                    .conversation
+                    .refresh_user(&[message.participant_id], false)
+                    .await?;
+            } else {
+                let uids: &[&str] = &[&message.participant_id];
+                self.sender
+                    .refresh_session(&data.conversation_id, uids)
+                    .await?;
+                self.app_service
+                    .conversation
+                    .refresh_user(uids, false)
+                    .await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn process_system_user_message(
+        &self,
+        data: &BlazeMessageData,
+        message: SystemUserMessage,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn process_system_circle_message(
+        &self,
+        data: &BlazeMessageData,
+        message: SystemCircleMessage,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn process_snapshot_message(
+        &self,
+        data: &BlazeMessageData,
+        snapshot: SnapshotMessage,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn process_safe_snapshot_message(
+        &self,
+        data: &BlazeMessageData,
+        snapshot: SafeSnapshotShot,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn process_safe_inscription_message(
+        &self,
+        data: &BlazeMessageData,
+        snapshot: SafeSnapshotShot,
+    ) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl ServiceDecryptMessage {
+    async fn mark_message_status(&self, messages: Vec<BlazeAckMessage>) -> Result<()> {
+        Ok(())
+    }
+
+    async fn insert_message(&self, message: &Message, data: &BlazeMessageData) -> Result<()> {
         self.database.message_dao.insert_message(message).await?;
         // TODO(BIN): insert fts
         let expire_in = data.expire_in.unwrap_or(0);

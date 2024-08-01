@@ -8,6 +8,8 @@ use crate::db::Error;
 use sdk::blaze_message::{CREATE_MESSAGE, PIN_MESSAGE, RECALL_MESSAGE};
 use sdk::message::{BlazeAckMessage, RecallMessage};
 
+pub struct JobDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+
 pub struct Job {
     pub job_id: String,
     pub action: String,
@@ -133,7 +135,7 @@ impl Job {
     }
 }
 
-impl MixinDatabase {
+impl JobDao {
     pub async fn insert_job(&self, job: &Job) -> Result<(), Error> {
         // insert_into(jobs).values(j).execute(&mut self.get_connection()?)?;
         Ok(())
