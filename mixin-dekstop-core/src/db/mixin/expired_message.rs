@@ -1,20 +1,19 @@
-use chrono::{TimeZone, Utc};
+use chrono::Utc;
 use sqlx::{QueryBuilder, Sqlite};
 
 use db::Error;
 
 use crate::db;
 use crate::db::mixin::database::MARK_LIMIT;
-use crate::db::mixin::util::{expand_var_with_index, BindListForQuery};
+use crate::db::mixin::util::{BindListForQuery, expand_var_with_index};
 
 #[derive(Clone)]
-pub struct ExpiredMessageDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct ExpiredMessageDao(pub(crate) sqlx::Pool<Sqlite>);
 
 impl ExpiredMessageDao {
     pub async fn update_message_expired_at(&self, data: &[(String, i64)]) -> Result<u64, Error> {
-        let mut iter = data.chunks(MARK_LIMIT);
         let mut rows_affected: u64 = 0;
-        while let Some(chunk) = iter.next() {
+        for chunk in data.chunks(MARK_LIMIT) {
             let mut query_builder: QueryBuilder<Sqlite> = sqlx::QueryBuilder::new(
                 "INSERT OR REPLACE INTO expired_messages (message_id, expire_at) VALUES ",
             );

@@ -39,7 +39,7 @@ impl SignalDatabase {
 
 #[cfg(test)]
 mod tests {
-    use libsignal_protocol::{KeyPair, PreKeyRecord, PreKeyStore};
+    use libsignal_protocol::{KeyPair, PreKeyRecord};
     use log::LevelFilter;
     use rand_core::OsRng;
     use simplelog::{Config, TestLogger};

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::default::Default;
 use std::sync::Arc;
 
@@ -32,7 +31,6 @@ use crate::db::mixin::message::{AttachmentMessageUpdate, MediaStatus, Message};
 use crate::db::mixin::participant::Participant;
 use crate::db::mixin::pin_message::{PinMessage, PinMessageMinimal};
 use crate::db::mixin::MixinDatabase;
-use crate::db::SignalDatabase;
 
 pub struct ServiceDecryptMessage {
     database: Arc<MixinDatabase>,
@@ -1076,7 +1074,7 @@ impl ServiceDecryptMessage {
 
         let message = message_read_with_expires
             .iter()
-            .map(|(message_id, expire_at)| message_id.to_string())
+            .map(|(message_id, _)| message_id.to_string())
             .collect::<Vec<_>>();
         self.app_service
             .message
