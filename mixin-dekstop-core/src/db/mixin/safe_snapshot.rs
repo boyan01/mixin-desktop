@@ -2,6 +2,7 @@ use anyhow::Context;
 
 use crate::db::Error;
 
+#[derive(Clone)]
 pub struct SafeSnapshotDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 impl SafeSnapshotDao {

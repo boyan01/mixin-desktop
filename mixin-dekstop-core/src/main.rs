@@ -7,6 +7,7 @@ use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
 
 use db::mixin::MixinDatabase;
 use db::SignalDatabase;
+use mixin_dekstop_core::core::crypto::signal_protocol::SignalProtocol;
 use mixin_dekstop_core::core::message::blaze::Blaze;
 use mixin_dekstop_core::core::message::decrypt::ServiceDecryptMessage;
 use mixin_dekstop_core::core::message::sender::MessageSender;
@@ -33,21 +34,33 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // let result = a.get_me().await;
     let database = Arc::new(MixinDatabase::new(identity_number.clone()).await?);
     let signal_database = Arc::new(SignalDatabase::connect(identity_number.to_string()).await?);
-    let mut blaze = Blaze::new(
+    let blaze = Arc::new(Blaze::new(
         database.clone(),
         Credential::KeyStore(keystore.clone()),
         keystore.app_id,
-    );
+    ));
     let app_service = Arc::new(AppService::new(
         database.clone(),
         client.clone(),
         user_id.to_string(),
     ));
-    let sender = Arc::new(MessageSender::new());
+
+    let signal_protocol = Arc::new(SignalProtocol::new(
+        signal_database.clone(),
+        identity_number.to_string(),
+    ));
+    let sender = Arc::new(MessageSender::new(
+        blaze.clone(),
+        app_service.conversation.clone(),
+        database.clone(),
+        user_id.to_string(),
+        signal_protocol.clone(),
+    ));
     let decrypt_message = Arc::new(ServiceDecryptMessage::new(
         database.clone(),
         signal_database.clone(),
         app_service.clone(),
+        signal_protocol.clone(),
         sender.clone(),
         user_id.to_string(),
         identity_number.to_string(),

@@ -46,11 +46,10 @@ impl SenderKeyDao {
         device_id: u32,
     ) -> Result<bool, db::Error> {
         let result = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM sender_keys WHERE group_id = ? AND sender_id = ? AND device_id = ?)",
+            "SELECT EXISTS(SELECT 1 FROM sender_keys WHERE group_id = ? AND sender_id = ?)",
         )
         .bind(group_id)
-        .bind(sender_id)
-        .bind(device_id)
+        .bind(format!("{}:{}", sender_id, device_id))
         .fetch_one(&self.0)
         .await?;
         Ok(result)

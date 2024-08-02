@@ -5,6 +5,7 @@ use sdk::blaze_message::MessageStatus;
 
 use crate::db::Error;
 
+#[derive(Clone)]
 pub struct MessageDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 #[derive(Default, sqlx::FromRow)]
@@ -161,7 +162,7 @@ media_url, media_mime_type, media_size, media_duration, media_width, media_heigh
 thumb_image, media_key, media_digest, media_status, status, created_at, action, participant_id,
 snapshot_id, hyperlink, name, album_id, sticker_id, shared_user_id, media_waveform, quote_message_id,
 quote_content, thumb_url, caption)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#)
             .bind(&message.message_id)
             .bind(&message.conversation_id)
@@ -183,6 +184,17 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
             .bind(message.created_at)
             .bind(&message.action)
             .bind(&message.participant_id)
+            .bind(&message.snapshot_id)
+            .bind(&message.hyperlink)
+            .bind(&message.name)
+            .bind(&message.album_id)
+            .bind(&message.sticker_id)
+            .bind(&message.shared_user_id)
+            .bind(&message.media_waveform)
+            .bind(&message.quote_message_id)
+            .bind(&message.quote_content)
+            .bind(&message.thumb_url)
+            .bind(&message.caption)
             .execute(&self.0)
             .await?;
         Ok(())

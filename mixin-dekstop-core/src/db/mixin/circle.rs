@@ -4,6 +4,7 @@ use sqlx::{QueryBuilder, Sqlite};
 
 use crate::db::Error;
 
+#[derive(Clone)]
 pub struct CircleDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]

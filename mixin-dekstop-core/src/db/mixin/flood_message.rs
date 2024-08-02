@@ -2,7 +2,8 @@ use chrono::NaiveDateTime;
 
 use crate::db::Error;
 
-pub struct FloodMessageDao(pub(crate) sqlx::Pool<sqlx::Sqlite>); 
+#[derive(Clone)]
+pub struct FloodMessageDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 #[derive(sqlx::FromRow)]
 pub struct FloodMessage {

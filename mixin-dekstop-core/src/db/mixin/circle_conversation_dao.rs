@@ -2,6 +2,7 @@ use sqlx::QueryBuilder;
 
 use crate::db::Error;
 
+#[derive(Clone)]
 pub struct CircleConversationDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 impl CircleConversationDao {

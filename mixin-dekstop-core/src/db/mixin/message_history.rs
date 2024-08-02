@@ -2,6 +2,7 @@ use sqlx::{QueryBuilder, Sqlite};
 
 use crate::db::Error;
 
+#[derive(Clone)]
 pub struct MessageHistoryDao(pub(crate) sqlx::Pool<Sqlite>);
 
 impl MessageHistoryDao {

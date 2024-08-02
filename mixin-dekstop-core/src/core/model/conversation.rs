@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::bail;
 
-use sdk::client::Client;
 use sdk::{ConversationCategory, UserSession};
+use sdk::client::Client;
 
 use crate::db::mixin::conversation::{Conversation, ConversationStatus};
 use crate::db::mixin::participant::Participant;
@@ -165,6 +165,21 @@ impl ConversationService {
             self.db
                 .participant_session_dao
                 .replace_all(conversation_id, &sessions)
+                .await?;
+        }
+        Ok(())
+    }
+
+    pub async fn refresh_session(
+        &self,
+        conversation_id: &str,
+        user_ids: &[String],
+    ) -> anyhow::Result<()> {
+        let sessions = self.client.user_api.get_sessions(user_ids).await?;
+        if !sessions.is_empty() {
+            self.db
+                .participant_session_dao
+                .insert(conversation_id, &sessions)
                 .await?;
         }
         Ok(())

@@ -5,6 +5,7 @@ use sdk::SYSTEM_USER;
 
 use crate::db::Error;
 
+#[derive(Clone)]
 pub struct UserDao(pub(crate) Pool<Sqlite>);
 
 #[derive(sqlx::FromRow, Debug)]

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::Error;
 
+#[derive(Clone)]
 pub struct StickerDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]

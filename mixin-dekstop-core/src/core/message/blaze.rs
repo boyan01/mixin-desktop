@@ -8,7 +8,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures::{future, pin_mut, SinkExt, StreamExt};
 use futures_channel::mpsc::UnboundedSender;
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 use reqwest::header::HeaderValue;
 use reqwest::Method;
 use tokio_tungstenite::connect_async;
@@ -32,8 +32,12 @@ pub struct Blaze {
     database: Arc<MixinDatabase>,
     credential: Credential,
     user_id: String,
-    sender: Option<UnboundedSender<Message>>,
+    connection: Arc<Mutex<BlazeConnection>>,
     transactions: Arc<Mutex<HashMap<String, Completer<BlazeMessage>>>>,
+}
+
+struct BlazeConnection {
+    sink: Option<UnboundedSender<Message>>,
 }
 
 trait SendBlazeMessage {
@@ -56,20 +60,31 @@ impl Blaze {
         Blaze {
             database,
             credential,
-            sender: None,
+            connection: Arc::new(Mutex::new(BlazeConnection { sink: None })),
             user_id,
             transactions: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    pub async fn connect(&mut self) -> Result<()> {
+    pub async fn connect(&self) -> Result<()> {
+        {
+            let connection = self.connection.lock().unwrap();
+            if connection.sink.is_some() {
+                warn!("already connected");
+                return Ok(());
+            }
+        }
         let token = self
             .credential
             .sign_authentication_token(&Method::GET, &"/".to_string(), [])
             .map_err(|e| anyhow!("can not sign request: {}", e))?;
 
         let (mut sender, receiver) = futures_channel::mpsc::unbounded();
-        self.sender = Some(sender.clone());
+
+        {
+            let mut connection = self.connection.lock().unwrap();
+            connection.sink = Some(sender.clone());
+        }
 
         let mut request = WS_HOST.into_client_request()?;
         request.headers_mut().insert(
@@ -191,8 +206,13 @@ impl Blaze {
         Ok(())
     }
 
+    pub fn try_get_sender(&self) -> Result<UnboundedSender<Message>> {
+        let connection = self.connection.try_lock().map_err(|e| anyhow!("{e}"))?;
+        connection.sink.clone().ok_or(anyhow!("not connected"))
+    }
+
     pub async fn send_message(&self, message: BlazeMessage) -> Result<BlazeMessage> {
-        let mut sender = self.sender.clone().ok_or(anyhow!("not connected"))?;
+        let mut sender = self.try_get_sender()?;
         let completer = Completer::default();
         {
             let mut transactions = self.transactions.lock().unwrap();

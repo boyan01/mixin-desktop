@@ -5,6 +5,7 @@ use sdk::ConversationCategory;
 
 use crate::db::Error;
 
+#[derive(Clone)]
 pub struct ConversationDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 #[derive(sqlx::Type, Clone, Eq, PartialEq)]

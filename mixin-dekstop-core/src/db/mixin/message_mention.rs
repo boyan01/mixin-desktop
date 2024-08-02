@@ -1,6 +1,7 @@
 use crate::db::mixin::message::QuoteMessage;
 use crate::db::Error;
 
+#[derive(Clone)]
 pub struct MessageMentionDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 #[derive(Debug, PartialEq, Eq, sqlx::FromRow)]

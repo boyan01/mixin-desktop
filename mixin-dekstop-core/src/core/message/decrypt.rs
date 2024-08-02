@@ -1,7 +1,7 @@
 use std::default::Default;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use base64ct::{Base64, Encoding};
 use chrono::TimeDelta;
 use log::{debug, error, info};
@@ -18,6 +18,7 @@ use sdk::{
     StickerMessage, SystemCircleAction, SYSTEM_USER,
 };
 
+use crate::core::crypto::compose_message::ComposeMessageData;
 use crate::core::crypto::signal_protocol::SignalProtocol;
 use crate::core::message::sender::{MessageSender, ProcessSignalKeyAction};
 use crate::core::model::{AppService, AttachmentExtra};
@@ -45,13 +46,14 @@ impl ServiceDecryptMessage {
         database: Arc<MixinDatabase>,
         signal_database: Arc<SignalDatabase>,
         app_service: Arc<AppService>,
+        signal_protocol: Arc<SignalProtocol>,
         sender: Arc<MessageSender>,
         user_id: String,
         identity_number: String,
     ) -> Self {
         Self {
             database,
-            signal_protocol: Arc::new(SignalProtocol::new(signal_database, user_id.clone())),
+            signal_protocol,
             app_service,
             sender,
             user_id,
@@ -221,16 +223,15 @@ impl ServiceDecryptMessage {
     }
 
     async fn process_signal_message(&self, data: &BlazeMessageData) -> Result<()> {
-        let message_data = self
-            .signal_protocol
-            .decode_message_data(&data.data)
-            .map_err(|e| anyhow!("failed to decode message data: {e}"))?;
+        let message_data = ComposeMessageData::decode(&data.data)
+            .with_context(|| "failed to decode message data")?;
         let plain_text = self
             .signal_protocol
             .decrypt(
                 &data.conversation_id,
                 &data.user_id,
-                &message_data,
+                message_data.key_type,
+                message_data.cipher,
                 &data.category.clone(),
                 Some(&data.session_id),
             )
@@ -675,8 +676,7 @@ impl ServiceDecryptMessage {
                 self.sender
                     .send_process_signal_key(
                         data,
-                        ProcessSignalKeyAction::AddParticipant,
-                        Some(&message.participant_id),
+                        ProcessSignalKeyAction::AddParticipant(&message.participant_id),
                     )
                     .await?;
                 self.app_service
@@ -685,7 +685,8 @@ impl ServiceDecryptMessage {
                     .await?;
             } else {
                 let user_ids = &[message.participant_id.clone()];
-                self.sender
+                self.app_service
+                    .conversation
                     .refresh_session(&data.conversation_id, user_ids)
                     .await?;
                 self.app_service
@@ -707,9 +708,8 @@ impl ServiceDecryptMessage {
                 .await?;
             self.sender
                 .send_process_signal_key(
-                    &data,
-                    ProcessSignalKeyAction::RemoveParticipant,
-                    Some(&message.participant_id),
+                    data,
+                    ProcessSignalKeyAction::RemoveParticipant(&message.participant_id),
                 )
                 .await?;
         } else if message.action == message_action::UPDATE {

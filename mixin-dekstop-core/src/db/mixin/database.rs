@@ -20,8 +20,8 @@ use crate::db::mixin::snapshot::SnapshotDao;
 use crate::db::mixin::sticker::StickerDao;
 use crate::db::mixin::user::UserDao;
 
+#[derive(Clone)]
 pub struct MixinDatabase {
-    pub(crate) pool: Pool<Sqlite>,
     pub user_dao: UserDao,
     pub message_dao: MessageDao,
     pub message_mention_dao: MessageMentionDao,
@@ -52,7 +52,6 @@ impl MixinDatabase {
         let migrator = sqlx::migrate!("./src/db/mixin/migrations");
         migrator.run(&pool).await?;
         Ok(MixinDatabase {
-            pool: pool.clone(),
             user_dao: UserDao(pool.clone()),
             message_dao: MessageDao(pool.clone()),
             message_mention_dao: MessageMentionDao(pool.clone()),

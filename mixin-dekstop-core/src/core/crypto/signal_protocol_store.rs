@@ -41,7 +41,17 @@ pub struct MixinSessionStore {
     db: Arc<SignalDatabase>,
 }
 
+
 impl MixinSessionStore {
+
+    pub async fn delete_session(&self, address: &ProtocolAddress) -> anyhow::Result<()> {
+        self.db
+            .session_dao
+            .delete_session(&address.name(), address.device_id())
+            .await
+            .map_err(anyhow::Error::from)
+    }
+    
     pub async fn contain_user_session(&self, recipient_id: &str) -> anyhow::Result<bool> {
         self.db
             .session_dao
@@ -88,6 +98,16 @@ impl SessionStore for MixinSessionStore {
 pub struct MixinIdentityKeyStore {
     db: Arc<SignalDatabase>,
     account_id: String,
+}
+
+impl MixinIdentityKeyStore {
+    pub async fn delete_identity(&self, address: &ProtocolAddress) -> anyhow::Result<()> {
+        self.db
+            .identity_dao
+            .delete_identity(&address.name())
+            .await
+            .map_err(anyhow::Error::from)
+    }
 }
 
 #[async_trait(?Send)]

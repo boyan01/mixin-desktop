@@ -2,6 +2,7 @@ use crate::db::Error;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+#[derive(Clone)]
 pub struct PinMessageDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]

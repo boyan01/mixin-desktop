@@ -1,3 +1,3 @@
-mod session_cipher;
+pub mod compose_message;
 pub mod signal_protocol;
-mod signal_protocol_store;
+pub mod signal_protocol_store;

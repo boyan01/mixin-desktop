@@ -3,6 +3,7 @@ use sqlx::{QueryBuilder, Sqlite};
 
 use crate::db::Error;
 
+#[derive(Clone)]
 pub struct ParticipantDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 #[derive(sqlx::FromRow)]
@@ -33,7 +34,7 @@ impl ParticipantDao {
             b.push_bind(&participant.conversation_id)
                 .push_bind(&participant.user_id)
                 .push_bind(&participant.role)
-                .push_bind(&participant.created_at);
+                .push_bind(participant.created_at);
         });
         qb.build().execute(&mut *tx).await?;
 
@@ -63,7 +64,7 @@ impl ParticipantDao {
         .bind(&participant.conversation_id)
         .bind(&participant.user_id)
         .bind(&participant.role)
-        .bind(&participant.created_at)
+        .bind(participant.created_at)
         .execute(&self.0)
         .await?;
         Ok(())
@@ -85,4 +86,15 @@ impl ParticipantDao {
         .await?;
         Ok(())
     }
+    
+    pub async fn remove_participant(&self, cid: &str, pid: &str) -> Result<(), Error> {
+        let _ = sqlx::query("DELETE FROM participants WHERE conversation_id = ? AND user_id = ?")
+            .bind(cid)
+            .bind(pid)
+            .execute(&self.0)
+            .await?;
+        Ok(())
+    }
+    
+    
 }

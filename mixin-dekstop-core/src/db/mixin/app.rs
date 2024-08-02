@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::Error;
 
+#[derive(Clone)]
 pub struct AppDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 #[derive(Serialize, Deserialize, Debug, Clone, sqlx::FromRow)]

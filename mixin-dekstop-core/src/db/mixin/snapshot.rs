@@ -1,5 +1,6 @@
 use crate::db::Error;
 
+#[derive(Clone)]
 pub struct SnapshotDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 impl SnapshotDao {

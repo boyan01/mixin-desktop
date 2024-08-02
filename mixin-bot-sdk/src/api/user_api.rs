@@ -115,7 +115,7 @@ impl UserApi {
         self.client.get("blocking_users").await
     }
 
-    pub async fn get_sessions(&self, ids: Vec<String>) -> Result<Vec<UserSession>, ApiError> {
+    pub async fn get_sessions(&self, ids: &[String]) -> Result<Vec<UserSession>, ApiError> {
         self.client.post("sessions/fetch", &ids).await
     }
 

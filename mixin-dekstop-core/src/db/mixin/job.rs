@@ -8,6 +8,7 @@ use crate::db::Error;
 use sdk::blaze_message::{CREATE_MESSAGE, PIN_MESSAGE, RECALL_MESSAGE};
 use sdk::message::{BlazeAckMessage, RecallMessage};
 
+#[derive(Clone)]
 pub struct JobDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 pub struct Job {
