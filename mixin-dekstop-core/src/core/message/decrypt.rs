@@ -1,22 +1,24 @@
+use std::collections::HashMap;
 use std::default::Default;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use base64ct::{Base64, Encoding};
 use chrono::TimeDelta;
-use log::{debug, error, info};
+use log::{error, info};
 use uuid::Uuid;
 
+use sdk::{
+    ack_message_status, AttachmentMessage, BlazeAckMessage, CircleConversation, ContactMessage,
+    LiveMessage, message_category, PinMessagePayload, SafeSnapshotShot, StickerMessage,
+    SYSTEM_USER, SystemCircleAction,
+};
 use sdk::blaze_message::{
-    message_action, BlazeMessageData, MessageStatus, PlainJsonMessage, SnapshotMessage,
+    ACKNOWLEDGE_MESSAGE_RECEIPTS, BlazeMessageData, message_action, MessageStatus, PlainJsonMessage,
+    RESEND_KEY, RESEND_MESSAGES, SnapshotMessage,
     SystemCircleMessage, SystemConversationMessage, SystemUserMessage,
-    ACKNOWLEDGE_MESSAGE_RECEIPTS, RESEND_KEY, RESEND_MESSAGES,
 };
 use sdk::message_category::MessageCategory;
-use sdk::{
-    message_category, BlazeAckMessage, CircleConversation, PinMessagePayload, SafeSnapshotShot,
-    StickerMessage, SystemCircleAction, SYSTEM_USER,
-};
 
 use crate::core::crypto::compose_message::ComposeMessageData;
 use crate::core::crypto::signal_protocol::SignalProtocol;
@@ -26,10 +28,10 @@ use crate::core::util::generate_conversation_id;
 use crate::db::mixin::conversation::ConversationStatus;
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
-use crate::db::mixin::message::{MediaStatus, Message};
+use crate::db::mixin::message::{AttachmentMessageUpdate, MediaStatus, Message};
+use crate::db::mixin::MixinDatabase;
 use crate::db::mixin::participant::Participant;
 use crate::db::mixin::pin_message::{PinMessage, PinMessageMinimal};
-use crate::db::mixin::MixinDatabase;
 use crate::db::SignalDatabase;
 
 pub struct ServiceDecryptMessage {
@@ -44,7 +46,6 @@ pub struct ServiceDecryptMessage {
 impl ServiceDecryptMessage {
     pub fn new(
         database: Arc<MixinDatabase>,
-        signal_database: Arc<SignalDatabase>,
         app_service: Arc<AppService>,
         signal_protocol: Arc<SignalProtocol>,
         sender: Arc<MessageSender>,
@@ -219,6 +220,111 @@ impl ServiceDecryptMessage {
         message_id: &str,
         plain_text: &str,
     ) -> Result<()> {
+        if data.category == message_category::SIGNAL_TEXT {
+            self.database
+                .message_mention_dao
+                .parse_and_save_mention_data(
+                    message_id,
+                    &data.conversation_id,
+                    plain_text,
+                    data.sender_id(),
+                    None,
+                    self.user_id.as_str(),
+                    self.identity_number.as_str(),
+                )
+                .await?;
+            self.database
+                .message_dao
+                .update_message_content_and_status(message_id, plain_text, data.status)
+                .await?;
+        } else if data.category == message_category::SIGNAL_POST
+            || data.category == message_category::SIGNAL_LOCATION
+        {
+            self.database
+                .message_dao
+                .update_message_content_and_status(message_id, plain_text, data.status)
+                .await?;
+        } else if data.category.is_attachment() {
+            let attachment: AttachmentMessage = serde_json::from_str(&decode(plain_text)?)?;
+            let content = serde_json::to_string(&AttachmentExtra {
+                attachment_id: attachment.attachment_id,
+                message_id: data.message_id.clone(),
+                shareable: attachment.shareable,
+                created_at: None,
+            })?;
+
+            let message_update = AttachmentMessageUpdate {
+                status: data.status,
+                content,
+                media_mine_type: attachment.mime_type,
+                media_size: attachment.size,
+                media_status: MediaStatus::Canceled,
+                media_width: attachment.width,
+                media_height: attachment.height,
+                media_digest: attachment.digest,
+                media_key: attachment.key,
+                media_waveform: attachment.waveform,
+                caption: attachment.caption,
+                name: attachment.name,
+                thumb_image: attachment.thumbnail,
+                media_duration: attachment.duration.map(|d| d.to_string()),
+            };
+            self.database
+                .message_dao
+                .update_attachment_message(message_id, &message_update)
+                .await?;
+
+            // TODO(BIN): download attachment
+        } else if data.category == message_category::SIGNAL_STICKER {
+            let sticker_message: StickerMessage = serde_json::from_str(&decode(plain_text)?)?;
+            let sticker = self
+                .database
+                .sticker_dao
+                .find_sticker_by_id(&sticker_message.sticker_id)
+                .await?;
+            if sticker.is_none()
+                || sticker.is_some_and(|s| {
+                    s.album_id.is_none() || s.album_id.is_some_and(|a| a.is_empty())
+                })
+            {
+                self.database
+                    .job_dao
+                    .insert_job(&Job::create_update_asset_job(&sticker_message.sticker_id))
+                    .await?;
+            }
+
+            self.database
+                .message_dao
+                .update_sticker_message(message_id, sticker_message.sticker_id, data.status)
+                .await?;
+        } else if data.category == message_category::SIGNAL_CONTACT {
+            let contact_message: ContactMessage = serde_json::from_str(&decode(plain_text)?)?;
+            self.database
+                .message_dao
+                .update_contact_message(message_id, contact_message.user_id, data.status)
+                .await?;
+        } else if data.category == message_category::SIGNAL_LIVE {
+            let live_message: LiveMessage = serde_json::from_str(&decode(plain_text)?)?;
+            self.database
+                .message_dao
+                .update_live_message(
+                    message_id,
+                    live_message.width,
+                    live_message.height,
+                    &live_message.url,
+                    &live_message.thumb_url,
+                    data.status,
+                )
+                .await?;
+        } else if data.category == message_category::SIGNAL_TRANSCRIPT {
+            // TODO(BIN): handle transcript
+        }
+
+        self.database
+            .message_dao
+            .update_message_quote_if_need(&data.conversation_id, message_id)
+            .await?;
+
         Ok(())
     }
 
@@ -286,7 +392,7 @@ impl ServiceDecryptMessage {
                 .parse_and_save_mention_data(
                     &message.message_id,
                     &message.conversation_id,
-                    &message.content,
+                    message.content.as_deref(),
                     &data.user_id,
                     &quote_message,
                     self.user_id.as_str(),
@@ -364,7 +470,7 @@ impl ServiceDecryptMessage {
             };
             self.insert_message(&message, data).await?
         } else if data.category.is_contact() {
-            let contact_message: sdk::ContactMessage = serde_json::from_str(plain_text)?;
+            let contact_message: ContactMessage = serde_json::from_str(plain_text)?;
             let users = self
                 .app_service
                 .conversation
@@ -422,7 +528,7 @@ impl ServiceDecryptMessage {
             self.insert_message(&message, data).await?
         } else if data.category.is_transcript() {
             // TODO(BIN): process transcript
-            return Err(anyhow!("transcript message: {}", plain_text).into());
+            return Err(anyhow!("transcript message: {}", plain_text));
         }
         Ok(())
     }
@@ -483,6 +589,21 @@ impl ServiceDecryptMessage {
         data: &BlazeMessageData,
         plain_json_message: PlainJsonMessage,
     ) -> Result<()> {
+        let messages = plain_json_message
+            .messages
+            .ok_or_else(|| anyhow!("no messages"))?;
+
+        let p = self
+            .database
+            .participant_dao
+            .find_participant_by_id(&data.conversation_id, &data.user_id)
+            .await?
+            .ok_or_else(|| anyhow!("no participant"))?;
+
+        for message_id in messages {
+            info!("resend message: {}", message_id);
+            // TODO (BIN): resend message
+        }
         Ok(())
     }
 
@@ -537,7 +658,7 @@ impl ServiceDecryptMessage {
     }
 
     async fn process_pin(&self, data: &BlazeMessageData) -> Result<()> {
-        let payload: sdk::PinMessagePayload = serde_json::from_str(&data.data)?;
+        let payload: PinMessagePayload = serde_json::from_str(&data.data)?;
         match payload {
             PinMessagePayload::Pin(ids) => {
                 for (i, mid) in ids.iter().enumerate() {
@@ -925,7 +1046,47 @@ impl ServiceDecryptMessage {
 }
 
 impl ServiceDecryptMessage {
-    async fn mark_message_status(&self, messages: Vec<BlazeAckMessage>) -> Result<()> {
+    async fn mark_message_status(&self, blaze_messages: Vec<BlazeAckMessage>) -> Result<()> {
+        let mut messages_mention_read = Vec::new();
+        let mut message_read_with_expires = Vec::new();
+        let mut message_read = Vec::new();
+
+        for m in blaze_messages {
+            if m.status == ack_message_status::MENTION_READ {
+                messages_mention_read.push(m.message_id);
+            } else if m.status == ack_message_status::READ {
+                let expired_at = m.expire_at.unwrap_or(0);
+                if expired_at > 0 {
+                    message_read_with_expires.push((m.message_id, expired_at));
+                } else {
+                    message_read.push(m.message_id);
+                }
+            }
+        }
+
+        self.database
+            .message_mention_dao
+            .mark_mention_read(&messages_mention_read)
+            .await?;
+
+        self.app_service
+            .message
+            .mark_message_read(&message_read, true)
+            .await?;
+
+        let message = message_read_with_expires
+            .iter()
+            .map(|(message_id, expire_at)| message_id.to_string())
+            .collect::<Vec<_>>();
+        self.app_service
+            .message
+            .mark_message_read(&message, false)
+            .await?;
+        self.database
+            .expired_message_dao
+            .update_message_expired_at(&message_read_with_expires)
+            .await?;
+
         Ok(())
     }
 
@@ -938,9 +1099,14 @@ impl ServiceDecryptMessage {
         // TODO(BIN): insert fts
         let expire_in = data.expire_in.unwrap_or(0);
         if expire_in > 0 && message.user_id == self.user_id {
-            let expire_at = data.created_at + TimeDelta::seconds(expire_in as i64);
+            let expire_at = data.created_at + TimeDelta::seconds(expire_in);
             self.database
-                .update_message_expired_at(&data.message_id, &expire_at.naive_utc())?
+                .expired_message_dao
+                .update_message_expired_at(&[(
+                    data.message_id.clone(),
+                    expire_at.timestamp_millis() / 1000,
+                )])
+                .await?;
         }
         Ok(())
     }

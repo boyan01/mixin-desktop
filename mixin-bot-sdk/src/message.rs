@@ -1,11 +1,16 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+pub mod ack_message_status {
+    pub const READ: &str = "READ";
+    pub const MENTION_READ: &str = "MENTION_READ";
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BlazeAckMessage {
     pub message_id: String,
     pub status: String,
-    pub expire_at: Option<i32>,
+    pub expire_at: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize)]

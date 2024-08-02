@@ -57,8 +57,7 @@ impl CircleService {
             .await?;
         Ok(conversations
             .into_iter()
-            .map(|c| c.user_id)
-            .flatten()
+            .filter_map(|c| c.user_id)
             .collect())
     }
 }

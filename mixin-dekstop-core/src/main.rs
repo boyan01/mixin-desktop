@@ -58,7 +58,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     ));
     let decrypt_message = Arc::new(ServiceDecryptMessage::new(
         database.clone(),
-        signal_database.clone(),
         app_service.clone(),
         signal_protocol.clone(),
         sender.clone(),

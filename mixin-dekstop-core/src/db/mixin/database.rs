@@ -1,12 +1,12 @@
 use std::error::Error;
 
-use sqlx::{Pool, Sqlite};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
 use crate::db::mixin::app::AppDao;
 use crate::db::mixin::circle::CircleDao;
 use crate::db::mixin::circle_conversation_dao::CircleConversationDao;
 use crate::db::mixin::conversation::ConversationDao;
+use crate::db::mixin::expired_message::ExpiredMessageDao;
 use crate::db::mixin::flood_message::FloodMessageDao;
 use crate::db::mixin::job::JobDao;
 use crate::db::mixin::message::MessageDao;
@@ -19,6 +19,8 @@ use crate::db::mixin::safe_snapshot::SafeSnapshotDao;
 use crate::db::mixin::snapshot::SnapshotDao;
 use crate::db::mixin::sticker::StickerDao;
 use crate::db::mixin::user::UserDao;
+
+pub(crate) const MARK_LIMIT: usize = 999;
 
 #[derive(Clone)]
 pub struct MixinDatabase {
@@ -38,6 +40,7 @@ pub struct MixinDatabase {
     pub app_dao: AppDao,
     pub pin_message_dao: PinMessageDao,
     pub flood_message_dao: FloodMessageDao,
+    pub expired_message_dao: ExpiredMessageDao,
 }
 
 impl MixinDatabase {
@@ -68,26 +71,7 @@ impl MixinDatabase {
             app_dao: AppDao(pool.clone()),
             pin_message_dao: PinMessageDao(pool.clone()),
             flood_message_dao: FloodMessageDao(pool.clone()),
+            expired_message_dao: ExpiredMessageDao(pool.clone()),
         })
     }
-}
-
-impl MixinDatabase {}
-
-struct User {
-    id: String,
-    identity_number: String,
-    relationship: Option<String>,
-    full_name: Option<String>,
-    avatar_url: Option<String>,
-    phone: Option<String>,
-    is_verified: Option<bool>,
-    created_at: Option<i32>,
-    mute_until: Option<i32>,
-    has_pin: Option<i32>,
-    biography: Option<String>,
-    is_scam: Option<i32>,
-    code_url: Option<String>,
-    code_id: Option<String>,
-    is_deactivated: Option<bool>,
 }

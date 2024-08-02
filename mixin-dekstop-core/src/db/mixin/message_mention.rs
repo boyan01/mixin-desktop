@@ -1,5 +1,7 @@
-use crate::db::mixin::message::QuoteMessage;
 use crate::db::Error;
+use crate::db::mixin::database::MARK_LIMIT;
+use crate::db::mixin::message::QuoteMessage;
+use crate::db::mixin::util::{BindListForQuery, expand_var};
 
 #[derive(Clone)]
 pub struct MessageMentionDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
@@ -12,9 +14,9 @@ pub struct MessageMention {
 }
 
 fn parse_mention_data(
-    content: &Option<String>,
+    content: Option<&str>,
     sender_id: &str,
-    quote_message: &Option<QuoteMessage>,
+    quote_message: Option<&QuoteMessage>,
     current_user_id: &str,
     current_user_identity_number: &str,
 ) -> bool {
@@ -41,16 +43,16 @@ impl MessageMentionDao {
         &self,
         message_id: &str,
         conversation_id: &str,
-        content: &Option<String>,
+        content: impl Into<Option<&str>>,
         sender_id: &str,
-        quote_message: &Option<QuoteMessage>,
+        quote_message: impl Into<Option<&QuoteMessage>>,
         current_user_id: &str,
         current_user_identity_number: &str,
     ) -> Result<(), Error> {
         let has_mention = parse_mention_data(
-            content,
+            content.into(),
             sender_id,
-            quote_message,
+            quote_message.into(),
             current_user_id,
             current_user_identity_number,
         );
@@ -79,11 +81,33 @@ impl MessageMentionDao {
             .await?;
         Ok(())
     }
+
     pub async fn delete_message_mention(&self, message_id: &String) -> Result<u64, Error> {
         let result = sqlx::query("DELETE FROM message_mentions WHERE message_mention_id = ?")
             .bind(message_id)
             .execute(&self.0)
             .await?;
         Ok(result.rows_affected())
+    }
+
+    pub async fn mark_mention_read(&self, ids: &[String]) -> Result<u64, Error> {
+        if ids.is_empty() {
+            return Ok(0);
+        }
+
+        let mut chunks = ids.chunks(MARK_LIMIT);
+        let mut rows_affected: u64 = 0;
+        while let Some(chunk) = chunks.next() {
+            let affected = sqlx::query(&format!(
+                "UPDATE message_mentions SET has_read = true WHERE message_mention_id in ({})",
+                expand_var(chunk.len())
+            ))
+            .bind_list(chunk)
+            .execute(&self.0)
+            .await?
+            .rows_affected();
+            rows_affected += affected;
+        }
+        Ok(rows_affected)
     }
 }

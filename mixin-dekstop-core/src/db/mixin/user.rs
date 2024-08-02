@@ -3,6 +3,7 @@ use sqlx::{Pool, QueryBuilder, Sqlite};
 
 use sdk::SYSTEM_USER;
 
+use crate::db::mixin::util::{expand_var, BindList};
 use crate::db::Error;
 
 #[derive(Clone)]
@@ -63,13 +64,14 @@ impl UserDao {
     }
 
     pub async fn find_users(&self, ids: &[String]) -> Result<Vec<User>, Error> {
-        let params = format!("?{}", ", ?".repeat(ids.len() - 1));
-        let query_str = format!("SELECT * FROM users WHERE user_id IN ({})", params);
-        let mut query = sqlx::query_as::<_, User>(&query_str);
-        for id in ids {
-            query = query.bind(id);
-        }
-        let result = query.fetch_all(&self.0).await?;
+        let query_str = format!(
+            "SELECT * FROM users WHERE user_id IN ({})",
+            expand_var(ids.len())
+        );
+        let result = sqlx::query_as::<_, User>(&query_str)
+            .bind_list(ids)
+            .fetch_all(&self.0)
+            .await?;
         Ok(result)
     }
 

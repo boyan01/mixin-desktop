@@ -1,8 +1,12 @@
+use anyhow::Context;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::{QueryBuilder, Sqlite};
 
 use sdk::blaze_message::MessageStatus;
 
+use crate::db::mixin::database::MARK_LIMIT;
+use crate::db::mixin::util::{expand_var, BindList, BindListForQuery};
 use crate::db::Error;
 
 #[derive(Clone)]
@@ -71,7 +75,7 @@ pub struct QuoteMessage {
     pub media_waveform: Option<String>,
     pub media_name: Option<String>,
     pub media_mime_type: Option<String>,
-    pub media_size: Option<i32>,
+    pub media_size: Option<i64>,
     pub media_width: Option<i32>,
     pub media_height: Option<i32>,
     pub thumb_image: Option<String>,
@@ -121,10 +125,33 @@ FROM messages message
          LEFT JOIN message_mentions messageMention ON message.message_id = messageMention.message_id
 "#;
 
+pub struct AttachmentMessageUpdate {
+    pub status: MessageStatus,
+    pub content: String,
+    pub media_mine_type: String,
+    pub media_size: i64,
+    pub media_status: MediaStatus,
+    pub media_width: Option<i32>,
+    pub media_height: Option<i32>,
+    pub media_digest: Option<Vec<u8>>,
+    pub media_key: Option<Vec<u8>>,
+    pub media_waveform: Option<Vec<u8>>,
+    pub caption: Option<String>,
+    pub name: Option<String>,
+    pub thumb_image: Option<String>,
+    pub media_duration: Option<String>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct MiniMessageItem {
+    pub message_id: String,
+    pub conversation_id: String,
+}
+
 impl MessageDao {
     pub async fn find_quote_message_by_id(
         &self,
-        message_id: &String,
+        message_id: &str,
     ) -> Result<Option<QuoteMessage>, Error> {
         let query_str = format!(
             "{} WHERE message.message_id = ?",
@@ -197,6 +224,172 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
             .bind(&message.caption)
             .execute(&self.0)
             .await?;
+        Ok(())
+    }
+
+    pub async fn update_message_content_and_status(
+        &self,
+        message_id: &str,
+        content: &str,
+        status: MessageStatus,
+    ) -> Result<(), Error> {
+        let _ = sqlx::query("UPDATE messages SET content = ?, status = ? WHERE message_id = ?")
+            .bind(content)
+            .bind(status)
+            .bind(message_id)
+            .execute(&self.0)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn update_attachment_message(
+        &self,
+        message_id: &str,
+        update: &AttachmentMessageUpdate,
+    ) -> Result<(), Error> {
+        let _ = sqlx::query(
+            r#"UPDATE messages SET
+         status = ?, content = ?, media_mine_type = ?, media_size = ?, media_status = ?,
+         media_width = ?, media_height = ?, media_digest = ?, media_key = ?, media_waveform = ?,
+         caption = ?, name = ?, thumb_image = ?, media_duration = ?
+          WHERE message_id = ?"#,
+        )
+        .bind(update.status)
+        .bind(&update.content)
+        .bind(&update.media_mine_type)
+        .bind(update.media_size)
+        .bind(&update.media_status)
+        .bind(update.media_width)
+        .bind(update.media_height)
+        .bind(&update.media_digest)
+        .bind(&update.media_key)
+        .bind(&update.media_waveform)
+        .bind(&update.caption)
+        .bind(&update.name)
+        .bind(&update.thumb_image)
+        .bind(&update.media_duration)
+        .bind(message_id)
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn update_sticker_message(
+        &self,
+        message_id: &str,
+        sticker_id: String,
+        status: MessageStatus,
+    ) -> Result<(), Error> {
+        let _ = sqlx::query("UPDATE messages SET sticker_id = ?, status = ? WHERE message_id = ?")
+            .bind(sticker_id)
+            .bind(status)
+            .bind(message_id)
+            .execute(&self.0)
+            .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn update_contact_message(
+        &self,
+        message_id: &str,
+        user_id: String,
+        status: MessageStatus,
+    ) -> Result<(), Error> {
+        let _ =
+            sqlx::query("UPDATE messages SET shared_user_id = ?, status = ? WHERE message_id = ?")
+                .bind(user_id)
+                .bind(status)
+                .bind(message_id)
+                .execute(&self.0)
+                .await;
+        Ok(())
+    }
+
+    pub async fn update_live_message(
+        &self,
+        message_id: &str,
+        width: i32,
+        height: i32,
+        url: &str,
+        thumb_url: &str,
+        status: MessageStatus,
+    ) -> Result<(), Error> {
+        let _ = sqlx::query(
+            "UPDATE messages SET media_width = ?, media_height = ?, media_url = ?, thumb_url = ?, status = ? WHERE message_id = ?",
+        )
+        .bind(width)
+        .bind(height)
+        .bind(url)
+        .bind(thumb_url)
+        .bind(status)
+        .bind(message_id)
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn update_message_quote_if_need(
+        &self,
+        conversation_id: &str,
+        message_id: &str,
+    ) -> Result<(), Error> {
+        let message_ids = sqlx::query_scalar::<_, String>(
+            "SELECT message_id FROM messages WHERE conversation_id = ? AND quote_message_id = ?",
+        )
+        .bind(conversation_id)
+        .bind(message_id)
+        .fetch_all(&self.0)
+        .await?;
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+
+        let message = self.find_quote_message_by_id(message_id).await?;
+
+        if let Some(message) = message {
+            let content =
+                serde_json::to_string(&message).with_context(|| "convert quote message to json")?;
+
+            let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+                "UPDATE messages SET quote_content = ? WHERE where message_id IN (",
+            );
+
+            for message_id in message_ids {
+                query_builder.push_bind(message_id);
+            }
+            query_builder.push(")");
+            let _ = query_builder.build().bind(&content).execute(&self.0).await;
+        }
+
+        Ok(())
+    }
+
+    pub async fn mini_message_by_ids(&self, ids: &[String]) -> Result<Vec<MiniMessageItem>, Error> {
+        let query_str = format!(
+            "SELECT conversation_id, message_id FROM messages WHERE message_id IN ({})",
+            expand_var(ids.len())
+        );
+        let result = sqlx::query_as::<_, MiniMessageItem>(&query_str)
+            .bind_list(ids)
+            .fetch_all(&self.0)
+            .await?;
+        Ok(result)
+    }
+
+    pub async fn mark_message_read(&self, messages: &[String]) -> Result<(), Error> {
+        let mut iter = messages.chunks(MARK_LIMIT);
+        while let Some(chunk) = iter.next() {
+            let ids = chunk.iter().map(|m| m.as_str()).collect::<Vec<&str>>();
+            let _ = sqlx::query(&format!(
+                "UPDATE messages SET status = ? WHERE message_id in {}",
+                expand_var(chunk.len())
+            ))
+            .bind(MessageStatus::Read)
+            .bind_list(&ids)
+            .execute(&self.0)
+            .await?;
+        }
+
         Ok(())
     }
 }

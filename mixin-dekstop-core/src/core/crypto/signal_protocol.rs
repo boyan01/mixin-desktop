@@ -1,13 +1,12 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::str::FromStr;
 use std::sync::Arc;
-use std::u8;
 
 use anyhow::anyhow;
 use base64ct::{Base64, Encoding};
 use libsignal_protocol::{
-    create_sender_key_distribution_message, group_decrypt, message_decrypt, message_encrypt,
-    process_prekey_bundle, CiphertextMessage, CiphertextMessageType, IdentityKey, PreKeyBundle,
+    CiphertextMessage, CiphertextMessageType, create_sender_key_distribution_message, group_decrypt,
+    IdentityKey, message_decrypt, message_encrypt, PreKeyBundle, process_prekey_bundle,
     ProtocolAddress, PublicKey, SenderKeyName, SignalProtocolError,
 };
 use rand_core::OsRng;
@@ -162,7 +161,7 @@ impl SignalProtocol {
                     .as_ref()
                     .ok_or(anyhow!("Failed to deserialize public key"))?,
             )?)
-            .map_err(|e| anyhow!("Failed to deserialize public key"))?,
+            .map_err(|e| anyhow!("Failed to deserialize public key: {e}"))?,
             Base64::decode_vec(&key.signed_pre_key.signature)?,
             IdentityKey::decode(&Base64::decode_vec(&key.identity_key)?)
                 .map_err(|e| anyhow!("Failed to decode identity key: {}", e))?,
@@ -212,17 +211,17 @@ impl SignalProtocol {
         .await?;
 
         let cipher_message = self.encrypt_session(message.serialized(), rid, did).await;
-        let cipher_message =
-            if let Err(SignalProtocolError::UntrustedIdentity(err)) = cipher_message {
-                store
-                    .identity_store
-                    .delete_identity(&remote_address)
-                    .await?;
-                store.session_store.delete_session(&remote_address).await?;
-                return Ok(("".to_string(), false));
-            } else {
-                cipher_message?
-            };
+        let cipher_message = if let Err(SignalProtocolError::UntrustedIdentity(_)) = cipher_message
+        {
+            store
+                .identity_store
+                .delete_identity(&remote_address)
+                .await?;
+            store.session_store.delete_session(&remote_address).await?;
+            return Ok(("".to_string(), false));
+        } else {
+            cipher_message?
+        };
         let data = ComposeMessageData {
             key_type: cipher_message.message_type() as u8,
             cipher: cipher_message.serialize().to_vec(),
@@ -253,11 +252,6 @@ impl SignalProtocol {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[tokio::test]
-    async fn test_signal_protocol() {
-        let db = Arc::new(SignalDatabase::connect("".to_string()).await.unwrap());
-        let protocol = SignalProtocol::new(db, "".to_string());
-    }
+    async fn test_signal_protocol() {}
 }

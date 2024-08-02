@@ -1,9 +1,8 @@
-use std::cell::RefCell;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use libsignal_protocol::{
-    Context, Direction, error, IdentityKey, IdentityKeyPair, IdentityKeyStore, PreKeyRecord,
+    error, Context, Direction, IdentityKey, IdentityKeyPair, IdentityKeyStore, PreKeyRecord,
     PreKeyStore, PrivateKey, ProtocolAddress, SenderKeyName, SenderKeyRecord, SenderKeyStore,
     SessionRecord, SessionStore, SignalProtocolError, SignedPreKeyRecord, SignedPreKeyStore,
 };
@@ -41,9 +40,7 @@ pub struct MixinSessionStore {
     db: Arc<SignalDatabase>,
 }
 
-
 impl MixinSessionStore {
-
     pub async fn delete_session(&self, address: &ProtocolAddress) -> anyhow::Result<()> {
         self.db
             .session_dao
@@ -51,7 +48,7 @@ impl MixinSessionStore {
             .await
             .map_err(anyhow::Error::from)
     }
-    
+
     pub async fn contain_user_session(&self, recipient_id: &str) -> anyhow::Result<bool> {
         self.db
             .session_dao
@@ -104,7 +101,7 @@ impl MixinIdentityKeyStore {
     pub async fn delete_identity(&self, address: &ProtocolAddress) -> anyhow::Result<()> {
         self.db
             .identity_dao
-            .delete_identity(&address.name())
+            .delete_identity(address.name())
             .await
             .map_err(anyhow::Error::from)
     }

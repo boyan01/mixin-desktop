@@ -19,3 +19,4 @@ pub mod safe_snapshot;
 pub mod snapshot;
 pub mod sticker;
 pub mod user;
+mod util;

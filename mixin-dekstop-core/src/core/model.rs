@@ -14,6 +14,7 @@ pub mod message;
 pub struct AppService {
     pub conversation: ConversationService,
     pub circle: CircleService,
+    pub message: MessageService,
 }
 
 impl AppService {
@@ -21,11 +22,12 @@ impl AppService {
         let conversation = ConversationService::new(db.clone(), client.clone(), account_id.clone());
         AppService {
             circle: CircleService {
-                db,
+                db: db.clone(),
                 client,
                 conversation: conversation.clone(),
             },
             conversation,
+            message: MessageService::new(db.clone()),
         }
     }
 }

@@ -67,7 +67,7 @@ mod test {
             cipher: vec![1, 2, 3, 4],
             resend_message_id: None,
         };
-        let encoded = data.encode().unwrap();
+        let encoded = data.encode();
         let decoded = ComposeMessageData::decode(&encoded).unwrap();
         assert_eq!(data, decoded);
     }

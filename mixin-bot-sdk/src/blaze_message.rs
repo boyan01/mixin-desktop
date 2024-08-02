@@ -240,7 +240,7 @@ pub struct BlazeMessageData {
     pub quote_message_id: Option<String>,
     pub session_id: String,
     pub silent: Option<bool>,
-    pub expire_in: Option<i32>,
+    pub expire_in: Option<i64>,
 }
 
 impl BlazeMessageData {
