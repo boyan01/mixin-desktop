@@ -1,7 +1,7 @@
 use crate::client::ClientRef;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use chrono::{DateTime, Utc};
 
 pub struct TokenApi {
     client: Arc<ClientRef>,

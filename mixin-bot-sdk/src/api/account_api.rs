@@ -1,10 +1,10 @@
-use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::api::user_api::UserRelationship;
-use crate::ApiError;
 use crate::client::ClientRef;
+use crate::ApiError;
 
 pub struct AccountApi {
     client: Arc<ClientRef>,

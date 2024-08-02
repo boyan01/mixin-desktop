@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::bail;
 
-use sdk::{ConversationCategory, UserSession};
 use sdk::client::Client;
+use sdk::{ConversationCategory, UserSession};
 
 use crate::db::mixin::conversation::{Conversation, ConversationStatus};
 use crate::db::mixin::participant::Participant;

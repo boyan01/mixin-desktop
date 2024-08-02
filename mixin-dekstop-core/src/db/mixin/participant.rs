@@ -86,7 +86,7 @@ impl ParticipantDao {
         .await?;
         Ok(())
     }
-    
+
     pub async fn remove_participant(&self, cid: &str, pid: &str) -> Result<(), Error> {
         let _ = sqlx::query("DELETE FROM participants WHERE conversation_id = ? AND user_id = ?")
             .bind(cid)
@@ -95,6 +95,4 @@ impl ParticipantDao {
             .await?;
         Ok(())
     }
-    
-    
 }

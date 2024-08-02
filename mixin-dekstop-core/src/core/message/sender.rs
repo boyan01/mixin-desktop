@@ -3,14 +3,14 @@ use std::sync::Arc;
 use anyhow::{anyhow, bail, Result};
 use base64ct::{Base64, Encoding};
 use log::warn;
-use tokio::time::{Duration, sleep};
+use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
-use sdk::{
-    BlazeMessage, BlazeMessageParam, BlazeMessageParamSession, BlazeSignalKeyMessage,
-    message_category, MessageStatus, NO_KEY, PlainJsonMessage, SignalKey, UserSession,
-};
 use sdk::err::error_code::{BAD_DATA, CONVERSATION_CHECKSUM_INVALID_ERROR, FORBIDDEN};
+use sdk::{
+    message_category, BlazeMessage, BlazeMessageParam, BlazeMessageParamSession,
+    BlazeSignalKeyMessage, MessageStatus, PlainJsonMessage, SignalKey, UserSession, NO_KEY,
+};
 
 use crate::core::crypto::signal_protocol::SignalProtocol;
 use crate::core::message::blaze::Blaze;

@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::api::account_api::Account;
-use crate::ApiError;
 use crate::client::ClientRef;
+use crate::ApiError;
 
 pub struct ProvisioningApi {
     client: Arc<ClientRef>,

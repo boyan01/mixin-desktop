@@ -1,7 +1,7 @@
-use crate::db::Error;
 use crate::db::mixin::database::MARK_LIMIT;
 use crate::db::mixin::message::QuoteMessage;
-use crate::db::mixin::util::{BindListForQuery, expand_var};
+use crate::db::mixin::util::{expand_var, BindListForQuery};
+use crate::db::Error;
 
 #[derive(Clone)]
 pub struct MessageMentionDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);

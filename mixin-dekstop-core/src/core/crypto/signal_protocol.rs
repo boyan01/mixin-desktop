@@ -5,8 +5,8 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use base64ct::{Base64, Encoding};
 use libsignal_protocol::{
-    CiphertextMessage, CiphertextMessageType, create_sender_key_distribution_message, group_decrypt,
-    IdentityKey, message_decrypt, message_encrypt, PreKeyBundle, process_prekey_bundle,
+    create_sender_key_distribution_message, group_decrypt, message_decrypt, message_encrypt,
+    process_prekey_bundle, CiphertextMessage, CiphertextMessageType, IdentityKey, PreKeyBundle,
     ProtocolAddress, PublicKey, SenderKeyName, SignalProtocolError,
 };
 use rand_core::OsRng;

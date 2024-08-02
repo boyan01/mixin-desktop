@@ -49,7 +49,7 @@ impl SessionDao {
         .await?;
         Ok(())
     }
-    
+
     pub async fn delete_session(&self, address: &str, device: u32) -> Result<(), Error> {
         let _ = sqlx::query("DELETE FROM sessions WHERE address = ? AND device = ?")
             .bind(address)
@@ -58,5 +58,4 @@ impl SessionDao {
             .await?;
         Ok(())
     }
-    
 }

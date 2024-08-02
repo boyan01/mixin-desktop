@@ -8,17 +8,17 @@ use chrono::TimeDelta;
 use log::{error, info};
 use uuid::Uuid;
 
-use sdk::{
-    ack_message_status, AttachmentMessage, BlazeAckMessage, CircleConversation, ContactMessage,
-    LiveMessage, message_category, PinMessagePayload, SafeSnapshotShot, StickerMessage,
-    SYSTEM_USER, SystemCircleAction,
-};
 use sdk::blaze_message::{
-    ACKNOWLEDGE_MESSAGE_RECEIPTS, BlazeMessageData, message_action, MessageStatus, PlainJsonMessage,
-    RESEND_KEY, RESEND_MESSAGES, SnapshotMessage,
+    message_action, BlazeMessageData, MessageStatus, PlainJsonMessage, SnapshotMessage,
     SystemCircleMessage, SystemConversationMessage, SystemUserMessage,
+    ACKNOWLEDGE_MESSAGE_RECEIPTS, RESEND_KEY, RESEND_MESSAGES,
 };
 use sdk::message_category::MessageCategory;
+use sdk::{
+    ack_message_status, message_category, AttachmentMessage, BlazeAckMessage, CircleConversation,
+    ContactMessage, LiveMessage, PinMessagePayload, SafeSnapshotShot, StickerMessage,
+    SystemCircleAction, SYSTEM_USER,
+};
 
 use crate::core::crypto::compose_message::ComposeMessageData;
 use crate::core::crypto::signal_protocol::SignalProtocol;
@@ -29,9 +29,9 @@ use crate::db::mixin::conversation::ConversationStatus;
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::{AttachmentMessageUpdate, MediaStatus, Message};
-use crate::db::mixin::MixinDatabase;
 use crate::db::mixin::participant::Participant;
 use crate::db::mixin::pin_message::{PinMessage, PinMessageMinimal};
+use crate::db::mixin::MixinDatabase;
 use crate::db::SignalDatabase;
 
 pub struct ServiceDecryptMessage {
@@ -91,7 +91,8 @@ impl ServiceDecryptMessage {
             .is_message_exits(&message.message_id)
             .await?
         {
-            // TODO update remote message status
+            self.update_remote_message_status(&message.message_id, MessageStatus::Delivered)
+                .await?;
             self.database
                 .flood_message_dao
                 .delete_flood_message(&message.message_id)
@@ -197,19 +198,18 @@ impl ServiceDecryptMessage {
         status: MessageStatus,
     ) -> Result<()> {
         if status != MessageStatus::Delivered && status != MessageStatus::Read {
-            Ok(())
-        } else {
-            self.database
-                .job_dao
-                .insert_job(&Job::create_ack_job(
-                    ACKNOWLEDGE_MESSAGE_RECEIPTS,
-                    message_id,
-                    status.into(),
-                    None,
-                ))
-                .await?;
-            Ok(())
+            return Ok(());
         }
+        self.database
+            .job_dao
+            .insert_job(&Job::create_ack_job(
+                ACKNOWLEDGE_MESSAGE_RECEIPTS,
+                message_id,
+                status.into(),
+                None,
+            ))
+            .await?;
+        Ok(())
     }
 }
 
@@ -401,7 +401,7 @@ impl ServiceDecryptMessage {
                 .await?;
             self.insert_message(&message, data).await?
         } else if data.category.is_attachment() {
-            let attachment: sdk::AttachmentMessage = serde_json::from_str(plain_text)?;
+            let attachment: AttachmentMessage = serde_json::from_str(plain_text)?;
             let content = serde_json::to_string(&AttachmentExtra {
                 attachment_id: attachment.attachment_id,
                 message_id: data.message_id.clone(),
@@ -494,7 +494,7 @@ impl ServiceDecryptMessage {
             };
             self.insert_message(&message, data).await?
         } else if data.category.is_live() {
-            let live_message: sdk::LiveMessage = serde_json::from_str(plain_text)?;
+            let live_message: LiveMessage = serde_json::from_str(plain_text)?;
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
@@ -513,7 +513,7 @@ impl ServiceDecryptMessage {
         } else if data.category.is_location() {
             let location_message: sdk::LocationMessage = serde_json::from_str(plain_text)?;
             if location_message.latitude == 0.0 || location_message.longitude == 0.0 {
-                return Err(anyhow!("invalid location message: {}", plain_text).into());
+                return Err(anyhow!("invalid location message: {}", plain_text));
             }
             let message = Message {
                 message_id: data.message_id.clone(),
