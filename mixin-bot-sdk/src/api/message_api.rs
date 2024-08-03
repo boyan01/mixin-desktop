@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use crate::{ApiError, BlazeAckMessage};
 use crate::client::ClientRef;
+use crate::{ApiError, BlazeAckMessage};
 
 pub struct MessageApi {
     pub(crate) client: Arc<ClientRef>,

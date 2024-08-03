@@ -47,7 +47,7 @@ pub struct ProvisioningRequest {
     pub platform_version: String,
     pub app_version: String,
     pub purpose: String,
-    pub registration_id: i32,
+    pub registration_id: u32,
 }
 
 impl ProvisioningApi {

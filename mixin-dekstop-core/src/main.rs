@@ -1,18 +1,20 @@
 use std::error::Error;
-use std::fs;
 use std::sync::Arc;
 
-use log::LevelFilter;
+use log::{info, LevelFilter};
 use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
 
 use db::mixin::MixinDatabase;
 use db::SignalDatabase;
+use mixin_dekstop_core::core::constants::SCP;
 use mixin_dekstop_core::core::crypto::signal_protocol::SignalProtocol;
 use mixin_dekstop_core::core::message::blaze::Blaze;
 use mixin_dekstop_core::core::message::decrypt::ServiceDecryptMessage;
 use mixin_dekstop_core::core::message::sender::MessageSender;
+use mixin_dekstop_core::core::model::auth::AuthService;
 use mixin_dekstop_core::core::model::{AppService, ConversationService};
 use mixin_dekstop_core::db;
+use mixin_dekstop_core::db::app::AppDatabase;
 use sdk::Credential;
 use sdk::KeyStore;
 
@@ -25,39 +27,63 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ColorChoice::Auto,
     )])?;
 
-    let file = fs::read("./keystore.json")?;
-    let keystore: KeyStore = serde_json::from_slice(&file)?;
+    let app_db = Arc::new(AppDatabase::connect().await?);
+    let auth_service = AuthService::new(app_db);
+    auth_service.initialize().await?;
 
-    let user_id = keystore.app_id.clone();
-    let identity_number = "0".to_string();
-    let client = Arc::new(sdk::Client::new(Credential::KeyStore(keystore.clone())));
-    // let result = a.get_me().await;
-    let database = Arc::new(MixinDatabase::new(identity_number.clone()).await?);
-    let signal_database = Arc::new(SignalDatabase::connect(identity_number.to_string()).await?);
-    let blaze = Arc::new(Blaze::new(
-        database.clone(),
-        Credential::KeyStore(keystore.clone()),
-        keystore.app_id,
-    ));
+    let auth = match auth_service.get_auth() {
+        Some(auth) => auth,
+        None => {
+            let auth = auth_service.authorize().await?;
+
+            let identity_number = auth.auth.account.identity_number.clone();
+            let signal_database = Arc::new(SignalDatabase::connect(identity_number).await?);
+            signal_database
+                .init(auth.registration_id, Some(&auth.identity_key_private))
+                .await?;
+            auth_service.save_auth(&auth.auth).await?;
+            auth.auth
+        }
+    };
+
+    let credential = Credential::KeyStore(KeyStore {
+        app_id: auth.user_id.clone(),
+        session_id: auth.account.session_id.clone(),
+        server_public_key: "".to_string(),
+        session_private_key: base16ct::lower::encode_string(&auth.private_key),
+        scp: SCP.to_string(),
+    });
+
+    let account = auth.account;
+    let client = Arc::new(sdk::Client::new(credential.clone()));
+    let account_id = account.user_id;
+    let result = client.account_api.get_me().await?;
+    info!("account: {:?}", result);
+
+    let database = Arc::new(MixinDatabase::new(account.identity_number.clone()).await?);
+    let signal_database =
+        Arc::new(SignalDatabase::connect(account.identity_number.to_string()).await?);
+    let blaze = Arc::new(Blaze::new(database.clone(), credential, account_id.clone()));
 
     let signal_protocol = Arc::new(SignalProtocol::new(
         signal_database.clone(),
-        identity_number.to_string(),
+        account.identity_number.to_string(),
     ));
 
-    let conversation = ConversationService::new(database.clone(), client.clone(), user_id.clone());
+    let conversation =
+        ConversationService::new(database.clone(), client.clone(), account_id.clone());
     let sender = Arc::new(MessageSender::new(
         blaze.clone(),
         conversation,
         database.clone(),
-        user_id.to_string(),
+        account_id.to_string(),
         signal_protocol.clone(),
     ));
 
     let app_service = Arc::new(AppService::new(
         database.clone(),
         client.clone(),
-        user_id.to_string(),
+        account_id.to_string(),
         None,
         sender.clone(),
     ));
@@ -67,8 +93,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         app_service.clone(),
         signal_protocol.clone(),
         sender.clone(),
-        user_id.to_string(),
-        identity_number.to_string(),
+        account_id.to_string(),
+        account.identity_number.to_string(),
     ));
     let connection = blaze.connect();
     let decrypt = decrypt_message.start();

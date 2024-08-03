@@ -5,7 +5,7 @@ use db::Error;
 
 use crate::db;
 use crate::db::mixin::database::MARK_LIMIT;
-use crate::db::mixin::util::{BindListForQuery, expand_var_with_index};
+use crate::db::mixin::util::{expand_var_with_index, BindListForQuery};
 
 #[derive(Clone)]
 pub struct ExpiredMessageDao(pub(crate) sqlx::Pool<Sqlite>);

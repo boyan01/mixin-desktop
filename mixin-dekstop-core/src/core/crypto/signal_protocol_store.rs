@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use libsignal_protocol::{
-    error, Context, Direction, IdentityKey, IdentityKeyPair, IdentityKeyStore, PreKeyRecord,
+    Context, Direction, error, IdentityKey, IdentityKeyPair, IdentityKeyStore, PreKeyRecord,
     PreKeyStore, PrivateKey, ProtocolAddress, SenderKeyName, SenderKeyRecord, SenderKeyStore,
     SessionRecord, SessionStore, SignalProtocolError, SignedPreKeyRecord, SignedPreKeyStore,
 };
@@ -152,6 +152,7 @@ impl IdentityKeyStore for MixinIdentityKeyStore {
                         registration_id: None,
                         public_key: identity.serialize().to_vec(),
                         private_key: None,
+                        timestamp: chrono::Utc::now(),
                     };
                     self.db.identity_dao.save_identity(&identity).await?;
                     Ok(true)
@@ -166,6 +167,7 @@ impl IdentityKeyStore for MixinIdentityKeyStore {
                     registration_id: None,
                     public_key: identity.serialize().to_vec(),
                     private_key: None,
+                    timestamp: chrono::Utc::now(),
                 };
                 self.db.identity_dao.save_identity(&identity).await?;
                 Ok(true)

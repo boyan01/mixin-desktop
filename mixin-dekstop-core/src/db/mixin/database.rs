@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
 use crate::db::mixin::app::AppDao;
 use crate::db::mixin::circle::CircleDao;
@@ -49,6 +49,8 @@ impl MixinDatabase {
             .connect_with(
                 SqliteConnectOptions::new()
                     .filename("mixin.db")
+                    .journal_mode(SqliteJournalMode::Wal)
+                    .synchronous(SqliteSynchronous::Normal)
                     .create_if_missing(true),
             )
             .await?;

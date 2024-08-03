@@ -36,7 +36,7 @@ pub struct App {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Account {
     pub user_id: String,
     pub app: Option<App>,

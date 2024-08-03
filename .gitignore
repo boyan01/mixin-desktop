@@ -2,3 +2,5 @@ keystore.json
 .idea
 target
 *.db
+*.db-shm
+*.db-wal

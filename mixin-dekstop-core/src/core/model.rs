@@ -9,6 +9,7 @@ use crate::core::message::sender::MessageSender;
 use crate::core::model::job::JobService;
 use crate::db::MixinDatabase;
 
+pub mod auth;
 pub mod circle;
 pub mod conversation;
 pub mod job;

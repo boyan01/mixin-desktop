@@ -1,7 +1,7 @@
 use crate::db::mixin::expired_message::ExpiredMessageDao;
-use crate::db::mixin::message::{MessageDao};
+use crate::db::mixin::message::MessageDao;
 use crate::db::mixin::message_mention::MessageMentionDao;
-use crate::db::{MixinDatabase};
+use crate::db::MixinDatabase;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
