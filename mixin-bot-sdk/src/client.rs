@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context};
+use bytes::Bytes;
 use reqwest::header::HeaderValue;
 use reqwest::{Method, Request};
 use serde::de::DeserializeOwned;
@@ -8,7 +9,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::credential::Credential;
-use crate::{AccountApi, ApiError, CircleApi, ConversationApi, ProvisioningApi, TokenApi, UserApi};
+use crate::{
+    AccountApi, ApiError, CircleApi, ConversationApi, MessageApi, ProvisioningApi, TokenApi,
+    UserApi,
+};
 
 pub struct Client {
     inner: Arc<ClientRef>,
@@ -18,6 +22,7 @@ pub struct Client {
     pub token_api: TokenApi,
     pub conversation_api: ConversationApi,
     pub circle_api: CircleApi,
+    pub message_api: MessageApi,
 }
 
 impl Client {
@@ -33,6 +38,9 @@ impl Client {
             circle_api: CircleApi {
                 client: inner.clone(),
             },
+            message_api: MessageApi {
+                client: inner.clone(),
+            },
         }
     }
 
@@ -46,8 +54,8 @@ impl Client {
 
 pub(crate) struct ClientRef {
     credential: Credential,
-    base_url: String,
-    client: reqwest::Client,
+    pub(crate) base_url: String,
+    pub(crate) client: reqwest::Client,
 }
 
 const MIXIN_BASE_URL: &str = "https://api.mixin.one";
@@ -95,10 +103,7 @@ impl ClientRef {
         self.request(request).await
     }
 
-    pub(crate) async fn request<T>(&self, mut request: Request) -> Result<T, ApiError>
-    where
-        T: DeserializeOwned,
-    {
+    pub(crate) async fn raw_request(&self, mut request: Request) -> Result<Bytes, ApiError> {
         let path = match request.method() {
             &Method::GET => {
                 let path = request.url().path();
@@ -132,8 +137,14 @@ impl ClientRef {
 
         let resp = self.client.execute(request).await?;
 
-        let text = resp.bytes().await?;
+        Ok(resp.bytes().await?)
+    }
 
+    pub(crate) async fn request<T>(&self, request: Request) -> Result<T, ApiError>
+    where
+        T: DeserializeOwned,
+    {
+        let text = self.raw_request(request).await?;
         let result: MixinResponse = serde_json::from_slice(&text)
             .with_context(|| format!("unexpected response: {}", String::from_utf8_lossy(&text)))?;
         match result {

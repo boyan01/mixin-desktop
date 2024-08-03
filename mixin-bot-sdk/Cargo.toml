@@ -21,6 +21,8 @@ tokio = { version = "1.38.0", features = ["full"] }
 ring = "0.17.8"
 base64ct = { version = "1.6.0", features = ["alloc", "std"] }
 sqlx = { version = "0.8.0", features = ["chrono"] }
+bytes = "1.7.1"
+
 
 [dev-dependencies]
 simplelog = { version = "0.12.2", features = ["test"] }

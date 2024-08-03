@@ -18,6 +18,7 @@ use crate::core::model::ConversationService;
 use crate::core::util::unique_object_id;
 use crate::db::MixinDatabase;
 
+#[derive(Clone)]
 pub struct MessageSender {
     blaze: Arc<Blaze>,
     conversation: ConversationService,

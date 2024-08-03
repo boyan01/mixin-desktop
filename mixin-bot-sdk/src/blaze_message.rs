@@ -116,7 +116,7 @@ impl BlazeMessage {
     pub fn new_plain_json(
         conversation_id: &str,
         user_id: &str,
-        encoded: &str,
+        encoded: String,
         session_id: impl Into<Option<String>>,
     ) -> Self {
         Self {
@@ -127,7 +127,7 @@ impl BlazeMessage {
                 recipient_id: Some(user_id.to_string()),
                 message_id: Some(uuid::Uuid::new_v4().to_string()),
                 category: Some(message_category::PLAIN_JSON.to_string()),
-                data: Some(encoded.to_string()),
+                data: Some(encoded),
                 status: Some(MessageStatus::Sending.into()),
                 session_id: session_id.into(),
                 ..Default::default()

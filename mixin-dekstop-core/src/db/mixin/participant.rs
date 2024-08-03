@@ -95,4 +95,16 @@ impl ParticipantDao {
             .await?;
         Ok(())
     }
+
+    pub async fn find_any_joined_conversation_id(
+        &self,
+        uid: &str,
+    ) -> Result<Option<String>, Error> {
+        let sql = "SELECT p.conversation_id FROM participants p, conversations c WHERE p.user_id = :userId AND p.conversation_id = c.conversation_id AND c.status = 2 LIMIT 1";
+        let result = sqlx::query_scalar::<_, String>(sql)
+            .bind(uid)
+            .fetch_optional(&self.0)
+            .await?;
+        Ok(result)
+    }
 }

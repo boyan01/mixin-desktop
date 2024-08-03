@@ -11,7 +11,7 @@ use mixin_dekstop_core::core::crypto::signal_protocol::SignalProtocol;
 use mixin_dekstop_core::core::message::blaze::Blaze;
 use mixin_dekstop_core::core::message::decrypt::ServiceDecryptMessage;
 use mixin_dekstop_core::core::message::sender::MessageSender;
-use mixin_dekstop_core::core::model::AppService;
+use mixin_dekstop_core::core::model::{AppService, ConversationService};
 use mixin_dekstop_core::db;
 use sdk::Credential;
 use sdk::KeyStore;
@@ -39,23 +39,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Credential::KeyStore(keystore.clone()),
         keystore.app_id,
     ));
-    let app_service = Arc::new(AppService::new(
-        database.clone(),
-        client.clone(),
-        user_id.to_string(),
-    ));
 
     let signal_protocol = Arc::new(SignalProtocol::new(
         signal_database.clone(),
         identity_number.to_string(),
     ));
+
+    let conversation = ConversationService::new(database.clone(), client.clone(), user_id.clone());
     let sender = Arc::new(MessageSender::new(
         blaze.clone(),
-        app_service.conversation.clone(),
+        conversation,
         database.clone(),
         user_id.to_string(),
         signal_protocol.clone(),
     ));
+
+    let app_service = Arc::new(AppService::new(
+        database.clone(),
+        client.clone(),
+        user_id.to_string(),
+        None,
+        sender.clone(),
+    ));
+
     let decrypt_message = Arc::new(ServiceDecryptMessage::new(
         database.clone(),
         app_service.clone(),

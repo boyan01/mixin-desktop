@@ -50,21 +50,24 @@ impl Job {
     }
 
     pub fn create_ack_job(
-        act: &str,
+        action: &str,
         message_id: &str,
         status: &str,
         expire_at: Option<i64>,
     ) -> Job {
-        let m = BlazeAckMessage {
+        let message = BlazeAckMessage {
             message_id: message_id.to_string(),
-            status: status.to_uppercase(),
+            status: status.to_string(),
             expire_at,
         };
-        let j_id = unique_object_id(&[m.message_id.as_str(), m.status.as_str(), act]).to_string();
+        let job_id =
+            unique_object_id(&[message.message_id.as_str(), message.status.as_str(), action])
+                .to_string();
+        let message = serde_json::to_string(&message).ok();
         Job {
-            job_id: j_id,
-            action: act.to_string(),
-            blaze_message: serde_json::to_string(&m).ok(),
+            job_id,
+            action: action.to_string(),
+            blaze_message: message,
             ..Job::new()
         }
     }
@@ -141,8 +144,8 @@ impl JobDao {
     pub async fn insert_job(&self, job: &Job) -> Result<(), Error> {
         sqlx::query(
             r#"INSERT OR REPLACE INTO jobs (job_id, action, created_at, order_id, priority, user_id,
-             conversation_id, resend_message_id, run_count) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+             conversation_id, resend_message_id, run_count, blaze_message)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
         )
         .bind(&job.job_id)
         .bind(&job.action)
@@ -153,15 +156,19 @@ impl JobDao {
         .bind(job.conversation_id.as_ref())
         .bind(job.resend_message_id.as_ref())
         .bind(job.run_count)
+        .bind(&job.blaze_message)
         .execute(&self.0)
         .await?;
         Ok(())
     }
 
     pub async fn insert_all(&self, jobs: &[Job]) -> Result<(), Error> {
-        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new("INSERT OR REPLACE INTO jobs\
-         (job_id, action, created_at, order_id, priority, user_id, conversation_id, resend_message_id, run_count)\
-          VALUES ");
+        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+            "INSERT OR REPLACE INTO jobs\
+         (job_id, action, created_at, order_id, priority, user_id, \
+         conversation_id, resend_message_id, run_count, blaze_message)\
+          VALUES ",
+        );
         query_builder.push_values(jobs, |mut builder, job| {
             builder
                 .push_bind(&job.job_id)
@@ -172,7 +179,8 @@ impl JobDao {
                 .push_bind(job.user_id.as_ref())
                 .push_bind(job.conversation_id.as_ref())
                 .push_bind(job.resend_message_id.as_ref())
-                .push_bind(job.run_count);
+                .push_bind(job.run_count)
+                .push_bind(&job.blaze_message);
         });
         Ok(())
     }
@@ -212,7 +220,7 @@ impl JobDao {
 
     pub async fn ack_jobs(&self) -> Result<Vec<Job>, Error> {
         let result = sqlx::query_as::<_, Job>(&format!(
-            "SELECT * FROM jobs WHERE action = {} AND blaze_message IS NOT NULL LIMIT 100",
+            "SELECT * FROM jobs WHERE action = '{}' AND blaze_message IS NOT NULL LIMIT 100",
             ACKNOWLEDGE_MESSAGE_RECEIPTS
         ))
         .fetch_all(&self.0)
@@ -222,7 +230,7 @@ impl JobDao {
 
     pub async fn session_ack_jobs(&self) -> Result<Vec<Job>, Error> {
         let result = sqlx::query_as::<_, Job>(&format!(
-            "SELECT * FROM jobs WHERE action = {} AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
+            "SELECT * FROM jobs WHERE action = '{}' AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
             CREATE_MESSAGE
         ))
         .fetch_all(&self.0)
@@ -232,7 +240,7 @@ impl JobDao {
 
     pub async fn sending_jobs(&self) -> Result<Vec<Job>, Error> {
         let result = sqlx::query_as::<_, Job>(&format!(
-            "SELECT * FROM jobs WHERE action IN ({}, {}, {}) AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
+            "SELECT * FROM jobs WHERE action IN ('{}', '{}', '{}') AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
             SENDING_MESSAGE, PIN_MESSAGE, RECALL_MESSAGE,
         ))
         .fetch_all(&self.0)
@@ -242,7 +250,7 @@ impl JobDao {
 
     pub async fn update_asset_jobs(&self) -> Result<Vec<Job>, Error> {
         let result = sqlx::query_as::<_, Job>(&format!(
-            "SELECT * FROM jobs WHERE action = {} AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
+            "SELECT * FROM jobs WHERE action = '{}' AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
             UPDATE_ASSET
         ))
         .fetch_all(&self.0)
@@ -252,7 +260,7 @@ impl JobDao {
 
     pub async fn update_token_jobs(&self) -> Result<Vec<Job>, Error> {
         let result = sqlx::query_as::<_, Job>(&format!(
-            "SELECT * FROM jobs WHERE action = {} AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
+            "SELECT * FROM jobs WHERE action = '{}' AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
             UPDATE_TOKEN
         ))
         .fetch_all(&self.0)
@@ -262,7 +270,7 @@ impl JobDao {
 
     pub async fn update_sticker_jobs(&self) -> Result<Vec<Job>, Error> {
         let result = sqlx::query_as::<_, Job>(&format!(
-            "SELECT * FROM jobs WHERE action = {} AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
+            "SELECT * FROM jobs WHERE action = '{}' AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
             UPDATE_STICKER,
         ))
         .fetch_all(&self.0)

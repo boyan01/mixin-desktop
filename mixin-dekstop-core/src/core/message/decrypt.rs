@@ -198,9 +198,9 @@ impl ServiceDecryptMessage {
         if status != MessageStatus::Delivered && status != MessageStatus::Read {
             return Ok(());
         }
-        self.database
-            .job_dao
-            .insert_job(&Job::create_ack_job(
+        self.app_service
+            .job
+            .add(&Job::create_ack_job(
                 ACKNOWLEDGE_MESSAGE_RECEIPTS,
                 message_id,
                 status.into(),
@@ -285,9 +285,9 @@ impl ServiceDecryptMessage {
                     s.album_id.is_none() || s.album_id.is_some_and(|a| a.is_empty())
                 })
             {
-                self.database
-                    .job_dao
-                    .insert_job(&Job::create_update_asset_job(&sticker_message.sticker_id))
+                self.app_service
+                    .job
+                    .add(&Job::create_update_asset_job(&sticker_message.sticker_id))
                     .await?;
             }
 
@@ -444,9 +444,9 @@ impl ServiceDecryptMessage {
                     s.album_id.is_none() || s.album_id.is_some_and(|a| a.is_empty())
                 })
             {
-                self.database
-                    .job_dao
-                    .insert_job(&Job::create_update_asset_job(&sticker_message.sticker_id))
+                self.app_service
+                    .job
+                    .add(&Job::create_update_asset_job(&sticker_message.sticker_id))
                     .await?;
             }
             let message = Message {
@@ -966,9 +966,9 @@ impl ServiceDecryptMessage {
         snapshot: SnapshotMessage,
     ) -> Result<()> {
         self.database.snapshot_dao.insert(&snapshot).await?;
-        self.database
-            .job_dao
-            .insert_job(&Job::create_update_asset_job(&snapshot.asset_id))
+        self.app_service
+            .job
+            .add(&Job::create_update_asset_job(&snapshot.asset_id))
             .await?;
 
         let message = Message {
@@ -1035,9 +1035,9 @@ impl ServiceDecryptMessage {
             ..Message::default()
         };
         self.insert_message(&message, data).await?;
-        self.database
-            .job_dao
-            .insert_job(&Job::create_sync_inscription_message_job(&data.message_id))
+        self.app_service
+            .job
+            .add(&Job::create_sync_inscription_message_job(&data.message_id))
             .await?;
         Ok(())
     }

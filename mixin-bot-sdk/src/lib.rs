@@ -1,6 +1,7 @@
 pub use api::account_api::*;
 pub use api::circle_api::*;
 pub use api::conversation_api::*;
+pub use api::message_api::*;
 pub use api::provisioning_api::*;
 pub use api::token_api::*;
 pub use api::user_api::*;
