@@ -31,6 +31,7 @@ use crate::db::mixin::message::{AttachmentMessageUpdate, MediaStatus, Message};
 use crate::db::mixin::participant::Participant;
 use crate::db::mixin::pin_message::{PinMessage, PinMessageMinimal};
 use crate::db::mixin::MixinDatabase;
+use crate::db::signal::ratchet_sender_key::ratchet_sender_key_status;
 
 pub struct ServiceDecryptMessage {
     database: Arc<MixinDatabase>,
@@ -106,8 +107,12 @@ impl ServiceDecryptMessage {
             Ok(status) => status,
         };
 
-        info!("message status: {:?}", status);
-
+        self.update_remote_message_status(&message.message_id, status)
+            .await?;
+        self.database
+            .flood_message_dao
+            .delete_flood_message(&message.message_id)
+            .await?;
         Ok(())
     }
 
@@ -152,10 +157,9 @@ impl ServiceDecryptMessage {
                     .message_history_dao
                     .insert(&data.message_id)
                     .await
-                    .map_err(anyhow::Error::from)
-            } else {
-                self.process_signal_message(data).await
+                    .map_err(anyhow::Error::from)?;
             }
+            self.process_signal_message(data).await
         } else if category.is_plain() {
             self.process_plain_message(data).await
         } else if category.is_encrypted() {
@@ -340,16 +344,74 @@ impl ServiceDecryptMessage {
                 Some(&data.session_id),
             )
             .await
-            .map_err(|e| anyhow!("failed to decrypt message: {e}"))?;
+            .with_context(|| format!("failed to decrypt message: {}", &data.message_id));
+
+        let device_id = SignalProtocol::device_id(Some(&data.session_id))?;
+        let address = format!("{}:{}", data.sender_id(), device_id);
+
+        let plain_text = match plain_text {
+            Ok(text) => text,
+            Err(err) => {
+                error!("failed to decrypt message:{} {:?}", &data.message_id, err);
+                self.sender
+                    .refresh_signal_key(&data.conversation_id)
+                    .await?;
+
+                if data.category == message_category::SIGNAL_KEY {
+                    self.signal_protocol
+                        .signal_database
+                        .ratchet_sender_key_dao
+                        .delete(&data.conversation_id, &address)
+                        .await?;
+                } else {
+                    self.insert_failed_message(data).await?;
+                    let status = self
+                        .signal_protocol
+                        .signal_database
+                        .ratchet_sender_key_dao
+                        .find_status(&data.conversation_id, &address)
+                        .await?;
+                    if status.is_none() {
+                        self.sender
+                            .request_resend_key(
+                                &data.conversation_id,
+                                data.sender_id(),
+                                &data.message_id,
+                                &data.session_id,
+                            )
+                            .await?;
+                    }
+                }
+                return Ok(());
+            }
+        };
+
         if data.category != message_category::SIGNAL_KEY {
             let plain = std::str::from_utf8(&plain_text)?;
             if let Some(resend_message_id) = message_data.resend_message_id {
-                self.process_re_decrypted_message(&data, &resend_message_id, plain)
+                self.process_re_decrypted_message(data, &resend_message_id, plain)
+                    .await?;
+                self.database
+                    .message_history_dao
+                    .insert(&data.message_id)
                     .await?;
             } else {
                 self.process_decrypt_success(data, plain).await?;
             }
         }
+
+        let status = self
+            .signal_protocol
+            .signal_database
+            .ratchet_sender_key_dao
+            .find_status(&data.conversation_id, &address)
+            .await?;
+        if status == Some(ratchet_sender_key_status::REQUESTING.to_string()) {
+            self.sender
+                .request_resend_message(&data.conversation_id, data.sender_id(), &data.session_id)
+                .await?;
+        }
+
         Ok(())
     }
 
@@ -1105,6 +1167,23 @@ impl ServiceDecryptMessage {
                     expire_at.timestamp_millis() / 1000,
                 )])
                 .await?;
+        }
+        Ok(())
+    }
+
+    async fn insert_failed_message(&self, data: &BlazeMessageData) -> Result<()> {
+        if data.category.is_signal() && data.category != message_category::SIGNAL_KEY {
+            let message = Message {
+                message_id: data.message_id.clone(),
+                conversation_id: data.conversation_id.clone(),
+                user_id: data.user_id.clone(),
+                category: data.category.clone(),
+                content: Some(data.data.clone()),
+                status: MessageStatus::Failed,
+                created_at: data.created_at.naive_utc(),
+                ..Message::default()
+            };
+            self.insert_message(&message, data).await?;
         }
         Ok(())
     }

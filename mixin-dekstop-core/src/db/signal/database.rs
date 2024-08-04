@@ -6,8 +6,11 @@ use rand_core::OsRng;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
 use crate::db;
+use crate::db::key_value::KeyValue;
+use crate::db::signal::crypto_store::CryptoKeyValue;
 use crate::db::signal::identity::{Identity, IdentityDao};
 use crate::db::signal::pre_key::PreKeyDao;
+use crate::db::signal::ratchet_sender_key::RatchetSenderKeyDao;
 use crate::db::signal::sender_key::SenderKeyDao;
 use crate::db::signal::session::SessionDao;
 use crate::db::signal::signed_pre_key::SignedPreKeyDao;
@@ -18,6 +21,8 @@ pub struct SignalDatabase {
     pub session_dao: SessionDao,
     pub sender_key_dao: SenderKeyDao,
     pub identity_dao: IdentityDao,
+    pub crypto_key_value: CryptoKeyValue,
+    pub ratchet_sender_key_dao: RatchetSenderKeyDao,
 }
 
 impl SignalDatabase {
@@ -31,12 +36,17 @@ impl SignalDatabase {
             .await?;
         let migrator = sqlx::migrate!("./src/db/signal/migrations");
         migrator.run(&pool).await?;
+
+        let key_value = KeyValue(pool.clone());
+
         Ok(SignalDatabase {
             pre_key_dao: PreKeyDao(pool.clone()),
             signed_pre_key_dao: SignedPreKeyDao(pool.clone()),
             session_dao: SessionDao(pool.clone()),
             sender_key_dao: SenderKeyDao(pool.clone()),
-            identity_dao: IdentityDao(pool),
+            identity_dao: IdentityDao(pool.clone()),
+            crypto_key_value: CryptoKeyValue::new(key_value).await,
+            ratchet_sender_key_dao: RatchetSenderKeyDao(pool.clone()),
         })
     }
 

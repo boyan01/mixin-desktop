@@ -12,11 +12,11 @@ use tokio::task::JoinHandle;
 use tokio::time::interval;
 use tokio_stream::wrappers::ReceiverStream;
 
-use sdk::err::error_code::BAD_DATA;
 use sdk::{
-    BlazeAckMessage, BlazeMessage, Client, PlainJsonMessage, ACKNOWLEDGE_MESSAGE_RECEIPTS,
-    CREATE_MESSAGE,
+    ACKNOWLEDGE_MESSAGE_RECEIPTS, BlazeAckMessage, BlazeMessage, Client, CREATE_MESSAGE,
+    PlainJsonMessage,
 };
+use sdk::err::error_code::BAD_DATA;
 
 use crate::core::constants::TEAM_MIXIN_USER_ID;
 use crate::core::message::sender::MessageSender;
@@ -247,6 +247,7 @@ impl JobTrigger for SessionAckJob {
 
         let bm = BlazeMessage::new_plain_json(
             &conversation_id,
+            self.sender.get_check_sum(&conversation_id).await?,
             &self.user_id,
             encoded,
             self.primary_session_id.clone(),

@@ -5,3 +5,11 @@ CREATE TABLE IF NOT EXISTS auths
     account     TEXT NOT NULL,
     PRIMARY KEY (user_id)
 );
+
+CREATE TABLE IF NOT EXISTS properties
+(
+    "key"   TEXT NOT NULL,
+    "group" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+    PRIMARY KEY ("key", "group")
+);

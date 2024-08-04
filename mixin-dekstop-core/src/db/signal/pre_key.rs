@@ -1,4 +1,4 @@
-use sqlx::{Executor, Pool, Sqlite};
+use sqlx::{Pool, QueryBuilder, Sqlite};
 
 use crate::db::Error;
 
@@ -26,6 +26,16 @@ impl PreKeyDao {
             .bind(record)
             .execute(&self.0)
             .await?;
+        Ok(())
+    }
+
+    pub async fn insert_pre_key_list(&self, list: &[PreKey]) -> Result<(), Error> {
+        let mut query_builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("INSERT OR REPLACE INTO prekeys (prekey_id, record) ");
+        query_builder.push_values(list, |mut b, PreKey { prekey_id, record }| {
+            b.push_bind(prekey_id).push_bind(record);
+        });
+        query_builder.build().execute(&self.0).await?;
         Ok(())
     }
 

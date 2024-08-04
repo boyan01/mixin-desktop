@@ -41,7 +41,7 @@ impl IdentityDao {
         .bind(identity.registration_id)
         .bind(&identity.public_key)
         .bind(&identity.private_key)
-        .bind(&identity.timestamp)
+        .bind(identity.timestamp)
         .execute(&self.0)
         .await?;
         Ok(())

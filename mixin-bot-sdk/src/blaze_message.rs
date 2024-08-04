@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{message_category, Error};
+use crate::{Error, message_category};
 
 pub const ACKNOWLEDGE_MESSAGE_RECEIPT: &str = "ACKNOWLEDGE_MESSAGE_RECEIPT";
 pub const ACKNOWLEDGE_MESSAGE_RECEIPTS: &str = "ACKNOWLEDGE_MESSAGE_RECEIPTS";
@@ -87,12 +87,12 @@ impl BlazeMessage {
         }
     }
 
-    pub fn new_sync_signal_keys(request: Option<SignalKeyRequest>) -> Self {
+    pub fn new_sync_signal_keys(request: SignalKeyRequest) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
             action: SYNC_SIGNAL_KEYS.to_string(),
             params: Some(BlazeMessageParam {
-                keys: request,
+                keys: Some(request),
                 ..Default::default()
             }),
             data: None,
@@ -115,6 +115,7 @@ impl BlazeMessage {
 
     pub fn new_plain_json(
         conversation_id: &str,
+        conversation_checksum: String,
         user_id: &str,
         encoded: String,
         session_id: impl Into<Option<String>>,
@@ -124,6 +125,7 @@ impl BlazeMessage {
             action: CREATE_MESSAGE.to_string(),
             params: Some(BlazeMessageParam {
                 conversation_id: Some(conversation_id.to_string()),
+                conversation_checksum: Some(conversation_checksum),
                 recipient_id: Some(user_id.to_string()),
                 message_id: Some(uuid::Uuid::new_v4().to_string()),
                 category: Some(message_category::PLAIN_JSON.to_string()),
@@ -180,8 +182,8 @@ pub struct BlazeMessageParamSession {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SignalKeyRequest {
     pub identity_key: String,
-    pub signed_pre_key: String,
-    pub one_time_pre_key: String,
+    pub signed_pre_key: SignedPreKey,
+    pub one_time_pre_keys: Vec<OneTimePreKey>,
 }
 
 #[derive(Serialize, Deserialize, PartialOrd, PartialEq, Debug, Eq, Default, Clone, Copy)]
@@ -246,10 +248,11 @@ pub struct BlazeMessageData {
 impl BlazeMessageData {
     pub fn sender_id(&self) -> &String {
         if let Some(representative_id) = self.representative_id.as_ref() {
-            representative_id
-        } else {
-            &self.user_id
+            if !representative_id.is_empty() {
+                return representative_id;
+            }
         }
+        &self.user_id
     }
 }
 
@@ -356,4 +359,9 @@ pub struct SignedPreKey {
 pub struct OneTimePreKey {
     pub key_id: u32,
     pub pub_key: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SignalKeyCount {
+    pub one_time_pre_keys_count: u32,
 }

@@ -1,21 +1,26 @@
-use std::sync::Arc;
+use std::backtrace::Backtrace;
+use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, bail, Result};
 use base64ct::{Base64, Encoding};
-use log::warn;
+use chrono::Utc;
+use log::{error, info, warn};
 use tokio::time::{sleep, Duration};
 use uuid::Uuid;
 
 use sdk::err::error_code::{BAD_DATA, CONVERSATION_CHECKSUM_INVALID_ERROR, FORBIDDEN};
 use sdk::{
     message_category, BlazeMessage, BlazeMessageParam, BlazeMessageParamSession,
-    BlazeSignalKeyMessage, MessageStatus, PlainJsonMessage, SignalKey, UserSession, NO_KEY,
+    BlazeSignalKeyMessage, MessageStatus, PlainJsonMessage, SignalKey, SignalKeyCount, UserSession,
+    NO_KEY, RESEND_KEY, RESEND_MESSAGES,
 };
 
 use crate::core::crypto::signal_protocol::SignalProtocol;
 use crate::core::message::blaze::Blaze;
+use crate::core::model::signal::SignalService;
 use crate::core::model::ConversationService;
 use crate::core::util::unique_object_id;
+use crate::db::signal::ratchet_sender_key::{ratchet_sender_key_status, RatchetSenderKey};
 use crate::db::MixinDatabase;
 
 #[derive(Clone)]
@@ -25,6 +30,8 @@ pub struct MessageSender {
     database: Arc<MixinDatabase>,
     account_id: String,
     signal_protocol: Arc<SignalProtocol>,
+    signal_service: SignalService,
+    last_signal_key_refresh: Arc<Mutex<Option<std::time::Instant>>>,
 }
 
 pub struct MessageResult {
@@ -40,6 +47,7 @@ impl MessageSender {
         database: Arc<MixinDatabase>,
         account_id: String,
         signal_protocol: Arc<SignalProtocol>,
+        signal_service: SignalService,
     ) -> Self {
         MessageSender {
             blaze,
@@ -47,6 +55,8 @@ impl MessageSender {
             database,
             account_id,
             signal_protocol,
+            last_signal_key_refresh: Arc::new(Mutex::new(None)),
+            signal_service,
         }
     }
 }
@@ -96,12 +106,65 @@ impl MessageSender {
         Ok(())
     }
 
+    pub async fn refresh_signal_key(&self, conversation_id: &str) -> Result<()> {
+        info!("start refresh signal key: {}", conversation_id);
+        let now = std::time::Instant::now();
+        {
+            let mut last = self.last_signal_key_refresh.lock().unwrap();
+            if let Some(last) = *last {
+                if now - last < Duration::from_secs(60) {
+                    return Ok(());
+                }
+            }
+            *last = Some(now);
+        }
+
+        let data = self
+            .signal_keys_channel(BlazeMessage::new_count_signal_keys())
+            .await?
+            .and_then(|m| m.data)
+            .ok_or(anyhow!("Failed to get signal keys count"))?;
+
+        let key_count: SignalKeyCount = serde_json::from_value(data)?;
+        info!("signal keys count: {}", key_count.one_time_pre_keys_count);
+
+        let has_push_signal_keys = self
+            .signal_protocol
+            .signal_database
+            .crypto_key_value
+            .has_push_signal_keys();
+
+        if has_push_signal_keys && key_count.one_time_pre_keys_count >= 500 {
+            return Ok(());
+        }
+
+        let bm = BlazeMessage::new_sync_signal_keys(
+            self.signal_service
+                .generate_keys()
+                .await
+                .map_err(|e| anyhow!("Failed to generate keys: {e}"))?,
+        );
+
+        self.signal_keys_channel(bm).await?;
+        self.signal_protocol
+            .signal_database
+            .crypto_key_value
+            .set_has_push_signal_keys(true)
+            .await;
+        info!("Registering new pre keys... {}", conversation_id);
+        Ok(())
+    }
+
     pub async fn signal_keys_channel(
         &self,
         blaze_message: BlazeMessage,
     ) -> Result<Option<BlazeMessage>> {
         let bm = self.blaze.send_message(blaze_message.clone()).await?;
         if let Some(err) = &bm.error {
+            error!(
+                "failed to signal_keys_channel: {} {}",
+                err.code, err.description
+            );
             return if err.code == FORBIDDEN {
                 Ok(None)
             } else {
@@ -110,6 +173,84 @@ impl MessageSender {
             };
         }
         Ok(Some(bm))
+    }
+
+    pub async fn request_resend_key(
+        &self,
+        cid: &str,
+        recipient_id: &str,
+        mid: &str,
+        sid: &str,
+    ) -> Result<()> {
+        let message = PlainJsonMessage {
+            action: RESEND_KEY.to_string(),
+            message_id: Some(mid.to_string()),
+            ..PlainJsonMessage::default()
+        };
+        let message = serde_json::to_vec(&message)?;
+        let encoded = Base64::encode_string(&message);
+        let bm = BlazeMessage::new_plain_json(
+            cid,
+            self.get_check_sum(cid).await?,
+            recipient_id,
+            encoded,
+            sid.to_string(),
+        );
+
+        let result = self.deliver(bm).await?;
+        if result.success {
+            let address = format!("{}:{}", recipient_id, sid);
+            self.signal_protocol
+                .signal_database
+                .ratchet_sender_key_dao
+                .insert_sender_key(&RatchetSenderKey {
+                    group_id: cid.to_string(),
+                    sender_id: address,
+                    status: ratchet_sender_key_status::REQUESTING.to_string(),
+                    message_id: None,
+                    created_at: Utc::now().to_rfc3339(),
+                })
+                .await?;
+        }
+        Ok(())
+    }
+
+    pub async fn request_resend_message(&self, cid: &str, uid: &str, sid: &str) -> Result<()> {
+        let messages = self
+            .database
+            .message_dao
+            .find_failed_message(cid, uid)
+            .await?;
+        if messages.is_empty() {
+            return Ok(());
+        }
+
+        let message = PlainJsonMessage {
+            action: RESEND_MESSAGES.to_string(),
+            messages: Some(messages),
+            ..PlainJsonMessage::default()
+        };
+        let message = serde_json::to_vec(&message)?;
+        let encoded = Base64::encode_string(&message);
+        let bm = BlazeMessage::new_plain_json(
+            cid,
+            self.get_check_sum(cid).await?,
+            uid,
+            encoded,
+            sid.to_string(),
+        );
+
+        self.deliver(bm).await?;
+        self.signal_protocol
+            .signal_database
+            .ratchet_sender_key_dao
+            .delete(
+                &cid,
+                &format!("{}:{}", uid, SignalProtocol::device_id(Some(sid))?),
+            )
+            .await?;
+
+        Ok(())
     }
 
     pub async fn send_sender_key(&self, cid: &str, uid: &str, sid: &str) -> Result<bool> {
@@ -226,8 +367,10 @@ impl MessageSender {
 
         if let Some(err) = &result.error {
             warn!(
-                "failed to send message, code :{}, description: {}",
-                err.code, err.description
+                "failed to send message, code :{}, description: {}, {}",
+                err.code,
+                err.description,
+                Backtrace::capture()
             );
             if err.code == CONVERSATION_CHECKSUM_INVALID_ERROR {
                 let cid = msg.params.as_ref().and_then(|p| p.conversation_id.as_ref());

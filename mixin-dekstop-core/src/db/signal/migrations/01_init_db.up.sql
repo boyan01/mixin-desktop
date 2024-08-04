@@ -52,3 +52,12 @@ CREATE TABLE IF NOT EXISTS ratchet_sender_keys
     created_at TEXT NOT NULL,
     PRIMARY KEY (group_id, sender_id)
 );
+
+
+CREATE TABLE IF NOT EXISTS properties
+(
+    "key"   TEXT NOT NULL,
+    "group" TEXT NOT NULL,
+    "value" TEXT NOT NULL,
+    PRIMARY KEY ("key", "group")
+);

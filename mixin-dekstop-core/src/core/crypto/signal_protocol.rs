@@ -2,15 +2,18 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use base64ct::{Base64, Encoding};
 use libsignal_protocol::{
-    create_sender_key_distribution_message, group_decrypt, message_decrypt, message_encrypt,
-    process_prekey_bundle, CiphertextMessage, CiphertextMessageType, IdentityKey, PreKeyBundle,
-    ProtocolAddress, PublicKey, SenderKeyName, SignalProtocolError,
+    CiphertextMessage, CiphertextMessageType, create_sender_key_distribution_message, group_decrypt,
+    IdentityKey, message_decrypt, message_encrypt,
+    PreKeyBundle, process_prekey_bundle, process_sender_key_distribution_message, ProtocolAddress, PublicKey,
+    SenderKeyDistributionMessage, SenderKeyName, SignalProtocolError,
 };
+use log::info;
 use rand_core::OsRng;
 use ulid::Ulid;
+use uuid::Uuid;
 
 use sdk::message_category;
 
@@ -20,13 +23,34 @@ use crate::db::SignalDatabase;
 
 pub struct SignalProtocol {
     pub protocol_store: SignalProtocolStore,
+    pub signal_database: Arc<SignalDatabase>,
 }
 
-type Result<T, E = Box<dyn std::error::Error>> = anyhow::Result<T, E>;
+pub const PRE_KEY_BATCH_SIZE: u32 = 700;
+pub const MAX_VALUE: u32 = 0xFFFFFF;
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct Error(#[from] anyhow::Error);
+
+impl From<SignalProtocolError> for Error {
+    fn from(value: SignalProtocolError) -> Self {
+        Self(anyhow!("Signal protocol error: {value}"))
+    }
+}
+
+impl From<base64ct::Error> for Error {
+    fn from(value: base64ct::Error) -> Self {
+        Self(anyhow!("Base64 error: {value}"))
+    }
+}
+
+type Result<T, E = Error> = anyhow::Result<T, E>;
 
 impl SignalProtocol {
     pub fn new(db: Arc<SignalDatabase>, account_id: String) -> Self {
         SignalProtocol {
+            signal_database: db.clone(),
             protocol_store: SignalProtocolStore::new(db, account_id),
         }
     }
@@ -36,7 +60,9 @@ impl SignalProtocol {
     pub fn device_id(session_id: Option<&str>) -> Result<u32, anyhow::Error> {
         if let Some(session_id) = session_id {
             let mut hash = DefaultHasher::new();
-            Ulid::from_str(session_id)?.hash(&mut hash);
+            let uuid = Uuid::parse_str(session_id)
+                .with_context(|| format!("invalid session id: {}", session_id))?;
+            Ulid::from_bytes(uuid.into_bytes()).hash(&mut hash);
             let code = hash.finish();
             Ok(code as u32)
         } else {
@@ -44,16 +70,13 @@ impl SignalProtocol {
         }
     }
 
-    pub fn convert_to_cipher_message(
-        key_type: u8,
-        cipher: &[u8],
-    ) -> anyhow::Result<CiphertextMessage, SignalProtocolError> {
+    pub fn convert_to_cipher_message(key_type: u8, cipher: &[u8]) -> Result<CiphertextMessage> {
         let message_type = match key_type {
             2 => CiphertextMessageType::Whisper,
             3 => CiphertextMessageType::PreKey,
             4 => CiphertextMessageType::SenderKey,
             5 => CiphertextMessageType::SenderKeyDistribution,
-            _ => return Err(SignalProtocolError::InvalidCiphertext),
+            _ => return Err(anyhow!("Invalid key type: {key_type}").into()),
         };
         let message = match message_type {
             CiphertextMessageType::Whisper => CiphertextMessage::SignalMessage(cipher.try_into()?),
@@ -81,13 +104,19 @@ impl SignalProtocol {
     ) -> Result<Vec<u8>> {
         let address = ProtocolAddress::new(
             sender_id.to_string(),
-            SignalProtocol::device_id(session_id)?,
+            SignalProtocol::device_id(session_id)
+                .with_context(|| format!("failed to get device id: {}", sender_id))?,
         );
 
         let context: libsignal_protocol::Context = None;
 
         let mut store = self.protocol_store.clone();
-        let message = SignalProtocol::convert_to_cipher_message(key_type, &cipher)?;
+        let message = SignalProtocol::convert_to_cipher_message(key_type, &cipher)
+            .with_context(|| "failed to convert to cipher message")?;
+        info!(
+            "decrypt message, category: {}, type: {}",
+            category, key_type
+        );
         if category == message_category::SIGNAL_KEY {
             let plain_text = message_decrypt(
                 &message,
@@ -98,6 +127,15 @@ impl SignalProtocol {
                 &mut store.signed_pre_key_store,
                 &mut OsRng,
                 context,
+            )
+            .await
+            .map_err(|e| anyhow!("signal key decrypt failed: {}, {}", key_type, e))?;
+            self.process_group_session(
+                group_id,
+                address,
+                &SenderKeyDistributionMessage::try_from(plain_text.as_ref()).map_err(|e| {
+                    anyhow!("failed to convert to sender key distribution message: {e}")
+                })?,
             )
             .await?;
             Ok(plain_text)
@@ -114,7 +152,10 @@ impl SignalProtocol {
                         &mut OsRng,
                         context,
                     )
-                    .await?;
+                    .await
+                    .map_err(|e| {
+                        anyhow!("Whisper/PreKey message decrypt failed: {}, {}", key_type, e)
+                    })?;
                     Ok(plain_text)
                 }
                 CiphertextMessageType::SenderKey => {
@@ -125,7 +166,8 @@ impl SignalProtocol {
                         &sender_key_id,
                         context,
                     )
-                    .await?;
+                    .await
+                    .map_err(|e| anyhow!("group decrypt failed: {}, {}", key_type, e))?;
                     Ok(message)
                 }
                 CiphertextMessageType::SenderKeyDistribution => {
@@ -133,6 +175,25 @@ impl SignalProtocol {
                 }
             }
         }
+    }
+
+    pub async fn process_group_session(
+        &self,
+        group_id: &str,
+        address: ProtocolAddress,
+        message: &SenderKeyDistributionMessage,
+    ) -> Result<()> {
+        let mut store = self.protocol_store.clone();
+        process_sender_key_distribution_message(
+            &SenderKeyName::new(group_id.to_string(), address.clone())
+                .map_err(|e| anyhow!("Failed to create sender key name: {}", e))?,
+            message,
+            &mut store.sender_key_store,
+            None,
+        )
+        .await
+        .map_err(|e| anyhow!("Failed to process sender key distribution message: {}", e))?;
+        Ok(())
     }
 
     pub async fn process_session(&self, recipient_id: &str, key: &sdk::SignalKey) -> Result<()> {

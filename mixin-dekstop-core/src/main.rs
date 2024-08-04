@@ -12,6 +12,7 @@ use mixin_dekstop_core::core::message::blaze::Blaze;
 use mixin_dekstop_core::core::message::decrypt::ServiceDecryptMessage;
 use mixin_dekstop_core::core::message::sender::MessageSender;
 use mixin_dekstop_core::core::model::auth::AuthService;
+use mixin_dekstop_core::core::model::signal::SignalService;
 use mixin_dekstop_core::core::model::{AppService, ConversationService};
 use mixin_dekstop_core::db;
 use mixin_dekstop_core::db::app::AppDatabase;
@@ -72,12 +73,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let conversation =
         ConversationService::new(database.clone(), client.clone(), account_id.clone());
+
+    let signal_service = SignalService::new(
+        signal_protocol.clone(),
+        signal_database.clone(),
+        account_id.to_string(),
+    );
+
     let sender = Arc::new(MessageSender::new(
         blaze.clone(),
         conversation,
         database.clone(),
         account_id.to_string(),
         signal_protocol.clone(),
+        signal_service,
     ));
 
     let app_service = Arc::new(AppService::new(

@@ -40,11 +40,12 @@ impl SessionDao {
         record: Vec<u8>,
     ) -> Result<(), Error> {
         let _ = sqlx::query(
-            "INSERT OR REPLACE INTO sessions (address, device, record) VALUES (?, ?, ?)",
+            "INSERT OR REPLACE INTO sessions (address, device, record, timestamp) VALUES (?, ?, ?, ?)",
         )
         .bind(address)
         .bind(device)
         .bind(record)
+        .bind(chrono::Utc::now().timestamp_millis())
         .execute(&self.0)
         .await?;
         Ok(())

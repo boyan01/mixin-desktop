@@ -166,8 +166,7 @@ impl JobDao {
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             "INSERT OR REPLACE INTO jobs\
          (job_id, action, created_at, order_id, priority, user_id, \
-         conversation_id, resend_message_id, run_count, blaze_message)\
-          VALUES ",
+         conversation_id, resend_message_id, run_count, blaze_message) ",
         );
         query_builder.push_values(jobs, |mut builder, job| {
             builder
@@ -182,6 +181,8 @@ impl JobDao {
                 .push_bind(job.run_count)
                 .push_bind(&job.blaze_message);
         });
+
+        query_builder.build().execute(&self.0).await?;
         Ok(())
     }
 

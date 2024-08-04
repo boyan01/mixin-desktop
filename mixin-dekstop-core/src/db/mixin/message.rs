@@ -5,9 +5,9 @@ use sqlx::{QueryBuilder, Sqlite};
 
 use sdk::blaze_message::MessageStatus;
 
-use crate::db::mixin::database::MARK_LIMIT;
-use crate::db::mixin::util::{expand_var, BindList, BindListForQuery};
 use crate::db::Error;
+use crate::db::mixin::database::MARK_LIMIT;
+use crate::db::mixin::util::{BindList, BindListForQuery, expand_var};
 
 #[derive(Clone)]
 pub struct MessageDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
@@ -392,4 +392,27 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 
         Ok(())
     }
+
+    pub async fn find_failed_message(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+    ) -> Result<Vec<String>, Error> {
+        let result = sqlx::query_scalar::<_, String>(
+            "SELECT message_id FROM messages WHERE conversation_id = ? AND user_id = ? AND status = ? \
+            ORDER BY created_at DESC LIMIT 1000",
+        )
+        .bind(conversation_id)
+        .bind(user_id)
+        .bind(MessageStatus::Failed)
+        .fetch_all(&self.0)
+        .await?;
+        Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn test_message_dao() {}
 }

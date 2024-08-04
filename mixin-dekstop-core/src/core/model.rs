@@ -14,6 +14,7 @@ pub mod circle;
 pub mod conversation;
 pub mod job;
 pub mod message;
+pub mod signal;
 
 pub struct AppService {
     pub conversation: ConversationService,
