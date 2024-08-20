@@ -109,6 +109,15 @@ impl AuthService {
         self.auth_dao.save_auth(auth).await?;
         Ok(())
     }
+
+    pub async fn clear_auth(&self, id: &str) -> anyhow::Result<()> {
+        self.auth_dao.remove_auth(id).await?;
+
+        let mut a = self.auth.lock().unwrap();
+        *a = None;
+
+        Ok(())
+    }
 }
 
 async fn check_auth(

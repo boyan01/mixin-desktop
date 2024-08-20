@@ -31,6 +31,8 @@ impl Display for Error {
     }
 }
 
+impl std::error::Error for Error {}
+
 pub mod error_code {
     pub const BAD_REQUEST: i64 = 400;
     pub const AUTHENTICATION: i64 = 401;

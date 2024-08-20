@@ -15,9 +15,23 @@ use mixin_desktop_core::core::model::auth::AuthService;
 use mixin_desktop_core::core::model::signal::SignalService;
 use mixin_desktop_core::core::model::{AppService, ConversationService};
 use mixin_desktop_core::db;
-use mixin_desktop_core::db::app::AppDatabase;
-use sdk::Credential;
+use mixin_desktop_core::db::app::{AppDatabase, Auth};
 use sdk::KeyStore;
+use sdk::{ApiError, Credential};
+
+async fn authorize_and_return(
+    auth_service: &AuthService,
+) -> Result<Auth, Box<dyn std::error::Error>> {
+    let auth = auth_service.authorize().await?;
+
+    let identity_number = auth.auth.account.identity_number.clone();
+    let signal_database = Arc::new(SignalDatabase::connect(identity_number).await?);
+    signal_database
+        .init(auth.registration_id, Some(&auth.identity_key_private))
+        .await?;
+    auth_service.save_auth(&auth.auth).await?;
+    Ok(auth.auth)
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -32,20 +46,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let auth_service = AuthService::new(app_db);
     auth_service.initialize().await?;
 
-    let auth = match auth_service.get_auth() {
+    let mut auth = Box::new(match auth_service.get_auth() {
         Some(auth) => auth,
-        None => {
-            let auth = auth_service.authorize().await?;
-
-            let identity_number = auth.auth.account.identity_number.clone();
-            let signal_database = Arc::new(SignalDatabase::connect(identity_number).await?);
-            signal_database
-                .init(auth.registration_id, Some(&auth.identity_key_private))
-                .await?;
-            auth_service.save_auth(&auth.auth).await?;
-            auth.auth
-        }
-    };
+        None => authorize_and_return(&auth_service).await?,
+    });
 
     let credential = Credential::KeyStore(KeyStore {
         app_id: auth.user_id.clone(),
@@ -58,6 +62,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let account = auth.account;
     let client = Arc::new(sdk::Client::new(credential.clone()));
     let account_id = account.user_id;
+
+    loop {
+        if let Err(ApiError::Server(sdk::Error {
+            status: _,
+            code: 401,
+            description: _,
+        })) = client.account_api.get_me().await
+        {
+            auth_service.clear_auth(&auth.user_id).await?;
+
+            *auth = authorize_and_return(&auth_service).await?;
+
+            continue;
+        }
+        break;
+    }
+
     let result = client.account_api.get_me().await?;
     info!("account: {:?}", result);
 
