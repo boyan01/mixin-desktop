@@ -22,8 +22,8 @@ mod test {
 
     #[test]
     fn test_unique_object_id() {
-        let id = unique_object_id(&vec!["a", "a"]);
-        let id2 = unique_object_id(&vec!["a", "a"]);
+        let id = unique_object_id(&["a", "a"]);
+        let id2 = unique_object_id(&["a", "a"]);
         assert_eq!(id, id2)
     }
 }

@@ -37,9 +37,9 @@ impl ExpiredMessageDao {
         );
 
         let now = Utc::now().timestamp_millis() / 1000;
-        let mut iter = message_ids.chunks(MARK_LIMIT);
+        let iter = message_ids.chunks(MARK_LIMIT);
         let mut rows_affected: u64 = 0;
-        while let Some(chunk) = iter.next() {
+        for chunk in iter {
             let affected = sqlx::query(&sql)
                 .bind(now / 1000)
                 .bind_list(chunk)

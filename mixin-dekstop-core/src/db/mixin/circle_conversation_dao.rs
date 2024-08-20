@@ -13,7 +13,7 @@ impl CircleConversationDao {
         query_builder.push_values(cs.iter(), |mut b, c| {
             b.push_bind(&c.circle_id)
                 .push_bind(&c.conversation_id)
-                .push_bind(&c.created_at);
+                .push_bind(c.created_at);
         });
         let query = query_builder.build();
         query.execute(&self.0).await?;

@@ -23,7 +23,7 @@ impl CircleDao {
         query_builder.push_values(circles.iter(), |mut b, circle| {
             b.push_bind(&circle.circle_id)
                 .push_bind(&circle.name)
-                .push_bind(&circle.created_at);
+                .push_bind(circle.created_at);
         });
         let query = query_builder.build();
         query.execute(&self.0).await?;

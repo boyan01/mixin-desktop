@@ -4,12 +4,11 @@ use std::time::Duration;
 use anyhow::anyhow;
 use base64ct::{Base64, Encoding};
 use libsignal_protocol::KeyPair;
-use log::{info, trace};
+use log::info;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use rand::rngs::OsRng;
 use rand::Rng;
 use ring::signature::{Ed25519KeyPair, KeyPair as SignatureKeyPair};
-use ring_compat::signature::ecdsa::SigningKey;
 use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
 
@@ -156,7 +155,7 @@ async fn verify_auth(
 
     let mut seed = [0u8; 32];
     OsRng.fill(&mut seed);
-    let pair = Ed25519KeyPair::from_seed_unchecked(&mut seed)?;
+    let pair = Ed25519KeyPair::from_seed_unchecked(&seed)?;
 
     let private = Base64::decode_vec(&verification.identity_key_private)?;
     let registration_id = generate_registration_id(false) as u32;

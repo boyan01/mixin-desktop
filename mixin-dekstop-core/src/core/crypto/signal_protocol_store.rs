@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use libsignal_protocol::{
-    Context, Direction, error, IdentityKey, IdentityKeyPair, IdentityKeyStore, PreKeyRecord,
+    error, Context, Direction, IdentityKey, IdentityKeyPair, IdentityKeyStore, PreKeyRecord,
     PreKeyStore, PrivateKey, ProtocolAddress, SenderKeyName, SenderKeyRecord, SenderKeyStore,
     SessionRecord, SessionStore, SignalProtocolError, SignedPreKeyRecord, SignedPreKeyStore,
 };
@@ -44,7 +44,7 @@ impl MixinSessionStore {
     pub async fn delete_session(&self, address: &ProtocolAddress) -> anyhow::Result<()> {
         self.db
             .session_dao
-            .delete_session(&address.name(), address.device_id())
+            .delete_session(address.name(), address.device_id())
             .await
             .map_err(anyhow::Error::from)
     }

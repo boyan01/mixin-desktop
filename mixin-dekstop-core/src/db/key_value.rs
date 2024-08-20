@@ -4,7 +4,7 @@ use log::error;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-pub(crate) struct KeyValue(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct KeyValue(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 impl KeyValue {
     pub async fn get(&self, key: &str, group: &str) -> Result<Option<String>, sqlx::Error> {

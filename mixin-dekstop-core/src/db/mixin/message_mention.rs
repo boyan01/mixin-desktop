@@ -95,9 +95,9 @@ impl MessageMentionDao {
             return Ok(0);
         }
 
-        let mut chunks = ids.chunks(MARK_LIMIT);
+        let chunks = ids.chunks(MARK_LIMIT);
         let mut rows_affected: u64 = 0;
-        while let Some(chunk) = chunks.next() {
+        for chunk in chunks {
             let affected = sqlx::query(&format!(
                 "UPDATE message_mentions SET has_read = true WHERE message_mention_id in ({})",
                 expand_var(chunk.len())

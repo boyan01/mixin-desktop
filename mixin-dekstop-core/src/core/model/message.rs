@@ -41,7 +41,7 @@ impl MessageService {
         self.message_dao.mark_message_read(messages).await?;
         if update_expired {
             self.expired_message_dao
-                .mark_expired_message_read(&messages)
+                .mark_expired_message_read(messages)
                 .await?;
         }
         Ok(())

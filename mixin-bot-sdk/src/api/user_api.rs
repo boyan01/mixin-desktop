@@ -155,7 +155,7 @@ mod tests {
         let client = new_test_client().await;
         let result = client
             .user_api
-            .get_sessions(vec!["cfb018b0-eaf7-40ec-9e07-28a5158f1269".to_string()])
+            .get_sessions(&["cfb018b0-eaf7-40ec-9e07-28a5158f1269".to_string()])
             .await;
         println!("result: {:?}", result);
     }

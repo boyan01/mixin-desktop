@@ -39,7 +39,7 @@ impl PinMessageDao {
         )
         .bind(&pin_message.message_id)
         .bind(&pin_message.conversation_id)
-        .bind(&pin_message.created_at)
+        .bind(pin_message.created_at)
         .execute(&self.0)
         .await?;
         Ok(())

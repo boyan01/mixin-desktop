@@ -377,8 +377,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
     }
 
     pub async fn mark_message_read(&self, messages: &[String]) -> Result<(), Error> {
-        let mut iter = messages.chunks(MARK_LIMIT);
-        while let Some(chunk) = iter.next() {
+        let iter = messages.chunks(MARK_LIMIT);
+        for chunk in iter {
             let ids = chunk.iter().map(|m| m.as_str()).collect::<Vec<&str>>();
             let _ = sqlx::query(&format!(
                 "UPDATE messages SET status = ? WHERE message_id in {}",

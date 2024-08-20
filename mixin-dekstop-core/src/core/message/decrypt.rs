@@ -594,6 +594,7 @@ impl ServiceDecryptMessage {
     }
 
     async fn process_encrypted_message(&self, data: &BlazeMessageData) -> Result<()> {
+        let _ = data;
         Ok(())
     }
 

@@ -245,7 +245,7 @@ impl MessageSender {
             .signal_database
             .ratchet_sender_key_dao
             .delete(
-                &cid,
+                cid,
                 &format!("{}:{}", uid, SignalProtocol::device_id(Some(sid))?),
             )
             .await?;

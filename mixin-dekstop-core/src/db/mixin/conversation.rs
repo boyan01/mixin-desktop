@@ -66,10 +66,10 @@ impl ConversationDao {
         .bind(&conversation.icon_url)
         .bind(&conversation.announcement)
         .bind(&conversation.code_url)
-        .bind(&conversation.created_at)
+        .bind(conversation.created_at)
         .bind(&conversation.status)
-        .bind(&conversation.mute_until)
-        .bind(&conversation.expire_in)
+        .bind(conversation.mute_until)
+        .bind(conversation.expire_in)
         .execute(&self.0)
         .await?;
         Ok(())

@@ -84,7 +84,7 @@ impl UserDao {
 
         let db_users = users
             .into_iter()
-            .map(move |user| User::from(user))
+            .map(User::from)
             .collect::<Vec<_>>();
 
         query_builder.push_values(db_users.iter(), |mut b, user| {
@@ -94,16 +94,16 @@ impl UserDao {
                 .push_bind(&user.full_name)
                 .push_bind(&user.avatar_url)
                 .push_bind(&user.phone)
-                .push_bind(&user.is_verified)
-                .push_bind(&user.created_at)
-                .push_bind(&user.mute_until)
-                .push_bind(&user.has_pin)
+                .push_bind(user.is_verified)
+                .push_bind(user.created_at)
+                .push_bind(user.mute_until)
+                .push_bind(user.has_pin)
                 .push_bind(&user.app_id)
                 .push_bind(&user.biography)
-                .push_bind(&user.is_scam)
+                .push_bind(user.is_scam)
                 .push_bind(&user.code_url)
                 .push_bind(&user.code_id)
-                .push_bind(&user.is_deactivated);
+                .push_bind(user.is_deactivated);
         });
 
         let query = query_builder.build();

@@ -16,7 +16,7 @@ impl ComposeMessageData {
         if encoded.is_empty() {
             bail!("Empty message");
         }
-        let cipher_text = Base64::decode_vec(&encoded)?;
+        let cipher_text = Base64::decode_vec(encoded)?;
 
         let header = cipher_text
             .get(0..8)

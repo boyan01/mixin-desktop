@@ -45,7 +45,7 @@ impl SignalDatabase {
             session_dao: SessionDao(pool.clone()),
             sender_key_dao: SenderKeyDao(pool.clone()),
             identity_dao: IdentityDao(pool.clone()),
-            crypto_key_value: CryptoKeyValue::new(key_value).await,
+            crypto_key_value: CryptoKeyValue::new(key_value),
             ratchet_sender_key_dao: RatchetSenderKeyDao(pool.clone()),
         })
     }

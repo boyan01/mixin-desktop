@@ -23,16 +23,15 @@ const KEY_NEXT_SIGNED_PRE_KEY_ID: &str = "next_signed_pre_key_id";
 const KEY_HAS_PUSH_SIGNAL_KEYS: &str = "has_push_signal_keys";
 
 impl CryptoKeyValue {
-    pub async fn new(key_value: KeyValue) -> Self {
-        let a = CryptoKeyValue {
+    pub fn new(key_value: KeyValue) -> Self {
+        CryptoKeyValue {
             key_value,
             inner: Arc::new(Mutex::new(CryptoKeyValueInner {
                 next_pre_key_id: 0,
                 next_signed_pre_key_id: 0,
                 has_push_signal_keys: false,
             })),
-        };
-        a
+        }
     }
 
     pub async fn init(&self) {
