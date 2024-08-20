@@ -64,23 +64,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let account_id = account.user_id;
 
     loop {
-        if let Err(ApiError::Server(sdk::Error {
-            status: _,
-            code: 401,
-            description: _,
-        })) = client.account_api.get_me().await
-        {
-            auth_service.clear_auth(&auth.user_id).await?;
+        match client.account_api.get_me().await {
+            Ok(account) => {
+                info!("account: {:?}", account);
+                break;
+            }
+            Err(ApiError::Server(sdk::Error {
+                status: _,
+                code: 401,
+                description: _,
+            })) => {
+                auth_service.clear_auth(&auth.user_id).await?;
 
-            *auth = authorize_and_return(&auth_service).await?;
+                *auth = authorize_and_return(&auth_service).await?;
 
-            continue;
+                continue;
+            }
+            _ => (),
         }
         break;
     }
-
-    let result = client.account_api.get_me().await?;
-    info!("account: {:?}", result);
 
     let database = Arc::new(MixinDatabase::new(account.identity_number.clone()).await?);
     let signal_database =
