@@ -1,6 +1,3 @@
 [workspace]
 resolver = "2"
-members = [
-    "mixin-bot-sdk",
-    "mixin-dekstop-core",
-]
+members = ["mixin-bot-sdk", "mixin_desktop_core"]

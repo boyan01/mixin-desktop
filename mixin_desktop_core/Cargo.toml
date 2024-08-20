@@ -1,5 +1,5 @@
 [package]
-name = "mixin-dekstop-core"
+name = "mixin_desktop_core"
 version = "0.1.0"
 edition = "2021"
 
@@ -44,4 +44,3 @@ percent-encoding = "2.3.1"
 aes = "0.8.4"
 cbc = { version = "0.1.2", features = ["alloc"] }
 hex = "0.4.3"
-

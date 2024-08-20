@@ -6,16 +6,16 @@ use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
 
 use db::mixin::MixinDatabase;
 use db::SignalDatabase;
-use mixin_dekstop_core::core::constants::SCP;
-use mixin_dekstop_core::core::crypto::signal_protocol::SignalProtocol;
-use mixin_dekstop_core::core::message::blaze::Blaze;
-use mixin_dekstop_core::core::message::decrypt::ServiceDecryptMessage;
-use mixin_dekstop_core::core::message::sender::MessageSender;
-use mixin_dekstop_core::core::model::auth::AuthService;
-use mixin_dekstop_core::core::model::signal::SignalService;
-use mixin_dekstop_core::core::model::{AppService, ConversationService};
-use mixin_dekstop_core::db;
-use mixin_dekstop_core::db::app::AppDatabase;
+use mixin_desktop_core::core::constants::SCP;
+use mixin_desktop_core::core::crypto::signal_protocol::SignalProtocol;
+use mixin_desktop_core::core::message::blaze::Blaze;
+use mixin_desktop_core::core::message::decrypt::ServiceDecryptMessage;
+use mixin_desktop_core::core::message::sender::MessageSender;
+use mixin_desktop_core::core::model::auth::AuthService;
+use mixin_desktop_core::core::model::signal::SignalService;
+use mixin_desktop_core::core::model::{AppService, ConversationService};
+use mixin_desktop_core::db;
+use mixin_desktop_core::db::app::AppDatabase;
 use sdk::Credential;
 use sdk::KeyStore;
 

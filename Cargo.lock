@@ -1330,7 +1330,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mixin-dekstop-core"
+name = "mixin_desktop_core"
 version = "0.1.0"
 dependencies = [
  "aes 0.8.4",
