@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{anyhow, Context};
 use bytes::Bytes;
@@ -7,17 +8,20 @@ use reqwest::{Method, Request};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::sync::watch;
 
 use crate::credential::Credential;
 use crate::{
-    AccountApi, ApiError, CircleApi, ConversationApi, MessageApi, ProvisioningApi, TokenApi,
-    UserApi,
+    AccountApi, ApiError, AssetApi, AttachmentApi, CircleApi, ConversationApi, MessageApi,
+    ProvisioningApi, TokenApi, UserApi,
 };
 
 pub struct Client {
     inner: Arc<ClientRef>,
     pub user_api: UserApi,
     pub account_api: AccountApi,
+    pub attachment_api: AttachmentApi,
+    pub asset_api: AssetApi,
     pub provisioning_api: ProvisioningApi,
     pub token_api: TokenApi,
     pub conversation_api: ConversationApi,
@@ -32,6 +36,8 @@ impl Client {
             inner: inner.clone(),
             user_api: UserApi::new(inner.clone()),
             account_api: AccountApi::new(inner.clone()),
+            attachment_api: AttachmentApi::new(inner.clone()),
+            asset_api: AssetApi::new(inner.clone()),
             provisioning_api: ProvisioningApi::new(inner.clone()),
             token_api: TokenApi::new(inner.clone()),
             conversation_api: ConversationApi::new(inner.clone()),
@@ -50,15 +56,21 @@ impl Client {
     {
         self.inner.request(request).await
     }
+
+    pub fn subscribe_authentication_errors(&self) -> watch::Receiver<bool> {
+        self.inner.authentication_failed.subscribe()
+    }
 }
 
 pub(crate) struct ClientRef {
     credential: Credential,
     pub(crate) base_url: String,
     pub(crate) client: reqwest::Client,
+    authentication_failed: watch::Sender<bool>,
 }
 
 const MIXIN_BASE_URL: &str = "https://api.mixin.one";
+const API_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -72,8 +84,17 @@ impl ClientRef {
         ClientRef {
             credential,
             base_url: MIXIN_BASE_URL.to_string(),
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .connect_timeout(API_TIMEOUT)
+                .read_timeout(API_TIMEOUT)
+                .build()
+                .expect("failed to build Mixin HTTP client"),
+            authentication_failed: watch::channel(false).0,
         }
+    }
+
+    fn notify_authentication_failed(&self) {
+        self.authentication_failed.send_replace(true);
     }
 
     pub(crate) async fn get<T>(&self, path: &str) -> Result<T, ApiError>
@@ -136,6 +157,9 @@ impl ClientRef {
         };
 
         let resp = self.client.execute(request).await?;
+        if resp.status().as_u16() == crate::err::error_code::AUTHENTICATION as u16 {
+            self.notify_authentication_failed();
+        }
 
         Ok(resp.bytes().await?)
     }
@@ -145,16 +169,28 @@ impl ClientRef {
         T: DeserializeOwned,
     {
         let text = self.raw_request(request).await?;
-        let result: MixinResponse = serde_json::from_slice(&text)
-            .with_context(|| format!("unexpected response: {}", String::from_utf8_lossy(&text)))?;
+        self.parse_response(&text)
+    }
+
+    fn parse_response<T>(&self, text: &[u8]) -> Result<T, ApiError>
+    where
+        T: DeserializeOwned,
+    {
+        let result: MixinResponse = serde_json::from_slice(text)
+            .with_context(|| format!("unexpected response: {}", String::from_utf8_lossy(text)))?;
         match result {
             MixinResponse::Data(data) => Ok(serde_json::from_value(data).with_context(|| {
                 format!(
                     "failed to parse response: {}",
-                    String::from_utf8_lossy(&text)
+                    String::from_utf8_lossy(text)
                 )
             })?),
-            MixinResponse::Error(err) => Err(ApiError::Server(err)),
+            MixinResponse::Error(err) => {
+                if err.code == crate::err::error_code::AUTHENTICATION {
+                    self.notify_authentication_failed();
+                }
+                Err(ApiError::Server(err))
+            }
         }
     }
 }
@@ -176,5 +212,25 @@ pub mod tests {
             .expect("no keystore file");
         let keystore: KeyStore = serde_json::from_slice(&file).expect("failed to read keystore");
         Client::new(Credential::KeyStore(keystore))
+    }
+
+    #[tokio::test]
+    async fn authentication_envelope_notifies_subscribers() {
+        let client = Client::new(Credential::None);
+        let mut authentication_errors = client.subscribe_authentication_errors();
+
+        let error = client
+            .inner
+            .parse_response::<Value>(
+                br#"{"error":{"status":401,"code":401,"description":"Unauthorized"}}"#,
+            )
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ApiError::Server(crate::Error { code: 401, .. })
+        ));
+        authentication_errors.changed().await.unwrap();
+        assert!(*authentication_errors.borrow());
     }
 }

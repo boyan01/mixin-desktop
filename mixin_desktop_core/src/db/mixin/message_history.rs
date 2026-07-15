@@ -15,6 +15,9 @@ impl MessageHistoryDao {
     }
 
     pub async fn insert_list(&self, message_ids: &[String]) -> Result<(), Error> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
         let mut query_builder: QueryBuilder<Sqlite> =
             QueryBuilder::new("INSERT INTO messages_history (message_id) VALUES ");
 
@@ -34,5 +37,35 @@ impl MessageHistoryDao {
         .fetch_one(&self.0)
         .await?;
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::db::MixinDatabase;
+
+    #[tokio::test]
+    async fn reports_persisted_message_history() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+
+        assert!(!database
+            .message_history_dao
+            .exists("message")
+            .await
+            .unwrap());
+        database.message_history_dao.insert_list(&[]).await.unwrap();
+        database
+            .message_history_dao
+            .insert("message")
+            .await
+            .unwrap();
+        assert!(database
+            .message_history_dao
+            .exists("message")
+            .await
+            .unwrap());
     }
 }

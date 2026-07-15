@@ -192,7 +192,7 @@ impl IdentityKeyStore for MixinIdentityKeyStore {
                 let find = self.get_identity(address, ctx).await?;
                 match find {
                     Some(find) => Ok(identity == &find),
-                    None => Ok(false),
+                    None => Ok(true),
                 }
             }
             Direction::Receiving => Ok(true),

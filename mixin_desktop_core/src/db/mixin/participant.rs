@@ -27,6 +27,11 @@ impl ParticipantDao {
             .execute(&mut *tx)
             .await?;
 
+        if participants.is_empty() {
+            tx.commit().await?;
+            return Ok(());
+        }
+
         let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(
             "INSERT OR REPLACE INTO participants (conversation_id, user_id, role, created_at)",
         );
@@ -106,5 +111,24 @@ impl ParticipantDao {
             .fetch_optional(&self.0)
             .await?;
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::db::MixinDatabase;
+
+    #[tokio::test]
+    async fn accepts_empty_participant_replacement() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+
+        database
+            .participant_dao
+            .replace_all("conversation", &[])
+            .await
+            .unwrap();
     }
 }

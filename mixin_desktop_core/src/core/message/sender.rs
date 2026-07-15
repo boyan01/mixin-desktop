@@ -5,21 +5,20 @@ use anyhow::{anyhow, bail, Result};
 use base64ct::{Base64, Encoding};
 use chrono::Utc;
 use log::{error, info, warn};
-use tokio::time::{sleep, Duration};
+use tokio::time::{interval_at, sleep, Duration, Instant};
 use uuid::Uuid;
 
 use sdk::err::error_code::{BAD_DATA, CONVERSATION_CHECKSUM_INVALID_ERROR, FORBIDDEN};
 use sdk::{
     message_category, BlazeMessage, BlazeMessageParam, BlazeMessageParamSession,
-    BlazeSignalKeyMessage, MessageStatus, PlainJsonMessage, SignalKey, SignalKeyCount, UserSession,
-    NO_KEY, RESEND_KEY, RESEND_MESSAGES,
+    BlazeSignalKeyMessage, MessageStatus, PlainJsonMessage, SignalKey, SignalKeyCount, NO_KEY,
+    RESEND_KEY, RESEND_MESSAGES,
 };
 
 use crate::core::crypto::signal_protocol::SignalProtocol;
 use crate::core::message::blaze::Blaze;
 use crate::core::model::signal::SignalService;
 use crate::core::model::ConversationService;
-use crate::core::util::unique_object_id;
 use crate::db::signal::ratchet_sender_key::{ratchet_sender_key_status, RatchetSenderKey};
 use crate::db::MixinDatabase;
 
@@ -29,6 +28,7 @@ pub struct MessageSender {
     conversation: ConversationService,
     database: Arc<MixinDatabase>,
     account_id: String,
+    session_id: String,
     signal_protocol: Arc<SignalProtocol>,
     signal_service: SignalService,
     last_signal_key_refresh: Arc<Mutex<Option<std::time::Instant>>>,
@@ -46,6 +46,7 @@ impl MessageSender {
         conversation: ConversationService,
         database: Arc<MixinDatabase>,
         account_id: String,
+        session_id: String,
         signal_protocol: Arc<SignalProtocol>,
         signal_service: SignalService,
     ) -> Self {
@@ -54,12 +55,16 @@ impl MessageSender {
             conversation,
             database,
             account_id,
+            session_id,
             signal_protocol,
             last_signal_key_refresh: Arc::new(Mutex::new(None)),
             signal_service,
         }
     }
 }
+
+const MAX_CHANNEL_ATTEMPTS: usize = 3;
+const MAX_CHECKSUM_ATTEMPTS: usize = 2;
 
 pub enum ProcessSignalKeyAction<'a> {
     AddParticipant(&'a str),
@@ -68,6 +73,21 @@ pub enum ProcessSignalKeyAction<'a> {
 }
 
 impl MessageSender {
+    pub async fn maintain_signal_keys(&self) {
+        if let Err(err) = self.refresh_signal_key("startup").await {
+            warn!("failed to refresh signal keys at startup: {err}");
+        }
+
+        let period = Duration::from_secs(24 * 60 * 60);
+        let mut interval = interval_at(Instant::now() + period, period);
+        loop {
+            interval.tick().await;
+            if let Err(err) = self.refresh_signal_key("periodic").await {
+                warn!("failed to refresh signal keys periodically: {err}");
+            }
+        }
+    }
+
     pub async fn send_process_signal_key<'a>(
         &self,
         data: &sdk::BlazeMessageData,
@@ -95,6 +115,11 @@ impl MessageSender {
                 self.database
                     .participant_session_dao
                     .clear_status(&data.conversation_id)
+                    .await?;
+                self.signal_protocol
+                    .signal_database
+                    .sender_key_dao
+                    .delete_sender_key(&data.conversation_id, &self.account_id, 1)
                     .await?;
             }
             ProcessSignalKeyAction::AddParticipant(pid) => {
@@ -159,20 +184,30 @@ impl MessageSender {
         &self,
         blaze_message: BlazeMessage,
     ) -> Result<Option<BlazeMessage>> {
-        let bm = self.blaze.send_message(blaze_message.clone()).await?;
-        if let Some(err) = &bm.error {
+        for attempt in 0..MAX_CHANNEL_ATTEMPTS {
+            let bm = self.blaze.send_message(blaze_message.clone()).await?;
+            let Some(err) = &bm.error else {
+                return Ok(Some(bm));
+            };
             error!(
                 "failed to signal_keys_channel: {} {}",
                 err.code, err.description
             );
-            return if err.code == FORBIDDEN {
-                Ok(None)
-            } else {
+            if err.code == FORBIDDEN {
+                return Ok(None);
+            }
+            if attempt + 1 < MAX_CHANNEL_ATTEMPTS {
                 sleep(Duration::from_secs(1)).await;
-                Box::pin(self.signal_keys_channel(blaze_message)).await
-            };
+                continue;
+            }
+            bail!(
+                "signal keys channel failed after {} attempts: {} {}",
+                MAX_CHANNEL_ATTEMPTS,
+                err.code,
+                err.description
+            );
         }
-        Ok(Some(bm))
+        unreachable!()
     }
 
     pub async fn request_resend_key(
@@ -199,7 +234,7 @@ impl MessageSender {
 
         let result = self.deliver(bm).await?;
         if result.success {
-            let address = format!("{}:{}", recipient_id, sid);
+            let address = format!("{}:{}", recipient_id, SignalProtocol::device_id(Some(sid))?);
             self.signal_protocol
                 .signal_database
                 .ratchet_sender_key_dao
@@ -254,6 +289,47 @@ impl MessageSender {
     }
 
     pub async fn send_sender_key(&self, cid: &str, uid: &str, sid: &str) -> Result<bool> {
+        if !self.check_signal_session(uid, sid).await? {
+            return Ok(false);
+        }
+
+        for attempt in 0..MAX_CHECKSUM_ATTEMPTS {
+            let encrypted = self
+                .signal_protocol
+                .encrypt_sender_key(cid, uid, SignalProtocol::device_id(Some(sid))?)
+                .await
+                .map_err(|e| anyhow!("failed to encrypt sender key: {e}"))?;
+            let Some(encrypted) = encrypted else {
+                return Ok(false);
+            };
+            let messages = vec![BlazeSignalKeyMessage {
+                message_id: Uuid::new_v4().to_string(),
+                recipient_id: uid.to_string(),
+                data: encrypted,
+                session_id: Some(sid.to_string()),
+            }];
+            let check_sum = self.get_check_sum(cid).await?;
+            let bm = BlazeMessage::new_signal_key_message(cid.to_string(), messages, check_sum);
+            let result = self.deliver(bm).await?;
+            if result.success {
+                self.database
+                    .participant_session_dao
+                    .update_status(cid, uid, sid, 1)
+                    .await?;
+                return Ok(true);
+            }
+            if !result.retry || attempt + 1 == MAX_CHECKSUM_ATTEMPTS {
+                return Ok(false);
+            }
+        }
+        Ok(false)
+    }
+
+    pub async fn check_signal_session(&self, uid: &str, sid: &str) -> Result<bool> {
+        if self.signal_protocol.contains_session(uid, sid).await? {
+            return Ok(true);
+        }
+
         let request_keys = vec![BlazeMessageParamSession {
             user_id: uid.to_string(),
             session_id: sid.to_string(),
@@ -268,56 +344,150 @@ impl MessageSender {
             return Ok(false);
         };
         let keys: Vec<SignalKey> = serde_json::from_value(data)?;
-
-        if let Some(key) = keys.first() {
-            self.signal_protocol
-                .process_session(uid, key)
-                .await
-                .map_err(|e| anyhow!("failed to process session: {e}"))?
-        } else {
-            self.database
-                .participant_session_dao
-                .insert(
-                    cid,
-                    &[UserSession {
-                        user_id: uid.to_string(),
-                        session_id: sid.to_string(),
-                        platform: None,
-                        public_key: None,
-                    }],
-                )
-                .await?;
+        let Some(key) = keys
+            .iter()
+            .find(|key| key.user_id == uid && key.session_id == sid)
+        else {
             return Ok(false);
-        }
-
-        let (encrypted, no_key) = self
-            .signal_protocol
-            .encrypt_sender_key(cid, uid, SignalProtocol::device_id(Some(sid))?)
+        };
+        self.signal_protocol
+            .process_session(uid, key)
             .await
-            .map_err(|e| anyhow!("failed to encrypt sender key: {e}"))?;
-        if no_key {
-            return Ok(false);
-        }
-        let messages = vec![BlazeSignalKeyMessage {
-            message_id: Uuid::new_v4().to_string(),
-            recipient_id: uid.to_string(),
-            data: encrypted,
-            session_id: Some(sid.to_string()),
-        }];
-        let check_sum = self.get_check_sum(cid).await?;
-        let bm = BlazeMessage::new_signal_key_message(cid.to_string(), messages, check_sum);
-        let result = self.deliver(bm).await?;
-        if result.retry {
-            return Box::pin(self.send_sender_key(cid, uid, sid)).await;
-        }
-        if result.success {
-            self.database
-                .participant_session_dao
-                .insert_session(cid, uid, sid, 1)
+            .map_err(|e| anyhow!("failed to process session: {e}"))?;
+        Ok(true)
+    }
+
+    async fn distribute_sender_keys(&self, cid: &str) -> Result<()> {
+        let sessions = self
+            .database
+            .participant_session_dao
+            .not_sent_participant_sessions(cid, &self.session_id)
+            .await?;
+        for session in sessions {
+            self.send_sender_key(cid, &session.user_id, &session.session_id)
                 .await?;
         }
+        Ok(())
+    }
 
-        Ok(result.success)
+    async fn prepare_group_signal_session(&self, cid: &str) -> Result<()> {
+        let has_sender_key = self
+            .signal_protocol
+            .protocol_store
+            .sender_key_store
+            .exists_sender_key(cid, &self.account_id)
+            .await?;
+        let has_participant_sessions = !self
+            .database
+            .participant_session_dao
+            .get_participant_sessions(cid)
+            .await?
+            .is_empty();
+        if !has_sender_key || !has_participant_sessions {
+            self.conversation.refresh_conversation(cid).await?;
+        }
+        self.distribute_sender_keys(cid).await?;
+        if !self
+            .signal_protocol
+            .protocol_store
+            .sender_key_store
+            .exists_sender_key(cid, &self.account_id)
+            .await?
+        {
+            bail!("sender key is unavailable for conversation {cid}");
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn send_signal_message(
+        &self,
+        message_id: &str,
+        cid: &str,
+        category: &str,
+        content: &str,
+        quote_message_id: Option<&str>,
+        mentions: Option<&[String]>,
+        silent: bool,
+        expire_in: i32,
+    ) -> Result<MessageResult> {
+        self.prepare_group_signal_session(cid).await?;
+        for attempt in 0..MAX_CHECKSUM_ATTEMPTS {
+            let data = self
+                .signal_protocol
+                .encrypt_group_message(cid, content.as_bytes())
+                .await
+                .map_err(|e| anyhow!("failed to encrypt group message: {e}"))?;
+            let bm = BlazeMessage::new_param_blaze(BlazeMessageParam {
+                conversation_id: Some(cid.to_string()),
+                conversation_checksum: Some(self.get_check_sum(cid).await?),
+                message_id: Some(message_id.to_string()),
+                category: Some(category.to_string()),
+                data: Some(data),
+                quote_message_id: quote_message_id.map(str::to_string),
+                mentions: mentions.map(<[String]>::to_vec),
+                silent: Some(silent),
+                expire_in: Some(expire_in),
+                ..BlazeMessageParam::default()
+            });
+            let result = self.deliver(bm).await?;
+            if !result.retry || attempt + 1 == MAX_CHECKSUM_ATTEMPTS {
+                return Ok(result);
+            }
+            self.prepare_group_signal_session(cid).await?;
+        }
+        unreachable!()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn resend_signal_message(
+        &self,
+        original_message_id: &str,
+        cid: &str,
+        recipient_id: &str,
+        recipient_session_id: &str,
+        category: &str,
+        content: &str,
+        quote_message_id: Option<&str>,
+        mentions: Option<&[String]>,
+        silent: bool,
+        expire_in: i32,
+    ) -> Result<MessageResult> {
+        if !self
+            .check_signal_session(recipient_id, recipient_session_id)
+            .await?
+        {
+            return Ok(MessageResult {
+                success: false,
+                retry: true,
+                error_code: None,
+            });
+        }
+        let data = self
+            .signal_protocol
+            .encrypt_session_message(
+                content.as_bytes(),
+                recipient_id,
+                recipient_session_id,
+                Some(original_message_id),
+            )
+            .await
+            .map_err(|e| anyhow!("failed to encrypt session message: {e}"))?;
+        let bm = BlazeMessage::new_param_blaze(BlazeMessageParam {
+            conversation_id: Some(cid.to_string()),
+            conversation_checksum: Some(self.get_check_sum(cid).await?),
+            recipient_id: Some(recipient_id.to_string()),
+            message_id: Some(Uuid::new_v4().to_string()),
+            category: Some(category.to_string()),
+            data: Some(data),
+            quote_message_id: quote_message_id.map(str::to_string),
+            session_id: Some(recipient_session_id.to_string()),
+            mentions: mentions.map(<[String]>::to_vec),
+            silent: Some(silent),
+            expire_in: Some(expire_in),
+            ..BlazeMessageParam::default()
+        });
+        self.deliver(bm).await
     }
 
     pub async fn get_check_sum(&self, cid: &str) -> Result<String> {
@@ -326,12 +496,11 @@ impl MessageSender {
             .participant_session_dao
             .get_participant_sessions(cid)
             .await?;
-        let mut sessions = sessions
+        let sessions = sessions
             .into_iter()
             .map(|session| session.session_id)
             .collect::<Vec<_>>();
-        sessions.sort();
-        Ok(unique_object_id(&sessions).to_string())
+        Ok(generate_conversation_checksum(sessions))
     }
 
     pub async fn send_no_key_message(&self, cid: &str, uid: &str) -> Result<()> {
@@ -363,9 +532,15 @@ impl MessageSender {
             }
         }
 
-        let result = self.blaze.send_message(msg.clone()).await?;
-
-        if let Some(err) = &result.error {
+        for attempt in 0..MAX_CHANNEL_ATTEMPTS {
+            let result = self.blaze.send_message(msg.clone()).await?;
+            let Some(err) = &result.error else {
+                return Ok(MessageResult {
+                    success: true,
+                    retry: false,
+                    error_code: None,
+                });
+            };
             warn!(
                 "failed to send message, code :{}, description: {}, {}",
                 err.code,
@@ -375,30 +550,53 @@ impl MessageSender {
             if err.code == CONVERSATION_CHECKSUM_INVALID_ERROR {
                 let cid = msg.params.as_ref().and_then(|p| p.conversation_id.as_ref());
                 if let Some(cid) = cid {
-                    self.conversation.sync_conversation(cid).await?;
+                    self.conversation.refresh_conversation(cid).await?;
                 }
-                Ok(MessageResult {
+                return Ok(MessageResult {
                     success: false,
                     retry: true,
                     error_code: Some(err.code),
-                })
-            } else if err.code == FORBIDDEN || err.code == BAD_DATA {
-                Ok(MessageResult {
+                });
+            }
+            if err.code == FORBIDDEN || err.code == BAD_DATA {
+                return Ok(MessageResult {
                     success: false,
                     retry: false,
                     error_code: Some(err.code),
-                })
-            } else {
-                // sleep for 10 seconds
-                sleep(Duration::from_secs(1)).await;
-                Box::pin(self.deliver(msg)).await
+                });
             }
-        } else {
-            Ok(MessageResult {
-                success: true,
-                retry: false,
-                error_code: None,
-            })
+            if attempt + 1 < MAX_CHANNEL_ATTEMPTS {
+                sleep(Duration::from_secs(1)).await;
+                continue;
+            }
+            return Ok(MessageResult {
+                success: false,
+                retry: true,
+                error_code: Some(err.code),
+            });
         }
+        unreachable!()
+    }
+}
+
+fn generate_conversation_checksum(mut sessions: Vec<String>) -> String {
+    if sessions.is_empty() {
+        return String::new();
+    }
+    sessions.sort();
+    format!("{:x}", md5::compute(sessions.concat()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::generate_conversation_checksum;
+
+    #[test]
+    fn conversation_checksum_matches_flutter() {
+        assert_eq!(generate_conversation_checksum(Vec::new()), "");
+        assert_eq!(
+            generate_conversation_checksum(vec!["session-b".into(), "session-a".into()]),
+            "34b4db93ff28fd2f9949d674f2f654c5"
+        );
     }
 }

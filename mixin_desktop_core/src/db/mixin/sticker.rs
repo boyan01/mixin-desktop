@@ -14,7 +14,6 @@ pub struct Sticker {
     pub asset_url: String,
     pub asset_width: i32,
     pub asset_height: i32,
-    pub asset_name: String,
     pub asset_type: String,
     pub created_at: DateTime<Utc>,
     pub last_use_at: Option<DateTime<Utc>>,
@@ -27,5 +26,26 @@ impl StickerDao {
             .fetch_optional(&self.0)
             .await?;
         Ok(result)
+    }
+
+    pub async fn insert(&self, sticker: &sdk::Sticker) -> Result<(), Error> {
+        sqlx::query(
+            r#"INSERT OR REPLACE INTO stickers
+               (sticker_id, album_id, name, asset_url, asset_type, asset_width,
+                asset_height, created_at, last_use_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+        )
+        .bind(&sticker.sticker_id)
+        .bind(&sticker.album_id)
+        .bind(&sticker.name)
+        .bind(&sticker.asset_url)
+        .bind(&sticker.asset_type)
+        .bind(sticker.asset_width)
+        .bind(sticker.asset_height)
+        .bind(sticker.created_at)
+        .bind(sticker.last_use_at)
+        .execute(&self.0)
+        .await?;
+        Ok(())
     }
 }

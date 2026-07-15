@@ -58,9 +58,9 @@ mod test {
     use super::*;
     #[test]
     fn test_expand_var() {
-        assert_eq!("?", expand_var(0));
-        assert_eq!("?1", expand_var(1));
-        assert_eq!("?$1,?$2", expand_var(2));
+        assert_eq!("", expand_var(0));
+        assert_eq!("?", expand_var(1));
+        assert_eq!("?, ?", expand_var(2));
     }
 
     #[test]

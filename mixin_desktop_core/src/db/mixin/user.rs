@@ -3,6 +3,7 @@ use sqlx::{Pool, QueryBuilder, Sqlite};
 
 use sdk::SYSTEM_USER;
 
+use crate::db::mixin::database::MARK_LIMIT;
 use crate::db::mixin::util::{expand_var, BindList};
 use crate::db::Error;
 
@@ -75,17 +76,39 @@ impl UserDao {
         Ok(result)
     }
 
+    pub async fn find_user_ids_by_identity_numbers(
+        &self,
+        identity_numbers: &[String],
+    ) -> Result<Vec<String>, Error> {
+        let mut user_ids = Vec::new();
+        for chunk in identity_numbers.chunks(MARK_LIMIT) {
+            let query = format!(
+                "SELECT user_id FROM users WHERE identity_number IN ({})",
+                expand_var(chunk.len())
+            );
+            user_ids.extend(
+                sqlx::query_as::<_, (String,)>(&query)
+                    .bind_list(chunk)
+                    .fetch_all(&self.0)
+                    .await?
+                    .into_iter()
+                    .map(|(user_id,)| user_id),
+            );
+        }
+        Ok(user_ids)
+    }
+
     pub async fn insert_sdk_users(&self, users: Vec<sdk::User>) -> Result<Vec<User>, Error> {
+        if users.is_empty() {
+            return Ok(Vec::new());
+        }
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             r#"INSERT OR REPLACE INTO users (user_id, identity_number, relationship, full_name, avatar_url,
               phone, is_verified, created_at, mute_until, has_pin, app_id, biography, is_scam, 
               code_url, code_id, is_deactivated)"#,
         );
 
-        let db_users = users
-            .into_iter()
-            .map(User::from)
-            .collect::<Vec<_>>();
+        let db_users = users.into_iter().map(User::from).collect::<Vec<_>>();
 
         query_builder.push_values(db_users.iter(), |mut b, user| {
             b.push_bind(&user.user_id)
@@ -131,5 +154,25 @@ impl UserDao {
             .execute(&self.0)
             .await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::db::MixinDatabase;
+
+    #[tokio::test]
+    async fn accepts_empty_user_batch() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+
+        assert!(database
+            .user_dao
+            .insert_sdk_users(Vec::new())
+            .await
+            .unwrap()
+            .is_empty());
     }
 }

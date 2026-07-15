@@ -19,7 +19,6 @@ use crate::core::crypto::provisioning_cipher::decrypt;
 use crate::db::app::{AppDatabase, Auth, AuthDao};
 
 pub struct AuthService {
-    app_db: Arc<AppDatabase>,
     auth_dao: AuthDao,
     auth: Arc<Mutex<Option<Auth>>>,
 }
@@ -28,7 +27,6 @@ impl AuthService {
     pub fn new(app_db: Arc<AppDatabase>) -> Self {
         AuthService {
             auth_dao: app_db.auth_dao.clone(),
-            app_db,
             auth: Arc::new(Mutex::new(None)),
         }
     }
@@ -161,6 +159,10 @@ async fn verify_auth(
 ) -> anyhow::Result<AuthResult> {
     let result = decrypt(key_pair.private_key, secret)?;
     let verification: ProvisioningVerification = serde_json::from_slice(&result)?;
+    if verification.session_id.trim().is_empty() {
+        return Err(anyhow!("provisioning response has no primary session id"));
+    }
+    let primary_session_id = verification.session_id.clone();
 
     let mut seed = [0u8; 32];
     OsRng.fill(&mut seed);
@@ -188,6 +190,7 @@ async fn verify_auth(
         auth: Auth {
             user_id: account.user_id.clone(),
             private_key: seed.to_vec(),
+            primary_session_id: Some(primary_session_id),
             account,
         },
         registration_id,

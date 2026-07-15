@@ -1,3 +1,5 @@
+use crate::db::mixin::database::MARK_LIMIT;
+use crate::db::mixin::util::{expand_var, BindListForQuery};
 use crate::db::Error;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -22,14 +24,15 @@ pub struct PinMessageMinimal {
 
 impl PinMessageDao {
     pub async fn delete_pin_message(&self, message_id: &[String]) -> Result<(), Error> {
-        let mut query_builder: sqlx::QueryBuilder<sqlx::Sqlite> =
-            sqlx::QueryBuilder::new("DELETE FROM pin_messages WHERE message_id IN (");
-        for message_id in message_id {
-            query_builder.push_bind(message_id);
-            query_builder.push(',');
+        for chunk in message_id.chunks(MARK_LIMIT) {
+            sqlx::query(&format!(
+                "DELETE FROM pin_messages WHERE message_id IN ({})",
+                expand_var(chunk.len())
+            ))
+            .bind_list(chunk)
+            .execute(&self.0)
+            .await?;
         }
-        query_builder.push(')');
-        let _ = query_builder.build().execute(&self.0).await?;
         Ok(())
     }
 

@@ -7,6 +7,9 @@ pub struct CircleConversationDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 impl CircleConversationDao {
     pub async fn insert(&self, cs: &[sdk::CircleConversation]) -> Result<(), Error> {
+        if cs.is_empty() {
+            return Ok(());
+        }
         let mut query_builder: QueryBuilder<sqlx::Sqlite> = QueryBuilder::new(
             "INSERT OR REPLACE INTO circle_conversations (circle_id, conversation_id, created_at) VALUES ",
         );

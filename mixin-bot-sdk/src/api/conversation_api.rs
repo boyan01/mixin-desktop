@@ -35,6 +35,11 @@ pub struct Participant {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ParticipantRequest {
+    pub user_id: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Conversation {
     pub conversation_id: String,
     pub name: String,
@@ -58,7 +63,7 @@ pub struct ConversationRequest {
     pub name: Option<String>,
     pub icon_base64: Option<String>,
     pub announcement: Option<String>,
-    pub participants: Option<Vec<Participant>>,
+    pub participants: Option<Vec<ParticipantRequest>>,
     pub duration: Option<i64>,
 }
 
@@ -133,9 +138,32 @@ impl ConversationApi {
 
 #[cfg(test)]
 mod tests {
+    use super::{ConversationCategory, ConversationRequest, ParticipantRequest};
     use crate::client::tests::new_test_client;
 
+    #[test]
+    fn serializes_create_participant_without_response_fields() {
+        let request = ConversationRequest {
+            conversation_id: "conversation".into(),
+            category: Some(ConversationCategory::Contact),
+            name: None,
+            icon_base64: None,
+            announcement: None,
+            participants: Some(vec![ParticipantRequest {
+                user_id: "recipient".into(),
+            }]),
+            duration: None,
+        };
+
+        let value = serde_json::to_value(request).unwrap();
+        assert_eq!(
+            value["participants"][0],
+            serde_json::json!({"user_id": "recipient"})
+        );
+    }
+
     #[tokio::test]
+    #[ignore = "requires ../keystore.json and the live Mixin API"]
     async fn test_get_conversation() {
         let client = new_test_client().await;
         let result = client
@@ -146,6 +174,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires ../keystore.json and the live Mixin API"]
     async fn test_quit_conversation() {
         let client = new_test_client().await;
         let result = client

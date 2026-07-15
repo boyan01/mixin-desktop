@@ -8,6 +8,7 @@ pub struct AuthDao(pub(crate) sqlx::Pool<Sqlite>);
 pub struct Auth {
     pub user_id: String,
     pub private_key: Vec<u8>,
+    pub primary_session_id: Option<String>,
     #[sqlx(json)]
     pub account: Account,
 }
@@ -29,10 +30,12 @@ impl AuthDao {
 
     pub async fn save_auth(&self, auth: &Auth) -> anyhow::Result<()> {
         let _ = sqlx::query(
-            "INSERT OR REPLACE INTO auths (user_id, private_key, account) VALUES (?, ?, ?)",
+            "INSERT OR REPLACE INTO auths \
+             (user_id, private_key, primary_session_id, account) VALUES (?, ?, ?, ?)",
         )
         .bind(&auth.user_id)
         .bind(&auth.private_key)
+        .bind(&auth.primary_session_id)
         .bind(serde_json::to_string(&auth.account)?)
         .execute(&self.0)
         .await?;

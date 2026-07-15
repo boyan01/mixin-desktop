@@ -131,6 +131,7 @@ mod tests {
     use crate::client::tests::new_test_client;
 
     #[tokio::test]
+    #[ignore = "requires ../keystore.json and the live Mixin API"]
     async fn test_get_user_by_id() {
         let client = new_test_client().await;
         let result = client
@@ -141,6 +142,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires ../keystore.json and the live Mixin API"]
     async fn test_get_users() {
         let client = new_test_client().await;
         let result = client
@@ -151,6 +153,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires ../keystore.json and the live Mixin API"]
     async fn test_get_sessions() {
         let client = new_test_client().await;
         let result = client
@@ -161,6 +164,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires ../keystore.json and the live Mixin API"]
     async fn test_get_favorite_apps() {
         let client = new_test_client().await;
         let result = client

@@ -39,6 +39,20 @@ impl SenderKeyDao {
         Ok(())
     }
 
+    pub async fn delete_sender_key(
+        &self,
+        group_id: &str,
+        sender_name: &str,
+        device_id: u32,
+    ) -> Result<(), db::Error> {
+        sqlx::query("DELETE FROM sender_keys WHERE group_id = ? AND sender_id = ?")
+            .bind(group_id)
+            .bind(format!("{}:{}", sender_name, device_id))
+            .execute(&self.0)
+            .await?;
+        Ok(())
+    }
+
     pub(crate) async fn has_sender_key(
         &self,
         group_id: &str,

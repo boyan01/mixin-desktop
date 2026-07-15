@@ -1,9 +1,10 @@
 use std::error::Error;
+use std::path::Path;
 
 use anyhow::anyhow;
 use libsignal_protocol::{IdentityKeyPair, PrivateKey};
 use rand_core::OsRng;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
 use crate::db;
 use crate::db::key_value::KeyValue;
@@ -27,10 +28,20 @@ pub struct SignalDatabase {
 
 impl SignalDatabase {
     pub async fn connect(identity_number: String) -> Result<Self, Box<dyn Error>> {
+        let path = crate::db::path::account_database_path(&identity_number, "signal.db")?;
+        Self::connect_at(path).await
+    }
+
+    pub async fn connect_at(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+        let path = path.as_ref();
+        crate::db::path::create_parent_directory(path).await?;
         let pool = SqlitePoolOptions::new()
             .connect_with(
                 SqliteConnectOptions::new()
-                    .filename("signal.db")
+                    .filename(path)
+                    .journal_mode(SqliteJournalMode::Wal)
+                    .synchronous(SqliteSynchronous::Normal)
+                    .foreign_keys(true)
                     .create_if_missing(true),
             )
             .await?;
@@ -39,7 +50,7 @@ impl SignalDatabase {
 
         let key_value = KeyValue(pool.clone());
 
-        Ok(SignalDatabase {
+        let database = SignalDatabase {
             pre_key_dao: PreKeyDao(pool.clone()),
             signed_pre_key_dao: SignedPreKeyDao(pool.clone()),
             session_dao: SessionDao(pool.clone()),
@@ -47,7 +58,9 @@ impl SignalDatabase {
             identity_dao: IdentityDao(pool.clone()),
             crypto_key_value: CryptoKeyValue::new(key_value),
             ratchet_sender_key_dao: RatchetSenderKeyDao(pool.clone()),
-        })
+        };
+        database.crypto_key_value.init().await;
+        Ok(database)
     }
 
     pub async fn init(
@@ -86,7 +99,8 @@ mod tests {
     #[tokio::test]
     async fn test_connect() -> Result<(), Box<dyn Error>> {
         let _ = TestLogger::init(LevelFilter::Info, Config::default());
-        let db = SignalDatabase::connect("".to_string()).await?;
+        let directory = tempfile::tempdir()?;
+        let db = SignalDatabase::connect_at(directory.path().join("signal.db")).await?;
         let mut csprng = OsRng;
         let key_pair = KeyPair::generate(&mut csprng);
         db.pre_key_dao

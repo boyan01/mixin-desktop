@@ -1,4 +1,6 @@
 pub use api::account_api::*;
+pub use api::asset_api::*;
+pub use api::attachment_api::*;
 pub use api::circle_api::*;
 pub use api::conversation_api::*;
 pub use api::message_api::*;

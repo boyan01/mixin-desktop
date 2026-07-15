@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::bail;
 
 use sdk::client::Client;
-use sdk::{ConversationCategory, UserSession};
+use sdk::{ConversationCategory, ConversationRequest, ParticipantRequest, UserSession};
 
 use crate::db::mixin::conversation::{Conversation, ConversationStatus};
 use crate::db::mixin::participant::Participant;
@@ -49,7 +49,7 @@ impl ConversationService {
             return Ok(users);
         }
         let updated_users = self.update_users(&query_user_ids).await?;
-        Ok(users.into_iter().chain(updated_users.into_iter()).collect())
+        Ok(users.into_iter().chain(updated_users).collect())
     }
 
     async fn update_users(&self, ids: &[String]) -> anyhow::Result<Vec<User>> {
@@ -140,6 +140,59 @@ impl ConversationService {
         Ok(())
     }
 
+    pub async fn ensure_conversation_exists(
+        &self,
+        conversation: &Conversation,
+    ) -> anyhow::Result<()> {
+        if conversation.status == ConversationStatus::SUCCESS {
+            return Ok(());
+        }
+        let owner_id = conversation
+            .owner_id
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("conversation has no owner"))?;
+        let response = self
+            .client
+            .conversation_api
+            .create_conversation(&ConversationRequest {
+                conversation_id: conversation.conversation_id.clone(),
+                category: conversation.category.clone(),
+                name: None,
+                icon_base64: None,
+                announcement: None,
+                participants: Some(vec![ParticipantRequest {
+                    user_id: owner_id.clone(),
+                }]),
+                duration: None,
+            })
+            .await?;
+
+        self.db
+            .conversation_dao
+            .update_status(&conversation.conversation_id, ConversationStatus::SUCCESS)
+            .await?;
+        if let Some(sessions) = response.participant_sessions {
+            if !sessions.is_empty() {
+                let sessions = sessions
+                    .into_iter()
+                    .map(|session| ParticipantSession {
+                        conversation_id: conversation.conversation_id.clone(),
+                        user_id: session.user_id,
+                        session_id: session.session_id,
+                        sent_to_server: None,
+                        created_at: None,
+                        public_key: session.public_key,
+                    })
+                    .collect::<Vec<_>>();
+                self.db
+                    .participant_session_dao
+                    .replace_all(&conversation.conversation_id, &sessions)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
     async fn refresh_participants(
         &self,
         conversation_id: &str,
@@ -190,6 +243,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "requires ../keystore.json and the live Mixin API"]
     async fn test() {
         let client = crate::tests::new_test_client().await;
         let db = crate::tests::new_test_mixin_db().await;
@@ -205,6 +259,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires ../keystore.json and the live Mixin API"]
     async fn test_refresh() {
         let client = crate::tests::new_test_client().await;
         let db = crate::tests::new_test_mixin_db().await;

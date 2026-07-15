@@ -30,8 +30,13 @@ impl ComposeMessageData {
         let is_resend_message = header[2] == 1;
 
         let (resend_message_id, data) = if is_resend_message {
-            let message_id = String::from_utf8_lossy(&cipher_text[8..44]);
-            (Some(message_id.to_string()), &cipher_text[44..])
+            let message_id = cipher_text
+                .get(8..44)
+                .ok_or_else(|| anyhow!("Invalid resend message length"))?;
+            let data = cipher_text
+                .get(44..)
+                .ok_or_else(|| anyhow!("Invalid resend message length"))?;
+            (Some(String::from_utf8_lossy(message_id).to_string()), data)
         } else {
             (None, &cipher_text[8..])
         };
@@ -70,5 +75,12 @@ mod test {
         let encoded = data.encode();
         let decoded = ComposeMessageData::decode(&encoded).unwrap();
         assert_eq!(data, decoded);
+    }
+
+    #[test]
+    fn rejects_truncated_resend_message_without_panicking() {
+        let encoded = Base64::encode_string(&[CURRENT_VERSION, 3, 1, 0, 0, 0, 0, 0, 1]);
+
+        assert!(ComposeMessageData::decode(&encoded).is_err());
     }
 }

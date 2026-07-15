@@ -23,16 +23,22 @@ pub mod tests {
     }
 
     pub async fn new_test_mixin_db() -> Arc<MixinDatabase> {
+        let path = std::env::temp_dir()
+            .join(format!("mixin-desktop-test-{}", uuid::Uuid::new_v4()))
+            .join("mixin.db");
         Arc::new(
-            MixinDatabase::new("".to_string())
+            MixinDatabase::connect_at(path)
                 .await
                 .expect("failed to create db"),
         )
     }
 
     pub async fn new_test_signal_db() -> Arc<SignalDatabase> {
+        let path = std::env::temp_dir()
+            .join(format!("mixin-desktop-test-{}", uuid::Uuid::new_v4()))
+            .join("signal.db");
         Arc::new(
-            SignalDatabase::connect("".to_string())
+            SignalDatabase::connect_at(path)
                 .await
                 .expect("failed to create db"),
         )

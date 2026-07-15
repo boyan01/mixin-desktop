@@ -20,7 +20,9 @@ pub struct RecallMessage {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AttachmentMessage {
+    #[serde(default, with = "optional_base64_bytes")]
     pub key: Option<Vec<u8>>,
+    #[serde(default, with = "optional_base64_bytes")]
     pub digest: Option<Vec<u8>>,
     pub attachment_id: String,
     pub mime_type: String,
@@ -30,11 +32,47 @@ pub struct AttachmentMessage {
     pub height: Option<i32>,
     pub thumbnail: Option<String>,
     pub duration: Option<i64>,
+    #[serde(default, with = "optional_base64_bytes")]
     pub waveform: Option<Vec<u8>>,
     pub caption: Option<String>,
-    #[serde(default)]
-    pub created_at: DateTime<Utc>,
+    pub created_at: Option<DateTime<Utc>>,
     pub shareable: Option<bool>,
+}
+
+mod optional_base64_bytes {
+    use base64ct::{Base64, Encoding};
+    use serde::de::Error as _;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Bytes {
+        Base64(String),
+        Array(Vec<u8>),
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        match Option::<Bytes>::deserialize(deserializer)? {
+            Some(Bytes::Base64(value)) if !value.is_empty() => Base64::decode_vec(&value)
+                .map(Some)
+                .map_err(D::Error::custom),
+            Some(Bytes::Base64(_)) | None => Ok(None),
+            Some(Bytes::Array(value)) => Ok(Some(value)),
+        }
+    }
+
+    pub fn serialize<S>(value: &Option<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match value {
+            Some(value) => serializer.serialize_some(&Base64::encode_string(value)),
+            None => serializer.serialize_none(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -105,4 +143,27 @@ pub struct AppCard {
 pub enum PinMessagePayload {
     Pin(Vec<String>),
     Unpin(Vec<String>),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn attachment_message_accepts_flutter_base64_keys() {
+        let message: AttachmentMessage = serde_json::from_str(
+            r#"{
+                "key":"AAECAw==",
+                "digest":[4,5,6],
+                "attachment_id":"attachment-id",
+                "mime_type":"application/octet-stream",
+                "size":3
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(message.key, Some(vec![0, 1, 2, 3]));
+        assert_eq!(message.digest, Some(vec![4, 5, 6]));
+        assert_eq!(serde_json::to_value(message).unwrap()["key"], "AAECAw==");
+    }
 }

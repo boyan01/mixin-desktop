@@ -17,19 +17,13 @@ use crate::db::SignalDatabase;
 pub struct SignalService {
     pub(crate) signal_protocol: Arc<SignalProtocol>,
     pub(crate) signal_database: Arc<SignalDatabase>,
-    pub(crate) account_id: String,
 }
 
 impl SignalService {
-    pub fn new(
-        protocol: Arc<SignalProtocol>,
-        database: Arc<SignalDatabase>,
-        account_id: String,
-    ) -> Self {
+    pub fn new(protocol: Arc<SignalProtocol>, database: Arc<SignalDatabase>) -> Self {
         Self {
             signal_protocol: protocol,
             signal_database: database,
-            account_id,
         }
     }
 
@@ -90,6 +84,9 @@ impl SignalService {
             .save_signed_pre_key(signed_pre_key_id, &record, None)
             .await
             .map_err(|e| anyhow!("failed to save signed pre key: {e}"))?;
+        crypto_key_value
+            .set_next_signed_pre_key_id((signed_pre_key_id + 1) % MAX_VALUE)
+            .await;
 
         Ok(record)
     }
@@ -125,5 +122,59 @@ impl SignalService {
             },
             one_time_pre_keys: pks,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use libsignal_protocol::{IdentityKeyStore, SignedPreKeyRecord};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn signed_pre_key_advances_persisted_counter() -> Result<()> {
+        let directory = tempfile::tempdir()?;
+        let database = Arc::new(
+            SignalDatabase::connect_at(directory.path().join("signal.db"))
+                .await
+                .map_err(|err| anyhow!(err.to_string()))?,
+        );
+        database.init(7, None).await?;
+        let protocol = Arc::new(SignalProtocol::new(database.clone(), "account-id".into()));
+        let service = SignalService::new(protocol.clone(), database.clone());
+        let identity = protocol
+            .protocol_store
+            .identity_store
+            .get_identity_key_pair(None)
+            .await
+            .map_err(|err| anyhow!("get identity key pair: {err}"))?;
+        let current = database.crypto_key_value.next_signed_pre_key_id();
+
+        let record: SignedPreKeyRecord = service.generate_signed_pre_key(&identity).await?;
+
+        assert_eq!(
+            record
+                .id()
+                .map_err(|err| anyhow!("get signed pre-key id: {err}"))?,
+            current
+        );
+        assert_eq!(
+            database.crypto_key_value.next_signed_pre_key_id(),
+            (current + 1) % MAX_VALUE
+        );
+        drop(service);
+        drop(protocol);
+        drop(database);
+
+        let reopened = SignalDatabase::connect_at(directory.path().join("signal.db"))
+            .await
+            .map_err(|err| anyhow!(err.to_string()))?;
+        assert_eq!(
+            reopened.crypto_key_value.next_signed_pre_key_id(),
+            (current + 1) % MAX_VALUE
+        );
+        Ok(())
     }
 }

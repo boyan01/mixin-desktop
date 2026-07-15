@@ -17,6 +17,9 @@ pub struct Circle {
 
 impl CircleDao {
     pub async fn insert_circles(&self, circles: &[sdk::Circle]) -> Result<(), Error> {
+        if circles.is_empty() {
+            return Ok(());
+        }
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             "INSERT OR REPLACE INTO circles (circle_id, name, created_at) VALUES ",
         );

@@ -1,10 +1,10 @@
+use std::collections::{HashMap, HashSet};
 use std::default::Default;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use base64ct::{Base64, Encoding};
-use chrono::TimeDelta;
-use log::{error, info};
+use log::{error, info, warn};
 use uuid::Uuid;
 
 use sdk::blaze_message::{
@@ -20,19 +20,24 @@ use sdk::{
 };
 
 use crate::core::crypto::compose_message::ComposeMessageData;
+use crate::core::crypto::encrypted_protocol;
 use crate::core::crypto::signal_protocol::SignalProtocol;
+use crate::core::message::blaze::PendingMessageStatusStore;
 use crate::core::message::sender::{MessageSender, ProcessSignalKeyAction};
 use crate::core::model::{AppService, AttachmentExtra};
 use crate::core::util::generate_conversation_id;
+use crate::db::app::Auth;
 use crate::db::mixin::conversation::ConversationStatus;
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::{AttachmentMessageUpdate, MediaStatus, Message};
 use crate::db::mixin::participant::Participant;
 use crate::db::mixin::pin_message::{PinMessage, PinMessageMinimal};
+use crate::db::mixin::transcript_message::TranscriptMessage;
 use crate::db::mixin::MixinDatabase;
 use crate::db::signal::ratchet_sender_key::ratchet_sender_key_status;
 
+#[derive(Clone)]
 pub struct ServiceDecryptMessage {
     database: Arc<MixinDatabase>,
     signal_protocol: Arc<SignalProtocol>,
@@ -40,6 +45,37 @@ pub struct ServiceDecryptMessage {
     sender: Arc<MessageSender>,
     user_id: String,
     identity_number: String,
+    private_key: Vec<u8>,
+    session_id: String,
+    pending_message_statuses: PendingMessageStatusStore,
+}
+
+struct PreparedTranscript {
+    summary: String,
+    fts_content: String,
+    media_size: i64,
+    media_status: MediaStatus,
+    attachments: Vec<TranscriptMessage>,
+}
+
+fn message_fts_content(message: &Message) -> Option<String> {
+    if matches!(
+        message.status,
+        MessageStatus::Unknown | MessageStatus::Failed
+    ) {
+        return None;
+    }
+    if message.category.is_text() || message.category.is_post() {
+        return message.content.clone();
+    }
+    if message.category.is_data() || message.category.is_contact() {
+        return message.name.clone();
+    }
+    if message.category.is_app_card() {
+        let card = serde_json::from_str::<sdk::AppCard>(message.content.as_deref()?).ok()?;
+        return Some(format!("{} {}", card.title, card.description));
+    }
+    None
 }
 
 impl ServiceDecryptMessage {
@@ -48,16 +84,19 @@ impl ServiceDecryptMessage {
         app_service: Arc<AppService>,
         signal_protocol: Arc<SignalProtocol>,
         sender: Arc<MessageSender>,
-        user_id: String,
-        identity_number: String,
+        pending_message_statuses: PendingMessageStatusStore,
+        auth: &Auth,
     ) -> Self {
         Self {
             database,
             signal_protocol,
             app_service,
             sender,
-            user_id,
-            identity_number,
+            user_id: auth.account.user_id.clone(),
+            identity_number: auth.account.identity_number.clone(),
+            private_key: auth.private_key.clone(),
+            session_id: auth.account.session_id.clone(),
+            pending_message_statuses,
         }
     }
 
@@ -89,6 +128,11 @@ impl ServiceDecryptMessage {
             .message_dao
             .is_message_exits(&message.message_id)
             .await?
+            || self
+                .database
+                .message_history_dao
+                .exists(&message.message_id)
+                .await?
         {
             self.update_remote_message_status(&message.message_id, MessageStatus::Delivered)
                 .await?;
@@ -117,14 +161,15 @@ impl ServiceDecryptMessage {
     }
 
     async fn handle_invalid_message(&self, data: &BlazeMessageData) -> Result<MessageStatus> {
-        if data.category == message_category::SIGNAL_KEY {
+        if data.category != message_category::SIGNAL_KEY {
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
-                user_id: data.user_id.clone(),
+                user_id: data.sender_id().clone(),
                 content: Some(data.data.clone()),
                 category: data.category.clone(),
                 status: MessageStatus::Unknown,
+                created_at: data.created_at.naive_utc(),
                 ..Message::default()
             };
             self.insert_message(&message, data).await?
@@ -143,7 +188,7 @@ impl ServiceDecryptMessage {
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
-                user_id: data.user_id.clone(),
+                user_id: data.sender_id().clone(),
                 category: data.category.clone(),
                 created_at: data.created_at.naive_utc(),
                 status: data.status,
@@ -193,6 +238,31 @@ impl ServiceDecryptMessage {
     }
 }
 
+#[cfg(test)]
+mod transcript_tests {
+    use super::{decode_transcript_material, transcript_attachment_id};
+
+    #[test]
+    fn parses_transcript_attachment_extra_or_raw_id() {
+        assert_eq!(
+            transcript_attachment_id(
+                r#"{"attachment_id":"attachment-id","message_id":"message-id"}"#
+            )
+            .unwrap(),
+            "attachment-id"
+        );
+        assert_eq!(
+            transcript_attachment_id("legacy-attachment-id").unwrap(),
+            "legacy-attachment-id"
+        );
+        assert_eq!(decode_transcript_material(Some("")).unwrap(), None);
+        assert_eq!(
+            decode_transcript_material(Some("AQI=")).unwrap(),
+            Some(vec![1, 2])
+        );
+    }
+}
+
 impl ServiceDecryptMessage {
     async fn update_remote_message_status(
         &self,
@@ -216,6 +286,276 @@ impl ServiceDecryptMessage {
 }
 
 impl ServiceDecryptMessage {
+    async fn download_attachment(&self, message: &Message) {
+        let result: Result<()> = async {
+            let content = message
+                .content
+                .as_deref()
+                .ok_or_else(|| anyhow!("attachment message has no content"))?;
+            let extra: AttachmentExtra = serde_json::from_str(content)?;
+            self.database
+                .message_dao
+                .update_media_status(&message.message_id, MediaStatus::Pending)
+                .await?;
+            let downloaded = self
+                .app_service
+                .attachment
+                .download(message, &extra)
+                .await?;
+            let content = serde_json::to_string(&downloaded.attachment)?;
+            self.database
+                .message_dao
+                .complete_attachment_download(
+                    &message.message_id,
+                    downloaded
+                        .path
+                        .to_str()
+                        .ok_or_else(|| anyhow!("attachment path is not valid UTF-8"))?,
+                    downloaded.size,
+                    downloaded.status,
+                    &content,
+                )
+                .await?;
+            Ok(())
+        }
+        .await;
+        if let Err(err) = result {
+            warn!(
+                "failed to download attachment {}: {err}",
+                message.message_id
+            );
+            if let Err(update_err) = self
+                .database
+                .message_dao
+                .update_media_status(&message.message_id, MediaStatus::Canceled)
+                .await
+            {
+                error!(
+                    "failed to restore attachment {} status: {update_err}",
+                    message.message_id
+                );
+            }
+        }
+    }
+
+    async fn prepare_transcript(
+        &self,
+        message_id: &str,
+        content: &str,
+    ) -> Result<PreparedTranscript> {
+        let mut transcripts: Vec<TranscriptMessage> = serde_json::from_str(content)?;
+        transcripts.retain(|transcript| transcript.transcript_id == message_id);
+        if transcripts.is_empty() {
+            bail!("transcript does not contain its root message");
+        }
+
+        let mut user_ids = Vec::new();
+        let mut seen_user_ids = HashSet::new();
+        for transcript in &mut transcripts {
+            if transcript.category.is_attachment() {
+                transcript.media_status = Some(MediaStatus::Canceled);
+            }
+            if let Some(user_id) = transcript.user_id.as_deref() {
+                if !user_id.is_empty() && seen_user_ids.insert(user_id.to_string()) {
+                    user_ids.push(user_id.to_string());
+                }
+            }
+            if transcript.category.is_contact() {
+                if let Some(user_id) = transcript.shared_user_id.as_deref() {
+                    if !user_id.is_empty() && seen_user_ids.insert(user_id.to_string()) {
+                        user_ids.push(user_id.to_string());
+                    }
+                }
+            }
+            if transcript.category.is_sticker() {
+                if let Some(sticker_id) = transcript.sticker_id.as_deref() {
+                    if !sticker_id.is_empty()
+                        && self
+                            .database
+                            .sticker_dao
+                            .find_sticker_by_id(sticker_id)
+                            .await?
+                            .is_none()
+                    {
+                        self.app_service
+                            .job
+                            .add(&Job::create_update_sticker_job(sticker_id))
+                            .await?;
+                    }
+                }
+            }
+        }
+
+        let users = self
+            .app_service
+            .conversation
+            .refresh_user(&user_ids, false)
+            .await?;
+        let user_names = users
+            .into_iter()
+            .map(|user| (user.user_id, user.full_name))
+            .collect::<HashMap<_, _>>();
+
+        self.database
+            .transcript_message_dao
+            .insert_all(&transcripts)
+            .await?;
+        transcripts.sort_by_key(|transcript| transcript.created_at);
+
+        let summary = transcripts
+            .iter()
+            .map(|transcript| {
+                serde_json::json!({
+                    "name": transcript.user_full_name.as_deref().unwrap_or_default(),
+                    "category": transcript.category,
+                    "content": transcript.content,
+                })
+            })
+            .collect::<Vec<_>>();
+        let summary = serde_json::to_string(&summary)?;
+
+        let attachments = transcripts
+            .iter()
+            .filter(|transcript| transcript.category.is_attachment())
+            .cloned()
+            .collect::<Vec<_>>();
+        let media_size = attachments.iter().try_fold(0_i64, |total, transcript| {
+            total
+                .checked_add(transcript.media_size.unwrap_or_default())
+                .ok_or_else(|| anyhow!("transcript media size overflow"))
+        })?;
+        let media_status = if attachments.is_empty() || media_size == 0 {
+            MediaStatus::Done
+        } else {
+            MediaStatus::Canceled
+        };
+
+        let fts_content = transcripts
+            .iter()
+            .filter_map(|transcript| {
+                if transcript.category.is_text() || transcript.category.is_post() {
+                    transcript.content.clone()
+                } else if transcript.category.is_data() {
+                    transcript.media_name.clone()
+                } else if transcript.category.is_contact() {
+                    transcript
+                        .shared_user_id
+                        .as_ref()
+                        .and_then(|user_id| user_names.get(user_id))
+                        .cloned()
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        Ok(PreparedTranscript {
+            summary,
+            fts_content,
+            media_size,
+            media_status,
+            attachments,
+        })
+    }
+
+    async fn download_transcript_attachments(
+        &self,
+        conversation_id: &str,
+        transcript_id: &str,
+        attachments: &[TranscriptMessage],
+    ) {
+        if attachments.is_empty() {
+            return;
+        }
+
+        let mut all_succeeded = true;
+        for transcript in attachments {
+            let result: Result<()> = async {
+                let attachment_id = transcript_attachment_id(
+                    transcript
+                        .content
+                        .as_deref()
+                        .ok_or_else(|| anyhow!("transcript attachment has no content"))?,
+                )?;
+                let message = transcript_attachment_message(conversation_id, transcript)?;
+                let extra = AttachmentExtra {
+                    attachment_id,
+                    message_id: transcript.message_id.clone(),
+                    shareable: None,
+                    created_at: transcript.media_created_at,
+                };
+                self.database
+                    .transcript_message_dao
+                    .update_media_status(
+                        transcript_id,
+                        &transcript.message_id,
+                        MediaStatus::Pending,
+                    )
+                    .await?;
+                let downloaded = self
+                    .app_service
+                    .attachment
+                    .download_transcript(&message, &extra)
+                    .await?;
+                let content = serde_json::to_string(&downloaded.attachment)?;
+                self.database
+                    .transcript_message_dao
+                    .complete_attachment_download(
+                        transcript_id,
+                        &transcript.message_id,
+                        downloaded
+                            .path
+                            .to_str()
+                            .ok_or_else(|| anyhow!("attachment path is not valid UTF-8"))?,
+                        downloaded.size,
+                        downloaded.attachment.created_at,
+                        &content,
+                    )
+                    .await?;
+                Ok(())
+            }
+            .await;
+
+            if let Err(err) = result {
+                all_succeeded = false;
+                warn!(
+                    "failed to download transcript attachment {}: {err}",
+                    transcript.message_id
+                );
+                if let Err(update_err) = self
+                    .database
+                    .transcript_message_dao
+                    .update_media_status(
+                        transcript_id,
+                        &transcript.message_id,
+                        MediaStatus::Canceled,
+                    )
+                    .await
+                {
+                    error!(
+                        "failed to restore transcript attachment {} status: {update_err}",
+                        transcript.message_id
+                    );
+                }
+            }
+        }
+
+        let status = if all_succeeded {
+            MediaStatus::Done
+        } else {
+            MediaStatus::Canceled
+        };
+        if let Err(err) = self
+            .database
+            .message_dao
+            .update_media_status(transcript_id, status)
+            .await
+        {
+            error!("failed to update transcript {transcript_id} status: {err}");
+        }
+    }
+
     async fn process_re_decrypted_message(
         &self,
         data: &BlazeMessageData,
@@ -250,7 +590,7 @@ impl ServiceDecryptMessage {
             let attachment: AttachmentMessage = serde_json::from_str(&decode(plain_text)?)?;
             let content = serde_json::to_string(&AttachmentExtra {
                 attachment_id: attachment.attachment_id,
-                message_id: data.message_id.clone(),
+                message_id: message_id.to_string(),
                 shareable: attachment.shareable,
                 created_at: None,
             })?;
@@ -258,7 +598,7 @@ impl ServiceDecryptMessage {
             let message_update = AttachmentMessageUpdate {
                 status: data.status,
                 content,
-                media_mine_type: attachment.mime_type,
+                media_mime_type: attachment.mime_type,
                 media_size: attachment.size,
                 media_status: MediaStatus::Canceled,
                 media_width: attachment.width,
@@ -275,8 +615,17 @@ impl ServiceDecryptMessage {
                 .message_dao
                 .update_attachment_message(message_id, &message_update)
                 .await?;
-
-            // TODO(BIN): download attachment
+            if let Some(message) = self
+                .database
+                .message_dao
+                .find_message_by_id(&message_id.to_string())
+                .await?
+            {
+                let service = self.clone();
+                std::mem::drop(tokio::spawn(async move {
+                    service.download_attachment(&message).await;
+                }));
+            }
         } else if data.category == message_category::SIGNAL_STICKER {
             let sticker_message: StickerMessage = serde_json::from_str(&decode(plain_text)?)?;
             let sticker = self
@@ -291,7 +640,7 @@ impl ServiceDecryptMessage {
             {
                 self.app_service
                     .job
-                    .add(&Job::create_update_asset_job(&sticker_message.sticker_id))
+                    .add(&Job::create_update_sticker_job(&sticker_message.sticker_id))
                     .await?;
             }
 
@@ -319,13 +668,59 @@ impl ServiceDecryptMessage {
                 )
                 .await?;
         } else if data.category == message_category::SIGNAL_TRANSCRIPT {
-            // TODO(BIN): handle transcript
+            let transcript = self.prepare_transcript(message_id, plain_text).await?;
+            self.database
+                .message_dao
+                .update_transcript_message(
+                    message_id,
+                    &transcript.summary,
+                    transcript.media_size,
+                    transcript.media_status,
+                    data.status,
+                )
+                .await?;
+            self.database
+                .message_dao
+                .update_message_quote_if_need(&data.conversation_id, message_id)
+                .await?;
+            self.database
+                .message_fts_dao
+                .upsert(message_id, &data.conversation_id, &transcript.fts_content)
+                .await?;
+            let service = self.clone();
+            let conversation_id = data.conversation_id.clone();
+            let message_id = message_id.to_string();
+            std::mem::drop(tokio::spawn(async move {
+                service
+                    .download_transcript_attachments(
+                        &conversation_id,
+                        &message_id,
+                        &transcript.attachments,
+                    )
+                    .await;
+            }));
+            return Ok(());
         }
 
         self.database
             .message_dao
             .update_message_quote_if_need(&data.conversation_id, message_id)
             .await?;
+        if let Some(message) = self
+            .database
+            .message_dao
+            .find_message_by_id(&message_id.to_string())
+            .await?
+        {
+            if message.category.is_fts_message() {
+                if let Some(content) = message.content.as_deref() {
+                    self.database
+                        .message_fts_dao
+                        .upsert(message_id, &data.conversation_id, content)
+                        .await?;
+                }
+            }
+        }
 
         Ok(())
     }
@@ -337,7 +732,7 @@ impl ServiceDecryptMessage {
             .signal_protocol
             .decrypt(
                 &data.conversation_id,
-                &data.user_id,
+                data.sender_id(),
                 message_data.key_type,
                 message_data.cipher,
                 &data.category.clone(),
@@ -422,7 +817,7 @@ impl ServiceDecryptMessage {
     ) -> Result<()> {
         self.app_service
             .conversation
-            .refresh_user(&[data.user_id.clone()], false)
+            .refresh_user(std::slice::from_ref(data.sender_id()), false)
             .await?;
         let quote_message = if let Some(quote_message_id) = data.quote_message_id.clone() {
             self.database
@@ -433,12 +828,13 @@ impl ServiceDecryptMessage {
             None
         };
         if data.category.is_text() {
+            let plain = decode_content(data, plain_text)?;
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
-                user_id: data.user_id.clone(),
+                user_id: data.sender_id().clone(),
                 category: data.category.clone(),
-                content: Some(plain_text.to_string()),
+                content: Some(plain),
                 status: data.status,
                 created_at: data.created_at.naive_utc(),
                 quote_message_id: data.quote_message_id.clone(),
@@ -453,7 +849,7 @@ impl ServiceDecryptMessage {
                     &message.message_id,
                     &message.conversation_id,
                     message.content.as_deref(),
-                    &data.user_id,
+                    data.sender_id(),
                     &quote_message,
                     self.user_id.as_str(),
                     self.identity_number.as_str(),
@@ -461,7 +857,8 @@ impl ServiceDecryptMessage {
                 .await?;
             self.insert_message(&message, data).await?
         } else if data.category.is_attachment() {
-            let attachment: AttachmentMessage = serde_json::from_str(plain_text)?;
+            let plain = decode_content(data, plain_text)?;
+            let attachment: AttachmentMessage = serde_json::from_str(&plain)?;
             let content = serde_json::to_string(&AttachmentExtra {
                 attachment_id: attachment.attachment_id,
                 message_id: data.message_id.clone(),
@@ -471,7 +868,7 @@ impl ServiceDecryptMessage {
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
-                user_id: data.user_id.clone(),
+                user_id: data.sender_id().clone(),
                 category: data.category.clone(),
                 content: Some(content),
                 name: attachment.name,
@@ -492,10 +889,14 @@ impl ServiceDecryptMessage {
                     .map(|m| serde_json::to_string(&m).unwrap_or_default()),
                 ..Message::default()
             };
-            self.insert_message(&message, data).await?
-            // TODO(BIN): download attachment
+            self.insert_message(&message, data).await?;
+            let service = self.clone();
+            std::mem::drop(tokio::spawn(async move {
+                service.download_attachment(&message).await;
+            }));
         } else if data.category.is_sticker() {
-            let sticker_message: StickerMessage = serde_json::from_str(plain_text)?;
+            let plain = decode_content(data, plain_text)?;
+            let sticker_message: StickerMessage = serde_json::from_str(&plain)?;
             let sticker = self
                 .database
                 .sticker_dao
@@ -508,15 +909,15 @@ impl ServiceDecryptMessage {
             {
                 self.app_service
                     .job
-                    .add(&Job::create_update_asset_job(&sticker_message.sticker_id))
+                    .add(&Job::create_update_sticker_job(&sticker_message.sticker_id))
                     .await?;
             }
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
-                user_id: data.user_id.clone(),
+                user_id: data.sender_id().clone(),
                 category: data.category.clone(),
-                content: Some(plain_text.to_string()),
+                content: Some(plain),
                 name: Some(sticker_message.name),
                 sticker_id: Some(sticker_message.sticker_id),
                 album_id: sticker_message.album_id,
@@ -530,7 +931,8 @@ impl ServiceDecryptMessage {
             };
             self.insert_message(&message, data).await?
         } else if data.category.is_contact() {
-            let contact_message: ContactMessage = serde_json::from_str(plain_text)?;
+            let plain = decode_content(data, plain_text)?;
+            let contact_message: ContactMessage = serde_json::from_str(&plain)?;
             let users = self
                 .app_service
                 .conversation
@@ -540,9 +942,10 @@ impl ServiceDecryptMessage {
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
-                user_id: data.user_id.clone(),
+                user_id: data.sender_id().clone(),
                 category: data.category.clone(),
-                content: Some(plain_text.to_string()),
+                content: Some(plain),
+                name: Some(user.full_name.clone()),
                 shared_user_id: Some(user.user_id.clone()),
                 status: data.status,
                 created_at: data.created_at.naive_utc(),
@@ -554,13 +957,14 @@ impl ServiceDecryptMessage {
             };
             self.insert_message(&message, data).await?
         } else if data.category.is_live() {
-            let live_message: LiveMessage = serde_json::from_str(plain_text)?;
+            let plain = decode_content(data, plain_text)?;
+            let live_message: LiveMessage = serde_json::from_str(&plain)?;
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
-                user_id: data.user_id.clone(),
+                user_id: data.sender_id().clone(),
                 category: data.category.clone(),
-                content: Some(plain_text.to_string()),
+                content: Some(plain),
                 media_width: Some(live_message.width),
                 media_height: Some(live_message.height),
                 media_url: Some(live_message.url),
@@ -571,30 +975,85 @@ impl ServiceDecryptMessage {
             };
             self.insert_message(&message, data).await?
         } else if data.category.is_location() {
-            let location_message: sdk::LocationMessage = serde_json::from_str(plain_text)?;
+            let plain = decode_content(data, plain_text)?;
+            let location_message: sdk::LocationMessage = serde_json::from_str(&plain)?;
             if location_message.latitude == 0.0 || location_message.longitude == 0.0 {
-                return Err(anyhow!("invalid location message: {}", plain_text));
+                return Err(anyhow!("invalid location message: {}", plain));
             }
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
-                user_id: data.user_id.clone(),
+                user_id: data.sender_id().clone(),
                 category: data.category.clone(),
-                content: Some(plain_text.to_string()),
+                content: Some(plain),
                 status: data.status,
                 created_at: data.created_at.naive_utc(),
                 ..Message::default()
             };
             self.insert_message(&message, data).await?
+        } else if data.category.is_post() {
+            let plain = decode_content(data, plain_text)?;
+            let message = Message {
+                message_id: data.message_id.clone(),
+                conversation_id: data.conversation_id.clone(),
+                user_id: data.sender_id().clone(),
+                category: data.category.clone(),
+                content: Some(plain),
+                status: data.status,
+                created_at: data.created_at.naive_utc(),
+                quote_message_id: data.quote_message_id.clone(),
+                quote_content: quote_message
+                    .clone()
+                    .map(|message| serde_json::to_string(&message).unwrap_or_default()),
+                ..Message::default()
+            };
+            self.insert_message(&message, data).await?
         } else if data.category.is_transcript() {
-            // TODO(BIN): process transcript
-            return Err(anyhow!("transcript message: {}", plain_text));
+            let plain = decode_content(data, plain_text)?;
+            let transcript = self.prepare_transcript(&data.message_id, &plain).await?;
+            let message = Message {
+                message_id: data.message_id.clone(),
+                conversation_id: data.conversation_id.clone(),
+                user_id: data.sender_id().clone(),
+                category: data.category.clone(),
+                content: Some(transcript.summary.clone()),
+                media_size: Some(transcript.media_size),
+                status: data.status,
+                created_at: data.created_at.naive_utc(),
+                media_status: transcript.media_status,
+                ..Message::default()
+            };
+            self.insert_message(&message, data).await?;
+            self.database
+                .message_fts_dao
+                .upsert(
+                    &data.message_id,
+                    &data.conversation_id,
+                    &transcript.fts_content,
+                )
+                .await?;
+            let service = self.clone();
+            let conversation_id = data.conversation_id.clone();
+            let message_id = data.message_id.clone();
+            std::mem::drop(tokio::spawn(async move {
+                service
+                    .download_transcript_attachments(
+                        &conversation_id,
+                        &message_id,
+                        &transcript.attachments,
+                    )
+                    .await;
+            }));
         }
         Ok(())
     }
 
     async fn process_encrypted_message(&self, data: &BlazeMessageData) -> Result<()> {
-        let _ = data;
+        let cipher_text = Base64::decode_vec(&data.data)?;
+        let plain_text =
+            encrypted_protocol::decrypt_message(&self.private_key, &self.session_id, &cipher_text)?;
+        let plain_text = String::from_utf8_lossy(&plain_text);
+        self.process_decrypt_success(data, &plain_text).await?;
         Ok(())
     }
 
@@ -618,7 +1077,9 @@ impl ServiceDecryptMessage {
                     .contain_user_session(&data.user_id)
                     .await?
             {
-                // TODO(BIN): resend session key
+                self.sender
+                    .send_process_signal_key(data, ProcessSignalKeyAction::ResendKey)
+                    .await?;
             }
             self.database
                 .message_history_dao
@@ -636,7 +1097,7 @@ impl ServiceDecryptMessage {
             || data.category == message_category::PLAIN_LOCATION
             || data.category == message_category::PLAIN_TRANSCRIPT
         {
-            self.process_decrypt_success(data, &content).await?
+            self.process_decrypt_success(data, &data.data).await?
         }
         Ok(())
     }
@@ -663,7 +1124,33 @@ impl ServiceDecryptMessage {
 
         for message_id in messages {
             info!("resend message: {}", message_id);
-            // TODO (BIN): resend message
+            let Some(message) = self
+                .database
+                .message_dao
+                .find_message_by_id(&message_id)
+                .await?
+            else {
+                continue;
+            };
+            if message.user_id != self.user_id
+                || !message.category.is_signal()
+                || message.category == message_category::MESSAGE_RECALL
+                || p.created_at.naive_utc() > message.created_at
+            {
+                continue;
+            }
+            self.app_service
+                .job
+                .add(&Job::create_sending_job(
+                    &message_id,
+                    &data.conversation_id,
+                    Some(&data.user_id),
+                    Some(&data.session_id),
+                    true,
+                    false,
+                    data.expire_in.unwrap_or_default(),
+                ))
+                .await?;
         }
         Ok(())
     }
@@ -673,7 +1160,7 @@ impl ServiceDecryptMessage {
         let message = Message {
             message_id: data.message_id.clone(),
             conversation_id: data.conversation_id.clone(),
-            user_id: data.user_id.clone(),
+            user_id: data.sender_id().clone(),
             category: data.category.clone(),
             content: Some(content),
             status: data.status,
@@ -687,7 +1174,7 @@ impl ServiceDecryptMessage {
     async fn process_app_card(&self, data: &BlazeMessageData) -> Result<()> {
         self.app_service
             .conversation
-            .refresh_user(&[data.user_id.clone()], false)
+            .refresh_user(std::slice::from_ref(&data.user_id), false)
             .await?;
         let content = decode(&data.data)?;
 
@@ -698,16 +1185,22 @@ impl ServiceDecryptMessage {
             .find_app_by_id(&app_card.app_id)
             .await?;
         if app.is_none() || app.is_some_and(|a| a.updated_at != app_card.updated_at) {
-            self.app_service
-                .conversation
-                .refresh_user(&[data.user_id.clone()], true)
-                .await?;
+            let app_service = self.app_service.clone();
+            std::mem::drop(tokio::spawn(async move {
+                if let Err(error) = app_service
+                    .conversation
+                    .refresh_user(std::slice::from_ref(&app_card.app_id), true)
+                    .await
+                {
+                    warn!("failed to refresh app {}: {error}", app_card.app_id);
+                }
+            }));
         }
 
         let message = Message {
             message_id: data.message_id.clone(),
             conversation_id: data.conversation_id.clone(),
-            user_id: data.user_id.clone(),
+            user_id: data.sender_id().clone(),
             category: data.category.clone(),
             content: Some(content),
             status: data.status,
@@ -719,7 +1212,7 @@ impl ServiceDecryptMessage {
     }
 
     async fn process_pin(&self, data: &BlazeMessageData) -> Result<()> {
-        let payload: PinMessagePayload = serde_json::from_str(&data.data)?;
+        let payload: PinMessagePayload = serde_json::from_str(&decode(&data.data)?)?;
         match payload {
             PinMessagePayload::Pin(ids) => {
                 for (i, mid) in ids.iter().enumerate() {
@@ -731,7 +1224,7 @@ impl ServiceDecryptMessage {
                     let pin_message_minimal = PinMessageMinimal {
                         category: message.category.clone(),
                         message_id: message.message_id.clone(),
-                        content: if message.category == message_category::PLAIN_TEXT {
+                        content: if message.category.is_text() {
                             message.content.clone()
                         } else {
                             None
@@ -753,7 +1246,7 @@ impl ServiceDecryptMessage {
                         },
                         conversation_id: data.conversation_id.clone(),
                         quote_message_id: Some(message.message_id),
-                        user_id: data.user_id.clone(),
+                        user_id: data.sender_id().clone(),
                         status: MessageStatus::Read,
                         content: Some(serde_json::to_string(&pin_message_minimal)?),
                         created_at: data.created_at.naive_utc(),
@@ -778,6 +1271,50 @@ impl ServiceDecryptMessage {
     }
 
     async fn process_recall(&self, data: &BlazeMessageData) -> Result<()> {
+        let recall: sdk::RecallMessage = serde_json::from_str(&decode(&data.data)?)?;
+        let recalled = self
+            .database
+            .message_dao
+            .find_message_by_id(&recall.message_id)
+            .await?;
+        let mut media_urls = if recalled
+            .as_ref()
+            .is_some_and(|message| message.category.is_transcript())
+        {
+            self.database
+                .transcript_message_dao
+                .media_urls_by_transcript_id(&recall.message_id)
+                .await?
+        } else {
+            Vec::new()
+        };
+        if let Some(path) = recalled
+            .as_ref()
+            .filter(|message| message.category.is_attachment())
+            .and_then(|message| message.media_url.clone())
+        {
+            media_urls.push(path);
+        }
+        self.database
+            .message_dao
+            .recall_message(&data.conversation_id, &recall.message_id)
+            .await?;
+        self.database
+            .message_history_dao
+            .insert(&data.message_id)
+            .await?;
+        media_urls.sort_unstable();
+        media_urls.dedup();
+        for path in media_urls
+            .into_iter()
+            .filter(|path| std::path::Path::new(path).is_absolute())
+        {
+            if let Err(err) = tokio::fs::remove_file(&path).await {
+                if err.kind() != std::io::ErrorKind::NotFound {
+                    warn!("failed to remove recalled attachment {path}: {err}");
+                }
+            }
+        }
         Ok(())
     }
 }
@@ -785,6 +1322,81 @@ impl ServiceDecryptMessage {
 fn decode(data: &str) -> Result<String> {
     let decoded = Base64::decode_vec(data)?;
     Ok(String::from_utf8_lossy(&decoded).to_string())
+}
+
+fn decode_content(data: &BlazeMessageData, plain_text: &str) -> Result<String> {
+    let signal_content_is_plain = data.category.is_text()
+        || data.category.is_post()
+        || data.category.is_location()
+        || data.category.is_transcript();
+    if data.category.is_encrypted() || (data.category.is_signal() && signal_content_is_plain) {
+        Ok(plain_text.to_string())
+    } else {
+        decode(plain_text)
+    }
+}
+
+fn transcript_attachment_id(content: &str) -> Result<String> {
+    if let Some(attachment_id) = serde_json::from_str::<serde_json::Value>(content)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("attachment_id")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+    {
+        if !attachment_id.trim().is_empty() {
+            return Ok(attachment_id);
+        }
+    }
+
+    let attachment_id = Base64::decode_vec(content)
+        .ok()
+        .and_then(|decoded| serde_json::from_slice::<AttachmentMessage>(&decoded).ok())
+        .map(|attachment| attachment.attachment_id)
+        .unwrap_or_else(|| content.to_string());
+    if attachment_id.trim().is_empty() {
+        bail!("transcript attachment id is empty");
+    }
+    Ok(attachment_id)
+}
+
+fn transcript_attachment_message(
+    conversation_id: &str,
+    transcript: &TranscriptMessage,
+) -> Result<Message> {
+    Ok(Message {
+        message_id: transcript.message_id.clone(),
+        conversation_id: conversation_id.to_string(),
+        user_id: transcript.user_id.clone().unwrap_or_default(),
+        category: transcript.category.clone(),
+        content: transcript.content.clone(),
+        media_url: transcript.media_url.clone(),
+        media_mime_type: transcript.media_mime_type.clone(),
+        media_size: transcript.media_size,
+        media_duration: transcript.media_duration.clone().unwrap_or_default(),
+        media_width: transcript.media_width,
+        media_height: transcript.media_height,
+        thumb_image: transcript.thumb_image.clone(),
+        media_key: decode_transcript_material(transcript.media_key.as_deref())?,
+        media_digest: decode_transcript_material(transcript.media_digest.as_deref())?,
+        media_status: MediaStatus::Canceled,
+        created_at: transcript.created_at.naive_utc(),
+        name: transcript.media_name.clone(),
+        media_waveform: transcript.media_waveform.clone(),
+        thumb_url: transcript.thumb_url.clone(),
+        caption: transcript.caption.clone(),
+        ..Message::default()
+    })
+}
+
+fn decode_transcript_material(value: Option<&str>) -> Result<Option<Vec<u8>>> {
+    value
+        .filter(|value| !value.trim().is_empty())
+        .map(Base64::decode_vec)
+        .transpose()
+        .map_err(Into::into)
 }
 
 impl ServiceDecryptMessage {
@@ -825,7 +1437,10 @@ impl ServiceDecryptMessage {
                 .sync_conversation(&data.conversation_id)
                 .await?
         }
-        let user_id: &str = message.user_id.as_ref().unwrap_or(data.sender_id());
+        let user_id = message
+            .user_id
+            .clone()
+            .unwrap_or_else(|| data.sender_id().clone());
         if user_id == SYSTEM_USER {
             self.database
                 .user_dao
@@ -838,7 +1453,7 @@ impl ServiceDecryptMessage {
                 .participant_dao
                 .insert_participant(&Participant {
                     conversation_id: data.conversation_id.clone(),
-                    user_id: data.sender_id().to_string(),
+                    user_id: message.participant_id.clone(),
                     role: message.role,
                     created_at: data.created_at,
                 })
@@ -852,7 +1467,7 @@ impl ServiceDecryptMessage {
                 .signal_protocol
                 .protocol_store
                 .sender_key_store
-                .exists_sender_key(&data.conversation_id, &message.participant_id)
+                .exists_sender_key(&data.conversation_id, &self.user_id)
                 .await?
             {
                 self.sender
@@ -863,10 +1478,10 @@ impl ServiceDecryptMessage {
                     .await?;
                 self.app_service
                     .conversation
-                    .refresh_user(&[message.participant_id.clone()], false)
+                    .refresh_user(std::slice::from_ref(&message.participant_id), false)
                     .await?;
             } else {
-                let user_ids = &[message.participant_id.clone()];
+                let user_ids = std::slice::from_ref(&message.participant_id);
                 self.app_service
                     .conversation
                     .refresh_session(&data.conversation_id, user_ids)
@@ -886,7 +1501,7 @@ impl ServiceDecryptMessage {
             }
             self.app_service
                 .conversation
-                .refresh_user(&[message.participant_id.clone()], false)
+                .refresh_user(std::slice::from_ref(&message.participant_id), false)
                 .await?;
             self.sender
                 .send_process_signal_key(
@@ -898,7 +1513,7 @@ impl ServiceDecryptMessage {
             if !message.participant_id.is_empty() {
                 self.app_service
                     .conversation
-                    .refresh_user(&[message.participant_id.clone()], true)
+                    .refresh_user(std::slice::from_ref(&message.participant_id), true)
                     .await?;
             } else {
                 self.app_service
@@ -906,6 +1521,7 @@ impl ServiceDecryptMessage {
                     .refresh_conversation(&data.conversation_id)
                     .await?;
             }
+            return Ok(());
         } else if message.action == message_action::ROLE {
             self.database
                 .participant_dao
@@ -927,7 +1543,7 @@ impl ServiceDecryptMessage {
 
         let m = Message {
             message_id: data.message_id.clone(),
-            user_id: data.user_id.clone(),
+            user_id,
             conversation_id: data.conversation_id.clone(),
             category: data.category.clone(),
             content: if message.action == message_action::EXPIRE {
@@ -947,10 +1563,16 @@ impl ServiceDecryptMessage {
 
     async fn process_system_user_message(&self, m: SystemUserMessage) -> Result<()> {
         if m.action == message_action::UPDATE {
-            self.app_service
-                .conversation
-                .refresh_user(&[m.user_id.clone()], true)
-                .await?;
+            let app_service = self.app_service.clone();
+            std::mem::drop(tokio::spawn(async move {
+                if let Err(error) = app_service
+                    .conversation
+                    .refresh_user(std::slice::from_ref(&m.user_id), true)
+                    .await
+                {
+                    warn!("failed to refresh user {}: {error}", m.user_id);
+                }
+            }));
         }
         Ok(())
     }
@@ -963,15 +1585,23 @@ impl ServiceDecryptMessage {
         if message.action == SystemCircleAction::Create
             || message.action == SystemCircleAction::Update
         {
-            self.app_service
-                .circle
-                .refresh_circle(&message.circle_id)
-                .await?;
+            let app_service = self.app_service.clone();
+            let circle_id = message.circle_id.clone();
+            std::mem::drop(tokio::spawn(async move {
+                if let Err(error) = app_service.circle.refresh_circle(&circle_id).await {
+                    warn!("failed to refresh circle {circle_id}: {error}");
+                }
+            }));
         } else if message.action == SystemCircleAction::Add {
-            self.app_service
-                .circle
-                .sync_circle(&message.circle_id)
-                .await?;
+            if !self.database.circle_dao.exists(&message.circle_id).await? {
+                let app_service = self.app_service.clone();
+                let circle_id = message.circle_id.clone();
+                std::mem::drop(tokio::spawn(async move {
+                    if let Err(error) = app_service.circle.refresh_circle(&circle_id).await {
+                        warn!("failed to refresh circle {circle_id}: {error}");
+                    }
+                }));
+            }
             if let Some(user_id) = message.user_id.as_ref() {
                 self.app_service
                     .conversation
@@ -1037,7 +1667,7 @@ impl ServiceDecryptMessage {
         let message = Message {
             message_id: data.message_id.clone(),
             conversation_id: data.conversation_id.clone(),
-            user_id: data.user_id.clone(),
+            user_id: data.sender_id().clone(),
             category: data.category.clone(),
             content: Some("".to_string()),
             snapshot_id: Some(snapshot.snapshot_id),
@@ -1052,13 +1682,22 @@ impl ServiceDecryptMessage {
     async fn process_safe_snapshot_message(
         &self,
         data: &BlazeMessageData,
-        snapshot: SafeSnapshotShot,
+        mut snapshot: SafeSnapshotShot,
     ) -> Result<()> {
-        if !snapshot.transaction_hash.is_empty() {
+        let asset_id = snapshot.asset_id.clone();
+        if let Some(deposit_hash) = snapshot
+            .deposit_hash
+            .as_deref()
+            .filter(|hash| !hash.is_empty())
+        {
             self.database
                 .safe_snapshot_dao
-                .delete_pending_snapshot_by_hash(&snapshot.transaction_hash)
+                .delete_pending_snapshot_by_hash(deposit_hash)
                 .await?;
+            snapshot.deposit = Some(sdk::SafeDeposit {
+                deposit_hash: deposit_hash.to_string(),
+                sender: String::new(),
+            });
         }
         self.database.safe_snapshot_dao.insert(&snapshot).await?;
 
@@ -1075,6 +1714,10 @@ impl ServiceDecryptMessage {
             ..Message::default()
         };
         self.insert_message(&message, data).await?;
+        self.app_service
+            .job
+            .add(&Job::create_update_token_job(&asset_id))
+            .await?;
 
         Ok(())
     }
@@ -1156,18 +1799,28 @@ impl ServiceDecryptMessage {
             "insert message: {:?} {:?}",
             message.message_id, message.content
         );
-        self.database.message_dao.insert_message(message).await?;
-        // TODO(BIN): insert fts
+        self.pending_message_statuses
+            .insert_message(&self.database, message)
+            .await?;
+        self.database
+            .conversation_dao
+            .update_for_message(message, &self.user_id)
+            .await?;
+        if let Some(content) = message_fts_content(message) {
+            self.database
+                .message_fts_dao
+                .upsert(&message.message_id, &message.conversation_id, &content)
+                .await?;
+        }
         let expire_in = data.expire_in.unwrap_or(0);
-        if expire_in > 0 && message.user_id == self.user_id {
-            let expire_at = data.created_at + TimeDelta::seconds(expire_in);
+        if expire_in > 0 {
+            let expire_at = (message.user_id == self.user_id)
+                .then_some(data.created_at.timestamp() + expire_in);
             self.database
                 .expired_message_dao
-                .update_message_expired_at(&[(
-                    data.message_id.clone(),
-                    expire_at.timestamp_millis() / 1000,
-                )])
+                .insert(&message.message_id, expire_in, expire_at)
                 .await?;
+            self.app_service.expired_message.wake();
         }
         Ok(())
     }
@@ -1177,7 +1830,7 @@ impl ServiceDecryptMessage {
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
-                user_id: data.user_id.clone(),
+                user_id: data.sender_id().clone(),
                 category: data.category.clone(),
                 content: Some(data.data.clone()),
                 status: MessageStatus::Failed,
@@ -1187,5 +1840,62 @@ impl ServiceDecryptMessage {
             self.insert_message(&message, data).await?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fts_message(category: &str, content: Option<&str>) -> Message {
+        Message {
+            category: category.to_string(),
+            content: content.map(str::to_string),
+            status: MessageStatus::Sent,
+            ..Message::default()
+        }
+    }
+
+    #[test]
+    fn builds_category_specific_fts_content() {
+        assert_eq!(
+            message_fts_content(&fts_message(message_category::PLAIN_TEXT, Some("hello")))
+                .as_deref(),
+            Some("hello")
+        );
+
+        let mut data = fts_message(message_category::PLAIN_DATA, Some("attachment-json"));
+        data.name = Some("document.pdf".into());
+        assert_eq!(message_fts_content(&data).as_deref(), Some("document.pdf"));
+
+        let mut contact = fts_message(message_category::PLAIN_CONTACT, Some("contact-json"));
+        contact.name = Some("Mixin User".into());
+        assert_eq!(message_fts_content(&contact).as_deref(), Some("Mixin User"));
+
+        let card = fts_message(
+            message_category::APP_CARD,
+            Some(r#"{"app_id":"app","title":"Card title","description":"Card body"}"#),
+        );
+        assert_eq!(
+            message_fts_content(&card).as_deref(),
+            Some("Card title Card body")
+        );
+    }
+
+    #[test]
+    fn skips_failed_unknown_and_transcript_summary_content() {
+        let mut failed = fts_message(message_category::PLAIN_TEXT, Some("ciphertext"));
+        failed.status = MessageStatus::Failed;
+        assert!(message_fts_content(&failed).is_none());
+
+        let mut unknown = fts_message(message_category::PLAIN_TEXT, Some("unknown"));
+        unknown.status = MessageStatus::Unknown;
+        assert!(message_fts_content(&unknown).is_none());
+
+        assert!(message_fts_content(&fts_message(
+            message_category::PLAIN_TRANSCRIPT,
+            Some("summary")
+        ))
+        .is_none());
     }
 }

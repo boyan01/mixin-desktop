@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::api::user_api::UserRelationship;
 use crate::client::ClientRef;
-use crate::ApiError;
+use crate::{ApiError, Sticker};
 
 pub struct AccountApi {
     client: Arc<ClientRef>,
@@ -78,6 +78,10 @@ impl AccountApi {
         let account: Account = self.client.get("me").await?;
         Ok(account)
     }
+
+    pub async fn get_sticker_by_id(&self, sticker_id: &str) -> Result<Sticker, ApiError> {
+        self.client.get(&format!("stickers/{sticker_id}")).await
+    }
 }
 
 #[cfg(test)]
@@ -85,6 +89,7 @@ mod test {
     use crate::client::tests::new_test_client;
 
     #[tokio::test]
+    #[ignore = "requires ../keystore.json and the live Mixin API"]
     async fn test() {
         let client = new_test_client().await;
         let result = client.account_api.get_me().await;

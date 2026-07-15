@@ -29,6 +29,11 @@ impl ParticipantSessionDao {
             .execute(&mut *tx)
             .await?;
 
+        if sessions.is_empty() {
+            tx.commit().await?;
+            return Ok(());
+        }
+
         let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(
             "INSERT OR REPLACE INTO participant_session (conversation_id, user_id, session_id, sent_to_server, created_at, public_key)",
         );
@@ -72,6 +77,9 @@ impl ParticipantSessionDao {
     }
 
     pub async fn insert(&self, cid: &str, sessions: &[sdk::UserSession]) -> Result<(), Error> {
+        if sessions.is_empty() {
+            return Ok(());
+        }
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             "INSERT OR REPLACE INTO participant_session (conversation_id, user_id, session_id, public_key)",
         );
@@ -115,5 +123,222 @@ impl ParticipantSessionDao {
         .fetch_all(&self.0)
         .await?;
         Ok(result)
+    }
+
+    pub async fn not_sent_participant_sessions(
+        &self,
+        conversation_id: &str,
+        current_session_id: &str,
+    ) -> Result<Vec<ParticipantSession>, Error> {
+        let sessions = sqlx::query_as::<_, ParticipantSession>(
+            "SELECT p.* FROM participant_session AS p \
+             LEFT JOIN users AS u ON p.user_id = u.user_id \
+             WHERE p.conversation_id = ? AND p.session_id != ? \
+             AND u.app_id IS NULL AND p.sent_to_server IS NULL",
+        )
+        .bind(conversation_id)
+        .bind(current_session_id)
+        .fetch_all(&self.0)
+        .await?;
+        Ok(sessions)
+    }
+
+    pub async fn participant_session_key_without_self(
+        &self,
+        conversation_id: &str,
+        account_id: &str,
+    ) -> Result<Option<ParticipantSession>, Error> {
+        let session = sqlx::query_as::<_, ParticipantSession>(
+            "SELECT * FROM participant_session \
+             WHERE conversation_id = ? AND user_id != ? \
+             AND public_key IS NOT NULL AND public_key != '' LIMIT 1",
+        )
+        .bind(conversation_id)
+        .bind(account_id)
+        .fetch_optional(&self.0)
+        .await?;
+        Ok(session)
+    }
+
+    pub async fn other_participant_session_key(
+        &self,
+        conversation_id: &str,
+        account_id: &str,
+        current_session_id: &str,
+    ) -> Result<Option<ParticipantSession>, Error> {
+        let session = sqlx::query_as::<_, ParticipantSession>(
+            "SELECT * FROM participant_session \
+             WHERE conversation_id = ? AND user_id = ? AND session_id != ? \
+             AND public_key IS NOT NULL AND public_key != '' \
+             ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(conversation_id)
+        .bind(account_id)
+        .bind(current_session_id)
+        .fetch_optional(&self.0)
+        .await?;
+        Ok(session)
+    }
+
+    pub async fn update_status(
+        &self,
+        conversation_id: &str,
+        user_id: &str,
+        session_id: &str,
+        status: i32,
+    ) -> Result<(), Error> {
+        sqlx::query(
+            "UPDATE participant_session SET sent_to_server = ? \
+             WHERE conversation_id = ? AND user_id = ? AND session_id = ?",
+        )
+        .bind(status)
+        .bind(conversation_id)
+        .bind(user_id)
+        .bind(session_id)
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::MixinDatabase;
+
+    fn session(
+        conversation_id: &str,
+        user_id: &str,
+        session_id: &str,
+        status: Option<i32>,
+        public_key: Option<&str>,
+    ) -> ParticipantSession {
+        ParticipantSession {
+            conversation_id: conversation_id.into(),
+            user_id: user_id.into(),
+            session_id: session_id.into(),
+            sent_to_server: status,
+            created_at: Some(Utc::now()),
+            public_key: public_key.map(str::to_string),
+        }
+    }
+
+    #[tokio::test]
+    async fn selects_only_sessions_requiring_sender_keys() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let directory = tempfile::tempdir()?;
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db")).await?;
+        sqlx::query("INSERT INTO users (user_id, identity_number, app_id) VALUES (?, ?, ?)")
+            .bind("app-user")
+            .bind("1")
+            .bind("app-id")
+            .execute(&database.participant_session_dao.0)
+            .await?;
+        database
+            .participant_session_dao
+            .replace_all(
+                "group",
+                &[
+                    session("group", "me", "current", None, Some("current-key")),
+                    session("group", "me", "other", None, Some("other-key")),
+                    session("group", "peer", "peer-session", None, Some("peer-key")),
+                    session("group", "app-user", "app-session", None, Some("app-key")),
+                    session("group", "sent", "sent-session", Some(1), Some("sent-key")),
+                    session("group", "no-key", "no-key-session", None, None),
+                ],
+            )
+            .await?;
+
+        let mut selected = database
+            .participant_session_dao
+            .not_sent_participant_sessions("group", "current")
+            .await?
+            .into_iter()
+            .map(|session| session.session_id)
+            .collect::<Vec<_>>();
+        selected.sort();
+        assert_eq!(selected, ["no-key-session", "other", "peer-session"]);
+
+        database
+            .participant_session_dao
+            .update_status("group", "peer", "peer-session", 1)
+            .await?;
+        let peer = database
+            .participant_session_dao
+            .get_participant_sessions("group")
+            .await?
+            .into_iter()
+            .find(|session| session.session_id == "peer-session")
+            .unwrap();
+        assert_eq!(peer.sent_to_server, Some(1));
+        assert_eq!(peer.public_key.as_deref(), Some("peer-key"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn empty_replacement_clears_existing_sessions() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let directory = tempfile::tempdir()?;
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db")).await?;
+        database
+            .participant_session_dao
+            .replace_all(
+                "conversation",
+                &[session(
+                    "conversation",
+                    "user",
+                    "session",
+                    None,
+                    Some("key"),
+                )],
+            )
+            .await?;
+
+        database
+            .participant_session_dao
+            .replace_all("conversation", &[])
+            .await?;
+
+        assert!(database
+            .participant_session_dao
+            .get_participant_sessions("conversation")
+            .await?
+            .is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn selects_encrypted_protocol_session_keys() -> Result<(), Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db")).await?;
+        database
+            .participant_session_dao
+            .replace_all(
+                "contact",
+                &[
+                    session("contact", "me", "current", None, Some("current-key")),
+                    session("contact", "me", "other", None, Some("other-key")),
+                    session("contact", "peer", "peer", None, Some("peer-key")),
+                    session("contact", "empty", "empty", None, None),
+                ],
+            )
+            .await?;
+
+        let peer = database
+            .participant_session_dao
+            .participant_session_key_without_self("contact", "me")
+            .await?
+            .unwrap();
+        assert_eq!(peer.user_id, "peer");
+        assert_eq!(peer.public_key.as_deref(), Some("peer-key"));
+
+        let own = database
+            .participant_session_dao
+            .other_participant_session_key("contact", "me", "current")
+            .await?
+            .unwrap();
+        assert_eq!(own.session_id, "other");
+        assert_eq!(own.public_key.as_deref(), Some("other-key"));
+        Ok(())
     }
 }
