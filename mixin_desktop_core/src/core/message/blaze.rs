@@ -203,7 +203,7 @@ impl SendBlazeMessage for UnboundedSender<Message> {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
         encoder.write_all(&bytes)?;
         let compressed_data = encoder.finish()?;
-        self.send(Message::Binary(compressed_data)).await?;
+        self.send(Message::Binary(compressed_data.into())).await?;
         Ok(())
     }
 }
@@ -328,7 +328,7 @@ impl Blaze {
                     if last_pong.elapsed() >= PONG_TIMEOUT {
                         return Ok(SocketSessionEnd::Disconnected);
                     }
-                    socket_sink.send(Message::Ping(Vec::new())).await?;
+                    socket_sink.send(Message::Ping(Vec::new().into())).await?;
                 }
                 outgoing = receiver.next() => {
                     let Some(outgoing) = outgoing else {
@@ -606,7 +606,7 @@ mod tests {
                 .body(None)
                 .unwrap();
             assert!(is_authentication_handshake_error(&WebSocketError::Http(
-                response
+                Box::new(response)
             )));
         }
 

@@ -1,4 +1,4 @@
-use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+use aes::cipher::{block_padding::Pkcs7, BlockModeDecrypt, BlockModeEncrypt, KeyIvInit};
 use anyhow::anyhow;
 use base64ct::{Base64, Encoding};
 use libsignal_protocol::{PrivateKey, PublicKey, SignalProtocolError, HKDF};
@@ -83,7 +83,9 @@ pub fn aes_256_cbc_encrypt(key: &[u8], iv: &[u8], plain_text: &[u8]) -> Result<V
     if iv.len() != 16 {
         return Err(Error::Other(anyhow!("invalid aes iv length: {}", iv.len())));
     }
-    Ok(Aes256CbcEnc::new(key.into(), iv.into()).encrypt_padded_vec_mut::<Pkcs7>(plain_text))
+    let key: &[u8; 32] = key.try_into().expect("validated AES key length");
+    let iv: &[u8; 16] = iv.try_into().expect("validated AES IV length");
+    Ok(Aes256CbcEnc::new(key.into(), iv.into()).encrypt_padded_vec::<Pkcs7>(plain_text))
 }
 
 pub fn aes_256_cbc_decrypt(key: &[u8], iv: &[u8], cipher_text: &[u8]) -> Result<Vec<u8>> {
@@ -96,8 +98,10 @@ pub fn aes_256_cbc_decrypt(key: &[u8], iv: &[u8], cipher_text: &[u8]) -> Result<
     if iv.len() != 16 {
         return Err(Error::Other(anyhow!("invalid aes iv length: {}", iv.len())));
     }
+    let key: &[u8; 32] = key.try_into().expect("validated AES key length");
+    let iv: &[u8; 16] = iv.try_into().expect("validated AES IV length");
     Aes256CbcDec::new(key.into(), iv.into())
-        .decrypt_padded_vec_mut::<Pkcs7>(cipher_text)
+        .decrypt_padded_vec::<Pkcs7>(cipher_text)
         .map_err(|e| Error::Other(anyhow!("aes256 failed to decrypt: {:?}", e)))
 }
 

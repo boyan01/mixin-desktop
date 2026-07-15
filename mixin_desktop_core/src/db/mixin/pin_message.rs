@@ -25,13 +25,14 @@ pub struct PinMessageMinimal {
 impl PinMessageDao {
     pub async fn delete_pin_message(&self, message_id: &[String]) -> Result<(), Error> {
         for chunk in message_id.chunks(MARK_LIMIT) {
-            sqlx::query(&format!(
+            let query = format!(
                 "DELETE FROM pin_messages WHERE message_id IN ({})",
                 expand_var(chunk.len())
-            ))
-            .bind_list(chunk)
-            .execute(&self.0)
-            .await?;
+            );
+            sqlx::query(sqlx::AssertSqlSafe(query))
+                .bind_list(chunk)
+                .execute(&self.0)
+                .await?;
         }
         Ok(())
     }

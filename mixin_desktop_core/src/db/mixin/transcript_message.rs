@@ -188,10 +188,12 @@ impl TranscriptMessageDao {
             "SELECT {TRANSCRIPT_SELECT_COLUMNS} FROM transcript_messages \
              WHERE transcript_id = ? ORDER BY created_at"
         );
-        Ok(sqlx::query_as::<_, TranscriptMessage>(&query)
-            .bind(transcript_id)
-            .fetch_all(&self.0)
-            .await?)
+        Ok(
+            sqlx::query_as::<_, TranscriptMessage>(sqlx::AssertSqlSafe(query))
+                .bind(transcript_id)
+                .fetch_all(&self.0)
+                .await?,
+        )
     }
 
     pub async fn media_urls_by_transcript_id(

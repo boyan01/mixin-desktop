@@ -27,9 +27,7 @@ pub trait BindList<'q, DB: Database, O> {
     fn bind_list<T: 'q + Encode<'q, DB> + Type<DB>>(self, list: &'q [T]) -> Self;
 }
 
-impl<'q, DB: Database, O> BindList<'q, DB, O>
-    for QueryAs<'q, DB, O, <DB as Database>::Arguments<'q>>
-{
+impl<'q, DB: Database, O> BindList<'q, DB, O> for QueryAs<'q, DB, O, <DB as Database>::Arguments> {
     fn bind_list<T: 'q + Encode<'q, DB> + Type<DB>>(self, list: &'q [T]) -> Self {
         let mut query = self;
         for item in list.iter() {
@@ -43,7 +41,7 @@ pub trait BindListForQuery<'q, DB: Database> {
     fn bind_list<T: 'q + Encode<'q, DB> + Type<DB>>(self, list: &'q [T]) -> Self;
 }
 
-impl<'q, DB: Database> BindListForQuery<'q, DB> for Query<'q, DB, <DB as Database>::Arguments<'q>> {
+impl<'q, DB: Database> BindListForQuery<'q, DB> for Query<'q, DB, <DB as Database>::Arguments> {
     fn bind_list<T: 'q + Encode<'q, DB> + Type<DB>>(self, list: &'q [T]) -> Self {
         let mut query = self;
         for item in list.iter() {

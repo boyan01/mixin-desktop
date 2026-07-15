@@ -66,7 +66,7 @@ impl ExpiredMessageDao {
                  AND message_id IN ({})",
                 expand_var_with_index(2, chunk.len())
             );
-            rows_affected += sqlx::query(&sql)
+            rows_affected += sqlx::query(sqlx::AssertSqlSafe(sql))
                 .bind(now)
                 .bind_list(chunk)
                 .execute(&self.0)
@@ -131,7 +131,7 @@ impl ExpiredMessageDao {
                 "DELETE FROM expired_messages WHERE message_id IN ({})",
                 expand_var(chunk.len())
             );
-            rows_affected += sqlx::query(&sql)
+            rows_affected += sqlx::query(sqlx::AssertSqlSafe(sql))
                 .bind_list(chunk)
                 .execute(&self.0)
                 .await?

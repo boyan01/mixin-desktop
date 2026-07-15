@@ -289,64 +289,71 @@ impl JobDao {
         let chunks = ids.chunks(MARK_LIMIT);
         let mut rows_affected: u64 = 0;
         for chunk in chunks {
-            let affected = sqlx::query(&format!(
+            let query = format!(
                 "DELETE FROM jobs WHERE job_id in ({})",
                 expand_var(chunk.len())
-            ))
-            .bind_list(chunk)
-            .execute(&self.0)
-            .await?
-            .rows_affected();
+            );
+            let affected = sqlx::query(sqlx::AssertSqlSafe(query))
+                .bind_list(chunk)
+                .execute(&self.0)
+                .await?
+                .rows_affected();
             rows_affected += affected;
         }
         Ok(rows_affected)
     }
 
     pub async fn ack_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(&format!(
-            "SELECT * FROM jobs WHERE action = '{}' AND blaze_message IS NOT NULL LIMIT 100",
-            ACKNOWLEDGE_MESSAGE_RECEIPTS
-        ))
+        let result = sqlx::query_as::<_, Job>(
+            "SELECT * FROM jobs WHERE action = ? AND blaze_message IS NOT NULL LIMIT 100",
+        )
+        .bind(ACKNOWLEDGE_MESSAGE_RECEIPTS)
         .fetch_all(&self.0)
         .await?;
         Ok(result)
     }
 
     pub async fn session_ack_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(&format!(
-            "SELECT * FROM jobs WHERE action = '{}' AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
-            CREATE_MESSAGE
-        ))
+        let result = sqlx::query_as::<_, Job>(
+            "SELECT * FROM jobs WHERE action = ? AND blaze_message IS NOT NULL \
+             ORDER BY created_at ASC LIMIT 100",
+        )
+        .bind(CREATE_MESSAGE)
         .fetch_all(&self.0)
         .await?;
         Ok(result)
     }
 
     pub async fn sending_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(&format!(
-            "SELECT * FROM jobs WHERE action IN ('{}', '{}', '{}') AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
-            SENDING_MESSAGE, PIN_MESSAGE, RECALL_MESSAGE,
-        ))
+        let result = sqlx::query_as::<_, Job>(
+            "SELECT * FROM jobs WHERE action IN (?, ?, ?) AND blaze_message IS NOT NULL \
+             ORDER BY created_at ASC LIMIT 100",
+        )
+        .bind(SENDING_MESSAGE)
+        .bind(PIN_MESSAGE)
+        .bind(RECALL_MESSAGE)
         .fetch_all(&self.0)
         .await?;
         Ok(result)
     }
 
     pub async fn update_asset_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(&format!(
-            "SELECT * FROM jobs WHERE action = '{}' AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
-            UPDATE_ASSET
-        ))
+        let result = sqlx::query_as::<_, Job>(
+            "SELECT * FROM jobs WHERE action = ? AND blaze_message IS NOT NULL \
+             ORDER BY created_at ASC LIMIT 100",
+        )
+        .bind(UPDATE_ASSET)
         .fetch_all(&self.0)
         .await?;
         Ok(result)
     }
 
     pub async fn update_token_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(&format!(
-            "SELECT * FROM jobs WHERE action = '{}' AND blaze_message IS NOT NULL ORDER BY created_at ASC  LIMIT 100",
-            UPDATE_TOKEN
-        ))
+        let result = sqlx::query_as::<_, Job>(
+            "SELECT * FROM jobs WHERE action = ? AND blaze_message IS NOT NULL \
+             ORDER BY created_at ASC LIMIT 100",
+        )
+        .bind(UPDATE_TOKEN)
         .fetch_all(&self.0)
         .await?;
         Ok(result)
@@ -365,10 +372,11 @@ impl JobDao {
     }
 
     pub async fn sync_inscription_message_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(&format!(
-            "SELECT * FROM jobs WHERE action = '{}' AND blaze_message IS NOT NULL ORDER BY created_at ASC LIMIT 100",
-            SYNC_INSCRIPTION_MESSAGE,
-        ))
+        let result = sqlx::query_as::<_, Job>(
+            "SELECT * FROM jobs WHERE action = ? AND blaze_message IS NOT NULL \
+             ORDER BY created_at ASC LIMIT 100",
+        )
+        .bind(SYNC_INSCRIPTION_MESSAGE)
         .fetch_all(&self.0)
         .await?;
         Ok(result)

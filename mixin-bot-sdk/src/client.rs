@@ -157,11 +157,19 @@ impl ClientRef {
         };
 
         let resp = self.client.execute(request).await?;
-        if resp.status().as_u16() == crate::err::error_code::AUTHENTICATION as u16 {
+        let status = resp.status();
+        if status.as_u16() == crate::err::error_code::AUTHENTICATION as u16 {
             self.notify_authentication_failed();
         }
+        let bytes = resp.bytes().await?;
+        if !status.is_success() {
+            return match self.parse_response::<Value>(&bytes) {
+                Err(error) => Err(error),
+                Ok(_) => Err(anyhow!("unexpected response status {status}").into()),
+            };
+        }
 
-        Ok(resp.bytes().await?)
+        Ok(bytes)
     }
 
     pub(crate) async fn request<T>(&self, request: Request) -> Result<T, ApiError>
@@ -172,7 +180,7 @@ impl ClientRef {
         self.parse_response(&text)
     }
 
-    fn parse_response<T>(&self, text: &[u8]) -> Result<T, ApiError>
+    pub(crate) fn parse_response<T>(&self, text: &[u8]) -> Result<T, ApiError>
     where
         T: DeserializeOwned,
     {

@@ -1,8 +1,5 @@
 use std::sync::{Arc, Mutex};
 
-use rand::rngs::OsRng;
-use rand::Rng;
-
 use crate::core::crypto::signal_protocol::MAX_VALUE;
 use crate::db::key_value::KeyValue;
 
@@ -39,12 +36,12 @@ impl CryptoKeyValue {
             .key_value
             .get_value(KEY_NEXT_PRE_KEY_ID, GROUP)
             .await
-            .unwrap_or(OsRng.gen_range(0..MAX_VALUE));
+            .unwrap_or_else(|| rand::random_range(0..MAX_VALUE));
         let next_signed_pre_key_id: u32 = self
             .key_value
             .get_value(KEY_NEXT_SIGNED_PRE_KEY_ID, GROUP)
             .await
-            .unwrap_or(OsRng.gen_range(0..MAX_VALUE));
+            .unwrap_or_else(|| rand::random_range(0..MAX_VALUE));
         let has_push_signal_keys: bool = self
             .key_value
             .get_value(KEY_HAS_PUSH_SIGNAL_KEYS, GROUP)

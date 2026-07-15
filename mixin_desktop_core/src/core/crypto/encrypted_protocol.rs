@@ -1,10 +1,11 @@
-use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+use aes::cipher::{
+    block_padding::Pkcs7, consts::U12, BlockModeDecrypt, BlockModeEncrypt, KeyIvInit,
+};
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes128Gcm, Nonce};
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Result};
 use cbc::{Decryptor, Encryptor};
 use curve25519_dalek::edwards::CompressedEdwardsY;
-use rand::RngCore;
 use ring::signature::{Ed25519KeyPair, KeyPair};
 use sha2::{Digest, Sha512};
 use uuid::Uuid;
@@ -55,10 +56,14 @@ pub fn decrypt_message(
         .map_err(|_| anyhow!("invalid sender public key"))?;
     let message_key = decrypt_message_key(private_key, &sender_public_key, encrypted_key)?;
 
-    let nonce = Nonce::from_slice(&cipher_text[payload_offset..payload_offset + GCM_NONCE_SIZE]);
+    let nonce_bytes: [u8; GCM_NONCE_SIZE] = cipher_text
+        [payload_offset..payload_offset + GCM_NONCE_SIZE]
+        .try_into()
+        .expect("validated encrypted message nonce length");
+    let nonce = Nonce::<U12>::from(nonce_bytes);
     Aes128Gcm::new_from_slice(&message_key)
         .map_err(|error| anyhow!("invalid message key: {error}"))?
-        .decrypt(nonce, &cipher_text[payload_offset + GCM_NONCE_SIZE..])
+        .decrypt(&nonce, &cipher_text[payload_offset + GCM_NONCE_SIZE..])
         .map_err(|_| anyhow!("failed to authenticate encrypted message"))
 }
 
@@ -73,12 +78,13 @@ pub fn encrypt_message(
 
     let mut message_key = [0u8; 16];
     let mut nonce = [0u8; GCM_NONCE_SIZE];
-    rand::rngs::OsRng.fill_bytes(&mut message_key);
-    rand::rngs::OsRng.fill_bytes(&mut nonce);
+    rand::fill(&mut message_key);
+    rand::fill(&mut nonce);
 
+    let nonce_value = Nonce::<U12>::from(nonce);
     let encrypted_payload = Aes128Gcm::new_from_slice(&message_key)
         .map_err(|error| anyhow!("invalid message key: {error}"))?
-        .encrypt(Nonce::from_slice(&nonce), plain_text)
+        .encrypt(&nonce_value, plain_text)
         .map_err(|_| anyhow!("failed to encrypt message"))?;
 
     let sender_public_key = ed25519_public_to_x25519(private_key)?;
@@ -111,7 +117,7 @@ fn decrypt_message_key(
     let secret = shared_secret(private_key, sender_public_key)?;
     Decryptor::<aes::Aes256>::new_from_slices(&secret, &encrypted_key[..CBC_IV_SIZE])
         .map_err(|error| anyhow!("invalid key cipher: {error}"))?
-        .decrypt_padded_vec_mut::<Pkcs7>(&encrypted_key[CBC_IV_SIZE..])
+        .decrypt_padded_vec::<Pkcs7>(&encrypted_key[CBC_IV_SIZE..])
         .map_err(|_| anyhow!("failed to decrypt message key"))
 }
 
@@ -125,10 +131,10 @@ fn encrypt_message_key(
         .map_err(|_| anyhow!("invalid recipient public key"))?;
     let secret = shared_secret(private_key, &public_key)?;
     let mut iv = [0u8; CBC_IV_SIZE];
-    rand::rngs::OsRng.fill_bytes(&mut iv);
+    rand::fill(&mut iv);
     let encrypted = Encryptor::<aes::Aes256>::new_from_slices(&secret, &iv)
         .map_err(|error| anyhow!("invalid key cipher: {error}"))?
-        .encrypt_padded_vec_mut::<Pkcs7>(message_key);
+        .encrypt_padded_vec::<Pkcs7>(message_key);
     Ok([iv.as_slice(), encrypted.as_slice()].concat())
 }
 
@@ -157,7 +163,8 @@ fn ed25519_public_to_x25519(private_key: &[u8]) -> Result<[u8; 32]> {
     let seed = private_key
         .get(..32)
         .ok_or_else(|| anyhow!("invalid Ed25519 private key"))?;
-    let pair = Ed25519KeyPair::from_seed_unchecked(seed).context("invalid Ed25519 private key")?;
+    let pair = Ed25519KeyPair::from_seed_unchecked(seed)
+        .map_err(|_| anyhow!("invalid Ed25519 private key"))?;
     let compressed: [u8; 32] = pair
         .public_key()
         .as_ref()

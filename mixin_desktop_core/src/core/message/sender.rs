@@ -74,8 +74,14 @@ pub enum ProcessSignalKeyAction<'a> {
 
 impl MessageSender {
     pub async fn maintain_signal_keys(&self) {
-        if let Err(err) = self.refresh_signal_key("startup").await {
-            warn!("failed to refresh signal keys at startup: {err}");
+        loop {
+            match self.refresh_signal_key("startup").await {
+                Ok(()) => break,
+                Err(err) => {
+                    warn!("failed to refresh signal keys at startup: {err}");
+                    sleep(Duration::from_secs(5)).await;
+                }
+            }
         }
 
         let period = Duration::from_secs(24 * 60 * 60);
@@ -135,13 +141,12 @@ impl MessageSender {
         info!("start refresh signal key: {}", conversation_id);
         let now = std::time::Instant::now();
         {
-            let mut last = self.last_signal_key_refresh.lock().unwrap();
+            let last = self.last_signal_key_refresh.lock().unwrap();
             if let Some(last) = *last {
                 if now - last < Duration::from_secs(60) {
                     return Ok(());
                 }
             }
-            *last = Some(now);
         }
 
         let data = self
@@ -160,6 +165,7 @@ impl MessageSender {
             .has_push_signal_keys();
 
         if has_push_signal_keys && key_count.one_time_pre_keys_count >= 500 {
+            *self.last_signal_key_refresh.lock().unwrap() = Some(now);
             return Ok(());
         }
 
@@ -176,6 +182,7 @@ impl MessageSender {
             .crypto_key_value
             .set_has_push_signal_keys(true)
             .await;
+        *self.last_signal_key_refresh.lock().unwrap() = Some(now);
         info!("Registering new pre keys... {}", conversation_id);
         Ok(())
     }

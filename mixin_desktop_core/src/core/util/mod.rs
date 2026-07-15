@@ -3,7 +3,7 @@ pub fn unique_object_id<T: AsRef<str>>(args: &[T]) -> uuid::Uuid {
     for s in args {
         ctx.consume(s.as_ref())
     }
-    let mut bytes = ctx.compute().0;
+    let mut bytes = ctx.finalize().0;
 
     bytes[6] = (bytes[6] & 0x0f) | 0x30; // Set the version to 3
     bytes[8] = (bytes[8] & 0x3f) | 0x80; // Set the variant to DCE 1.1

@@ -162,7 +162,7 @@ impl MessageDao {
             "{} WHERE message.message_id = ?",
             QUOTE_MESSAGE_QUERY_PREFIX
         );
-        let result = sqlx::query_as::<_, QuoteMessage>(&query_str)
+        let result = sqlx::query_as::<_, QuoteMessage>(sqlx::AssertSqlSafe(query_str))
             .bind(message_id)
             .fetch_optional(&self.0)
             .await?;
@@ -437,7 +437,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
                 expand_var(chunk.len())
             );
             result.extend(
-                sqlx::query_as::<_, MiniMessageItem>(&query_str)
+                sqlx::query_as::<_, MiniMessageItem>(sqlx::AssertSqlSafe(query_str))
                     .bind_list(chunk)
                     .fetch_all(&self.0)
                     .await?,
@@ -450,17 +450,18 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
         let iter = messages.chunks(MARK_LIMIT - 3);
         for chunk in iter {
             let ids = chunk.iter().map(|m| m.as_str()).collect::<Vec<&str>>();
-            let _ = sqlx::query(&format!(
+            let query = format!(
                 "UPDATE messages SET status = ? WHERE message_id IN ({}) \
                  AND status != ? AND status != ?",
                 expand_var(chunk.len())
-            ))
-            .bind(MessageStatus::Read)
-            .bind_list(&ids)
-            .bind(MessageStatus::Failed)
-            .bind(MessageStatus::Unknown)
-            .execute(&self.0)
-            .await?;
+            );
+            let _ = sqlx::query(sqlx::AssertSqlSafe(query))
+                .bind(MessageStatus::Read)
+                .bind_list(&ids)
+                .bind(MessageStatus::Failed)
+                .bind(MessageStatus::Unknown)
+                .execute(&self.0)
+                .await?;
         }
 
         Ok(())

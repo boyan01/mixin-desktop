@@ -103,14 +103,15 @@ impl MessageMentionDao {
         let chunks = ids.chunks(MARK_LIMIT);
         let mut rows_affected: u64 = 0;
         for chunk in chunks {
-            let affected = sqlx::query(&format!(
+            let query = format!(
                 "UPDATE message_mentions SET has_read = true WHERE message_id IN ({})",
                 expand_var(chunk.len())
-            ))
-            .bind_list(chunk)
-            .execute(&self.0)
-            .await?
-            .rows_affected();
+            );
+            let affected = sqlx::query(sqlx::AssertSqlSafe(query))
+                .bind_list(chunk)
+                .execute(&self.0)
+                .await?
+                .rows_affected();
             rows_affected += affected;
         }
         Ok(rows_affected)

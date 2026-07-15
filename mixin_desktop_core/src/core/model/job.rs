@@ -243,7 +243,7 @@ impl JobTrigger for AckJobRunner {
             {
                 acks.push(m);
             } else {
-                error!("AckJobRunner: failed to parse message: {:?}", &job.job_id);
+                error!("AckJobRunner: failed to parse message: {:?}", job.job_id);
             }
             job_ids.push(job.job_id);
         }
@@ -292,7 +292,7 @@ impl JobTrigger for SessionAckJob {
             {
                 acks.push(m);
             } else {
-                error!("failed to parse message: {:?}", &job.job_id);
+                error!("failed to parse message: {:?}", job.job_id);
             }
             job_ids.push(job.job_id);
         }

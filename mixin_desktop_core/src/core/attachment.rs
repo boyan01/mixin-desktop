@@ -3,11 +3,11 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
-use aes::cipher::{Block, BlockDecrypt, KeyInit};
+use aes::cipher::{Block, BlockCipherDecrypt, KeyInit};
 use aes::Aes256;
 use anyhow::{anyhow, bail, Context, Result};
 use futures::StreamExt;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit as HmacKeyInit, Mac};
 use reqwest::header::CONTENT_TYPE;
 use reqwest::Client as HttpClient;
 use sha2::{Digest, Sha256};
@@ -320,7 +320,7 @@ fn decrypt_attachment_file(input: &Path, output: &Path, key: &[u8], digest: &[u8
     for index in 0..block_count {
         let mut encrypted = [0u8; CBC_BLOCK_SIZE];
         reader.read_exact(&mut encrypted)?;
-        let mut block = Block::<Aes256>::clone_from_slice(&encrypted);
+        let mut block = Block::<Aes256>::from(encrypted);
         cipher.decrypt_block(&mut block);
         for (byte, previous_byte) in block.iter_mut().zip(previous) {
             *byte ^= previous_byte;
@@ -351,7 +351,7 @@ fn decrypt_attachment_file(input: &Path, output: &Path, key: &[u8], digest: &[u8
 fn verify_attachment(input: &Path, input_size: u64, mac_key: &[u8], digest: &[u8]) -> Result<()> {
     let authenticated_size = input_size - MAC_SIZE as u64;
     let mut reader = BufReader::with_capacity(IO_BUFFER_SIZE, File::open(input)?);
-    let mut hmac = <Hmac<Sha256> as Mac>::new_from_slice(mac_key)
+    let mut hmac = <Hmac<Sha256> as HmacKeyInit>::new_from_slice(mac_key)
         .map_err(|_| anyhow!("invalid attachment MAC key"))?;
     let mut digest_hasher = Sha256::new();
     let mut remaining = authenticated_size;

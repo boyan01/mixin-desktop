@@ -69,7 +69,7 @@ impl UserDao {
             "SELECT * FROM users WHERE user_id IN ({})",
             expand_var(ids.len())
         );
-        let result = sqlx::query_as::<_, User>(&query_str)
+        let result = sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(query_str))
             .bind_list(ids)
             .fetch_all(&self.0)
             .await?;
@@ -87,7 +87,7 @@ impl UserDao {
                 expand_var(chunk.len())
             );
             user_ids.extend(
-                sqlx::query_as::<_, (String,)>(&query)
+                sqlx::query_as::<_, (String,)>(sqlx::AssertSqlSafe(query))
                     .bind_list(chunk)
                     .fetch_all(&self.0)
                     .await?

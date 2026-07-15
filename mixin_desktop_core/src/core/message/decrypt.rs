@@ -739,7 +739,7 @@ impl ServiceDecryptMessage {
                 Some(&data.session_id),
             )
             .await
-            .with_context(|| format!("failed to decrypt message: {}", &data.message_id));
+            .with_context(|| format!("failed to decrypt message: {}", data.message_id));
 
         let device_id = SignalProtocol::device_id(Some(&data.session_id))?;
         let address = format!("{}:{}", data.sender_id(), device_id);
@@ -747,7 +747,7 @@ impl ServiceDecryptMessage {
         let plain_text = match plain_text {
             Ok(text) => text,
             Err(err) => {
-                error!("failed to decrypt message:{} {:?}", &data.message_id, err);
+                error!("failed to decrypt message:{} {:?}", data.message_id, err);
                 self.sender
                     .refresh_signal_key(&data.conversation_id)
                     .await?;
@@ -1605,7 +1605,7 @@ impl ServiceDecryptMessage {
             if let Some(user_id) = message.user_id.as_ref() {
                 self.app_service
                     .conversation
-                    .refresh_user(&[user_id.to_string()], false)
+                    .refresh_user(std::slice::from_ref(user_id), false)
                     .await?;
             }
             let conversation_id = message.conversation_id.unwrap_or(

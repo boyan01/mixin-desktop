@@ -105,7 +105,9 @@ impl ParticipantDao {
         &self,
         uid: &str,
     ) -> Result<Option<String>, Error> {
-        let sql = "SELECT p.conversation_id FROM participants p, conversations c WHERE p.user_id = :userId AND p.conversation_id = c.conversation_id AND c.status = 2 LIMIT 1";
+        let sql = "SELECT p.conversation_id FROM participants p, conversations c \
+                   WHERE p.user_id = ? AND p.conversation_id = c.conversation_id \
+                   AND c.status = 2 LIMIT 1";
         let result = sqlx::query_scalar::<_, String>(sql)
             .bind(uid)
             .fetch_optional(&self.0)
@@ -116,6 +118,9 @@ impl ParticipantDao {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
+
+    use super::Participant;
     use crate::db::MixinDatabase;
 
     #[tokio::test]
@@ -130,5 +135,42 @@ mod tests {
             .replace_all("conversation", &[])
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn finds_joined_conversation_with_positional_parameter() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO conversations (conversation_id, created_at, status) VALUES (?, ?, ?)",
+        )
+        .bind("conversation")
+        .bind(Utc::now())
+        .bind(2)
+        .execute(&database.participant_dao.0)
+        .await
+        .unwrap();
+        database
+            .participant_dao
+            .insert_participant(&Participant {
+                conversation_id: "conversation".to_string(),
+                user_id: "user".to_string(),
+                role: None,
+                created_at: Utc::now(),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(
+            database
+                .participant_dao
+                .find_any_joined_conversation_id("user")
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("conversation")
+        );
     }
 }

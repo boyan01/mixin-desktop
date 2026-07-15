@@ -78,7 +78,7 @@ impl ConversationApi {
     pub async fn update(&self, request: &ConversationRequest) -> Result<Conversation, ApiError> {
         self.client
             .post(
-                &format!("conversations/{}", &request.conversation_id),
+                &format!("conversations/{}", request.conversation_id),
                 request,
             )
             .await
@@ -113,7 +113,7 @@ impl ConversationApi {
     pub async fn mute(&self, request: &ConversationRequest) -> Result<Conversation, ApiError> {
         self.client
             .post(
-                &format!("conversations/{}/mute", &request.conversation_id),
+                &format!("conversations/{}/mute", request.conversation_id),
                 request,
             )
             .await
