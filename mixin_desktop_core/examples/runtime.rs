@@ -1,3 +1,5 @@
+//! Live runtime smoke test for the desktop core.
+
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
