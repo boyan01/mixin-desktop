@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:mixin_desktop_ui/constants/assets.dart';
+import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
+import 'package:mixin_desktop_ui/theme.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 
 class QrLoginCard extends StatelessWidget {
@@ -18,49 +22,64 @@ class QrLoginCard extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.white,
-    elevation: 10,
-    shadowColor: Colors.black26,
-    borderRadius: const BorderRadius.all(Radius.circular(13)),
-    clipBehavior: Clip.antiAlias,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 38),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 180),
-        child: loading || provisioning
-            ? _LoginProgress(provisioning: provisioning)
-            : _QrContent(authUrl: authUrl, error: error, onRetry: onRetry),
+  Widget build(BuildContext context) {
+    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
+
+    Widget child;
+    if (loading) {
+      child = Center(
+        child: _Loading(
+          title: l10n?.initializing ?? 'Initializing…',
+          message: l10n?.chatHintE2e ?? 'End-to-end encrypted',
+        ),
+      );
+    } else if (provisioning) {
+      child = Center(
+        child: _Loading(
+          title: l10n?.loading ?? 'Loading...',
+          message: l10n?.chatHintE2e ?? 'End-to-end encrypted',
+        ),
+      );
+    } else {
+      child = Stack(
+        fit: StackFit.expand,
+        children: [
+          Column(
+            children: [
+              const Spacer(),
+              _QrContent(
+                authUrl: authUrl,
+                error: error,
+                onRetry: onRetry,
+                title:
+                    l10n?.loginByQrcode ??
+                    'Log in to Mixin Messenger with a QR code',
+                firstTip:
+                    l10n?.loginByQrcodeTips1 ??
+                    'Open Mixin Messenger on your phone.',
+                secondTip:
+                    l10n?.loginByQrcodeTips2 ??
+                    'Scan the QR code on the screen and confirm your sign-in.',
+                retryText:
+                    l10n?.clickToReloadQrcode ?? 'Click to reload the QR code',
+              ),
+              const Spacer(),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return Material(
+      color: context.theme.popUp,
+      borderRadius: const BorderRadius.all(Radius.circular(13)),
+      elevation: 10,
+      child: ClipRRect(
+        borderRadius: const BorderRadius.all(Radius.circular(13)),
+        child: child,
       ),
-    ),
-  );
-}
-
-class _LoginProgress extends StatelessWidget {
-  const _LoginProgress({required this.provisioning});
-
-  final bool provisioning;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 342,
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const CircularProgressIndicator(strokeWidth: 2),
-        const SizedBox(height: 24),
-        Text(
-          provisioning ? 'Loading' : 'Initializing',
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Messages are end-to-end encrypted.',
-          style: TextStyle(fontSize: 16, color: Color(0xFFBBBEC3)),
-        ),
-      ],
-    ),
-  );
+    );
+  }
 }
 
 class _QrContent extends StatelessWidget {
@@ -68,11 +87,19 @@ class _QrContent extends StatelessWidget {
     required this.authUrl,
     required this.error,
     required this.onRetry,
+    required this.title,
+    required this.firstTip,
+    required this.secondTip,
+    required this.retryText,
   });
 
   final String? authUrl;
   final String? error;
   final VoidCallback onRetry;
+  final String title;
+  final String firstTip;
+  final String secondTip;
+  final String retryText;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -82,6 +109,7 @@ class _QrContent extends StatelessWidget {
         dimension: 160,
         child: ClipRRect(
           borderRadius: const BorderRadius.all(Radius.circular(11)),
+          clipBehavior: Clip.antiAliasWithSaveLayer,
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -89,29 +117,55 @@ class _QrContent extends StatelessWidget {
                 ColoredBox(
                   color: Colors.white,
                   child: Padding(
-                    padding: const EdgeInsets.all(4),
+                    padding: const EdgeInsets.all(8),
                     child: PrettyQrView.data(
                       data: url,
                       errorCorrectLevel: QrErrorCorrectLevel.Q,
+                      decoration: const PrettyQrDecoration(
+                        image: PrettyQrDecorationImage(
+                          image: AssetImage(MixinAssets.logo),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               if (error != null)
-                Material(
-                  color: Colors.black.withValues(alpha: 0.86),
-                  child: InkWell(
+                DecoratedBox(
+                  decoration: const BoxDecoration(
+                    color: Color.fromRGBO(0, 0, 0, 0.86),
+                  ),
+                  child: GestureDetector(
                     onTap: onRetry,
-                    child: const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.refresh, color: Colors.white, size: 40),
-                        SizedBox(height: 12),
-                        Text(
-                          'Click to reload the QR code',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white, fontSize: 14),
+                    behavior: HitTestBehavior.opaque,
+                    child: Tooltip(
+                      message: error ?? '',
+                      excludeFromSemantics: true,
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SvgPicture.asset(
+                              MixinAssets.retry,
+                              width: 40,
+                              height: 40,
+                            ),
+                            const SizedBox(height: 14),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                              child: Text(
+                                retryText,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Color.fromRGBO(255, 255, 255, 0.9),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -120,17 +174,77 @@ class _QrContent extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 16),
-      const Text(
-        'Log in to Mixin Messenger with a QR code',
+      Text(
+        title,
         textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 16),
+        style: TextStyle(fontSize: 16, color: context.mixinTheme.text),
       ),
       const SizedBox(height: 16),
-      const Text(
-        '1. Open Mixin Messenger on your phone.\n'
-        '2. Scan the QR code on the screen and confirm your sign-in.',
-        style: TextStyle(fontSize: 14, height: 1.6, color: Color(0xFFBBBEC3)),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: DefaultTextStyle.merge(
+          style: TextStyle(
+            fontSize: 14,
+            color: context.dynamicColor(
+              const Color.fromRGBO(187, 190, 195, 1),
+              darkColor: const Color.fromRGBO(255, 255, 255, 0.4),
+            ),
+          ),
+          textAlign: TextAlign.left,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('1. $firstTip'),
+              const SizedBox(height: 4),
+              Text('2. $secondTip'),
+            ],
+          ),
+        ),
       ),
     ],
   );
+}
+
+class _Loading extends StatelessWidget {
+  const _Loading({required this.title, required this.message});
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryColor = context.mixinTheme.text;
+    return SizedBox(
+      width: 375,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation(primaryColor),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            title,
+            style: TextStyle(
+              color: primaryColor,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: context.dynamicColor(
+                const Color.fromRGBO(188, 190, 195, 1),
+                darkColor: const Color.fromRGBO(255, 255, 255, 0.4),
+              ),
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

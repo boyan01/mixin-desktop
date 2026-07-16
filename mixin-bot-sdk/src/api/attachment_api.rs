@@ -20,6 +20,12 @@ impl AttachmentApi {
             .get(&format!("attachments/{attachment_id}"))
             .await
     }
+
+    pub async fn create_attachment(&self) -> Result<Attachment, ApiError> {
+        self.client
+            .post("attachments", &serde_json::json!({}))
+            .await
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

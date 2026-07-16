@@ -66,7 +66,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 236581877;
+  int get rustContentHash => -475238394;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -80,8 +80,51 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 abstract class RustLibApi extends BaseApi {
   String crateApiDesktopAccountHandleAccountId({required AccountHandle that});
 
+  Future<void> crateApiDesktopAccountHandleAddContact({
+    required AccountHandle that,
+    required String userId,
+    required String fullName,
+  });
+
+  Future<void> crateApiDesktopAccountHandleAddSticker({
+    required AccountHandle that,
+    required String stickerId,
+  });
+
+  Future<void> crateApiDesktopAccountHandleAddStickerFromFile({
+    required AccountHandle that,
+    required String messageId,
+  });
+
+  Future<void> crateApiDesktopAccountHandleBlockUser({
+    required AccountHandle that,
+    required String userId,
+  });
+
+  Future<String?> crateApiDesktopAccountHandleBotHomeUri({
+    required AccountHandle that,
+    required String appId,
+  });
+
+  Future<void> crateApiDesktopAccountHandleCancelAttachment({
+    required AccountHandle that,
+    required String messageId,
+  });
+
+  Future<void> crateApiDesktopAccountHandleCancelTranscriptAttachment({
+    required AccountHandle that,
+    required String transcriptId,
+    required String messageId,
+  });
+
   Future<List<CircleItem>> crateApiDesktopAccountHandleCircles({
     required AccountHandle that,
+  });
+
+  Future<String> crateApiDesktopAccountHandleCombineForwardMessages({
+    required AccountHandle that,
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
   });
 
   Stream<BigInt> crateApiDesktopAccountHandleConversationChanges({
@@ -106,9 +149,31 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 offset,
   });
 
+  Future<String?> crateApiDesktopAccountHandleCurrentUserRole({
+    required AccountHandle that,
+    required String conversationId,
+  });
+
   Future<void> crateApiDesktopAccountHandleDeleteConversation({
     required AccountHandle that,
     required String conversationId,
+  });
+
+  Future<void> crateApiDesktopAccountHandleDeleteMessages({
+    required AccountHandle that,
+    required String conversationId,
+    required List<String> messageIds,
+  });
+
+  Future<void> crateApiDesktopAccountHandleDownloadAttachment({
+    required AccountHandle that,
+    required String messageId,
+  });
+
+  Future<void> crateApiDesktopAccountHandleDownloadTranscriptAttachment({
+    required AccountHandle that,
+    required String transcriptId,
+    required String messageId,
   });
 
   Future<void> crateApiDesktopAccountHandleEditCircleConversation({
@@ -120,8 +185,83 @@ abstract class RustLibApi extends BaseApi {
     required bool add,
   });
 
+  Future<List<String>> crateApiDesktopAccountHandleForwardMessages({
+    required AccountHandle that,
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  });
+
+  Future<List<ImageMessageItem>>
+  crateApiDesktopAccountHandleImageMessagesAround({
+    required AccountHandle that,
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  });
+
+  Future<void> crateApiDesktopAccountHandleMarkAudioRead({
+    required AccountHandle that,
+    required String messageId,
+  });
+
+  Future<void> crateApiDesktopAccountHandleMarkConversationRead({
+    required AccountHandle that,
+    required String conversationId,
+  });
+
+  Future<void> crateApiDesktopAccountHandleMarkMentionRead({
+    required AccountHandle that,
+    required String conversationId,
+    required String messageId,
+  });
+
+  Future<void> crateApiDesktopAccountHandleMarkTranscriptAudioRead({
+    required AccountHandle that,
+    required String transcriptId,
+    required String messageId,
+  });
+
+  Stream<BigInt> crateApiDesktopAccountHandleMessageChanges({
+    required AccountHandle that,
+  });
+
+  Future<List<MessageListItem>> crateApiDesktopAccountHandleMessages({
+    required AccountHandle that,
+    required String conversationId,
+    PlatformInt64? beforeCreatedAtMicros,
+    String? beforeMessageId,
+    required PlatformInt64 limit,
+  });
+
+  Future<List<MessageListItem>> crateApiDesktopAccountHandleMessagesAround({
+    required AccountHandle that,
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  });
+
+  Future<List<MessageListItem>> crateApiDesktopAccountHandlePinnedMessages({
+    required AccountHandle that,
+    required String conversationId,
+  });
+
   AccountProfile crateApiDesktopAccountHandleProfile({
     required AccountHandle that,
+  });
+
+  Future<void> crateApiDesktopAccountHandleRecallMessages({
+    required AccountHandle that,
+    required String conversationId,
+    required List<String> messageIds,
+  });
+
+  Future<String> crateApiDesktopAccountHandleSendText({
+    required AccountHandle that,
+    required String conversationId,
+    required String content,
+    String? quoteMessageId,
   });
 
   Future<void> crateApiDesktopAccountHandleSetConversationMuted({
@@ -138,8 +278,36 @@ abstract class RustLibApi extends BaseApi {
     required bool pinned,
   });
 
+  Future<void> crateApiDesktopAccountHandleSetMessagePinned({
+    required AccountHandle that,
+    required String conversationId,
+    required String messageId,
+    required bool pinned,
+  });
+
   Future<void> crateApiDesktopAccountHandleShutdown({
     required AccountHandle that,
+  });
+
+  Future<void> crateApiDesktopAccountHandleSignOut({
+    required AccountHandle that,
+  });
+
+  Future<List<MessageListItem>> crateApiDesktopAccountHandleTranscriptMessages({
+    required AccountHandle that,
+    required String transcriptId,
+  });
+
+  Future<UserProfileItem?> crateApiDesktopAccountHandleUserProfile({
+    required AccountHandle that,
+    String? userId,
+    String? identityNumber,
+  });
+
+  Future<List<UserProfileItem>>
+  crateApiDesktopAccountHandleUsersByIdentityNumbers({
+    required AccountHandle that,
+    required List<String> identityNumbers,
   });
 
   Future<LoginHandle> crateApiDesktopDesktopHandleBeginLogin({
@@ -225,6 +393,278 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiDesktopAccountHandleAddContact({
+    required AccountHandle that,
+    required String userId,
+    required String fullName,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          sse_encode_String(fullName, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleAddContactConstMeta,
+        argValues: [that, userId, fullName],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleAddContactConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_add_contact",
+        argNames: ["that", "userId", "fullName"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleAddSticker({
+    required AccountHandle that,
+    required String stickerId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(stickerId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleAddStickerConstMeta,
+        argValues: [that, stickerId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleAddStickerConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_add_sticker",
+        argNames: ["that", "stickerId"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleAddStickerFromFile({
+    required AccountHandle that,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleAddStickerFromFileConstMeta,
+        argValues: [that, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleAddStickerFromFileConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_add_sticker_from_file",
+        argNames: ["that", "messageId"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleBlockUser({
+    required AccountHandle that,
+    required String userId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleBlockUserConstMeta,
+        argValues: [that, userId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleBlockUserConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_block_user",
+        argNames: ["that", "userId"],
+      );
+
+  @override
+  Future<String?> crateApiDesktopAccountHandleBotHomeUri({
+    required AccountHandle that,
+    required String appId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(appId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleBotHomeUriConstMeta,
+        argValues: [that, appId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleBotHomeUriConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_bot_home_uri",
+        argNames: ["that", "appId"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleCancelAttachment({
+    required AccountHandle that,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleCancelAttachmentConstMeta,
+        argValues: [that, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleCancelAttachmentConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_cancel_attachment",
+        argNames: ["that", "messageId"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleCancelTranscriptAttachment({
+    required AccountHandle that,
+    required String transcriptId,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(transcriptId, serializer);
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 8,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kCrateApiDesktopAccountHandleCancelTranscriptAttachmentConstMeta,
+        argValues: [that, transcriptId, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiDesktopAccountHandleCancelTranscriptAttachmentConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_cancel_transcript_attachment",
+        argNames: ["that", "transcriptId", "messageId"],
+      );
+
+  @override
   Future<List<CircleItem>> crateApiDesktopAccountHandleCircles({
     required AccountHandle that,
   }) {
@@ -239,7 +679,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 9,
             port: port_,
           );
         },
@@ -261,6 +701,47 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiDesktopAccountHandleCombineForwardMessages({
+    required AccountHandle that,
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(targetConversationId, serializer);
+          sse_encode_list_String(sourceMessageIds, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleCombineForwardMessagesConstMeta,
+        argValues: [that, targetConversationId, sourceMessageIds],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiDesktopAccountHandleCombineForwardMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_combine_forward_messages",
+        argNames: ["that", "targetConversationId", "sourceMessageIds"],
+      );
+
+  @override
   Stream<BigInt> crateApiDesktopAccountHandleConversationChanges({
     required AccountHandle that,
   }) {
@@ -278,7 +759,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 3,
+              funcId: 11,
               port: port_,
             );
           },
@@ -324,7 +805,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 12,
             port: port_,
           );
         },
@@ -372,7 +853,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 13,
             port: port_,
           );
         },
@@ -410,6 +891,44 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String?> crateApiDesktopAccountHandleCurrentUserRole({
+    required AccountHandle that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleCurrentUserRoleConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleCurrentUserRoleConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_current_user_role",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
   Future<void> crateApiDesktopAccountHandleDeleteConversation({
     required AccountHandle that,
     required String conversationId,
@@ -426,7 +945,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 15,
             port: port_,
           );
         },
@@ -445,6 +964,126 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "AccountHandle_delete_conversation",
         argNames: ["that", "conversationId"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleDeleteMessages({
+    required AccountHandle that,
+    required String conversationId,
+    required List<String> messageIds,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_list_String(messageIds, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleDeleteMessagesConstMeta,
+        argValues: [that, conversationId, messageIds],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleDeleteMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_delete_messages",
+        argNames: ["that", "conversationId", "messageIds"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleDownloadAttachment({
+    required AccountHandle that,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleDownloadAttachmentConstMeta,
+        argValues: [that, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleDownloadAttachmentConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_download_attachment",
+        argNames: ["that", "messageId"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleDownloadTranscriptAttachment({
+    required AccountHandle that,
+    required String transcriptId,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(transcriptId, serializer);
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kCrateApiDesktopAccountHandleDownloadTranscriptAttachmentConstMeta,
+        argValues: [that, transcriptId, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiDesktopAccountHandleDownloadTranscriptAttachmentConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_download_transcript_attachment",
+        argNames: ["that", "transcriptId", "messageId"],
       );
 
   @override
@@ -472,7 +1111,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 19,
             port: port_,
           );
         },
@@ -502,6 +1141,441 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<List<String>> crateApiDesktopAccountHandleForwardMessages({
+    required AccountHandle that,
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(targetConversationId, serializer);
+          sse_encode_list_String(sourceMessageIds, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 20,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleForwardMessagesConstMeta,
+        argValues: [that, targetConversationId, sourceMessageIds],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleForwardMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_forward_messages",
+        argNames: ["that", "targetConversationId", "sourceMessageIds"],
+      );
+
+  @override
+  Future<List<ImageMessageItem>>
+  crateApiDesktopAccountHandleImageMessagesAround({
+    required AccountHandle that,
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(targetMessageId, serializer);
+          sse_encode_i_64(before, serializer);
+          sse_encode_i_64(after, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 21,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_image_message_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleImageMessagesAroundConstMeta,
+        argValues: [that, conversationId, targetMessageId, before, after],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleImageMessagesAroundConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_image_messages_around",
+        argNames: [
+          "that",
+          "conversationId",
+          "targetMessageId",
+          "before",
+          "after",
+        ],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleMarkAudioRead({
+    required AccountHandle that,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 22,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleMarkAudioReadConstMeta,
+        argValues: [that, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleMarkAudioReadConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_mark_audio_read",
+        argNames: ["that", "messageId"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleMarkConversationRead({
+    required AccountHandle that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 23,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleMarkConversationReadConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiDesktopAccountHandleMarkConversationReadConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_mark_conversation_read",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleMarkMentionRead({
+    required AccountHandle that,
+    required String conversationId,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 24,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleMarkMentionReadConstMeta,
+        argValues: [that, conversationId, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleMarkMentionReadConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_mark_mention_read",
+        argNames: ["that", "conversationId", "messageId"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleMarkTranscriptAudioRead({
+    required AccountHandle that,
+    required String transcriptId,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(transcriptId, serializer);
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 25,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kCrateApiDesktopAccountHandleMarkTranscriptAudioReadConstMeta,
+        argValues: [that, transcriptId, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiDesktopAccountHandleMarkTranscriptAudioReadConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_mark_transcript_audio_read",
+        argNames: ["that", "transcriptId", "messageId"],
+      );
+
+  @override
+  Stream<BigInt> crateApiDesktopAccountHandleMessageChanges({
+    required AccountHandle that,
+  }) {
+    final sink = RustStreamSink<BigInt>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+              that,
+              serializer,
+            );
+            sse_encode_StreamSink_u_64_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 26,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_AnyhowException,
+          ),
+          constMeta: kCrateApiDesktopAccountHandleMessageChangesConstMeta,
+          argValues: [that, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleMessageChangesConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_message_changes",
+        argNames: ["that", "sink"],
+      );
+
+  @override
+  Future<List<MessageListItem>> crateApiDesktopAccountHandleMessages({
+    required AccountHandle that,
+    required String conversationId,
+    PlatformInt64? beforeCreatedAtMicros,
+    String? beforeMessageId,
+    required PlatformInt64 limit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_opt_box_autoadd_i_64(beforeCreatedAtMicros, serializer);
+          sse_encode_opt_String(beforeMessageId, serializer);
+          sse_encode_i_64(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_message_list_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleMessagesConstMeta,
+        argValues: [
+          that,
+          conversationId,
+          beforeCreatedAtMicros,
+          beforeMessageId,
+          limit,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_messages",
+        argNames: [
+          "that",
+          "conversationId",
+          "beforeCreatedAtMicros",
+          "beforeMessageId",
+          "limit",
+        ],
+      );
+
+  @override
+  Future<List<MessageListItem>> crateApiDesktopAccountHandleMessagesAround({
+    required AccountHandle that,
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(targetMessageId, serializer);
+          sse_encode_i_64(before, serializer);
+          sse_encode_i_64(after, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 28,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_message_list_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleMessagesAroundConstMeta,
+        argValues: [that, conversationId, targetMessageId, before, after],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleMessagesAroundConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_messages_around",
+        argNames: [
+          "that",
+          "conversationId",
+          "targetMessageId",
+          "before",
+          "after",
+        ],
+      );
+
+  @override
+  Future<List<MessageListItem>> crateApiDesktopAccountHandlePinnedMessages({
+    required AccountHandle that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 29,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_message_list_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandlePinnedMessagesConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandlePinnedMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_pinned_messages",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
   AccountProfile crateApiDesktopAccountHandleProfile({
     required AccountHandle that,
   }) {
@@ -513,7 +1587,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_account_profile,
@@ -530,6 +1604,88 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "AccountHandle_profile",
         argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleRecallMessages({
+    required AccountHandle that,
+    required String conversationId,
+    required List<String> messageIds,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_list_String(messageIds, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 31,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleRecallMessagesConstMeta,
+        argValues: [that, conversationId, messageIds],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleRecallMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_recall_messages",
+        argNames: ["that", "conversationId", "messageIds"],
+      );
+
+  @override
+  Future<String> crateApiDesktopAccountHandleSendText({
+    required AccountHandle that,
+    required String conversationId,
+    required String content,
+    String? quoteMessageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(content, serializer);
+          sse_encode_opt_String(quoteMessageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 32,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleSendTextConstMeta,
+        argValues: [that, conversationId, content, quoteMessageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleSendTextConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_send_text",
+        argNames: ["that", "conversationId", "content", "quoteMessageId"],
       );
 
   @override
@@ -555,7 +1711,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 33,
             port: port_,
           );
         },
@@ -602,7 +1758,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 34,
             port: port_,
           );
         },
@@ -625,6 +1781,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiDesktopAccountHandleSetMessagePinned({
+    required AccountHandle that,
+    required String conversationId,
+    required String messageId,
+    required bool pinned,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(messageId, serializer);
+          sse_encode_bool(pinned, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 35,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleSetMessagePinnedConstMeta,
+        argValues: [that, conversationId, messageId, pinned],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleSetMessagePinnedConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_set_message_pinned",
+        argNames: ["that", "conversationId", "messageId", "pinned"],
+      );
+
+  @override
   Future<void> crateApiDesktopAccountHandleShutdown({
     required AccountHandle that,
   }) {
@@ -639,7 +1837,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 36,
             port: port_,
           );
         },
@@ -661,6 +1859,160 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiDesktopAccountHandleSignOut({
+    required AccountHandle that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 37,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleSignOutConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleSignOutConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_sign_out",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<List<MessageListItem>> crateApiDesktopAccountHandleTranscriptMessages({
+    required AccountHandle that,
+    required String transcriptId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(transcriptId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 38,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_message_list_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleTranscriptMessagesConstMeta,
+        argValues: [that, transcriptId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleTranscriptMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_transcript_messages",
+        argNames: ["that", "transcriptId"],
+      );
+
+  @override
+  Future<UserProfileItem?> crateApiDesktopAccountHandleUserProfile({
+    required AccountHandle that,
+    String? userId,
+    String? identityNumber,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_opt_String(userId, serializer);
+          sse_encode_opt_String(identityNumber, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 39,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_user_profile_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleUserProfileConstMeta,
+        argValues: [that, userId, identityNumber],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleUserProfileConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_user_profile",
+        argNames: ["that", "userId", "identityNumber"],
+      );
+
+  @override
+  Future<List<UserProfileItem>>
+  crateApiDesktopAccountHandleUsersByIdentityNumbers({
+    required AccountHandle that,
+    required List<String> identityNumbers,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_list_String(identityNumbers, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 40,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_user_profile_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleUsersByIdentityNumbersConstMeta,
+        argValues: [that, identityNumbers],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiDesktopAccountHandleUsersByIdentityNumbersConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_users_by_identity_numbers",
+        argNames: ["that", "identityNumbers"],
+      );
+
+  @override
   Future<LoginHandle> crateApiDesktopDesktopHandleBeginLogin({
     required DesktopHandle that,
   }) {
@@ -675,7 +2027,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 41,
             port: port_,
           );
         },
@@ -712,7 +2064,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 42,
             port: port_,
           );
         },
@@ -744,7 +2096,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -778,7 +2130,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 44,
             port: port_,
           );
         },
@@ -806,7 +2158,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 45,
             port: port_,
           );
         },
@@ -833,7 +2185,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 46,
             port: port_,
           );
         },
@@ -979,13 +2331,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AccountProfile dco_decode_account_profile(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return AccountProfile(
       userId: dco_decode_String(arr[0]),
       fullName: dco_decode_String(arr[1]),
       avatarUrl: dco_decode_String(arr[2]),
       identityNumber: dco_decode_String(arr[3]),
+      biography: dco_decode_String(arr[4]),
+      phone: dco_decode_String(arr[5]),
+      createdAt: dco_decode_String(arr[6]),
     );
   }
 
@@ -1007,6 +2362,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as bool;
+  }
+
+  @protected
+  int dco_decode_box_autoadd_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_i_64(raw);
+  }
+
+  @protected
+  UserProfileItem dco_decode_box_autoadd_user_profile_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_user_profile_item(raw);
+  }
+
+  @protected
   CircleItem dco_decode_circle_item(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1022,8 +2401,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ConversationListItem dco_decode_conversation_list_item(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 23)
-      throw Exception('unexpected arr length: expect 23 but see ${arr.length}');
+    if (arr.length != 25)
+      throw Exception('unexpected arr length: expect 25 but see ${arr.length}');
     return ConversationListItem(
       conversationId: dco_decode_String(arr[0]),
       ownerId: dco_decode_String(arr[1]),
@@ -1032,22 +2411,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       category: dco_decode_String(arr[4]),
       draft: dco_decode_String(arr[5]),
       status: dco_decode_i_32(arr[6]),
-      lastMessage: dco_decode_String(arr[7]),
-      lastMessageCategory: dco_decode_opt_String(arr[8]),
-      lastMessageStatus: dco_decode_opt_String(arr[9]),
-      lastMessageSenderId: dco_decode_opt_String(arr[10]),
-      lastMessageSenderName: dco_decode_opt_String(arr[11]),
-      updatedAtMillis: dco_decode_i_64(arr[12]),
-      unseenCount: dco_decode_i_64(arr[13]),
-      mentionCount: dco_decode_i_64(arr[14]),
-      isMuted: dco_decode_bool(arr[15]),
-      isVerified: dco_decode_bool(arr[16]),
-      isBot: dco_decode_bool(arr[17]),
-      isPinned: dco_decode_bool(arr[18]),
-      relationship: dco_decode_String(arr[19]),
-      identityNumber: dco_decode_String(arr[20]),
-      circleIds: dco_decode_list_String(arr[21]),
-      groupAvatars: dco_decode_list_group_avatar(arr[22]),
+      lastReadMessageId: dco_decode_opt_String(arr[7]),
+      lastMessage: dco_decode_String(arr[8]),
+      lastMessageCategory: dco_decode_opt_String(arr[9]),
+      lastMessageStatus: dco_decode_opt_String(arr[10]),
+      lastMessageSenderId: dco_decode_opt_String(arr[11]),
+      lastMessageSenderName: dco_decode_opt_String(arr[12]),
+      updatedAtMillis: dco_decode_i_64(arr[13]),
+      unseenCount: dco_decode_i_64(arr[14]),
+      mentionCount: dco_decode_i_64(arr[15]),
+      isMuted: dco_decode_bool(arr[16]),
+      isVerified: dco_decode_bool(arr[17]),
+      isBot: dco_decode_bool(arr[18]),
+      isPinned: dco_decode_bool(arr[19]),
+      relationship: dco_decode_String(arr[20]),
+      identityNumber: dco_decode_String(arr[21]),
+      circleIds: dco_decode_list_String(arr[22]),
+      participantCount: dco_decode_i_64(arr[23]),
+      groupAvatars: dco_decode_list_group_avatar(arr[24]),
     );
   }
 
@@ -1074,6 +2455,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64 dco_decode_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeI64(raw);
+  }
+
+  @protected
+  ImageMessageItem dco_decode_image_message_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return ImageMessageItem(
+      messageId: dco_decode_String(arr[0]),
+      createdAtMicros: dco_decode_i_64(arr[1]),
+      mediaUrl: dco_decode_String(arr[2]),
+      mediaName: dco_decode_opt_String(arr[3]),
+      canForward: dco_decode_bool(arr[4]),
+    );
   }
 
   @protected
@@ -1105,9 +2501,106 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ImageMessageItem> dco_decode_list_image_message_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_image_message_item).toList();
+  }
+
+  @protected
+  List<MessageListItem> dco_decode_list_message_list_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_message_list_item).toList();
+  }
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
+  }
+
+  @protected
+  List<UserProfileItem> dco_decode_list_user_profile_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_user_profile_item).toList();
+  }
+
+  @protected
+  MessageListItem dco_decode_message_list_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 69)
+      throw Exception('unexpected arr length: expect 69 but see ${arr.length}');
+    return MessageListItem(
+      messageId: dco_decode_String(arr[0]),
+      conversationId: dco_decode_String(arr[1]),
+      senderId: dco_decode_String(arr[2]),
+      senderName: dco_decode_String(arr[3]),
+      senderIdentityNumber: dco_decode_opt_String(arr[4]),
+      senderAvatarUrl: dco_decode_String(arr[5]),
+      senderIsVerified: dco_decode_bool(arr[6]),
+      senderRelationship: dco_decode_String(arr[7]),
+      senderAppId: dco_decode_opt_String(arr[8]),
+      senderIsScam: dco_decode_bool(arr[9]),
+      senderIsBot: dco_decode_bool(arr[10]),
+      category: dco_decode_String(arr[11]),
+      content: dco_decode_String(arr[12]),
+      status: dco_decode_String(arr[13]),
+      createdAtMicros: dco_decode_i_64(arr[14]),
+      mediaUrl: dco_decode_opt_String(arr[15]),
+      mediaMimeType: dco_decode_opt_String(arr[16]),
+      mediaSize: dco_decode_opt_box_autoadd_i_64(arr[17]),
+      mediaDuration: dco_decode_String(arr[18]),
+      mediaWidth: dco_decode_opt_box_autoadd_i_32(arr[19]),
+      mediaHeight: dco_decode_opt_box_autoadd_i_32(arr[20]),
+      thumbImage: dco_decode_opt_String(arr[21]),
+      mediaStatus: dco_decode_String(arr[22]),
+      quoteMessageId: dco_decode_opt_String(arr[23]),
+      quoteContent: dco_decode_opt_String(arr[24]),
+      caption: dco_decode_opt_String(arr[25]),
+      action: dco_decode_opt_String(arr[26]),
+      participantId: dco_decode_opt_String(arr[27]),
+      participantFullName: dco_decode_opt_String(arr[28]),
+      snapshotId: dco_decode_opt_String(arr[29]),
+      snapshotType: dco_decode_opt_String(arr[30]),
+      snapshotAmount: dco_decode_opt_String(arr[31]),
+      snapshotMemo: dco_decode_opt_String(arr[32]),
+      snapshotAssetId: dco_decode_opt_String(arr[33]),
+      snapshotAssetSymbol: dco_decode_opt_String(arr[34]),
+      snapshotAssetIconUrl: dco_decode_opt_String(arr[35]),
+      snapshotChainIconUrl: dco_decode_opt_String(arr[36]),
+      snapshotOpponentId: dco_decode_opt_String(arr[37]),
+      snapshotTransactionHash: dco_decode_opt_String(arr[38]),
+      snapshotCreatedAt: dco_decode_opt_String(arr[39]),
+      inscriptionHash: dco_decode_opt_String(arr[40]),
+      inscriptionCollectionHash: dco_decode_opt_String(arr[41]),
+      inscriptionSequence: dco_decode_opt_box_autoadd_i_64(arr[42]),
+      inscriptionContentType: dco_decode_opt_String(arr[43]),
+      inscriptionContentUrl: dco_decode_opt_String(arr[44]),
+      inscriptionName: dco_decode_opt_String(arr[45]),
+      inscriptionIconUrl: dco_decode_opt_String(arr[46]),
+      hyperlink: dco_decode_opt_String(arr[47]),
+      mediaName: dco_decode_opt_String(arr[48]),
+      albumId: dco_decode_opt_String(arr[49]),
+      stickerId: dco_decode_opt_String(arr[50]),
+      sharedUserId: dco_decode_opt_String(arr[51]),
+      mediaWaveform: dco_decode_opt_String(arr[52]),
+      thumbUrl: dco_decode_opt_String(arr[53]),
+      conversationOwnerId: dco_decode_opt_String(arr[54]),
+      conversationCategory: dco_decode_opt_String(arr[55]),
+      sharedUserFullName: dco_decode_opt_String(arr[56]),
+      sharedUserIdentityNumber: dco_decode_opt_String(arr[57]),
+      sharedUserAvatarUrl: dco_decode_opt_String(arr[58]),
+      sharedUserIsVerified: dco_decode_bool(arr[59]),
+      sharedUserAppId: dco_decode_opt_String(arr[60]),
+      stickerAssetUrl: dco_decode_opt_String(arr[61]),
+      stickerAssetWidth: dco_decode_opt_box_autoadd_i_32(arr[62]),
+      stickerAssetHeight: dco_decode_opt_box_autoadd_i_32(arr[63]),
+      stickerAssetName: dco_decode_opt_String(arr[64]),
+      stickerAssetType: dco_decode_opt_String(arr[65]),
+      mentionRead: dco_decode_opt_box_autoadd_bool(arr[66]),
+      pinned: dco_decode_bool(arr[67]),
+      expireIn: dco_decode_opt_box_autoadd_i_64(arr[68]),
+    );
   }
 
   @protected
@@ -1130,6 +2623,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_bool(raw);
+  }
+
+  @protected
+  int? dco_decode_opt_box_autoadd_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_i_32(raw);
+  }
+
+  @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_i_64(raw);
+  }
+
+  @protected
+  UserProfileItem? dco_decode_opt_box_autoadd_user_profile_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_user_profile_item(raw);
+  }
+
+  @protected
   BigInt dco_decode_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeU64(raw);
@@ -1145,6 +2662,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void dco_decode_unit(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return;
+  }
+
+  @protected
+  UserProfileItem dco_decode_user_profile_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return UserProfileItem(
+      userId: dco_decode_String(arr[0]),
+      identityNumber: dco_decode_String(arr[1]),
+      fullName: dco_decode_String(arr[2]),
+      avatarUrl: dco_decode_String(arr[3]),
+      biography: dco_decode_String(arr[4]),
+      isVerified: dco_decode_bool(arr[5]),
+      isBot: dco_decode_bool(arr[6]),
+      relationship: dco_decode_String(arr[7]),
+    );
   }
 
   @protected
@@ -1290,11 +2825,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_fullName = sse_decode_String(deserializer);
     var var_avatarUrl = sse_decode_String(deserializer);
     var var_identityNumber = sse_decode_String(deserializer);
+    var var_biography = sse_decode_String(deserializer);
+    var var_phone = sse_decode_String(deserializer);
+    var var_createdAt = sse_decode_String(deserializer);
     return AccountProfile(
       userId: var_userId,
       fullName: var_fullName,
       avatarUrl: var_avatarUrl,
       identityNumber: var_identityNumber,
+      biography: var_biography,
+      phone: var_phone,
+      createdAt: var_createdAt,
     );
   }
 
@@ -1313,6 +2854,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return (sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
       deserializer,
     ));
+  }
+
+  @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_bool(deserializer));
+  }
+
+  @protected
+  int sse_decode_box_autoadd_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_i_32(deserializer));
+  }
+
+  @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_i_64(deserializer));
+  }
+
+  @protected
+  UserProfileItem sse_decode_box_autoadd_user_profile_item(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_user_profile_item(deserializer));
   }
 
   @protected
@@ -1335,6 +2902,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_category = sse_decode_String(deserializer);
     var var_draft = sse_decode_String(deserializer);
     var var_status = sse_decode_i_32(deserializer);
+    var var_lastReadMessageId = sse_decode_opt_String(deserializer);
     var var_lastMessage = sse_decode_String(deserializer);
     var var_lastMessageCategory = sse_decode_opt_String(deserializer);
     var var_lastMessageStatus = sse_decode_opt_String(deserializer);
@@ -1350,6 +2918,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_relationship = sse_decode_String(deserializer);
     var var_identityNumber = sse_decode_String(deserializer);
     var var_circleIds = sse_decode_list_String(deserializer);
+    var var_participantCount = sse_decode_i_64(deserializer);
     var var_groupAvatars = sse_decode_list_group_avatar(deserializer);
     return ConversationListItem(
       conversationId: var_conversationId,
@@ -1359,6 +2928,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       category: var_category,
       draft: var_draft,
       status: var_status,
+      lastReadMessageId: var_lastReadMessageId,
       lastMessage: var_lastMessage,
       lastMessageCategory: var_lastMessageCategory,
       lastMessageStatus: var_lastMessageStatus,
@@ -1374,6 +2944,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       relationship: var_relationship,
       identityNumber: var_identityNumber,
       circleIds: var_circleIds,
+      participantCount: var_participantCount,
       groupAvatars: var_groupAvatars,
     );
   }
@@ -1401,6 +2972,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getPlatformInt64();
+  }
+
+  @protected
+  ImageMessageItem sse_decode_image_message_item(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_messageId = sse_decode_String(deserializer);
+    var var_createdAtMicros = sse_decode_i_64(deserializer);
+    var var_mediaUrl = sse_decode_String(deserializer);
+    var var_mediaName = sse_decode_opt_String(deserializer);
+    var var_canForward = sse_decode_bool(deserializer);
+    return ImageMessageItem(
+      messageId: var_messageId,
+      createdAtMicros: var_createdAtMicros,
+      mediaUrl: var_mediaUrl,
+      mediaName: var_mediaName,
+      canForward: var_canForward,
+    );
   }
 
   @protected
@@ -1454,10 +3042,197 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ImageMessageItem> sse_decode_list_image_message_item(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ImageMessageItem>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_image_message_item(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<MessageListItem> sse_decode_list_message_list_item(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <MessageListItem>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_message_list_item(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  List<UserProfileItem> sse_decode_list_user_profile_item(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <UserProfileItem>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_user_profile_item(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  MessageListItem sse_decode_message_list_item(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_messageId = sse_decode_String(deserializer);
+    var var_conversationId = sse_decode_String(deserializer);
+    var var_senderId = sse_decode_String(deserializer);
+    var var_senderName = sse_decode_String(deserializer);
+    var var_senderIdentityNumber = sse_decode_opt_String(deserializer);
+    var var_senderAvatarUrl = sse_decode_String(deserializer);
+    var var_senderIsVerified = sse_decode_bool(deserializer);
+    var var_senderRelationship = sse_decode_String(deserializer);
+    var var_senderAppId = sse_decode_opt_String(deserializer);
+    var var_senderIsScam = sse_decode_bool(deserializer);
+    var var_senderIsBot = sse_decode_bool(deserializer);
+    var var_category = sse_decode_String(deserializer);
+    var var_content = sse_decode_String(deserializer);
+    var var_status = sse_decode_String(deserializer);
+    var var_createdAtMicros = sse_decode_i_64(deserializer);
+    var var_mediaUrl = sse_decode_opt_String(deserializer);
+    var var_mediaMimeType = sse_decode_opt_String(deserializer);
+    var var_mediaSize = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_mediaDuration = sse_decode_String(deserializer);
+    var var_mediaWidth = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_mediaHeight = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_thumbImage = sse_decode_opt_String(deserializer);
+    var var_mediaStatus = sse_decode_String(deserializer);
+    var var_quoteMessageId = sse_decode_opt_String(deserializer);
+    var var_quoteContent = sse_decode_opt_String(deserializer);
+    var var_caption = sse_decode_opt_String(deserializer);
+    var var_action = sse_decode_opt_String(deserializer);
+    var var_participantId = sse_decode_opt_String(deserializer);
+    var var_participantFullName = sse_decode_opt_String(deserializer);
+    var var_snapshotId = sse_decode_opt_String(deserializer);
+    var var_snapshotType = sse_decode_opt_String(deserializer);
+    var var_snapshotAmount = sse_decode_opt_String(deserializer);
+    var var_snapshotMemo = sse_decode_opt_String(deserializer);
+    var var_snapshotAssetId = sse_decode_opt_String(deserializer);
+    var var_snapshotAssetSymbol = sse_decode_opt_String(deserializer);
+    var var_snapshotAssetIconUrl = sse_decode_opt_String(deserializer);
+    var var_snapshotChainIconUrl = sse_decode_opt_String(deserializer);
+    var var_snapshotOpponentId = sse_decode_opt_String(deserializer);
+    var var_snapshotTransactionHash = sse_decode_opt_String(deserializer);
+    var var_snapshotCreatedAt = sse_decode_opt_String(deserializer);
+    var var_inscriptionHash = sse_decode_opt_String(deserializer);
+    var var_inscriptionCollectionHash = sse_decode_opt_String(deserializer);
+    var var_inscriptionSequence = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_inscriptionContentType = sse_decode_opt_String(deserializer);
+    var var_inscriptionContentUrl = sse_decode_opt_String(deserializer);
+    var var_inscriptionName = sse_decode_opt_String(deserializer);
+    var var_inscriptionIconUrl = sse_decode_opt_String(deserializer);
+    var var_hyperlink = sse_decode_opt_String(deserializer);
+    var var_mediaName = sse_decode_opt_String(deserializer);
+    var var_albumId = sse_decode_opt_String(deserializer);
+    var var_stickerId = sse_decode_opt_String(deserializer);
+    var var_sharedUserId = sse_decode_opt_String(deserializer);
+    var var_mediaWaveform = sse_decode_opt_String(deserializer);
+    var var_thumbUrl = sse_decode_opt_String(deserializer);
+    var var_conversationOwnerId = sse_decode_opt_String(deserializer);
+    var var_conversationCategory = sse_decode_opt_String(deserializer);
+    var var_sharedUserFullName = sse_decode_opt_String(deserializer);
+    var var_sharedUserIdentityNumber = sse_decode_opt_String(deserializer);
+    var var_sharedUserAvatarUrl = sse_decode_opt_String(deserializer);
+    var var_sharedUserIsVerified = sse_decode_bool(deserializer);
+    var var_sharedUserAppId = sse_decode_opt_String(deserializer);
+    var var_stickerAssetUrl = sse_decode_opt_String(deserializer);
+    var var_stickerAssetWidth = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_stickerAssetHeight = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_stickerAssetName = sse_decode_opt_String(deserializer);
+    var var_stickerAssetType = sse_decode_opt_String(deserializer);
+    var var_mentionRead = sse_decode_opt_box_autoadd_bool(deserializer);
+    var var_pinned = sse_decode_bool(deserializer);
+    var var_expireIn = sse_decode_opt_box_autoadd_i_64(deserializer);
+    return MessageListItem(
+      messageId: var_messageId,
+      conversationId: var_conversationId,
+      senderId: var_senderId,
+      senderName: var_senderName,
+      senderIdentityNumber: var_senderIdentityNumber,
+      senderAvatarUrl: var_senderAvatarUrl,
+      senderIsVerified: var_senderIsVerified,
+      senderRelationship: var_senderRelationship,
+      senderAppId: var_senderAppId,
+      senderIsScam: var_senderIsScam,
+      senderIsBot: var_senderIsBot,
+      category: var_category,
+      content: var_content,
+      status: var_status,
+      createdAtMicros: var_createdAtMicros,
+      mediaUrl: var_mediaUrl,
+      mediaMimeType: var_mediaMimeType,
+      mediaSize: var_mediaSize,
+      mediaDuration: var_mediaDuration,
+      mediaWidth: var_mediaWidth,
+      mediaHeight: var_mediaHeight,
+      thumbImage: var_thumbImage,
+      mediaStatus: var_mediaStatus,
+      quoteMessageId: var_quoteMessageId,
+      quoteContent: var_quoteContent,
+      caption: var_caption,
+      action: var_action,
+      participantId: var_participantId,
+      participantFullName: var_participantFullName,
+      snapshotId: var_snapshotId,
+      snapshotType: var_snapshotType,
+      snapshotAmount: var_snapshotAmount,
+      snapshotMemo: var_snapshotMemo,
+      snapshotAssetId: var_snapshotAssetId,
+      snapshotAssetSymbol: var_snapshotAssetSymbol,
+      snapshotAssetIconUrl: var_snapshotAssetIconUrl,
+      snapshotChainIconUrl: var_snapshotChainIconUrl,
+      snapshotOpponentId: var_snapshotOpponentId,
+      snapshotTransactionHash: var_snapshotTransactionHash,
+      snapshotCreatedAt: var_snapshotCreatedAt,
+      inscriptionHash: var_inscriptionHash,
+      inscriptionCollectionHash: var_inscriptionCollectionHash,
+      inscriptionSequence: var_inscriptionSequence,
+      inscriptionContentType: var_inscriptionContentType,
+      inscriptionContentUrl: var_inscriptionContentUrl,
+      inscriptionName: var_inscriptionName,
+      inscriptionIconUrl: var_inscriptionIconUrl,
+      hyperlink: var_hyperlink,
+      mediaName: var_mediaName,
+      albumId: var_albumId,
+      stickerId: var_stickerId,
+      sharedUserId: var_sharedUserId,
+      mediaWaveform: var_mediaWaveform,
+      thumbUrl: var_thumbUrl,
+      conversationOwnerId: var_conversationOwnerId,
+      conversationCategory: var_conversationCategory,
+      sharedUserFullName: var_sharedUserFullName,
+      sharedUserIdentityNumber: var_sharedUserIdentityNumber,
+      sharedUserAvatarUrl: var_sharedUserAvatarUrl,
+      sharedUserIsVerified: var_sharedUserIsVerified,
+      sharedUserAppId: var_sharedUserAppId,
+      stickerAssetUrl: var_stickerAssetUrl,
+      stickerAssetWidth: var_stickerAssetWidth,
+      stickerAssetHeight: var_stickerAssetHeight,
+      stickerAssetName: var_stickerAssetName,
+      stickerAssetType: var_stickerAssetType,
+      mentionRead: var_mentionRead,
+      pinned: var_pinned,
+      expireIn: var_expireIn,
+    );
   }
 
   @protected
@@ -1488,6 +3263,52 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_bool(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_i_32(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_i_64(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  UserProfileItem? sse_decode_opt_box_autoadd_user_profile_item(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_user_profile_item(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   BigInt sse_decode_u_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getBigUint64();
@@ -1502,6 +3323,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_decode_unit(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  UserProfileItem sse_decode_user_profile_item(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_userId = sse_decode_String(deserializer);
+    var var_identityNumber = sse_decode_String(deserializer);
+    var var_fullName = sse_decode_String(deserializer);
+    var var_avatarUrl = sse_decode_String(deserializer);
+    var var_biography = sse_decode_String(deserializer);
+    var var_isVerified = sse_decode_bool(deserializer);
+    var var_isBot = sse_decode_bool(deserializer);
+    var var_relationship = sse_decode_String(deserializer);
+    return UserProfileItem(
+      userId: var_userId,
+      identityNumber: var_identityNumber,
+      fullName: var_fullName,
+      avatarUrl: var_avatarUrl,
+      biography: var_biography,
+      isVerified: var_isVerified,
+      isBot: var_isBot,
+      relationship: var_relationship,
+    );
   }
 
   @protected
@@ -1669,6 +3513,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.fullName, serializer);
     sse_encode_String(self.avatarUrl, serializer);
     sse_encode_String(self.identityNumber, serializer);
+    sse_encode_String(self.biography, serializer);
+    sse_encode_String(self.phone, serializer);
+    sse_encode_String(self.createdAt, serializer);
   }
 
   @protected
@@ -1691,6 +3538,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_i_64(
+    PlatformInt64 self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_user_profile_item(
+    UserProfileItem self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_user_profile_item(self, serializer);
+  }
+
+  @protected
   void sse_encode_circle_item(CircleItem self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.circleId, serializer);
@@ -1710,6 +3587,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.category, serializer);
     sse_encode_String(self.draft, serializer);
     sse_encode_i_32(self.status, serializer);
+    sse_encode_opt_String(self.lastReadMessageId, serializer);
     sse_encode_String(self.lastMessage, serializer);
     sse_encode_opt_String(self.lastMessageCategory, serializer);
     sse_encode_opt_String(self.lastMessageStatus, serializer);
@@ -1725,6 +3603,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.relationship, serializer);
     sse_encode_String(self.identityNumber, serializer);
     sse_encode_list_String(self.circleIds, serializer);
+    sse_encode_i_64(self.participantCount, serializer);
     sse_encode_list_group_avatar(self.groupAvatars, serializer);
   }
 
@@ -1746,6 +3625,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putPlatformInt64(self);
+  }
+
+  @protected
+  void sse_encode_image_message_item(
+    ImageMessageItem self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.messageId, serializer);
+    sse_encode_i_64(self.createdAtMicros, serializer);
+    sse_encode_String(self.mediaUrl, serializer);
+    sse_encode_opt_String(self.mediaName, serializer);
+    sse_encode_bool(self.canForward, serializer);
   }
 
   @protected
@@ -1794,6 +3686,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_image_message_item(
+    List<ImageMessageItem> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_image_message_item(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_message_list_item(
+    List<MessageListItem> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_message_list_item(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
     SseSerializer serializer,
@@ -1801,6 +3717,95 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putUint8List(self);
+  }
+
+  @protected
+  void sse_encode_list_user_profile_item(
+    List<UserProfileItem> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_user_profile_item(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_message_list_item(
+    MessageListItem self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.messageId, serializer);
+    sse_encode_String(self.conversationId, serializer);
+    sse_encode_String(self.senderId, serializer);
+    sse_encode_String(self.senderName, serializer);
+    sse_encode_opt_String(self.senderIdentityNumber, serializer);
+    sse_encode_String(self.senderAvatarUrl, serializer);
+    sse_encode_bool(self.senderIsVerified, serializer);
+    sse_encode_String(self.senderRelationship, serializer);
+    sse_encode_opt_String(self.senderAppId, serializer);
+    sse_encode_bool(self.senderIsScam, serializer);
+    sse_encode_bool(self.senderIsBot, serializer);
+    sse_encode_String(self.category, serializer);
+    sse_encode_String(self.content, serializer);
+    sse_encode_String(self.status, serializer);
+    sse_encode_i_64(self.createdAtMicros, serializer);
+    sse_encode_opt_String(self.mediaUrl, serializer);
+    sse_encode_opt_String(self.mediaMimeType, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.mediaSize, serializer);
+    sse_encode_String(self.mediaDuration, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.mediaWidth, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.mediaHeight, serializer);
+    sse_encode_opt_String(self.thumbImage, serializer);
+    sse_encode_String(self.mediaStatus, serializer);
+    sse_encode_opt_String(self.quoteMessageId, serializer);
+    sse_encode_opt_String(self.quoteContent, serializer);
+    sse_encode_opt_String(self.caption, serializer);
+    sse_encode_opt_String(self.action, serializer);
+    sse_encode_opt_String(self.participantId, serializer);
+    sse_encode_opt_String(self.participantFullName, serializer);
+    sse_encode_opt_String(self.snapshotId, serializer);
+    sse_encode_opt_String(self.snapshotType, serializer);
+    sse_encode_opt_String(self.snapshotAmount, serializer);
+    sse_encode_opt_String(self.snapshotMemo, serializer);
+    sse_encode_opt_String(self.snapshotAssetId, serializer);
+    sse_encode_opt_String(self.snapshotAssetSymbol, serializer);
+    sse_encode_opt_String(self.snapshotAssetIconUrl, serializer);
+    sse_encode_opt_String(self.snapshotChainIconUrl, serializer);
+    sse_encode_opt_String(self.snapshotOpponentId, serializer);
+    sse_encode_opt_String(self.snapshotTransactionHash, serializer);
+    sse_encode_opt_String(self.snapshotCreatedAt, serializer);
+    sse_encode_opt_String(self.inscriptionHash, serializer);
+    sse_encode_opt_String(self.inscriptionCollectionHash, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.inscriptionSequence, serializer);
+    sse_encode_opt_String(self.inscriptionContentType, serializer);
+    sse_encode_opt_String(self.inscriptionContentUrl, serializer);
+    sse_encode_opt_String(self.inscriptionName, serializer);
+    sse_encode_opt_String(self.inscriptionIconUrl, serializer);
+    sse_encode_opt_String(self.hyperlink, serializer);
+    sse_encode_opt_String(self.mediaName, serializer);
+    sse_encode_opt_String(self.albumId, serializer);
+    sse_encode_opt_String(self.stickerId, serializer);
+    sse_encode_opt_String(self.sharedUserId, serializer);
+    sse_encode_opt_String(self.mediaWaveform, serializer);
+    sse_encode_opt_String(self.thumbUrl, serializer);
+    sse_encode_opt_String(self.conversationOwnerId, serializer);
+    sse_encode_opt_String(self.conversationCategory, serializer);
+    sse_encode_opt_String(self.sharedUserFullName, serializer);
+    sse_encode_opt_String(self.sharedUserIdentityNumber, serializer);
+    sse_encode_opt_String(self.sharedUserAvatarUrl, serializer);
+    sse_encode_bool(self.sharedUserIsVerified, serializer);
+    sse_encode_opt_String(self.sharedUserAppId, serializer);
+    sse_encode_opt_String(self.stickerAssetUrl, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.stickerAssetWidth, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.stickerAssetHeight, serializer);
+    sse_encode_opt_String(self.stickerAssetName, serializer);
+    sse_encode_opt_String(self.stickerAssetType, serializer);
+    sse_encode_opt_box_autoadd_bool(self.mentionRead, serializer);
+    sse_encode_bool(self.pinned, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.expireIn, serializer);
   }
 
   @protected
@@ -1831,6 +3836,52 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_bool(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_i_32(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_64(
+    PlatformInt64? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_i_64(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_user_profile_item(
+    UserProfileItem? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_user_profile_item(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_u_64(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
@@ -1845,6 +3896,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_unit(void self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+  }
+
+  @protected
+  void sse_encode_user_profile_item(
+    UserProfileItem self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.userId, serializer);
+    sse_encode_String(self.identityNumber, serializer);
+    sse_encode_String(self.fullName, serializer);
+    sse_encode_String(self.avatarUrl, serializer);
+    sse_encode_String(self.biography, serializer);
+    sse_encode_bool(self.isVerified, serializer);
+    sse_encode_bool(self.isBot, serializer);
+    sse_encode_String(self.relationship, serializer);
   }
 
   @protected
@@ -1876,8 +3943,55 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
   String accountId() =>
       RustLib.instance.api.crateApiDesktopAccountHandleAccountId(that: this);
 
+  Future<void> addContact({required String userId, required String fullName}) =>
+      RustLib.instance.api.crateApiDesktopAccountHandleAddContact(
+        that: this,
+        userId: userId,
+        fullName: fullName,
+      );
+
+  Future<void> addSticker({required String stickerId}) => RustLib.instance.api
+      .crateApiDesktopAccountHandleAddSticker(that: this, stickerId: stickerId);
+
+  Future<void> addStickerFromFile({required String messageId}) =>
+      RustLib.instance.api.crateApiDesktopAccountHandleAddStickerFromFile(
+        that: this,
+        messageId: messageId,
+      );
+
+  Future<void> blockUser({required String userId}) => RustLib.instance.api
+      .crateApiDesktopAccountHandleBlockUser(that: this, userId: userId);
+
+  Future<String?> botHomeUri({required String appId}) => RustLib.instance.api
+      .crateApiDesktopAccountHandleBotHomeUri(that: this, appId: appId);
+
+  Future<void> cancelAttachment({required String messageId}) =>
+      RustLib.instance.api.crateApiDesktopAccountHandleCancelAttachment(
+        that: this,
+        messageId: messageId,
+      );
+
+  Future<void> cancelTranscriptAttachment({
+    required String transcriptId,
+    required String messageId,
+  }) => RustLib.instance.api
+      .crateApiDesktopAccountHandleCancelTranscriptAttachment(
+        that: this,
+        transcriptId: transcriptId,
+        messageId: messageId,
+      );
+
   Future<List<CircleItem>> circles() =>
       RustLib.instance.api.crateApiDesktopAccountHandleCircles(that: this);
+
+  Future<String> combineForwardMessages({
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleCombineForwardMessages(
+    that: this,
+    targetConversationId: targetConversationId,
+    sourceMessageIds: sourceMessageIds,
+  );
 
   Stream<BigInt> conversationChanges() => RustLib.instance.api
       .crateApiDesktopAccountHandleConversationChanges(that: this);
@@ -1912,10 +4026,41 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
     offset: offset,
   );
 
+  Future<String?> currentUserRole({required String conversationId}) =>
+      RustLib.instance.api.crateApiDesktopAccountHandleCurrentUserRole(
+        that: this,
+        conversationId: conversationId,
+      );
+
   Future<void> deleteConversation({required String conversationId}) =>
       RustLib.instance.api.crateApiDesktopAccountHandleDeleteConversation(
         that: this,
         conversationId: conversationId,
+      );
+
+  Future<void> deleteMessages({
+    required String conversationId,
+    required List<String> messageIds,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleDeleteMessages(
+    that: this,
+    conversationId: conversationId,
+    messageIds: messageIds,
+  );
+
+  Future<void> downloadAttachment({required String messageId}) =>
+      RustLib.instance.api.crateApiDesktopAccountHandleDownloadAttachment(
+        that: this,
+        messageId: messageId,
+      );
+
+  Future<void> downloadTranscriptAttachment({
+    required String transcriptId,
+    required String messageId,
+  }) => RustLib.instance.api
+      .crateApiDesktopAccountHandleDownloadTranscriptAttachment(
+        that: this,
+        transcriptId: transcriptId,
+        messageId: messageId,
       );
 
   Future<void> editCircleConversation({
@@ -1933,8 +4078,117 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
     add: add,
   );
 
+  Future<List<String>> forwardMessages({
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleForwardMessages(
+    that: this,
+    targetConversationId: targetConversationId,
+    sourceMessageIds: sourceMessageIds,
+  );
+
+  Future<List<ImageMessageItem>> imageMessagesAround({
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleImageMessagesAround(
+    that: this,
+    conversationId: conversationId,
+    targetMessageId: targetMessageId,
+    before: before,
+    after: after,
+  );
+
+  Future<void> markAudioRead({required String messageId}) =>
+      RustLib.instance.api.crateApiDesktopAccountHandleMarkAudioRead(
+        that: this,
+        messageId: messageId,
+      );
+
+  Future<void> markConversationRead({required String conversationId}) =>
+      RustLib.instance.api.crateApiDesktopAccountHandleMarkConversationRead(
+        that: this,
+        conversationId: conversationId,
+      );
+
+  Future<void> markMentionRead({
+    required String conversationId,
+    required String messageId,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleMarkMentionRead(
+    that: this,
+    conversationId: conversationId,
+    messageId: messageId,
+  );
+
+  Future<void> markTranscriptAudioRead({
+    required String transcriptId,
+    required String messageId,
+  }) =>
+      RustLib.instance.api.crateApiDesktopAccountHandleMarkTranscriptAudioRead(
+        that: this,
+        transcriptId: transcriptId,
+        messageId: messageId,
+      );
+
+  Stream<BigInt> messageChanges() => RustLib.instance.api
+      .crateApiDesktopAccountHandleMessageChanges(that: this);
+
+  Future<List<MessageListItem>> messages({
+    required String conversationId,
+    PlatformInt64? beforeCreatedAtMicros,
+    String? beforeMessageId,
+    required PlatformInt64 limit,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleMessages(
+    that: this,
+    conversationId: conversationId,
+    beforeCreatedAtMicros: beforeCreatedAtMicros,
+    beforeMessageId: beforeMessageId,
+    limit: limit,
+  );
+
+  Future<List<MessageListItem>> messagesAround({
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleMessagesAround(
+    that: this,
+    conversationId: conversationId,
+    targetMessageId: targetMessageId,
+    before: before,
+    after: after,
+  );
+
+  Future<List<MessageListItem>> pinnedMessages({
+    required String conversationId,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandlePinnedMessages(
+    that: this,
+    conversationId: conversationId,
+  );
+
   AccountProfile profile() =>
       RustLib.instance.api.crateApiDesktopAccountHandleProfile(that: this);
+
+  Future<void> recallMessages({
+    required String conversationId,
+    required List<String> messageIds,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleRecallMessages(
+    that: this,
+    conversationId: conversationId,
+    messageIds: messageIds,
+  );
+
+  Future<String> sendText({
+    required String conversationId,
+    required String content,
+    String? quoteMessageId,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleSendText(
+    that: this,
+    conversationId: conversationId,
+    content: content,
+    quoteMessageId: quoteMessageId,
+  );
 
   Future<void> setConversationMuted({
     required String conversationId,
@@ -1958,8 +4212,45 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
     pinned: pinned,
   );
 
+  Future<void> setMessagePinned({
+    required String conversationId,
+    required String messageId,
+    required bool pinned,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleSetMessagePinned(
+    that: this,
+    conversationId: conversationId,
+    messageId: messageId,
+    pinned: pinned,
+  );
+
   Future<void> shutdown() =>
       RustLib.instance.api.crateApiDesktopAccountHandleShutdown(that: this);
+
+  Future<void> signOut() =>
+      RustLib.instance.api.crateApiDesktopAccountHandleSignOut(that: this);
+
+  Future<List<MessageListItem>> transcriptMessages({
+    required String transcriptId,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleTranscriptMessages(
+    that: this,
+    transcriptId: transcriptId,
+  );
+
+  Future<UserProfileItem?> userProfile({
+    String? userId,
+    String? identityNumber,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleUserProfile(
+    that: this,
+    userId: userId,
+    identityNumber: identityNumber,
+  );
+
+  Future<List<UserProfileItem>> usersByIdentityNumbers({
+    required List<String> identityNumbers,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleUsersByIdentityNumbers(
+    that: this,
+    identityNumbers: identityNumbers,
+  );
 }
 
 @sealed

@@ -7,6 +7,7 @@ class ConversationListEntry {
     required this.category,
     required this.draft,
     required this.status,
+    this.lastReadMessageId,
     required this.content,
     required this.contentType,
     required this.messageStatus,
@@ -23,6 +24,7 @@ class ConversationListEntry {
     required this.identityNumber,
     required this.circleIds,
     required this.groupAvatars,
+    this.participantCount = 0,
   });
 
   final String id;
@@ -32,6 +34,7 @@ class ConversationListEntry {
   final String category;
   final String draft;
   final int status;
+  final String? lastReadMessageId;
   final String content;
   final String? contentType;
   final String? messageStatus;
@@ -48,6 +51,7 @@ class ConversationListEntry {
   final String identityNumber;
   final List<String> circleIds;
   final List<ConversationAvatarEntry> groupAvatars;
+  final int participantCount;
 
   bool get isGroup => category == 'GROUP';
 }

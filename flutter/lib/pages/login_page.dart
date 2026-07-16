@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mixin_desktop_ui/controllers/login_controller.dart';
 import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/qr_login_card.dart';
 import 'package:provider/provider.dart';
 
@@ -47,26 +48,23 @@ class _LoginBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<LoginController>();
     return Scaffold(
-      backgroundColor: const Color(0xFFE5E5E5),
-      body: LayoutBuilder(
-        builder: (context, constraints) => Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: 520,
-                minHeight: constraints.maxHeight > 450 ? 418 : 0,
-              ),
-              child: QrLoginCard(
-                authUrl: controller.authUrl,
-                loading: controller.status == LoginStatus.loading,
-                provisioning: controller.status == LoginStatus.provisioning,
-                error: controller.status == LoginStatus.failed
-                    ? controller.error ?? 'QR code expired. Please try again.'
-                    : null,
-                onRetry: controller.refresh,
-              ),
-            ),
+      backgroundColor: context.dynamicColor(
+        const Color(0xFFE5E5E5),
+        darkColor: const Color.fromRGBO(35, 39, 43, 1),
+      ),
+      resizeToAvoidBottomInset: false,
+      body: Center(
+        child: SizedBox(
+          width: 520,
+          height: 418,
+          child: QrLoginCard(
+            authUrl: controller.authUrl,
+            loading: controller.status == LoginStatus.loading,
+            provisioning: controller.status == LoginStatus.provisioning,
+            error: controller.status == LoginStatus.failed
+                ? controller.error ?? 'QR code expired. Please try again.'
+                : null,
+            onRetry: controller.refresh,
           ),
         ),
       ),

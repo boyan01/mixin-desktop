@@ -17,6 +17,19 @@ pub struct ParticipantSession {
 }
 
 impl ParticipantSessionDao {
+    pub async fn clear_for_sign_out(&self, session_id: &str) -> Result<(), Error> {
+        let mut transaction = self.0.begin().await?;
+        sqlx::query("DELETE FROM participant_session WHERE session_id = ?")
+            .bind(session_id)
+            .execute(&mut *transaction)
+            .await?;
+        sqlx::query("UPDATE participant_session SET sent_to_server = NULL")
+            .execute(&mut *transaction)
+            .await?;
+        transaction.commit().await?;
+        Ok(())
+    }
+
     pub async fn replace_all(
         &self,
         conversation_id: &str,
@@ -101,7 +114,8 @@ impl ParticipantSessionDao {
         sent_to_server: i32,
     ) -> Result<(), Error> {
         let _ = sqlx::query(
-            "INSERT OR REPLACE INTO participant_session (conversation_id, user_id, session_id, sent_to_server)",
+            "INSERT OR REPLACE INTO participant_session \
+             (conversation_id, user_id, session_id, sent_to_server) VALUES (?, ?, ?, ?)",
         )
         .bind(cid)
         .bind(uid)
@@ -221,6 +235,28 @@ mod tests {
             created_at: Some(Utc::now()),
             public_key: public_key.map(str::to_string),
         }
+    }
+
+    #[tokio::test]
+    async fn sign_out_removes_current_session_and_resets_sender_key_state() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        let dao = database.participant_session_dao;
+        dao.insert_session("conversation", "me", "current", 1)
+            .await
+            .unwrap();
+        dao.insert_session("conversation", "other", "other-session", 1)
+            .await
+            .unwrap();
+
+        dao.clear_for_sign_out("current").await.unwrap();
+
+        let sessions = dao.get_participant_sessions("conversation").await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].session_id, "other-session");
+        assert_eq!(sessions[0].sent_to_server, None);
     }
 
     #[tokio::test]

@@ -48,4 +48,23 @@ impl StickerDao {
         .await?;
         Ok(())
     }
+
+    pub async fn insert_relationship(&self, album_id: &str, sticker_id: &str) -> Result<(), Error> {
+        sqlx::query(
+            "INSERT OR REPLACE INTO sticker_relationships (album_id, sticker_id) VALUES (?, ?)",
+        )
+        .bind(album_id)
+        .bind(sticker_id)
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn find_personal_album_id(&self) -> Result<Option<String>, Error> {
+        Ok(sqlx::query_scalar(
+            "SELECT album_id FROM sticker_albums WHERE category = 'PERSONAL' LIMIT 1",
+        )
+        .fetch_optional(&self.0)
+        .await?)
+    }
 }

@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use sdk::blaze_message::MessageStatus;
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -85,9 +86,63 @@ pub struct TranscriptMessage {
     pub caption: Option<String>,
 }
 
+#[derive(Clone, Debug, sqlx::FromRow)]
+pub struct TranscriptMessageListItem {
+    pub message_id: String,
+    pub conversation_id: String,
+    pub user_id: String,
+    pub sender_name: String,
+    pub sender_identity_number: String,
+    pub sender_avatar_url: String,
+    pub sender_is_verified: bool,
+    pub sender_relationship: String,
+    pub sender_app_id: Option<String>,
+    pub sender_is_scam: bool,
+    pub sender_is_bot: bool,
+    pub category: String,
+    pub content: Option<String>,
+    pub status: MessageStatus,
+    pub created_at: DateTime<Utc>,
+    pub media_url: Option<String>,
+    pub media_mime_type: Option<String>,
+    pub media_size: Option<i64>,
+    pub media_duration: Option<String>,
+    pub media_width: Option<i32>,
+    pub media_height: Option<i32>,
+    pub thumb_image: Option<String>,
+    pub media_status: Option<MediaStatus>,
+    pub quote_message_id: Option<String>,
+    pub quote_content: Option<String>,
+    pub caption: Option<String>,
+    pub media_name: Option<String>,
+    pub sticker_id: Option<String>,
+    pub shared_user_id: Option<String>,
+    pub media_waveform: Option<String>,
+    pub thumb_url: Option<String>,
+    pub shared_user_full_name: Option<String>,
+    pub shared_user_identity_number: Option<String>,
+    pub shared_user_avatar_url: Option<String>,
+    pub shared_user_is_verified: bool,
+    pub shared_user_app_id: Option<String>,
+    pub sticker_asset_url: Option<String>,
+    pub sticker_asset_width: Option<i32>,
+    pub sticker_asset_height: Option<i32>,
+    pub sticker_asset_name: Option<String>,
+    pub sticker_asset_type: Option<String>,
+}
+
 impl TranscriptMessageDao {
     pub async fn insert_all(&self, transcripts: &[TranscriptMessage]) -> Result<(), Error> {
         let mut transaction = self.0.begin().await?;
+        Self::insert_all_with(&mut transaction, transcripts).await?;
+        transaction.commit().await?;
+        Ok(())
+    }
+
+    pub(crate) async fn insert_all_with(
+        transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        transcripts: &[TranscriptMessage],
+    ) -> Result<(), Error> {
         for transcript in transcripts {
             sqlx::query(
                 r#"INSERT OR REPLACE INTO transcript_messages
@@ -130,10 +185,9 @@ impl TranscriptMessageDao {
             .bind(&transcript.quote_id)
             .bind(&transcript.quote_content)
             .bind(&transcript.caption)
-            .execute(&mut *transaction)
+            .execute(&mut **transaction)
             .await?;
         }
-        transaction.commit().await?;
         Ok(())
     }
 
@@ -180,6 +234,33 @@ impl TranscriptMessageDao {
         Ok(())
     }
 
+    pub async fn complete_attachment_download_if_pending(
+        &self,
+        transcript_id: &str,
+        message_id: &str,
+        media_url: &str,
+        media_size: i64,
+        media_created_at: Option<DateTime<Utc>>,
+        content: &str,
+    ) -> Result<bool, Error> {
+        let result = sqlx::query(
+            "UPDATE transcript_messages SET media_url = ?, media_size = ?, media_status = ?, \
+             media_created_at = ?, content = ? WHERE transcript_id = ? AND message_id = ? \
+             AND media_status = ?",
+        )
+        .bind(media_url)
+        .bind(media_size)
+        .bind(MediaStatus::Done)
+        .bind(media_created_at.map(|created_at| created_at.timestamp_millis()))
+        .bind(content)
+        .bind(transcript_id)
+        .bind(message_id)
+        .bind(MediaStatus::Pending)
+        .execute(&self.0)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
     pub async fn find_by_transcript_id(
         &self,
         transcript_id: &str,
@@ -192,6 +273,85 @@ impl TranscriptMessageDao {
             sqlx::query_as::<_, TranscriptMessage>(sqlx::AssertSqlSafe(query))
                 .bind(transcript_id)
                 .fetch_all(&self.0)
+                .await?,
+        )
+    }
+
+    pub async fn list_items(
+        &self,
+        transcript_id: &str,
+    ) -> Result<Vec<TranscriptMessageListItem>, Error> {
+        Ok(sqlx::query_as::<_, TranscriptMessageListItem>(
+            r#"SELECT transcript.message_id AS message_id,
+                       parent.conversation_id AS conversation_id,
+                       COALESCE(transcript.user_id, '') AS user_id,
+                       COALESCE(sender.full_name, transcript.user_full_name, '') AS sender_name,
+                       COALESCE(sender.identity_number, '') AS sender_identity_number,
+                       COALESCE(sender.avatar_url, '') AS sender_avatar_url,
+                       COALESCE(sender.is_verified, FALSE) AS sender_is_verified,
+                       COALESCE(sender.relationship, '') AS sender_relationship,
+                       sender.app_id AS sender_app_id,
+                       COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
+                       (sender.app_id IS NOT NULL AND sender.app_id != '') AS sender_is_bot,
+                       transcript.category AS category,
+                       transcript.content AS content,
+                       parent.status AS status,
+                       CASE WHEN typeof(transcript.created_at) = 'integer'
+                            THEN strftime('%Y-%m-%dT%H:%M:%fZ', transcript.created_at / 1000.0, 'unixepoch')
+                            ELSE transcript.created_at END AS created_at,
+                       transcript.media_url AS media_url,
+                       transcript.media_mime_type AS media_mime_type,
+                       transcript.media_size AS media_size,
+                       transcript.media_duration AS media_duration,
+                       transcript.media_width AS media_width,
+                       transcript.media_height AS media_height,
+                       transcript.thumb_image AS thumb_image,
+                       transcript.media_status AS media_status,
+                       transcript.quote_id AS quote_message_id,
+                       transcript.quote_content AS quote_content,
+                       transcript.caption AS caption,
+                       transcript.media_name AS media_name,
+                       transcript.sticker_id AS sticker_id,
+                       transcript.shared_user_id AS shared_user_id,
+                       transcript.media_waveform AS media_waveform,
+                       transcript.thumb_url AS thumb_url,
+                       shared_user.full_name AS shared_user_full_name,
+                       shared_user.identity_number AS shared_user_identity_number,
+                       shared_user.avatar_url AS shared_user_avatar_url,
+                       COALESCE(shared_user.is_verified, FALSE) AS shared_user_is_verified,
+                       shared_user.app_id AS shared_user_app_id,
+                       sticker.asset_url AS sticker_asset_url,
+                       sticker.asset_width AS sticker_asset_width,
+                       sticker.asset_height AS sticker_asset_height,
+                       sticker.name AS sticker_asset_name,
+                       sticker.asset_type AS sticker_asset_type
+                FROM transcript_messages AS transcript
+                INNER JOIN messages AS parent ON parent.message_id = transcript.transcript_id
+                LEFT JOIN users AS sender ON sender.user_id = transcript.user_id
+                LEFT JOIN users AS shared_user ON shared_user.user_id = transcript.shared_user_id
+                LEFT JOIN stickers AS sticker ON sticker.sticker_id = transcript.sticker_id
+                WHERE transcript.transcript_id = ?
+                ORDER BY transcript.created_at, transcript.rowid"#,
+        )
+        .bind(transcript_id)
+        .fetch_all(&self.0)
+        .await?)
+    }
+
+    pub async fn find(
+        &self,
+        transcript_id: &str,
+        message_id: &str,
+    ) -> Result<Option<TranscriptMessage>, Error> {
+        let query = format!(
+            "SELECT {TRANSCRIPT_SELECT_COLUMNS} FROM transcript_messages \
+             WHERE transcript_id = ? AND message_id = ? LIMIT 1"
+        );
+        Ok(
+            sqlx::query_as::<_, TranscriptMessage>(sqlx::AssertSqlSafe(query))
+                .bind(transcript_id)
+                .bind(message_id)
+                .fetch_optional(&self.0)
                 .await?,
         )
     }

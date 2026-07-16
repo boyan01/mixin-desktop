@@ -3,15 +3,17 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
-use aes::cipher::{Block, BlockCipherDecrypt, KeyInit};
+use aes::cipher::{Block, BlockCipherDecrypt, BlockCipherEncrypt, KeyInit};
 use aes::Aes256;
 use anyhow::{anyhow, bail, Context, Result};
 use futures::StreamExt;
 use hmac::{Hmac, KeyInit as HmacKeyInit, Mac};
-use reqwest::header::CONTENT_TYPE;
+use reqwest::header::{CONNECTION, CONTENT_LENGTH, CONTENT_TYPE};
 use reqwest::Client as HttpClient;
 use sha2::{Digest, Sha256};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio_util::io::ReaderStream;
+use tokio_util::sync::CancellationToken;
 
 use sdk::message_category::MessageCategory;
 use sdk::Client as MixinClient;
@@ -40,6 +42,14 @@ pub struct AttachmentDownloadResult {
     pub attachment: AttachmentExtra,
 }
 
+#[derive(Debug)]
+pub struct AttachmentUploadResult {
+    pub attachment_id: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub key: Option<Vec<u8>>,
+    pub digest: Option<Vec<u8>>,
+}
+
 impl AttachmentService {
     pub fn new(
         mixin_client: Arc<MixinClient>,
@@ -58,7 +68,17 @@ impl AttachmentService {
         message: &Message,
         extra: &AttachmentExtra,
     ) -> Result<AttachmentDownloadResult> {
-        self.download_to(message, extra, false).await
+        self.download_to(message, extra, false, None).await
+    }
+
+    pub async fn download_cancellable(
+        &self,
+        message: &Message,
+        extra: &AttachmentExtra,
+        cancellation: &CancellationToken,
+    ) -> Result<AttachmentDownloadResult> {
+        self.download_to(message, extra, false, Some(cancellation))
+            .await
     }
 
     pub async fn download_transcript(
@@ -66,7 +86,152 @@ impl AttachmentService {
         message: &Message,
         extra: &AttachmentExtra,
     ) -> Result<AttachmentDownloadResult> {
-        self.download_to(message, extra, true).await
+        self.download_to(message, extra, true, None).await
+    }
+
+    pub async fn download_transcript_cancellable(
+        &self,
+        message: &Message,
+        extra: &AttachmentExtra,
+        cancellation: &CancellationToken,
+    ) -> Result<AttachmentDownloadResult> {
+        self.download_to(message, extra, true, Some(cancellation))
+            .await
+    }
+
+    pub async fn copy_for_forward(
+        &self,
+        source: &Path,
+        target_message: &Message,
+    ) -> Result<(PathBuf, i64)> {
+        let account_dir = tokio::fs::canonicalize(&self.account_data_dir)
+            .await
+            .context("canonicalize account data directory")?;
+        let source = tokio::fs::canonicalize(source)
+            .await
+            .with_context(|| format!("resolve attachment source {}", source.display()))?;
+        if !source.starts_with(&account_dir) {
+            bail!("attachment source is outside the account data directory");
+        }
+        if !tokio::fs::metadata(&source).await?.is_file() {
+            bail!("attachment source is not a file");
+        }
+        validate_path_component("message id", &target_message.message_id)?;
+        validate_path_component("conversation id", &target_message.conversation_id)?;
+        let target = attachment_path(&self.account_data_dir, target_message)?;
+        let directory = target
+            .parent()
+            .ok_or_else(|| anyhow!("attachment target has no parent directory"))?;
+        ensure_safe_target_directory(&account_dir, directory).await?;
+        let copy_temp = temp_path(&target, "copy")?;
+        let operation = async {
+            let size = tokio::fs::copy(&source, &copy_temp).await?;
+            let size = i64::try_from(size).context("attachment is too large")?;
+            tokio::fs::rename(&copy_temp, &target).await?;
+            Ok::<_, anyhow::Error>(size)
+        }
+        .await;
+        if operation.is_err() {
+            let _ = tokio::fs::remove_file(&copy_temp).await;
+        }
+        Ok((target, operation?))
+    }
+
+    pub async fn read_account_file(&self, path: &Path, max_size: u64) -> Result<Vec<u8>> {
+        let account_dir = tokio::fs::canonicalize(&self.account_data_dir)
+            .await
+            .context("canonicalize account data directory")?;
+        let path = tokio::fs::canonicalize(path)
+            .await
+            .with_context(|| format!("resolve local file {}", path.display()))?;
+        if !path.starts_with(&account_dir) {
+            bail!("local file is outside the account data directory");
+        }
+        if !tokio::fs::metadata(&path).await?.is_file() {
+            bail!("local path is not a file");
+        }
+        let mut bytes = Vec::new();
+        tokio::fs::File::open(&path)
+            .await?
+            .take(max_size.saturating_add(1))
+            .read_to_end(&mut bytes)
+            .await?;
+        if bytes.len() as u64 > max_size {
+            bail!("local file exceeds the size limit");
+        }
+        Ok(bytes)
+    }
+
+    pub async fn upload(&self, path: &Path, encrypted: bool) -> Result<AttachmentUploadResult> {
+        let attachment = self.mixin_client.attachment_api.create_attachment().await?;
+        if attachment.attachment_id.trim().is_empty() {
+            bail!("attachment response has no attachment ID");
+        }
+        let upload_url = attachment
+            .upload_url
+            .as_deref()
+            .filter(|url| !url.trim().is_empty())
+            .ok_or_else(|| anyhow!("attachment has no upload URL"))?;
+        let parsed_url = https_url(upload_url, "attachment upload URL")?;
+
+        let encrypted_temp = encrypted.then(|| temp_path(path, "upload")).transpose()?;
+        let mut key = None;
+        let mut digest = None;
+        let upload_path = if let Some(temp) = encrypted_temp.as_ref() {
+            let source = path.to_path_buf();
+            let output = temp.clone();
+            let encrypted = match tokio::task::spawn_blocking(move || {
+                encrypt_attachment_file(&source, &output)
+            })
+            .await
+            {
+                Ok(result) => result,
+                Err(error) => {
+                    let _ = tokio::fs::remove_file(temp).await;
+                    return Err(error).context("attachment encrypt task failed");
+                }
+            };
+            let (generated_key, generated_digest) = match encrypted {
+                Ok(result) => result,
+                Err(error) => {
+                    let _ = tokio::fs::remove_file(temp).await;
+                    return Err(error);
+                }
+            };
+            key = Some(generated_key);
+            digest = Some(generated_digest);
+            temp.as_path()
+        } else {
+            path
+        };
+
+        let operation = async {
+            let file = tokio::fs::File::open(upload_path).await?;
+            let length = file.metadata().await?.len();
+            self.http_client
+                .put(parsed_url)
+                .header(CONTENT_TYPE, "application/octet-stream")
+                .header(CONTENT_LENGTH, length)
+                .header(CONNECTION, "close")
+                .header("x-amz-acl", "public-read")
+                .body(reqwest::Body::wrap_stream(ReaderStream::new(file)))
+                .send()
+                .await?
+                .error_for_status()?;
+            Ok::<_, anyhow::Error>(())
+        }
+        .await;
+        if let Some(temp) = encrypted_temp {
+            let _ = tokio::fs::remove_file(temp).await;
+        }
+        operation?;
+
+        Ok(AttachmentUploadResult {
+            attachment_id: attachment.attachment_id,
+            created_at: attachment.created_at,
+            key,
+            digest,
+        })
     }
 
     async fn download_to(
@@ -74,13 +239,21 @@ impl AttachmentService {
         message: &Message,
         extra: &AttachmentExtra,
         transcript: bool,
+        cancellation: Option<&CancellationToken>,
     ) -> Result<AttachmentDownloadResult> {
         validate_message(message, extra)?;
-        let attachment = self
+        ensure_not_cancelled(cancellation)?;
+        let get_attachment = self
             .mixin_client
             .attachment_api
-            .get_attachment(&extra.attachment_id)
-            .await?;
+            .get_attachment(&extra.attachment_id);
+        let attachment = match cancellation {
+            Some(cancellation) => tokio::select! {
+                _ = cancellation.cancelled() => bail!("attachment download canceled"),
+                result = get_attachment => result?,
+            },
+            None => get_attachment.await?,
+        };
         if attachment.attachment_id != extra.attachment_id {
             bail!("attachment response id does not match the requested id");
         }
@@ -89,6 +262,7 @@ impl AttachmentService {
             .as_deref()
             .filter(|url| !url.trim().is_empty())
             .ok_or_else(|| anyhow!("attachment has no view URL"))?;
+        let view_url = https_url(view_url, "attachment view URL")?;
 
         let target = if transcript {
             transcript_attachment_path(&self.account_data_dir, message)?
@@ -98,7 +272,10 @@ impl AttachmentService {
         let directory = target
             .parent()
             .ok_or_else(|| anyhow!("attachment target has no parent directory"))?;
-        tokio::fs::create_dir_all(directory).await?;
+        let account_dir = tokio::fs::canonicalize(&self.account_data_dir)
+            .await
+            .context("canonicalize account data directory")?;
+        ensure_safe_target_directory(&account_dir, directory).await?;
 
         let download_temp = temp_path(&target, "download")?;
         let output_temp = temp_path(&target, "part")?;
@@ -106,7 +283,8 @@ impl AttachmentService {
             match (&message.media_key, &message.media_digest) {
                 (Some(key), Some(digest)) => {
                     validate_encryption_material(key, digest)?;
-                    self.download_to_file(view_url, &download_temp).await?;
+                    self.download_to_file(&view_url, &download_temp, cancellation)
+                        .await?;
 
                     let input = download_temp.clone();
                     let output = output_temp.clone();
@@ -117,14 +295,19 @@ impl AttachmentService {
                     })
                     .await
                     .context("attachment decrypt task failed")??;
+                    ensure_not_cancelled(cancellation)?;
                     tokio::fs::remove_file(&download_temp).await?;
                 }
-                (None, None) => self.download_to_file(view_url, &output_temp).await?,
+                (None, None) => {
+                    self.download_to_file(&view_url, &output_temp, cancellation)
+                        .await?
+                }
                 _ => bail!("attachment key and digest must be provided together"),
             }
 
             let size = tokio::fs::metadata(&output_temp).await?.len();
             let size = i64::try_from(size).context("attachment is too large")?;
+            ensure_not_cancelled(cancellation)?;
             tokio::fs::rename(&output_temp, &target)
                 .await
                 .with_context(|| format!("move attachment into {}", target.display()))?;
@@ -151,14 +334,25 @@ impl AttachmentService {
         })
     }
 
-    async fn download_to_file(&self, view_url: &str, path: &Path) -> Result<()> {
-        let response = self
+    async fn download_to_file(
+        &self,
+        view_url: &reqwest::Url,
+        path: &Path,
+        cancellation: Option<&CancellationToken>,
+    ) -> Result<()> {
+        let request = self
             .http_client
-            .get(view_url)
+            .get(view_url.clone())
             .header(CONTENT_TYPE, "application/octet-stream")
-            .send()
-            .await?
-            .error_for_status()?;
+            .send();
+        let response = match cancellation {
+            Some(cancellation) => tokio::select! {
+                _ = cancellation.cancelled() => bail!("attachment download canceled"),
+                result = request => result?,
+            },
+            None => request.await?,
+        }
+        .error_for_status()?;
         let mut stream = response.bytes_stream();
         let mut file = tokio::fs::OpenOptions::new()
             .create_new(true)
@@ -167,13 +361,47 @@ impl AttachmentService {
             .await
             .with_context(|| format!("create attachment temporary file {}", path.display()))?;
 
-        while let Some(chunk) = stream.next().await {
+        loop {
+            let chunk = match cancellation {
+                Some(cancellation) => tokio::select! {
+                    _ = cancellation.cancelled() => bail!("attachment download canceled"),
+                    chunk = stream.next() => chunk,
+                },
+                None => stream.next().await,
+            };
+            let Some(chunk) = chunk else { break };
             file.write_all(&chunk?).await?;
         }
         file.flush().await?;
         file.sync_all().await?;
         Ok(())
     }
+}
+
+fn https_url(value: &str, label: &str) -> Result<reqwest::Url> {
+    let url = reqwest::Url::parse(value)?;
+    if url.scheme() != "https" {
+        bail!("{label} must use HTTPS");
+    }
+    Ok(url)
+}
+
+async fn ensure_safe_target_directory(account_dir: &Path, directory: &Path) -> Result<()> {
+    tokio::fs::create_dir_all(directory).await?;
+    let directory = tokio::fs::canonicalize(directory)
+        .await
+        .with_context(|| format!("canonicalize attachment directory {}", directory.display()))?;
+    if !directory.starts_with(account_dir) {
+        bail!("attachment target is outside the account data directory");
+    }
+    Ok(())
+}
+
+fn ensure_not_cancelled(cancellation: Option<&CancellationToken>) -> Result<()> {
+    if cancellation.is_some_and(CancellationToken::is_cancelled) {
+        bail!("attachment download canceled");
+    }
+    Ok(())
 }
 
 fn validate_message(message: &Message, extra: &AttachmentExtra) -> Result<()> {
@@ -281,6 +509,67 @@ fn validate_encryption_material(key: &[u8], digest: &[u8]) -> Result<()> {
         bail!("attachment digest must contain 32 bytes");
     }
     Ok(())
+}
+
+fn encrypt_attachment_file(input: &Path, output: &Path) -> Result<(Vec<u8>, Vec<u8>)> {
+    let mut key = vec![0_u8; ATTACHMENT_KEY_SIZE];
+    let mut iv = [0_u8; CBC_BLOCK_SIZE];
+    rand::fill(key.as_mut_slice());
+    rand::fill(&mut iv);
+
+    let cipher = Aes256::new_from_slice(&key[..AES_KEY_SIZE])
+        .map_err(|_| anyhow!("invalid attachment AES key"))?;
+    let mut hmac =
+        <Hmac<Sha256> as HmacKeyInit>::new_from_slice(&key[AES_KEY_SIZE..ATTACHMENT_KEY_SIZE])
+            .map_err(|_| anyhow!("invalid attachment MAC key"))?;
+    let mut digest_hasher = Sha256::new();
+    let mut reader = BufReader::with_capacity(IO_BUFFER_SIZE, File::open(input)?);
+    let mut writer = BufWriter::with_capacity(
+        IO_BUFFER_SIZE,
+        OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(output)?,
+    );
+    writer.write_all(&iv)?;
+    hmac.update(&iv);
+    digest_hasher.update(iv);
+
+    let mut previous = iv;
+    loop {
+        let mut plaintext = [0_u8; CBC_BLOCK_SIZE];
+        let mut count = 0;
+        while count < CBC_BLOCK_SIZE {
+            let read = reader.read(&mut plaintext[count..])?;
+            if read == 0 {
+                break;
+            }
+            count += read;
+        }
+        if count < CBC_BLOCK_SIZE {
+            let padding = (CBC_BLOCK_SIZE - count) as u8;
+            plaintext[count..].fill(padding);
+        }
+        for (byte, previous_byte) in plaintext.iter_mut().zip(previous) {
+            *byte ^= previous_byte;
+        }
+        let mut block = Block::<Aes256>::from(plaintext);
+        cipher.encrypt_block(&mut block);
+        writer.write_all(&block)?;
+        hmac.update(&block);
+        digest_hasher.update(&block);
+        previous.copy_from_slice(&block);
+        if count < CBC_BLOCK_SIZE {
+            break;
+        }
+    }
+
+    let mac = hmac.finalize().into_bytes();
+    writer.write_all(&mac)?;
+    writer.flush()?;
+    writer.get_ref().sync_all()?;
+    digest_hasher.update(&mac);
+    Ok((key, digest_hasher.finalize().to_vec()))
 }
 
 fn decrypt_attachment_file(input: &Path, output: &Path, key: &[u8], digest: &[u8]) -> Result<()> {
@@ -398,6 +687,131 @@ mod tests {
             std::fs::read(output).unwrap(),
             b"Mixin attachment fixture\n"
         );
+    }
+
+    #[test]
+    fn encrypts_and_decrypts_attachment_file() {
+        let directory = tempfile::tempdir().unwrap();
+        let input = directory.path().join("input");
+        let encrypted = directory.path().join("encrypted");
+        let output = directory.path().join("output");
+        let content = vec![0x5a; IO_BUFFER_SIZE + 37];
+        std::fs::write(&input, &content).unwrap();
+
+        let (key, digest) = encrypt_attachment_file(&input, &encrypted).unwrap();
+        decrypt_attachment_file(&encrypted, &output, &key, &digest).unwrap();
+
+        assert_eq!(std::fs::read(output).unwrap(), content);
+    }
+
+    #[test]
+    fn encrypts_and_decrypts_empty_attachment_file() {
+        let directory = tempfile::tempdir().unwrap();
+        let input = directory.path().join("input");
+        let encrypted = directory.path().join("encrypted");
+        let output = directory.path().join("output");
+        std::fs::write(&input, []).unwrap();
+
+        let (key, digest) = encrypt_attachment_file(&input, &encrypted).unwrap();
+        decrypt_attachment_file(&encrypted, &output, &key, &digest).unwrap();
+
+        assert!(std::fs::read(output).unwrap().is_empty());
+    }
+
+    #[test]
+    fn rejects_insecure_attachment_urls() {
+        assert!(https_url("http://example.com/file", "attachment URL").is_err());
+        assert!(https_url("https://example.com/file", "attachment URL").is_ok());
+    }
+
+    #[tokio::test]
+    async fn copies_forwarded_attachment_inside_account_directory() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("source.png");
+        std::fs::write(&source, b"image").unwrap();
+        let service = AttachmentService::new(
+            Arc::new(MixinClient::new(sdk::Credential::None)),
+            HttpClient::new(),
+            directory.path(),
+        );
+        let message = Message {
+            message_id: "message-id".to_string(),
+            conversation_id: "conversation-id".to_string(),
+            category: sdk::message_category::SIGNAL_IMAGE.to_string(),
+            media_mime_type: Some("image/png".to_string()),
+            ..Message::default()
+        };
+
+        let (target, size) = service.copy_for_forward(&source, &message).await.unwrap();
+
+        assert_eq!(size, 5);
+        assert_eq!(std::fs::read(target).unwrap(), b"image");
+    }
+
+    #[tokio::test]
+    async fn rejects_forwarded_attachment_outside_account_directory() {
+        let account = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let source = outside.path().join("source.png");
+        std::fs::write(&source, b"image").unwrap();
+        let service = AttachmentService::new(
+            Arc::new(MixinClient::new(sdk::Credential::None)),
+            HttpClient::new(),
+            account.path(),
+        );
+        let message = Message {
+            message_id: "message-id".to_string(),
+            conversation_id: "conversation-id".to_string(),
+            category: sdk::message_category::SIGNAL_IMAGE.to_string(),
+            ..Message::default()
+        };
+
+        let error = service
+            .copy_for_forward(&source, &message)
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "attachment source is outside the account data directory"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn rejects_forward_target_through_symlinked_directory() {
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().unwrap();
+        let account = root.path().join("account");
+        let outside = root.path().join("outside");
+        std::fs::create_dir_all(account.join("Media/Images")).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        symlink(&outside, account.join("Media/Images/conversation-id")).unwrap();
+        let source = account.join("source.png");
+        std::fs::write(&source, b"image").unwrap();
+        let service = AttachmentService::new(
+            Arc::new(MixinClient::new(sdk::Credential::None)),
+            HttpClient::new(),
+            &account,
+        );
+        let message = Message {
+            message_id: "message-id".to_string(),
+            conversation_id: "conversation-id".to_string(),
+            category: sdk::message_category::SIGNAL_IMAGE.to_string(),
+            ..Message::default()
+        };
+
+        let error = service
+            .copy_for_forward(&source, &message)
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "attachment target is outside the account data directory"
+        );
+        assert!(!outside.join("message-id.jpg").exists());
     }
 
     #[test]

@@ -9,6 +9,7 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 anyhow = "1"
 flutter_rust_bridge = "=2.12.0"
+log = "0.4"
 mixin_desktop_core = { path = "../../mixin_desktop_core" }
 tokio = { version = "1", features = ["sync"] }
 

@@ -106,6 +106,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  bool dco_decode_box_autoadd_bool(dynamic raw);
+
+  @protected
+  int dco_decode_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  UserProfileItem dco_decode_box_autoadd_user_profile_item(dynamic raw);
+
+  @protected
   CircleItem dco_decode_circle_item(dynamic raw);
 
   @protected
@@ -119,6 +131,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  ImageMessageItem dco_decode_image_message_item(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
@@ -135,7 +150,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<GroupAvatar> dco_decode_list_group_avatar(dynamic raw);
 
   @protected
+  List<ImageMessageItem> dco_decode_list_image_message_item(dynamic raw);
+
+  @protected
+  List<MessageListItem> dco_decode_list_message_list_item(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  List<UserProfileItem> dco_decode_list_user_profile_item(dynamic raw);
+
+  @protected
+  MessageListItem dco_decode_message_list_item(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -147,6 +174,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
+
+  @protected
+  int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  UserProfileItem? dco_decode_opt_box_autoadd_user_profile_item(dynamic raw);
+
+  @protected
   BigInt dco_decode_u_64(dynamic raw);
 
   @protected
@@ -154,6 +193,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void dco_decode_unit(dynamic raw);
+
+  @protected
+  UserProfileItem dco_decode_user_profile_item(dynamic raw);
 
   @protected
   BigInt dco_decode_usize(dynamic raw);
@@ -236,6 +278,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  UserProfileItem sse_decode_box_autoadd_user_profile_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CircleItem sse_decode_circle_item(SseDeserializer deserializer);
 
   @protected
@@ -253,6 +309,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
+  ImageMessageItem sse_decode_image_message_item(SseDeserializer deserializer);
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
@@ -267,7 +326,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<GroupAvatar> sse_decode_list_group_avatar(SseDeserializer deserializer);
 
   @protected
+  List<ImageMessageItem> sse_decode_list_image_message_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<MessageListItem> sse_decode_list_message_list_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<UserProfileItem> sse_decode_list_user_profile_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MessageListItem sse_decode_message_list_item(SseDeserializer deserializer);
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -279,6 +356,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
+
+  @protected
+  int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  UserProfileItem? sse_decode_opt_box_autoadd_user_profile_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   BigInt sse_decode_u_64(SseDeserializer deserializer);
 
   @protected
@@ -286,6 +377,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
+
+  @protected
+  UserProfileItem sse_decode_user_profile_item(SseDeserializer deserializer);
 
   @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
@@ -385,6 +479,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_i_64(
+    PlatformInt64 self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_user_profile_item(
+    UserProfileItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_circle_item(CircleItem self, SseSerializer serializer);
 
   @protected
@@ -401,6 +513,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_image_message_item(
+    ImageMessageItem self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
@@ -424,8 +542,32 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_image_message_item(
+    List<ImageMessageItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_message_list_item(
+    List<MessageListItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_user_profile_item(
+    List<UserProfileItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_message_list_item(
+    MessageListItem self,
     SseSerializer serializer,
   );
 
@@ -440,6 +582,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_64(
+    PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_user_profile_item(
+    UserProfileItem? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_u_64(BigInt self, SseSerializer serializer);
 
   @protected
@@ -447,6 +607,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_user_profile_item(
+    UserProfileItem self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);

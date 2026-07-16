@@ -5,7 +5,7 @@ use db::Error;
 
 use crate::db;
 use crate::db::mixin::database::MARK_LIMIT;
-use crate::db::mixin::util::{expand_var, expand_var_with_index, BindListForQuery};
+use crate::db::mixin::util::{expand_var, expand_var_with_index, BindList, BindListForQuery};
 
 #[derive(Debug, Clone, PartialEq, Eq, FromRow)]
 pub struct ExpiredMessage {
@@ -116,6 +116,26 @@ impl ExpiredMessageDao {
         Ok(message)
     }
 
+    pub async fn get_expired_messages_by_ids(
+        &self,
+        message_ids: &[String],
+    ) -> Result<Vec<ExpiredMessage>, Error> {
+        let mut messages = Vec::new();
+        for chunk in message_ids.chunks(MARK_LIMIT) {
+            let sql = format!(
+                "SELECT * FROM expired_messages WHERE message_id IN ({})",
+                expand_var(chunk.len())
+            );
+            messages.extend(
+                sqlx::query_as::<_, ExpiredMessage>(sqlx::AssertSqlSafe(sql))
+                    .bind_list(chunk)
+                    .fetch_all(&self.0)
+                    .await?,
+            );
+        }
+        Ok(messages)
+    }
+
     pub async fn delete_by_message_id(&self, message_id: &str) -> Result<u64, Error> {
         let result = sqlx::query("DELETE FROM expired_messages WHERE message_id = ?")
             .bind(message_id)
@@ -191,5 +211,11 @@ mod tests {
         let now = Utc::now().timestamp();
         assert!(first.expire_at.unwrap() >= now + 59);
         assert!(first.expire_at.unwrap() <= now + 61);
+
+        let selected = dao
+            .get_expired_messages_by_ids(&message_ids[MARK_LIMIT - 2..])
+            .await
+            .unwrap();
+        assert_eq!(selected.len(), 7);
     }
 }

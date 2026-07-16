@@ -47,6 +47,30 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> signOut() async {
+    final account = _account;
+    if (account == null) return;
+    final requestVersion = ++_requestVersion;
+    error = null;
+    notifyListeners();
+    try {
+      await account.signOut();
+      if (requestVersion != _requestVersion) return;
+      account.dispose();
+      _account = null;
+      stage = AppStage.signedOut;
+    } catch (exception, stackTrace) {
+      if (requestVersion != _requestVersion) return;
+      account.dispose();
+      _account = null;
+      error = exception.toString();
+      stage = AppStage.signedOut;
+      notifyListeners();
+      Error.throwWithStackTrace(exception, stackTrace);
+    }
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _account?.shutdown();

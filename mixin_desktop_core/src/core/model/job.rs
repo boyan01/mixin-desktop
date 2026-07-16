@@ -10,7 +10,7 @@ use log::{error, info, warn};
 use serde::Deserialize;
 use strum_macros::Display;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::Mutex;
+use tokio::sync::{watch, Mutex, Notify};
 use tokio::time::interval;
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -27,6 +27,7 @@ use crate::core::crypto::encrypted_protocol;
 use crate::core::message::sender::{MessageResult, MessageSender};
 use crate::core::model::{AttachmentExtra, ConversationService};
 use crate::core::util::generate_conversation_id;
+use crate::db::app::Auth;
 use crate::db::mixin::job::{
     Job, JobDao, SYNC_INSCRIPTION_MESSAGE, UPDATE_ASSET, UPDATE_STICKER, UPDATE_TOKEN,
 };
@@ -47,10 +48,9 @@ impl JobService {
         database: Arc<MixinDatabase>,
         message_sender: Arc<MessageSender>,
         client: Arc<Client>,
-        user_id: String,
-        primary_session_id: Option<String>,
-        private_key: Vec<u8>,
-        session_id: String,
+        auth: &Auth,
+        changes: Option<watch::Sender<u64>>,
+        expired_message_notify: Arc<Notify>,
     ) -> Self {
         let (ack_sender, ack_receiver) = channel(1);
         let (session_ack_sender, session_ack_receiver) = channel(1);
@@ -64,11 +64,13 @@ impl JobService {
                 (JobCategory::SessionAck, session_ack_receiver),
                 (JobCategory::Work, work_receiver),
             ]),
-            user_id,
-            primary_session_id,
+            user_id: auth.account.user_id.clone(),
+            primary_session_id: auth.primary_session_id.clone(),
             message_sender,
-            private_key,
-            session_id,
+            private_key: auth.private_key.clone(),
+            session_id: auth.account.session_id.clone(),
+            changes,
+            expired_message_notify,
         };
         JobService {
             job_dao: database.job_dao.clone(),
@@ -91,7 +93,32 @@ impl JobService {
     }
 
     pub async fn add(&self, job: &Job) -> Result<()> {
-        let signaler = match job.action.as_str() {
+        let signaler = self.signaler(&job.action)?;
+        self.job_dao.insert_job(job).await?;
+        let _ = signaler.try_send(());
+        Ok(())
+    }
+
+    pub async fn add_all(&self, jobs: &[Job]) -> Result<()> {
+        let Some(first) = jobs.first() else {
+            return Ok(());
+        };
+        if jobs.iter().any(|job| job.action != first.action) {
+            bail!("batch contains multiple job actions");
+        }
+        let signaler = self.signaler(&first.action)?;
+        self.job_dao.insert_all(jobs).await?;
+        let _ = signaler.try_send(());
+        Ok(())
+    }
+
+    pub fn wake(&self, action: &str) -> Result<()> {
+        let _ = self.signaler(action)?.try_send(());
+        Ok(())
+    }
+
+    fn signaler(&self, action: &str) -> Result<&Sender<()>> {
+        let signaler = match action {
             ACKNOWLEDGE_MESSAGE_RECEIPTS => &self.ack_job_signer,
             CREATE_MESSAGE => &self.session_ack_job_signer,
             SENDING_MESSAGE
@@ -101,12 +128,9 @@ impl JobService {
             | UPDATE_TOKEN
             | UPDATE_STICKER
             | SYNC_INSCRIPTION_MESSAGE => &self.work_job_signer,
-            _ => bail!("unknown job action: {}", job.action),
+            _ => bail!("unknown job action: {action}"),
         };
-        self.job_dao.insert_job(job).await?;
-        let _ = signaler.try_send(());
-
-        Ok(())
+        Ok(signaler)
     }
 }
 
@@ -126,6 +150,8 @@ struct JobParams {
     message_sender: Arc<MessageSender>,
     private_key: Vec<u8>,
     session_id: String,
+    changes: Option<watch::Sender<u64>>,
+    expired_message_notify: Arc<Notify>,
 }
 
 async fn start_all_jobs(mut params: JobParams) {
@@ -155,6 +181,8 @@ async fn start_all_jobs(mut params: JobParams) {
                 session_id: params.session_id,
                 private_key: params.private_key,
                 sender: params.message_sender,
+                changes: params.changes,
+                expired_message_notify: params.expired_message_notify,
             },
         )
     );
@@ -212,6 +240,8 @@ struct WorkJobRunner {
     session_id: String,
     private_key: Vec<u8>,
     sender: Arc<MessageSender>,
+    changes: Option<watch::Sender<u64>>,
+    expired_message_notify: Arc<Notify>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -349,6 +379,12 @@ impl JobTrigger for WorkJobRunner {
 }
 
 impl WorkJobRunner {
+    fn notify_changes(&self) {
+        if let Some(changes) = &self.changes {
+            changes.send_modify(|revision| *revision = revision.wrapping_add(1));
+        }
+    }
+
     async fn run_sending_jobs(&self) -> Result<()> {
         for job in self.database.job_dao.sending_jobs().await? {
             let result = match job.action.as_str() {
@@ -449,7 +485,21 @@ impl WorkJobRunner {
             if error.downcast_ref::<sdk::ApiError>().is_some_and(
                 |error| matches!(error, sdk::ApiError::Server(error) if error.code == BAD_DATA),
             ) {
-                self.database.job_dao.delete_job_by_id(&job.job_id).await?;
+                if !resend {
+                    self.database
+                        .message_dao
+                        .complete_sending_job(
+                            &message.message_id,
+                            None,
+                            MessageStatus::Failed,
+                            0,
+                            &job.job_id,
+                        )
+                        .await?;
+                } else {
+                    self.database.job_dao.delete_job_by_id(&job.job_id).await?;
+                }
+                self.notify_changes();
                 return Ok(());
             }
             return Err(error);
@@ -505,9 +555,15 @@ impl WorkJobRunner {
         if payload.expire_in < 0 {
             self.database
                 .message_dao
-                .update_message_status(&message.message_id, MessageStatus::Failed)
+                .complete_sending_job(
+                    &message.message_id,
+                    None,
+                    MessageStatus::Failed,
+                    0,
+                    &job.job_id,
+                )
                 .await?;
-            self.database.job_dao.delete_job_by_id(&job.job_id).await?;
+            self.notify_changes();
             return Ok(());
         }
         let expire_in = i32::try_from(payload.expire_in)
@@ -596,41 +652,42 @@ impl WorkJobRunner {
         } else {
             self.database
                 .message_dao
-                .update_message_status(&message.message_id, MessageStatus::Failed)
+                .complete_sending_job(
+                    &message.message_id,
+                    None,
+                    MessageStatus::Failed,
+                    0,
+                    &job.job_id,
+                )
                 .await?;
-            self.database.job_dao.delete_job_by_id(&job.job_id).await?;
+            self.notify_changes();
             return Ok(());
         };
 
         if is_terminal_result(&result) {
-            if result.success && !resend {
-                if let Some(content) = sent_content.as_deref() {
-                    self.database
-                        .message_dao
-                        .update_message_content_and_status(
-                            &message.message_id,
-                            content,
-                            MessageStatus::Sent,
-                        )
-                        .await?;
+            if resend {
+                self.database.job_dao.delete_job_by_id(&job.job_id).await?;
+            } else {
+                let status = if result.success {
+                    MessageStatus::Sent
                 } else {
-                    self.database
-                        .message_dao
-                        .update_message_status(&message.message_id, MessageStatus::Sent)
-                        .await?;
-                }
-                if payload.expire_in > 0 {
-                    self.database
-                        .expired_message_dao
-                        .insert(
-                            &message.message_id,
-                            payload.expire_in,
-                            Some(Utc::now().timestamp() + payload.expire_in),
-                        )
-                        .await?;
+                    MessageStatus::Failed
+                };
+                self.database
+                    .message_dao
+                    .complete_sending_job(
+                        &message.message_id,
+                        result.success.then_some(sent_content).flatten().as_deref(),
+                        status,
+                        payload.expire_in,
+                        &job.job_id,
+                    )
+                    .await?;
+                if result.success && payload.expire_in > 0 {
+                    self.expired_message_notify.notify_one();
                 }
             }
-            self.database.job_dao.delete_job_by_id(&job.job_id).await?;
+            self.notify_changes();
         }
         Ok(())
     }
@@ -740,7 +797,6 @@ impl WorkJobRunner {
         let plaintext = if message.category.is_attachment()
             || message.category.is_sticker()
             || message.category.is_contact()
-            || message.category.is_live()
         {
             Base64::decode_vec(content)?
         } else {
@@ -1008,7 +1064,7 @@ fn encrypted_to_plain_category(category: &str) -> Option<String> {
         .map(|suffix| format!("PLAIN_{suffix}"))
 }
 
-fn sanitize_transcript_app_card(
+pub(crate) fn sanitize_transcript_app_card(
     transcript: &mut crate::db::mixin::transcript_message::TranscriptMessage,
 ) {
     if !transcript.category.is_app_card() {
@@ -1020,7 +1076,8 @@ fn sanitize_transcript_app_card(
     let Ok(mut card) = serde_json::from_str::<serde_json::Value>(content) else {
         return;
     };
-    if card["action"].as_str().unwrap_or_default().is_empty()
+    let action_is_empty = card["action"].as_str().unwrap_or_default().is_empty();
+    if action_is_empty
         && card["actions"].as_array().is_some_and(|actions| {
             actions
                 .iter()
@@ -1028,9 +1085,12 @@ fn sanitize_transcript_app_card(
         })
     {
         card.as_object_mut().map(|card| card.remove("actions"));
-        if let Ok(sanitized) = serde_json::to_string(&card) {
-            *content = sanitized;
-        }
+    }
+    if action_is_empty {
+        card.as_object_mut().map(|card| card.remove("action"));
+    }
+    if let Ok(sanitized) = serde_json::to_string(&card) {
+        *content = sanitized;
     }
 }
 

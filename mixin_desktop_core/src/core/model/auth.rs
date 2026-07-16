@@ -115,6 +115,7 @@ impl AuthService {
         let signal_database = crate::db::SignalDatabase::connect(identity_number)
             .await
             .map_err(|error| anyhow!(error.to_string()))?;
+        signal_database.clear().await?;
         signal_database
             .init(result.registration_id, Some(&result.identity_key_private))
             .await?;

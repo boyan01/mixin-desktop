@@ -4,6 +4,7 @@ pub use circle::CircleService;
 pub use conversation::ConversationService;
 pub use message::*;
 use sdk::Client;
+use tokio::sync::watch;
 
 use crate::core::attachment::AttachmentService;
 use crate::core::message::sender::MessageSender;
@@ -35,9 +36,13 @@ impl AppService {
         auth: &Auth,
         message_sender: Arc<MessageSender>,
         attachment: Arc<AttachmentService>,
+        changes: Option<watch::Sender<u64>>,
     ) -> Self {
         let account_id = auth.account.user_id.clone();
         let conversation = ConversationService::new(db.clone(), client.clone(), account_id.clone());
+        let expired_message =
+            expired_message::ExpiredMessageService::new(db.clone(), changes.clone());
+        let expired_message_notify = expired_message.notifier();
         AppService {
             circle: CircleService {
                 db: db.clone(),
@@ -46,16 +51,15 @@ impl AppService {
             },
             conversation,
             message: MessageService::new(db.clone(), account_id.clone()),
-            expired_message: expired_message::ExpiredMessageService::new(db.clone()),
+            expired_message,
             attachment,
             job: JobService::new(
                 db,
                 message_sender,
                 client.clone(),
-                account_id,
-                auth.primary_session_id.clone(),
-                auth.private_key.clone(),
-                auth.account.session_id.clone(),
+                auth,
+                changes,
+                expired_message_notify,
             ),
         }
     }

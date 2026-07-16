@@ -45,6 +45,7 @@ pub struct ConversationListItem {
     pub category: String,
     pub draft: String,
     pub status: i32,
+    pub last_read_message_id: Option<String>,
     pub last_message: String,
     pub last_message_category: Option<String>,
     pub last_message_status: Option<String>,
@@ -61,6 +62,7 @@ pub struct ConversationListItem {
     pub relationship: String,
     pub identity_number: String,
     pub circle_ids: String,
+    pub participant_count: i64,
     pub group_avatar_data: String,
 }
 
@@ -143,6 +145,7 @@ SELECT conversation.conversation_id,
        conversation.category,
        COALESCE(conversation.draft, '') AS draft,
        conversation.status AS status,
+       conversation.last_read_message_id,
        COALESCE(last_message.content, '') AS last_message,
        last_message.category AS last_message_category,
        last_message.status AS last_message_status,
@@ -172,6 +175,11 @@ SELECT conversation.conversation_id,
            FROM circle_conversations circle_conversation
            WHERE circle_conversation.conversation_id = conversation.conversation_id
        ), '') AS circle_ids,
+       CASE WHEN conversation.category = 'GROUP' THEN (
+           SELECT COUNT(1)
+           FROM participants participant_count
+           WHERE participant_count.conversation_id = conversation.conversation_id
+       ) ELSE 0 END AS participant_count,
        CASE WHEN conversation.category = 'GROUP' THEN COALESCE((
            SELECT GROUP_CONCAT(
                avatar_user.user_id || CHAR(31) ||
@@ -600,6 +608,12 @@ mod tests {
             .update_for_message(&message, "me")
             .await
             .unwrap();
+        sqlx::query("UPDATE conversations SET last_read_message_id = ? WHERE conversation_id = ?")
+            .bind("read-boundary")
+            .bind("conversation")
+            .execute(&database.conversation_dao.0)
+            .await
+            .unwrap();
 
         let count = database
             .conversation_dao
@@ -616,6 +630,10 @@ mod tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "Mixin User");
         assert_eq!(items[0].last_message, "Hello from Rust");
+        assert_eq!(
+            items[0].last_read_message_id.as_deref(),
+            Some("read-boundary")
+        );
         assert_eq!(items[0].unseen_count, 1);
         assert!(items[0].is_muted);
         assert!(items[0].is_verified);

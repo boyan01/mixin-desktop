@@ -240,6 +240,7 @@ class ConversationListController extends ChangeNotifier {
         category: item.category,
         draft: item.draft,
         status: item.status,
+        lastReadMessageId: item.lastReadMessageId,
         content: item.lastMessage,
         contentType: item.lastMessageCategory,
         messageStatus: item.lastMessageStatus,
@@ -257,6 +258,7 @@ class ConversationListController extends ChangeNotifier {
         relationship: item.relationship,
         identityNumber: item.identityNumber,
         circleIds: item.circleIds,
+        participantCount: item.participantCount.toInt(),
         groupAvatars: item.groupAvatars
             .map(
               (avatar) => ConversationAvatarEntry(

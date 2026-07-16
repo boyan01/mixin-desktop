@@ -1390,7 +1390,7 @@ fn decode_content(data: &BlazeMessageData, plain_text: &str) -> Result<String> {
     }
 }
 
-fn transcript_attachment_id(content: &str) -> Result<String> {
+pub(crate) fn transcript_attachment_id(content: &str) -> Result<String> {
     if let Some(attachment_id) = serde_json::from_str::<serde_json::Value>(content)
         .ok()
         .and_then(|value| {
@@ -1416,7 +1416,7 @@ fn transcript_attachment_id(content: &str) -> Result<String> {
     Ok(attachment_id)
 }
 
-fn transcript_attachment_message(
+pub(crate) fn transcript_attachment_message(
     conversation_id: &str,
     transcript: &TranscriptMessage,
 ) -> Result<Message> {
@@ -1844,6 +1844,9 @@ impl ServiceDecryptMessage {
             .expired_message_dao
             .update_message_expired_at(&message_read_with_expires)
             .await?;
+        if !message_read_with_expires.is_empty() {
+            self.app_service.expired_message.wake();
+        }
 
         Ok(())
     }

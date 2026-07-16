@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:mixin_desktop_ui/controllers/app_controller.dart';
+import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/pages/home_page.dart';
 import 'package:mixin_desktop_ui/pages/login_page.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
@@ -12,21 +13,24 @@ class MixinDesktopApp extends StatelessWidget {
   const MixinDesktopApp({super.key});
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'Mixin Messenger',
-    debugShowCheckedModeBanner: false,
-    theme: buildMixinTheme(Brightness.light),
-    darkTheme: buildMixinTheme(Brightness.dark),
-    themeMode: ThemeMode.system,
-    localizationsDelegates: const [
-      AppLocalizations.delegate,
-      GlobalMaterialLocalizations.delegate,
-      GlobalWidgetsLocalizations.delegate,
-      GlobalCupertinoLocalizations.delegate,
-    ],
-    supportedLocales: AppLocalizations.supportedLocales,
-    home: const _AppBody(),
-  );
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsController>();
+    return MaterialApp(
+      title: 'Mixin Messenger',
+      debugShowCheckedModeBanner: false,
+      theme: buildMixinTheme(Brightness.light),
+      darkTheme: buildMixinTheme(Brightness.dark),
+      themeMode: settings.themeMode,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: const _AppBody(),
+    );
+  }
 }
 
 class _AppBody extends StatelessWidget {

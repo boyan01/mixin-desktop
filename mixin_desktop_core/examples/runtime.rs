@@ -119,6 +119,7 @@ async fn run_authenticated_services(
         runtime.client.clone(),
         runtime.credential.clone(),
         account_id.clone(),
+        None,
     ));
 
     let signal_protocol = Arc::new(SignalProtocol::new(
@@ -151,6 +152,7 @@ async fn run_authenticated_services(
         &runtime.auth,
         sender.clone(),
         attachment,
+        None,
     ));
     let decrypt_message = Arc::new(ServiceDecryptMessage::new(
         database,

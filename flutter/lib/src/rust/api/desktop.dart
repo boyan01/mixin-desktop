@@ -6,7 +6,8 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `desktop_platform`
+// These functions are ignored because they are not marked as `pub`: `desktop_platform`, `forward_changes`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`
 
 Future<DesktopHandle> openDesktop() =>
     RustLib.instance.api.crateApiDesktopOpenDesktop();
@@ -15,7 +16,29 @@ Future<DesktopHandle> openDesktop() =>
 abstract class AccountHandle implements RustOpaqueInterface {
   String accountId();
 
+  Future<void> addContact({required String userId, required String fullName});
+
+  Future<void> addSticker({required String stickerId});
+
+  Future<void> addStickerFromFile({required String messageId});
+
+  Future<void> blockUser({required String userId});
+
+  Future<String?> botHomeUri({required String appId});
+
+  Future<void> cancelAttachment({required String messageId});
+
+  Future<void> cancelTranscriptAttachment({
+    required String transcriptId,
+    required String messageId,
+  });
+
   Future<List<CircleItem>> circles();
+
+  Future<String> combineForwardMessages({
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  });
 
   Stream<BigInt> conversationChanges();
 
@@ -35,7 +58,21 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required PlatformInt64 offset,
   });
 
+  Future<String?> currentUserRole({required String conversationId});
+
   Future<void> deleteConversation({required String conversationId});
+
+  Future<void> deleteMessages({
+    required String conversationId,
+    required List<String> messageIds,
+  });
+
+  Future<void> downloadAttachment({required String messageId});
+
+  Future<void> downloadTranscriptAttachment({
+    required String transcriptId,
+    required String messageId,
+  });
 
   Future<void> editCircleConversation({
     required String circleId,
@@ -45,7 +82,64 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required bool add,
   });
 
+  Future<List<String>> forwardMessages({
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  });
+
+  Future<List<ImageMessageItem>> imageMessagesAround({
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  });
+
+  Future<void> markAudioRead({required String messageId});
+
+  Future<void> markConversationRead({required String conversationId});
+
+  Future<void> markMentionRead({
+    required String conversationId,
+    required String messageId,
+  });
+
+  Future<void> markTranscriptAudioRead({
+    required String transcriptId,
+    required String messageId,
+  });
+
+  Stream<BigInt> messageChanges();
+
+  Future<List<MessageListItem>> messages({
+    required String conversationId,
+    PlatformInt64? beforeCreatedAtMicros,
+    String? beforeMessageId,
+    required PlatformInt64 limit,
+  });
+
+  Future<List<MessageListItem>> messagesAround({
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  });
+
+  Future<List<MessageListItem>> pinnedMessages({
+    required String conversationId,
+  });
+
   AccountProfile profile();
+
+  Future<void> recallMessages({
+    required String conversationId,
+    required List<String> messageIds,
+  });
+
+  Future<String> sendText({
+    required String conversationId,
+    required String content,
+    String? quoteMessageId,
+  });
 
   Future<void> setConversationMuted({
     required String conversationId,
@@ -59,7 +153,28 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required bool pinned,
   });
 
+  Future<void> setMessagePinned({
+    required String conversationId,
+    required String messageId,
+    required bool pinned,
+  });
+
   Future<void> shutdown();
+
+  Future<void> signOut();
+
+  Future<List<MessageListItem>> transcriptMessages({
+    required String transcriptId,
+  });
+
+  Future<UserProfileItem?> userProfile({
+    String? userId,
+    String? identityNumber,
+  });
+
+  Future<List<UserProfileItem>> usersByIdentityNumbers({
+    required List<String> identityNumbers,
+  });
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<DesktopHandle>>
@@ -81,12 +196,18 @@ class AccountProfile {
   final String fullName;
   final String avatarUrl;
   final String identityNumber;
+  final String biography;
+  final String phone;
+  final String createdAt;
 
   const AccountProfile({
     required this.userId,
     required this.fullName,
     required this.avatarUrl,
     required this.identityNumber,
+    required this.biography,
+    required this.phone,
+    required this.createdAt,
   });
 
   @override
@@ -94,7 +215,10 @@ class AccountProfile {
       userId.hashCode ^
       fullName.hashCode ^
       avatarUrl.hashCode ^
-      identityNumber.hashCode;
+      identityNumber.hashCode ^
+      biography.hashCode ^
+      phone.hashCode ^
+      createdAt.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -104,7 +228,10 @@ class AccountProfile {
           userId == other.userId &&
           fullName == other.fullName &&
           avatarUrl == other.avatarUrl &&
-          identityNumber == other.identityNumber;
+          identityNumber == other.identityNumber &&
+          biography == other.biography &&
+          phone == other.phone &&
+          createdAt == other.createdAt;
 }
 
 class CircleItem {
@@ -133,6 +260,7 @@ class ConversationListItem {
   final String category;
   final String draft;
   final int status;
+  final String? lastReadMessageId;
   final String lastMessage;
   final String? lastMessageCategory;
   final String? lastMessageStatus;
@@ -148,6 +276,7 @@ class ConversationListItem {
   final String relationship;
   final String identityNumber;
   final List<String> circleIds;
+  final PlatformInt64 participantCount;
   final List<GroupAvatar> groupAvatars;
 
   const ConversationListItem({
@@ -158,6 +287,7 @@ class ConversationListItem {
     required this.category,
     required this.draft,
     required this.status,
+    this.lastReadMessageId,
     required this.lastMessage,
     this.lastMessageCategory,
     this.lastMessageStatus,
@@ -173,6 +303,7 @@ class ConversationListItem {
     required this.relationship,
     required this.identityNumber,
     required this.circleIds,
+    required this.participantCount,
     required this.groupAvatars,
   });
 
@@ -185,6 +316,7 @@ class ConversationListItem {
       category.hashCode ^
       draft.hashCode ^
       status.hashCode ^
+      lastReadMessageId.hashCode ^
       lastMessage.hashCode ^
       lastMessageCategory.hashCode ^
       lastMessageStatus.hashCode ^
@@ -200,6 +332,7 @@ class ConversationListItem {
       relationship.hashCode ^
       identityNumber.hashCode ^
       circleIds.hashCode ^
+      participantCount.hashCode ^
       groupAvatars.hashCode;
 
   @override
@@ -214,6 +347,7 @@ class ConversationListItem {
           category == other.category &&
           draft == other.draft &&
           status == other.status &&
+          lastReadMessageId == other.lastReadMessageId &&
           lastMessage == other.lastMessage &&
           lastMessageCategory == other.lastMessageCategory &&
           lastMessageStatus == other.lastMessageStatus &&
@@ -229,6 +363,7 @@ class ConversationListItem {
           relationship == other.relationship &&
           identityNumber == other.identityNumber &&
           circleIds == other.circleIds &&
+          participantCount == other.participantCount &&
           groupAvatars == other.groupAvatars;
 }
 
@@ -254,4 +389,377 @@ class GroupAvatar {
           userId == other.userId &&
           name == other.name &&
           avatarUrl == other.avatarUrl;
+}
+
+class ImageMessageItem {
+  final String messageId;
+  final PlatformInt64 createdAtMicros;
+  final String mediaUrl;
+  final String? mediaName;
+  final bool canForward;
+
+  const ImageMessageItem({
+    required this.messageId,
+    required this.createdAtMicros,
+    required this.mediaUrl,
+    this.mediaName,
+    required this.canForward,
+  });
+
+  @override
+  int get hashCode =>
+      messageId.hashCode ^
+      createdAtMicros.hashCode ^
+      mediaUrl.hashCode ^
+      mediaName.hashCode ^
+      canForward.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ImageMessageItem &&
+          runtimeType == other.runtimeType &&
+          messageId == other.messageId &&
+          createdAtMicros == other.createdAtMicros &&
+          mediaUrl == other.mediaUrl &&
+          mediaName == other.mediaName &&
+          canForward == other.canForward;
+}
+
+class MessageListItem {
+  final String messageId;
+  final String conversationId;
+  final String senderId;
+  final String senderName;
+  final String? senderIdentityNumber;
+  final String senderAvatarUrl;
+  final bool senderIsVerified;
+  final String senderRelationship;
+  final String? senderAppId;
+  final bool senderIsScam;
+  final bool senderIsBot;
+  final String category;
+  final String content;
+  final String status;
+  final PlatformInt64 createdAtMicros;
+  final String? mediaUrl;
+  final String? mediaMimeType;
+  final PlatformInt64? mediaSize;
+  final String mediaDuration;
+  final int? mediaWidth;
+  final int? mediaHeight;
+  final String? thumbImage;
+  final String mediaStatus;
+  final String? quoteMessageId;
+  final String? quoteContent;
+  final String? caption;
+  final String? action;
+  final String? participantId;
+  final String? participantFullName;
+  final String? snapshotId;
+  final String? snapshotType;
+  final String? snapshotAmount;
+  final String? snapshotMemo;
+  final String? snapshotAssetId;
+  final String? snapshotAssetSymbol;
+  final String? snapshotAssetIconUrl;
+  final String? snapshotChainIconUrl;
+  final String? snapshotOpponentId;
+  final String? snapshotTransactionHash;
+  final String? snapshotCreatedAt;
+  final String? inscriptionHash;
+  final String? inscriptionCollectionHash;
+  final PlatformInt64? inscriptionSequence;
+  final String? inscriptionContentType;
+  final String? inscriptionContentUrl;
+  final String? inscriptionName;
+  final String? inscriptionIconUrl;
+  final String? hyperlink;
+  final String? mediaName;
+  final String? albumId;
+  final String? stickerId;
+  final String? sharedUserId;
+  final String? mediaWaveform;
+  final String? thumbUrl;
+  final String? conversationOwnerId;
+  final String? conversationCategory;
+  final String? sharedUserFullName;
+  final String? sharedUserIdentityNumber;
+  final String? sharedUserAvatarUrl;
+  final bool sharedUserIsVerified;
+  final String? sharedUserAppId;
+  final String? stickerAssetUrl;
+  final int? stickerAssetWidth;
+  final int? stickerAssetHeight;
+  final String? stickerAssetName;
+  final String? stickerAssetType;
+  final bool? mentionRead;
+  final bool pinned;
+  final PlatformInt64? expireIn;
+
+  const MessageListItem({
+    required this.messageId,
+    required this.conversationId,
+    required this.senderId,
+    required this.senderName,
+    this.senderIdentityNumber,
+    required this.senderAvatarUrl,
+    required this.senderIsVerified,
+    required this.senderRelationship,
+    this.senderAppId,
+    required this.senderIsScam,
+    required this.senderIsBot,
+    required this.category,
+    required this.content,
+    required this.status,
+    required this.createdAtMicros,
+    this.mediaUrl,
+    this.mediaMimeType,
+    this.mediaSize,
+    required this.mediaDuration,
+    this.mediaWidth,
+    this.mediaHeight,
+    this.thumbImage,
+    required this.mediaStatus,
+    this.quoteMessageId,
+    this.quoteContent,
+    this.caption,
+    this.action,
+    this.participantId,
+    this.participantFullName,
+    this.snapshotId,
+    this.snapshotType,
+    this.snapshotAmount,
+    this.snapshotMemo,
+    this.snapshotAssetId,
+    this.snapshotAssetSymbol,
+    this.snapshotAssetIconUrl,
+    this.snapshotChainIconUrl,
+    this.snapshotOpponentId,
+    this.snapshotTransactionHash,
+    this.snapshotCreatedAt,
+    this.inscriptionHash,
+    this.inscriptionCollectionHash,
+    this.inscriptionSequence,
+    this.inscriptionContentType,
+    this.inscriptionContentUrl,
+    this.inscriptionName,
+    this.inscriptionIconUrl,
+    this.hyperlink,
+    this.mediaName,
+    this.albumId,
+    this.stickerId,
+    this.sharedUserId,
+    this.mediaWaveform,
+    this.thumbUrl,
+    this.conversationOwnerId,
+    this.conversationCategory,
+    this.sharedUserFullName,
+    this.sharedUserIdentityNumber,
+    this.sharedUserAvatarUrl,
+    required this.sharedUserIsVerified,
+    this.sharedUserAppId,
+    this.stickerAssetUrl,
+    this.stickerAssetWidth,
+    this.stickerAssetHeight,
+    this.stickerAssetName,
+    this.stickerAssetType,
+    this.mentionRead,
+    required this.pinned,
+    this.expireIn,
+  });
+
+  @override
+  int get hashCode =>
+      messageId.hashCode ^
+      conversationId.hashCode ^
+      senderId.hashCode ^
+      senderName.hashCode ^
+      senderIdentityNumber.hashCode ^
+      senderAvatarUrl.hashCode ^
+      senderIsVerified.hashCode ^
+      senderRelationship.hashCode ^
+      senderAppId.hashCode ^
+      senderIsScam.hashCode ^
+      senderIsBot.hashCode ^
+      category.hashCode ^
+      content.hashCode ^
+      status.hashCode ^
+      createdAtMicros.hashCode ^
+      mediaUrl.hashCode ^
+      mediaMimeType.hashCode ^
+      mediaSize.hashCode ^
+      mediaDuration.hashCode ^
+      mediaWidth.hashCode ^
+      mediaHeight.hashCode ^
+      thumbImage.hashCode ^
+      mediaStatus.hashCode ^
+      quoteMessageId.hashCode ^
+      quoteContent.hashCode ^
+      caption.hashCode ^
+      action.hashCode ^
+      participantId.hashCode ^
+      participantFullName.hashCode ^
+      snapshotId.hashCode ^
+      snapshotType.hashCode ^
+      snapshotAmount.hashCode ^
+      snapshotMemo.hashCode ^
+      snapshotAssetId.hashCode ^
+      snapshotAssetSymbol.hashCode ^
+      snapshotAssetIconUrl.hashCode ^
+      snapshotChainIconUrl.hashCode ^
+      snapshotOpponentId.hashCode ^
+      snapshotTransactionHash.hashCode ^
+      snapshotCreatedAt.hashCode ^
+      inscriptionHash.hashCode ^
+      inscriptionCollectionHash.hashCode ^
+      inscriptionSequence.hashCode ^
+      inscriptionContentType.hashCode ^
+      inscriptionContentUrl.hashCode ^
+      inscriptionName.hashCode ^
+      inscriptionIconUrl.hashCode ^
+      hyperlink.hashCode ^
+      mediaName.hashCode ^
+      albumId.hashCode ^
+      stickerId.hashCode ^
+      sharedUserId.hashCode ^
+      mediaWaveform.hashCode ^
+      thumbUrl.hashCode ^
+      conversationOwnerId.hashCode ^
+      conversationCategory.hashCode ^
+      sharedUserFullName.hashCode ^
+      sharedUserIdentityNumber.hashCode ^
+      sharedUserAvatarUrl.hashCode ^
+      sharedUserIsVerified.hashCode ^
+      sharedUserAppId.hashCode ^
+      stickerAssetUrl.hashCode ^
+      stickerAssetWidth.hashCode ^
+      stickerAssetHeight.hashCode ^
+      stickerAssetName.hashCode ^
+      stickerAssetType.hashCode ^
+      mentionRead.hashCode ^
+      pinned.hashCode ^
+      expireIn.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MessageListItem &&
+          runtimeType == other.runtimeType &&
+          messageId == other.messageId &&
+          conversationId == other.conversationId &&
+          senderId == other.senderId &&
+          senderName == other.senderName &&
+          senderIdentityNumber == other.senderIdentityNumber &&
+          senderAvatarUrl == other.senderAvatarUrl &&
+          senderIsVerified == other.senderIsVerified &&
+          senderRelationship == other.senderRelationship &&
+          senderAppId == other.senderAppId &&
+          senderIsScam == other.senderIsScam &&
+          senderIsBot == other.senderIsBot &&
+          category == other.category &&
+          content == other.content &&
+          status == other.status &&
+          createdAtMicros == other.createdAtMicros &&
+          mediaUrl == other.mediaUrl &&
+          mediaMimeType == other.mediaMimeType &&
+          mediaSize == other.mediaSize &&
+          mediaDuration == other.mediaDuration &&
+          mediaWidth == other.mediaWidth &&
+          mediaHeight == other.mediaHeight &&
+          thumbImage == other.thumbImage &&
+          mediaStatus == other.mediaStatus &&
+          quoteMessageId == other.quoteMessageId &&
+          quoteContent == other.quoteContent &&
+          caption == other.caption &&
+          action == other.action &&
+          participantId == other.participantId &&
+          participantFullName == other.participantFullName &&
+          snapshotId == other.snapshotId &&
+          snapshotType == other.snapshotType &&
+          snapshotAmount == other.snapshotAmount &&
+          snapshotMemo == other.snapshotMemo &&
+          snapshotAssetId == other.snapshotAssetId &&
+          snapshotAssetSymbol == other.snapshotAssetSymbol &&
+          snapshotAssetIconUrl == other.snapshotAssetIconUrl &&
+          snapshotChainIconUrl == other.snapshotChainIconUrl &&
+          snapshotOpponentId == other.snapshotOpponentId &&
+          snapshotTransactionHash == other.snapshotTransactionHash &&
+          snapshotCreatedAt == other.snapshotCreatedAt &&
+          inscriptionHash == other.inscriptionHash &&
+          inscriptionCollectionHash == other.inscriptionCollectionHash &&
+          inscriptionSequence == other.inscriptionSequence &&
+          inscriptionContentType == other.inscriptionContentType &&
+          inscriptionContentUrl == other.inscriptionContentUrl &&
+          inscriptionName == other.inscriptionName &&
+          inscriptionIconUrl == other.inscriptionIconUrl &&
+          hyperlink == other.hyperlink &&
+          mediaName == other.mediaName &&
+          albumId == other.albumId &&
+          stickerId == other.stickerId &&
+          sharedUserId == other.sharedUserId &&
+          mediaWaveform == other.mediaWaveform &&
+          thumbUrl == other.thumbUrl &&
+          conversationOwnerId == other.conversationOwnerId &&
+          conversationCategory == other.conversationCategory &&
+          sharedUserFullName == other.sharedUserFullName &&
+          sharedUserIdentityNumber == other.sharedUserIdentityNumber &&
+          sharedUserAvatarUrl == other.sharedUserAvatarUrl &&
+          sharedUserIsVerified == other.sharedUserIsVerified &&
+          sharedUserAppId == other.sharedUserAppId &&
+          stickerAssetUrl == other.stickerAssetUrl &&
+          stickerAssetWidth == other.stickerAssetWidth &&
+          stickerAssetHeight == other.stickerAssetHeight &&
+          stickerAssetName == other.stickerAssetName &&
+          stickerAssetType == other.stickerAssetType &&
+          mentionRead == other.mentionRead &&
+          pinned == other.pinned &&
+          expireIn == other.expireIn;
+}
+
+class UserProfileItem {
+  final String userId;
+  final String identityNumber;
+  final String fullName;
+  final String avatarUrl;
+  final String biography;
+  final bool isVerified;
+  final bool isBot;
+  final String relationship;
+
+  const UserProfileItem({
+    required this.userId,
+    required this.identityNumber,
+    required this.fullName,
+    required this.avatarUrl,
+    required this.biography,
+    required this.isVerified,
+    required this.isBot,
+    required this.relationship,
+  });
+
+  @override
+  int get hashCode =>
+      userId.hashCode ^
+      identityNumber.hashCode ^
+      fullName.hashCode ^
+      avatarUrl.hashCode ^
+      biography.hashCode ^
+      isVerified.hashCode ^
+      isBot.hashCode ^
+      relationship.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UserProfileItem &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          identityNumber == other.identityNumber &&
+          fullName == other.fullName &&
+          avatarUrl == other.avatarUrl &&
+          biography == other.biography &&
+          isVerified == other.isVerified &&
+          isBot == other.isBot &&
+          relationship == other.relationship;
 }

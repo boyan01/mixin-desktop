@@ -1,0 +1,243 @@
+import 'dart:math' as math;
+
+import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
+
+class MessageLayout extends MultiChildRenderObjectWidget {
+  MessageLayout({
+    required Widget content,
+    required Widget dateAndStatus,
+    super.key,
+    this.spacing = 0,
+  }) : super(children: [content, dateAndStatus]);
+
+  final double spacing;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderMessageLayout(spacing: spacing);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    // ignore: library_private_types_in_public_api
+    _RenderMessageLayout renderObject,
+  ) {
+    renderObject.spacing = spacing;
+  }
+}
+
+class _RenderMessageLayout extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, MultiChildLayoutParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, MultiChildLayoutParentData> {
+  _RenderMessageLayout({List<RenderBox>? children, this._spacing = 0}) {
+    addAll(children);
+  }
+
+  double get spacing => _spacing;
+  double _spacing;
+
+  set spacing(double value) {
+    if (_spacing == value) return;
+    _spacing = value;
+    markNeedsLayout();
+  }
+
+  RenderBox get contentChild => firstChild!;
+
+  RenderBox get statusChild => lastChild!;
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! MultiChildLayoutParentData) {
+      child.parentData = MultiChildLayoutParentData();
+    }
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) {
+    var width = math.max(childCount - 1, 0) * spacing;
+    var child = firstChild;
+    while (child != null) {
+      width = math.max(width, child.getMinIntrinsicWidth(double.infinity));
+      child = childAfter(child);
+    }
+    return width;
+  }
+
+  @override
+  double computeMaxIntrinsicWidth(double height) {
+    var width = math.max(childCount - 1, 0) * spacing;
+    var child = firstChild;
+    while (child != null) {
+      width += child.getMaxIntrinsicWidth(double.infinity);
+      child = childAfter(child);
+    }
+    return width;
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      computeDryLayout(BoxConstraints(maxWidth: width)).height;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      computeDryLayout(BoxConstraints(maxWidth: width)).height;
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) =>
+      defaultComputeDistanceToHighestActualBaseline(baseline);
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) =>
+      _computeDryLayout(constraints);
+
+  Size _computeDryLayout(
+    BoxConstraints constraints, [
+    ChildLayouter layoutChild = ChildLayoutHelper.dryLayoutChild,
+  ]) {
+    final childConstraints = BoxConstraints(maxWidth: constraints.maxWidth);
+    final contentSize = layoutChild(contentChild, childConstraints);
+    final statusSize = layoutChild(statusChild, childConstraints);
+    return constraints.constrain(
+      _calculateSize(constraints.maxWidth, contentSize, statusSize),
+    );
+  }
+
+  Size _calculateSize(
+    double widthLimit,
+    Size contentSize,
+    Size statusSize, {
+    bool lastLineHasSpace = false,
+  }) {
+    if (widthLimit.isInfinite) {
+      return Size(
+        contentSize.width + spacing + statusSize.width,
+        contentSize.height + statusSize.height,
+      );
+    }
+    if (contentSize.width + spacing + statusSize.width <= widthLimit) {
+      return Size(
+        contentSize.width + spacing + statusSize.width,
+        contentSize.height,
+      );
+    }
+    return Size(
+      contentSize.width,
+      contentSize.height + (lastLineHasSpace ? 0 : statusSize.height),
+    );
+  }
+
+  double _calculateWidth(
+    double widthLimit,
+    double contentWidth,
+    double statusWidth,
+  ) {
+    if (widthLimit.isInfinite) {
+      return contentWidth + spacing + statusWidth;
+    }
+    if (contentWidth + spacing + statusWidth <= widthLimit) {
+      return contentWidth + spacing + statusWidth;
+    }
+    return contentWidth;
+  }
+
+  @override
+  void performLayout() {
+    final widthLimit = constraints.maxWidth;
+    final childConstraints = BoxConstraints(maxWidth: widthLimit);
+
+    contentChild.layout(childConstraints, parentUsesSize: true);
+    statusChild.layout(childConstraints, parentUsesSize: true);
+
+    final boxWidth = _calculateWidth(
+      widthLimit,
+      contentChild.size.width,
+      statusChild.size.width,
+    );
+    final lastLineHasSpace =
+        _calculateRenderParagraphLastLineHasSpace(boxWidth) ||
+        _calculateRenderEditableLastLineHasSpace(boxWidth);
+
+    size = constraints.constrain(
+      _calculateSize(
+        widthLimit,
+        contentChild.size,
+        statusChild.size,
+        lastLineHasSpace: lastLineHasSpace,
+      ),
+    );
+
+    (contentChild.parentData! as MultiChildLayoutParentData).offset =
+        Offset.zero;
+    (statusChild.parentData! as MultiChildLayoutParentData).offset = Offset(
+      size.width - statusChild.size.width,
+      size.height - statusChild.size.height,
+    );
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  bool _calculateRenderParagraphLastLineHasSpace(double widthLimit) {
+    final renderParagraph = contentChild.findRenderObject<RenderParagraph>();
+    if (renderParagraph == null) return false;
+
+    final statusX = widthLimit - statusChild.size.width - spacing;
+    final positionForOffset = renderParagraph.getPositionForOffset(
+      contentChild.paintBounds.bottomRight,
+    );
+    final boxesForSelection = renderParagraph.getBoxesForSelection(
+      TextSelection(
+        baseOffset: positionForOffset.offset == 0
+            ? 0
+            : positionForOffset.offset - 1,
+        extentOffset: positionForOffset.offset,
+      ),
+    );
+
+    return boxesForSelection.isNotEmpty &&
+        boxesForSelection.first.right.ceil() <= statusX;
+  }
+
+  bool _calculateRenderEditableLastLineHasSpace(double widthLimit) {
+    final renderEditable = contentChild.findRenderObject<RenderEditable>();
+    if (renderEditable == null) return false;
+
+    final statusX = widthLimit - statusChild.size.width - spacing;
+    final length =
+        renderEditable.textSelectionDelegate.textEditingValue.text.length;
+    final endpointsForSelection = renderEditable.getEndpointsForSelection(
+      TextSelection.collapsed(offset: length),
+    );
+
+    return endpointsForSelection.isNotEmpty &&
+        endpointsForSelection.first.point.dx.ceil() +
+                renderEditable.cursorWidth +
+                1 <=
+            statusX;
+  }
+}
+
+extension _Finder on RenderObject {
+  T? findRenderObject<T>() {
+    if (this is T) return this as T;
+    if (this is! RenderObjectWithChildMixin<RenderBox>) return null;
+    T? result;
+    visitChildren((child) {
+      if (result != null) return;
+      if (child is T) {
+        result = child as T;
+        return;
+      }
+      result = child.findRenderObject<T>();
+    });
+    return result;
+  }
+}

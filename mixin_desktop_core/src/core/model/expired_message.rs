@@ -6,6 +6,7 @@ use std::time::Duration;
 use anyhow::Result;
 use chrono::Utc;
 use log::error;
+use tokio::sync::watch;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
@@ -17,13 +18,21 @@ pub struct ExpiredMessageService {
 }
 
 impl ExpiredMessageService {
-    pub fn new(database: Arc<MixinDatabase>) -> Self {
+    pub fn new(database: Arc<MixinDatabase>, changes: Option<watch::Sender<u64>>) -> Self {
         let notify = Arc::new(Notify::new());
         let runner_notify = notify.clone();
         let handle = tokio::spawn(async move {
             loop {
-                if let Err(err) = cleanup_expired_messages(&database).await {
-                    error!("failed to clean up expired messages: {err}");
+                match cleanup_expired_messages(&database).await {
+                    Ok(true) => {
+                        if let Some(changes) = &changes {
+                            changes.send_modify(|revision| {
+                                *revision = revision.wrapping_add(1);
+                            });
+                        }
+                    }
+                    Ok(false) => {}
+                    Err(err) => error!("failed to clean up expired messages: {err}"),
                 }
 
                 let delay = match database
@@ -55,6 +64,10 @@ impl ExpiredMessageService {
     pub fn wake(&self) {
         self.notify.notify_one();
     }
+
+    pub(crate) fn notifier(&self) -> Arc<Notify> {
+        self.notify.clone()
+    }
 }
 
 impl Drop for ExpiredMessageService {
@@ -63,7 +76,8 @@ impl Drop for ExpiredMessageService {
     }
 }
 
-async fn cleanup_expired_messages(database: &MixinDatabase) -> Result<()> {
+async fn cleanup_expired_messages(database: &MixinDatabase) -> Result<bool> {
+    let mut deleted = false;
     for expired in database
         .expired_message_dao
         .get_current_expired_messages()
@@ -78,6 +92,7 @@ async fn cleanup_expired_messages(database: &MixinDatabase) -> Result<()> {
                 .expired_message_dao
                 .delete_by_message_id(&expired.message_id)
                 .await?;
+            deleted = true;
             continue;
         };
 
@@ -103,8 +118,9 @@ async fn cleanup_expired_messages(database: &MixinDatabase) -> Result<()> {
             .message_dao
             .delete_message(&message.conversation_id, &message.message_id)
             .await?;
+        deleted = true;
     }
-    Ok(())
+    Ok(deleted)
 }
 
 #[cfg(test)]

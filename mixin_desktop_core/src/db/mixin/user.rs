@@ -54,6 +54,27 @@ impl From<sdk::User> for User {
 }
 
 impl UserDao {
+    pub async fn find_user_by_id(&self, user_id: &str) -> Result<Option<User>, Error> {
+        Ok(
+            sqlx::query_as::<_, User>("SELECT * FROM users WHERE user_id = ?")
+                .bind(user_id)
+                .fetch_optional(&self.0)
+                .await?,
+        )
+    }
+
+    pub async fn find_user_by_identity_number(
+        &self,
+        identity_number: &str,
+    ) -> Result<Option<User>, Error> {
+        Ok(
+            sqlx::query_as::<_, User>("SELECT * FROM users WHERE identity_number = ? LIMIT 1")
+                .bind(identity_number)
+                .fetch_optional(&self.0)
+                .await?,
+        )
+    }
+
     pub async fn find_user(&self, identity_number: &str) -> Result<Option<String>, sqlx::Error> {
         let result = sqlx::query_scalar::<_, String>(
             "SELECT relationship FROM users WHERE identity_number = ?",
@@ -96,6 +117,26 @@ impl UserDao {
             );
         }
         Ok(user_ids)
+    }
+
+    pub async fn find_users_by_identity_numbers(
+        &self,
+        identity_numbers: &[String],
+    ) -> Result<Vec<User>, Error> {
+        let mut users = Vec::new();
+        for chunk in identity_numbers.chunks(MARK_LIMIT) {
+            let query = format!(
+                "SELECT * FROM users WHERE identity_number IN ({})",
+                expand_var(chunk.len())
+            );
+            users.extend(
+                sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(query))
+                    .bind_list(chunk)
+                    .fetch_all(&self.0)
+                    .await?,
+            );
+        }
+        Ok(users)
     }
 
     pub async fn insert_sdk_users(&self, users: Vec<sdk::User>) -> Result<Vec<User>, Error> {
@@ -174,5 +215,55 @@ mod tests {
             .await
             .unwrap()
             .is_empty());
+    }
+
+    #[tokio::test]
+    async fn finds_users_by_identity_numbers_in_one_batch() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        for (user_id, identity_number, full_name) in [
+            ("user-1", "7001", "Alice"),
+            ("user-2", "7002", "Bob"),
+            ("user-3", "7003", "Carol"),
+        ] {
+            sqlx::query(
+                r#"INSERT INTO users (
+                    user_id, identity_number, relationship, full_name, avatar_url,
+                    phone, is_verified, created_at, mute_until, has_pin, app_id,
+                    biography, is_scam, code_url, code_id, is_deactivated
+                ) VALUES (?, ?, 'STRANGER', ?, '', '', FALSE, CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP, FALSE, NULL, '', FALSE, '', '', FALSE)"#,
+            )
+            .bind(user_id)
+            .bind(identity_number)
+            .bind(full_name)
+            .execute(&database.user_dao.0)
+            .await
+            .unwrap();
+        }
+
+        let mut users = database
+            .user_dao
+            .find_users_by_identity_numbers(&[
+                "7001".to_string(),
+                "7003".to_string(),
+                "9999".to_string(),
+            ])
+            .await
+            .unwrap();
+        users.sort_by(|first, second| first.identity_number.cmp(&second.identity_number));
+
+        assert_eq!(
+            users
+                .into_iter()
+                .map(|user| (user.identity_number, user.full_name))
+                .collect::<Vec<_>>(),
+            vec![
+                ("7001".to_string(), "Alice".to_string()),
+                ("7003".to_string(), "Carol".to_string()),
+            ]
+        );
     }
 }

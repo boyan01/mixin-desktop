@@ -85,6 +85,25 @@ impl SignalDatabase {
             })
             .await
     }
+
+    pub async fn clear(&self) -> Result<(), db::Error> {
+        let mut transaction = self.pre_key_dao.0.begin().await?;
+        for table in [
+            "sender_keys",
+            "identities",
+            "prekeys",
+            "signed_prekeys",
+            "sessions",
+            "ratchet_sender_keys",
+            "properties",
+        ] {
+            sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM {table}")))
+                .execute(&mut *transaction)
+                .await?;
+        }
+        transaction.commit().await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -113,6 +132,43 @@ mod tests {
             .await
             .expect("get prekey error");
         println!("{:x?}", a.unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn clear_removes_all_signal_state() -> Result<(), Box<dyn Error>> {
+        let directory = tempfile::tempdir()?;
+        let db = SignalDatabase::connect_at(directory.path().join("signal.db")).await?;
+        let pool = &db.pre_key_dao.0;
+        for statement in [
+            "INSERT INTO sender_keys VALUES ('group', 'sender', X'01')",
+            "INSERT INTO identities VALUES ('address', 1, X'01', X'02', NULL, 1)",
+            "INSERT INTO prekeys VALUES (1, X'01')",
+            "INSERT INTO signed_prekeys VALUES (1, X'01', 1)",
+            "INSERT INTO sessions VALUES ('address', 1, X'01', 1)",
+            "INSERT INTO ratchet_sender_keys VALUES ('group', 'sender', 'SENT', 'message', '2026-07-16T00:00:00Z')",
+            "INSERT INTO properties VALUES ('key', 'group', 'value')",
+        ] {
+            sqlx::query(statement).execute(pool).await?;
+        }
+
+        db.clear().await?;
+
+        for table in [
+            "sender_keys",
+            "identities",
+            "prekeys",
+            "signed_prekeys",
+            "sessions",
+            "ratchet_sender_keys",
+            "properties",
+        ] {
+            let count: i64 =
+                sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT COUNT(*) FROM {table}")))
+                    .fetch_one(pool)
+                    .await?;
+            assert_eq!(count, 0, "{table} was not cleared");
+        }
         Ok(())
     }
 }

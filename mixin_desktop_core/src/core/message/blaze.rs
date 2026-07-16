@@ -13,6 +13,7 @@ use futures_channel::mpsc::UnboundedSender;
 use log::{error, info, warn};
 use reqwest::header::HeaderValue;
 use reqwest::Method;
+use tokio::sync::watch;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::{Error as WebSocketError, Message};
@@ -59,21 +60,34 @@ pub struct Blaze {
 }
 
 #[derive(Clone, Default)]
-pub struct PendingMessageStatusStore(Arc<tokio::sync::Mutex<HashMap<String, MessageStatus>>>);
+pub struct PendingMessageStatusStore {
+    statuses: Arc<tokio::sync::Mutex<HashMap<String, MessageStatus>>>,
+    changes: Option<watch::Sender<u64>>,
+}
 
 impl PendingMessageStatusStore {
+    fn new(changes: Option<watch::Sender<u64>>) -> Self {
+        Self {
+            statuses: Default::default(),
+            changes,
+        }
+    }
+
     async fn apply(
         &self,
         database: &MixinDatabase,
         message_id: &str,
         status: MessageStatus,
     ) -> Result<()> {
-        let mut pending = self.0.lock().await;
+        let mut pending = self.statuses.lock().await;
         if database
             .message_dao
             .advance_message_status(message_id, status)
             .await?
         {
+            if let Some(changes) = &self.changes {
+                changes.send_modify(|revision| *revision = revision.wrapping_add(1));
+            }
             return Ok(());
         }
         if database
@@ -101,7 +115,7 @@ impl PendingMessageStatusStore {
         database: &MixinDatabase,
         message: &StoredMessage,
     ) -> Result<()> {
-        let mut pending = self.0.lock().await;
+        let mut pending = self.statuses.lock().await;
         let mut message = message.clone();
         if let Some(status) = pending.get(&message.message_id).copied() {
             if !matches!(
@@ -214,6 +228,7 @@ impl Blaze {
         client: Arc<Client>,
         credential: Credential,
         user_id: String,
+        changes: Option<watch::Sender<u64>>,
     ) -> Self {
         Blaze {
             database,
@@ -223,7 +238,7 @@ impl Blaze {
             user_id,
             transactions: Arc::new(Mutex::new(HashMap::new())),
             connect_running: Arc::new(AtomicBool::new(false)),
-            pending_message_statuses: PendingMessageStatusStore::default(),
+            pending_message_statuses: PendingMessageStatusStore::new(changes),
         }
     }
 
@@ -657,7 +672,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(message.status, MessageStatus::Read);
-        assert!(pending.0.lock().await.is_empty());
+        assert!(pending.statuses.lock().await.is_empty());
 
         pending
             .apply(&database, "failed-message", MessageStatus::Read)

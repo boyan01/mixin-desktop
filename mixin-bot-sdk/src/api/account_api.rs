@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::sync::Arc;
 
 use crate::api::user_api::UserRelationship;
@@ -82,11 +83,77 @@ impl AccountApi {
     pub async fn get_sticker_by_id(&self, sticker_id: &str) -> Result<Sticker, ApiError> {
         self.client.get(&format!("stickers/{sticker_id}")).await
     }
+
+    pub async fn add_sticker(&self, sticker_id: &str) -> Result<Sticker, ApiError> {
+        self.client
+            .post(
+                "stickers",
+                &AddStickerRequest {
+                    sticker_id: Some(sticker_id),
+                    data_base64: None,
+                },
+            )
+            .await
+    }
+
+    pub async fn add_sticker_data(&self, data_base64: &str) -> Result<Sticker, ApiError> {
+        self.client
+            .post(
+                "stickers",
+                &AddStickerRequest {
+                    sticker_id: None,
+                    data_base64: Some(data_base64),
+                },
+            )
+            .await
+    }
+
+    pub async fn logout(&self, session_id: &str) -> Result<(), ApiError> {
+        #[derive(Serialize)]
+        struct LogoutRequest<'a> {
+            session_id: &'a str,
+        }
+
+        let _: Value = self
+            .client
+            .post("logout", &LogoutRequest { session_id })
+            .await?;
+        Ok(())
+    }
+}
+
+#[derive(Serialize)]
+struct AddStickerRequest<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sticker_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data_base64: Option<&'a str>,
 }
 
 #[cfg(test)]
 mod test {
+    use super::AddStickerRequest;
     use crate::client::tests::new_test_client;
+
+    #[test]
+    fn serializes_sticker_id_or_data() {
+        assert_eq!(
+            serde_json::to_value(AddStickerRequest {
+                sticker_id: Some("sticker"),
+                data_base64: None,
+            })
+            .unwrap(),
+            serde_json::json!({"sticker_id": "sticker"})
+        );
+        assert_eq!(
+            serde_json::to_value(AddStickerRequest {
+                sticker_id: None,
+                data_base64: Some("aW1hZ2U="),
+            })
+            .unwrap(),
+            serde_json::json!({"data_base64": "aW1hZ2U="})
+        );
+    }
 
     #[tokio::test]
     #[ignore = "requires ../keystore.json and the live Mixin API"]
