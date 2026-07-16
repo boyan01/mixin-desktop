@@ -96,7 +96,7 @@ impl MixinDatabase {
             safe_snapshot_dao: SafeSnapshotDao(pool.clone()),
             app_dao: AppDao(pool.clone()),
             pin_message_dao: PinMessageDao(pool.clone()),
-            flood_message_dao: FloodMessageDao(pool.clone()),
+            flood_message_dao: FloodMessageDao::new(pool.clone()),
             expired_message_dao: ExpiredMessageDao(pool.clone()),
         })
     }

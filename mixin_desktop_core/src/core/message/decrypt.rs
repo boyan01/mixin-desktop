@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::default::Default;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Context, Result};
 use base64ct::{Base64, Encoding};
@@ -58,6 +59,9 @@ struct PreparedTranscript {
     attachments: Vec<TranscriptMessage>,
 }
 
+const FLOOD_MESSAGE_RETRY_DELAY: Duration = Duration::from_secs(1);
+const FLOOD_MESSAGE_IDLE_CHECK_INTERVAL: Duration = Duration::from_secs(42);
+
 fn message_fts_content(message: &Message) -> Option<String> {
     if matches!(
         message.status,
@@ -102,21 +106,56 @@ impl ServiceDecryptMessage {
 
     pub async fn start(&self) {
         loop {
-            let messages = self.database.flood_message_dao.flood_messages().await;
-            if let Err(err) = messages {
-                error!("failed to get messages: {:?}", err);
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                continue;
-            }
+            let started_at = Instant::now();
+            let mut processed = 0;
+            let mut should_retry = false;
 
-            let messages = messages.unwrap();
-            info!("flood message count: {}", messages.len());
-            for m in messages {
-                if let Err(err) = self.process_message(&m).await {
-                    error!("failed to process message: {:?}", err)
+            loop {
+                let messages = match self.database.flood_message_dao.flood_messages().await {
+                    Ok(messages) => messages,
+                    Err(err) => {
+                        error!("failed to get messages: {:?}", err);
+                        should_retry = true;
+                        break;
+                    }
+                };
+
+                if messages.is_empty() {
+                    break;
+                }
+
+                for message in messages {
+                    match self.process_message(&message).await {
+                        Ok(()) => processed += 1,
+                        Err(err) => {
+                            error!("failed to process message: {:?}", err);
+                            should_retry = true;
+                        }
+                    }
+                }
+
+                if should_retry {
+                    break;
                 }
             }
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+            if processed > 0 {
+                info!(
+                    "processed {} flood messages in {} ms",
+                    processed,
+                    started_at.elapsed().as_millis()
+                );
+            }
+
+            let delay = if should_retry {
+                FLOOD_MESSAGE_RETRY_DELAY
+            } else {
+                FLOOD_MESSAGE_IDLE_CHECK_INTERVAL
+            };
+            tokio::select! {
+                _ = self.database.flood_message_dao.wait_for_message() => {}
+                _ = tokio::time::sleep(delay) => {}
+            }
         }
     }
 
