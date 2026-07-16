@@ -16,6 +16,14 @@ pub struct Circle {
 }
 
 impl CircleDao {
+    pub async fn list(&self) -> Result<Vec<Circle>, Error> {
+        Ok(
+            sqlx::query_as::<_, Circle>("SELECT * FROM circles ORDER BY ordered_at, created_at")
+                .fetch_all(&self.0)
+                .await?,
+        )
+    }
+
     pub async fn insert_circles(&self, circles: &[sdk::Circle]) -> Result<(), Error> {
         if circles.is_empty() {
             return Ok(());

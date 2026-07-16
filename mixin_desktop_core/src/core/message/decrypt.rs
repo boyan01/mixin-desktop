@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use anyhow::{anyhow, bail, Context, Result};
 use base64ct::{Base64, Encoding};
 use log::{error, info, warn};
+use tokio::sync::watch;
 use uuid::Uuid;
 
 use sdk::blaze_message::{
@@ -49,6 +50,7 @@ pub struct ServiceDecryptMessage {
     private_key: Vec<u8>,
     session_id: String,
     pending_message_statuses: PendingMessageStatusStore,
+    conversation_changes: Option<watch::Sender<u64>>,
 }
 
 struct PreparedTranscript {
@@ -101,7 +103,13 @@ impl ServiceDecryptMessage {
             private_key: auth.private_key.clone(),
             session_id: auth.account.session_id.clone(),
             pending_message_statuses,
+            conversation_changes: None,
         }
+    }
+
+    pub fn with_conversation_changes(mut self, sender: watch::Sender<u64>) -> Self {
+        self.conversation_changes = Some(sender);
+        self
     }
 
     pub async fn start(&self) {
@@ -126,7 +134,14 @@ impl ServiceDecryptMessage {
 
                 for message in messages {
                     match self.process_message(&message).await {
-                        Ok(()) => processed += 1,
+                        Ok(()) => {
+                            processed += 1;
+                            if let Some(sender) = &self.conversation_changes {
+                                sender.send_modify(|revision| {
+                                    *revision = revision.wrapping_add(1);
+                                });
+                            }
+                        }
                         Err(err) => {
                             error!("failed to process message: {:?}", err);
                             should_retry = true;

@@ -21,6 +21,18 @@ pub struct AuthService {
     auth: Arc<Mutex<Option<Auth>>>,
 }
 
+pub struct AuthorizationSession {
+    device_id: String,
+    key_pair: KeyPair,
+    auth_url: String,
+}
+
+impl AuthorizationSession {
+    pub fn auth_url(&self) -> &str {
+        &self.auth_url
+    }
+}
+
 impl AuthService {
     pub fn new(app_db: Arc<AppDatabase>) -> Self {
         AuthService {
@@ -30,27 +42,14 @@ impl AuthService {
     }
 
     pub async fn authorize(&self) -> anyhow::Result<AuthResult> {
-        let client = Arc::new(sdk::Client::new(Credential::None));
-        let resp = client.provisioning_api.get_provisioning_id("rust").await?;
-        let key_pair = KeyPair::generate(&mut rand_core::OsRng);
-
-        let pub_key = utf8_percent_encode(
-            &Base64::encode_string(&key_pair.public_key.serialize()),
-            NON_ALPHANUMERIC,
-        )
-        .to_string();
-
-        let url = format!(
-            "mixin://device/auth?id={}&pub_key={}",
-            resp.device_id, pub_key
-        );
-        info!("login url: {}", url);
+        let session = self.begin_authorization("rust").await?;
+        info!("login url: {}", session.auth_url());
 
         let time_out = sleep(Duration::from_secs(60));
         tokio::pin!(time_out);
         loop {
             tokio::select! {
-                result = check_auth(client.clone(), &resp.device_id, &key_pair) => {
+                result = self.poll_authorization(&session) => {
                     match result {
                         Ok(auth) => {
                             if let Some(auth) = auth {
@@ -74,6 +73,53 @@ impl AuthService {
         }
 
         Err(anyhow!("need auth"))
+    }
+
+    pub async fn begin_authorization(
+        &self,
+        platform: &str,
+    ) -> anyhow::Result<AuthorizationSession> {
+        let client = sdk::Client::new(Credential::None);
+        let response = client
+            .provisioning_api
+            .get_provisioning_id(platform)
+            .await?;
+        let key_pair = KeyPair::generate(&mut rand_core::OsRng);
+        let public_key = utf8_percent_encode(
+            &Base64::encode_string(&key_pair.public_key.serialize()),
+            NON_ALPHANUMERIC,
+        )
+        .to_string();
+        let auth_url = format!(
+            "mixin://device/auth?id={}&pub_key={}",
+            response.device_id, public_key
+        );
+
+        Ok(AuthorizationSession {
+            device_id: response.device_id,
+            key_pair,
+            auth_url,
+        })
+    }
+
+    pub async fn poll_authorization(
+        &self,
+        session: &AuthorizationSession,
+    ) -> anyhow::Result<Option<AuthResult>> {
+        let client = Arc::new(sdk::Client::new(Credential::None));
+        check_auth(client, &session.device_id, &session.key_pair).await
+    }
+
+    pub async fn complete_authorization(&self, result: AuthResult) -> anyhow::Result<Auth> {
+        let identity_number = result.auth.account.identity_number.clone();
+        let signal_database = crate::db::SignalDatabase::connect(identity_number)
+            .await
+            .map_err(|error| anyhow!(error.to_string()))?;
+        signal_database
+            .init(result.registration_id, Some(&result.identity_key_private))
+            .await?;
+        self.save_auth(&result.auth).await?;
+        Ok(result.auth)
     }
 
     pub async fn initialize(&self) -> anyhow::Result<()> {

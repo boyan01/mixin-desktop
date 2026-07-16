@@ -1,5 +1,6 @@
 pub mod core;
 pub mod db;
+pub mod runtime;
 
 #[cfg(test)]
 pub mod tests {

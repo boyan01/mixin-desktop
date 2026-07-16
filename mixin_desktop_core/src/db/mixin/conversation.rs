@@ -36,7 +36,253 @@ pub struct Conversation {
     pub expire_in: i64,
 }
 
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct ConversationListItem {
+    pub conversation_id: String,
+    pub owner_id: String,
+    pub name: String,
+    pub avatar_url: String,
+    pub category: String,
+    pub draft: String,
+    pub status: i32,
+    pub last_message: String,
+    pub last_message_category: Option<String>,
+    pub last_message_status: Option<String>,
+    pub last_message_sender_id: Option<String>,
+    pub last_message_sender_name: Option<String>,
+    pub last_message_created_at: Option<i64>,
+    pub created_at: DateTime<Utc>,
+    pub unseen_count: i64,
+    pub mention_count: i64,
+    pub is_muted: bool,
+    pub is_verified: bool,
+    pub is_bot: bool,
+    pub is_pinned: bool,
+    pub relationship: String,
+    pub identity_number: String,
+    pub circle_ids: String,
+    pub group_avatar_data: String,
+}
+
+impl ConversationListItem {
+    pub fn updated_at_millis(&self) -> i64 {
+        self.last_message_created_at
+            .unwrap_or_else(|| self.created_at.timestamp_millis())
+    }
+}
+
 impl ConversationDao {
+    pub async fn count_items(
+        &self,
+        category: &str,
+        circle_id: Option<&str>,
+        keyword: &str,
+        unseen_only: bool,
+    ) -> Result<i64, Error> {
+        let count = sqlx::query_scalar::<_, i64>(
+            r#"
+SELECT COUNT(*)
+FROM conversations conversation
+INNER JOIN users owner ON owner.user_id = conversation.owner_id
+LEFT JOIN messages last_message ON last_message.message_id = conversation.last_message_id
+WHERE conversation.category IN ('CONTACT', 'GROUP')
+  AND (
+      ?1 = 'chats'
+      OR (?1 = 'contacts' AND conversation.category = 'CONTACT'
+          AND owner.relationship = 'FRIEND' AND owner.app_id IS NULL)
+      OR (?1 = 'groups' AND conversation.category = 'GROUP')
+      OR (?1 = 'bots' AND conversation.category = 'CONTACT' AND owner.app_id IS NOT NULL)
+      OR (?1 = 'strangers' AND conversation.category = 'CONTACT'
+          AND owner.relationship = 'STRANGER' AND owner.app_id IS NULL)
+      OR (?1 = 'circle' AND EXISTS (
+          SELECT 1 FROM circle_conversations circle_conversation
+          WHERE circle_conversation.conversation_id = conversation.conversation_id
+            AND circle_conversation.circle_id = ?2
+      ))
+  )
+  AND (?3 = FALSE OR conversation.unseen_message_count > 0)
+  AND (
+      ?4 = ''
+      OR CASE WHEN conversation.category = 'GROUP'
+              THEN conversation.name ELSE owner.full_name END LIKE '%' || ?4 || '%' COLLATE NOCASE
+      OR owner.identity_number LIKE '%' || ?4 || '%' COLLATE NOCASE
+      OR COALESCE(last_message.content, '') LIKE '%' || ?4 || '%' COLLATE NOCASE
+  )
+            "#,
+        )
+        .bind(category)
+        .bind(circle_id.unwrap_or_default())
+        .bind(unseen_only)
+        .bind(keyword.trim())
+        .fetch_one(&self.0)
+        .await?;
+        Ok(count)
+    }
+
+    pub async fn list_items(
+        &self,
+        category: &str,
+        circle_id: Option<&str>,
+        keyword: &str,
+        unseen_only: bool,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<ConversationListItem>, Error> {
+        let result = sqlx::query_as::<_, ConversationListItem>(
+            r#"
+SELECT conversation.conversation_id,
+       COALESCE(conversation.owner_id, '') AS owner_id,
+       CASE
+           WHEN conversation.category = 'GROUP' THEN conversation.name
+           ELSE owner.full_name
+       END AS name,
+       CASE
+           WHEN conversation.category = 'GROUP' THEN conversation.icon_url
+           ELSE owner.avatar_url
+       END AS avatar_url,
+       conversation.category,
+       COALESCE(conversation.draft, '') AS draft,
+       conversation.status AS status,
+       COALESCE(last_message.content, '') AS last_message,
+       last_message.category AS last_message_category,
+       last_message.status AS last_message_status,
+       last_message.user_id AS last_message_sender_id,
+       last_message_sender.full_name AS last_message_sender_name,
+       conversation.last_message_created_at,
+       conversation.created_at,
+       COALESCE(conversation.unseen_message_count, 0) AS unseen_count,
+       (
+           SELECT COUNT(1)
+           FROM message_mentions mention
+           WHERE mention.conversation_id = conversation.conversation_id
+             AND COALESCE(mention.has_read, FALSE) = FALSE
+       ) AS mention_count,
+       CASE
+           WHEN conversation.category = 'GROUP'
+               THEN COALESCE(conversation.mute_until > CURRENT_TIMESTAMP, FALSE)
+           ELSE COALESCE(owner.mute_until > CURRENT_TIMESTAMP, FALSE)
+       END AS is_muted,
+       COALESCE(owner.is_verified, FALSE) AS is_verified,
+       (conversation.category = 'CONTACT' AND owner.app_id IS NOT NULL) AS is_bot,
+       conversation.pin_time IS NOT NULL AS is_pinned,
+       COALESCE(owner.relationship, '') AS relationship,
+       COALESCE(owner.identity_number, '') AS identity_number,
+       COALESCE((
+           SELECT GROUP_CONCAT(circle_conversation.circle_id)
+           FROM circle_conversations circle_conversation
+           WHERE circle_conversation.conversation_id = conversation.conversation_id
+       ), '') AS circle_ids,
+       CASE WHEN conversation.category = 'GROUP' THEN COALESCE((
+           SELECT GROUP_CONCAT(
+               avatar_user.user_id || CHAR(31) ||
+               COALESCE(avatar_user.full_name, '') || CHAR(31) ||
+               COALESCE(avatar_user.avatar_url, ''),
+               CHAR(30)
+           )
+           FROM (
+               SELECT user.user_id, user.full_name, user.avatar_url
+               FROM participants participant
+               INNER JOIN users user ON user.user_id = participant.user_id
+               WHERE participant.conversation_id = conversation.conversation_id
+               ORDER BY participant.created_at DESC
+               LIMIT 4
+           ) avatar_user
+       ), '') ELSE '' END AS group_avatar_data
+FROM conversations conversation
+INNER JOIN users owner ON owner.user_id = conversation.owner_id
+LEFT JOIN messages last_message ON last_message.message_id = conversation.last_message_id
+LEFT JOIN users last_message_sender ON last_message_sender.user_id = last_message.user_id
+WHERE conversation.category IN ('CONTACT', 'GROUP')
+  AND (
+      ?1 = 'chats'
+      OR (?1 = 'contacts' AND conversation.category = 'CONTACT'
+          AND owner.relationship = 'FRIEND' AND owner.app_id IS NULL)
+      OR (?1 = 'groups' AND conversation.category = 'GROUP')
+      OR (?1 = 'bots' AND conversation.category = 'CONTACT' AND owner.app_id IS NOT NULL)
+      OR (?1 = 'strangers' AND conversation.category = 'CONTACT'
+          AND owner.relationship = 'STRANGER' AND owner.app_id IS NULL)
+      OR (?1 = 'circle' AND EXISTS (
+          SELECT 1 FROM circle_conversations circle_conversation
+          WHERE circle_conversation.conversation_id = conversation.conversation_id
+            AND circle_conversation.circle_id = ?2
+      ))
+  )
+  AND (?3 = FALSE OR conversation.unseen_message_count > 0)
+  AND (
+      ?4 = ''
+      OR CASE WHEN conversation.category = 'GROUP'
+              THEN conversation.name ELSE owner.full_name END LIKE '%' || ?4 || '%' COLLATE NOCASE
+      OR owner.identity_number LIKE '%' || ?4 || '%' COLLATE NOCASE
+      OR COALESCE(last_message.content, '') LIKE '%' || ?4 || '%' COLLATE NOCASE
+  )
+ORDER BY conversation.pin_time DESC,
+         (conversation.status != 3 AND LENGTH(COALESCE(conversation.draft, '')) > 0) DESC,
+         conversation.last_message_created_at DESC,
+         conversation.created_at DESC
+LIMIT ?5 OFFSET ?6
+            "#,
+        )
+        .bind(category)
+        .bind(circle_id.unwrap_or_default())
+        .bind(unseen_only)
+        .bind(keyword.trim())
+        .bind(limit.clamp(1, 500))
+        .bind(offset.max(0))
+        .fetch_all(&self.0)
+        .await?;
+        Ok(result)
+    }
+
+    pub async fn set_pinned(&self, conversation_id: &str, pinned: bool) -> Result<(), Error> {
+        sqlx::query("UPDATE conversations SET pin_time = ? WHERE conversation_id = ?")
+            .bind(pinned.then(Utc::now))
+            .bind(conversation_id)
+            .execute(&self.0)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn set_mute_until(
+        &self,
+        conversation_id: &str,
+        owner_id: &str,
+        category: &str,
+        mute_until: DateTime<Utc>,
+    ) -> Result<(), Error> {
+        if category == "GROUP" {
+            sqlx::query("UPDATE conversations SET mute_until = ? WHERE conversation_id = ?")
+                .bind(mute_until)
+                .bind(conversation_id)
+                .execute(&self.0)
+                .await?;
+        } else {
+            sqlx::query("UPDATE users SET mute_until = ? WHERE user_id = ?")
+                .bind(mute_until)
+                .bind(owner_id)
+                .execute(&self.0)
+                .await?;
+        }
+        Ok(())
+    }
+
+    pub async fn delete_local(&self, conversation_id: &str) -> Result<(), Error> {
+        let mut transaction = self.0.begin().await?;
+        for query in [
+            "DELETE FROM message_mentions WHERE conversation_id = ?",
+            "DELETE FROM pin_messages WHERE conversation_id = ?",
+            "DELETE FROM message_fts WHERE conversation_id = ?",
+            "DELETE FROM messages WHERE conversation_id = ?",
+            "DELETE FROM conversations WHERE conversation_id = ?",
+        ] {
+            sqlx::query(query)
+                .bind(conversation_id)
+                .execute(&mut *transaction)
+                .await?;
+        }
+        transaction.commit().await?;
+        Ok(())
+    }
+
     pub async fn find_conversation_by_id(
         &self,
         conversation_id: &str,
@@ -298,5 +544,115 @@ mod tests {
                 Some(String::new()),
             )
         );
+    }
+
+    #[tokio::test]
+    async fn lists_conversations_for_flutter() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        let now = Utc::now();
+        sqlx::query(
+            "INSERT INTO users (user_id, identity_number, full_name, avatar_url, \
+             is_verified, created_at, mute_until) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind("other")
+        .bind("7000")
+        .bind("Mixin User")
+        .bind("https://example.com/avatar.png")
+        .bind(true)
+        .bind(now)
+        .bind(now + TimeDelta::hours(1))
+        .execute(&database.conversation_dao.0)
+        .await
+        .unwrap();
+        database
+            .conversation_dao
+            .insert(&Conversation {
+                conversation_id: "conversation".into(),
+                owner_id: Some("other".into()),
+                category: Some(ConversationCategory::Contact),
+                name: String::new(),
+                icon_url: String::new(),
+                announcement: String::new(),
+                code_url: String::new(),
+                created_at: now,
+                status: ConversationStatus::SUCCESS,
+                mute_until: now,
+                expire_in: 0,
+            })
+            .await
+            .unwrap();
+        let message = Message {
+            message_id: "message".into(),
+            conversation_id: "conversation".into(),
+            user_id: "other".into(),
+            category: "PLAIN_TEXT".into(),
+            content: Some("Hello from Rust".into()),
+            status: MessageStatus::Sent,
+            created_at: now.naive_utc(),
+            ..Message::default()
+        };
+        database.message_dao.insert_message(&message).await.unwrap();
+        database
+            .conversation_dao
+            .update_for_message(&message, "me")
+            .await
+            .unwrap();
+
+        let count = database
+            .conversation_dao
+            .count_items("chats", None, "", false)
+            .await
+            .unwrap();
+        let items = database
+            .conversation_dao
+            .list_items("chats", None, "", false, 10, 0)
+            .await
+            .unwrap();
+
+        assert_eq!(count, 1);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "Mixin User");
+        assert_eq!(items[0].last_message, "Hello from Rust");
+        assert_eq!(items[0].unseen_count, 1);
+        assert!(items[0].is_muted);
+        assert!(items[0].is_verified);
+        assert_eq!(items[0].updated_at_millis(), now.timestamp_millis());
+        assert_eq!(
+            database
+                .conversation_dao
+                .count_items("chats", None, "Mixin", true)
+                .await
+                .unwrap(),
+            1
+        );
+        assert!(database
+            .conversation_dao
+            .list_items("chats", None, "", false, 10, 1)
+            .await
+            .unwrap()
+            .is_empty());
+
+        database
+            .message_fts_dao
+            .upsert("message", "conversation", "Hello from Rust")
+            .await
+            .unwrap();
+        database
+            .conversation_dao
+            .delete_local("conversation")
+            .await
+            .unwrap();
+        let remaining: i64 = sqlx::query_scalar(
+            "SELECT (SELECT COUNT(*) FROM conversations) + \
+             (SELECT COUNT(*) FROM messages) + \
+             (SELECT COUNT(*) FROM message_fts)",
+        )
+        .fetch_one(&database.conversation_dao.0)
+        .await
+        .unwrap();
+        assert_eq!(remaining, 0);
     }
 }
