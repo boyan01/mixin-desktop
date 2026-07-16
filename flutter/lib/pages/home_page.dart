@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_portal/flutter_portal.dart';
 import 'package:mixin_desktop_ui/controllers/app_controller.dart';
 import 'package:mixin_desktop_ui/controllers/conversation_list_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
@@ -102,7 +103,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) => ChangeNotifierProvider.value(
     value: controller!,
-    child: const _HomeBody(),
+    child: const Portal(child: _HomeBody()),
   );
 }
 

@@ -70,6 +70,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Map<String, String> dco_decode_Map_String_String_None(dynamic raw);
+
+  @protected
   AccountHandle
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
     dynamic raw,
@@ -115,6 +118,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
 
   @protected
+  ProxySettingsItem dco_decode_box_autoadd_proxy_settings_item(dynamic raw);
+
+  @protected
+  StickerAlbumItem dco_decode_box_autoadd_sticker_album_item(dynamic raw);
+
+  @protected
+  BigInt dco_decode_box_autoadd_u_64(dynamic raw);
+
+  @protected
   UserProfileItem dco_decode_box_autoadd_user_profile_item(dynamic raw);
 
   @protected
@@ -125,6 +137,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GroupAvatar dco_decode_group_avatar(dynamic raw);
+
+  @protected
+  HttpResponseItem dco_decode_http_response_item(dynamic raw);
 
   @protected
   int dco_decode_i_32(dynamic raw);
@@ -162,6 +177,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<ProxyItem> dco_decode_list_proxy_item(dynamic raw);
+
+  @protected
+  List<(String, String)> dco_decode_list_record_string_string(dynamic raw);
+
+  @protected
+  List<StickerAlbumItem> dco_decode_list_sticker_album_item(dynamic raw);
+
+  @protected
+  List<StickerItem> dco_decode_list_sticker_item(dynamic raw);
+
+  @protected
   List<UserProfileItem> dco_decode_list_user_profile_item(dynamic raw);
 
   @protected
@@ -186,7 +213,37 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
 
   @protected
+  StickerAlbumItem? dco_decode_opt_box_autoadd_sticker_album_item(dynamic raw);
+
+  @protected
+  BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
+
+  @protected
   UserProfileItem? dco_decode_opt_box_autoadd_user_profile_item(dynamic raw);
+
+  @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  ProxyItem dco_decode_proxy_item(dynamic raw);
+
+  @protected
+  ProxySettingsItem dco_decode_proxy_settings_item(dynamic raw);
+
+  @protected
+  (String, String) dco_decode_record_string_string(dynamic raw);
+
+  @protected
+  StickerAlbumItem dco_decode_sticker_album_item(dynamic raw);
+
+  @protected
+  StickerDetailItem dco_decode_sticker_detail_item(dynamic raw);
+
+  @protected
+  StickerItem dco_decode_sticker_item(dynamic raw);
+
+  @protected
+  int dco_decode_u_16(dynamic raw);
 
   @protected
   BigInt dco_decode_u_64(dynamic raw);
@@ -243,6 +300,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Map<String, String> sse_decode_Map_String_String_None(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   AccountHandle
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
     SseDeserializer deserializer,
@@ -290,6 +352,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  ProxySettingsItem sse_decode_box_autoadd_proxy_settings_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StickerAlbumItem sse_decode_box_autoadd_sticker_album_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
   UserProfileItem sse_decode_box_autoadd_user_profile_item(
     SseDeserializer deserializer,
   );
@@ -304,6 +379,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   GroupAvatar sse_decode_group_avatar(SseDeserializer deserializer);
+
+  @protected
+  HttpResponseItem sse_decode_http_response_item(SseDeserializer deserializer);
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
@@ -345,6 +423,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<ProxyItem> sse_decode_list_proxy_item(SseDeserializer deserializer);
+
+  @protected
+  List<(String, String)> sse_decode_list_record_string_string(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StickerAlbumItem> sse_decode_list_sticker_album_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<StickerItem> sse_decode_list_sticker_item(SseDeserializer deserializer);
+
+  @protected
   List<UserProfileItem> sse_decode_list_user_profile_item(
     SseDeserializer deserializer,
   );
@@ -371,9 +465,47 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  StickerAlbumItem? sse_decode_opt_box_autoadd_sticker_album_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
   UserProfileItem? sse_decode_opt_box_autoadd_user_profile_item(
     SseDeserializer deserializer,
   );
+
+  @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  ProxyItem sse_decode_proxy_item(SseDeserializer deserializer);
+
+  @protected
+  ProxySettingsItem sse_decode_proxy_settings_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  (String, String) sse_decode_record_string_string(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StickerAlbumItem sse_decode_sticker_album_item(SseDeserializer deserializer);
+
+  @protected
+  StickerDetailItem sse_decode_sticker_detail_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StickerItem sse_decode_sticker_item(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_16(SseDeserializer deserializer);
 
   @protected
   BigInt sse_decode_u_64(SseDeserializer deserializer);
@@ -439,6 +571,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_Map_String_String_None(
+    Map<String, String> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
     AccountHandle self,
@@ -497,6 +635,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_proxy_settings_item(
+    ProxySettingsItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_sticker_album_item(
+    StickerAlbumItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_user_profile_item(
     UserProfileItem self,
     SseSerializer serializer,
@@ -513,6 +666,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_group_avatar(GroupAvatar self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_http_response_item(
+    HttpResponseItem self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
@@ -569,6 +728,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_proxy_item(
+    List<ProxyItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_record_string_string(
+    List<(String, String)> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_sticker_album_item(
+    List<StickerAlbumItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_sticker_item(
+    List<StickerItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_user_profile_item(
     List<UserProfileItem> self,
     SseSerializer serializer,
@@ -603,10 +786,58 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_sticker_album_item(
+    StickerAlbumItem? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_user_profile_item(
     UserProfileItem? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_proxy_item(ProxyItem self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_proxy_settings_item(
+    ProxySettingsItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_record_string_string(
+    (String, String) self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_sticker_album_item(
+    StickerAlbumItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_sticker_detail_item(
+    StickerDetailItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_sticker_item(StickerItem self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_16(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_64(BigInt self, SseSerializer serializer);

@@ -15,31 +15,40 @@ extension BubbleColor on BuildContext {
 }
 
 extension MessageBubbleSemantics on MessageListEntry {
+  bool get isUnresolvedMessage {
+    final normalized = status.toUpperCase();
+    return normalized == 'UNKNOWN' || normalized == 'FAILED';
+  }
+
   bool get showMessageBubble =>
-      !isSticker && !(isImage && (caption?.trim().isEmpty ?? true));
+      isUnresolvedMessage ||
+      (!isSticker && !(isImage && (caption?.trim().isEmpty ?? true)));
 
   bool get includeMessageBubbleNip =>
-      (isImage && (caption?.trim().isEmpty ?? true)) ||
-      isVideo ||
-      category.endsWith('_LOCATION') ||
-      category == 'SYSTEM_SAFE_INSCRIPTION';
+      !isUnresolvedMessage &&
+      ((isImage && (caption?.trim().isEmpty ?? true)) ||
+          isVideo ||
+          category.endsWith('_LOCATION') ||
+          category == 'SYSTEM_SAFE_INSCRIPTION');
 
   bool get clipMessageBubble =>
-      isImage ||
-      isVideo ||
-      isSticker ||
-      category.endsWith('_LOCATION') ||
-      category == 'SYSTEM_SAFE_INSCRIPTION';
+      !isUnresolvedMessage &&
+      (isImage ||
+          isVideo ||
+          isSticker ||
+          category.endsWith('_LOCATION') ||
+          category == 'SYSTEM_SAFE_INSCRIPTION');
 
   bool get useOuterMessageDateAndStatus =>
-      isAudio ||
-      isSticker ||
-      category.endsWith('_DATA') ||
-      category.endsWith('_CONTACT') ||
-      category.endsWith('_LOCATION') ||
-      category == 'SYSTEM_ACCOUNT_SNAPSHOT' ||
-      category == 'SYSTEM_SAFE_SNAPSHOT' ||
-      category == 'SYSTEM_SAFE_INSCRIPTION';
+      !isUnresolvedMessage &&
+      (isAudio ||
+          isSticker ||
+          category.endsWith('_DATA') ||
+          category.endsWith('_CONTACT') ||
+          category.endsWith('_LOCATION') ||
+          category == 'SYSTEM_ACCOUNT_SNAPSHOT' ||
+          category == 'SYSTEM_SAFE_SNAPSHOT' ||
+          category == 'SYSTEM_SAFE_INSCRIPTION');
 
   bool get hideOuterMessageStatus => category.startsWith('SYSTEM_');
 
@@ -50,8 +59,9 @@ extension MessageBubbleSemantics on MessageListEntry {
       ? false
       : null;
 
-  EdgeInsetsGeometry get messageBubblePadding =>
-      category.endsWith('_TRANSCRIPT')
+  EdgeInsetsGeometry get messageBubblePadding => isUnresolvedMessage
+      ? const EdgeInsets.all(8)
+      : category.endsWith('_TRANSCRIPT')
       ? const EdgeInsets.only(top: 4, bottom: 2, right: 2, left: 2)
       : isImage ||
             isVideo ||

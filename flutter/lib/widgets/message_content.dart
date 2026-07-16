@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:markdown_widget/markdown_widget.dart';
@@ -16,8 +17,8 @@ import 'package:mixin_desktop_ui/widgets/message_layout.dart';
 import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
 import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
 import 'package:mixin_desktop_ui/widgets/post_markdown.dart';
-import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
+import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_item.dart';
 
 typedef MessageEntryCallback = void Function(MessageListEntry message);
 
@@ -43,6 +44,7 @@ class MessageContent extends StatelessWidget {
     this.onOpenVideo,
     this.onOpenPost,
     this.onOpenFile,
+    this.onOpenSticker,
     this.onOpenIdentityNumber,
     this.onMarkAudioRead,
     this.onDownloadAttachment,
@@ -67,6 +69,7 @@ class MessageContent extends StatelessWidget {
   final MessageEntryCallback? onOpenVideo;
   final MessageEntryCallback? onOpenPost;
   final MessageEntryCallback? onOpenFile;
+  final MessageEntryCallback? onOpenSticker;
   final MessageStringCallback? onOpenIdentityNumber;
   final MessageEntryCallback? onMarkAudioRead;
   final MessageEntryCallback? onDownloadAttachment;
@@ -80,9 +83,19 @@ class MessageContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = message.status.toUpperCase();
     if (status == 'UNKNOWN') {
+      final l10n = Localizations.of<AppLocalizations>(
+        context,
+        AppLocalizations,
+      );
+      final helpUri = Uri.tryParse(l10n?.chatNotSupportUrl ?? '');
       return MessageLayout(
         spacing: 6,
-        content: _UnknownMessage(message: message),
+        content: _UnknownMessage(
+          message: message,
+          onOpenHelp: helpUri == null || onOpenUri == null
+              ? null
+              : () => onOpenUri!(helpUri),
+        ),
         dateAndStatus: dateAndStatus,
       );
     }
@@ -93,6 +106,9 @@ class MessageContent extends StatelessWidget {
       );
       final helpUri = Uri.tryParse(l10n?.chatNotSupportUrl ?? '');
       return WaitingMessageItem(
+        messageId: message.id,
+        subject: isCurrentUser ? l10n?.linkedDevice ?? '' : message.senderName,
+        dateAndStatus: dateAndStatus,
         onOpenHelp: helpUri == null || onOpenUri == null
             ? null
             : () => onOpenUri!(helpUri),
@@ -193,7 +209,7 @@ class MessageContent extends StatelessWidget {
         dateAndStatus: dateAndStatus,
       );
     } else {
-      content = _standardContent();
+      content = _standardContent(context);
     }
     final quote = message.quoteContent;
     if (quote == null || quote.isEmpty) return content;
@@ -216,7 +232,7 @@ class MessageContent extends StatelessWidget {
     );
   }
 
-  Widget _standardContent() {
+  Widget _standardContent(BuildContext context) {
     if (message.isImage) {
       return _ImageMessage(
         message: message,
@@ -252,7 +268,7 @@ class MessageContent extends StatelessWidget {
       );
     }
     if (message.isSticker) {
-      return _StickerMessage(message: message);
+      return _StickerMessage(message: message, onOpen: onOpenSticker);
     }
     if (message.category.endsWith('_DATA')) {
       return _FileMessage(
@@ -278,9 +294,16 @@ class MessageContent extends StatelessWidget {
         mentionNames: mentionNames,
       );
     }
+    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
+    final helpUri = Uri.tryParse(l10n?.chatNotSupportUrl ?? '');
     return MessageLayout(
       spacing: 6,
-      content: _UnknownMessage(message: message),
+      content: _UnknownMessage(
+        message: message,
+        onOpenHelp: helpUri == null || onOpenUri == null
+            ? null
+            : () => onOpenUri!(helpUri),
+      ),
       dateAndStatus: dateAndStatus,
     );
   }
@@ -538,9 +561,10 @@ class _VideoMessage extends StatelessWidget {
 }
 
 class _StickerMessage extends StatelessWidget {
-  const _StickerMessage({required this.message});
+  const _StickerMessage({required this.message, this.onOpen});
 
   final MessageListEntry message;
+  final MessageEntryCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -558,10 +582,16 @@ class _StickerMessage extends StatelessWidget {
             assetType: message.stickerAssetType,
             placeholder: placeholder,
           );
-    return SizedBox.fromSize(
+    final child = SizedBox.fromSize(
       key: Key('message-media-sticker-${message.id}'),
       size: size,
       child: sticker ?? placeholder,
+    );
+    if (onOpen == null || message.stickerId?.isNotEmpty != true) return child;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onOpen!(message),
+      child: MouseRegion(cursor: SystemMouseCursors.click, child: child),
     );
   }
 }
@@ -578,36 +608,11 @@ class _StickerAsset extends StatelessWidget {
   final Widget placeholder;
 
   @override
-  Widget build(BuildContext context) {
-    if (assetType?.toLowerCase() == 'json') {
-      final uri = Uri.tryParse(source);
-      if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
-        return Lottie.network(
-          source,
-          fit: BoxFit.contain,
-          repeat: true,
-          errorBuilder: (_, _, _) => placeholder,
-        );
-      }
-      final file = uri?.scheme == 'file' ? File.fromUri(uri!) : File(source);
-      if (file.existsSync()) {
-        return Lottie.file(
-          file,
-          fit: BoxFit.contain,
-          repeat: true,
-          errorBuilder: (_, _, _) => placeholder,
-        );
-      }
-      return placeholder;
-    }
-    return _imageForSource(
-          source,
-          fit: BoxFit.contain,
-          allowEmbeddedData: false,
-          errorBuilder: placeholder,
-        ) ??
-        placeholder;
-  }
+  Widget build(BuildContext context) => StickerItem(
+    assetUrl: source,
+    assetType: assetType,
+    errorWidget: placeholder,
+  );
 }
 
 class _FileMessage extends StatelessWidget {
@@ -787,19 +792,34 @@ MessageEntryCallback? _attachmentAction(
 };
 
 class _UnknownMessage extends StatelessWidget {
-  const _UnknownMessage({required this.message});
+  const _UnknownMessage({required this.message, required this.onOpenHelp});
 
   final MessageListEntry message;
+  final VoidCallback? onOpenHelp;
 
   @override
   Widget build(BuildContext context) {
     final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
-    return Text(
+    return RichText(
       key: Key('message-media-unknown-${message.id}'),
-      l10n?.messageNotSupport ?? 'This message is not supported',
-      style: TextStyle(
-        fontSize: context.messageFontSize(16),
-        color: context.theme.text,
+      text: TextSpan(
+        text: l10n?.messageNotSupport ?? 'This message is not supported',
+        style: TextStyle(
+          fontSize: context.messageFontSize(16),
+          color: context.theme.text,
+        ),
+        children: [
+          const TextSpan(text: ' '),
+          TextSpan(
+            mouseCursor: SystemMouseCursors.click,
+            text: l10n?.learnMore ?? 'Learn More',
+            style: TextStyle(
+              fontSize: context.messageFontSize(16),
+              color: context.theme.accent,
+            ),
+            recognizer: TapGestureRecognizer()..onTap = onOpenHelp,
+          ),
+        ],
       ),
     );
   }

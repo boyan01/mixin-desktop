@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
+import 'package:mixin_desktop_ui/controllers/network_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/pages/settings_account_pages.dart';
 import 'package:mixin_desktop_ui/pages/settings_preference_pages.dart';
@@ -52,9 +53,6 @@ class _SettingsPageState extends State<SettingsPage> {
   var _hasPasscode = false;
   var _biometricEnabled = false;
   var _autoLockDuration = Duration.zero;
-  var _proxyEnabled = false;
-  String? _selectedProxyId;
-  final _proxies = <ProxyEntry>[];
 
   String get _displayName => _fullName ?? widget.profile.fullName;
 
@@ -162,36 +160,15 @@ class _SettingsPageState extends State<SettingsPage> {
   void _openProxy() {
     setState(() => _activeDestination = _SettingsDestination.proxy);
     _push(
-      StatefulBuilder(
-        builder: (context, setRouteState) => ProxySettingsPage(
-          enabled: _proxyEnabled,
-          proxies: _proxies,
-          selectedProxyId: _selectedProxyId,
-          onEnabledChanged: (enabled) {
-            setState(() => _proxyEnabled = enabled);
-            setRouteState(() {});
-          },
-          onProxySelected: (id) {
-            setState(() => _selectedProxyId = id);
-            setRouteState(() {});
-          },
-          onProxyAdded: (proxy) {
-            setState(() {
-              _proxies.add(proxy);
-              _selectedProxyId ??= proxy.id;
-            });
-            setRouteState(() {});
-          },
-          onProxyDeleted: (id) {
-            setState(() {
-              _proxies.removeWhere((proxy) => proxy.id == id);
-              if (_selectedProxyId == id) {
-                _selectedProxyId = _proxies.isEmpty ? null : _proxies.first.id;
-              }
-              if (_proxies.isEmpty) _proxyEnabled = false;
-            });
-            setRouteState(() {});
-          },
+      Consumer<NetworkController>(
+        builder: (context, network, child) => ProxySettingsPage(
+          enabled: network.enabled,
+          proxies: network.proxies,
+          selectedProxyId: network.selectedProxyId,
+          onEnabledChanged: network.setEnabled,
+          onProxySelected: network.selectProxy,
+          onProxyAdded: network.addProxy,
+          onProxyDeleted: network.deleteProxy,
         ),
       ),
     );

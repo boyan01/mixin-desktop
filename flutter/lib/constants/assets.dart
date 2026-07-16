@@ -16,6 +16,11 @@ abstract final class MixinAssets {
   static const back = 'assets/images/ic_back.svg';
   static const close = 'assets/images/ic_close.svg';
   static const sticker = 'assets/images/ic_sticker.svg';
+  static const stickerStore = 'assets/images/sticker_store.svg';
+  static const emojiSticker = 'assets/images/emoji_sticker.svg';
+  static const recentSticker = 'assets/images/recent_sticker.svg';
+  static const personalSticker = 'assets/images/personal_sticker.svg';
+  static const addSticker = 'assets/images/add_sticker.svg';
   static const microphone = 'assets/images/microphone.svg';
   static const send = 'assets/images/ic_send.svg';
   static const chatBackground = 'assets/images/chat_background.png';

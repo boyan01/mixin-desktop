@@ -973,7 +973,7 @@ impl ServiceDecryptMessage {
                 user_id: data.sender_id().clone(),
                 category: data.category.clone(),
                 content: Some(plain),
-                name: Some(sticker_message.name),
+                name: sticker_message.name,
                 sticker_id: Some(sticker_message.sticker_id),
                 album_id: sticker_message.album_id,
                 status: data.status,

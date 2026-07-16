@@ -66,7 +66,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -916226748;
+  int get rustContentHash => 1383148244;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -94,6 +94,16 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiDesktopAccountHandleAddStickerFromFile({
     required AccountHandle that,
     required String messageId,
+  });
+
+  Future<void> crateApiDesktopAccountHandleAddStickerFromPath({
+    required AccountHandle that,
+    required String path,
+  });
+
+  Future<List<StickerItem>> crateApiDesktopAccountHandleAlbumStickers({
+    required AccountHandle that,
+    required String albumId,
   });
 
   Future<void> crateApiDesktopAccountHandleBlockUser({
@@ -242,6 +252,10 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 after,
   });
 
+  Future<List<StickerItem>> crateApiDesktopAccountHandlePersonalStickers({
+    required AccountHandle that,
+  });
+
   Future<List<MessageListItem>> crateApiDesktopAccountHandlePinnedMessages({
     required AccountHandle that,
     required String conversationId,
@@ -257,6 +271,19 @@ abstract class RustLibApi extends BaseApi {
     required List<String> messageIds,
   });
 
+  Future<List<StickerItem>> crateApiDesktopAccountHandleRecentStickers({
+    required AccountHandle that,
+  });
+
+  Future<void> crateApiDesktopAccountHandleRefreshStickers({
+    required AccountHandle that,
+  });
+
+  Future<void> crateApiDesktopAccountHandleRemoveSticker({
+    required AccountHandle that,
+    required String stickerId,
+  });
+
   Future<String> crateApiDesktopAccountHandleSendAudio({
     required AccountHandle that,
     required String conversationId,
@@ -264,6 +291,12 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 durationMillis,
     required List<int> waveform,
     String? quoteMessageId,
+  });
+
+  Future<String> crateApiDesktopAccountHandleSendSticker({
+    required AccountHandle that,
+    required String conversationId,
+    required String stickerId,
   });
 
   Future<String> crateApiDesktopAccountHandleSendText({
@@ -294,6 +327,17 @@ abstract class RustLibApi extends BaseApi {
     required bool pinned,
   });
 
+  Future<void> crateApiDesktopAccountHandleSetStickerAlbumAdded({
+    required AccountHandle that,
+    required String albumId,
+    required bool added,
+  });
+
+  Future<void> crateApiDesktopAccountHandleSetStickerAlbumOrder({
+    required AccountHandle that,
+    required List<String> albumIds,
+  });
+
   Future<void> crateApiDesktopAccountHandleShutdown({
     required AccountHandle that,
   });
@@ -301,6 +345,18 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiDesktopAccountHandleSignOut({
     required AccountHandle that,
   });
+
+  Future<List<StickerAlbumItem>> crateApiDesktopAccountHandleStickerAlbums({
+    required AccountHandle that,
+  });
+
+  Future<StickerDetailItem> crateApiDesktopAccountHandleStickerDetail({
+    required AccountHandle that,
+    required String stickerId,
+  });
+
+  Future<List<StickerAlbumItem>>
+  crateApiDesktopAccountHandleStickerStoreAlbums({required AccountHandle that});
 
   Future<List<MessageListItem>> crateApiDesktopAccountHandleTranscriptMessages({
     required AccountHandle that,
@@ -323,8 +379,27 @@ abstract class RustLibApi extends BaseApi {
     required DesktopHandle that,
   });
 
+  Future<HttpResponseItem> crateApiDesktopDesktopHandleHttpRequest({
+    required DesktopHandle that,
+    required String method,
+    required String url,
+    required Map<String, String> headers,
+    Uint8List? body,
+    BigInt? timeoutMillis,
+    BigInt? maxResponseBytes,
+  });
+
+  Future<ProxySettingsItem> crateApiDesktopDesktopHandleProxySettings({
+    required DesktopHandle that,
+  });
+
   Future<AccountHandle?> crateApiDesktopDesktopHandleRestoreAccount({
     required DesktopHandle that,
+  });
+
+  Future<void> crateApiDesktopDesktopHandleSetProxySettings({
+    required DesktopHandle that,
+    required ProxySettingsItem settings,
   });
 
   String crateApiDesktopLoginHandleAuthUrl({required LoginHandle that});
@@ -518,6 +593,82 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiDesktopAccountHandleAddStickerFromPath({
+    required AccountHandle that,
+    required String path,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(path, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleAddStickerFromPathConstMeta,
+        argValues: [that, path],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleAddStickerFromPathConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_add_sticker_from_path",
+        argNames: ["that", "path"],
+      );
+
+  @override
+  Future<List<StickerItem>> crateApiDesktopAccountHandleAlbumStickers({
+    required AccountHandle that,
+    required String albumId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(albumId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_sticker_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleAlbumStickersConstMeta,
+        argValues: [that, albumId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleAlbumStickersConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_album_stickers",
+        argNames: ["that", "albumId"],
+      );
+
+  @override
   Future<void> crateApiDesktopAccountHandleBlockUser({
     required AccountHandle that,
     required String userId,
@@ -534,7 +685,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 7,
             port: port_,
           );
         },
@@ -572,7 +723,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 8,
             port: port_,
           );
         },
@@ -610,7 +761,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 9,
             port: port_,
           );
         },
@@ -650,7 +801,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 10,
             port: port_,
           );
         },
@@ -688,7 +839,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 11,
             port: port_,
           );
         },
@@ -728,7 +879,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 12,
             port: port_,
           );
         },
@@ -768,7 +919,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 11,
+              funcId: 13,
               port: port_,
             );
           },
@@ -814,7 +965,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 14,
             port: port_,
           );
         },
@@ -862,7 +1013,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 15,
             port: port_,
           );
         },
@@ -916,7 +1067,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 16,
             port: port_,
           );
         },
@@ -954,7 +1105,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 17,
             port: port_,
           );
         },
@@ -994,7 +1145,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 18,
             port: port_,
           );
         },
@@ -1032,7 +1183,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 19,
             port: port_,
           );
         },
@@ -1072,7 +1223,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 20,
             port: port_,
           );
         },
@@ -1120,7 +1271,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 21,
             port: port_,
           );
         },
@@ -1168,7 +1319,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 22,
             port: port_,
           );
         },
@@ -1213,7 +1364,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1257,7 +1408,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1295,7 +1446,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1336,7 +1487,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1376,7 +1527,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1417,7 +1568,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 26,
+              funcId: 28,
               port: port_,
             );
           },
@@ -1463,7 +1614,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1519,7 +1670,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1547,6 +1698,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<List<StickerItem>> crateApiDesktopAccountHandlePersonalStickers({
+    required AccountHandle that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 31,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_sticker_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandlePersonalStickersConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandlePersonalStickersConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_personal_stickers",
+        argNames: ["that"],
+      );
+
+  @override
   Future<List<MessageListItem>> crateApiDesktopAccountHandlePinnedMessages({
     required AccountHandle that,
     required String conversationId,
@@ -1563,7 +1750,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1596,7 +1783,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_account_profile,
@@ -1634,7 +1821,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1653,6 +1840,116 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "AccountHandle_recall_messages",
         argNames: ["that", "conversationId", "messageIds"],
+      );
+
+  @override
+  Future<List<StickerItem>> crateApiDesktopAccountHandleRecentStickers({
+    required AccountHandle that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 35,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_sticker_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleRecentStickersConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleRecentStickersConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_recent_stickers",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleRefreshStickers({
+    required AccountHandle that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 36,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleRefreshStickersConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleRefreshStickersConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_refresh_stickers",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleRemoveSticker({
+    required AccountHandle that,
+    required String stickerId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(stickerId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 37,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleRemoveStickerConstMeta,
+        argValues: [that, stickerId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleRemoveStickerConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_remove_sticker",
+        argNames: ["that", "stickerId"],
       );
 
   @override
@@ -1680,7 +1977,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1716,6 +2013,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiDesktopAccountHandleSendSticker({
+    required AccountHandle that,
+    required String conversationId,
+    required String stickerId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(stickerId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 39,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleSendStickerConstMeta,
+        argValues: [that, conversationId, stickerId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleSendStickerConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_send_sticker",
+        argNames: ["that", "conversationId", "stickerId"],
+      );
+
+  @override
   Future<String> crateApiDesktopAccountHandleSendText({
     required AccountHandle that,
     required String conversationId,
@@ -1736,7 +2073,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 40,
             port: port_,
           );
         },
@@ -1780,7 +2117,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 41,
             port: port_,
           );
         },
@@ -1827,7 +2164,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 42,
             port: port_,
           );
         },
@@ -1870,7 +2207,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 43,
             port: port_,
           );
         },
@@ -1892,6 +2229,86 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiDesktopAccountHandleSetStickerAlbumAdded({
+    required AccountHandle that,
+    required String albumId,
+    required bool added,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(albumId, serializer);
+          sse_encode_bool(added, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 44,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleSetStickerAlbumAddedConstMeta,
+        argValues: [that, albumId, added],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiDesktopAccountHandleSetStickerAlbumAddedConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_set_sticker_album_added",
+        argNames: ["that", "albumId", "added"],
+      );
+
+  @override
+  Future<void> crateApiDesktopAccountHandleSetStickerAlbumOrder({
+    required AccountHandle that,
+    required List<String> albumIds,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_list_String(albumIds, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 45,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleSetStickerAlbumOrderConstMeta,
+        argValues: [that, albumIds],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiDesktopAccountHandleSetStickerAlbumOrderConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_set_sticker_album_order",
+        argNames: ["that", "albumIds"],
+      );
+
+  @override
   Future<void> crateApiDesktopAccountHandleShutdown({
     required AccountHandle that,
   }) {
@@ -1906,7 +2323,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 46,
             port: port_,
           );
         },
@@ -1942,7 +2359,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 47,
             port: port_,
           );
         },
@@ -1964,6 +2381,117 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<List<StickerAlbumItem>> crateApiDesktopAccountHandleStickerAlbums({
+    required AccountHandle that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 48,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_sticker_album_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleStickerAlbumsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleStickerAlbumsConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_sticker_albums",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<StickerDetailItem> crateApiDesktopAccountHandleStickerDetail({
+    required AccountHandle that,
+    required String stickerId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(stickerId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 49,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_sticker_detail_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleStickerDetailConstMeta,
+        argValues: [that, stickerId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleStickerDetailConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_sticker_detail",
+        argNames: ["that", "stickerId"],
+      );
+
+  @override
+  Future<List<StickerAlbumItem>>
+  crateApiDesktopAccountHandleStickerStoreAlbums({
+    required AccountHandle that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 50,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_sticker_album_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopAccountHandleStickerStoreAlbumsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopAccountHandleStickerStoreAlbumsConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_sticker_store_albums",
+        argNames: ["that"],
+      );
+
+  @override
   Future<List<MessageListItem>> crateApiDesktopAccountHandleTranscriptMessages({
     required AccountHandle that,
     required String transcriptId,
@@ -1980,7 +2508,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 39,
+            funcId: 51,
             port: port_,
           );
         },
@@ -2020,7 +2548,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 40,
+            funcId: 52,
             port: port_,
           );
         },
@@ -2059,7 +2587,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 41,
+            funcId: 53,
             port: port_,
           );
         },
@@ -2096,7 +2624,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 42,
+            funcId: 54,
             port: port_,
           );
         },
@@ -2119,6 +2647,106 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<HttpResponseItem> crateApiDesktopDesktopHandleHttpRequest({
+    required DesktopHandle that,
+    required String method,
+    required String url,
+    required Map<String, String> headers,
+    Uint8List? body,
+    BigInt? timeoutMillis,
+    BigInt? maxResponseBytes,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDesktopHandle(
+            that,
+            serializer,
+          );
+          sse_encode_String(method, serializer);
+          sse_encode_String(url, serializer);
+          sse_encode_Map_String_String_None(headers, serializer);
+          sse_encode_opt_list_prim_u_8_strict(body, serializer);
+          sse_encode_opt_box_autoadd_u_64(timeoutMillis, serializer);
+          sse_encode_opt_box_autoadd_u_64(maxResponseBytes, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 55,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_http_response_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopDesktopHandleHttpRequestConstMeta,
+        argValues: [
+          that,
+          method,
+          url,
+          headers,
+          body,
+          timeoutMillis,
+          maxResponseBytes,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopDesktopHandleHttpRequestConstMeta =>
+      const TaskConstMeta(
+        debugName: "DesktopHandle_http_request",
+        argNames: [
+          "that",
+          "method",
+          "url",
+          "headers",
+          "body",
+          "timeoutMillis",
+          "maxResponseBytes",
+        ],
+      );
+
+  @override
+  Future<ProxySettingsItem> crateApiDesktopDesktopHandleProxySettings({
+    required DesktopHandle that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDesktopHandle(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 56,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_proxy_settings_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopDesktopHandleProxySettingsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopDesktopHandleProxySettingsConstMeta =>
+      const TaskConstMeta(
+        debugName: "DesktopHandle_proxy_settings",
+        argNames: ["that"],
+      );
+
+  @override
   Future<AccountHandle?> crateApiDesktopDesktopHandleRestoreAccount({
     required DesktopHandle that,
   }) {
@@ -2133,7 +2761,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 43,
+            funcId: 57,
             port: port_,
           );
         },
@@ -2156,6 +2784,44 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiDesktopDesktopHandleSetProxySettings({
+    required DesktopHandle that,
+    required ProxySettingsItem settings,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDesktopHandle(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_proxy_settings_item(settings, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 58,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiDesktopDesktopHandleSetProxySettingsConstMeta,
+        argValues: [that, settings],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDesktopDesktopHandleSetProxySettingsConstMeta =>
+      const TaskConstMeta(
+        debugName: "DesktopHandle_set_proxy_settings",
+        argNames: ["that", "settings"],
+      );
+
+  @override
   String crateApiDesktopLoginHandleAuthUrl({required LoginHandle that}) {
     return handler.executeSync(
       SyncTask(
@@ -2165,7 +2831,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 59)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2199,7 +2865,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 45,
+            funcId: 60,
             port: port_,
           );
         },
@@ -2227,7 +2893,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 46,
+            funcId: 61,
             port: port_,
           );
         },
@@ -2254,7 +2920,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 47,
+            funcId: 62,
             port: port_,
           );
         },
@@ -2358,6 +3024,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Map<String, String> dco_decode_Map_String_String_None(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return Map.fromEntries(
+      dco_decode_list_record_string_string(
+        raw,
+      ).map((e) => MapEntry(e.$1, e.$2)),
+    );
+  }
+
+  @protected
   AccountHandle
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
     dynamic raw,
@@ -2449,6 +3125,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ProxySettingsItem dco_decode_box_autoadd_proxy_settings_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_proxy_settings_item(raw);
+  }
+
+  @protected
+  StickerAlbumItem dco_decode_box_autoadd_sticker_album_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_sticker_album_item(raw);
+  }
+
+  @protected
+  BigInt dco_decode_box_autoadd_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_u_64(raw);
+  }
+
+  @protected
   UserProfileItem dco_decode_box_autoadd_user_profile_item(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_user_profile_item(raw);
@@ -2511,6 +3205,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       userId: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
       avatarUrl: dco_decode_String(arr[2]),
+    );
+  }
+
+  @protected
+  HttpResponseItem dco_decode_http_response_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return HttpResponseItem(
+      statusCode: dco_decode_u_16(arr[0]),
+      headers: dco_decode_Map_String_String_None(arr[1]),
+      body: dco_decode_list_prim_u_8_strict(arr[2]),
     );
   }
 
@@ -2591,6 +3298,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
+  }
+
+  @protected
+  List<ProxyItem> dco_decode_list_proxy_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_proxy_item).toList();
+  }
+
+  @protected
+  List<(String, String)> dco_decode_list_record_string_string(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_record_string_string).toList();
+  }
+
+  @protected
+  List<StickerAlbumItem> dco_decode_list_sticker_album_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_sticker_album_item).toList();
+  }
+
+  @protected
+  List<StickerItem> dco_decode_list_sticker_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_sticker_item).toList();
   }
 
   @protected
@@ -2716,9 +3447,123 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StickerAlbumItem? dco_decode_opt_box_autoadd_sticker_album_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_sticker_album_item(raw);
+  }
+
+  @protected
+  BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_u_64(raw);
+  }
+
+  @protected
   UserProfileItem? dco_decode_opt_box_autoadd_user_profile_item(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_user_profile_item(raw);
+  }
+
+  @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_prim_u_8_strict(raw);
+  }
+
+  @protected
+  ProxyItem dco_decode_proxy_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return ProxyItem(
+      id: dco_decode_String(arr[0]),
+      kind: dco_decode_String(arr[1]),
+      host: dco_decode_String(arr[2]),
+      port: dco_decode_u_16(arr[3]),
+      username: dco_decode_opt_String(arr[4]),
+      password: dco_decode_opt_String(arr[5]),
+    );
+  }
+
+  @protected
+  ProxySettingsItem dco_decode_proxy_settings_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return ProxySettingsItem(
+      enabled: dco_decode_bool(arr[0]),
+      selectedProxyId: dco_decode_opt_String(arr[1]),
+      proxies: dco_decode_list_proxy_item(arr[2]),
+    );
+  }
+
+  @protected
+  (String, String) dco_decode_record_string_string(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2) {
+      throw Exception('Expected 2 elements, got ${arr.length}');
+    }
+    return (dco_decode_String(arr[0]), dco_decode_String(arr[1]));
+  }
+
+  @protected
+  StickerAlbumItem dco_decode_sticker_album_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return StickerAlbumItem(
+      albumId: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      iconUrl: dco_decode_String(arr[2]),
+      category: dco_decode_String(arr[3]),
+      description: dco_decode_String(arr[4]),
+      banner: dco_decode_opt_String(arr[5]),
+      added: dco_decode_bool(arr[6]),
+      isVerified: dco_decode_bool(arr[7]),
+    );
+  }
+
+  @protected
+  StickerDetailItem dco_decode_sticker_detail_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return StickerDetailItem(
+      sticker: dco_decode_sticker_item(arr[0]),
+      album: dco_decode_opt_box_autoadd_sticker_album_item(arr[1]),
+      albumStickers: dco_decode_list_sticker_item(arr[2]),
+      isPersonal: dco_decode_bool(arr[3]),
+    );
+  }
+
+  @protected
+  StickerItem dco_decode_sticker_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return StickerItem(
+      stickerId: dco_decode_String(arr[0]),
+      albumId: dco_decode_opt_String(arr[1]),
+      name: dco_decode_String(arr[2]),
+      assetUrl: dco_decode_String(arr[3]),
+      assetWidth: dco_decode_i_32(arr[4]),
+      assetHeight: dco_decode_i_32(arr[5]),
+      assetType: dco_decode_String(arr[6]),
+      createdAtMillis: dco_decode_i_64(arr[7]),
+      lastUseAtMillis: dco_decode_opt_box_autoadd_i_64(arr[8]),
+    );
+  }
+
+  @protected
+  int dco_decode_u_16(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
   }
 
   @protected
@@ -2843,6 +3688,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Map<String, String> sse_decode_Map_String_String_None(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_list_record_string_string(deserializer);
+    return Map.fromEntries(inner.map((e) => MapEntry(e.$1, e.$2)));
+  }
+
+  @protected
   AccountHandle
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
     SseDeserializer deserializer,
@@ -2950,6 +3804,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ProxySettingsItem sse_decode_box_autoadd_proxy_settings_item(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_proxy_settings_item(deserializer));
+  }
+
+  @protected
+  StickerAlbumItem sse_decode_box_autoadd_sticker_album_item(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_sticker_album_item(deserializer));
+  }
+
+  @protected
+  BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_u_64(deserializer));
+  }
+
+  @protected
   UserProfileItem sse_decode_box_autoadd_user_profile_item(
     SseDeserializer deserializer,
   ) {
@@ -3034,6 +3910,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       userId: var_userId,
       name: var_name,
       avatarUrl: var_avatarUrl,
+    );
+  }
+
+  @protected
+  HttpResponseItem sse_decode_http_response_item(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_statusCode = sse_decode_u_16(deserializer);
+    var var_headers = sse_decode_Map_String_String_None(deserializer);
+    var var_body = sse_decode_list_prim_u_8_strict(deserializer);
+    return HttpResponseItem(
+      statusCode: var_statusCode,
+      headers: var_headers,
+      body: var_body,
     );
   }
 
@@ -3156,6 +4045,58 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  List<ProxyItem> sse_decode_list_proxy_item(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ProxyItem>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_proxy_item(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<(String, String)> sse_decode_list_record_string_string(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <(String, String)>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_record_string_string(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<StickerAlbumItem> sse_decode_list_sticker_album_item(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <StickerAlbumItem>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_sticker_album_item(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<StickerItem> sse_decode_list_sticker_item(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <StickerItem>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_sticker_item(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -3378,6 +4319,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  StickerAlbumItem? sse_decode_opt_box_autoadd_sticker_album_item(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_sticker_album_item(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_u_64(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   UserProfileItem? sse_decode_opt_box_autoadd_user_profile_item(
     SseDeserializer deserializer,
   ) {
@@ -3388,6 +4353,132 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     } else {
       return null;
     }
+  }
+
+  @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_prim_u_8_strict(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  ProxyItem sse_decode_proxy_item(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_kind = sse_decode_String(deserializer);
+    var var_host = sse_decode_String(deserializer);
+    var var_port = sse_decode_u_16(deserializer);
+    var var_username = sse_decode_opt_String(deserializer);
+    var var_password = sse_decode_opt_String(deserializer);
+    return ProxyItem(
+      id: var_id,
+      kind: var_kind,
+      host: var_host,
+      port: var_port,
+      username: var_username,
+      password: var_password,
+    );
+  }
+
+  @protected
+  ProxySettingsItem sse_decode_proxy_settings_item(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_enabled = sse_decode_bool(deserializer);
+    var var_selectedProxyId = sse_decode_opt_String(deserializer);
+    var var_proxies = sse_decode_list_proxy_item(deserializer);
+    return ProxySettingsItem(
+      enabled: var_enabled,
+      selectedProxyId: var_selectedProxyId,
+      proxies: var_proxies,
+    );
+  }
+
+  @protected
+  (String, String) sse_decode_record_string_string(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_field0 = sse_decode_String(deserializer);
+    var var_field1 = sse_decode_String(deserializer);
+    return (var_field0, var_field1);
+  }
+
+  @protected
+  StickerAlbumItem sse_decode_sticker_album_item(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_albumId = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_iconUrl = sse_decode_String(deserializer);
+    var var_category = sse_decode_String(deserializer);
+    var var_description = sse_decode_String(deserializer);
+    var var_banner = sse_decode_opt_String(deserializer);
+    var var_added = sse_decode_bool(deserializer);
+    var var_isVerified = sse_decode_bool(deserializer);
+    return StickerAlbumItem(
+      albumId: var_albumId,
+      name: var_name,
+      iconUrl: var_iconUrl,
+      category: var_category,
+      description: var_description,
+      banner: var_banner,
+      added: var_added,
+      isVerified: var_isVerified,
+    );
+  }
+
+  @protected
+  StickerDetailItem sse_decode_sticker_detail_item(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_sticker = sse_decode_sticker_item(deserializer);
+    var var_album = sse_decode_opt_box_autoadd_sticker_album_item(deserializer);
+    var var_albumStickers = sse_decode_list_sticker_item(deserializer);
+    var var_isPersonal = sse_decode_bool(deserializer);
+    return StickerDetailItem(
+      sticker: var_sticker,
+      album: var_album,
+      albumStickers: var_albumStickers,
+      isPersonal: var_isPersonal,
+    );
+  }
+
+  @protected
+  StickerItem sse_decode_sticker_item(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_stickerId = sse_decode_String(deserializer);
+    var var_albumId = sse_decode_opt_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_assetUrl = sse_decode_String(deserializer);
+    var var_assetWidth = sse_decode_i_32(deserializer);
+    var var_assetHeight = sse_decode_i_32(deserializer);
+    var var_assetType = sse_decode_String(deserializer);
+    var var_createdAtMillis = sse_decode_i_64(deserializer);
+    var var_lastUseAtMillis = sse_decode_opt_box_autoadd_i_64(deserializer);
+    return StickerItem(
+      stickerId: var_stickerId,
+      albumId: var_albumId,
+      name: var_name,
+      assetUrl: var_assetUrl,
+      assetWidth: var_assetWidth,
+      assetHeight: var_assetHeight,
+      assetType: var_assetType,
+      createdAtMillis: var_createdAtMillis,
+      lastUseAtMillis: var_lastUseAtMillis,
+    );
+  }
+
+  @protected
+  int sse_decode_u_16(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getUint16();
   }
 
   @protected
@@ -3524,6 +4615,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_Map_String_String_None(
+    Map<String, String> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_record_string_string(
+      self.entries.map((e) => (e.key, e.value)).toList(),
+      serializer,
+    );
+  }
+
+  @protected
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
     AccountHandle self,
@@ -3641,6 +4744,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_proxy_settings_item(
+    ProxySettingsItem self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_proxy_settings_item(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_sticker_album_item(
+    StickerAlbumItem self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_sticker_album_item(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_user_profile_item(
     UserProfileItem self,
     SseSerializer serializer,
@@ -3695,6 +4822,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.userId, serializer);
     sse_encode_String(self.name, serializer);
     sse_encode_String(self.avatarUrl, serializer);
+  }
+
+  @protected
+  void sse_encode_http_response_item(
+    HttpResponseItem self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_16(self.statusCode, serializer);
+    sse_encode_Map_String_String_None(self.headers, serializer);
+    sse_encode_list_prim_u_8_strict(self.body, serializer);
   }
 
   @protected
@@ -3811,6 +4949,54 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putUint8List(self);
+  }
+
+  @protected
+  void sse_encode_list_proxy_item(
+    List<ProxyItem> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_proxy_item(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_record_string_string(
+    List<(String, String)> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_record_string_string(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_sticker_album_item(
+    List<StickerAlbumItem> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_sticker_album_item(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_sticker_item(
+    List<StickerItem> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_sticker_item(item, serializer);
+    }
   }
 
   @protected
@@ -3963,6 +5149,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_sticker_album_item(
+    StickerAlbumItem? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_sticker_album_item(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_u_64(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_user_profile_item(
     UserProfileItem? self,
     SseSerializer serializer,
@@ -3973,6 +5182,99 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (self != null) {
       sse_encode_box_autoadd_user_profile_item(self, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_prim_u_8_strict(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_proxy_item(ProxyItem self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.kind, serializer);
+    sse_encode_String(self.host, serializer);
+    sse_encode_u_16(self.port, serializer);
+    sse_encode_opt_String(self.username, serializer);
+    sse_encode_opt_String(self.password, serializer);
+  }
+
+  @protected
+  void sse_encode_proxy_settings_item(
+    ProxySettingsItem self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.enabled, serializer);
+    sse_encode_opt_String(self.selectedProxyId, serializer);
+    sse_encode_list_proxy_item(self.proxies, serializer);
+  }
+
+  @protected
+  void sse_encode_record_string_string(
+    (String, String) self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.$1, serializer);
+    sse_encode_String(self.$2, serializer);
+  }
+
+  @protected
+  void sse_encode_sticker_album_item(
+    StickerAlbumItem self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.albumId, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.iconUrl, serializer);
+    sse_encode_String(self.category, serializer);
+    sse_encode_String(self.description, serializer);
+    sse_encode_opt_String(self.banner, serializer);
+    sse_encode_bool(self.added, serializer);
+    sse_encode_bool(self.isVerified, serializer);
+  }
+
+  @protected
+  void sse_encode_sticker_detail_item(
+    StickerDetailItem self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_sticker_item(self.sticker, serializer);
+    sse_encode_opt_box_autoadd_sticker_album_item(self.album, serializer);
+    sse_encode_list_sticker_item(self.albumStickers, serializer);
+    sse_encode_bool(self.isPersonal, serializer);
+  }
+
+  @protected
+  void sse_encode_sticker_item(StickerItem self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.stickerId, serializer);
+    sse_encode_opt_String(self.albumId, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.assetUrl, serializer);
+    sse_encode_i_32(self.assetWidth, serializer);
+    sse_encode_i_32(self.assetHeight, serializer);
+    sse_encode_String(self.assetType, serializer);
+    sse_encode_i_64(self.createdAtMillis, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.lastUseAtMillis, serializer);
+  }
+
+  @protected
+  void sse_encode_u_16(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putUint16(self);
   }
 
   @protected
@@ -4052,6 +5354,16 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
         that: this,
         messageId: messageId,
       );
+
+  Future<void> addStickerFromPath({required String path}) => RustLib
+      .instance
+      .api
+      .crateApiDesktopAccountHandleAddStickerFromPath(that: this, path: path);
+
+  Future<List<StickerItem>> albumStickers({required String albumId}) => RustLib
+      .instance
+      .api
+      .crateApiDesktopAccountHandleAlbumStickers(that: this, albumId: albumId);
 
   Future<void> blockUser({required String userId}) => RustLib.instance.api
       .crateApiDesktopAccountHandleBlockUser(that: this, userId: userId);
@@ -4254,6 +5566,9 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
     after: after,
   );
 
+  Future<List<StickerItem>> personalStickers() => RustLib.instance.api
+      .crateApiDesktopAccountHandlePersonalStickers(that: this);
+
   Future<List<MessageListItem>> pinnedMessages({
     required String conversationId,
   }) => RustLib.instance.api.crateApiDesktopAccountHandlePinnedMessages(
@@ -4273,6 +5588,18 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
     messageIds: messageIds,
   );
 
+  Future<List<StickerItem>> recentStickers() => RustLib.instance.api
+      .crateApiDesktopAccountHandleRecentStickers(that: this);
+
+  Future<void> refreshStickers() => RustLib.instance.api
+      .crateApiDesktopAccountHandleRefreshStickers(that: this);
+
+  Future<void> removeSticker({required String stickerId}) =>
+      RustLib.instance.api.crateApiDesktopAccountHandleRemoveSticker(
+        that: this,
+        stickerId: stickerId,
+      );
+
   Future<String> sendAudio({
     required String conversationId,
     required String path,
@@ -4286,6 +5613,15 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
     durationMillis: durationMillis,
     waveform: waveform,
     quoteMessageId: quoteMessageId,
+  );
+
+  Future<String> sendSticker({
+    required String conversationId,
+    required String stickerId,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleSendSticker(
+    that: this,
+    conversationId: conversationId,
+    stickerId: stickerId,
   );
 
   Future<String> sendText({
@@ -4332,11 +5668,38 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
     pinned: pinned,
   );
 
+  Future<void> setStickerAlbumAdded({
+    required String albumId,
+    required bool added,
+  }) => RustLib.instance.api.crateApiDesktopAccountHandleSetStickerAlbumAdded(
+    that: this,
+    albumId: albumId,
+    added: added,
+  );
+
+  Future<void> setStickerAlbumOrder({required List<String> albumIds}) =>
+      RustLib.instance.api.crateApiDesktopAccountHandleSetStickerAlbumOrder(
+        that: this,
+        albumIds: albumIds,
+      );
+
   Future<void> shutdown() =>
       RustLib.instance.api.crateApiDesktopAccountHandleShutdown(that: this);
 
   Future<void> signOut() =>
       RustLib.instance.api.crateApiDesktopAccountHandleSignOut(that: this);
+
+  Future<List<StickerAlbumItem>> stickerAlbums() => RustLib.instance.api
+      .crateApiDesktopAccountHandleStickerAlbums(that: this);
+
+  Future<StickerDetailItem> stickerDetail({required String stickerId}) =>
+      RustLib.instance.api.crateApiDesktopAccountHandleStickerDetail(
+        that: this,
+        stickerId: stickerId,
+      );
+
+  Future<List<StickerAlbumItem>> stickerStoreAlbums() => RustLib.instance.api
+      .crateApiDesktopAccountHandleStickerStoreAlbums(that: this);
 
   Future<List<MessageListItem>> transcriptMessages({
     required String transcriptId,
@@ -4384,8 +5747,34 @@ class DesktopHandleImpl extends RustOpaque implements DesktopHandle {
   Future<LoginHandle> beginLogin() =>
       RustLib.instance.api.crateApiDesktopDesktopHandleBeginLogin(that: this);
 
+  Future<HttpResponseItem> httpRequest({
+    required String method,
+    required String url,
+    required Map<String, String> headers,
+    Uint8List? body,
+    BigInt? timeoutMillis,
+    BigInt? maxResponseBytes,
+  }) => RustLib.instance.api.crateApiDesktopDesktopHandleHttpRequest(
+    that: this,
+    method: method,
+    url: url,
+    headers: headers,
+    body: body,
+    timeoutMillis: timeoutMillis,
+    maxResponseBytes: maxResponseBytes,
+  );
+
+  Future<ProxySettingsItem> proxySettings() => RustLib.instance.api
+      .crateApiDesktopDesktopHandleProxySettings(that: this);
+
   Future<AccountHandle?> restoreAccount() => RustLib.instance.api
       .crateApiDesktopDesktopHandleRestoreAccount(that: this);
+
+  Future<void> setProxySettings({required ProxySettingsItem settings}) =>
+      RustLib.instance.api.crateApiDesktopDesktopHandleSetProxySettings(
+        that: this,
+        settings: settings,
+      );
 }
 
 @sealed

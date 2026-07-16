@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `desktop_platform`, `forward_changes`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `from`, `try_from`, `try_from`
 
 Future<DesktopHandle> openDesktop() =>
     RustLib.instance.api.crateApiDesktopOpenDesktop();
@@ -21,6 +21,10 @@ abstract class AccountHandle implements RustOpaqueInterface {
   Future<void> addSticker({required String stickerId});
 
   Future<void> addStickerFromFile({required String messageId});
+
+  Future<void> addStickerFromPath({required String path});
+
+  Future<List<StickerItem>> albumStickers({required String albumId});
 
   Future<void> blockUser({required String userId});
 
@@ -124,6 +128,8 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required PlatformInt64 after,
   });
 
+  Future<List<StickerItem>> personalStickers();
+
   Future<List<MessageListItem>> pinnedMessages({
     required String conversationId,
   });
@@ -135,12 +141,23 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required List<String> messageIds,
   });
 
+  Future<List<StickerItem>> recentStickers();
+
+  Future<void> refreshStickers();
+
+  Future<void> removeSticker({required String stickerId});
+
   Future<String> sendAudio({
     required String conversationId,
     required String path,
     required PlatformInt64 durationMillis,
     required List<int> waveform,
     String? quoteMessageId,
+  });
+
+  Future<String> sendSticker({
+    required String conversationId,
+    required String stickerId,
   });
 
   Future<String> sendText({
@@ -167,9 +184,22 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required bool pinned,
   });
 
+  Future<void> setStickerAlbumAdded({
+    required String albumId,
+    required bool added,
+  });
+
+  Future<void> setStickerAlbumOrder({required List<String> albumIds});
+
   Future<void> shutdown();
 
   Future<void> signOut();
+
+  Future<List<StickerAlbumItem>> stickerAlbums();
+
+  Future<StickerDetailItem> stickerDetail({required String stickerId});
+
+  Future<List<StickerAlbumItem>> stickerStoreAlbums();
 
   Future<List<MessageListItem>> transcriptMessages({
     required String transcriptId,
@@ -189,7 +219,20 @@ abstract class AccountHandle implements RustOpaqueInterface {
 abstract class DesktopHandle implements RustOpaqueInterface {
   Future<LoginHandle> beginLogin();
 
+  Future<HttpResponseItem> httpRequest({
+    required String method,
+    required String url,
+    required Map<String, String> headers,
+    Uint8List? body,
+    BigInt? timeoutMillis,
+    BigInt? maxResponseBytes,
+  });
+
+  Future<ProxySettingsItem> proxySettings();
+
   Future<AccountHandle?> restoreAccount();
+
+  Future<void> setProxySettings({required ProxySettingsItem settings});
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<LoginHandle>>
@@ -397,6 +440,30 @@ class GroupAvatar {
           userId == other.userId &&
           name == other.name &&
           avatarUrl == other.avatarUrl;
+}
+
+class HttpResponseItem {
+  final int statusCode;
+  final Map<String, String> headers;
+  final Uint8List body;
+
+  const HttpResponseItem({
+    required this.statusCode,
+    required this.headers,
+    required this.body,
+  });
+
+  @override
+  int get hashCode => statusCode.hashCode ^ headers.hashCode ^ body.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is HttpResponseItem &&
+          runtimeType == other.runtimeType &&
+          statusCode == other.statusCode &&
+          headers == other.headers &&
+          body == other.body;
 }
 
 class ImageMessageItem {
@@ -723,6 +790,199 @@ class MessageListItem {
           mentionRead == other.mentionRead &&
           pinned == other.pinned &&
           expireIn == other.expireIn;
+}
+
+class ProxyItem {
+  final String id;
+  final String kind;
+  final String host;
+  final int port;
+  final String? username;
+  final String? password;
+
+  const ProxyItem({
+    required this.id,
+    required this.kind,
+    required this.host,
+    required this.port,
+    this.username,
+    this.password,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      kind.hashCode ^
+      host.hashCode ^
+      port.hashCode ^
+      username.hashCode ^
+      password.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProxyItem &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          kind == other.kind &&
+          host == other.host &&
+          port == other.port &&
+          username == other.username &&
+          password == other.password;
+}
+
+class ProxySettingsItem {
+  final bool enabled;
+  final String? selectedProxyId;
+  final List<ProxyItem> proxies;
+
+  const ProxySettingsItem({
+    required this.enabled,
+    this.selectedProxyId,
+    required this.proxies,
+  });
+
+  @override
+  int get hashCode =>
+      enabled.hashCode ^ selectedProxyId.hashCode ^ proxies.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProxySettingsItem &&
+          runtimeType == other.runtimeType &&
+          enabled == other.enabled &&
+          selectedProxyId == other.selectedProxyId &&
+          proxies == other.proxies;
+}
+
+class StickerAlbumItem {
+  final String albumId;
+  final String name;
+  final String iconUrl;
+  final String category;
+  final String description;
+  final String? banner;
+  final bool added;
+  final bool isVerified;
+
+  const StickerAlbumItem({
+    required this.albumId,
+    required this.name,
+    required this.iconUrl,
+    required this.category,
+    required this.description,
+    this.banner,
+    required this.added,
+    required this.isVerified,
+  });
+
+  @override
+  int get hashCode =>
+      albumId.hashCode ^
+      name.hashCode ^
+      iconUrl.hashCode ^
+      category.hashCode ^
+      description.hashCode ^
+      banner.hashCode ^
+      added.hashCode ^
+      isVerified.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StickerAlbumItem &&
+          runtimeType == other.runtimeType &&
+          albumId == other.albumId &&
+          name == other.name &&
+          iconUrl == other.iconUrl &&
+          category == other.category &&
+          description == other.description &&
+          banner == other.banner &&
+          added == other.added &&
+          isVerified == other.isVerified;
+}
+
+class StickerDetailItem {
+  final StickerItem sticker;
+  final StickerAlbumItem? album;
+  final List<StickerItem> albumStickers;
+  final bool isPersonal;
+
+  const StickerDetailItem({
+    required this.sticker,
+    this.album,
+    required this.albumStickers,
+    required this.isPersonal,
+  });
+
+  @override
+  int get hashCode =>
+      sticker.hashCode ^
+      album.hashCode ^
+      albumStickers.hashCode ^
+      isPersonal.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StickerDetailItem &&
+          runtimeType == other.runtimeType &&
+          sticker == other.sticker &&
+          album == other.album &&
+          albumStickers == other.albumStickers &&
+          isPersonal == other.isPersonal;
+}
+
+class StickerItem {
+  final String stickerId;
+  final String? albumId;
+  final String name;
+  final String assetUrl;
+  final int assetWidth;
+  final int assetHeight;
+  final String assetType;
+  final PlatformInt64 createdAtMillis;
+  final PlatformInt64? lastUseAtMillis;
+
+  const StickerItem({
+    required this.stickerId,
+    this.albumId,
+    required this.name,
+    required this.assetUrl,
+    required this.assetWidth,
+    required this.assetHeight,
+    required this.assetType,
+    required this.createdAtMillis,
+    this.lastUseAtMillis,
+  });
+
+  @override
+  int get hashCode =>
+      stickerId.hashCode ^
+      albumId.hashCode ^
+      name.hashCode ^
+      assetUrl.hashCode ^
+      assetWidth.hashCode ^
+      assetHeight.hashCode ^
+      assetType.hashCode ^
+      createdAtMillis.hashCode ^
+      lastUseAtMillis.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StickerItem &&
+          runtimeType == other.runtimeType &&
+          stickerId == other.stickerId &&
+          albumId == other.albumId &&
+          name == other.name &&
+          assetUrl == other.assetUrl &&
+          assetWidth == other.assetWidth &&
+          assetHeight == other.assetHeight &&
+          assetType == other.assetType &&
+          createdAtMillis == other.createdAtMillis &&
+          lastUseAtMillis == other.lastUseAtMillis;
 }
 
 class UserProfileItem {

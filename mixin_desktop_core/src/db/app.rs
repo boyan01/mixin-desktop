@@ -4,12 +4,15 @@ use std::path::Path;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
 pub use auth::*;
+pub use property::*;
 
 use crate::db::Error;
 
 pub mod auth;
+pub mod property;
 pub struct AppDatabase {
     pub auth_dao: AuthDao,
+    pub property_dao: PropertyDao,
 }
 
 impl AppDatabase {
@@ -39,6 +42,7 @@ impl AppDatabase {
             .with_context(|| "migrations failed")?;
         Ok(AppDatabase {
             auth_dao: AuthDao(pool.clone()),
+            property_dao: PropertyDao(pool.clone()),
         })
     }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,8 @@ import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
+import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' show ProxyItem;
+import 'package:uuid/uuid.dart';
 
 class AppearanceSettingsPage extends StatefulWidget {
   const AppearanceSettingsPage({
@@ -255,27 +259,6 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   );
 }
 
-enum ProxyKind { http }
-
-@immutable
-class ProxyEntry {
-  const ProxyEntry({
-    required this.id,
-    required this.host,
-    required this.port,
-    this.kind = ProxyKind.http,
-    this.username = '',
-    this.password = '',
-  });
-
-  final String id;
-  final String host;
-  final int port;
-  final ProxyKind kind;
-  final String username;
-  final String password;
-}
-
 class ProxySettingsPage extends StatelessWidget {
   const ProxySettingsPage({
     required this.enabled,
@@ -289,12 +272,12 @@ class ProxySettingsPage extends StatelessWidget {
   });
 
   final bool enabled;
-  final List<ProxyEntry> proxies;
+  final List<ProxyItem> proxies;
   final String? selectedProxyId;
-  final ValueChanged<bool> onEnabledChanged;
-  final ValueChanged<String> onProxySelected;
-  final ValueChanged<ProxyEntry> onProxyAdded;
-  final ValueChanged<String> onProxyDeleted;
+  final Future<void> Function(bool) onEnabledChanged;
+  final Future<void> Function(String) onProxySelected;
+  final Future<void> Function(ProxyItem) onProxyAdded;
+  final Future<void> Function(String) onProxyDeleted;
 
   @override
   Widget build(BuildContext context) {
@@ -311,7 +294,9 @@ class ProxySettingsPage extends StatelessWidget {
               child: _SwitchCell(
                 title: context.l10n.proxy,
                 value: hasProxy && enabled,
-                onChanged: hasProxy ? onEnabledChanged : null,
+                onChanged: hasProxy
+                    ? (value) => unawaited(onEnabledChanged(value))
+                    : null,
               ),
             ),
             CellGroup(
@@ -332,8 +317,8 @@ class ProxySettingsPage extends StatelessWidget {
                     _ProxyCell(
                       proxy: proxy,
                       selected: effectiveSelectedProxyId == proxy.id,
-                      onSelected: () => onProxySelected(proxy.id),
-                      onDeleted: () => onProxyDeleted(proxy.id),
+                      onSelected: () => unawaited(onProxySelected(proxy.id)),
+                      onDeleted: () => unawaited(onProxyDeleted(proxy.id)),
                     ),
                   ],
                 ],
@@ -346,11 +331,11 @@ class ProxySettingsPage extends StatelessWidget {
   }
 
   Future<void> _showAddProxyDialog(BuildContext context) async {
-    final proxy = await showDialog<ProxyEntry>(
+    final proxy = await showDialog<ProxyItem>(
       context: context,
       builder: (context) => const _AddProxyDialog(),
     );
-    if (proxy != null) onProxyAdded(proxy);
+    if (proxy != null) await onProxyAdded(proxy);
   }
 }
 
@@ -386,12 +371,17 @@ class _AddProxyDialogState extends State<_AddProxyDialog> {
     }
     Navigator.pop(
       context,
-      ProxyEntry(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
+      ProxyItem(
+        id: const Uuid().v4(),
+        kind: 'http',
         host: host,
         port: port,
-        username: _usernameController.text,
-        password: _passwordController.text,
+        username: _usernameController.text.isEmpty
+            ? null
+            : _usernameController.text,
+        password: _passwordController.text.isEmpty
+            ? null
+            : _passwordController.text,
       ),
     );
   }
@@ -554,7 +544,7 @@ class _ProxyCell extends StatelessWidget {
     required this.onDeleted,
   });
 
-  final ProxyEntry proxy;
+  final ProxyItem proxy;
   final bool selected;
   final VoidCallback onSelected;
   final VoidCallback onDeleted;
@@ -573,7 +563,7 @@ class _ProxyCell extends StatelessWidget {
       style: TextStyle(fontSize: 16, color: context.mixinTheme.text),
     ),
     subtitle: Text(
-      proxy.kind.name.toUpperCase(),
+      proxy.kind.toUpperCase(),
       style: TextStyle(fontSize: 14, color: context.mixinTheme.secondaryText),
     ),
     trailing: IconButton(

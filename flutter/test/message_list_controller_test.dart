@@ -130,6 +130,27 @@ void main() {
     expect(account.sentAudioWaveform, [1, 2, 3]);
     expect(account.sentAudioQuoteId, 'quoted');
   });
+
+  testWidgets('sends a sticker through the Rust account handle', (
+    tester,
+  ) async {
+    final account = _FakeAccountHandle([]);
+    final controller = MessageListController(
+      account: account,
+      conversation: _conversation,
+    );
+    addTearDown(() {
+      controller.dispose();
+      account.close();
+    });
+    await tester.pumpAndSettle();
+
+    final sent = await controller.sendSticker(stickerId: 'sticker-id');
+
+    expect(sent, isTrue);
+    expect(account.sentStickerId, 'sticker-id');
+    expect(account.sentStickerConversationId, 'conversation');
+  });
 }
 
 final _conversation = ConversationListEntry(
@@ -219,6 +240,8 @@ class _FakeAccountHandle implements AccountHandle {
   int? sentAudioDuration;
   List<int>? sentAudioWaveform;
   String? sentAudioQuoteId;
+  String? sentStickerId;
+  String? sentStickerConversationId;
 
   void notifyChanged() => _changes.add(BigInt.one);
   Future<void> close() => _changes.close();
@@ -278,6 +301,16 @@ class _FakeAccountHandle implements AccountHandle {
     sentAudioWaveform = waveform;
     sentAudioQuoteId = quoteMessageId;
     return 'audio-message';
+  }
+
+  @override
+  Future<String> sendSticker({
+    required String conversationId,
+    required String stickerId,
+  }) async {
+    sentStickerConversationId = conversationId;
+    sentStickerId = stickerId;
+    return 'sticker-message';
   }
 
   @override

@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/controllers/message_list_controller.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
+import 'package:mixin_desktop_ui/controllers/sticker_controller.dart';
 import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
@@ -37,6 +38,8 @@ import 'package:mixin_desktop_ui/widgets/show_snapshot_detail_dialog.dart';
 import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
 import 'package:mixin_desktop_ui/widgets/show_add_image_sticker_dialog.dart';
 import 'package:mixin_desktop_ui/widgets/transcript_page.dart';
+import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_button.dart';
+import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_detail_page.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:super_context_menu/super_context_menu.dart';
@@ -73,6 +76,7 @@ class _ChatViewState extends State<ChatView> {
   late final TextEditingController _inputController;
   late final FocusNode _inputFocusNode;
   late final VoiceRecorderController _voiceRecorderController;
+  late StickerController _stickerController;
   final ItemScrollController _messageScrollController = ItemScrollController();
   MessageListEntry? _quoteMessage;
   String? _highlightedMessageId;
@@ -90,6 +94,7 @@ class _ChatViewState extends State<ChatView> {
     _inputFocusNode = FocusNode(debugLabel: 'chat_input');
     _voiceRecorderController = VoiceRecorderController()
       ..addListener(_onVoiceRecorderChanged);
+    _stickerController = StickerController(account: widget.account);
   }
 
   @override
@@ -106,6 +111,10 @@ class _ChatViewState extends State<ChatView> {
       _selectedMessageIds.clear();
       _messageKeys.clear();
       unawaited(_voiceRecorderController.cancel());
+      if (!identical(oldWidget.account, widget.account)) {
+        _stickerController.dispose();
+        _stickerController = StickerController(account: widget.account);
+      }
     }
     if (_inputController.text != widget.draft) {
       _inputController.value = TextEditingValue(
@@ -191,6 +200,14 @@ class _ChatViewState extends State<ChatView> {
       return;
     }
     setState(() => _quoteMessage = null);
+  }
+
+  Future<bool> _sendSticker(String stickerId) async {
+    final sent = await _messageController.sendSticker(stickerId: stickerId);
+    if (!mounted || !sent) return false;
+    setState(() => _quoteMessage = null);
+    unawaited(_stickerController.refreshLocal());
+    return true;
   }
 
   Future<void> _sendText() async {
@@ -355,6 +372,7 @@ class _ChatViewState extends State<ChatView> {
     _voiceRecorderController
       ..removeListener(_onVoiceRecorderChanged)
       ..dispose();
+    _stickerController.dispose();
     super.dispose();
   }
 
@@ -413,6 +431,7 @@ class _ChatViewState extends State<ChatView> {
                         onSelect: _selectMessage,
                         onToggleSelection: _toggleMessageSelection,
                         onOpenMessage: _locateMessage,
+                        onStickerAlbumChanged: _stickerController.refreshLocal,
                       ),
                     ),
                   ),
@@ -456,6 +475,20 @@ class _ChatViewState extends State<ChatView> {
                       onCancelQuote: () => setState(() => _quoteMessage = null),
                       onSend: _sendText,
                       onVoicePressed: () => unawaited(_startVoiceRecording()),
+                      stickerAction: StickerButton(
+                        textEditingController: _inputController,
+                        controller: _stickerController,
+                        onStickerSelected: _sendSticker,
+                        onStickerSent: () {},
+                        onEmojiUsed: (_) {
+                          widget.onDraftChanged(_inputController.text);
+                          _inputFocusNode.requestFocus();
+                        },
+                        child: const _ChatInputAction(
+                          actionKey: Key('chat-sticker'),
+                          asset: MixinAssets.sticker,
+                        ),
+                      ),
                     )
                   else
                     VoiceRecorderBar(
@@ -604,6 +637,7 @@ class _MessageList extends StatelessWidget {
     required this.onSelect,
     required this.onToggleSelection,
     required this.onOpenMessage,
+    required this.onStickerAlbumChanged,
   });
 
   final rust.AccountHandle account;
@@ -619,6 +653,7 @@ class _MessageList extends StatelessWidget {
   final ValueChanged<MessageListEntry> onSelect;
   final ValueChanged<MessageListEntry> onToggleSelection;
   final ValueChanged<String> onOpenMessage;
+  final Future<void> Function() onStickerAlbumChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -730,6 +765,7 @@ class _MessageList extends StatelessWidget {
             onAddImageAsSticker: () => controller.addImageAsSticker(message),
             onStrangerAction: (action) =>
                 controller.handleStrangerAction(message, action),
+            onStickerAlbumChanged: onStickerAlbumChanged,
           );
           if (message.id != controller.unreadBoundaryMessageId ||
               next == null) {
@@ -811,6 +847,7 @@ class _ChatMessage extends StatefulWidget {
     required this.onAddSticker,
     required this.onAddImageAsSticker,
     required this.onStrangerAction,
+    required this.onStickerAlbumChanged,
     super.key,
   });
 
@@ -843,6 +880,7 @@ class _ChatMessage extends StatefulWidget {
   final Future<void> Function() onAddSticker;
   final Future<void> Function() onAddImageAsSticker;
   final Future<String?> Function(String action) onStrangerAction;
+  final Future<void> Function() onStickerAlbumChanged;
 
   @override
   State<_ChatMessage> createState() => _ChatMessageState();
@@ -893,6 +931,7 @@ class _ChatMessageState extends State<_ChatMessage> {
       onOpenVideo: _openVideo,
       onOpenPost: _openPost,
       onOpenFile: _openFile,
+      onOpenSticker: _openSticker,
       onOpenTranscript: _openTranscript,
       onOpenUser: (userId) => _showUser(userId: userId),
       onOpenIdentityNumber: (identityNumber) =>
@@ -928,9 +967,10 @@ class _ChatMessageState extends State<_ChatMessage> {
       'STRANGER',
     }.contains(widget.message.category);
     final bypassBubble =
-        bypassActions ||
-        widget.message.category == 'APP_BUTTON_GROUP' ||
-        widget.message.category == 'APP_CARD';
+        !widget.message.isUnresolvedMessage &&
+        (bypassActions ||
+            widget.message.category == 'APP_BUTTON_GROUP' ||
+            widget.message.category == 'APP_CARD');
     final renderedMessage = bypassBubble
         ? Align(
             key: Key('message-bubble-${widget.message.id}'),
@@ -1302,6 +1342,19 @@ class _ChatMessageState extends State<_ChatMessage> {
         account: widget.account,
         transcriptId: transcriptId,
         currentUserId: widget.currentUserId,
+      ),
+    );
+  }
+
+  void _openSticker(MessageListEntry message) {
+    final stickerId = message.stickerId;
+    if (stickerId == null || stickerId.isEmpty) return;
+    unawaited(
+      showStickerDetailPage(
+        context,
+        account: widget.account,
+        stickerId: stickerId,
+        onAlbumChanged: widget.onStickerAlbumChanged,
       ),
     );
   }
@@ -1808,6 +1861,7 @@ class ChatInputBar extends StatefulWidget {
     required this.onSend,
     this.onAddPressed,
     this.onStickerPressed,
+    this.stickerAction,
     this.onVoicePressed,
     this.voiceButtonActive = false,
     super.key,
@@ -1822,6 +1876,7 @@ class ChatInputBar extends StatefulWidget {
   final Future<void> Function() onSend;
   final VoidCallback? onAddPressed;
   final VoidCallback? onStickerPressed;
+  final Widget? stickerAction;
   final VoidCallback? onVoicePressed;
   final bool voiceButtonActive;
 
@@ -1881,12 +1936,12 @@ class _ChatInputBarState extends State<ChatInputBar> {
                   onPressed: widget.onAddPressed,
                 ),
                 const SizedBox(width: 6),
-                _ChatInputAction(
-                  actionKey: const Key('chat-sticker'),
-                  asset: MixinAssets.sticker,
-                  tooltip: 'Stickers and emoji',
-                  onPressed: widget.onStickerPressed,
-                ),
+                widget.stickerAction ??
+                    _ChatInputAction(
+                      actionKey: const Key('chat-sticker'),
+                      asset: MixinAssets.sticker,
+                      onPressed: widget.onStickerPressed,
+                    ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Container(
@@ -1969,14 +2024,14 @@ class _ChatInputBarState extends State<ChatInputBar> {
 class _ChatInputAction extends StatelessWidget {
   const _ChatInputAction({
     required this.asset,
-    required this.tooltip,
     required this.actionKey,
+    this.tooltip,
     this.onPressed,
     this.active = false,
   });
 
   final String asset;
-  final String tooltip;
+  final String? tooltip;
   final Key actionKey;
   final VoidCallback? onPressed;
   final bool active;

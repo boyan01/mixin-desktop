@@ -155,6 +155,29 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  Future<bool> sendSticker({required String stickerId}) async {
+    if (sending || stickerId.trim().isEmpty) return false;
+    sending = true;
+    error = null;
+    notifyListeners();
+    try {
+      await account.sendSticker(
+        conversationId: conversation.id,
+        stickerId: stickerId,
+      );
+      await _refreshLatest();
+      return true;
+    } catch (exception) {
+      _setError(exception);
+      return false;
+    } finally {
+      if (!_disposed) {
+        sending = false;
+        notifyListeners();
+      }
+    }
+  }
+
   Future<bool> forwardMessages(
     Iterable<MessageListEntry> messages,
     String targetConversationId,

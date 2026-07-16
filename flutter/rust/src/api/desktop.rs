@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::collections::HashMap;
 
 use anyhow::Result;
 use log::warn;
@@ -6,6 +7,9 @@ use mixin_desktop_core::core::model::auth::{AuthService, AuthorizationSession};
 use mixin_desktop_core::db::app::AppDatabase;
 use mixin_desktop_core::db::SignalDatabase;
 use mixin_desktop_core::runtime::AccountRuntime;
+use mixin_desktop_core::network::{
+    NetworkService, ProxyConfig, ProxySettings, ProxyType, SharedNetworkService,
+};
 use tokio::sync::Mutex;
 
 use crate::frb_generated::StreamSink;
@@ -13,6 +17,7 @@ use crate::frb_generated::StreamSink;
 #[flutter_rust_bridge::frb(opaque)]
 pub struct DesktopHandle {
     auth_service: Arc<AuthService>,
+    network_service: SharedNetworkService,
 }
 
 #[flutter_rust_bridge::frb(opaque)]
@@ -26,6 +31,89 @@ pub struct LoginHandle {
 pub struct AccountHandle {
     runtime: Arc<AccountRuntime>,
     auth_service: Arc<AuthService>,
+}
+
+pub struct ProxyItem {
+    pub id: String,
+    pub kind: String,
+    pub host: String,
+    pub port: u16,
+    pub username: Option<String>,
+    pub password: Option<String>,
+}
+
+pub struct ProxySettingsItem {
+    pub enabled: bool,
+    pub selected_proxy_id: Option<String>,
+    pub proxies: Vec<ProxyItem>,
+}
+
+pub struct HttpResponseItem {
+    pub status_code: u16,
+    pub headers: HashMap<String, String>,
+    pub body: Vec<u8>,
+}
+
+impl From<ProxyConfig> for ProxyItem {
+    fn from(proxy: ProxyConfig) -> Self {
+        Self {
+            id: proxy.id,
+            kind: match proxy.proxy_type {
+                ProxyType::Http => "http".to_string(),
+                ProxyType::Socks5 => "socks5".to_string(),
+            },
+            host: proxy.host,
+            port: proxy.port,
+            username: proxy.username,
+            password: proxy.password,
+        }
+    }
+}
+
+impl TryFrom<ProxyItem> for ProxyConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(proxy: ProxyItem) -> Result<Self> {
+        let proxy_type = match proxy.kind.to_lowercase().as_str() {
+            "http" => ProxyType::Http,
+            "socks5" => ProxyType::Socks5,
+            _ => anyhow::bail!("unsupported proxy type"),
+        };
+        Ok(Self {
+            id: proxy.id,
+            proxy_type,
+            host: proxy.host,
+            port: proxy.port,
+            username: proxy.username,
+            password: proxy.password,
+        })
+    }
+}
+
+impl From<ProxySettings> for ProxySettingsItem {
+    fn from(settings: ProxySettings) -> Self {
+        Self {
+            enabled: settings.enabled,
+            selected_proxy_id: settings.selected_proxy_id,
+            proxies: settings.proxies.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl TryFrom<ProxySettingsItem> for ProxySettings {
+    type Error = anyhow::Error;
+
+    fn try_from(settings: ProxySettingsItem) -> Result<Self> {
+        Ok(Self {
+            enabled: settings.enabled,
+            selected_proxy_id: settings.selected_proxy_id,
+            proxies: settings
+                .proxies
+                .into_iter()
+                .map(TryInto::try_into)
+                .collect::<Result<Vec<_>>>()?,
+        })
+    }
 }
 
 pub struct ConversationListItem {
@@ -86,6 +174,67 @@ pub struct UserProfileItem {
 pub struct CircleItem {
     pub circle_id: String,
     pub name: String,
+}
+
+pub struct StickerItem {
+    pub sticker_id: String,
+    pub album_id: Option<String>,
+    pub name: String,
+    pub asset_url: String,
+    pub asset_width: i32,
+    pub asset_height: i32,
+    pub asset_type: String,
+    pub created_at_millis: i64,
+    pub last_use_at_millis: Option<i64>,
+}
+
+pub struct StickerAlbumItem {
+    pub album_id: String,
+    pub name: String,
+    pub icon_url: String,
+    pub category: String,
+    pub description: String,
+    pub banner: Option<String>,
+    pub added: bool,
+    pub is_verified: bool,
+}
+
+pub struct StickerDetailItem {
+    pub sticker: StickerItem,
+    pub album: Option<StickerAlbumItem>,
+    pub album_stickers: Vec<StickerItem>,
+    pub is_personal: bool,
+}
+
+impl From<mixin_desktop_core::db::mixin::sticker::Sticker> for StickerItem {
+    fn from(sticker: mixin_desktop_core::db::mixin::sticker::Sticker) -> Self {
+        Self {
+            sticker_id: sticker.sticker_id,
+            album_id: sticker.album_id,
+            name: sticker.name,
+            asset_url: sticker.asset_url,
+            asset_width: sticker.asset_width,
+            asset_height: sticker.asset_height,
+            asset_type: sticker.asset_type,
+            created_at_millis: sticker.created_at.timestamp_millis(),
+            last_use_at_millis: sticker.last_use_at.map(|value| value.timestamp_millis()),
+        }
+    }
+}
+
+impl From<mixin_desktop_core::db::mixin::sticker::StickerAlbum> for StickerAlbumItem {
+    fn from(album: mixin_desktop_core::db::mixin::sticker::StickerAlbum) -> Self {
+        Self {
+            album_id: album.album_id,
+            name: album.name,
+            icon_url: album.icon_url,
+            category: album.category,
+            description: album.description,
+            banner: album.banner,
+            added: album.added,
+            is_verified: album.is_verified,
+        }
+    }
 }
 
 pub struct MessageListItem {
@@ -332,12 +481,53 @@ pub fn init_app() {
 
 pub async fn open_desktop() -> Result<DesktopHandle> {
     let database = Arc::new(AppDatabase::connect().await?);
+    let network_service = Arc::new(NetworkService::new(database.property_dao.clone()).await?);
     let auth_service = Arc::new(AuthService::new(database));
     auth_service.initialize().await?;
-    Ok(DesktopHandle { auth_service })
+    Ok(DesktopHandle {
+        auth_service,
+        network_service,
+    })
 }
 
 impl DesktopHandle {
+    pub async fn proxy_settings(&self) -> Result<ProxySettingsItem> {
+        Ok(self.network_service.proxy_settings().await.into())
+    }
+
+    pub async fn set_proxy_settings(&self, settings: ProxySettingsItem) -> Result<()> {
+        self.network_service
+            .set_proxy_settings(settings.try_into()?)
+            .await
+    }
+
+    pub async fn http_request(
+        &self,
+        method: String,
+        url: String,
+        headers: HashMap<String, String>,
+        body: Option<Vec<u8>>,
+        timeout_millis: Option<u64>,
+        max_response_bytes: Option<u64>,
+    ) -> Result<HttpResponseItem> {
+        let response = self
+            .network_service
+            .request(
+                &method,
+                &url,
+                headers,
+                body,
+                timeout_millis,
+                max_response_bytes.map(|value| value as usize),
+            )
+            .await?;
+        Ok(HttpResponseItem {
+            status_code: response.status_code,
+            headers: response.headers,
+            body: response.body,
+        })
+    }
+
     pub async fn restore_account(&self) -> Result<Option<AccountHandle>> {
         let Some(auth) = self.auth_service.get_auth() else {
             return Ok(None);
@@ -780,8 +970,100 @@ impl AccountHandle {
         self.runtime.add_sticker(&sticker_id).await
     }
 
+    pub async fn remove_sticker(&self, sticker_id: String) -> Result<()> {
+        self.runtime.remove_sticker(&sticker_id).await
+    }
+
+    pub async fn refresh_stickers(&self) -> Result<()> {
+        self.runtime.refresh_stickers().await
+    }
+
+    pub async fn recent_stickers(&self) -> Result<Vec<StickerItem>> {
+        Ok(self
+            .runtime
+            .recent_stickers()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn personal_stickers(&self) -> Result<Vec<StickerItem>> {
+        Ok(self
+            .runtime
+            .personal_stickers()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn sticker_albums(&self) -> Result<Vec<StickerAlbumItem>> {
+        Ok(self
+            .runtime
+            .sticker_albums()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn sticker_store_albums(&self) -> Result<Vec<StickerAlbumItem>> {
+        Ok(self
+            .runtime
+            .sticker_store_albums()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn album_stickers(&self, album_id: String) -> Result<Vec<StickerItem>> {
+        Ok(self
+            .runtime
+            .album_stickers(&album_id)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn set_sticker_album_added(&self, album_id: String, added: bool) -> Result<()> {
+        self.runtime
+            .set_sticker_album_added(&album_id, added)
+            .await
+    }
+
+    pub async fn set_sticker_album_order(&self, album_ids: Vec<String>) -> Result<()> {
+        self.runtime.set_sticker_album_order(&album_ids).await
+    }
+
+    pub async fn sticker_detail(&self, sticker_id: String) -> Result<StickerDetailItem> {
+        let detail = self.runtime.sticker_detail(&sticker_id).await?;
+        Ok(StickerDetailItem {
+            sticker: detail.sticker.into(),
+            album: detail.album.map(Into::into),
+            album_stickers: detail.album_stickers.into_iter().map(Into::into).collect(),
+            is_personal: detail.is_personal,
+        })
+    }
+
+    pub async fn send_sticker(
+        &self,
+        conversation_id: String,
+        sticker_id: String,
+    ) -> Result<String> {
+        self.runtime
+            .send_sticker(&conversation_id, &sticker_id)
+            .await
+    }
+
     pub async fn add_sticker_from_file(&self, message_id: String) -> Result<()> {
         self.runtime.add_sticker_from_file(&message_id).await
+    }
+
+    pub async fn add_sticker_from_path(&self, path: String) -> Result<()> {
+        self.runtime.add_sticker_from_path(&path).await
     }
 
     pub async fn add_contact(&self, user_id: String, full_name: String) -> Result<()> {

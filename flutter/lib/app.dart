@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:mixin_desktop_ui/controllers/app_controller.dart';
+import 'package:mixin_desktop_ui/controllers/network_controller.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
+import 'package:mixin_desktop_ui/network/core_http_scope.dart';
 import 'package:mixin_desktop_ui/pages/home_page.dart';
 import 'package:mixin_desktop_ui/pages/login_page.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
@@ -45,9 +47,9 @@ class _AppBody extends StatelessWidget {
         desktop: controller.desktop,
         onAuthenticated: controller.setAccount,
       ),
-      AppStage.signedIn => Provider<AccountHandle>.value(
-        value: controller.account,
-        child: const HomePage(),
+      AppStage.signedIn => _SignedInBody(
+        desktop: controller.desktop,
+        account: controller.account,
       ),
       AppStage.failed => _FailurePage(
         message: controller.error ?? 'Unable to start Mixin Messenger.',
@@ -55,6 +57,44 @@ class _AppBody extends StatelessWidget {
       ),
     };
   }
+}
+
+class _SignedInBody extends StatefulWidget {
+  const _SignedInBody({required this.desktop, required this.account});
+
+  final DesktopHandle desktop;
+  final AccountHandle account;
+
+  @override
+  State<_SignedInBody> createState() => _SignedInBodyState();
+}
+
+class _SignedInBodyState extends State<_SignedInBody> {
+  late final NetworkController _networkController = NetworkController(
+    widget.desktop,
+  )..initialize();
+
+  @override
+  void dispose() {
+    _networkController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Provider<AccountHandle>.value(
+    value: widget.account,
+    child: ChangeNotifierProvider<NetworkController>.value(
+      value: _networkController,
+      child: Consumer<NetworkController>(
+        builder: (context, network, child) => CoreHttpScope(
+          client: network.httpClient,
+          revision: network.revision,
+          child: child!,
+        ),
+        child: const HomePage(),
+      ),
+    ),
+  );
 }
 
 class _StartupPage extends StatelessWidget {

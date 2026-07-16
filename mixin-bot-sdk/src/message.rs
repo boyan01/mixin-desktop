@@ -80,7 +80,7 @@ pub struct StickerMessage {
     pub sticker_id: String,
     pub album_id: Option<String>,
     #[serde(default)]
-    pub name: String,
+    pub name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -167,5 +167,16 @@ mod tests {
         assert_eq!(message.digest, Some(vec![4, 5, 6]));
         assert_eq!(message.waveform, Some(vec![7, 8, 9]));
         assert_eq!(serde_json::to_value(message).unwrap()["key"], "AAECAw==");
+    }
+
+    #[test]
+    fn sticker_message_accepts_flutter_nullable_name() {
+        let message: StickerMessage =
+            serde_json::from_str(r#"{"sticker_id":"sticker","album_id":null,"name":null}"#)
+                .unwrap();
+
+        assert_eq!(message.sticker_id, "sticker");
+        assert_eq!(message.album_id, None);
+        assert_eq!(message.name, None);
     }
 }

@@ -1,0 +1,100 @@
+import 'package:flutter/foundation.dart';
+import 'package:mixin_desktop_ui/network/core_http_client.dart';
+import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+
+class NetworkController extends ChangeNotifier {
+  NetworkController(this._desktop) : httpClient = CoreHttpClient(_desktop);
+
+  final DesktopHandle _desktop;
+  final CoreHttpClient httpClient;
+
+  ProxySettingsItem _settings = const ProxySettingsItem(
+    enabled: false,
+    proxies: [],
+  );
+  Object? error;
+  var loading = true;
+  var revision = 0;
+  Future<void> _pendingMutation = Future.value();
+
+  bool get enabled => _settings.enabled;
+  String? get selectedProxyId => _settings.selectedProxyId;
+  List<ProxyItem> get proxies => List.unmodifiable(_settings.proxies);
+
+  Future<void> initialize() async {
+    loading = true;
+    error = null;
+    notifyListeners();
+    try {
+      _settings = await _desktop.proxySettings();
+    } catch (exception) {
+      error = exception;
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> setEnabled(bool enabled) => _mutate((current) {
+    final selected = current.selectedProxyId ?? current.proxies.firstOrNull?.id;
+    return ProxySettingsItem(
+      enabled: enabled && selected != null,
+      selectedProxyId: selected,
+      proxies: current.proxies,
+    );
+  });
+
+  Future<void> selectProxy(String id) => _mutate(
+    (current) => ProxySettingsItem(
+      enabled: current.enabled,
+      selectedProxyId: id,
+      proxies: current.proxies,
+    ),
+  );
+
+  Future<void> addProxy(ProxyItem proxy) => _mutate(
+    (current) => ProxySettingsItem(
+      enabled: current.enabled,
+      selectedProxyId: current.selectedProxyId ?? proxy.id,
+      proxies: [...current.proxies, proxy],
+    ),
+  );
+
+  Future<void> deleteProxy(String id) => _mutate((current) {
+    final proxies = current.proxies.where((proxy) => proxy.id != id).toList();
+    final selected = current.selectedProxyId == id
+        ? proxies.firstOrNull?.id
+        : current.selectedProxyId;
+    return ProxySettingsItem(
+      enabled: proxies.isNotEmpty && current.enabled,
+      selectedProxyId: selected,
+      proxies: proxies,
+    );
+  });
+
+  Future<void> _mutate(
+    ProxySettingsItem Function(ProxySettingsItem current) update,
+  ) {
+    final operation = _pendingMutation.catchError((_) {}).then((_) async {
+      final next = update(_settings);
+      error = null;
+      try {
+        await _desktop.setProxySettings(settings: next);
+        _settings = next;
+        revision++;
+      } catch (exception) {
+        error = exception;
+      } finally {
+        notifyListeners();
+      }
+    });
+    _pendingMutation = operation;
+    return operation;
+  }
+
+  @override
+  void dispose() {
+    httpClient.close();
+    super.dispose();
+  }
+}

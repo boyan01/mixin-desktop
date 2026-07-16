@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_portal/flutter_portal.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
@@ -19,6 +21,7 @@ import 'package:mixin_desktop_ui/widgets/chat_view.dart';
 import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
+import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_page.dart';
 import 'package:provider/provider.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -78,6 +81,46 @@ void main() {
     await tester.pump(const Duration(milliseconds: 120));
     expect(find.byKey(const Key('chat-send')), findsOneWidget);
     expect(find.byKey(const Key('chat-voice')), findsNothing);
+  });
+
+  testWidgets('anchors the sticker portal in window coordinates', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final account = _FakeAccountHandle([]);
+    addTearDown(account.close);
+
+    await tester.pumpWidget(
+      _LocalizedApp(
+        child: Row(
+          children: [
+            const SizedBox(width: 300),
+            Expanded(
+              child: ChatView(
+                account: account,
+                conversation: _conversation,
+                draft: '',
+                onDraftChanged: (_) {},
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final icon = find.byKey(const Key('chat-sticker'));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: tester.getCenter(icon));
+    await tester.pump(const Duration(milliseconds: 60));
+    await tester.pump(const Duration(milliseconds: 220));
+
+    final iconRect = tester.getRect(icon);
+    final pickerRect = tester.getRect(find.byType(StickerPage));
+    expect(pickerRect.center.dx, closeTo(iconRect.center.dx, 1));
+    expect(pickerRect.bottom, lessThanOrEqualTo(iconRect.top));
   });
 
   testWidgets('shows recording controls and recorded voice preview', (
@@ -1159,7 +1202,7 @@ class _LocalizedApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
-      home: child,
+      home: Portal(child: child),
     ),
   );
 }

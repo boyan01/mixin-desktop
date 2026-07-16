@@ -6,9 +6,24 @@ import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
+import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:provider/provider.dart';
 
 void main() {
+  test(
+    'unresolved media messages use the upstream normal bubble semantics',
+    () {
+      final message = _message(category: 'SIGNAL_STICKER', status: 'UNKNOWN');
+
+      expect(message.isUnresolvedMessage, isTrue);
+      expect(message.showMessageBubble, isTrue);
+      expect(message.includeMessageBubbleNip, isFalse);
+      expect(message.clipMessageBubble, isFalse);
+      expect(message.useOuterMessageDateAndStatus, isFalse);
+      expect(message.messageBubblePadding, const EdgeInsets.all(8));
+    },
+  );
+
   testWidgets('renders every primary message branch from projected fields', (
     tester,
   ) async {
@@ -226,6 +241,17 @@ void main() {
       find.byKey(const Key('message-media-unknown-unknown-status')),
       findsOneWidget,
     );
+    expect(
+      find.textContaining(
+        'This type of message is not supported',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Learn More', findRichText: true),
+      findsOneWidget,
+    );
     expect(find.text('RAW_UNKNOWN_STATUS'), findsNothing);
 
     await render(
@@ -235,7 +261,17 @@ void main() {
         status: 'FAILED',
       ),
     );
-    expect(find.textContaining('Waiting for this message'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'Waiting for Alice to get online and establish an encrypted session.',
+        findRichText: true,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('message-media-waiting-message')),
+      findsOneWidget,
+    );
     expect(find.text('RAW_FAILED_PAYLOAD'), findsNothing);
 
     await render(
@@ -250,6 +286,30 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('RAW_UNKNOWN_CATEGORY'), findsNothing);
+  });
+
+  testWidgets('opens sticker detail from a sticker message', (tester) async {
+    MessageListEntry? opened;
+    await tester.pumpWidget(
+      _TestApp(
+        child: MessageContent(
+          message: _message(
+            id: 'sticker',
+            category: 'PLAIN_STICKER',
+            stickerId: 'sticker-id',
+          ),
+          isCurrentUser: false,
+          currentUserId: 'me',
+          dateAndStatus: const Text('12:30'),
+          overlayDateAndStatus: const Text('12:30 overlay'),
+          onOpenSticker: (message) => opened = message,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('message-media-sticker-sticker')));
+
+    expect(opened?.stickerId, 'sticker-id');
   });
 
   testWidgets('routes canceled and pending media taps to their callbacks', (
@@ -515,6 +575,7 @@ MessageListEntry _message({
   String? sharedUserIdentityNumber,
   int? stickerAssetWidth,
   int? stickerAssetHeight,
+  String? stickerId,
 }) => MessageListEntry(
   id: id,
   conversationId: 'conversation',
@@ -546,4 +607,5 @@ MessageListEntry _message({
   sharedUserIdentityNumber: sharedUserIdentityNumber,
   stickerAssetWidth: stickerAssetWidth,
   stickerAssetHeight: stickerAssetHeight,
+  stickerId: stickerId,
 );

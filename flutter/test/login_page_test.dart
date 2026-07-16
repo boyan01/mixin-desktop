@@ -106,6 +106,9 @@ class _FakeDesktopHandle implements DesktopHandle {
 
   @override
   bool get isDisposed => _isDisposed;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeLoginHandle implements LoginHandle {

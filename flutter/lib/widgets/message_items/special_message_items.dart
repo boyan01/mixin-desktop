@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -20,22 +21,42 @@ typedef MessageStringCallback = void Function(String value);
 typedef MessageUriCallback = void Function(Uri uri);
 
 class WaitingMessageItem extends StatelessWidget {
-  const WaitingMessageItem({required this.onOpenHelp, super.key});
+  const WaitingMessageItem({
+    required this.messageId,
+    required this.subject,
+    required this.dateAndStatus,
+    required this.onOpenHelp,
+    super.key,
+  });
 
+  final String messageId;
+  final String subject;
+  final Widget dateAndStatus;
   final VoidCallback? onOpenHelp;
 
   @override
   Widget build(BuildContext context) {
     final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
-    return InkWell(
-      onTap: onOpenHelp,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Text(
-          l10n?.waitingForThisMessage ?? 'Waiting for this message',
-          style: TextStyle(color: context.theme.secondaryText, fontSize: 16),
+    return MessageLayout(
+      spacing: 6,
+      content: RichText(
+        key: Key('message-media-waiting-$messageId'),
+        text: TextSpan(
+          text:
+              l10n?.chatDecryptionFailedHint(subject) ??
+              'Waiting for $subject to get online and establish an encrypted session.',
+          style: TextStyle(fontSize: 16, color: context.theme.text),
+          children: [
+            TextSpan(
+              mouseCursor: SystemMouseCursors.click,
+              text: l10n?.learnMore ?? 'Learn More',
+              style: TextStyle(fontSize: 16, color: context.theme.accent),
+              recognizer: TapGestureRecognizer()..onTap = onOpenHelp,
+            ),
+          ],
         ),
       ),
+      dateAndStatus: dateAndStatus,
     );
   }
 }

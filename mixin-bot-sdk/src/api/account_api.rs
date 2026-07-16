@@ -84,10 +84,24 @@ impl AccountApi {
         self.client.get(&format!("stickers/{sticker_id}")).await
     }
 
+    pub async fn get_sticker_albums(&self) -> Result<Vec<StickerAlbum>, ApiError> {
+        self.client.get("stickers/albums").await
+    }
+
+    pub async fn get_sticker_album(&self, album_id: &str) -> Result<StickerAlbum, ApiError> {
+        self.client.get(&format!("albums/{album_id}")).await
+    }
+
+    pub async fn get_stickers_by_album_id(&self, album_id: &str) -> Result<Vec<Sticker>, ApiError> {
+        self.client
+            .get(&format!("stickers/albums/{album_id}"))
+            .await
+    }
+
     pub async fn add_sticker(&self, sticker_id: &str) -> Result<Sticker, ApiError> {
         self.client
             .post(
-                "stickers",
+                "stickers/favorite/add",
                 &AddStickerRequest {
                     sticker_id: Some(sticker_id),
                     data_base64: None,
@@ -99,12 +113,18 @@ impl AccountApi {
     pub async fn add_sticker_data(&self, data_base64: &str) -> Result<Sticker, ApiError> {
         self.client
             .post(
-                "stickers",
+                "stickers/favorite/add",
                 &AddStickerRequest {
                     sticker_id: None,
                     data_base64: Some(data_base64),
                 },
             )
+            .await
+    }
+
+    pub async fn remove_stickers(&self, sticker_ids: &[String]) -> Result<(), ApiError> {
+        self.client
+            .post("stickers/favorite/remove", sticker_ids)
             .await
     }
 
@@ -120,6 +140,21 @@ impl AccountApi {
             .await?;
         Ok(())
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct StickerAlbum {
+    pub album_id: String,
+    pub name: String,
+    pub icon_url: String,
+    pub created_at: DateTime<Utc>,
+    pub update_at: DateTime<Utc>,
+    pub user_id: String,
+    pub category: String,
+    pub description: String,
+    pub banner: Option<String>,
+    #[serde(default)]
+    pub is_verified: bool,
 }
 
 #[derive(Serialize)]
