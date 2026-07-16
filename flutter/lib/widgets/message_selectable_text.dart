@@ -129,6 +129,10 @@ class _SelectableMessageTextState extends State<SelectableMessageText> {
           ),
       ],
     ),
+    // The message-level ContextMenuWidget owns secondary-click actions.
+    // Keep selection enabled, but do not let SelectableText open a second
+    // Flutter/macOS text toolbar on top of the message menu.
+    contextMenuBuilder: (context, selectableState) => const SizedBox.shrink(),
   );
 }
 

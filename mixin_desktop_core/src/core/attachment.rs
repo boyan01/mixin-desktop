@@ -137,6 +137,41 @@ impl AttachmentService {
         Ok((target, operation?))
     }
 
+    pub async fn import_local(
+        &self,
+        source: &Path,
+        target_message: &Message,
+    ) -> Result<(PathBuf, i64)> {
+        let source = tokio::fs::canonicalize(source)
+            .await
+            .with_context(|| format!("resolve local attachment {}", source.display()))?;
+        if !tokio::fs::metadata(&source).await?.is_file() {
+            bail!("local attachment source is not a file");
+        }
+        validate_path_component("message id", &target_message.message_id)?;
+        validate_path_component("conversation id", &target_message.conversation_id)?;
+        let account_dir = tokio::fs::canonicalize(&self.account_data_dir)
+            .await
+            .context("canonicalize account data directory")?;
+        let target = attachment_path(&self.account_data_dir, target_message)?;
+        let directory = target
+            .parent()
+            .ok_or_else(|| anyhow!("attachment target has no parent directory"))?;
+        ensure_safe_target_directory(&account_dir, directory).await?;
+        let copy_temp = temp_path(&target, "import")?;
+        let operation = async {
+            let size = tokio::fs::copy(&source, &copy_temp).await?;
+            let size = i64::try_from(size).context("attachment is too large")?;
+            tokio::fs::rename(&copy_temp, &target).await?;
+            Ok::<_, anyhow::Error>(size)
+        }
+        .await;
+        if operation.is_err() {
+            let _ = tokio::fs::remove_file(&copy_temp).await;
+        }
+        Ok((target, operation?))
+    }
+
     pub async fn read_account_file(&self, path: &Path, max_size: u64) -> Result<Vec<u8>> {
         let account_dir = tokio::fs::canonicalize(&self.account_data_dir)
             .await
@@ -774,6 +809,36 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "attachment source is outside the account data directory"
+        );
+    }
+
+    #[tokio::test]
+    async fn imports_recorded_audio_from_temporary_directory() {
+        let account = tempfile::tempdir().unwrap();
+        let temporary = tempfile::tempdir().unwrap();
+        let source = temporary.path().join("recording.ogg");
+        std::fs::write(&source, b"ogg audio").unwrap();
+        let service = AttachmentService::new(
+            Arc::new(MixinClient::new(sdk::Credential::None)),
+            HttpClient::new(),
+            account.path(),
+        );
+        let message = Message {
+            message_id: "message-id".to_string(),
+            conversation_id: "conversation-id".to_string(),
+            category: sdk::message_category::SIGNAL_AUDIO.to_string(),
+            media_mime_type: Some("audio/ogg".to_string()),
+            ..Message::default()
+        };
+
+        let (target, size) = service.import_local(&source, &message).await.unwrap();
+
+        assert_eq!(size, 9);
+        assert_eq!(std::fs::read(&target).unwrap(), b"ogg audio");
+        assert!(target.starts_with(account.path().join("Media/Audios")));
+        assert_eq!(
+            target.extension().and_then(|value| value.to_str()),
+            Some("ogg")
         );
     }
 

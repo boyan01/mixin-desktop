@@ -50,6 +50,9 @@ const MIN_STICKER_FILE_SIZE: usize = 1024;
 const MAX_STICKER_FILE_SIZE: usize = 1024 * 1024;
 const MIN_STICKER_DIMENSION: u32 = 128;
 const MAX_STICKER_DIMENSION: u32 = 1024;
+const MAX_AUDIO_FILE_SIZE: u64 = 64 * 1024 * 1024;
+const MAX_AUDIO_DURATION_MILLIS: i64 = 60_000;
+const MAX_AUDIO_WAVEFORM_SAMPLES: usize = 1024;
 
 pub struct AccountRuntime {
     account_id: String,
@@ -758,6 +761,148 @@ impl AccountRuntime {
             .await
         {
             warn!("failed to index outgoing message {message_id}: {error}");
+        }
+        self.app_service.job.wake(&job.action)?;
+        self.notify_conversation_changed();
+        Ok(message_id)
+    }
+
+    pub async fn send_audio(
+        &self,
+        conversation_id: &str,
+        path: &str,
+        duration_millis: i64,
+        waveform: &[u8],
+        quote_message_id: Option<&str>,
+    ) -> Result<String> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        if !(1..=MAX_AUDIO_DURATION_MILLIS).contains(&duration_millis) {
+            return Err(anyhow!(
+                "audio duration must be between 1 and 60000 milliseconds"
+            ));
+        }
+        if waveform.is_empty() || waveform.len() > MAX_AUDIO_WAVEFORM_SAMPLES {
+            return Err(anyhow!(
+                "audio waveform must contain between 1 and 1024 samples"
+            ));
+        }
+        let source = tokio::fs::canonicalize(path)
+            .await
+            .with_context(|| format!("resolve recorded audio {path}"))?;
+        let metadata = tokio::fs::metadata(&source).await?;
+        if !metadata.is_file() || metadata.len() == 0 {
+            return Err(anyhow!("recorded audio is empty or is not a file"));
+        }
+        if metadata.len() > MAX_AUDIO_FILE_SIZE {
+            return Err(anyhow!("recorded audio exceeds the 64 MiB size limit"));
+        }
+
+        let conversation = self
+            .database
+            .conversation_dao
+            .find_conversation_by_id(conversation_id)
+            .await?
+            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
+        let text_category = self.text_category(conversation.owner_id.as_deref()).await?;
+        let prefix = text_category
+            .split_once('_')
+            .map(|(prefix, _)| prefix)
+            .ok_or_else(|| anyhow!("invalid message category: {text_category}"))?;
+        let category = format!("{prefix}_AUDIO");
+        let quote_content = match quote_message_id {
+            Some(message_id) => self
+                .database
+                .message_dao
+                .find_quote_message_by_id(message_id)
+                .await?
+                .map(|message| serde_json::to_string(&message))
+                .transpose()?,
+            None => None,
+        };
+        if quote_message_id.is_some() && quote_content.is_none() {
+            return Err(anyhow!("quote message not found"));
+        }
+
+        let message_id = Uuid::new_v4().to_string();
+        let file_message = Message {
+            message_id: message_id.clone(),
+            conversation_id: conversation_id.to_string(),
+            category: category.clone(),
+            media_mime_type: Some("audio/ogg".to_string()),
+            ..Message::default()
+        };
+        let (local_path, actual_size) = self
+            .app_service
+            .attachment
+            .import_local(&source, &file_message)
+            .await?;
+        let upload = match self
+            .app_service
+            .attachment
+            .upload(&local_path, prefix != "PLAIN")
+            .await
+        {
+            Ok(upload) => upload,
+            Err(error) => {
+                let _ = tokio::fs::remove_file(&local_path).await;
+                return Err(error);
+            }
+        };
+        let attachment = AttachmentMessage {
+            key: upload.key.clone(),
+            digest: upload.digest.clone(),
+            attachment_id: upload.attachment_id,
+            mime_type: "audio/ogg".to_string(),
+            size: actual_size,
+            name: None,
+            width: None,
+            height: None,
+            thumbnail: None,
+            duration: Some(duration_millis),
+            waveform: Some(waveform.to_vec()),
+            caption: None,
+            created_at: Some(upload.created_at),
+            shareable: Some(true),
+        };
+        let content = Base64::encode_string(serde_json::to_string(&attachment)?.as_bytes());
+        let message = Message {
+            message_id: message_id.clone(),
+            conversation_id: conversation_id.to_string(),
+            user_id: self.account_id.clone(),
+            category,
+            content: Some(content),
+            media_url: Some(local_path.to_string_lossy().into_owned()),
+            media_mime_type: Some("audio/ogg".to_string()),
+            media_size: Some(actual_size),
+            media_duration: duration_millis.to_string(),
+            media_key: upload.key,
+            media_digest: upload.digest,
+            media_status: MediaStatus::Done,
+            media_waveform: Some(Base64::encode_string(waveform)),
+            quote_message_id: quote_message_id.map(str::to_string),
+            quote_content,
+            status: MessageStatus::Sending,
+            created_at: Utc::now().naive_utc(),
+            ..Message::default()
+        };
+        let job = Job::create_sending_job(
+            &message_id,
+            conversation_id,
+            None,
+            None,
+            false,
+            false,
+            conversation.expire_in,
+        );
+        if let Err(error) = self
+            .database
+            .message_dao
+            .insert_outgoing_message(&message, &job)
+            .await
+        {
+            let _ = tokio::fs::remove_file(&local_path).await;
+            return Err(error.into());
         }
         self.app_service.job.wake(&job.action)?;
         self.notify_conversation_changed();

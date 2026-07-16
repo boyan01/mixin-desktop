@@ -934,6 +934,7 @@ impl ServiceDecryptMessage {
                 thumb_image: attachment.thumbnail,
                 media_key: attachment.key,
                 media_digest: attachment.digest,
+                media_waveform: attachment.waveform.as_deref().map(Base64::encode_string),
                 status: data.status,
                 created_at: data.created_at.naive_utc(),
                 media_status: MediaStatus::Canceled,

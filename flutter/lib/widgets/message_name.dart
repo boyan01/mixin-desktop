@@ -10,6 +10,7 @@ class MessageName extends StatelessWidget {
     required this.userId,
     required this.userIdentityNumber,
     required this.verified,
+    required this.isBot,
     required this.showIdentityNumber,
     super.key,
   });
@@ -18,6 +19,7 @@ class MessageName extends StatelessWidget {
   final String userId;
   final String userIdentityNumber;
   final bool verified;
+  final bool isBot;
   final bool showIdentityNumber;
 
   @override
@@ -53,11 +55,11 @@ class MessageName extends StatelessWidget {
               ),
             ),
           ],
-          if (verified)
+          if (verified || isBot)
             Padding(
               padding: const EdgeInsets.only(left: 4, right: 4, bottom: 3),
               child: SvgPicture.asset(
-                MixinAssets.verified,
+                verified ? MixinAssets.verified : MixinAssets.botBadge,
                 width: 12,
                 height: 12,
               ),

@@ -309,6 +309,7 @@ class _PinnedMessage extends StatelessWidget {
         hideStatus: true,
         color: Colors.white,
       ),
+      showNip: presentation.showNip,
       onOpenUri: (uri) => unawaited(launchUrl(uri)),
       onOpenMessage: onLocate,
       onOpenTranscript: (id) => unawaited(
@@ -329,14 +330,19 @@ class _PinnedMessage extends StatelessWidget {
       onDownloadAttachment: onDownload,
       onCancelAttachment: onCancel,
     );
-    final rendered = message.isSticker
+    final rendered = message.category == 'APP_CARD'
         ? content
         : MessageBubble(
             isCurrentUser: presentation.isCurrentUser,
             showNip: presentation.showNip,
-            padding: message.isImage || message.isVideo
-                ? EdgeInsets.zero
-                : const EdgeInsets.all(8),
+            showBubble: message.showMessageBubble,
+            includeNip: message.includeMessageBubbleNip,
+            clip: message.clipMessageBubble,
+            padding: message.messageBubblePadding,
+            forceIsCurrentUserColor: message.forceCurrentMessageBubbleColor,
+            outerTimeAndStatusWidget: message.useOuterMessageDateAndStatus
+                ? status
+                : null,
             child: content,
           );
     final policy = MessageActionPolicy(
@@ -379,6 +385,7 @@ class _PinnedMessage extends StatelessWidget {
               userId: message.senderId,
               userIdentityNumber: message.senderIdentityNumber,
               verified: message.senderIsVerified,
+              isBot: message.senderIsBot,
               showIdentityNumber: false,
             ),
           ),
@@ -387,6 +394,7 @@ class _PinnedMessage extends StatelessWidget {
     );
     final child = presentation.showSender && presentation.showAvatar
         ? Row(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(width: 8),
@@ -396,7 +404,12 @@ class _PinnedMessage extends StatelessWidget {
                 avatarUrl: message.senderAvatarUrl,
                 size: 32,
               ),
-              Flexible(child: column),
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2, bottom: 2),
+                  child: column,
+                ),
+              ),
               const SizedBox(width: 65),
             ],
           )

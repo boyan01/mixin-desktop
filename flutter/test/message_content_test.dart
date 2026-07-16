@@ -29,6 +29,17 @@ void main() {
 
     await render(_message(category: 'PLAIN_TEXT', content: 'Visible text'));
     expect(find.text('Visible text'), findsOneWidget);
+    final selectableText = tester.widget<SelectableText>(
+      find.byType(SelectableText),
+    );
+    final editableState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    final textContextMenu = selectableText.contextMenuBuilder!(
+      tester.element(find.byType(SelectableText)),
+      editableState,
+    );
+    expect(textContextMenu, isA<SizedBox>());
 
     await render(
       _message(
@@ -340,6 +351,120 @@ void main() {
     await tester.tap(find.text('quote.pdf'));
     await tester.pump();
     expect(opened, ['quoted-message']);
+  });
+
+  testWidgets('matches Flutter quote preview geometry and typography', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _TestApp(
+        child: MessageContent(
+          message: _message(
+            content: 'Reply body',
+            quoteMessageId: 'quoted-contact',
+            quoteContent:
+                '{"user_full_name":"Quoted Alice","type":"PLAIN_CONTACT",'
+                '"shared_user_id":"bob","shared_user_full_name":"Bob",'
+                '"shared_user_identity_number":"7000"}',
+          ),
+          isCurrentUser: false,
+          dateAndStatus: const Text('time'),
+          overlayDateAndStatus: const Text('overlay'),
+        ),
+      ),
+    );
+
+    final preview = find.byKey(const Key('quote-message-preview'));
+    final accent = find.byKey(const Key('quote-message-accent'));
+    final image = find.byKey(const Key('quote-message-image'));
+    expect(tester.getSize(preview).height, greaterThanOrEqualTo(50));
+    expect(tester.getSize(accent).width, 6);
+    expect(tester.getSize(accent).height, tester.getSize(preview).height);
+    expect(tester.getSize(image), const Size.square(48));
+    expect(
+      tester.widget<Container>(preview).color,
+      const Color.fromRGBO(0, 0, 0, 0.04),
+    );
+    expect(tester.widget<Text>(find.text('Quoted Alice')).style?.fontSize, 14);
+    expect(tester.widget<Text>(find.text('7000')).style?.fontSize, 12);
+    expect(
+      tester.getTopRight(find.text('7000')).dx,
+      lessThan(tester.getTopLeft(image).dx),
+    );
+  });
+
+  testWidgets('keeps app card body, actions, and time in separate surfaces', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      _TestApp(
+        child: SizedBox(
+          width: 600,
+          child: MessageContent(
+            message: _message(
+              id: 'actions-card',
+              category: 'APP_CARD',
+              content:
+                  '{"title":"Card title","description":"Card description",'
+                  '"action":"","actions":[{"label":"Open",'
+                  '"action":"https://example.com"}]}',
+            ),
+            isCurrentUser: false,
+            showNip: true,
+            dateAndStatus: const Text('12:30', key: Key('card-time')),
+            overlayDateAndStatus: const SizedBox.shrink(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final card = find.byKey(const Key('app-card-actions-message-actions-card'));
+    final body = find.byKey(const Key('app-card-body-actions-card'));
+    final actions = find.byKey(const Key('app-card-actions-actions-card'));
+    expect(tester.getSize(body).width, 320);
+    expect(tester.getSize(card).height, lessThan(150));
+    expect(
+      tester.getTopLeft(actions).dy,
+      greaterThan(tester.getBottomLeft(body).dy),
+    );
+    expect(
+      tester.getTopLeft(find.byKey(const Key('card-time'))).dy,
+      greaterThan(tester.getBottomLeft(actions).dy),
+    );
+
+    await tester.pumpWidget(
+      _TestApp(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MessageContent(
+              message: _message(
+                id: 'compact-card',
+                category: 'APP_CARD',
+                content:
+                    '{"title":"Compact","description":"One line",'
+                    '"action":"https://example.com","icon_url":""}',
+              ),
+              isCurrentUser: false,
+              showNip: true,
+              dateAndStatus: const Text('12:31'),
+              overlayDateAndStatus: const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(
+      tester
+          .getSize(find.byKey(const Key('app-card-compact-compact-card')))
+          .height,
+      lessThan(100),
+    );
   });
 }
 

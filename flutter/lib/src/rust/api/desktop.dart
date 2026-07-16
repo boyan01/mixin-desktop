@@ -135,6 +135,14 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required List<String> messageIds,
   });
 
+  Future<String> sendAudio({
+    required String conversationId,
+    required String path,
+    required PlatformInt64 durationMillis,
+    required List<int> waveform,
+    String? quoteMessageId,
+  });
+
   Future<String> sendText({
     required String conversationId,
     required String content,

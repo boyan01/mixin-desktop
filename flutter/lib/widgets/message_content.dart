@@ -49,6 +49,8 @@ class MessageContent extends StatelessWidget {
     this.onCancelAttachment,
     this.currentUserId,
     this.mentionNames = const {},
+    this.showNip = false,
+    this.highlighted = false,
   });
 
   final MessageListEntry message;
@@ -71,6 +73,8 @@ class MessageContent extends StatelessWidget {
   final MessageEntryCallback? onCancelAttachment;
   final String? currentUserId;
   final Map<String, String> mentionNames;
+  final bool showNip;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -176,17 +180,16 @@ class MessageContent extends StatelessWidget {
         onOpenSnapshot: onOpenSnapshot,
       );
     } else if (message.category.endsWith('_CONTACT')) {
-      content = MessageLayout(
-        spacing: 6,
-        content: ContactMessageItem(message: message, onOpenUser: onOpenUser),
-        dateAndStatus: dateAndStatus,
-      );
+      content = ContactMessageItem(message: message, onOpenUser: onOpenUser);
     } else if (message.category == 'APP_BUTTON_GROUP') {
       content = AppButtonGroupMessageItem(message: message, onAction: onAction);
     } else if (message.category == 'APP_CARD') {
-      content = MessageLayout(
-        spacing: 6,
-        content: AppCardMessageItem(message: message, onAction: onAction),
+      content = AppCardMessageItem(
+        message: message,
+        onAction: onAction,
+        isCurrentUser: isCurrentUser,
+        showNip: showNip,
+        highlighted: highlighted,
         dateAndStatus: dateAndStatus,
       );
     } else {
@@ -194,18 +197,22 @@ class MessageContent extends StatelessWidget {
     }
     final quote = message.quoteContent;
     if (quote == null || quote.isEmpty) return content;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        QuoteMessagePreview(
-          raw: quote,
-          messageId: message.quoteMessageId,
-          onOpenMessage: onOpenMessage,
-        ),
-        const SizedBox(height: 6),
-        content,
-      ],
+    return IntrinsicWidth(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: message.isImage || message.isVideo ? 0 : null,
+            child: QuoteMessagePreview(
+              raw: quote,
+              messageId: message.quoteMessageId,
+              onOpenMessage: onOpenMessage,
+            ),
+          ),
+          content,
+        ],
+      ),
     );
   }
 
@@ -237,30 +244,22 @@ class MessageContent extends StatelessWidget {
       );
     }
     if (message.isAudio) {
-      return MessageLayout(
-        spacing: 6,
-        content: AudioMessageWidget(
-          message: message,
-          onMarkRead: onMarkAudioRead,
-          onDownloadAttachment: onDownloadAttachment,
-          onCancelAttachment: onCancelAttachment,
-        ),
-        dateAndStatus: dateAndStatus,
+      return AudioMessageWidget(
+        message: message,
+        onMarkRead: onMarkAudioRead,
+        onDownloadAttachment: onDownloadAttachment,
+        onCancelAttachment: onCancelAttachment,
       );
     }
     if (message.isSticker) {
-      return _StickerMessage(message: message, dateAndStatus: dateAndStatus);
+      return _StickerMessage(message: message);
     }
     if (message.category.endsWith('_DATA')) {
-      return MessageLayout(
-        spacing: 6,
-        content: _FileMessage(
-          message: message,
-          onOpen: onOpenFile,
-          onDownloadAttachment: onDownloadAttachment,
-          onCancelAttachment: onCancelAttachment,
-        ),
-        dateAndStatus: dateAndStatus,
+      return _FileMessage(
+        message: message,
+        onOpen: onOpenFile,
+        onDownloadAttachment: onDownloadAttachment,
+        onCancelAttachment: onCancelAttachment,
       );
     }
     if (message.isPost) {
@@ -539,14 +538,14 @@ class _VideoMessage extends StatelessWidget {
 }
 
 class _StickerMessage extends StatelessWidget {
-  const _StickerMessage({required this.message, required this.dateAndStatus});
+  const _StickerMessage({required this.message});
 
   final MessageListEntry message;
-  final Widget dateAndStatus;
 
   @override
   Widget build(BuildContext context) {
     final size = _stickerSize(
+      context,
       message.stickerAssetWidth ?? message.mediaWidth,
       message.stickerAssetHeight ?? message.mediaHeight,
     );
@@ -559,18 +558,10 @@ class _StickerMessage extends StatelessWidget {
             assetType: message.stickerAssetType,
             placeholder: placeholder,
           );
-    return Column(
+    return SizedBox.fromSize(
       key: Key('message-media-sticker-${message.id}'),
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        ClipRRect(
-          borderRadius: const BorderRadius.all(Radius.circular(8)),
-          child: SizedBox.fromSize(size: size, child: sticker ?? placeholder),
-        ),
-        const SizedBox(height: 4),
-        dateAndStatus,
-      ],
+      size: size,
+      child: sticker ?? placeholder,
     );
   }
 }
@@ -741,10 +732,14 @@ class _PostMessage extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             child: DefaultTextStyle.merge(
               style: TextStyle(fontSize: fontSize, color: context.theme.text),
-              child: MarkdownBlock(
-                data: preview,
-                selectable: true,
-                config: postMarkdownConfig(context, fontSize: fontSize),
+              child: SelectionArea(
+                contextMenuBuilder: (context, selectableState) =>
+                    const SizedBox.shrink(),
+                child: MarkdownBlock(
+                  data: preview,
+                  selectable: false,
+                  config: postMarkdownConfig(context, fontSize: fontSize),
+                ),
               ),
             ),
           ),
@@ -1065,7 +1060,7 @@ Size _mediaSize(
   return Size(width.toDouble(), height.toDouble());
 }
 
-Size _stickerSize(int? width, int? height) {
+Size _stickerSize(BuildContext context, int? width, int? height) {
   const maxSide = 140.0;
   const minSide = 60.0;
   final sourceWidth = (width ?? 0).toDouble();
@@ -1074,10 +1069,14 @@ Size _stickerSize(int? width, int? height) {
     return const Size.square(maxSide);
   }
   final ratio = sourceWidth / sourceHeight;
-  if (ratio >= 1) {
-    return Size(maxSide, (maxSide / ratio).clamp(minSide, maxSide));
+  var size = ratio >= 1
+      ? Size(maxSide, (maxSide / ratio).clamp(minSide, maxSide))
+      : Size((maxSide * ratio).clamp(minSide, maxSide), maxSide);
+  final scale = maxSide / math.max(sourceWidth, sourceHeight);
+  if (scale <= 0.5 && MediaQuery.devicePixelRatioOf(context) <= 1.5) {
+    size *= 200 / maxSide;
   }
-  return Size((maxSide * ratio).clamp(minSide, maxSide), maxSide);
+  return size;
 }
 
 String _formatDuration(String value) {

@@ -97,6 +97,8 @@ class _AudioMessageWidgetState extends State<AudioMessageWidget> {
   @override
   Widget build(BuildContext context) {
     final status = widget.message.mediaStatus.toUpperCase();
+    final isCurrentUser =
+        widget.message.senderRelationship.toUpperCase() == 'ME';
     final localPath = _localMediaPath(widget.message.mediaUrl);
     final playable =
         (status == 'DONE' || status == 'READ') && localPath != null;
@@ -111,6 +113,7 @@ class _AudioMessageWidgetState extends State<AudioMessageWidget> {
               .clamp(0.0, 1.0)
         : 0.0;
     final waveform = _decodeWaveform(widget.message.mediaWaveform);
+    final useReadWaveform = isCurrentUser || status == 'READ';
     final callbackAvailable = switch (status) {
       'CANCELED' => widget.onDownloadAttachment != null,
       'PENDING' => widget.onCancelAttachment != null,
@@ -118,66 +121,88 @@ class _AudioMessageWidgetState extends State<AudioMessageWidget> {
       _ => false,
     };
 
-    Widget child = ConstrainedBox(
+    Widget child = Row(
       key: Key('message-media-audio-${widget.message.id}'),
-      constraints: const BoxConstraints(maxWidth: 286, minWidth: 180),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _AudioStatusButton(status: status, playing: playing),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 238,
-                  height: 12,
-                  child: CustomPaint(
-                    painter: AudioWaveformPainter(
-                      waveform: waveform,
-                      progress: progress,
-                      backgroundColor: context.theme.waveformBackground,
-                      foregroundColor: context.theme.waveformForeground,
-                    ),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _AudioStatusButton(
+          messageId: widget.message.id,
+          status: status,
+          playing: playing,
+          upload:
+              status == 'CANCELED' &&
+              isCurrentUser &&
+              (widget.message.mediaUrl?.isNotEmpty ?? false),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                key: Key('audio-waveform-${widget.message.id}'),
+                width: 238,
+                height: 12,
+                child: CustomPaint(
+                  painter: AudioWaveformPainter(
+                    waveform: waveform,
+                    progress: progress,
+                    backgroundColor: useReadWaveform
+                        ? context.theme.waveformBackground
+                        : context.theme.accent,
+                    foregroundColor: useReadWaveform
+                        ? context.theme.waveformForeground
+                        : context.theme.accent,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  _formatDuration(duration),
-                  style: TextStyle(
-                    fontSize: context.messageStyle.tertiaryFontSize,
-                    color: context.theme.secondaryText,
-                  ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _formatDuration(duration),
+                style: TextStyle(
+                  fontSize: context.messageStyle.tertiaryFontSize,
+                  color: context.theme.secondaryText,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
     if (!callbackAvailable) return child;
-    child = GestureDetector(onTap: _onTap, child: child);
+    child = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _onTap,
+      child: child,
+    );
     return MouseRegion(cursor: SystemMouseCursors.click, child: child);
   }
 }
 
 class _AudioStatusButton extends StatelessWidget {
-  const _AudioStatusButton({required this.status, required this.playing});
+  const _AudioStatusButton({
+    required this.messageId,
+    required this.status,
+    required this.playing,
+    required this.upload,
+  });
 
+  final String messageId;
   final String status;
   final bool playing;
+  final bool upload;
 
   @override
   Widget build(BuildContext context) {
-    final icon = switch (status) {
-      'CANCELED' => Icons.download,
-      'PENDING' => Icons.close,
-      'EXPIRED' => Icons.warning_amber_rounded,
-      _ => playing ? Icons.stop : Icons.play_arrow,
+    final glyph = switch (status) {
+      'CANCELED' => upload ? _AudioGlyph.upload : _AudioGlyph.download,
+      'PENDING' => _AudioGlyph.pending,
+      'EXPIRED' => _AudioGlyph.warning,
+      _ => playing ? _AudioGlyph.pause : _AudioGlyph.play,
     };
     return Container(
+      key: Key('audio-status-$messageId-${glyph.name}'),
       width: 38,
       height: 38,
       decoration: BoxDecoration(
@@ -185,20 +210,126 @@ class _AudioStatusButton extends StatelessWidget {
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,
-      child: status == 'PENDING'
+      child: glyph == _AudioGlyph.pending
           ? Stack(
               alignment: Alignment.center,
               children: [
-                const SizedBox.square(
+                SizedBox.square(
                   dimension: 38,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: context.theme.accent,
+                  ),
                 ),
-                Icon(icon, size: 18, color: context.theme.secondaryText),
+                Container(width: 10, height: 10, color: context.theme.accent),
               ],
             )
-          : Icon(icon, size: 24, color: context.theme.secondaryText),
+          : CustomPaint(
+              size: _glyphSize(glyph),
+              painter: _AudioGlyphPainter(
+                glyph: glyph,
+                color: glyph == _AudioGlyph.warning
+                    ? context.theme.text
+                    : context.theme.accent,
+              ),
+            ),
     );
   }
+}
+
+enum _AudioGlyph { play, pause, download, upload, pending, warning }
+
+Size _glyphSize(_AudioGlyph glyph) => switch (glyph) {
+  _AudioGlyph.play => const Size(11, 12),
+  _AudioGlyph.pause => const Size(12, 14),
+  _AudioGlyph.download || _AudioGlyph.upload => const Size(14, 14),
+  _AudioGlyph.warning => const Size(18, 18),
+  _AudioGlyph.pending => Size.zero,
+};
+
+class _AudioGlyphPainter extends CustomPainter {
+  const _AudioGlyphPainter({required this.glyph, required this.color});
+
+  final _AudioGlyph glyph;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    switch (glyph) {
+      case _AudioGlyph.play:
+        canvas.drawPath(
+          Path()
+            ..moveTo(1, 1)
+            ..lineTo(size.width - 1, size.height / 2)
+            ..lineTo(1, size.height - 1)
+            ..close(),
+          paint..style = PaintingStyle.fill,
+        );
+      case _AudioGlyph.pause:
+        paint.style = PaintingStyle.fill;
+        canvas
+          ..drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTWH(0, 0, 4, size.height),
+              const Radius.circular(2),
+            ),
+            paint,
+          )
+          ..drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTWH(8, 0, 4, size.height),
+              const Radius.circular(2),
+            ),
+            paint,
+          );
+      case _AudioGlyph.download:
+      case _AudioGlyph.upload:
+        paint.style = PaintingStyle.stroke;
+        final isUpload = glyph == _AudioGlyph.upload;
+        final startY = isUpload ? size.height - 1 : 1.0;
+        final endY = isUpload ? 1.0 : size.height - 1;
+        canvas
+          ..drawLine(
+            Offset(size.width / 2, startY),
+            Offset(size.width / 2, endY),
+            paint,
+          )
+          ..drawLine(
+            Offset(size.width / 2, endY),
+            Offset(1, isUpload ? 6 : 8),
+            paint,
+          )
+          ..drawLine(
+            Offset(size.width / 2, endY),
+            Offset(size.width - 1, isUpload ? 6 : 8),
+            paint,
+          );
+      case _AudioGlyph.warning:
+        paint.style = PaintingStyle.stroke;
+        canvas.drawCircle(size.center(Offset.zero), 8, paint);
+        paint.style = PaintingStyle.fill;
+        canvas
+          ..drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTWH(8, 4, 2, 7),
+              const Radius.circular(1),
+            ),
+            paint,
+          )
+          ..drawCircle(const Offset(9, 14), 1, paint);
+      case _AudioGlyph.pending:
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AudioGlyphPainter oldDelegate) =>
+      glyph != oldDelegate.glyph || color != oldDelegate.color;
 }
 
 class AudioMessagePlaybackCoordinator extends ChangeNotifier {
@@ -301,36 +432,52 @@ class AudioWaveformPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final count = math.max(1, (size.width / 4).floor());
-    final backgroundPaint = Paint()
-      ..color = backgroundColor
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-    final foregroundPaint = Paint()
-      ..color = foregroundColor
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
+    const barWidth = 2.0;
+    const barSpacing = 2.0;
+    const minBarHeight = 2.0;
+    final count = math.min(
+      60,
+      math.max(
+        1,
+        ((size.width + barSpacing) / (barWidth + barSpacing)).floor(),
+      ),
+    );
+    final samples = List<int>.filled(count, 0);
+    for (var index = 0; index < waveform.length; index++) {
+      final target = (index * count / waveform.length).floor().clamp(
+        0,
+        count - 1,
+      );
+      samples[target] = math.max(samples[target], waveform[index]);
+    }
+    final maxSample = samples.reduce(math.max);
+    final ratio = maxSample == 0 ? 0.0 : size.height / maxSample;
+    final path = Path();
     for (var index = 0; index < count; index++) {
-      final sampleIndex = waveform.isEmpty
-          ? index
-          : (index * waveform.length / count).floor().clamp(
-              0,
-              waveform.length - 1,
-            );
-      final sample = waveform.isEmpty
-          ? const [0.35, 0.65, 0.9, 0.5, 0.75, 0.4][index % 6]
-          : waveform[sampleIndex] / 255;
-      final height = (size.height * sample.clamp(0.2, 1.0)).toDouble();
-      final x = index * size.width / count + 1;
-      final paint = index / count <= progress
-          ? foregroundPaint
-          : backgroundPaint;
-      canvas.drawLine(
-        Offset(x, (size.height - height) / 2),
-        Offset(x, (size.height + height) / 2),
-        paint,
+      final height = math.max(minBarHeight, samples[index] * ratio);
+      final left = index * (barWidth + barSpacing);
+      path.addRRect(
+        RRect.fromRectAndCorners(
+          Rect.fromLTWH(left, size.height - height, barWidth, height),
+          topLeft: const Radius.circular(1),
+          topRight: const Radius.circular(1),
+        ),
       );
     }
+    final progressX = size.width * progress;
+    final foregroundPath = Path.combine(
+      PathOperation.intersect,
+      Path()..addRect(Rect.fromLTRB(0, 0, progressX, size.height)),
+      path,
+    );
+    final backgroundPath = Path.combine(
+      PathOperation.intersect,
+      Path()..addRect(Rect.fromLTRB(progressX, 0, size.width, size.height)),
+      path,
+    );
+    canvas
+      ..drawPath(foregroundPath, Paint()..color = foregroundColor)
+      ..drawPath(backgroundPath, Paint()..color = backgroundColor);
   }
 
   @override

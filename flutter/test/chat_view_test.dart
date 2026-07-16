@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
+import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
@@ -24,6 +25,119 @@ import 'package:visibility_detector/visibility_detector.dart';
 void main() {
   setUpAll(() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
+  });
+
+  testWidgets('matches the Flutter composer layout and mic-send states', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(700, 300));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final controller = TextEditingController();
+    final focusNode = FocusNode();
+    addTearDown(controller.dispose);
+    addTearDown(focusNode.dispose);
+    var voicePressed = false;
+
+    await tester.pumpWidget(
+      _LocalizedApp(
+        child: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: ChatInputBar(
+              controller: controller,
+              focusNode: focusNode,
+              quoteMessage: null,
+              sending: false,
+              onChanged: (_) {},
+              onCancelQuote: () {},
+              onSend: () async {},
+              onVoicePressed: () => voicePressed = true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.getSize(find.byKey(const Key('chat-input-bar'))).height, 56);
+    expect(
+      tester.getSize(find.byKey(const Key('chat-input-surface'))).height,
+      40,
+    );
+    expect(find.byKey(const Key('chat-add')), findsOneWidget);
+    expect(find.byKey(const Key('chat-sticker')), findsOneWidget);
+    expect(find.byKey(const Key('chat-voice')), findsOneWidget);
+    expect(find.byKey(const Key('chat-send')), findsNothing);
+    final input = tester.widget<TextField>(find.byKey(const Key('chat-input')));
+    expect(input.minLines, 1);
+    expect(input.maxLines, 7);
+    expect(input.style?.fontSize, 14);
+
+    await tester.tap(find.byKey(const Key('chat-voice')));
+    expect(voicePressed, isTrue);
+    await tester.enterText(find.byKey(const Key('chat-input')), 'Hello');
+    await tester.pump(const Duration(milliseconds: 120));
+    expect(find.byKey(const Key('chat-send')), findsOneWidget);
+    expect(find.byKey(const Key('chat-voice')), findsNothing);
+  });
+
+  testWidgets('shows recording controls and recorded voice preview', (
+    tester,
+  ) async {
+    var stopped = false;
+    var canceled = false;
+    var sent = false;
+
+    Widget bar(VoiceRecorderState state) => _LocalizedApp(
+      child: Scaffold(
+        body: Align(
+          alignment: Alignment.bottomCenter,
+          child: VoiceRecorderBar(
+            state: state,
+            onCancel: () async => canceled = true,
+            onStop: () async => stopped = true,
+            onRetry: () async {},
+            onSend: () async => sent = true,
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      bar(
+        const VoiceRecorderState(
+          status: VoiceRecorderStatus.recording,
+          elapsed: Duration(seconds: 3),
+        ),
+      ),
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('voice-recorder-bar'))).height,
+      56,
+    );
+    expect(find.text('0:03'), findsOneWidget);
+    expect(find.byKey(const Key('voice-stop')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('voice-stop')));
+    expect(stopped, isTrue);
+
+    await tester.pumpWidget(
+      bar(
+        const VoiceRecorderState(
+          status: VoiceRecorderStatus.recorded,
+          elapsed: Duration(seconds: 4),
+          recording: VoiceRecording(
+            path: '/tmp/voice-preview.ogg',
+            duration: Duration(seconds: 4),
+            waveform: [10, 30, 20],
+          ),
+        ),
+      ),
+    );
+    expect(find.byKey(const Key('voice-preview-play')), findsOneWidget);
+    expect(find.byKey(const Key('voice-retry')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('voice-send')));
+    await tester.tap(find.byKey(const Key('voice-cancel')));
+    expect(sent, isTrue);
+    expect(canceled, isTrue);
   });
 
   testWidgets('renders Rust messages and sends supported text', (tester) async {

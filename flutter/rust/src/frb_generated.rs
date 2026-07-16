@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -475238394;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -916226748;
 
 // Section: executor
 
@@ -1950,6 +1950,74 @@ fn wire__crate__api__desktop__AccountHandle_recall_messages_impl(
         },
     )
 }
+fn wire__crate__api__desktop__AccountHandle_send_audio_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "AccountHandle_send_audio",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
+            >>::sse_decode(&mut deserializer);
+            let api_conversation_id = <String>::sse_decode(&mut deserializer);
+            let api_path = <String>::sse_decode(&mut deserializer);
+            let api_duration_millis = <i64>::sse_decode(&mut deserializer);
+            let api_waveform = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_quote_message_id = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = crate::api::desktop::AccountHandle::send_audio(
+                            &*api_that_guard,
+                            api_conversation_id,
+                            api_path,
+                            api_duration_millis,
+                            api_waveform,
+                            api_quote_message_id,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__desktop__AccountHandle_send_text_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -3583,75 +3651,81 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        32 => wire__crate__api__desktop__AccountHandle_send_text_impl(
+        32 => wire__crate__api__desktop__AccountHandle_send_audio_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => wire__crate__api__desktop__AccountHandle_set_conversation_muted_impl(
+        33 => wire__crate__api__desktop__AccountHandle_send_text_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        34 => wire__crate__api__desktop__AccountHandle_set_conversation_pinned_impl(
+        34 => wire__crate__api__desktop__AccountHandle_set_conversation_muted_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        35 => wire__crate__api__desktop__AccountHandle_set_message_pinned_impl(
+        35 => wire__crate__api__desktop__AccountHandle_set_conversation_pinned_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__desktop__AccountHandle_shutdown_impl(
+        36 => wire__crate__api__desktop__AccountHandle_set_message_pinned_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => wire__crate__api__desktop__AccountHandle_sign_out_impl(
+        37 => wire__crate__api__desktop__AccountHandle_shutdown_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        38 => wire__crate__api__desktop__AccountHandle_transcript_messages_impl(
+        38 => wire__crate__api__desktop__AccountHandle_sign_out_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__crate__api__desktop__AccountHandle_user_profile_impl(
+        39 => wire__crate__api__desktop__AccountHandle_transcript_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        40 => wire__crate__api__desktop__AccountHandle_users_by_identity_numbers_impl(
+        40 => wire__crate__api__desktop__AccountHandle_user_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        41 => wire__crate__api__desktop__DesktopHandle_begin_login_impl(
+        41 => wire__crate__api__desktop__AccountHandle_users_by_identity_numbers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        42 => wire__crate__api__desktop__DesktopHandle_restore_account_impl(
+        42 => wire__crate__api__desktop__DesktopHandle_begin_login_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        44 => wire__crate__api__desktop__LoginHandle_poll_impl(port, ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__desktop__init_app_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__desktop__open_desktop_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__desktop__DesktopHandle_restore_account_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        45 => wire__crate__api__desktop__LoginHandle_poll_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__desktop__init_app_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__desktop__open_desktop_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3666,7 +3740,7 @@ fn pde_ffi_dispatcher_sync_impl(
     match func_id {
         1 => wire__crate__api__desktop__AccountHandle_account_id_impl(ptr, rust_vec_len, data_len),
         30 => wire__crate__api__desktop__AccountHandle_profile_impl(ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__desktop__LoginHandle_auth_url_impl(ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__desktop__LoginHandle_auth_url_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

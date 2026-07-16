@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 
 const _nipWidth = 9.0;
@@ -13,34 +14,103 @@ extension BubbleColor on BuildContext {
       : dynamicColor(lightOtherBubble, darkColor: darkOtherBubble);
 }
 
+extension MessageBubbleSemantics on MessageListEntry {
+  bool get showMessageBubble =>
+      !isSticker && !(isImage && (caption?.trim().isEmpty ?? true));
+
+  bool get includeMessageBubbleNip =>
+      (isImage && (caption?.trim().isEmpty ?? true)) ||
+      isVideo ||
+      category.endsWith('_LOCATION') ||
+      category == 'SYSTEM_SAFE_INSCRIPTION';
+
+  bool get clipMessageBubble =>
+      isImage ||
+      isVideo ||
+      isSticker ||
+      category.endsWith('_LOCATION') ||
+      category == 'SYSTEM_SAFE_INSCRIPTION';
+
+  bool get useOuterMessageDateAndStatus =>
+      isAudio ||
+      isSticker ||
+      category.endsWith('_DATA') ||
+      category.endsWith('_CONTACT') ||
+      category.endsWith('_LOCATION') ||
+      category == 'SYSTEM_ACCOUNT_SNAPSHOT' ||
+      category == 'SYSTEM_SAFE_SNAPSHOT' ||
+      category == 'SYSTEM_SAFE_INSCRIPTION';
+
+  bool get hideOuterMessageStatus => category.startsWith('SYSTEM_');
+
+  bool? get forceCurrentMessageBubbleColor =>
+      isAudio ||
+          category == 'SYSTEM_SAFE_SNAPSHOT' ||
+          category == 'SYSTEM_SAFE_INSCRIPTION'
+      ? false
+      : null;
+
+  EdgeInsetsGeometry get messageBubblePadding =>
+      category.endsWith('_TRANSCRIPT')
+      ? const EdgeInsets.only(top: 4, bottom: 2, right: 2, left: 2)
+      : isImage ||
+            isVideo ||
+            isSticker ||
+            category.endsWith('_LOCATION') ||
+            category == 'SYSTEM_SAFE_INSCRIPTION'
+      ? EdgeInsets.zero
+      : const EdgeInsets.all(8);
+}
+
 class MessageBubble extends StatelessWidget {
   const MessageBubble({
     required this.child,
     required this.isCurrentUser,
     required this.showNip,
     super.key,
+    this.showBubble = true,
+    this.includeNip = false,
+    this.clip = false,
     this.padding = const EdgeInsets.all(8),
     this.highlighted = false,
+    this.outerTimeAndStatusWidget,
+    this.forceIsCurrentUserColor,
   });
 
   final Widget child;
   final bool isCurrentUser;
   final bool showNip;
+  final bool showBubble;
+  final bool includeNip;
+  final bool clip;
   final EdgeInsetsGeometry padding;
   final bool highlighted;
+  final Widget? outerTimeAndStatusWidget;
+  final bool? forceIsCurrentUserColor;
 
   @override
   Widget build(BuildContext context) {
     final clipper = BubbleClipper(currentUser: isCurrentUser, showNip: showNip);
-    final content = Padding(
-      padding: padding,
-      child: MessageBubbleNipPadding(currentUser: isCurrentUser, child: child),
-    );
+    Widget content = child;
+    if (!includeNip) {
+      content = MessageBubbleNipPadding(
+        currentUser: isCurrentUser,
+        child: content,
+      );
+    }
+    content = Padding(padding: padding, child: content);
 
-    final bubbleColor = context.messageBubbleColor(isCurrentUser);
-    return Align(
-      alignment: isCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: CustomPaint(
+    if (clip) {
+      content = RepaintBoundary(
+        child: ClipPath(clipper: clipper, child: content),
+      );
+    }
+
+    final bubbleColor = context.messageBubbleColor(
+      forceIsCurrentUserColor ?? isCurrentUser,
+    );
+    if (showBubble) {
+      content = CustomPaint(
         painter: BubblePainter(
           color: highlighted
               ? Color.alphaBlend(
@@ -51,6 +121,30 @@ class MessageBubble extends StatelessWidget {
           clipper: clipper,
         ),
         child: content,
+      );
+    } else if (highlighted) {
+      content = DecoratedBox(
+        decoration: BoxDecoration(
+          color: context.theme.accent.withValues(alpha: 0.16),
+          borderRadius: const BorderRadius.all(Radius.circular(8)),
+        ),
+        child: content,
+      );
+    }
+
+    return Align(
+      alignment: isCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          content,
+          if (outerTimeAndStatusWidget != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 10, right: 10, top: 4),
+              child: outerTimeAndStatusWidget,
+            ),
+        ],
       ),
     );
   }

@@ -155,6 +155,7 @@ mod tests {
             r#"{
                 "key":"AAECAw==",
                 "digest":[4,5,6],
+                "waveform":"BwgJ",
                 "attachment_id":"attachment-id",
                 "mime_type":"application/octet-stream",
                 "size":3
@@ -164,6 +165,7 @@ mod tests {
 
         assert_eq!(message.key, Some(vec![0, 1, 2, 3]));
         assert_eq!(message.digest, Some(vec![4, 5, 6]));
+        assert_eq!(message.waveform, Some(vec![7, 8, 9]));
         assert_eq!(serde_json::to_value(message).unwrap()["key"], "AAECAw==");
     }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
@@ -103,6 +104,42 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       await account.sendText(
         conversationId: conversation.id,
         content: text,
+        quoteMessageId: quoteMessageId,
+      );
+      await _refreshLatest();
+      return true;
+    } catch (exception) {
+      _setError(exception);
+      return false;
+    } finally {
+      if (!_disposed) {
+        sending = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> sendAudio({
+    required String path,
+    required Duration duration,
+    required List<int> waveform,
+    String? quoteMessageId,
+  }) async {
+    if (sending ||
+        duration <= Duration.zero ||
+        duration > maxVoiceRecordingDuration ||
+        waveform.isEmpty) {
+      return false;
+    }
+    sending = true;
+    error = null;
+    notifyListeners();
+    try {
+      await account.sendAudio(
+        conversationId: conversation.id,
+        path: path,
+        durationMillis: duration.inMilliseconds,
+        waveform: waveform,
         quoteMessageId: quoteMessageId,
       );
       await _refreshLatest();

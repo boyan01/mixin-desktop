@@ -102,6 +102,34 @@ void main() {
       'latest',
     ]);
   });
+
+  testWidgets('sends recorded audio through the Rust account handle', (
+    tester,
+  ) async {
+    final account = _FakeAccountHandle([]);
+    final controller = MessageListController(
+      account: account,
+      conversation: _conversation,
+    );
+    addTearDown(() {
+      controller.dispose();
+      account.close();
+    });
+    await tester.pumpAndSettle();
+
+    final sent = await controller.sendAudio(
+      path: '/tmp/voice.ogg',
+      duration: const Duration(milliseconds: 1200),
+      waveform: const [1, 2, 3],
+      quoteMessageId: 'quoted',
+    );
+
+    expect(sent, isTrue);
+    expect(account.sentAudioPath, '/tmp/voice.ogg');
+    expect(account.sentAudioDuration, 1200);
+    expect(account.sentAudioWaveform, [1, 2, 3]);
+    expect(account.sentAudioQuoteId, 'quoted');
+  });
 }
 
 final _conversation = ConversationListEntry(
@@ -187,6 +215,10 @@ class _FakeAccountHandle implements AccountHandle {
   String? aroundTarget;
   int? aroundBefore;
   int? aroundAfter;
+  String? sentAudioPath;
+  int? sentAudioDuration;
+  List<int>? sentAudioWaveform;
+  String? sentAudioQuoteId;
 
   void notifyChanged() => _changes.add(BigInt.one);
   Future<void> close() => _changes.close();
@@ -231,6 +263,21 @@ class _FakeAccountHandle implements AccountHandle {
     aroundBefore = before;
     aroundAfter = after;
     return List.of(messagesInDatabase);
+  }
+
+  @override
+  Future<String> sendAudio({
+    required String conversationId,
+    required String path,
+    required int durationMillis,
+    required List<int> waveform,
+    String? quoteMessageId,
+  }) async {
+    sentAudioPath = path;
+    sentAudioDuration = durationMillis;
+    sentAudioWaveform = waveform;
+    sentAudioQuoteId = quoteMessageId;
+    return 'audio-message';
   }
 
   @override

@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/controllers/message_list_controller.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
+import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
@@ -21,6 +22,7 @@ import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
 import 'package:mixin_desktop_ui/widgets/message_actions_menu.dart';
+import 'package:mixin_desktop_ui/widgets/message_audio.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
 import 'package:mixin_desktop_ui/widgets/message_day_time.dart';
 import 'package:mixin_desktop_ui/widgets/message_datetime_and_status.dart';
@@ -70,6 +72,7 @@ class _ChatViewState extends State<ChatView> {
   late String _currentUserId;
   late final TextEditingController _inputController;
   late final FocusNode _inputFocusNode;
+  late final VoiceRecorderController _voiceRecorderController;
   final ItemScrollController _messageScrollController = ItemScrollController();
   MessageListEntry? _quoteMessage;
   String? _highlightedMessageId;
@@ -85,6 +88,8 @@ class _ChatViewState extends State<ChatView> {
     _inputController = TextEditingController(text: widget.draft);
     _inputController.addListener(_onInputChanged);
     _inputFocusNode = FocusNode(debugLabel: 'chat_input');
+    _voiceRecorderController = VoiceRecorderController()
+      ..addListener(_onVoiceRecorderChanged);
   }
 
   @override
@@ -100,6 +105,7 @@ class _ChatViewState extends State<ChatView> {
       _highlightGeneration++;
       _selectedMessageIds.clear();
       _messageKeys.clear();
+      unawaited(_voiceRecorderController.cancel());
     }
     if (_inputController.text != widget.draft) {
       _inputController.value = TextEditingValue(
@@ -157,6 +163,35 @@ class _ChatViewState extends State<ChatView> {
   }
 
   void _onInputChanged() => setState(() {});
+
+  void _onVoiceRecorderChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _startVoiceRecording() async {
+    _inputFocusNode.unfocus();
+    await _voiceRecorderController.start();
+  }
+
+  Future<void> _sendVoiceRecording() async {
+    final messageController = _messageController;
+    final quoteMessage = _quoteMessage;
+    final sent = await _voiceRecorderController.send((recording) async {
+      final success = await messageController.sendAudio(
+        path: recording.path,
+        duration: recording.duration,
+        waveform: recording.waveform,
+        quoteMessageId: quoteMessage?.id,
+      );
+      if (!success) throw StateError('Failed to send voice message');
+    });
+    if (!mounted ||
+        !identical(messageController, _messageController) ||
+        !sent) {
+      return;
+    }
+    setState(() => _quoteMessage = null);
+  }
 
   Future<void> _sendText() async {
     final messageController = _messageController;
@@ -317,6 +352,9 @@ class _ChatViewState extends State<ChatView> {
       ..removeListener(_onInputChanged)
       ..dispose();
     _inputFocusNode.dispose();
+    _voiceRecorderController
+      ..removeListener(_onVoiceRecorderChanged)
+      ..dispose();
     super.dispose();
   }
 
@@ -407,8 +445,9 @@ class _ChatViewState extends State<ChatView> {
                         if (mounted) setState(_selectedMessageIds.clear);
                       },
                     )
-                  else
-                    _ChatInput(
+                  else if (_voiceRecorderController.value.status ==
+                      VoiceRecorderStatus.idle)
+                    ChatInputBar(
                       controller: _inputController,
                       focusNode: _inputFocusNode,
                       quoteMessage: _quoteMessage,
@@ -416,6 +455,19 @@ class _ChatViewState extends State<ChatView> {
                       onChanged: widget.onDraftChanged,
                       onCancelQuote: () => setState(() => _quoteMessage = null),
                       onSend: _sendText,
+                      onVoicePressed: () => unawaited(_startVoiceRecording()),
+                    )
+                  else
+                    VoiceRecorderBar(
+                      state: _voiceRecorderController.value,
+                      onCancel: _voiceRecorderController.cancel,
+                      onStop: () async {
+                        await _voiceRecorderController.stop();
+                      },
+                      onRetry: () async {
+                        await _voiceRecorderController.start();
+                      },
+                      onSend: _sendVoiceRecording,
                     ),
                 ],
               ),
@@ -846,6 +898,8 @@ class _ChatMessageState extends State<_ChatMessage> {
       onOpenIdentityNumber: (identityNumber) =>
           _showUser(identityNumber: identityNumber),
       mentionNames: widget.mentionNames,
+      showNip: presentation.showNip,
+      highlighted: _menuHighlighted || widget.highlighted,
       onMarkAudioRead: (_) => widget.onMarkAudioRead(),
       onDownloadAttachment: (_) => widget.onDownloadAttachment(),
       onCancelAttachment: (_) => widget.onCancelAttachment(),
@@ -874,8 +928,10 @@ class _ChatMessageState extends State<_ChatMessage> {
       'STRANGER',
     }.contains(widget.message.category);
     final bypassBubble =
-        bypassActions || widget.message.category == 'APP_BUTTON_GROUP';
-    final renderedMessage = widget.message.isSticker || bypassBubble
+        bypassActions ||
+        widget.message.category == 'APP_BUTTON_GROUP' ||
+        widget.message.category == 'APP_CARD';
+    final renderedMessage = bypassBubble
         ? Align(
             key: Key('message-bubble-${widget.message.id}'),
             alignment: presentation.isCurrentUser
@@ -896,10 +952,25 @@ class _ChatMessageState extends State<_ChatMessage> {
             key: Key('message-bubble-${widget.message.id}'),
             isCurrentUser: presentation.isCurrentUser,
             showNip: presentation.showNip,
+            showBubble: widget.message.showMessageBubble,
+            includeNip: widget.message.includeMessageBubbleNip,
+            clip: widget.message.clipMessageBubble,
             highlighted: _menuHighlighted || widget.highlighted,
-            padding: widget.message.isImage || widget.message.isVideo
-                ? EdgeInsets.zero
-                : const EdgeInsets.all(8),
+            padding: widget.message.messageBubblePadding,
+            forceIsCurrentUserColor:
+                widget.message.forceCurrentMessageBubbleColor,
+            outerTimeAndStatusWidget:
+                widget.message.useOuterMessageDateAndStatus
+                ? MessageDatetimeAndStatus(
+                    message: widget.message,
+                    isCurrentUser: presentation.isCurrentUser,
+                    hideStatus: widget.message.hideOuterMessageStatus,
+                    isRepresentative:
+                        widget.isBot &&
+                        widget.message.senderId != widget.conversationOwnerId &&
+                        !presentation.isCurrentUser,
+                  )
+                : null,
             child: messageContent,
           );
     final policy = MessageActionPolicy(
@@ -982,6 +1053,7 @@ class _ChatMessageState extends State<_ChatMessage> {
                 userId: widget.message.senderId,
                 userIdentityNumber: widget.message.senderIdentityNumber,
                 verified: widget.message.senderIsVerified,
+                isBot: widget.message.senderIsBot,
                 showIdentityNumber: showIdentityNumber,
               ),
             ),
@@ -993,6 +1065,7 @@ class _ChatMessageState extends State<_ChatMessage> {
     Widget child;
     if (presentation.showSender && presentation.showAvatar) {
       child = Row(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(width: 8),
@@ -1006,7 +1079,12 @@ class _ChatMessageState extends State<_ChatMessage> {
               size: 32,
             ),
           ),
-          Flexible(child: messageColumn),
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2, bottom: 2),
+              child: messageColumn,
+            ),
+          ),
           const SizedBox(width: 65),
         ],
       );
@@ -1465,8 +1543,262 @@ bool _paragraphHitsText(RenderParagraph paragraph, Offset globalPosition) {
   return false;
 }
 
-class _ChatInput extends StatelessWidget {
-  const _ChatInput({
+class VoiceRecorderBar extends StatelessWidget {
+  const VoiceRecorderBar({
+    required this.state,
+    required this.onCancel,
+    required this.onStop,
+    required this.onRetry,
+    required this.onSend,
+    super.key,
+  });
+
+  final VoiceRecorderState state;
+  final Future<void> Function() onCancel;
+  final Future<void> Function() onStop;
+  final Future<void> Function() onRetry;
+  final Future<void> Function() onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    final recording = state.recording;
+    final isRecording = state.status == VoiceRecorderStatus.recording;
+    final isSending = state.status == VoiceRecorderStatus.sending;
+    return Container(
+      key: const Key('voice-recorder-bar'),
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: context.theme.primary,
+      child: Row(
+        children: [
+          _RecorderAction(
+            actionKey: const Key('voice-cancel'),
+            icon: Icons.cancel_outlined,
+            tooltip: 'Cancel recording',
+            onPressed: isSending ? null : onCancel,
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: recording == null
+                  ? _RecordingDuration(duration: state.elapsed)
+                  : _VoiceRecordingPreview(recording: recording),
+            ),
+          ),
+          if (isSending)
+            const SizedBox.square(
+              dimension: 40,
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else if (isRecording)
+            _RecorderAction(
+              actionKey: const Key('voice-stop'),
+              icon: Icons.stop_circle_outlined,
+              color: context.theme.accent,
+              tooltip: 'Stop recording',
+              onPressed: onStop,
+            )
+          else
+            _RecorderAction(
+              actionKey: const Key('voice-retry'),
+              icon: Icons.replay,
+              tooltip: 'Record again',
+              onPressed: onRetry,
+            ),
+          _RecorderAction(
+            actionKey: const Key('voice-send'),
+            asset: MixinAssets.send,
+            tooltip: 'Send voice message',
+            onPressed: isSending ? null : onSend,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecorderAction extends StatelessWidget {
+  const _RecorderAction({
+    required this.actionKey,
+    required this.tooltip,
+    required this.onPressed,
+    this.icon,
+    this.asset,
+    this.color,
+  });
+
+  final Key actionKey;
+  final String tooltip;
+  final Future<void> Function()? onPressed;
+  final IconData? icon;
+  final String? asset;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 40,
+    child: IconButton(
+      key: actionKey,
+      tooltip: tooltip,
+      onPressed: onPressed == null ? null : () => unawaited(onPressed!()),
+      icon: asset == null
+          ? Icon(icon, size: 24, color: color ?? context.theme.icon)
+          : SvgPicture.asset(
+              asset!,
+              width: 24,
+              height: 24,
+              colorFilter: ColorFilter.mode(
+                color ?? context.theme.icon,
+                BlendMode.srcIn,
+              ),
+            ),
+    ),
+  );
+}
+
+class _RecordingDuration extends StatelessWidget {
+  const _RecordingDuration({required this.duration});
+
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      const SizedBox.square(
+        dimension: 8,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Color(0xFFE57874),
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+      const SizedBox(width: 4),
+      Text(
+        _formatVoiceDuration(duration),
+        style: TextStyle(color: context.theme.text, fontSize: 14),
+      ),
+    ],
+  );
+}
+
+class _VoiceRecordingPreview extends StatefulWidget {
+  const _VoiceRecordingPreview({required this.recording});
+
+  final VoiceRecording recording;
+
+  @override
+  State<_VoiceRecordingPreview> createState() => _VoiceRecordingPreviewState();
+}
+
+class _VoiceRecordingPreviewState extends State<_VoiceRecordingPreview> {
+  final _coordinator = AudioMessagePlaybackCoordinator.instance;
+  late String _previewId;
+
+  @override
+  void initState() {
+    super.initState();
+    _previewId = 'voice-preview-${widget.recording.path.hashCode}';
+    _coordinator
+      ..attach()
+      ..addListener(_onPlaybackChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant _VoiceRecordingPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.recording.path == widget.recording.path) return;
+    if (_coordinator.currentMessageId == _previewId) _coordinator.stop();
+    _previewId = 'voice-preview-${widget.recording.path.hashCode}';
+  }
+
+  @override
+  void dispose() {
+    if (_coordinator.currentMessageId == _previewId) _coordinator.stop();
+    _coordinator
+      ..removeListener(_onPlaybackChanged)
+      ..detach();
+    super.dispose();
+  }
+
+  void _onPlaybackChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _togglePlayback() async {
+    if (_coordinator.currentMessageId == _previewId && _coordinator.isPlaying) {
+      _coordinator.stop();
+      return;
+    }
+    await _coordinator.play(_previewId, widget.recording.path);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final playing =
+        _coordinator.currentMessageId == _previewId && _coordinator.isPlaying;
+    final duration = widget.recording.duration;
+    final progress = playing && duration.inMilliseconds > 0
+        ? (_coordinator.position.inMilliseconds / duration.inMilliseconds)
+              .clamp(0.0, 1.0)
+        : 0.0;
+    return Container(
+      height: 32,
+      decoration: BoxDecoration(
+        color: context.theme.listSelected,
+        borderRadius: const BorderRadius.all(Radius.circular(15)),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            key: const Key('voice-preview-play'),
+            onPressed: () => unawaited(_togglePlayback()),
+            padding: const EdgeInsets.all(6),
+            icon: Icon(
+              playing ? Icons.stop : Icons.play_arrow,
+              size: 20,
+              color: context.theme.icon,
+            ),
+          ),
+          Expanded(
+            child: SizedBox(
+              height: 20,
+              child: CustomPaint(
+                painter: AudioWaveformPainter(
+                  waveform: widget.recording.waveform,
+                  progress: progress,
+                  backgroundColor: context.theme.waveformBackground,
+                  foregroundColor: context.theme.waveformForeground,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            _formatVoiceDuration(duration),
+            style: TextStyle(color: context.theme.text, fontSize: 14),
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatVoiceDuration(Duration duration) {
+  final minutes = duration.inMinutes;
+  final seconds = duration.inSeconds.remainder(60);
+  return '$minutes:${seconds.toString().padLeft(2, '0')}';
+}
+
+class ChatInputBar extends StatefulWidget {
+  const ChatInputBar({
     required this.controller,
     required this.focusNode,
     required this.quoteMessage,
@@ -1474,6 +1806,11 @@ class _ChatInput extends StatelessWidget {
     required this.onChanged,
     required this.onCancelQuote,
     required this.onSend,
+    this.onAddPressed,
+    this.onStickerPressed,
+    this.onVoicePressed,
+    this.voiceButtonActive = false,
+    super.key,
   });
 
   final TextEditingController controller;
@@ -1483,38 +1820,98 @@ class _ChatInput extends StatelessWidget {
   final ValueChanged<String> onChanged;
   final VoidCallback onCancelQuote;
   final Future<void> Function() onSend;
+  final VoidCallback? onAddPressed;
+  final VoidCallback? onStickerPressed;
+  final VoidCallback? onVoicePressed;
+  final bool voiceButtonActive;
+
+  @override
+  State<ChatInputBar> createState() => _ChatInputBarState();
+}
+
+class _ChatInputBarState extends State<ChatInputBar> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_handleTextChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatInputBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    oldWidget.controller.removeListener(_handleTextChanged);
+    widget.controller.addListener(_handleTextChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleTextChanged);
+    super.dispose();
+  }
+
+  void _handleTextChanged() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
     final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
-    final sendable = controller.text.trim().isNotEmpty && !sending;
+    final sendable =
+        widget.controller.text.trim().isNotEmpty && !widget.sending;
     return Container(
       key: const Key('chat-input-bar'),
       color: context.theme.primary,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (quoteMessage != null)
-            _QuoteInputPreview(message: quoteMessage!, onCancel: onCancelQuote),
-          SizedBox(
-            height: 56,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  Expanded(
+          if (widget.quoteMessage != null)
+            _QuoteInputPreview(
+              message: widget.quoteMessage!,
+              onCancel: widget.onCancelQuote,
+            ),
+          Container(
+            constraints: const BoxConstraints(minHeight: 56),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _ChatInputAction(
+                  actionKey: const Key('chat-add'),
+                  asset: MixinAssets.add,
+                  tooltip: 'Add attachment',
+                  onPressed: widget.onAddPressed,
+                ),
+                const SizedBox(width: 6),
+                _ChatInputAction(
+                  actionKey: const Key('chat-sticker'),
+                  asset: MixinAssets.sticker,
+                  tooltip: 'Stickers and emoji',
+                  onPressed: widget.onStickerPressed,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Container(
+                    key: const Key('chat-input-surface'),
+                    constraints: const BoxConstraints(minHeight: 40),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color.fromRGBO(255, 255, 255, 0.08)
+                          : const Color.fromRGBO(245, 247, 250, 1),
+                      borderRadius: const BorderRadius.all(Radius.circular(4)),
+                    ),
+                    alignment: Alignment.center,
                     child: TextField(
                       key: const Key('chat-input'),
-                      controller: controller,
-                      focusNode: focusNode,
-                      onChanged: onChanged,
-                      maxLines: 1,
-                      textInputAction: TextInputAction.send,
+                      controller: widget.controller,
+                      focusNode: widget.focusNode,
+                      onChanged: widget.onChanged,
+                      minLines: 1,
+                      maxLines: 7,
+                      textInputAction: TextInputAction.newline,
                       onSubmitted: (_) {
-                        if (sendable) onSend();
+                        if (sendable) widget.onSend();
                       },
                       cursorColor: context.theme.accent,
-                      style: TextStyle(fontSize: 16, color: context.theme.text),
+                      style: TextStyle(fontSize: 14, color: context.theme.text),
                       decoration: InputDecoration(
                         isDense: true,
                         border: InputBorder.none,
@@ -1523,48 +1920,86 @@ class _ChatInput extends StatelessWidget {
                         hintText: l10n?.typeMessage ?? 'Type message',
                         hintStyle: TextStyle(
                           color: context.theme.secondaryText,
+                          fontSize: 14,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 10,
-                        ),
+                        contentPadding: const EdgeInsets.fromLTRB(8, 9, 8, 8),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  SizedBox.square(
-                    dimension: 40,
-                    child: sending
-                        ? const Center(
-                            child: SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : IconButton(
-                            key: const Key('chat-send'),
-                            onPressed: sendable ? onSend : null,
-                            padding: EdgeInsets.zero,
-                            icon: SvgPicture.asset(
-                              MixinAssets.send,
-                              width: 20,
-                              height: 20,
-                              colorFilter: ColorFilter.mode(
-                                sendable
-                                    ? context.theme.icon
-                                    : context.theme.secondaryText,
-                                BlendMode.srcIn,
-                              ),
-                            ),
+                ),
+                const SizedBox(width: 16),
+                SizedBox.square(
+                  dimension: 40,
+                  child: widget.sending
+                      ? const Center(
+                          child: SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           ),
-                  ),
-                ],
-              ),
+                        )
+                      : AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 120),
+                          transitionBuilder: (child, animation) =>
+                              ScaleTransition(scale: animation, child: child),
+                          child: sendable
+                              ? _ChatInputAction(
+                                  actionKey: const Key('chat-send'),
+                                  asset: MixinAssets.send,
+                                  tooltip: 'Send',
+                                  onPressed: widget.onSend,
+                                )
+                              : _ChatInputAction(
+                                  actionKey: const Key('chat-voice'),
+                                  asset: MixinAssets.microphone,
+                                  tooltip: 'Voice message',
+                                  active: widget.voiceButtonActive,
+                                  onPressed: widget.onVoicePressed,
+                                ),
+                        ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+}
+
+class _ChatInputAction extends StatelessWidget {
+  const _ChatInputAction({
+    required this.asset,
+    required this.tooltip,
+    required this.actionKey,
+    this.onPressed,
+    this.active = false,
+  });
+
+  final String asset;
+  final String tooltip;
+  final Key actionKey;
+  final VoidCallback? onPressed;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 40,
+    child: IconButton(
+      key: actionKey,
+      onPressed: onPressed,
+      tooltip: tooltip,
+      padding: const EdgeInsets.all(8),
+      icon: SvgPicture.asset(
+        asset,
+        width: 24,
+        height: 24,
+        colorFilter: ColorFilter.mode(
+          active ? context.theme.accent : context.theme.icon,
+          BlendMode.srcIn,
+        ),
+      ),
+    ),
+  );
 }
 
 class _QuoteInputPreview extends StatelessWidget {
@@ -1577,15 +2012,20 @@ class _QuoteInputPreview extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     key: const Key('chat-quote-preview'),
     constraints: const BoxConstraints(minHeight: 50),
-    margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-    decoration: BoxDecoration(
-      color: context.theme.background,
-      borderRadius: const BorderRadius.all(Radius.circular(8)),
-    ),
+    color: context.theme.popUp,
     child: Row(
       children: [
-        Container(width: 4, height: 50, color: context.theme.accent),
-        const SizedBox(width: 8),
+        const SizedBox(width: 16),
+        Container(
+          key: const Key('chat-quote-accent'),
+          width: 3,
+          height: 36,
+          decoration: BoxDecoration(
+            color: context.theme.accent,
+            borderRadius: const BorderRadius.all(Radius.circular(2)),
+          ),
+        ),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1616,6 +2056,7 @@ class _QuoteInputPreview extends StatelessWidget {
           icon: const Icon(Icons.close, size: 18),
           color: context.theme.secondaryText,
         ),
+        const SizedBox(width: 4),
       ],
     ),
   );

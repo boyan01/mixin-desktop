@@ -654,6 +654,25 @@ impl AccountHandle {
             .await
     }
 
+    pub async fn send_audio(
+        &self,
+        conversation_id: String,
+        path: String,
+        duration_millis: i64,
+        waveform: Vec<u8>,
+        quote_message_id: Option<String>,
+    ) -> Result<String> {
+        self.runtime
+            .send_audio(
+                &conversation_id,
+                &path,
+                duration_millis,
+                &waveform,
+                quote_message_id.as_deref(),
+            )
+            .await
+    }
+
     pub async fn forward_messages(
         &self,
         target_conversation_id: String,

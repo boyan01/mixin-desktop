@@ -11,7 +11,10 @@ import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
+import 'package:mixin_desktop_ui/widgets/message_layout.dart';
 import 'package:mixin_desktop_ui/widgets/message_media_preview_pages.dart';
+import 'package:mixin_desktop_ui/widgets/message_style.dart';
 
 typedef MessageStringCallback = void Function(String value);
 typedef MessageUriCallback = void Function(Uri uri);
@@ -72,19 +75,18 @@ class QuoteMessagePreview extends StatelessWidget {
       child: _QuoteMessageBase(
         sender: quote.sender,
         description: quote.preview(l10n),
-        leading:
-            image ??
-            (iconAsset == null
-                ? null
-                : SvgPicture.asset(
-                    iconAsset,
-                    width: 16,
-                    height: 16,
-                    colorFilter: ColorFilter.mode(
-                      context.theme.secondaryText,
-                      BlendMode.srcIn,
-                    ),
-                  )),
+        icon: iconAsset == null
+            ? null
+            : SvgPicture.asset(
+                iconAsset,
+                width: 16,
+                height: 16,
+                colorFilter: ColorFilter.mode(
+                  context.theme.secondaryText,
+                  BlendMode.srcIn,
+                ),
+              ),
+        image: image,
       ),
     );
   }
@@ -95,7 +97,7 @@ class QuoteMessagePreview extends StatelessWidget {
         userId: quote.sharedUserId ?? '',
         name: quote.sharedUserName ?? '',
         avatarUrl: quote.sharedUserAvatarUrl ?? '',
-        size: 36,
+        size: 48,
       );
     }
     final source = quote.category.endsWith('_STICKER')
@@ -105,13 +107,13 @@ class QuoteMessagePreview extends StatelessWidget {
     final provider = imageProviderForSource(source);
     if (provider == null) return null;
     return ClipRRect(
-      borderRadius: const BorderRadius.all(Radius.circular(3)),
+      borderRadius: const BorderRadius.all(Radius.circular(6)),
       child: Image(
         image: provider,
-        width: 36,
-        height: 36,
+        width: 48,
+        height: 48,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => const SizedBox.square(dimension: 36),
+        errorBuilder: (_, _, _) => const SizedBox.square(dimension: 48),
       ),
     );
   }
@@ -121,58 +123,121 @@ class _QuoteMessageBase extends StatelessWidget {
   const _QuoteMessageBase({
     required this.description,
     this.sender,
-    this.leading,
+    this.icon,
+    this.image,
   });
 
   final String? sender;
   final String description;
-  final Widget? leading;
+  final Widget? icon;
+  final Widget? image;
 
   @override
-  Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(minHeight: 36),
-    padding: const EdgeInsets.only(left: 8),
-    decoration: BoxDecoration(
-      border: Border(left: BorderSide(color: context.theme.accent, width: 2)),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (leading != null) ...[
-          SizedBox.square(dimension: 36, child: Center(child: leading)),
-          const SizedBox(width: 6),
-        ],
-        Flexible(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (sender?.isNotEmpty == true)
-                Text(
-                  sender!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: context.theme.accent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              Text(
-                description.split('\n').first,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: context.theme.secondaryText,
-                  fontSize: 14,
-                ),
+  Widget build(BuildContext context) {
+    final lines = const LineSplitter().convert(description);
+    final preview = lines.isEmpty
+        ? ''
+        : '${lines.first}${lines.length > 1 ? '...' : ''}';
+    final accent = context.theme.accent;
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.all(Radius.circular(8)),
+      child: Container(
+        key: const Key('quote-message-preview'),
+        constraints: const BoxConstraints(minHeight: 50),
+        color: const Color.fromRGBO(0, 0, 0, 0.04),
+        child: Stack(
+          children: [
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              child: Container(
+                key: const Key('quote-message-accent'),
+                width: 6,
+                color: accent,
               ),
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Padding(
+                      padding: const EdgeInsets.only(
+                        top: 6,
+                        left: 6,
+                        bottom: 6,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (sender?.isNotEmpty == true)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                sender!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: accent,
+                                  fontSize:
+                                      context.messageStyle.secondaryFontSize,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (icon != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 4),
+                                  child: icon,
+                                ),
+                              Flexible(
+                                child: Text(
+                                  preview,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: context.theme.secondaryText,
+                                    fontSize:
+                                        context.messageStyle.tertiaryFontSize,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (image != null)
+                    SizedBox.square(
+                      key: const Key('quote-message-image'),
+                      dimension: 48,
+                      child: RepaintBoundary(
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(6),
+                          ),
+                          child: image,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
 class ContactMessageItem extends StatelessWidget {
@@ -368,50 +433,144 @@ class AppCardMessageItem extends StatelessWidget {
   const AppCardMessageItem({
     required this.message,
     required this.onAction,
+    required this.isCurrentUser,
+    required this.showNip,
+    required this.highlighted,
+    required this.dateAndStatus,
     super.key,
   });
 
   final MessageListEntry message;
   final MessageStringCallback? onAction;
+  final bool isCurrentUser;
+  final bool showNip;
+  final bool highlighted;
+  final Widget dateAndStatus;
 
   @override
   Widget build(BuildContext context) {
     final card = _AppCardData.parse(message.content);
-    if (card == null) return UnknownSpecialMessage(category: message.category);
-    if (card.action.isEmpty) {
-      return ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 320, maxWidth: 375),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Material(
-              color: context.theme.primary,
-              borderRadius: const BorderRadius.all(Radius.circular(8)),
-              clipBehavior: Clip.antiAlias,
-              child: SelectionArea(child: _ActionsCardBody(card: card)),
-            ),
-            const SizedBox(height: 8),
-            if (card.actions.isNotEmpty)
-              _ActionButtonLayout(
-                children: card.actions
-                    .map(
-                      (action) =>
-                          _ActionButton(action: action, onAction: onAction),
-                    )
-                    .toList(growable: false),
-              ),
-          ],
+    if (card == null) {
+      return MessageBubble(
+        isCurrentUser: isCurrentUser,
+        showNip: showNip,
+        highlighted: highlighted,
+        child: MessageLayout(
+          spacing: 6,
+          content: UnknownSpecialMessage(category: message.category),
+          dateAndStatus: dateAndStatus,
         ),
       );
     }
-    return InkWell(
-      onTap: card.action.isEmpty || onAction == null
-          ? null
-          : () => onAction!(card.action),
-      child: SelectionArea(child: _AppCardHeader(card: card)),
+    if (card.action.isEmpty) {
+      return _ActionsCardMessage(
+        messageId: message.id,
+        card: card,
+        onAction: onAction,
+        isCurrentUser: isCurrentUser,
+        showNip: showNip,
+        highlighted: highlighted,
+        dateAndStatus: dateAndStatus,
+      );
+    }
+    return MessageBubble(
+      key: Key('app-card-compact-${message.id}'),
+      isCurrentUser: isCurrentUser,
+      showNip: showNip,
+      highlighted: highlighted,
+      outerTimeAndStatusWidget: dateAndStatus,
+      child: InkWell(
+        onTap: onAction == null ? null : () => onAction!(card.action),
+        child: SelectionArea(
+          contextMenuBuilder: (context, selectableState) =>
+              const SizedBox.shrink(),
+          child: _AppCardHeader(card: card),
+        ),
+      ),
     );
   }
+}
+
+class _ActionsCardMessage extends StatelessWidget {
+  const _ActionsCardMessage({
+    required this.messageId,
+    required this.card,
+    required this.onAction,
+    required this.isCurrentUser,
+    required this.showNip,
+    required this.highlighted,
+    required this.dateAndStatus,
+  });
+
+  final String messageId;
+  final _AppCardData card;
+  final MessageStringCallback? onAction;
+  final bool isCurrentUser;
+  final bool showNip;
+  final bool highlighted;
+  final Widget dateAndStatus;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final availableWidth = constraints.maxWidth.isFinite
+          ? constraints.maxWidth
+          : 750.0;
+      final width = (availableWidth * 0.5)
+          .clamp(
+            math.min(320.0, availableWidth),
+            math.min(375.0, availableWidth),
+          )
+          .toDouble();
+      return Align(
+        alignment: isCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
+        child: Column(
+          key: Key('app-card-actions-message-$messageId'),
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            SizedBox(
+              key: Key('app-card-body-$messageId'),
+              width: width,
+              child: MessageBubble(
+                isCurrentUser: isCurrentUser,
+                showNip: showNip,
+                highlighted: highlighted,
+                padding: EdgeInsets.zero,
+                child: SelectionArea(
+                  contextMenuBuilder: (context, selectableState) =>
+                      const SizedBox.shrink(),
+                  child: _ActionsCardBody(card: card),
+                ),
+              ),
+            ),
+            if (card.actions.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              MessageBubbleNipPadding(
+                currentUser: isCurrentUser,
+                child: SizedBox(
+                  key: Key('app-card-actions-$messageId'),
+                  width: width,
+                  child: _ActionButtonLayout(
+                    children: card.actions
+                        .map(
+                          (action) =>
+                              _ActionButton(action: action, onAction: onAction),
+                        )
+                        .toList(growable: false),
+                  ),
+                ),
+              ),
+            ],
+            Padding(
+              padding: const EdgeInsets.only(right: 10, left: 10, top: 4),
+              child: dateAndStatus,
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 class TranscriptMessageItem extends StatelessWidget {
@@ -455,7 +614,17 @@ class TranscriptMessageItem extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
-                      const Icon(Icons.open_in_full, size: 18),
+                      Container(
+                        decoration: const BoxDecoration(
+                          color: Color.fromRGBO(0, 0, 0, 0.2),
+                          borderRadius: BorderRadius.all(Radius.circular(8)),
+                        ),
+                        child: SvgPicture.asset(
+                          MixinAssets.postDetail,
+                          width: 20,
+                          height: 20,
+                        ),
+                      ),
                     ],
                   ),
                 ),

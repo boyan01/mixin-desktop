@@ -3,6 +3,7 @@ abstract final class MixinAssets {
   static const contacts = 'assets/images/slide_contacts.svg';
   static const groups = 'assets/images/group.svg';
   static const bots = 'assets/images/bot.svg';
+  static const botBadge = 'assets/images/bot_fill.svg';
   static const strangers = 'assets/images/strangers.svg';
   static const circle = 'assets/images/circle.svg';
   static const collapse = 'assets/images/collapse.svg';
@@ -14,6 +15,8 @@ abstract final class MixinAssets {
   static const chatInfo = 'assets/images/ic_screen.svg';
   static const back = 'assets/images/ic_back.svg';
   static const close = 'assets/images/ic_close.svg';
+  static const sticker = 'assets/images/ic_sticker.svg';
+  static const microphone = 'assets/images/microphone.svg';
   static const send = 'assets/images/ic_send.svg';
   static const chatBackground = 'assets/images/chat_background.png';
   static const empty = 'assets/images/empty_file.svg';
@@ -29,6 +32,7 @@ abstract final class MixinAssets {
   static const messageSecret = 'assets/images/message_secret.svg';
   static const messageRepresentative =
       'assets/images/message_representative.svg';
+  static const postDetail = 'assets/images/post_detail.svg';
   static const profile = 'assets/images/ic_profile.svg';
   static const account = 'assets/images/account.svg';
   static const notification = 'assets/images/ic_notification.svg';
