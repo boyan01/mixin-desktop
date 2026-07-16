@@ -14,7 +14,44 @@ pub struct Participant {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(sqlx::FromRow)]
+pub struct ParticipantListItem {
+    pub user_id: String,
+    pub role: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub identity_number: String,
+    pub full_name: String,
+    pub avatar_url: String,
+    pub biography: String,
+    pub is_verified: bool,
+    pub is_bot: bool,
+    pub relationship: String,
+}
+
 impl ParticipantDao {
+    pub async fn list_items(
+        &self,
+        conversation_id: &str,
+    ) -> Result<Vec<ParticipantListItem>, Error> {
+        Ok(sqlx::query_as::<_, ParticipantListItem>(
+            r#"SELECT participant.user_id, participant.role, participant.created_at,
+                      COALESCE(user.identity_number, '') AS identity_number,
+                      COALESCE(user.full_name, '') AS full_name,
+                      COALESCE(user.avatar_url, '') AS avatar_url,
+                      COALESCE(user.biography, '') AS biography,
+                      COALESCE(user.is_verified, FALSE) AS is_verified,
+                      COALESCE(user.app_id, '') != '' AS is_bot,
+                      COALESCE(user.relationship, '') AS relationship
+               FROM participants participant
+               LEFT JOIN users user ON user.user_id = participant.user_id
+               WHERE participant.conversation_id = ?
+               ORDER BY participant.created_at ASC, participant.user_id ASC"#,
+        )
+        .bind(conversation_id)
+        .fetch_all(&self.0)
+        .await?)
+    }
+
     pub async fn replace_all(
         &self,
         conversation_id: &str,

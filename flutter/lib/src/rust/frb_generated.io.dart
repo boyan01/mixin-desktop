@@ -133,10 +133,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CircleItem dco_decode_circle_item(dynamic raw);
 
   @protected
+  ConversationDetailItem dco_decode_conversation_detail_item(dynamic raw);
+
+  @protected
   ConversationListItem dco_decode_conversation_list_item(dynamic raw);
 
   @protected
+  ConversationParticipantItem dco_decode_conversation_participant_item(
+    dynamic raw,
+  );
+
+  @protected
   GroupAvatar dco_decode_group_avatar(dynamic raw);
+
+  @protected
+  GroupConversationItem dco_decode_group_conversation_item(dynamic raw);
 
   @protected
   HttpResponseItem dco_decode_http_response_item(dynamic raw);
@@ -162,7 +173,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ConversationParticipantItem>
+  dco_decode_list_conversation_participant_item(dynamic raw);
+
+  @protected
   List<GroupAvatar> dco_decode_list_group_avatar(dynamic raw);
+
+  @protected
+  List<GroupConversationItem> dco_decode_list_group_conversation_item(
+    dynamic raw,
+  );
 
   @protected
   List<ImageMessageItem> dco_decode_list_image_message_item(dynamic raw);
@@ -181,6 +201,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<(String, String)> dco_decode_list_record_string_string(dynamic raw);
+
+  @protected
+  List<SharedAppItem> dco_decode_list_shared_app_item(dynamic raw);
 
   @protected
   List<StickerAlbumItem> dco_decode_list_sticker_album_item(dynamic raw);
@@ -234,6 +257,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   (String, String) dco_decode_record_string_string(dynamic raw);
 
   @protected
+  SharedAppItem dco_decode_shared_app_item(dynamic raw);
+
+  @protected
   StickerAlbumItem dco_decode_sticker_album_item(dynamic raw);
 
   @protected
@@ -244,6 +270,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_u_16(dynamic raw);
+
+  @protected
+  int dco_decode_u_32(dynamic raw);
 
   @protected
   BigInt dco_decode_u_64(dynamic raw);
@@ -373,12 +402,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CircleItem sse_decode_circle_item(SseDeserializer deserializer);
 
   @protected
+  ConversationDetailItem sse_decode_conversation_detail_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ConversationListItem sse_decode_conversation_list_item(
     SseDeserializer deserializer,
   );
 
   @protected
+  ConversationParticipantItem sse_decode_conversation_participant_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   GroupAvatar sse_decode_group_avatar(SseDeserializer deserializer);
+
+  @protected
+  GroupConversationItem sse_decode_group_conversation_item(
+    SseDeserializer deserializer,
+  );
 
   @protected
   HttpResponseItem sse_decode_http_response_item(SseDeserializer deserializer);
@@ -404,7 +448,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ConversationParticipantItem>
+  sse_decode_list_conversation_participant_item(SseDeserializer deserializer);
+
+  @protected
   List<GroupAvatar> sse_decode_list_group_avatar(SseDeserializer deserializer);
+
+  @protected
+  List<GroupConversationItem> sse_decode_list_group_conversation_item(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<ImageMessageItem> sse_decode_list_image_message_item(
@@ -427,6 +480,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<(String, String)> sse_decode_list_record_string_string(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<SharedAppItem> sse_decode_list_shared_app_item(
     SseDeserializer deserializer,
   );
 
@@ -494,6 +552,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  SharedAppItem sse_decode_shared_app_item(SseDeserializer deserializer);
+
+  @protected
   StickerAlbumItem sse_decode_sticker_album_item(SseDeserializer deserializer);
 
   @protected
@@ -506,6 +567,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_u_32(SseDeserializer deserializer);
 
   @protected
   BigInt sse_decode_u_64(SseDeserializer deserializer);
@@ -659,13 +723,31 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_circle_item(CircleItem self, SseSerializer serializer);
 
   @protected
+  void sse_encode_conversation_detail_item(
+    ConversationDetailItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_conversation_list_item(
     ConversationListItem self,
     SseSerializer serializer,
   );
 
   @protected
+  void sse_encode_conversation_participant_item(
+    ConversationParticipantItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_group_avatar(GroupAvatar self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_group_conversation_item(
+    GroupConversationItem self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_http_response_item(
@@ -701,8 +783,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_conversation_participant_item(
+    List<ConversationParticipantItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_group_avatar(
     List<GroupAvatar> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_group_conversation_item(
+    List<GroupConversationItem> self,
     SseSerializer serializer,
   );
 
@@ -736,6 +830,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_record_string_string(
     List<(String, String)> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_shared_app_item(
+    List<SharedAppItem> self,
     SseSerializer serializer,
   );
 
@@ -822,6 +922,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_shared_app_item(SharedAppItem self, SseSerializer serializer);
+
+  @protected
   void sse_encode_sticker_album_item(
     StickerAlbumItem self,
     SseSerializer serializer,
@@ -838,6 +941,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_u_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_64(BigInt self, SseSerializer serializer);

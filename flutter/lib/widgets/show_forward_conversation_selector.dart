@@ -29,15 +29,26 @@ class _ForwardConversationSelectorState
   String _query = '';
 
   Future<List<ConversationListEntry>> _load() async {
-    final result = await widget.account.conversations(
+    final count = await widget.account.conversationCount(
       category: ConversationCategoryFilter.chats.name,
       circleId: null,
       keyword: '',
       unseenOnly: false,
-      limit: 200,
-      offset: 0,
     );
-    return result.map(_fromRust).toList(growable: false);
+    final result = <ConversationListEntry>[];
+    while (result.length < count.toInt()) {
+      final page = await widget.account.conversations(
+        category: ConversationCategoryFilter.chats.name,
+        circleId: null,
+        keyword: '',
+        unseenOnly: false,
+        limit: 200,
+        offset: result.length,
+      );
+      result.addAll(page.map(ConversationListEntry.fromRust));
+      if (page.length < 200) break;
+    }
+    return result;
   }
 
   @override
@@ -122,42 +133,3 @@ class _ForwardConversationSelectorState
     ),
   );
 }
-
-ConversationListEntry _fromRust(rust.ConversationListItem item) =>
-    ConversationListEntry(
-      id: item.conversationId,
-      ownerId: item.ownerId,
-      name: item.name,
-      avatarUrl: item.avatarUrl,
-      category: item.category,
-      draft: item.draft,
-      status: item.status,
-      lastReadMessageId: item.lastReadMessageId,
-      content: item.lastMessage,
-      contentType: item.lastMessageCategory,
-      messageStatus: item.lastMessageStatus,
-      senderId: item.lastMessageSenderId,
-      senderName: item.lastMessageSenderName,
-      updatedAt: DateTime.fromMillisecondsSinceEpoch(
-        item.updatedAtMillis.toInt(),
-      ),
-      unseenCount: item.unseenCount.toInt(),
-      mentionCount: item.mentionCount.toInt(),
-      isMuted: item.isMuted,
-      isVerified: item.isVerified,
-      isBot: item.isBot,
-      isPinned: item.isPinned,
-      relationship: item.relationship,
-      identityNumber: item.identityNumber,
-      circleIds: item.circleIds,
-      participantCount: item.participantCount.toInt(),
-      groupAvatars: item.groupAvatars
-          .map(
-            (avatar) => ConversationAvatarEntry(
-              userId: avatar.userId,
-              name: avatar.name,
-              avatarUrl: avatar.avatarUrl,
-            ),
-          )
-          .toList(growable: false),
-    );

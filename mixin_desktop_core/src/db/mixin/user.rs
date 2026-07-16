@@ -54,6 +54,45 @@ impl From<sdk::User> for User {
 }
 
 impl UserDao {
+    pub async fn search_bot_group_users(
+        &self,
+        current_user_id: &str,
+        conversation_id: &str,
+        keyword: &str,
+    ) -> Result<Vec<User>, Error> {
+        if keyword.is_empty() {
+            return Ok(sqlx::query_as::<_, User>(
+                "SELECT * FROM users WHERE relationship = 'FRIEND' ORDER BY full_name, user_id ASC",
+            )
+            .fetch_all(&self.0)
+            .await?);
+        }
+        let created_at = Utc::now() - chrono::Duration::days(7);
+        Ok(sqlx::query_as::<_, User>(
+            r#"SELECT DISTINCT u.* FROM users AS u
+               WHERE (u.user_id IN (
+                        SELECT m.user_id FROM messages AS m
+                        WHERE m.conversation_id = ? AND m.created_at > ?
+                      ) OR u.relationship = 'FRIEND')
+                 AND u.user_id != ?
+                 AND u.identity_number != '0'
+                 AND (u.full_name LIKE '%' || ? || '%' ESCAPE '\'
+                      OR u.identity_number LIKE '%' || ? || '%' ESCAPE '\')
+               ORDER BY CASE u.relationship WHEN 'FRIEND' THEN 1 ELSE 2 END,
+                        u.full_name = ? COLLATE NOCASE OR
+                        u.identity_number = ? COLLATE NOCASE DESC"#,
+        )
+        .bind(conversation_id)
+        .bind(created_at)
+        .bind(current_user_id)
+        .bind(keyword)
+        .bind(keyword)
+        .bind(keyword)
+        .bind(keyword)
+        .fetch_all(&self.0)
+        .await?)
+    }
+
     pub async fn find_user_by_id(&self, user_id: &str) -> Result<Option<User>, Error> {
         Ok(
             sqlx::query_as::<_, User>("SELECT * FROM users WHERE user_id = ?")
@@ -265,5 +304,49 @@ mod tests {
                 ("7003".to_string(), "Carol".to_string()),
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn searches_bot_group_friends_with_flutter_semantics() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        for (user_id, identity_number, relationship, full_name) in [
+            ("current", "7000", "ME", "Current"),
+            ("friend", "7001", "FRIEND", "Alice"),
+            ("stranger", "7002", "STRANGER", "Alice Stranger"),
+        ] {
+            sqlx::query(
+                r#"INSERT INTO users (
+                    user_id, identity_number, relationship, full_name, avatar_url,
+                    phone, is_verified, created_at, mute_until, has_pin, app_id,
+                    biography, is_scam, code_url, code_id, is_deactivated
+                ) VALUES (?, ?, ?, ?, '', '', FALSE, CURRENT_TIMESTAMP,
+                    CURRENT_TIMESTAMP, FALSE, NULL, '', FALSE, '', '', FALSE)"#,
+            )
+            .bind(user_id)
+            .bind(identity_number)
+            .bind(relationship)
+            .bind(full_name)
+            .execute(&database.user_dao.0)
+            .await
+            .unwrap();
+        }
+
+        let friends = database
+            .user_dao
+            .search_bot_group_users("current", "conversation", "")
+            .await
+            .unwrap();
+        assert_eq!(friends.len(), 1);
+        assert_eq!(friends[0].user_id, "friend");
+        let matches = database
+            .user_dao
+            .search_bot_group_users("current", "conversation", "Alice")
+            .await
+            .unwrap();
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].user_id, "friend");
     }
 }

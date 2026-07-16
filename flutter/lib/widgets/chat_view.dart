@@ -56,6 +56,9 @@ class ChatView extends StatefulWidget {
     this.onBack,
     this.onSearch,
     this.onInfo,
+    this.onPinned,
+    this.locateMessageId,
+    this.locateRequest = 0,
   });
 
   final rust.AccountHandle account;
@@ -65,6 +68,9 @@ class ChatView extends StatefulWidget {
   final VoidCallback? onBack;
   final VoidCallback? onSearch;
   final VoidCallback? onInfo;
+  final VoidCallback? onPinned;
+  final String? locateMessageId;
+  final int locateRequest;
 
   @override
   State<ChatView> createState() => _ChatViewState();
@@ -95,6 +101,11 @@ class _ChatViewState extends State<ChatView> {
     _voiceRecorderController = VoiceRecorderController()
       ..addListener(_onVoiceRecorderChanged);
     _stickerController = StickerController(account: widget.account);
+    if (widget.locateMessageId != null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(_locateMessage(widget.locateMessageId!)),
+      );
+    }
   }
 
   @override
@@ -120,6 +131,12 @@ class _ChatViewState extends State<ChatView> {
       _inputController.value = TextEditingValue(
         text: widget.draft,
         selection: TextSelection.collapsed(offset: widget.draft.length),
+      );
+    }
+    if (widget.locateMessageId != null &&
+        widget.locateRequest != oldWidget.locateRequest) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(_locateMessage(widget.locateMessageId!)),
       );
     }
   }
@@ -390,7 +407,7 @@ class _ChatViewState extends State<ChatView> {
             onInfo: widget.onInfo,
             onPinned: _messageController.pinnedMessages.isEmpty
                 ? null
-                : _openPinnedMessages,
+                : widget.onPinned ?? _openPinnedMessages,
           ),
           Expanded(
             child: DecoratedBox(
@@ -548,7 +565,11 @@ class _ChatHeader extends StatelessWidget {
           else
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: _HeaderAction(asset: MixinAssets.back, onPressed: onBack),
+              child: _HeaderAction(
+                key: const Key('chat-back'),
+                asset: MixinAssets.back,
+                onPressed: onBack,
+              ),
             ),
           ConversationAvatarView(conversation: conversation, size: 36),
           const SizedBox(width: 10),
@@ -586,7 +607,11 @@ class _ChatHeader extends StatelessWidget {
           if (onPinned != null)
             _HeaderAction(asset: MixinAssets.messagePin, onPressed: onPinned),
           _HeaderAction(asset: MixinAssets.chatSearch, onPressed: onSearch),
-          _HeaderAction(asset: MixinAssets.chatInfo, onPressed: onInfo),
+          _HeaderAction(
+            key: const Key('chat-info'),
+            asset: MixinAssets.chatInfo,
+            onPressed: onInfo,
+          ),
           const SizedBox(width: 16),
         ],
       ),
@@ -595,7 +620,11 @@ class _ChatHeader extends StatelessWidget {
 }
 
 class _HeaderAction extends StatelessWidget {
-  const _HeaderAction({required this.asset, required this.onPressed});
+  const _HeaderAction({
+    required this.asset,
+    required this.onPressed,
+    super.key,
+  });
 
   final String asset;
   final VoidCallback? onPressed;

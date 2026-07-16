@@ -37,7 +37,7 @@ Future<void> showPinnedMessagesDialog(
   context: context,
   builder: (_) => Dialog(
     clipBehavior: Clip.antiAlias,
-    child: _PinnedMessagesPage(
+    child: PinnedMessagesPage(
       account: account,
       conversationId: conversationId,
       currentUserId: currentUserId,
@@ -47,13 +47,17 @@ Future<void> showPinnedMessagesDialog(
   ),
 );
 
-class _PinnedMessagesPage extends StatefulWidget {
-  const _PinnedMessagesPage({
+class PinnedMessagesPage extends StatefulWidget {
+  const PinnedMessagesPage({
+    super.key,
     required this.account,
     required this.conversationId,
     required this.currentUserId,
     required this.currentUserRole,
     required this.onLocate,
+    this.embedded = false,
+    this.onEmpty,
+    this.onCountChanged,
   });
 
   final rust.AccountHandle account;
@@ -61,12 +65,15 @@ class _PinnedMessagesPage extends StatefulWidget {
   final String currentUserId;
   final String? currentUserRole;
   final ValueChanged<String> onLocate;
+  final bool embedded;
+  final VoidCallback? onEmpty;
+  final ValueChanged<int>? onCountChanged;
 
   @override
-  State<_PinnedMessagesPage> createState() => _PinnedMessagesPageState();
+  State<PinnedMessagesPage> createState() => _PinnedMessagesPageState();
 }
 
-class _PinnedMessagesPageState extends State<_PinnedMessagesPage> {
+class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
   List<MessageListEntry> _messages = const [];
   StreamSubscription<BigInt>? _changes;
   bool _loading = true;
@@ -110,6 +117,8 @@ class _PinnedMessagesPageState extends State<_PinnedMessagesPage> {
           _loading = false;
           _error = null;
         });
+        widget.onCountChanged?.call(_messages.length);
+        if (widget.embedded && _messages.isEmpty) widget.onEmpty?.call();
       } on Object catch (error) {
         if (!mounted) return;
         setState(() {
@@ -122,7 +131,7 @@ class _PinnedMessagesPageState extends State<_PinnedMessagesPage> {
   }
 
   void _locate(String messageId) {
-    Navigator.pop(context);
+    if (!widget.embedded) Navigator.pop(context);
     widget.onLocate(messageId);
   }
 
@@ -134,7 +143,45 @@ class _PinnedMessagesPageState extends State<_PinnedMessagesPage> {
         pinned: false,
       );
       await _refresh();
-      if (mounted && _messages.isEmpty) Navigator.pop(context);
+      if (mounted && _messages.isEmpty) {
+        if (widget.embedded) {
+          widget.onEmpty?.call();
+        } else {
+          Navigator.pop(context);
+        }
+      }
+    } on Object catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    }
+  }
+
+  Future<void> _unpinAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.l10n.unpinAllMessagesConfirmation),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.l10n.confirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      for (final message in _messages) {
+        await widget.account.setMessagePinned(
+          conversationId: widget.conversationId,
+          messageId: message.id,
+          pinned: false,
+        );
+      }
+      await _refresh();
     } on Object catch (error) {
       if (mounted) setState(() => _error = error.toString());
     }
@@ -165,42 +212,57 @@ class _PinnedMessagesPageState extends State<_PinnedMessagesPage> {
   }
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 600,
-    height: 800,
-    child: Material(
+  Widget build(BuildContext context) {
+    final body = Material(
       color: context.theme.primary,
       child: Column(
         children: [
-          SizedBox(
-            height: 56,
-            child: Row(
-              children: [
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
-                ),
-                Expanded(
-                  child: Text(
-                    context.l10n.pinnedMessageTitle(
-                      _messages.length,
-                      _messages.length,
+          if (!widget.embedded) ...[
+            SizedBox(
+              height: 56,
+              child: Row(
+                children: [
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close),
+                  ),
+                  Expanded(
+                    child: Text(
+                      context.l10n.pinnedMessageTitle(
+                        _messages.length,
+                        _messages.length,
+                      ),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: context.theme.text, fontSize: 16),
                     ),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: context.theme.text, fontSize: 16),
+                  ),
+                  const SizedBox(width: 56),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: context.theme.divider),
+          ],
+          Expanded(child: _body()),
+          if (_messages.isNotEmpty)
+            InkWell(
+              onTap: _unpinAll,
+              child: SizedBox(
+                height: 56,
+                child: Center(
+                  child: Text(
+                    context.l10n.unpinAllMessages,
+                    style: TextStyle(color: context.theme.accent, fontSize: 16),
                   ),
                 ),
-                const SizedBox(width: 56),
-              ],
+              ),
             ),
-          ),
-          Divider(height: 1, color: context.theme.divider),
-          Expanded(child: _body()),
         ],
       ),
-    ),
-  );
+    );
+    if (widget.embedded) return body;
+    return SizedBox(width: 600, height: 800, child: body);
+  }
 
   Widget _body() {
     if (_loading) {

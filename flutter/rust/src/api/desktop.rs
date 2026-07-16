@@ -169,11 +169,51 @@ pub struct UserProfileItem {
     pub is_verified: bool,
     pub is_bot: bool,
     pub relationship: String,
+    pub code_url: String,
 }
 
 pub struct CircleItem {
     pub circle_id: String,
     pub name: String,
+    pub conversation_count: i64,
+}
+
+pub struct ConversationDetailItem {
+    pub conversation_id: String,
+    pub name: String,
+    pub announcement: String,
+    pub code_url: String,
+    pub created_at_millis: i64,
+    pub mute_until_millis: i64,
+    pub expire_in: i64,
+}
+
+pub struct GroupConversationItem {
+    pub conversation_id: String,
+    pub name: String,
+    pub avatar_url: String,
+    pub participant_count: i64,
+}
+
+pub struct SharedAppItem {
+    pub app_id: String,
+    pub name: String,
+    pub icon_url: String,
+    pub description: String,
+    pub home_uri: String,
+}
+
+pub struct ConversationParticipantItem {
+    pub user_id: String,
+    pub role: Option<String>,
+    pub created_at_millis: i64,
+    pub identity_number: String,
+    pub full_name: String,
+    pub avatar_url: String,
+    pub biography: String,
+    pub is_verified: bool,
+    pub is_bot: bool,
+    pub relationship: String,
 }
 
 pub struct StickerItem {
@@ -627,6 +667,7 @@ impl AccountHandle {
                 is_verified: user.is_verified,
                 is_bot: user.app_id.is_some_and(|app_id| !app_id.is_empty()),
                 relationship: format!("{:?}", user.relationship).to_uppercase(),
+                code_url: user.code_url,
             }))
     }
 
@@ -648,6 +689,7 @@ impl AccountHandle {
                 is_verified: user.is_verified,
                 is_bot: user.app_id.is_some_and(|app_id| !app_id.is_empty()),
                 relationship: format!("{:?}", user.relationship).to_uppercase(),
+                code_url: user.code_url,
             })
             .collect())
     }
@@ -831,6 +873,253 @@ impl AccountHandle {
 
     pub async fn current_user_role(&self, conversation_id: String) -> Result<Option<String>> {
         self.runtime.current_user_role(&conversation_id).await
+    }
+
+    pub async fn conversation_participants(
+        &self,
+        conversation_id: String,
+    ) -> Result<Vec<ConversationParticipantItem>> {
+        Ok(self
+            .runtime
+            .conversation_participants(&conversation_id)
+            .await?
+            .into_iter()
+            .map(|participant| ConversationParticipantItem {
+                user_id: participant.user_id,
+                role: participant.role,
+                created_at_millis: participant.created_at.timestamp_millis(),
+                identity_number: participant.identity_number,
+                full_name: participant.full_name,
+                avatar_url: participant.avatar_url,
+                biography: participant.biography,
+                is_verified: participant.is_verified,
+                is_bot: participant.is_bot,
+                relationship: participant.relationship,
+            })
+            .collect())
+    }
+
+    pub async fn search_bot_group_users(
+        &self,
+        conversation_id: String,
+        keyword: String,
+    ) -> Result<Vec<ConversationParticipantItem>> {
+        Ok(self
+            .runtime
+            .search_bot_group_users(&conversation_id, &keyword)
+            .await?
+            .into_iter()
+            .map(|user| ConversationParticipantItem {
+                user_id: user.user_id,
+                role: None,
+                created_at_millis: user.created_at.timestamp_millis(),
+                identity_number: user.identity_number,
+                full_name: user.full_name,
+                avatar_url: user.avatar_url,
+                biography: user.biography,
+                is_verified: user.is_verified,
+                is_bot: user.app_id.is_some_and(|app_id| !app_id.is_empty()),
+                relationship: format!("{:?}", user.relationship).to_uppercase(),
+            })
+            .collect())
+    }
+
+    pub async fn conversation_detail(
+        &self,
+        conversation_id: String,
+    ) -> Result<ConversationDetailItem> {
+        let conversation = self.runtime.conversation_detail(&conversation_id).await?;
+        Ok(ConversationDetailItem {
+            conversation_id: conversation.conversation_id,
+            name: conversation.name,
+            announcement: conversation.announcement,
+            code_url: conversation.code_url,
+            created_at_millis: conversation.created_at.timestamp_millis(),
+            mute_until_millis: conversation.mute_until.timestamp_millis(),
+            expire_in: conversation.expire_in,
+        })
+    }
+
+    pub async fn local_conversation_detail(
+        &self,
+        conversation_id: String,
+    ) -> Result<ConversationDetailItem> {
+        let conversation = self
+            .runtime
+            .local_conversation_detail(&conversation_id)
+            .await?;
+        Ok(ConversationDetailItem {
+            conversation_id: conversation.conversation_id,
+            name: conversation.name,
+            announcement: conversation.announcement,
+            code_url: conversation.code_url,
+            created_at_millis: conversation.created_at.timestamp_millis(),
+            mute_until_millis: conversation.mute_until.timestamp_millis(),
+            expire_in: conversation.expire_in,
+        })
+    }
+
+    pub async fn edit_conversation(
+        &self,
+        conversation_id: String,
+        name: Option<String>,
+        announcement: Option<String>,
+    ) -> Result<()> {
+        self.runtime
+            .edit_conversation(
+                &conversation_id,
+                name.as_deref(),
+                announcement.as_deref(),
+            )
+            .await
+    }
+
+    pub async fn exit_group(&self, conversation_id: String) -> Result<()> {
+        self.runtime.exit_group(&conversation_id).await
+    }
+
+    pub async fn rotate_group_invite(&self, conversation_id: String) -> Result<()> {
+        self.runtime.rotate_group_invite(&conversation_id).await
+    }
+
+    pub async fn clear_conversation(&self, conversation_id: String) -> Result<()> {
+        self.runtime.clear_conversation(&conversation_id).await
+    }
+
+    pub async fn remove_contact(&self, user_id: String) -> Result<()> {
+        self.runtime.remove_contact(&user_id).await
+    }
+
+    pub async fn unblock_user(&self, user_id: String) -> Result<()> {
+        self.runtime.unblock_user(&user_id).await
+    }
+
+    pub async fn report_user(&self, user_id: String) -> Result<()> {
+        self.runtime.report_user(&user_id).await
+    }
+
+    pub async fn send_contact(
+        &self,
+        conversation_id: String,
+        shared_user_id: String,
+    ) -> Result<String> {
+        self.runtime
+            .send_contact(&conversation_id, &shared_user_id)
+            .await
+    }
+
+    pub async fn search_messages(
+        &self,
+        conversation_id: String,
+        query: String,
+        sender_id: Option<String>,
+        categories: Vec<String>,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<MessageListItem>> {
+        Ok(self
+            .runtime
+            .search_messages(
+                &conversation_id,
+                &query,
+                sender_id.as_deref(),
+                &categories,
+                offset,
+                limit,
+            )
+            .await?
+            .into_iter()
+            .map(MessageListItem::from)
+            .collect())
+    }
+
+    pub async fn shared_messages(
+        &self,
+        conversation_id: String,
+        kind: String,
+        offset: usize,
+        limit: usize,
+    ) -> Result<Vec<MessageListItem>> {
+        Ok(self
+            .runtime
+            .shared_messages(&conversation_id, &kind, offset, limit)
+            .await?
+            .into_iter()
+            .map(MessageListItem::from)
+            .collect())
+    }
+
+    pub async fn groups_in_common(
+        &self,
+        user_id: String,
+    ) -> Result<Vec<GroupConversationItem>> {
+        Ok(self
+            .runtime
+            .groups_in_common(&user_id)
+            .await?
+            .into_iter()
+            .map(|conversation| GroupConversationItem {
+                conversation_id: conversation.conversation_id,
+                name: conversation.name,
+                avatar_url: conversation.avatar_url,
+                participant_count: conversation.participant_count,
+            })
+            .collect())
+    }
+
+    pub async fn shared_apps(&self, user_id: String) -> Result<Vec<SharedAppItem>> {
+        Ok(self
+            .runtime
+            .shared_apps(&user_id)
+            .await?
+            .into_iter()
+            .map(|app| SharedAppItem {
+                app_id: app.app_id,
+                name: app.name,
+                icon_url: app.icon_url,
+                description: app.description,
+                home_uri: app.home_uri,
+            })
+            .collect())
+    }
+
+    pub async fn bot_creator_id(&self, user_id: String) -> Result<Option<String>> {
+        self.runtime.bot_creator_id(&user_id).await
+    }
+
+    pub async fn update_participants(
+        &self,
+        conversation_id: String,
+        action: String,
+        user_ids: Vec<String>,
+        role: Option<String>,
+    ) -> Result<()> {
+        let participants = user_ids
+            .into_iter()
+            .map(|user_id| (user_id, role.clone()))
+            .collect::<Vec<_>>();
+        self.runtime
+            .update_participants(&conversation_id, &action, &participants)
+            .await
+    }
+
+    pub async fn set_disappearing_messages(
+        &self,
+        conversation_id: String,
+        duration: i64,
+    ) -> Result<()> {
+        self.runtime
+            .set_disappearing_messages(&conversation_id, duration)
+            .await
+    }
+
+    pub async fn create_circle(&self, name: String) -> Result<CircleItem> {
+        let circle = self.runtime.create_circle(&name).await?;
+        Ok(CircleItem {
+            circle_id: circle.circle_id,
+            name: circle.name,
+            conversation_count: 0,
+        })
     }
 
     pub async fn send_text(
@@ -1085,12 +1374,13 @@ impl AccountHandle {
     pub async fn circles(&self) -> Result<Vec<CircleItem>> {
         Ok(self
             .runtime
-            .circles()
+            .circle_summaries()
             .await?
             .into_iter()
             .map(|circle| CircleItem {
                 circle_id: circle.circle_id,
                 name: circle.name,
+                conversation_count: circle.conversation_count,
             })
             .collect())
     }

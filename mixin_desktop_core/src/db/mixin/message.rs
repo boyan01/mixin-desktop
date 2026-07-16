@@ -1397,6 +1397,39 @@ ORDER BY message.created_at ASC, message.message_id ASC
         Ok(deleted)
     }
 
+    pub async fn clear_conversation(&self, conversation_id: &str) -> Result<(), Error> {
+        let mut transaction = self.0.begin().await?;
+        sqlx::query(
+            "DELETE FROM transcript_messages WHERE transcript_id IN (\
+             SELECT message_id FROM messages WHERE conversation_id = ?)",
+        )
+        .bind(conversation_id)
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "DELETE FROM expired_messages WHERE message_id IN (\
+             SELECT message_id FROM messages WHERE conversation_id = ?)",
+        )
+        .bind(conversation_id)
+        .execute(&mut *transaction)
+        .await?;
+        for table in [
+            "pin_messages",
+            "message_mentions",
+            "message_fts",
+            "messages",
+        ] {
+            let query = format!("DELETE FROM {table} WHERE conversation_id = ?");
+            sqlx::query(sqlx::AssertSqlSafe(query))
+                .bind(conversation_id)
+                .execute(&mut *transaction)
+                .await?;
+        }
+        Self::update_conversation_last_message_with(&mut transaction, conversation_id).await?;
+        transaction.commit().await?;
+        Ok(())
+    }
+
     pub async fn recall_messages_with_jobs(
         &self,
         conversation_id: &str,
@@ -1945,6 +1978,80 @@ mod tests {
         .await
         .unwrap();
         assert_eq!((messages, fts), (2, 2));
+    }
+
+    #[tokio::test]
+    async fn clears_only_the_selected_conversation_and_related_indexes() {
+        let (_directory, database) = test_database().await;
+        for (message_id, conversation_id) in [
+            ("first", "conversation"),
+            ("second", "conversation"),
+            ("other", "other-conversation"),
+        ] {
+            let mut item = message(message_id);
+            item.conversation_id = conversation_id.to_string();
+            database.message_dao.insert_message(&item).await.unwrap();
+            database
+                .message_fts_dao
+                .upsert(message_id, conversation_id, "hello")
+                .await
+                .unwrap();
+        }
+        sqlx::query(
+            "INSERT INTO pin_messages (message_id, conversation_id, created_at) \
+             VALUES ('first', 'conversation', CURRENT_TIMESTAMP)",
+        )
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO expired_messages (message_id, expire_in) \
+             VALUES ('second', CURRENT_TIMESTAMP)",
+        )
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
+
+        database
+            .message_dao
+            .clear_conversation("conversation")
+            .await
+            .unwrap();
+
+        let selected_messages: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM messages WHERE conversation_id = 'conversation'",
+        )
+        .fetch_one(&database.message_dao.0)
+        .await
+        .unwrap();
+        let other_messages: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM messages WHERE conversation_id = 'other-conversation'",
+        )
+        .fetch_one(&database.message_dao.0)
+        .await
+        .unwrap();
+        let selected_fts: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM message_fts WHERE conversation_id = 'conversation'",
+        )
+        .fetch_one(&database.message_dao.0)
+        .await
+        .unwrap();
+        let pin_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pin_messages WHERE conversation_id = 'conversation'",
+        )
+        .fetch_one(&database.message_dao.0)
+        .await
+        .unwrap();
+        let expired_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM expired_messages WHERE message_id = 'second'")
+                .fetch_one(&database.message_dao.0)
+                .await
+                .unwrap();
+        assert_eq!(selected_messages, 0);
+        assert_eq!(selected_fts, 0);
+        assert_eq!(pin_count, 0);
+        assert_eq!(expired_count, 0);
+        assert_eq!(other_messages, 1);
     }
 
     #[tokio::test]

@@ -15,7 +15,28 @@ pub struct Circle {
     pub ordered_at: Option<DateTime<Utc>>,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct CircleSummary {
+    pub circle_id: String,
+    pub name: String,
+    pub conversation_count: i64,
+}
+
 impl CircleDao {
+    pub async fn summaries(&self) -> Result<Vec<CircleSummary>, Error> {
+        Ok(sqlx::query_as::<_, CircleSummary>(
+            r#"SELECT circle.circle_id, circle.name,
+                      COUNT(circle_conversation.conversation_id) AS conversation_count
+               FROM circles circle
+               LEFT JOIN circle_conversations circle_conversation
+                 ON circle_conversation.circle_id = circle.circle_id
+               GROUP BY circle.circle_id, circle.name, circle.ordered_at, circle.created_at
+               ORDER BY circle.ordered_at, circle.created_at"#,
+        )
+        .fetch_all(&self.0)
+        .await?)
+    }
+
     pub async fn list(&self) -> Result<Vec<Circle>, Error> {
         Ok(
             sqlx::query_as::<_, Circle>("SELECT * FROM circles ORDER BY ordered_at, created_at")

@@ -179,7 +179,7 @@ class ConversationListController extends ChangeNotifier {
         offset: offset,
       );
       error = null;
-      return result.map(_fromRust).toList(growable: false);
+      return result.map(ConversationListEntry.fromRust).toList(growable: false);
     } catch (exception) {
       _setError(exception);
       return const [];
@@ -230,45 +230,6 @@ class ConversationListController extends ChangeNotifier {
     error = exception.toString();
     notifyListeners();
   }
-
-  ConversationListEntry _fromRust(rust.ConversationListItem item) =>
-      ConversationListEntry(
-        id: item.conversationId,
-        ownerId: item.ownerId,
-        name: item.name,
-        avatarUrl: item.avatarUrl,
-        category: item.category,
-        draft: item.draft,
-        status: item.status,
-        lastReadMessageId: item.lastReadMessageId,
-        content: item.lastMessage,
-        contentType: item.lastMessageCategory,
-        messageStatus: item.lastMessageStatus,
-        senderId: item.lastMessageSenderId,
-        senderName: item.lastMessageSenderName,
-        updatedAt: DateTime.fromMillisecondsSinceEpoch(
-          item.updatedAtMillis.toInt(),
-        ),
-        unseenCount: item.unseenCount.toInt(),
-        mentionCount: item.mentionCount.toInt(),
-        isMuted: item.isMuted,
-        isVerified: item.isVerified,
-        isBot: item.isBot,
-        isPinned: item.isPinned,
-        relationship: item.relationship,
-        identityNumber: item.identityNumber,
-        circleIds: item.circleIds,
-        participantCount: item.participantCount.toInt(),
-        groupAvatars: item.groupAvatars
-            .map(
-              (avatar) => ConversationAvatarEntry(
-                userId: avatar.userId,
-                name: avatar.name,
-                avatarUrl: avatar.avatarUrl,
-              ),
-            )
-            .toList(growable: false),
-      );
 
   @override
   void dispose() {

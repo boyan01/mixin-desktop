@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:mixin_desktop_ui/controllers/app_controller.dart';
+import 'package:mixin_desktop_ui/controllers/chat_side_notifier.dart';
 import 'package:mixin_desktop_ui/controllers/conversation_list_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
+import 'package:mixin_desktop_ui/pages/chat_side/chat_side_router.dart';
+import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
 import 'package:mixin_desktop_ui/pages/settings_page.dart';
 import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
 import 'package:mixin_desktop_ui/theme.dart';
@@ -117,8 +120,11 @@ class _HomeBody extends StatefulWidget {
 class _HomeBodyState extends State<_HomeBody> {
   ConversationListEntry? selectedConversation;
   final drafts = <String, String>{};
+  final chatSideController = ChatSideNotifier();
   bool userCollapsed = false;
   bool settingsSelected = false;
+  String? locateMessageId;
+  int locateRequest = 0;
 
   void _updateDraft(ConversationListEntry conversation, String value) {
     final current = drafts[conversation.id] ?? conversation.draft;
@@ -138,6 +144,30 @@ class _HomeBodyState extends State<_HomeBody> {
       settingsSelected = false;
       selectedConversation = null;
     });
+    chatSideController.clear();
+  }
+
+  void _selectConversation(ConversationListEntry conversation) {
+    setState(() {
+      settingsSelected = false;
+      selectedConversation = conversation;
+      locateMessageId = null;
+    });
+    chatSideController.clear();
+  }
+
+  void _locateMessage(String messageId) {
+    setState(() {
+      locateMessageId = messageId;
+      locateRequest++;
+    });
+  }
+
+  void _conversationDeleted() {
+    setState(() {
+      selectedConversation = null;
+      locateMessageId = null;
+    });
   }
 
   void _selectProfile() {
@@ -145,6 +175,13 @@ class _HomeBodyState extends State<_HomeBody> {
       settingsSelected = true;
       selectedConversation = null;
     });
+    chatSideController.clear();
+  }
+
+  @override
+  void dispose() {
+    chatSideController.dispose();
+    super.dispose();
   }
 
   @override
@@ -168,12 +205,7 @@ class _HomeBodyState extends State<_HomeBody> {
       selectedConversationId: selectedConversation?.id,
       onQueryChanged: controller.setQuery,
       onToggleUnseen: controller.toggleUnseen,
-      onSelected: (conversation) {
-        setState(() {
-          settingsSelected = false;
-          selectedConversation = conversation;
-        });
-      },
+      onSelected: _selectConversation,
       onPinned: (conversation) async {
         try {
           await controller.setPinned(conversation);
@@ -292,14 +324,20 @@ class _HomeBodyState extends State<_HomeBody> {
                       final conversation = selectedConversation;
                       if (routeMode) {
                         if (conversation == null) return conversationPane;
-                        return ChatView(
+                        return _ChatWithSide(
                           account: context.read<AccountHandle>(),
                           conversation: conversation,
+                          notifier: chatSideController,
                           draft: drafts[conversation.id] ?? conversation.draft,
+                          locateMessageId: locateMessageId,
+                          locateRequest: locateRequest,
                           onDraftChanged: (value) =>
                               _updateDraft(conversation, value),
                           onBack: () =>
                               setState(() => selectedConversation = null),
+                          onLocateMessage: _locateMessage,
+                          onSelectConversation: _selectConversation,
+                          onConversationDeleted: _conversationDeleted,
                         );
                       }
 
@@ -323,14 +361,20 @@ class _HomeBodyState extends State<_HomeBody> {
                                       ),
                                     ),
                                   )
-                                : ChatView(
+                                : _ChatWithSide(
                                     account: context.read<AccountHandle>(),
                                     conversation: conversation,
+                                    notifier: chatSideController,
                                     draft:
                                         drafts[conversation.id] ??
                                         conversation.draft,
+                                    locateMessageId: locateMessageId,
+                                    locateRequest: locateRequest,
                                     onDraftChanged: (value) =>
                                         _updateDraft(conversation, value),
+                                    onLocateMessage: _locateMessage,
+                                    onSelectConversation: _selectConversation,
+                                    onConversationDeleted: _conversationDeleted,
                                   ),
                           ),
                         ],
@@ -345,4 +389,80 @@ class _HomeBodyState extends State<_HomeBody> {
       },
     );
   }
+}
+
+class _ChatWithSide extends StatelessWidget {
+  const _ChatWithSide({
+    required this.account,
+    required this.conversation,
+    required this.notifier,
+    required this.draft,
+    required this.locateMessageId,
+    required this.locateRequest,
+    required this.onDraftChanged,
+    required this.onLocateMessage,
+    required this.onSelectConversation,
+    required this.onConversationDeleted,
+    this.onBack,
+  });
+
+  final AccountHandle account;
+  final ConversationListEntry conversation;
+  final ChatSideNotifier notifier;
+  final String draft;
+  final String? locateMessageId;
+  final int locateRequest;
+  final ValueChanged<String> onDraftChanged;
+  final VoidCallback? onBack;
+  final ValueChanged<String> onLocateMessage;
+  final ValueChanged<ConversationListEntry> onSelectConversation;
+  final VoidCallback onConversationDeleted;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final routeMode =
+          constraints.maxWidth <
+          kResponsiveNavigationMinWidth + kChatSidePageWidth;
+      final chatPage = MaterialPage<void>(
+        key: ValueKey('chat:${conversation.id}'),
+        name: 'chat',
+        child: ChatView(
+          account: account,
+          conversation: conversation,
+          draft: draft,
+          locateMessageId: locateMessageId,
+          locateRequest: locateRequest,
+          onDraftChanged: onDraftChanged,
+          onBack: onBack,
+          onInfo: notifier.toggleInfoPage,
+          onPinned: () => notifier.toggleDestination(
+            ConversationInfoDestination.pinMessages,
+          ),
+        ),
+      );
+      return AnimatedBuilder(
+        animation: notifier,
+        builder: (context, _) => Row(
+          children: [
+            if (!routeMode) Expanded(child: chatPage.child),
+            if (!routeMode)
+              Container(width: 1, color: context.mixinTheme.divider),
+            ChatSideRouter(
+              account: account,
+              conversation: conversation,
+              notifier: notifier,
+              constraints: constraints,
+              routeMode: routeMode,
+              leadingPages: [if (routeMode) chatPage],
+              destinations: notifier.state.destinations,
+              onLocateMessage: onLocateMessage,
+              onSelectConversation: onSelectConversation,
+              onConversationDeleted: onConversationDeleted,
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }

@@ -28,6 +28,8 @@ abstract class AccountHandle implements RustOpaqueInterface {
 
   Future<void> blockUser({required String userId});
 
+  Future<String?> botCreatorId({required String userId});
+
   Future<String?> botHomeUri({required String appId});
 
   Future<void> cancelAttachment({required String messageId});
@@ -38,6 +40,8 @@ abstract class AccountHandle implements RustOpaqueInterface {
   });
 
   Future<List<CircleItem>> circles();
+
+  Future<void> clearConversation({required String conversationId});
 
   Future<String> combineForwardMessages({
     required String targetConversationId,
@@ -53,6 +57,14 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required bool unseenOnly,
   });
 
+  Future<ConversationDetailItem> conversationDetail({
+    required String conversationId,
+  });
+
+  Future<List<ConversationParticipantItem>> conversationParticipants({
+    required String conversationId,
+  });
+
   Future<List<ConversationListItem>> conversations({
     required String category,
     String? circleId,
@@ -61,6 +73,8 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required PlatformInt64 limit,
     required PlatformInt64 offset,
   });
+
+  Future<CircleItem> createCircle({required String name});
 
   Future<String?> currentUserRole({required String conversationId});
 
@@ -86,16 +100,30 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required bool add,
   });
 
+  Future<void> editConversation({
+    required String conversationId,
+    String? name,
+    String? announcement,
+  });
+
+  Future<void> exitGroup({required String conversationId});
+
   Future<List<String>> forwardMessages({
     required String targetConversationId,
     required List<String> sourceMessageIds,
   });
+
+  Future<List<GroupConversationItem>> groupsInCommon({required String userId});
 
   Future<List<ImageMessageItem>> imageMessagesAround({
     required String conversationId,
     required String targetMessageId,
     required PlatformInt64 before,
     required PlatformInt64 after,
+  });
+
+  Future<ConversationDetailItem> localConversationDetail({
+    required String conversationId,
   });
 
   Future<void> markAudioRead({required String messageId});
@@ -145,7 +173,27 @@ abstract class AccountHandle implements RustOpaqueInterface {
 
   Future<void> refreshStickers();
 
+  Future<void> removeContact({required String userId});
+
   Future<void> removeSticker({required String stickerId});
+
+  Future<void> reportUser({required String userId});
+
+  Future<void> rotateGroupInvite({required String conversationId});
+
+  Future<List<ConversationParticipantItem>> searchBotGroupUsers({
+    required String conversationId,
+    required String keyword,
+  });
+
+  Future<List<MessageListItem>> searchMessages({
+    required String conversationId,
+    required String query,
+    String? senderId,
+    required List<String> categories,
+    required int offset,
+    required int limit,
+  });
 
   Future<String> sendAudio({
     required String conversationId,
@@ -153,6 +201,11 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required PlatformInt64 durationMillis,
     required List<int> waveform,
     String? quoteMessageId,
+  });
+
+  Future<String> sendContact({
+    required String conversationId,
+    required String sharedUserId,
   });
 
   Future<String> sendSticker({
@@ -178,6 +231,11 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required bool pinned,
   });
 
+  Future<void> setDisappearingMessages({
+    required String conversationId,
+    required PlatformInt64 duration,
+  });
+
   Future<void> setMessagePinned({
     required String conversationId,
     required String messageId,
@@ -191,6 +249,15 @@ abstract class AccountHandle implements RustOpaqueInterface {
 
   Future<void> setStickerAlbumOrder({required List<String> albumIds});
 
+  Future<List<SharedAppItem>> sharedApps({required String userId});
+
+  Future<List<MessageListItem>> sharedMessages({
+    required String conversationId,
+    required String kind,
+    required BigInt offset,
+    required BigInt limit,
+  });
+
   Future<void> shutdown();
 
   Future<void> signOut();
@@ -203,6 +270,15 @@ abstract class AccountHandle implements RustOpaqueInterface {
 
   Future<List<MessageListItem>> transcriptMessages({
     required String transcriptId,
+  });
+
+  Future<void> unblockUser({required String userId});
+
+  Future<void> updateParticipants({
+    required String conversationId,
+    required String action,
+    required List<String> userIds,
+    String? role,
   });
 
   Future<UserProfileItem?> userProfile({
@@ -288,11 +364,17 @@ class AccountProfile {
 class CircleItem {
   final String circleId;
   final String name;
+  final PlatformInt64 conversationCount;
 
-  const CircleItem({required this.circleId, required this.name});
+  const CircleItem({
+    required this.circleId,
+    required this.name,
+    required this.conversationCount,
+  });
 
   @override
-  int get hashCode => circleId.hashCode ^ name.hashCode;
+  int get hashCode =>
+      circleId.hashCode ^ name.hashCode ^ conversationCount.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -300,7 +382,51 @@ class CircleItem {
       other is CircleItem &&
           runtimeType == other.runtimeType &&
           circleId == other.circleId &&
-          name == other.name;
+          name == other.name &&
+          conversationCount == other.conversationCount;
+}
+
+class ConversationDetailItem {
+  final String conversationId;
+  final String name;
+  final String announcement;
+  final String codeUrl;
+  final PlatformInt64 createdAtMillis;
+  final PlatformInt64 muteUntilMillis;
+  final PlatformInt64 expireIn;
+
+  const ConversationDetailItem({
+    required this.conversationId,
+    required this.name,
+    required this.announcement,
+    required this.codeUrl,
+    required this.createdAtMillis,
+    required this.muteUntilMillis,
+    required this.expireIn,
+  });
+
+  @override
+  int get hashCode =>
+      conversationId.hashCode ^
+      name.hashCode ^
+      announcement.hashCode ^
+      codeUrl.hashCode ^
+      createdAtMillis.hashCode ^
+      muteUntilMillis.hashCode ^
+      expireIn.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConversationDetailItem &&
+          runtimeType == other.runtimeType &&
+          conversationId == other.conversationId &&
+          name == other.name &&
+          announcement == other.announcement &&
+          codeUrl == other.codeUrl &&
+          createdAtMillis == other.createdAtMillis &&
+          muteUntilMillis == other.muteUntilMillis &&
+          expireIn == other.expireIn;
 }
 
 class ConversationListItem {
@@ -418,6 +544,61 @@ class ConversationListItem {
           groupAvatars == other.groupAvatars;
 }
 
+class ConversationParticipantItem {
+  final String userId;
+  final String? role;
+  final PlatformInt64 createdAtMillis;
+  final String identityNumber;
+  final String fullName;
+  final String avatarUrl;
+  final String biography;
+  final bool isVerified;
+  final bool isBot;
+  final String relationship;
+
+  const ConversationParticipantItem({
+    required this.userId,
+    this.role,
+    required this.createdAtMillis,
+    required this.identityNumber,
+    required this.fullName,
+    required this.avatarUrl,
+    required this.biography,
+    required this.isVerified,
+    required this.isBot,
+    required this.relationship,
+  });
+
+  @override
+  int get hashCode =>
+      userId.hashCode ^
+      role.hashCode ^
+      createdAtMillis.hashCode ^
+      identityNumber.hashCode ^
+      fullName.hashCode ^
+      avatarUrl.hashCode ^
+      biography.hashCode ^
+      isVerified.hashCode ^
+      isBot.hashCode ^
+      relationship.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConversationParticipantItem &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          role == other.role &&
+          createdAtMillis == other.createdAtMillis &&
+          identityNumber == other.identityNumber &&
+          fullName == other.fullName &&
+          avatarUrl == other.avatarUrl &&
+          biography == other.biography &&
+          isVerified == other.isVerified &&
+          isBot == other.isBot &&
+          relationship == other.relationship;
+}
+
 class GroupAvatar {
   final String userId;
   final String name;
@@ -440,6 +621,37 @@ class GroupAvatar {
           userId == other.userId &&
           name == other.name &&
           avatarUrl == other.avatarUrl;
+}
+
+class GroupConversationItem {
+  final String conversationId;
+  final String name;
+  final String avatarUrl;
+  final PlatformInt64 participantCount;
+
+  const GroupConversationItem({
+    required this.conversationId,
+    required this.name,
+    required this.avatarUrl,
+    required this.participantCount,
+  });
+
+  @override
+  int get hashCode =>
+      conversationId.hashCode ^
+      name.hashCode ^
+      avatarUrl.hashCode ^
+      participantCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GroupConversationItem &&
+          runtimeType == other.runtimeType &&
+          conversationId == other.conversationId &&
+          name == other.name &&
+          avatarUrl == other.avatarUrl &&
+          participantCount == other.participantCount;
 }
 
 class HttpResponseItem {
@@ -856,6 +1068,41 @@ class ProxySettingsItem {
           proxies == other.proxies;
 }
 
+class SharedAppItem {
+  final String appId;
+  final String name;
+  final String iconUrl;
+  final String description;
+  final String homeUri;
+
+  const SharedAppItem({
+    required this.appId,
+    required this.name,
+    required this.iconUrl,
+    required this.description,
+    required this.homeUri,
+  });
+
+  @override
+  int get hashCode =>
+      appId.hashCode ^
+      name.hashCode ^
+      iconUrl.hashCode ^
+      description.hashCode ^
+      homeUri.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SharedAppItem &&
+          runtimeType == other.runtimeType &&
+          appId == other.appId &&
+          name == other.name &&
+          iconUrl == other.iconUrl &&
+          description == other.description &&
+          homeUri == other.homeUri;
+}
+
 class StickerAlbumItem {
   final String albumId;
   final String name;
@@ -994,6 +1241,7 @@ class UserProfileItem {
   final bool isVerified;
   final bool isBot;
   final String relationship;
+  final String codeUrl;
 
   const UserProfileItem({
     required this.userId,
@@ -1004,6 +1252,7 @@ class UserProfileItem {
     required this.isVerified,
     required this.isBot,
     required this.relationship,
+    required this.codeUrl,
   });
 
   @override
@@ -1015,7 +1264,8 @@ class UserProfileItem {
       biography.hashCode ^
       isVerified.hashCode ^
       isBot.hashCode ^
-      relationship.hashCode;
+      relationship.hashCode ^
+      codeUrl.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1029,5 +1279,6 @@ class UserProfileItem {
           biography == other.biography &&
           isVerified == other.isVerified &&
           isBot == other.isBot &&
-          relationship == other.relationship;
+          relationship == other.relationship &&
+          codeUrl == other.codeUrl;
 }

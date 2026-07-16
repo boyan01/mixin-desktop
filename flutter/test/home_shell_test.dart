@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mixin_desktop_ui/controllers/app_controller.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/pages/home_page.dart';
+import 'package:mixin_desktop_ui/pages/chat_side/chat_info_page.dart';
 import 'package:mixin_desktop_ui/pages/settings_page.dart';
 import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
 import 'package:mixin_desktop_ui/theme.dart';
@@ -111,6 +112,26 @@ void main() {
     expect(find.byKey(const Key('chat-header')), findsOneWidget);
   });
 
+  testWidgets('opens and closes the original chat side info route', (
+    tester,
+  ) async {
+    await _pumpHome(tester, size: const Size(1300, 700));
+
+    await tester.tap(find.text('Mixin Team'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('chat-info')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ChatInfoPage), findsOneWidget);
+    expect(find.byKey(const Key('chat-side-close')), findsOneWidget);
+    expect(tester.getSize(find.byType(ChatInfoPage)).width, 300);
+
+    await tester.tap(find.byKey(const Key('chat-side-close')));
+    await tester.pumpAndSettle();
+    expect(find.byType(ChatInfoPage), findsNothing);
+    expect(find.byType(ChatView), findsOneWidget);
+  });
+
   testWidgets('opens ChatView in narrow mode and returns to conversations', (
     tester,
   ) async {
@@ -123,10 +144,7 @@ void main() {
     expect(find.byType(ChatView), findsOneWidget);
     expect(tester.widget<ChatView>(find.byType(ChatView)).onBack, isNotNull);
 
-    final back = find.descendant(
-      of: find.byKey(const Key('chat-header')),
-      matching: find.byType(InkResponse),
-    );
+    final back = find.byKey(const Key('chat-back'));
     expect(back, findsOneWidget);
     await tester.tap(back);
     await tester.pumpAndSettle();
@@ -169,12 +187,7 @@ void main() {
       'First local draft',
     );
 
-    await tester.tap(
-      find.descendant(
-        of: find.byKey(const Key('chat-header')),
-        matching: find.byType(InkResponse),
-      ),
-    );
+    await tester.tap(find.byKey(const Key('chat-back')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Second Chat'));
     await tester.pumpAndSettle();
@@ -190,12 +203,7 @@ void main() {
       'Second local draft',
     );
 
-    await tester.tap(
-      find.descendant(
-        of: find.byKey(const Key('chat-header')),
-        matching: find.byType(InkResponse),
-      ),
-    );
+    await tester.tap(find.byKey(const Key('chat-back')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Mixin Team'));
     await tester.pumpAndSettle();
@@ -207,12 +215,7 @@ void main() {
       'First local draft',
     );
 
-    await tester.tap(
-      find.descendant(
-        of: find.byKey(const Key('chat-header')),
-        matching: find.byType(InkResponse),
-      ),
-    );
+    await tester.tap(find.byKey(const Key('chat-back')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Second Chat'));
     await tester.pumpAndSettle();
@@ -235,12 +238,7 @@ void main() {
       isEmpty,
     );
 
-    await tester.tap(
-      find.descendant(
-        of: find.byKey(const Key('chat-header')),
-        matching: find.byType(InkResponse),
-      ),
-    );
+    await tester.tap(find.byKey(const Key('chat-back')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Second Chat'));
     await tester.pumpAndSettle();
@@ -534,6 +532,49 @@ class _FakeAccountHandle implements AccountHandle {
     String? beforeMessageId,
     required PlatformInt64 limit,
   }) async => const [];
+
+  @override
+  Future<ConversationDetailItem> conversationDetail({
+    required String conversationId,
+  }) async => ConversationDetailItem(
+    conversationId: conversationId,
+    name: conversationId == _secondConversation.conversationId
+        ? _secondConversation.name
+        : _conversation.name,
+    announcement: '',
+    codeUrl: '',
+    createdAtMillis: 0,
+    muteUntilMillis: 0,
+    expireIn: 0,
+  );
+
+  @override
+  Future<List<MessageListItem>> pinnedMessages({
+    required String conversationId,
+  }) async => const [];
+
+  @override
+  Future<List<SharedAppItem>> sharedApps({required String userId}) async =>
+      const [];
+
+  @override
+  Future<String?> botCreatorId({required String userId}) async => null;
+
+  @override
+  Future<UserProfileItem?> userProfile({
+    String? userId,
+    String? identityNumber,
+  }) async => UserProfileItem(
+    userId: userId ?? 'owner',
+    identityNumber: identityNumber ?? '7000',
+    fullName: 'Mixin Team',
+    avatarUrl: '',
+    biography: '',
+    isVerified: true,
+    isBot: false,
+    relationship: 'FRIEND',
+    codeUrl: '',
+  );
 
   @override
   AccountProfile profile() => const AccountProfile(

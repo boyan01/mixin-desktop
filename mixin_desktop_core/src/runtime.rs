@@ -34,10 +34,11 @@ use crate::core::model::job::sanitize_transcript_app_card;
 use crate::core::model::signal::SignalService;
 use crate::core::model::{AppService, AttachmentExtra, ConversationService};
 use crate::db::app::Auth;
-use crate::db::mixin::circle::Circle;
-use crate::db::mixin::conversation::ConversationListItem;
+use crate::db::mixin::circle::{Circle, CircleSummary};
+use crate::db::mixin::conversation::{Conversation, ConversationListItem};
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::{ImageMessageItem, MediaStatus, Message, MessageListItem};
+use crate::db::mixin::participant::ParticipantListItem;
 use crate::db::mixin::sticker::{Sticker, StickerAlbum};
 use crate::db::mixin::transcript_message::{TranscriptMessage, TranscriptMessageListItem};
 use crate::db::mixin::user::User;
@@ -217,6 +218,290 @@ impl AccountRuntime {
             .find_participant_by_id(conversation_id, &self.account_id)
             .await?
             .and_then(|participant| participant.role))
+    }
+
+    pub async fn conversation_participants(
+        &self,
+        conversation_id: &str,
+    ) -> Result<Vec<ParticipantListItem>> {
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .participant_dao
+            .list_items(conversation_id)
+            .await?)
+    }
+
+    pub async fn search_bot_group_users(
+        &self,
+        conversation_id: &str,
+        keyword: &str,
+    ) -> Result<Vec<User>> {
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .user_dao
+            .search_bot_group_users(&self.account_id, conversation_id, keyword)
+            .await?)
+    }
+
+    pub async fn conversation_detail(&self, conversation_id: &str) -> Result<Conversation> {
+        self.ensure_active()?;
+        self.app_service
+            .conversation
+            .refresh_conversation(conversation_id)
+            .await?;
+        self.database
+            .conversation_dao
+            .find_conversation_by_id(conversation_id)
+            .await?
+            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))
+    }
+
+    pub async fn local_conversation_detail(&self, conversation_id: &str) -> Result<Conversation> {
+        self.ensure_active()?;
+        self.database
+            .conversation_dao
+            .find_conversation_by_id(conversation_id)
+            .await?
+            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))
+    }
+
+    pub async fn search_messages(
+        &self,
+        conversation_id: &str,
+        query: &str,
+        sender_id: Option<&str>,
+        categories: &[String],
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<MessageListItem>> {
+        self.ensure_active()?;
+        let mut result = Vec::with_capacity(limit as usize);
+        let mut matched_offset = 0_u32;
+        let mut fts_offset = 0_u32;
+        const BATCH_SIZE: u32 = 200;
+        while result.len() < limit as usize {
+            let matches = self
+                .database
+                .message_fts_dao
+                .search_range(query, Some(conversation_id), BATCH_SIZE, fts_offset)
+                .await?;
+            let exhausted = matches.len() < BATCH_SIZE as usize;
+            fts_offset = fts_offset.saturating_add(matches.len() as u32);
+            for matched in matches {
+                if let Some(item) = self
+                    .database
+                    .message_dao
+                    .list_items_around(conversation_id, &matched.message_id, 0, 0)
+                    .await?
+                    .into_iter()
+                    .find(|item| item.message_id == matched.message_id)
+                {
+                    if sender_id.is_some_and(|sender_id| item.user_id != sender_id) {
+                        continue;
+                    }
+                    if !categories.is_empty() && !categories.contains(&item.category) {
+                        continue;
+                    }
+                    if matched_offset < offset {
+                        matched_offset += 1;
+                        continue;
+                    }
+                    result.push(item);
+                    if result.len() >= limit as usize {
+                        break;
+                    }
+                }
+            }
+            if exhausted {
+                break;
+            }
+        }
+        Ok(result)
+    }
+
+    pub async fn shared_messages(
+        &self,
+        conversation_id: &str,
+        kind: &str,
+        offset: usize,
+        limit: usize,
+    ) -> Result<Vec<MessageListItem>> {
+        self.ensure_active()?;
+        let page_size = limit.clamp(1, 200);
+        let target = offset.saturating_add(page_size);
+        let mut result = Vec::new();
+        let mut cursor: Option<(i64, String)> = None;
+        while result.len() < target {
+            let page = self
+                .messages(
+                    conversation_id,
+                    cursor.as_ref().map(|value| value.0),
+                    cursor.as_ref().map(|value| value.1.as_str()),
+                    200,
+                )
+                .await?;
+            if page.is_empty() {
+                break;
+            }
+            for item in &page {
+                let category = item.category.as_str();
+                let matches = match kind {
+                    "media" => matches!(
+                        category,
+                        "PLAIN_IMAGE" | "SIGNAL_IMAGE" | "PLAIN_VIDEO" | "SIGNAL_VIDEO"
+                    ),
+                    "post" => matches!(category, "PLAIN_POST" | "SIGNAL_POST"),
+                    "file" => matches!(category, "PLAIN_DATA" | "SIGNAL_DATA"),
+                    _ => false,
+                };
+                if matches {
+                    result.push(item.clone());
+                    if result.len() >= target {
+                        break;
+                    }
+                }
+            }
+            let Some(last) = page.last() else { break };
+            cursor = Some((last.created_at_micros(), last.message_id.clone()));
+            if page.len() < 200 {
+                break;
+            }
+        }
+        Ok(result.into_iter().skip(offset).take(page_size).collect())
+    }
+
+    pub async fn groups_in_common(&self, user_id: &str) -> Result<Vec<ConversationListItem>> {
+        self.ensure_active()?;
+        let mut result = Vec::new();
+        let mut offset = 0;
+        loop {
+            let page = self
+                .conversations("groups", None, "", false, 200, offset)
+                .await?;
+            if page.is_empty() {
+                break;
+            }
+            for conversation in &page {
+                if self
+                    .database
+                    .participant_dao
+                    .find_participant_by_id(&conversation.conversation_id, user_id)
+                    .await?
+                    .is_some()
+                {
+                    result.push(conversation.clone());
+                }
+            }
+            if page.len() < 200 {
+                break;
+            }
+            offset += page.len() as i64;
+        }
+        Ok(result)
+    }
+
+    pub async fn shared_apps(&self, user_id: &str) -> Result<Vec<sdk::App>> {
+        self.ensure_active()?;
+        let ids = self
+            .client
+            .user_api
+            .get_favorite_apps(user_id)
+            .await?
+            .into_iter()
+            .map(|favorite| favorite.app_id)
+            .collect::<Vec<_>>();
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(self
+            .client
+            .user_api
+            .get_users(&ids)
+            .await?
+            .into_iter()
+            .filter_map(|user| user.app)
+            .collect())
+    }
+
+    pub async fn bot_creator_id(&self, user_id: &str) -> Result<Option<String>> {
+        self.ensure_active()?;
+        let Some(app_id) = self
+            .database
+            .user_dao
+            .find_user_by_id(user_id)
+            .await?
+            .and_then(|user| user.app_id)
+        else {
+            return Ok(None);
+        };
+        Ok(self
+            .database
+            .app_dao
+            .find_app_by_id(&app_id)
+            .await?
+            .map(|app| app.creator_id)
+            .filter(|creator_id| !creator_id.is_empty()))
+    }
+
+    pub async fn update_participants(
+        &self,
+        conversation_id: &str,
+        action: &str,
+        participants: &[(String, Option<String>)],
+    ) -> Result<()> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        let participants = participants
+            .iter()
+            .map(|(user_id, role)| sdk::Participant {
+                user_id: user_id.clone(),
+                role: role.clone(),
+                created_at: Utc::now(),
+            })
+            .collect::<Vec<_>>();
+        self.client
+            .conversation_api
+            .update_participants(conversation_id, action, &participants)
+            .await?;
+        self.app_service
+            .conversation
+            .refresh_conversation(conversation_id)
+            .await?;
+        self.notify_conversation_changed();
+        Ok(())
+    }
+
+    pub async fn set_disappearing_messages(
+        &self,
+        conversation_id: &str,
+        duration: i64,
+    ) -> Result<()> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        self.client
+            .conversation_api
+            .disappear(conversation_id, duration)
+            .await?;
+        self.database
+            .conversation_dao
+            .update_expire_in(conversation_id, duration)
+            .await?;
+        self.notify_conversation_changed();
+        Ok(())
+    }
+
+    pub async fn create_circle(&self, name: &str) -> Result<sdk::Circle> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        let circle = self.client.circle_api.create_circle(name).await?;
+        self.database
+            .circle_dao
+            .insert_circles(std::slice::from_ref(&circle))
+            .await?;
+        self.notify_conversation_changed();
+        Ok(circle)
     }
 
     pub async fn user_profile(
@@ -902,6 +1187,92 @@ impl AccountRuntime {
         .await
     }
 
+    pub async fn remove_contact(&self, user_id: &str) -> Result<()> {
+        self.update_relationship(RelationshipAction::Remove {
+            user_id: user_id.to_string(),
+        })
+        .await
+    }
+
+    pub async fn unblock_user(&self, user_id: &str) -> Result<()> {
+        self.update_relationship(RelationshipAction::Unblock {
+            user_id: user_id.to_string(),
+        })
+        .await
+    }
+
+    pub async fn report_user(&self, user_id: &str) -> Result<()> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        let user = self.client.user_api.report_and_block(user_id).await?;
+        self.database.user_dao.insert_sdk_users(vec![user]).await?;
+        self.notify_conversation_changed();
+        Ok(())
+    }
+
+    pub async fn edit_conversation(
+        &self,
+        conversation_id: &str,
+        name: Option<&str>,
+        announcement: Option<&str>,
+    ) -> Result<()> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        self.client
+            .conversation_api
+            .update(&ConversationRequest {
+                conversation_id: conversation_id.to_string(),
+                category: Some(ConversationCategory::Group),
+                name: name.map(str::to_string),
+                icon_base64: None,
+                announcement: announcement.map(str::to_string),
+                participants: None,
+                duration: None,
+            })
+            .await?;
+        self.app_service
+            .conversation
+            .refresh_conversation(conversation_id)
+            .await?;
+        self.notify_conversation_changed();
+        Ok(())
+    }
+
+    pub async fn exit_group(&self, conversation_id: &str) -> Result<()> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        self.client.conversation_api.exit(conversation_id).await?;
+        self.database
+            .conversation_dao
+            .delete_local(conversation_id)
+            .await?;
+        self.notify_conversation_changed();
+        Ok(())
+    }
+
+    pub async fn rotate_group_invite(&self, conversation_id: &str) -> Result<()> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        self.client.conversation_api.rotate(conversation_id).await?;
+        self.app_service
+            .conversation
+            .refresh_conversation(conversation_id)
+            .await?;
+        self.notify_conversation_changed();
+        Ok(())
+    }
+
+    pub async fn clear_conversation(&self, conversation_id: &str) -> Result<()> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        self.database
+            .message_dao
+            .clear_conversation(conversation_id)
+            .await?;
+        self.notify_conversation_changed();
+        Ok(())
+    }
+
     async fn update_relationship(&self, action: RelationshipAction) -> Result<()> {
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
@@ -987,6 +1358,59 @@ impl AccountRuntime {
         {
             warn!("failed to index outgoing message {message_id}: {error}");
         }
+        self.app_service.job.wake(&job.action)?;
+        self.notify_conversation_changed();
+        Ok(message_id)
+    }
+
+    pub async fn send_contact(
+        &self,
+        conversation_id: &str,
+        shared_user_id: &str,
+    ) -> Result<String> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        let conversation = self
+            .database
+            .conversation_dao
+            .find_conversation_by_id(conversation_id)
+            .await?
+            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
+        let category = self
+            .text_category(conversation.owner_id.as_deref())
+            .await?
+            .replace("_TEXT", "_CONTACT");
+        let content = Base64::encode_string(
+            serde_json::to_string(&ContactMessage {
+                user_id: shared_user_id.to_string(),
+            })?
+            .as_bytes(),
+        );
+        let message_id = Uuid::new_v4().to_string();
+        let message = Message {
+            message_id: message_id.clone(),
+            conversation_id: conversation_id.to_string(),
+            user_id: self.account_id.clone(),
+            category,
+            content: Some(content),
+            shared_user_id: Some(shared_user_id.to_string()),
+            status: MessageStatus::Sending,
+            created_at: Utc::now().naive_utc(),
+            ..Message::default()
+        };
+        let job = Job::create_sending_job(
+            &message_id,
+            conversation_id,
+            None,
+            None,
+            false,
+            false,
+            conversation.expire_in,
+        );
+        self.database
+            .message_dao
+            .insert_outgoing_message(&message, &job)
+            .await?;
         self.app_service.job.wake(&job.action)?;
         self.notify_conversation_changed();
         Ok(message_id)
@@ -1939,6 +2363,10 @@ impl AccountRuntime {
 
     pub async fn circles(&self) -> Result<Vec<Circle>> {
         Ok(self.database.circle_dao.list().await?)
+    }
+
+    pub async fn circle_summaries(&self) -> Result<Vec<CircleSummary>> {
+        Ok(self.database.circle_dao.summaries().await?)
     }
 
     pub fn subscribe_conversation_changes(&self) -> watch::Receiver<u64> {

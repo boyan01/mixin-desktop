@@ -6,6 +6,8 @@ abstract final class MixinAssets {
   static const botBadge = 'assets/images/bot_fill.svg';
   static const strangers = 'assets/images/strangers.svg';
   static const circle = 'assets/images/circle.svg';
+  static const circleAdd = 'assets/images/circle_add.svg';
+  static const circleRemove = 'assets/images/circle_remove.svg';
   static const collapse = 'assets/images/collapse.svg';
   static const expanded = 'assets/images/expanded.svg';
   static const filterUnseen = 'assets/images/filter_unseen.svg';
@@ -25,6 +27,7 @@ abstract final class MixinAssets {
   static const send = 'assets/images/ic_send.svg';
   static const chatBackground = 'assets/images/chat_background.png';
   static const empty = 'assets/images/empty_file.svg';
+  static const emptyImage = 'assets/images/empty_image.svg';
   static const logo = 'assets/images/logo.png';
   static const retry = 'assets/images/ic_retry.svg';
   static const mute = 'assets/images/mute.svg';
@@ -53,6 +56,8 @@ abstract final class MixinAssets {
   static const aboutLogo = 'assets/images/about_logo.png';
   static const externalLink = 'assets/images/external_link.svg';
   static const linkSend = 'assets/images/link_send.svg';
+  static const disappearingMessage = 'assets/images/disappearing_message.svg';
+  static const checked = 'assets/images/checked.svg';
 
   static String? messageIcon(String? category) {
     if (category == null) return null;

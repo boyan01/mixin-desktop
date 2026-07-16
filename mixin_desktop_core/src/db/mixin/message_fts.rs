@@ -63,6 +63,16 @@ impl MessageFtsDao {
         conversation_id: Option<&str>,
         limit: u32,
     ) -> Result<Vec<MessageFtsItem>, Error> {
+        self.search_range(query, conversation_id, limit, 0).await
+    }
+
+    pub async fn search_range(
+        &self,
+        query: &str,
+        conversation_id: Option<&str>,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<MessageFtsItem>, Error> {
         let Some(query) = match_query(query) else {
             return Ok(Vec::new());
         };
@@ -74,20 +84,22 @@ impl MessageFtsDao {
             sqlx::query_as::<_, MessageFtsItem>(
                 "SELECT message_id, conversation_id, content FROM message_fts \
                  WHERE message_fts MATCH ? AND conversation_id = ? \
-                 ORDER BY rank LIMIT ?",
+                 ORDER BY rank LIMIT ? OFFSET ?",
             )
             .bind(query)
             .bind(conversation_id)
             .bind(limit)
+            .bind(offset)
             .fetch_all(&self.0)
             .await?
         } else {
             sqlx::query_as::<_, MessageFtsItem>(
                 "SELECT message_id, conversation_id, content FROM message_fts \
-                 WHERE message_fts MATCH ? ORDER BY rank LIMIT ?",
+                 WHERE message_fts MATCH ? ORDER BY rank LIMIT ? OFFSET ?",
             )
             .bind(query)
             .bind(limit)
+            .bind(offset)
             .fetch_all(&self.0)
             .await?
         };
@@ -143,6 +155,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(dao.search("hel", None, 10).await.unwrap().len(), 2);
+        assert_eq!(dao.search_range("hel", None, 1, 1).await.unwrap().len(), 1);
         assert_eq!(
             dao.search("hello", Some("conversation-one"), 10)
                 .await
