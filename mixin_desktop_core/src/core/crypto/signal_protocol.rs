@@ -206,9 +206,9 @@ impl SignalProtocol {
             key.registration_id,
             SignalProtocol::device_id(Some(&key.session_id))?,
             Some((
-                key.ont_time_pre_key.key_id,
+                key.one_time_pre_key.key_id,
                 PublicKey::deserialize(&Base64::decode_vec(
-                    key.ont_time_pre_key
+                    key.one_time_pre_key
                         .pub_key
                         .as_ref()
                         .ok_or(anyhow!("Failed to deserialize public key"))?,

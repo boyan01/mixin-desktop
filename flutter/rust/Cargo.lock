@@ -2042,6 +2042,7 @@ dependencies = [
  "flutter_rust_bridge",
  "log",
  "mixin_desktop_core",
+ "simplelog",
  "tokio",
 ]
 

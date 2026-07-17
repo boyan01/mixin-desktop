@@ -51,3 +51,4 @@ image = { version = "0.25", default-features = false, features = ["gif", "jpeg",
 
 [dev-dependencies]
 tempfile = "3.27.0"
+tokio = { version = "1.52.3", features = ["test-util"] }

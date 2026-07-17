@@ -164,7 +164,7 @@ class _VisibilityAwareSendingIconState
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(seconds: 12),
+    duration: const Duration(milliseconds: 2400),
   );
 
   @override
@@ -218,17 +218,17 @@ class _SendingIconPainter extends CustomPainter {
       ),
       paint,
     );
-    final minuteAngle = math.pi * 2 * progress;
-    final hourAngle = minuteAngle / 12;
+    final minuteAngle = math.pi * 2 * (1 - progress * 4);
+    final hourAngle = math.pi * 2 * (1 - progress);
     canvas
       ..drawLine(
         center,
-        center + Offset(math.sin(hourAngle) * 3, -math.cos(hourAngle) * 3),
+        center + Offset(math.sin(hourAngle) * 3, math.cos(hourAngle) * 3),
         paint,
       )
       ..drawLine(
         center,
-        center + Offset(math.sin(minuteAngle) * 4, -math.cos(minuteAngle) * 4),
+        center + Offset(math.sin(minuteAngle) * 4, math.cos(minuteAngle) * 4),
         paint,
       );
   }

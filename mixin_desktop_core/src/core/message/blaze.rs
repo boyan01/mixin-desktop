@@ -54,6 +54,7 @@ pub struct Blaze {
     credential: Credential,
     user_id: String,
     connection: Arc<Mutex<BlazeConnection>>,
+    connection_status: watch::Sender<bool>,
     transactions: Arc<Mutex<HashMap<String, Completer<BlazeMessage>>>>,
     connect_running: Arc<AtomicBool>,
     pending_message_statuses: PendingMessageStatusStore,
@@ -156,11 +157,13 @@ impl Drop for ConnectLoopGuard {
 
 struct SocketSessionGuard {
     connection: Arc<Mutex<BlazeConnection>>,
+    connection_status: watch::Sender<bool>,
     transactions: Arc<Mutex<HashMap<String, Completer<BlazeMessage>>>>,
 }
 
 impl Drop for SocketSessionGuard {
     fn drop(&mut self) {
+        self.connection_status.send_replace(false);
         self.connection.lock().unwrap().sink = None;
         fail_transactions(&self.transactions, "blaze disconnected");
     }
@@ -230,11 +233,13 @@ impl Blaze {
         user_id: String,
         changes: Option<watch::Sender<u64>>,
     ) -> Self {
+        let (connection_status, _) = watch::channel(false);
         Blaze {
             database,
             client,
             credential,
             connection: Arc::new(Mutex::new(BlazeConnection { sink: None })),
+            connection_status,
             user_id,
             transactions: Arc::new(Mutex::new(HashMap::new())),
             connect_running: Arc::new(AtomicBool::new(false)),
@@ -306,8 +311,10 @@ impl Blaze {
         let (mut sender, mut receiver) = futures_channel::mpsc::unbounded();
 
         self.connection.lock().unwrap().sink = Some(sender.clone());
+        self.connection_status.send_replace(true);
         let _session_guard = SocketSessionGuard {
             connection: self.connection.clone(),
+            connection_status: self.connection_status.clone(),
             transactions: self.transactions.clone(),
         };
 
@@ -542,8 +549,21 @@ impl Blaze {
         connection.sink.clone().ok_or(anyhow!("not connected"))
     }
 
+    async fn get_sender(&self) -> Result<UnboundedSender<Message>> {
+        let mut connection_status = self.connection_status.subscribe();
+        loop {
+            if let Ok(sender) = self.try_get_sender() {
+                return Ok(sender);
+            }
+            connection_status
+                .wait_for(|connected| *connected)
+                .await
+                .map_err(|_| anyhow!("blaze connection stopped"))?;
+        }
+    }
+
     pub async fn send_message(&self, message: BlazeMessage) -> Result<BlazeMessage> {
-        let mut sender = self.try_get_sender()?;
+        let mut sender = self.get_sender().await?;
         let completer = Completer::default();
         let message_id = message.id.clone();
         {
@@ -568,6 +588,7 @@ mod tests {
     async fn disconnect_clears_sender_and_fails_pending_transactions() {
         let (sender, _receiver) = futures_channel::mpsc::unbounded();
         let connection = Arc::new(Mutex::new(BlazeConnection { sink: Some(sender) }));
+        let (connection_status, _) = watch::channel(true);
         let transactions = Arc::new(Mutex::new(HashMap::new()));
         let completer = Completer::<BlazeMessage>::default();
         transactions
@@ -577,6 +598,7 @@ mod tests {
 
         let guard = SocketSessionGuard {
             connection: connection.clone(),
+            connection_status,
             transactions: transactions.clone(),
         };
         drop(guard);

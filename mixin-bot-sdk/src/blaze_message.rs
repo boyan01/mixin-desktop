@@ -342,7 +342,7 @@ pub struct SnapshotMessage {
 pub struct SignalKey {
     pub identity_key: String,
     pub signed_pre_key: SignedPreKey,
-    pub ont_time_pre_key: OneTimePreKey,
+    pub one_time_pre_key: OneTimePreKey,
     pub registration_id: u32,
     pub user_id: String,
     pub session_id: String,

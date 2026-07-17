@@ -13,6 +13,7 @@ use mixin_desktop_core::runtime::model::AccountProfile;
 use mixin_desktop_core::runtime::{
     AccountRuntime, AttachmentAccess, ConversationAccess, MessageAccess, StickerAccess, UserAccess,
 };
+use simplelog::{Config, LevelFilter, SimpleLogger};
 use tokio::sync::Mutex;
 
 use crate::frb_generated::StreamSink;
@@ -121,6 +122,7 @@ impl TryFrom<ProxySettingsItem> for ProxySettings {
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
+    let _ = SimpleLogger::init(LevelFilter::Info, Config::default());
     flutter_rust_bridge::setup_default_user_utils();
 }
 
