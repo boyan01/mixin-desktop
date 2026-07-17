@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:mixin_desktop_ui/controllers/sticker_controller.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 
 enum AppStage { starting, signedOut, signedIn, failed }
@@ -27,6 +30,7 @@ class AppController extends ChangeNotifier {
       }
       _account = account;
       stage = account == null ? AppStage.signedOut : AppStage.signedIn;
+      if (account != null) unawaited(_preloadStickers(account));
     } catch (exception) {
       if (requestVersion != _requestVersion) return;
       // A stale or revoked saved session should return to QR login.
@@ -45,6 +49,7 @@ class AppController extends ChangeNotifier {
     stage = AppStage.signedIn;
     error = null;
     notifyListeners();
+    unawaited(_preloadStickers(account));
   }
 
   Future<void> signOut() async {
@@ -77,5 +82,13 @@ class AppController extends ChangeNotifier {
     _account?.dispose();
     _desktop?.dispose();
     super.dispose();
+  }
+}
+
+Future<void> _preloadStickers(AccountHandle account) async {
+  try {
+    await StickerController.refreshRemote(account);
+  } on Object {
+    // Sticker data is optional during account startup and can retry on picker open.
   }
 }

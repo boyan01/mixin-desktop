@@ -7,6 +7,8 @@ class StickerController extends ChangeNotifier {
 
   static const _recentEmojiKey = 'recent_used_emoji';
   static const _recentEmojiLimit = 35;
+  static const _remoteRefreshInterval = Duration(hours: 24);
+  static final Map<String, Future<bool>> _remoteRefreshes = {};
 
   final rust.AccountHandle account;
   List<rust.StickerItem> recentStickers = const [];
@@ -23,6 +25,41 @@ class StickerController extends ChangeNotifier {
   bool _refreshSucceeded = false;
   bool _disposed = false;
 
+  static Future<bool> refreshRemote(
+    rust.AccountHandle account, {
+    bool force = false,
+  }) {
+    final accountId = account.accountId();
+    final pending = _remoteRefreshes[accountId];
+    if (pending != null) return pending;
+    final refresh = _refreshRemote(account, accountId, force: force);
+    _remoteRefreshes[accountId] = refresh;
+    return refresh.whenComplete(() {
+      if (identical(_remoteRefreshes[accountId], refresh)) {
+        _remoteRefreshes.remove(accountId);
+      }
+    });
+  }
+
+  static Future<bool> _refreshRemote(
+    rust.AccountHandle account,
+    String accountId, {
+    required bool force,
+  }) async {
+    final preferences = await SharedPreferences.getInstance();
+    final refreshKey = 'sticker_refresh_at_$accountId';
+    final lastRefreshAt = preferences.getInt(refreshKey);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (!force &&
+        lastRefreshAt != null &&
+        now - lastRefreshAt < _remoteRefreshInterval.inMilliseconds) {
+      return false;
+    }
+    await account.sticker().refreshStickers();
+    await preferences.setInt(refreshKey, now);
+    return true;
+  }
+
   Future<void> load() async {
     if (loading || (initialized && _refreshSucceeded)) return;
     loading = true;
@@ -30,24 +67,21 @@ class StickerController extends ChangeNotifier {
     _notify();
     try {
       if (!initialized) {
-        try {
-          await account.sticker().refreshStickers();
-          _refreshSucceeded = true;
-        } on Object catch (exception) {
-          error = exception;
-        }
-      } else if (!_refreshSucceeded) {
-        try {
-          await account.sticker().refreshStickers();
-          _refreshSucceeded = true;
-        } on Object catch (exception) {
-          error = exception;
-        }
+        await _loadPrimaryLocal();
+        final preferences = await SharedPreferences.getInstance();
+        recentEmojis = preferences.getStringList(_recentEmojiKey) ?? const [];
+        initialized = true;
+        _notify();
+        await _loadAlbumStickers();
+        _notify();
       }
-      await _loadLocal();
-      final preferences = await SharedPreferences.getInstance();
-      recentEmojis = preferences.getStringList(_recentEmojiKey) ?? const [];
-      initialized = true;
+      try {
+        final refreshed = await refreshRemote(account);
+        _refreshSucceeded = true;
+        if (refreshed) await _loadLocal();
+      } on Object catch (exception) {
+        error = exception;
+      }
     } on Object catch (exception) {
       error = exception;
     } finally {
@@ -73,7 +107,8 @@ class StickerController extends ChangeNotifier {
     storeLoading = true;
     _notify();
     try {
-      await account.sticker().refreshStickers();
+      await _loadStoreLocal();
+      await refreshRemote(account, force: true);
       _refreshSucceeded = true;
       await _loadStoreLocal();
       error = null;
@@ -88,6 +123,7 @@ class StickerController extends ChangeNotifier {
 
   Future<void> _loadStoreLocal() async {
     storeAlbums = await account.sticker().stickerStoreAlbums();
+    _notify();
     final entries = await Future.wait(
       storeAlbums.map((album) async {
         final stickers = await account.sticker().albumStickers(
@@ -120,6 +156,13 @@ class StickerController extends ChangeNotifier {
   }
 
   Future<void> _loadLocal() async {
+    await _loadPrimaryLocal();
+    _notify();
+    await _loadAlbumStickers();
+    _notify();
+  }
+
+  Future<void> _loadPrimaryLocal() async {
     final values = await Future.wait<Object>([
       account.sticker().recentStickers(),
       account.sticker().personalStickers(),
@@ -128,6 +171,9 @@ class StickerController extends ChangeNotifier {
     recentStickers = values[0] as List<rust.StickerItem>;
     personalStickers = values[1] as List<rust.StickerItem>;
     albums = values[2] as List<rust.StickerAlbumItem>;
+  }
+
+  Future<void> _loadAlbumStickers() async {
     final entries = await Future.wait(
       albums.map((album) async {
         final stickers = await account.sticker().albumStickers(

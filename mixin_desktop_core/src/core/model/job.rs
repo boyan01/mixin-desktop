@@ -260,9 +260,7 @@ async fn run_job(receiver: Option<Receiver<()>>, trigger: impl JobTrigger) {
                     break;
                 }
             }
-            _ = interval.tick() => {
-                info!("time out");
-            }
+            _ = interval.tick() => {}
             _ = async {
                 match retry_delay {
                     Some(delay) => sleep(delay).await,

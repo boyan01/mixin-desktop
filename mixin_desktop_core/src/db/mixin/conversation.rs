@@ -306,12 +306,21 @@ LIMIT ?5 OFFSET ?6
 
     pub async fn insert(&self, conversation: &Conversation) -> Result<(), Error> {
         let _ = sqlx::query(
-            r#"INSERT OR REPLACE INTO
-         conversations (conversation_id, owner_id,
-            category, name, icon_url, announcement,
-            code_url, created_at, status, mute_until, expire_in)
-            VALUES
-            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            r#"INSERT INTO conversations (
+                conversation_id, owner_id, category, name, icon_url, announcement,
+                code_url, created_at, status, mute_until, expire_in
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(conversation_id) DO UPDATE SET
+                owner_id = excluded.owner_id,
+                category = excluded.category,
+                name = excluded.name,
+                icon_url = excluded.icon_url,
+                announcement = excluded.announcement,
+                code_url = excluded.code_url,
+                created_at = excluded.created_at,
+                status = excluded.status,
+                mute_until = excluded.mute_until,
+                expire_in = excluded.expire_in
             "#,
         )
         .bind(&conversation.conversation_id)
@@ -442,6 +451,94 @@ mod tests {
 
     use super::*;
     use crate::db::MixinDatabase;
+
+    #[tokio::test]
+    async fn refreshing_conversation_preserves_local_list_state() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        let now = Utc::now();
+        let mut conversation = Conversation {
+            conversation_id: "conversation".into(),
+            owner_id: Some("owner".into()),
+            category: Some(ConversationCategory::Contact),
+            name: "Old name".into(),
+            icon_url: String::new(),
+            announcement: String::new(),
+            code_url: String::new(),
+            created_at: now,
+            status: ConversationStatus::SUCCESS,
+            mute_until: now,
+            expire_in: 0,
+        };
+        database
+            .conversation_dao
+            .insert(&conversation)
+            .await
+            .unwrap();
+        sqlx::query(
+            "UPDATE conversations SET pin_time = ?, last_message_id = ?, \
+             last_message_created_at = ?, last_read_message_id = ?, \
+             unseen_message_count = ?, draft = ? WHERE conversation_id = ?",
+        )
+        .bind(now)
+        .bind("last-message")
+        .bind(now.timestamp_millis())
+        .bind("last-read-message")
+        .bind(3_i64)
+        .bind("draft")
+        .bind(&conversation.conversation_id)
+        .execute(&database.conversation_dao.0)
+        .await
+        .unwrap();
+
+        conversation.name = "New name".into();
+        conversation.status = ConversationStatus::QUIT;
+        conversation.expire_in = 60;
+        database
+            .conversation_dao
+            .insert(&conversation)
+            .await
+            .unwrap();
+
+        let row = sqlx::query_as::<
+            _,
+            (
+                String,
+                i32,
+                i64,
+                Option<String>,
+                Option<i64>,
+                Option<String>,
+                Option<i64>,
+                Option<String>,
+                Option<DateTime<Utc>>,
+            ),
+        >(
+            "SELECT name, status, expire_in, last_message_id, last_message_created_at, \
+             last_read_message_id, unseen_message_count, draft, pin_time \
+             FROM conversations WHERE conversation_id = ?",
+        )
+        .bind(&conversation.conversation_id)
+        .fetch_one(&database.conversation_dao.0)
+        .await
+        .unwrap();
+        assert_eq!(
+            row,
+            (
+                "New name".into(),
+                ConversationStatus::QUIT.0,
+                60,
+                Some("last-message".into()),
+                Some(now.timestamp_millis()),
+                Some("last-read-message".into()),
+                Some(3),
+                Some("draft".into()),
+                Some(now),
+            )
+        );
+    }
 
     #[tokio::test]
     async fn updates_last_message_and_unseen_count_like_flutter() {
