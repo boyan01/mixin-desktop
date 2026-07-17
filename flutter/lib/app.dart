@@ -14,6 +14,18 @@ import 'package:provider/provider.dart';
 class MixinDesktopApp extends StatelessWidget {
   const MixinDesktopApp({super.key});
 
+  static const supportedLocales = <Locale>[
+    Locale.fromSubtags(languageCode: 'en'),
+    Locale.fromSubtags(languageCode: 'es'),
+    Locale.fromSubtags(languageCode: 'id'),
+    Locale.fromSubtags(languageCode: 'ja'),
+    Locale.fromSubtags(languageCode: 'ms'),
+    Locale.fromSubtags(languageCode: 'ru'),
+    Locale.fromSubtags(languageCode: 'zh-HK'),
+    Locale.fromSubtags(languageCode: 'zh-TW'),
+    Locale.fromSubtags(languageCode: 'zh'),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsController>();
@@ -29,7 +41,7 @@ class MixinDesktopApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      supportedLocales: AppLocalizations.supportedLocales,
+      supportedLocales: supportedLocales,
       home: const _AppBody(),
     );
   }
