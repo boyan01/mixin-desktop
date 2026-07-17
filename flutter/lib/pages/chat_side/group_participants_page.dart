@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 import 'package:mixin_desktop_ui/widgets/show_message_user_dialog.dart';
@@ -44,9 +44,9 @@ class _GroupParticipantsPageState extends State<GroupParticipantsPage> {
   Future<void> _load() async {
     final scope = ChatSideScope.of(context);
     try {
-      final participants = await scope.account.conversationParticipants(
-        conversationId: scope.conversation.id,
-      );
+      final participants = await scope.account
+          .conversation()
+          .conversationParticipants(conversationId: scope.conversation.id);
       if (!mounted) return;
       setState(() {
         _participants = participants;
@@ -68,7 +68,7 @@ class _GroupParticipantsPageState extends State<GroupParticipantsPage> {
     String? role,
   }) async {
     final scope = ChatSideScope.of(context);
-    await scope.account.updateParticipants(
+    await scope.account.conversation().updateParticipants(
       conversationId: scope.conversation.id,
       action: action,
       userIds: userIds,
@@ -283,7 +283,7 @@ class _ParticipantSelectorDialogState
       error = null;
     });
     try {
-      final count = await widget.account.conversationCount(
+      final count = await widget.account.conversation().conversationCount(
         category: 'contacts',
         circleId: null,
         keyword: searchController.text.trim(),
@@ -291,7 +291,7 @@ class _ParticipantSelectorDialogState
       );
       final result = <rust.ConversationListItem>[];
       while (result.length < count.toInt()) {
-        final page = await widget.account.conversations(
+        final page = await widget.account.conversation().conversations(
           category: 'contacts',
           circleId: null,
           keyword: searchController.text.trim(),

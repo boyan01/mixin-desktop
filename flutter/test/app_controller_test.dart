@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mixin_desktop_ui/controllers/app_controller.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 
 void main() {
   test('sign out clears the active account after Rust succeeds', () async {
@@ -28,7 +28,29 @@ void main() {
   });
 }
 
-class _FakeAccountHandle implements AccountHandle {
+class _FakeAccountHandle
+    implements
+        AccountHandle,
+        AttachmentAccess,
+        ConversationAccess,
+        MessageAccess,
+        StickerAccess,
+        UserAccess {
+  @override
+  AttachmentAccess attachment() => this;
+
+  @override
+  ConversationAccess conversation() => this;
+
+  @override
+  MessageAccess message() => this;
+
+  @override
+  StickerAccess sticker() => this;
+
+  @override
+  UserAccess user() => this;
+
   _FakeAccountHandle({this.error});
 
   final Object? error;

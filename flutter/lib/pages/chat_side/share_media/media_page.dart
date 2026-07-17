@@ -49,13 +49,13 @@ class _MediaItem extends StatelessWidget {
       if (status == 'CANCELED') {
         await ChatSideScope.of(
           context,
-        ).account.downloadAttachment(messageId: message.id);
+        ).account.attachment().downloadAttachment(messageId: message.id);
         return;
       }
       if (status == 'PENDING') {
         await ChatSideScope.of(
           context,
-        ).account.cancelAttachment(messageId: message.id);
+        ).account.attachment().cancelAttachment(messageId: message.id);
         return;
       }
       final source = message.mediaUrl?.trim() ?? '';

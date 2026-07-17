@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 
 enum LoginStatus { loading, ready, provisioning, failed }
 

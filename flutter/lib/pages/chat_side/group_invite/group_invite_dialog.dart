@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
@@ -38,8 +38,9 @@ class _GroupInviteByLinkDialogState extends State<_GroupInviteByLinkDialog> {
   bool acting = false;
   Object? error;
 
-  Future<rust.ConversationDetailItem> _load() =>
-      widget.account.conversationDetail(conversationId: widget.conversation.id);
+  Future<rust.ConversationDetailItem> _load() => widget.account
+      .conversation()
+      .conversationDetail(conversationId: widget.conversation.id);
 
   Future<void> _run(Future<void> Function() action) async {
     if (acting) return;
@@ -65,6 +66,7 @@ class _GroupInviteByLinkDialogState extends State<_GroupInviteByLinkDialog> {
     if (target == null) return;
     await _run(
       () => widget.account
+          .message()
           .sendText(
             conversationId: target,
             content: codeUrl,
@@ -161,9 +163,10 @@ class _GroupInviteByLinkDialogState extends State<_GroupInviteByLinkDialog> {
                           icon: Icons.refresh,
                           label: context.l10n.resetLink,
                           onTap: () => _run(
-                            () => widget.account.rotateGroupInvite(
-                              conversationId: widget.conversation.id,
-                            ),
+                            () =>
+                                widget.account.conversation().rotateGroupInvite(
+                                  conversationId: widget.conversation.id,
+                                ),
                           ),
                         ),
                       ],

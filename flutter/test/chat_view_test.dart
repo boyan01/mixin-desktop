@@ -15,7 +15,7 @@ import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/chat_view.dart';
 import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
@@ -1207,7 +1207,14 @@ class _LocalizedApp extends StatelessWidget {
   );
 }
 
-class _FakeAccountHandle implements AccountHandle {
+class _FakeAccountHandle
+    implements
+        AccountHandle,
+        AttachmentAccess,
+        ConversationAccess,
+        MessageAccess,
+        StickerAccess,
+        UserAccess {
   _FakeAccountHandle(this._messages);
 
   final List<MessageListItem> _messages;
@@ -1221,6 +1228,21 @@ class _FakeAccountHandle implements AccountHandle {
   Object? sendError;
   var _isDisposed = false;
   var messagesAroundCalls = 0;
+
+  @override
+  AttachmentAccess attachment() => this;
+
+  @override
+  ConversationAccess conversation() => this;
+
+  @override
+  MessageAccess message() => this;
+
+  @override
+  StickerAccess sticker() => this;
+
+  @override
+  UserAccess user() => this;
 
   @override
   String accountId() => 'me';

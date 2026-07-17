@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 
@@ -29,7 +29,7 @@ class _ForwardConversationSelectorState
   String _query = '';
 
   Future<List<ConversationListEntry>> _load() async {
-    final count = await widget.account.conversationCount(
+    final count = await widget.account.conversation().conversationCount(
       category: ConversationCategoryFilter.chats.name,
       circleId: null,
       keyword: '',
@@ -37,7 +37,7 @@ class _ForwardConversationSelectorState
     );
     final result = <ConversationListEntry>[];
     while (result.length < count.toInt()) {
-      final page = await widget.account.conversations(
+      final page = await widget.account.conversation().conversations(
         category: ConversationCategoryFilter.chats.name,
         circleId: null,
         keyword: '',

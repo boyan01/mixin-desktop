@@ -7,7 +7,7 @@ import 'package:mixin_desktop_ui/controllers/chat_side_notifier.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 import 'package:provider/provider.dart';
@@ -121,7 +121,7 @@ class _SearchMessagePageState extends State<SearchMessagePage> {
       error = null;
     });
     try {
-      final result = await scope.account.searchMessages(
+      final result = await scope.account.message().searchMessages(
         conversationId: scope.conversation.id,
         query: query,
         senderId: selectedUser?.userId,
@@ -167,11 +167,11 @@ class _SearchMessagePageState extends State<SearchMessagePage> {
     });
     try {
       final value = scope.conversation.isBot
-          ? await scope.account.searchBotGroupUsers(
+          ? await scope.account.conversation().searchBotGroupUsers(
               conversationId: scope.conversation.id,
               keyword: keyword,
             )
-          : await scope.account.conversationParticipants(
+          : await scope.account.conversation().conversationParticipants(
               conversationId: scope.conversation.id,
             );
       if (mounted && requestGeneration == participantGeneration) {

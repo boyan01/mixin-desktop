@@ -4,7 +4,7 @@ import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 
@@ -27,14 +27,14 @@ class _GroupsInCommonPageState extends State<GroupsInCommonPage> {
   Future<List<rust.GroupConversationItem>> _load() {
     final scope = ChatSideScope.of(context);
     final userId = scope.conversation.ownerId;
-    return scope.account.groupsInCommon(userId: userId);
+    return scope.account.conversation().groupsInCommon(userId: userId);
   }
 
   void _reload() => setState(() => _future = _load());
 
   Future<void> _select(rust.GroupConversationItem group) async {
     final scope = ChatSideScope.of(context);
-    final count = await scope.account.conversationCount(
+    final count = await scope.account.conversation().conversationCount(
       category: 'groups',
       circleId: null,
       keyword: '',
@@ -42,7 +42,7 @@ class _GroupsInCommonPageState extends State<GroupsInCommonPage> {
     );
     var offset = 0;
     while (offset < count.toInt()) {
-      final conversations = await scope.account.conversations(
+      final conversations = await scope.account.conversation().conversations(
         category: 'groups',
         circleId: null,
         keyword: '',

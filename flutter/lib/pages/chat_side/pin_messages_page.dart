@@ -17,7 +17,7 @@ class _PinMessagesPageState extends State<PinMessagesPage> {
   @override
   Widget build(BuildContext context) {
     final scope = ChatSideScope.of(context);
-    role ??= scope.account.currentUserRole(
+    role ??= scope.account.conversation().currentUserRole(
       conversationId: scope.conversation.id,
     );
     return ChatSidePageScaffold(
@@ -32,7 +32,7 @@ class _PinMessagesPageState extends State<PinMessagesPage> {
             return ChatSideError(
               error: snapshot.error!,
               onRetry: () => setState(() {
-                role = scope.account.currentUserRole(
+                role = scope.account.conversation().currentUserRole(
                   conversationId: scope.conversation.id,
                 );
               }),

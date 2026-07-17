@@ -7,7 +7,7 @@ import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/pages/settings_account_pages.dart';
 import 'package:mixin_desktop_ui/pages/settings_preference_pages.dart';
 import 'package:mixin_desktop_ui/pages/settings_storage_about_pages.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' show AccountProfile;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' show AccountProfile;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';

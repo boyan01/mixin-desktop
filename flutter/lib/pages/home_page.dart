@@ -8,7 +8,7 @@ import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/chat_side_router.dart';
 import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
 import 'package:mixin_desktop_ui/pages/settings_page.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/chat_view.dart';
 import 'package:mixin_desktop_ui/widgets/conversation_list_view.dart';

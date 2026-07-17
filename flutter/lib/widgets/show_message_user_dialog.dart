@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 
@@ -18,7 +18,7 @@ Future<void> showMessageUserDialog(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.35),
     builder: (context) => _MessageUserDialog(
-      profile: account.userProfile(
+      profile: account.user().userProfile(
         userId: userId,
         identityNumber: identityNumber,
       ),

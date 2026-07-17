@@ -9,7 +9,7 @@ import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/pages/home_page.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/chat_info_page.dart';
 import 'package:mixin_desktop_ui/pages/settings_page.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/chat_view.dart';
 import 'package:mixin_desktop_ui/widgets/conversation_list_view.dart';
@@ -402,7 +402,14 @@ class _LocalizedApp extends StatelessWidget {
   );
 }
 
-class _FakeAccountHandle implements AccountHandle {
+class _FakeAccountHandle
+    implements
+        AccountHandle,
+        AttachmentAccess,
+        ConversationAccess,
+        MessageAccess,
+        StickerAccess,
+        UserAccess {
   _FakeAccountHandle({List<ConversationListItem>? conversations})
     : _conversationItems = conversations ?? const [_conversation];
 
@@ -465,6 +472,21 @@ class _FakeAccountHandle implements AccountHandle {
   final sentTexts = <String>[];
   Object? mutationError;
   Completer<void>? deleteCompleter;
+
+  @override
+  AttachmentAccess attachment() => this;
+
+  @override
+  ConversationAccess conversation() => this;
+
+  @override
+  MessageAccess message() => this;
+
+  @override
+  StickerAccess sticker() => this;
+
+  @override
+  UserAccess user() => this;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -598,7 +620,7 @@ class _FakeAccountHandle implements AccountHandle {
   }
 
   @override
-  Future<void> setConversationMuted({
+  Future<void> setMuted({
     required String conversationId,
     required String ownerId,
     required String category,
@@ -608,7 +630,7 @@ class _FakeAccountHandle implements AccountHandle {
   }
 
   @override
-  Future<void> setConversationPinned({
+  Future<void> setPinned({
     required String conversationId,
     required bool pinned,
   }) async {

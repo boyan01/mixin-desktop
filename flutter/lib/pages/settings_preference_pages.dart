@@ -7,7 +7,7 @@ import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' show ProxyItem;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' show ProxyItem;
 import 'package:uuid/uuid.dart';
 
 class AppearanceSettingsPage extends StatefulWidget {

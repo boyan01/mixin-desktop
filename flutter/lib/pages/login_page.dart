@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mixin_desktop_ui/controllers/login_controller.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/qr_login_card.dart';
 import 'package:provider/provider.dart';

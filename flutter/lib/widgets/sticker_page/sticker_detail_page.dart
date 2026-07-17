@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_item.dart';
 
@@ -11,7 +11,7 @@ Future<void> showStickerDetailPage(
   required String stickerId,
   Future<void> Function()? onAlbumChanged,
 }) async {
-  final detail = account.stickerDetail(stickerId: stickerId);
+  final detail = account.sticker().stickerDetail(stickerId: stickerId);
   await showDialog<void>(
     context: context,
     builder: (context) => Dialog(
@@ -31,7 +31,7 @@ Future<void> showStickerDetailPage(
               onAlbumAddedChanged: (added) async {
                 final album = value.album;
                 if (album == null) return;
-                await account.setStickerAlbumAdded(
+                await account.sticker().setStickerAlbumAdded(
                   albumId: album.albumId,
                   added: added,
                 );

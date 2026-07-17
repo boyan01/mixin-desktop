@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mixin_desktop_ui/controllers/message_list_controller.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 
 void main() {
   testWidgets('marks messages read only while the app is active', (
@@ -226,7 +226,14 @@ MessageListItem _message(String id) => MessageListItem(
   pinned: false,
 );
 
-class _FakeAccountHandle implements AccountHandle {
+class _FakeAccountHandle
+    implements
+        AccountHandle,
+        AttachmentAccess,
+        ConversationAccess,
+        MessageAccess,
+        StickerAccess,
+        UserAccess {
   _FakeAccountHandle(this.messagesInDatabase);
 
   final List<MessageListItem> messagesInDatabase;
@@ -242,6 +249,21 @@ class _FakeAccountHandle implements AccountHandle {
   String? sentAudioQuoteId;
   String? sentStickerId;
   String? sentStickerConversationId;
+
+  @override
+  AttachmentAccess attachment() => this;
+
+  @override
+  ConversationAccess conversation() => this;
+
+  @override
+  MessageAccess message() => this;
+
+  @override
+  StickerAccess sticker() => this;
+
+  @override
+  UserAccess user() => this;
 
   void notifyChanged() => _changes.add(BigInt.one);
   Future<void> close() => _changes.close();

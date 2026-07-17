@@ -16,7 +16,7 @@ import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/utils/system_clipboard.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
@@ -1250,7 +1250,7 @@ class _ChatMessageState extends State<_ChatMessage> {
       account: widget.account,
     );
     if (targetConversationId == null || !mounted) return false;
-    await widget.account.forwardMessages(
+    await widget.account.message().forwardMessages(
       targetConversationId: targetConversationId,
       sourceMessageIds: [message.id],
     );
@@ -1306,7 +1306,7 @@ class _ChatMessageState extends State<_ChatMessage> {
     required int before,
     required int after,
   }) async {
-    final items = await widget.account.imageMessagesAround(
+    final items = await widget.account.message().imageMessagesAround(
       conversationId: widget.message.conversationId,
       targetMessageId: targetMessageId,
       before: before,
@@ -1330,7 +1330,7 @@ class _ChatMessageState extends State<_ChatMessage> {
       account: widget.account,
     );
     if (targetConversationId == null || !mounted) return false;
-    await widget.account.forwardMessages(
+    await widget.account.message().forwardMessages(
       targetConversationId: targetConversationId,
       sourceMessageIds: [messageId],
     );
@@ -1431,7 +1431,7 @@ class _ChatMessageState extends State<_ChatMessage> {
       final content = value.substring(6).trim();
       if (content.isNotEmpty) {
         unawaited(
-          widget.account.sendText(
+          widget.account.message().sendText(
             conversationId: widget.message.conversationId,
             content: content,
             quoteMessageId: null,

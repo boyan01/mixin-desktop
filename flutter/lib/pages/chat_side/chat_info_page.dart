@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
 import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
@@ -46,14 +46,14 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
   Future<void> _loadConversationState() async {
     final scope = ChatSideScope.of(context);
     try {
-      final loadedDetail = await scope.account.localConversationDetail(
-        conversationId: scope.conversation.id,
-      );
+      final loadedDetail = await scope.account
+          .conversation()
+          .localConversationDetail(conversationId: scope.conversation.id);
       rust.ConversationParticipantItem? loadedParticipant;
       if (scope.conversation.isGroup) {
-        final participants = await scope.account.conversationParticipants(
-          conversationId: scope.conversation.id,
-        );
+        final participants = await scope.account
+            .conversation()
+            .conversationParticipants(conversationId: scope.conversation.id);
         for (final participant in participants) {
           if (participant.userId == scope.currentUserId) {
             loadedParticipant = participant;
@@ -80,7 +80,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
   Future<void> _load() async {
     final scope = ChatSideScope.of(context);
     try {
-      final detailFuture = scope.account.conversationDetail(
+      final detailFuture = scope.account.conversation().conversationDetail(
         conversationId: scope.conversation.id,
       );
       rust.UserProfileItem? loadedUser;
@@ -88,9 +88,9 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
       var loadedApps = const <rust.SharedAppItem>[];
       String? loadedDeveloperId;
       if (scope.conversation.isGroup) {
-        final participants = await scope.account.conversationParticipants(
-          conversationId: scope.conversation.id,
-        );
+        final participants = await scope.account
+            .conversation()
+            .conversationParticipants(conversationId: scope.conversation.id);
         for (final participant in participants) {
           if (participant.userId == scope.currentUserId) {
             loadedParticipant = participant;
@@ -98,14 +98,14 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
           }
         }
       } else {
-        loadedUser = await scope.account.userProfile(
+        loadedUser = await scope.account.user().userProfile(
           userId: scope.conversation.ownerId,
           identityNumber: null,
         );
-        loadedApps = await scope.account.sharedApps(
+        loadedApps = await scope.account.user().sharedApps(
           userId: scope.conversation.ownerId,
         );
-        loadedDeveloperId = await scope.account.botCreatorId(
+        loadedDeveloperId = await scope.account.user().botCreatorId(
           userId: scope.conversation.ownerId,
         );
       }
@@ -180,6 +180,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
     if (conversationId == null) return;
     await _run(
       () => scope.account
+          .message()
           .sendContact(
             conversationId: conversationId,
             sharedUserId: scope.conversation.ownerId,
@@ -218,7 +219,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
       seconds = selected;
     }
     await _run(
-      () => scope.account.setConversationMuted(
+      () => scope.account.conversation().setMuted(
         conversationId: scope.conversation.id,
         ownerId: scope.conversation.ownerId,
         category: scope.conversation.category,
@@ -307,7 +308,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                     padding: const EdgeInsets.only(top: 12),
                     child: TextButton(
                       onPressed: () => _run(
-                        () => scope.account.addContact(
+                        () => scope.account.user().addContact(
                           userId: conversation.ownerId,
                           fullName: conversation.name,
                         ),
@@ -415,7 +416,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                           );
                           if (value == null) return;
                           await _run(
-                            () => scope.account.editConversation(
+                            () => scope.account.conversation().editConversation(
                               conversationId: conversation.id,
                               name: null,
                               announcement: value,
@@ -452,12 +453,14 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                           if (value == null || value.isEmpty) return;
                           await _run(
                             isGroup
-                                ? () => scope.account.editConversation(
-                                    conversationId: conversation.id,
-                                    name: value,
-                                    announcement: null,
-                                  )
-                                : () => scope.account.addContact(
+                                ? () => scope.account
+                                      .conversation()
+                                      .editConversation(
+                                        conversationId: conversation.id,
+                                        name: value,
+                                        announcement: null,
+                                      )
+                                : () => scope.account.user().addContact(
                                     userId: conversation.ownerId,
                                     fullName: value,
                                   ),
@@ -510,7 +513,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                         onTap: () async {
                           if (!await _confirm(context.l10n.unblock)) return;
                           await _run(
-                            () => scope.account.unblockUser(
+                            () => scope.account.user().unblockUser(
                               userId: conversation.ownerId,
                             ),
                           );
@@ -530,7 +533,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                               : context.l10n.removeContact;
                           if (!await _confirm(title)) return;
                           await _run(
-                            () => scope.account.removeContact(
+                            () => scope.account.user().removeContact(
                               userId: conversation.ownerId,
                             ),
                           );
@@ -543,7 +546,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                         onTap: () async {
                           if (!await _confirm(context.l10n.block)) return;
                           await _run(
-                            () => scope.account.blockUser(
+                            () => scope.account.user().blockUser(
                               userId: conversation.ownerId,
                             ),
                           );
@@ -555,7 +558,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                       onTap: () async {
                         if (!await _confirm(context.l10n.clearChat)) return;
                         await _run(
-                          () => scope.account.clearConversation(
+                          () => scope.account.conversation().clearConversation(
                             conversationId: conversation.id,
                           ),
                         );
@@ -573,11 +576,13 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                               : context.l10n.exitGroup;
                           if (!await _confirm(title)) return;
                           if (isExited) {
-                            await scope.account.deleteConversation(
-                              conversationId: conversation.id,
-                            );
+                            await scope.account
+                                .conversation()
+                                .deleteConversation(
+                                  conversationId: conversation.id,
+                                );
                           } else {
-                            await scope.account.exitGroup(
+                            await scope.account.conversation().exitGroup(
                               conversationId: conversation.id,
                             );
                           }
@@ -599,7 +604,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                             return;
                           }
                           await _run(
-                            () => scope.account.reportUser(
+                            () => scope.account.user().reportUser(
                               userId: conversation.ownerId,
                             ),
                           );

@@ -12,7 +12,7 @@ import 'package:mixin_desktop_ui/pages/chat_side/search_message_page.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/shared_apps_page.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/shared_media_page.dart';
 import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:provider/provider.dart';
 
 const kChatSidePageWidth = 300.0;

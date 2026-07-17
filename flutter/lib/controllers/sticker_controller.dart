@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class StickerController extends ChangeNotifier {
@@ -31,14 +31,14 @@ class StickerController extends ChangeNotifier {
     try {
       if (!initialized) {
         try {
-          await account.refreshStickers();
+          await account.sticker().refreshStickers();
           _refreshSucceeded = true;
         } on Object catch (exception) {
           error = exception;
         }
       } else if (!_refreshSucceeded) {
         try {
-          await account.refreshStickers();
+          await account.sticker().refreshStickers();
           _refreshSucceeded = true;
         } on Object catch (exception) {
           error = exception;
@@ -73,7 +73,7 @@ class StickerController extends ChangeNotifier {
     storeLoading = true;
     _notify();
     try {
-      await account.refreshStickers();
+      await account.sticker().refreshStickers();
       _refreshSucceeded = true;
       await _loadStoreLocal();
       error = null;
@@ -87,10 +87,12 @@ class StickerController extends ChangeNotifier {
   }
 
   Future<void> _loadStoreLocal() async {
-    storeAlbums = await account.stickerStoreAlbums();
+    storeAlbums = await account.sticker().stickerStoreAlbums();
     final entries = await Future.wait(
       storeAlbums.map((album) async {
-        final stickers = await account.albumStickers(albumId: album.albumId);
+        final stickers = await account.sticker().albumStickers(
+          albumId: album.albumId,
+        );
         return MapEntry(album.albumId, stickers);
       }),
     );
@@ -98,34 +100,39 @@ class StickerController extends ChangeNotifier {
   }
 
   Future<void> setAlbumAdded(String albumId, bool added) async {
-    await account.setStickerAlbumAdded(albumId: albumId, added: added);
+    await account.sticker().setStickerAlbumAdded(
+      albumId: albumId,
+      added: added,
+    );
     await Future.wait([refreshLocal(), _loadStoreLocal()]);
     _notify();
   }
 
   Future<void> setAlbumOrder(List<String> albumIds) async {
-    await account.setStickerAlbumOrder(albumIds: albumIds);
+    await account.sticker().setStickerAlbumOrder(albumIds: albumIds);
     await refreshLocal();
   }
 
   Future<void> addStickerFromPath(String path) async {
-    await account.addStickerFromPath(path: path);
-    personalStickers = await account.personalStickers();
+    await account.sticker().addStickerFromPath(path: path);
+    personalStickers = await account.sticker().personalStickers();
     _notify();
   }
 
   Future<void> _loadLocal() async {
     final values = await Future.wait<Object>([
-      account.recentStickers(),
-      account.personalStickers(),
-      account.stickerAlbums(),
+      account.sticker().recentStickers(),
+      account.sticker().personalStickers(),
+      account.sticker().stickerAlbums(),
     ]);
     recentStickers = values[0] as List<rust.StickerItem>;
     personalStickers = values[1] as List<rust.StickerItem>;
     albums = values[2] as List<rust.StickerAlbumItem>;
     final entries = await Future.wait(
       albums.map((album) async {
-        final stickers = await account.albumStickers(albumId: album.albumId);
+        final stickers = await account.sticker().albumStickers(
+          albumId: album.albumId,
+        );
         return MapEntry(album.albumId, stickers);
       }),
     );
@@ -136,17 +143,17 @@ class StickerController extends ChangeNotifier {
     required String conversationId,
     required rust.StickerItem sticker,
   }) async {
-    await account.sendSticker(
+    await account.message().sendSticker(
       conversationId: conversationId,
       stickerId: sticker.stickerId,
     );
-    recentStickers = await account.recentStickers();
+    recentStickers = await account.sticker().recentStickers();
     _notify();
   }
 
   Future<void> removeSticker(rust.StickerItem sticker) async {
-    await account.removeSticker(stickerId: sticker.stickerId);
-    personalStickers = await account.personalStickers();
+    await account.sticker().removeSticker(stickerId: sticker.stickerId);
+    personalStickers = await account.sticker().personalStickers();
     _notify();
   }
 

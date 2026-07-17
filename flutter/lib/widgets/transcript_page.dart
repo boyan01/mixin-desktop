@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/utils/system_clipboard.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
@@ -97,7 +97,7 @@ class _TranscriptPageState extends State<TranscriptPage> {
     do {
       _refreshPending = false;
       try {
-        final items = await widget.account.transcriptMessages(
+        final items = await widget.account.message().transcriptMessages(
           transcriptId: widget.transcriptId,
         );
         if (!mounted) return;
@@ -119,7 +119,7 @@ class _TranscriptPageState extends State<TranscriptPage> {
 
   Future<void> _download(MessageListEntry message) async {
     try {
-      await widget.account.downloadTranscriptAttachment(
+      await widget.account.attachment().downloadTranscriptAttachment(
         transcriptId: widget.transcriptId,
         messageId: message.id,
       );
@@ -131,7 +131,7 @@ class _TranscriptPageState extends State<TranscriptPage> {
 
   Future<void> _cancel(MessageListEntry message) async {
     try {
-      await widget.account.cancelTranscriptAttachment(
+      await widget.account.attachment().cancelTranscriptAttachment(
         transcriptId: widget.transcriptId,
         messageId: message.id,
       );
@@ -144,7 +144,7 @@ class _TranscriptPageState extends State<TranscriptPage> {
   Future<void> _markAudioRead(MessageListEntry message) async {
     if (message.mediaStatus.toUpperCase() != 'DONE') return;
     try {
-      await widget.account.markTranscriptAudioRead(
+      await widget.account.attachment().markTranscriptAudioRead(
         transcriptId: widget.transcriptId,
         messageId: message.id,
       );

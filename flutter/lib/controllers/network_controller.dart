@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:mixin_desktop_ui/network/core_http_client.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 
 class NetworkController extends ChangeNotifier {
   NetworkController(this._desktop) : httpClient = CoreHttpClient(_desktop);

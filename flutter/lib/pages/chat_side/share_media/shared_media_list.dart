@@ -80,7 +80,7 @@ class _SharedMediaListState extends State<SharedMediaList> {
       final target = _messages?.length ?? widget.pageSize;
       final result = <MessageListEntry>[];
       while (result.length < target) {
-        final page = await scope.account.sharedMessages(
+        final page = await scope.account.message().sharedMessages(
           conversationId: scope.conversation.id,
           kind: widget.kind,
           offset: BigInt.from(result.length),
@@ -102,7 +102,7 @@ class _SharedMediaListState extends State<SharedMediaList> {
   Future<void> _load() async {
     try {
       final scope = ChatSideScope.of(context);
-      final result = await scope.account.sharedMessages(
+      final result = await scope.account.message().sharedMessages(
         conversationId: scope.conversation.id,
         kind: widget.kind,
         offset: BigInt.from(_messages?.length ?? 0),

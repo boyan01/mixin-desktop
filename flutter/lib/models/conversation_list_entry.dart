@@ -1,4 +1,4 @@
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 
 class ConversationListEntry {
   const ConversationListEntry({

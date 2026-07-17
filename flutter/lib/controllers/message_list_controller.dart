@@ -4,7 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 
 const _messagePageLimit = 60;
 const _initialUnreadBefore = 15;
@@ -101,7 +101,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     error = null;
     notifyListeners();
     try {
-      await account.sendText(
+      await account.message().sendText(
         conversationId: conversation.id,
         content: text,
         quoteMessageId: quoteMessageId,
@@ -135,7 +135,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     error = null;
     notifyListeners();
     try {
-      await account.sendAudio(
+      await account.message().sendAudio(
         conversationId: conversation.id,
         path: path,
         durationMillis: duration.inMilliseconds,
@@ -161,7 +161,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     error = null;
     notifyListeners();
     try {
-      await account.sendSticker(
+      await account.message().sendSticker(
         conversationId: conversation.id,
         stickerId: stickerId,
       );
@@ -188,7 +188,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     error = null;
     notifyListeners();
     try {
-      await account.forwardMessages(
+      await account.message().forwardMessages(
         targetConversationId: targetConversationId,
         sourceMessageIds: selected.map((message) => message.id).toList(),
       );
@@ -216,7 +216,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     error = null;
     notifyListeners();
     try {
-      await account.combineForwardMessages(
+      await account.message().combineForwardMessages(
         targetConversationId: targetConversationId,
         sourceMessageIds: selected.map((message) => message.id).toList(),
       );
@@ -234,7 +234,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> setMessagePinned(MessageListEntry message, bool pinned) async {
     try {
-      await account.setMessagePinned(
+      await account.message().setMessagePinned(
         conversationId: message.conversationId,
         messageId: message.id,
         pinned: pinned,
@@ -250,7 +250,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     final selected = messages.toList(growable: false);
     if (selected.isEmpty) return;
     try {
-      await account.recallMessages(
+      await account.message().recallMessages(
         conversationId: conversation.id,
         messageIds: selected.map((message) => message.id).toList(),
       );
@@ -265,7 +265,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     final selected = messages.toList(growable: false);
     if (selected.isEmpty) return;
     try {
-      await account.deleteMessages(
+      await account.message().deleteMessages(
         conversationId: conversation.id,
         messageIds: selected.map((message) => message.id).toList(),
       );
@@ -284,7 +284,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     }
     _markingMentionRead.add(message.id);
     try {
-      await account.markMentionRead(
+      await account.message().markMentionRead(
         conversationId: message.conversationId,
         messageId: message.id,
       );
@@ -298,7 +298,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> downloadAttachment(MessageListEntry message) async {
     try {
-      await account.downloadAttachment(messageId: message.id);
+      await account.attachment().downloadAttachment(messageId: message.id);
       await _refreshLatest();
     } catch (exception) {
       _setError(exception);
@@ -308,7 +308,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> cancelAttachment(MessageListEntry message) async {
     try {
-      await account.cancelAttachment(messageId: message.id);
+      await account.attachment().cancelAttachment(messageId: message.id);
       await _refreshLatest();
     } catch (exception) {
       _setError(exception);
@@ -319,7 +319,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> markAudioRead(MessageListEntry message) async {
     if (message.mediaStatus.toUpperCase() != 'DONE') return;
     try {
-      await account.markAudioRead(messageId: message.id);
+      await account.attachment().markAudioRead(messageId: message.id);
       await _refreshLatest();
     } catch (exception) {
       _setError(exception);
@@ -332,7 +332,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       throw ArgumentError('Sticker message has no sticker id');
     }
     try {
-      await account.addSticker(stickerId: stickerId);
+      await account.sticker().addSticker(stickerId: stickerId);
       error = null;
       if (!_disposed) notifyListeners();
     } catch (exception) {
@@ -343,7 +343,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> addImageAsSticker(MessageListEntry message) async {
     try {
-      await account.addStickerFromFile(messageId: message.id);
+      await account.sticker().addStickerFromFile(messageId: message.id);
       error = null;
     } catch (exception) {
       _setError(exception);
@@ -358,18 +358,18 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     try {
       switch (action) {
         case 'block':
-          await account.blockUser(userId: message.senderId);
+          await account.user().blockUser(userId: message.senderId);
           await _refreshLatest();
           break;
         case 'add_contact':
-          await account.addContact(
+          await account.user().addContact(
             userId: message.senderId,
             fullName: message.senderName,
           );
           await _refreshLatest();
           break;
         case 'say_hi':
-          await account.sendText(
+          await account.message().sendText(
             conversationId: conversation.id,
             content: 'Hi',
             quoteMessageId: null,
@@ -379,7 +379,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         case 'open_home':
           final appId = message.senderAppId?.trim();
           if (appId == null || appId.isEmpty) return null;
-          return account.botHomeUri(appId: appId);
+          return account.user().botHomeUri(appId: appId);
         default:
           return null;
       }
@@ -401,7 +401,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     error = null;
     notifyListeners();
     try {
-      final result = await account.messagesAround(
+      final result = await account.message().messagesAround(
         conversationId: conversation.id,
         targetMessageId: messageId,
         before: before,
@@ -455,7 +455,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     initialUnreadMessageId = null;
     notifyListeners();
     try {
-      final roleFuture = account.currentUserRole(
+      final roleFuture = account.conversation().currentUserRole(
         conversationId: conversation.id,
       );
       final pinnedFuture = _loadPinnedMessages();
@@ -470,7 +470,9 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         hasMore = page.length == _messagePageLimit;
       }
       if (_canMarkRead) {
-        await account.markConversationRead(conversationId: conversation.id);
+        await account.message().markConversationRead(
+          conversationId: conversation.id,
+        );
       }
     } catch (exception) {
       _setError(exception);
@@ -491,7 +493,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         .clamp(_initialUnreadAfterMinimum, _initialUnreadAfterMaximum)
         .toInt();
     try {
-      final result = await account.messagesAround(
+      final result = await account.message().messagesAround(
         conversationId: conversation.id,
         targetMessageId: targetMessageId,
         before: _initialUnreadBefore,
@@ -521,7 +523,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     String? beforeMessageId,
     int limit = _messagePageLimit,
   }) async {
-    final result = await account.messages(
+    final result = await account.message().messages(
       conversationId: conversation.id,
       beforeCreatedAtMicros: beforeCreatedAt?.microsecondsSinceEpoch,
       beforeMessageId: beforeMessageId,
@@ -535,7 +537,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<List<MessageListEntry>> _loadPinnedMessages() async {
-    final result = await account.pinnedMessages(
+    final result = await account.message().pinnedMessages(
       conversationId: conversation.id,
     );
     return result.map(MessageListEntry.fromRust).toList(growable: false);
@@ -582,7 +584,9 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         pinnedMessages = await _loadPinnedMessages();
         _syncInitialUnreadMessageIndex();
         if (_canMarkRead) {
-          await account.markConversationRead(conversationId: conversation.id);
+          await account.message().markConversationRead(
+            conversationId: conversation.id,
+          );
         }
         error = null;
         notifyListeners();
@@ -624,7 +628,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
 
     _queriedMentionIdentityNumbers.addAll(identityNumbers);
     try {
-      final users = await account.usersByIdentityNumbers(
+      final users = await account.user().usersByIdentityNumbers(
         identityNumbers: identityNumbers.toList(growable: false),
       );
       if (_disposed) return;

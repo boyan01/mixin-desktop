@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 
 import 'chat_side_scope.dart';
@@ -34,7 +34,7 @@ class _CircleManagerPageState extends State<CircleManagerPage> {
   Future<void> _load() async {
     final scope = ChatSideScope.of(context);
     try {
-      final values = await scope.account.circles();
+      final values = await scope.account.conversation().circles();
       if (!mounted) return;
       setState(() {
         circles = values;
@@ -61,7 +61,7 @@ class _CircleManagerPageState extends State<CircleManagerPage> {
       }
     });
     try {
-      await scope.account.editCircleConversation(
+      await scope.account.conversation().editCircleConversation(
         circleId: circle.circleId,
         conversationId: scope.conversation.id,
         ownerId: scope.conversation.ownerId,
@@ -89,8 +89,10 @@ class _CircleManagerPageState extends State<CircleManagerPage> {
     if (name == null || name.isEmpty || !mounted) return;
     final scope = ChatSideScope.of(context);
     try {
-      final circle = await scope.account.createCircle(name: name);
-      await scope.account.editCircleConversation(
+      final circle = await scope.account.conversation().createCircle(
+        name: name,
+      );
+      await scope.account.conversation().editCircleConversation(
         circleId: circle.circleId,
         conversationId: scope.conversation.id,
         ownerId: scope.conversation.ownerId,

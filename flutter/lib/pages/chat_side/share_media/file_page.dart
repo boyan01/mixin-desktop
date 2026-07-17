@@ -62,11 +62,13 @@ class _FileItem extends StatelessWidget {
           final status = message.mediaStatus.toUpperCase();
           final account = ChatSideScope.of(context).account;
           if (status == 'CANCELED') {
-            await account.downloadAttachment(messageId: message.id);
+            await account.attachment().downloadAttachment(
+              messageId: message.id,
+            );
             return;
           }
           if (status == 'PENDING') {
-            await account.cancelAttachment(messageId: message.id);
+            await account.attachment().cancelAttachment(messageId: message.id);
             return;
           }
           final source = message.mediaUrl?.trim() ?? '';

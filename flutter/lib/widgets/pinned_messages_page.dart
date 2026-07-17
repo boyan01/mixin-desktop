@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/utils/system_clipboard.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
@@ -108,7 +108,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
     do {
       _refreshPending = false;
       try {
-        final result = await widget.account.pinnedMessages(
+        final result = await widget.account.message().pinnedMessages(
           conversationId: widget.conversationId,
         );
         if (!mounted) return;
@@ -137,7 +137,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
 
   Future<void> _unpin(MessageListEntry message) async {
     try {
-      await widget.account.setMessagePinned(
+      await widget.account.message().setMessagePinned(
         conversationId: widget.conversationId,
         messageId: message.id,
         pinned: false,
@@ -175,7 +175,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
     if (confirmed != true) return;
     try {
       for (final message in _messages) {
-        await widget.account.setMessagePinned(
+        await widget.account.message().setMessagePinned(
           conversationId: widget.conversationId,
           messageId: message.id,
           pinned: false,
@@ -189,7 +189,9 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
 
   Future<void> _download(MessageListEntry message) async {
     try {
-      await widget.account.downloadAttachment(messageId: message.id);
+      await widget.account.attachment().downloadAttachment(
+        messageId: message.id,
+      );
       await _refresh();
     } on Object catch (error) {
       if (mounted) setState(() => _error = error.toString());
@@ -198,7 +200,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
 
   Future<void> _cancel(MessageListEntry message) async {
     try {
-      await widget.account.cancelAttachment(messageId: message.id);
+      await widget.account.attachment().cancelAttachment(messageId: message.id);
       await _refresh();
     } on Object catch (error) {
       if (mounted) setState(() => _error = error.toString());
@@ -207,7 +209,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
 
   Future<void> _markAudioRead(MessageListEntry message) async {
     if (message.mediaStatus.toUpperCase() != 'DONE') return;
-    await widget.account.markAudioRead(messageId: message.id);
+    await widget.account.attachment().markAudioRead(messageId: message.id);
     await _refresh();
   }
 

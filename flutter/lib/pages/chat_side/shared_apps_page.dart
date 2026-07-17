@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -34,7 +34,7 @@ class _SharedAppsPageState extends State<SharedAppsPage> {
       return;
     }
     try {
-      final values = await scope.account.sharedApps(
+      final values = await scope.account.user().sharedApps(
         userId: scope.conversation.ownerId,
       );
       if (!mounted) return;

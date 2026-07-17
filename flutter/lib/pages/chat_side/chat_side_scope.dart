@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mixin_desktop_ui/controllers/chat_side_notifier.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 
 class ChatSideScope extends InheritedWidget {

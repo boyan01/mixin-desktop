@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 
 class CoreHttpClient extends http.BaseClient {
   CoreHttpClient(this._desktop);

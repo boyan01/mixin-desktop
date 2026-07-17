@@ -41,7 +41,7 @@ class _DisappearMessagePageState extends State<DisappearMessagePage> {
   Future<void> _load() async {
     final scope = ChatSideScope.of(context);
     try {
-      final detail = await scope.account.conversationDetail(
+      final detail = await scope.account.conversation().conversationDetail(
         conversationId: scope.conversation.id,
       );
       if (!mounted) return;
@@ -64,7 +64,7 @@ class _DisappearMessagePageState extends State<DisappearMessagePage> {
     final scope = ChatSideScope.of(context);
     setState(() => selected = seconds);
     try {
-      await scope.account.setDisappearingMessages(
+      await scope.account.conversation().setDisappearingMessages(
         conversationId: scope.conversation.id,
         duration: seconds,
       );

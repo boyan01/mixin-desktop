@@ -10,6 +10,8 @@ import 'frb_generated.dart';
 import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'third_party/mixin_desktop_core/runtime.dart';
+import 'third_party/mixin_desktop_core/runtime/model.dart';
 
 /// Main entrypoint of the Rust API
 class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
@@ -66,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1657210508;
+  int get rustContentHash => -750953352;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -80,370 +82,28 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 abstract class RustLibApi extends BaseApi {
   String crateApiDesktopAccountHandleAccountId({required AccountHandle that});
 
-  Future<void> crateApiDesktopAccountHandleAddContact({
-    required AccountHandle that,
-    required String userId,
-    required String fullName,
-  });
-
-  Future<void> crateApiDesktopAccountHandleAddSticker({
-    required AccountHandle that,
-    required String stickerId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleAddStickerFromFile({
-    required AccountHandle that,
-    required String messageId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleAddStickerFromPath({
-    required AccountHandle that,
-    required String path,
-  });
-
-  Future<List<StickerItem>> crateApiDesktopAccountHandleAlbumStickers({
-    required AccountHandle that,
-    required String albumId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleBlockUser({
-    required AccountHandle that,
-    required String userId,
-  });
-
-  Future<String?> crateApiDesktopAccountHandleBotCreatorId({
-    required AccountHandle that,
-    required String userId,
-  });
-
-  Future<String?> crateApiDesktopAccountHandleBotHomeUri({
-    required AccountHandle that,
-    required String appId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleCancelAttachment({
-    required AccountHandle that,
-    required String messageId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleCancelTranscriptAttachment({
-    required AccountHandle that,
-    required String transcriptId,
-    required String messageId,
-  });
-
-  Future<List<CircleItem>> crateApiDesktopAccountHandleCircles({
+  AttachmentAccess crateApiDesktopAccountHandleAttachment({
     required AccountHandle that,
   });
 
-  Future<void> crateApiDesktopAccountHandleClearConversation({
+  ConversationAccess crateApiDesktopAccountHandleConversation({
     required AccountHandle that,
-    required String conversationId,
-  });
-
-  Future<String> crateApiDesktopAccountHandleCombineForwardMessages({
-    required AccountHandle that,
-    required String targetConversationId,
-    required List<String> sourceMessageIds,
   });
 
   Stream<BigInt> crateApiDesktopAccountHandleConversationChanges({
     required AccountHandle that,
   });
 
-  Future<PlatformInt64> crateApiDesktopAccountHandleConversationCount({
+  MessageAccess crateApiDesktopAccountHandleMessage({
     required AccountHandle that,
-    required String category,
-    String? circleId,
-    required String keyword,
-    required bool unseenOnly,
-  });
-
-  Future<ConversationDetailItem>
-  crateApiDesktopAccountHandleConversationDetail({
-    required AccountHandle that,
-    required String conversationId,
-  });
-
-  Future<List<ConversationParticipantItem>>
-  crateApiDesktopAccountHandleConversationParticipants({
-    required AccountHandle that,
-    required String conversationId,
-  });
-
-  Future<List<ConversationListItem>> crateApiDesktopAccountHandleConversations({
-    required AccountHandle that,
-    required String category,
-    String? circleId,
-    required String keyword,
-    required bool unseenOnly,
-    required PlatformInt64 limit,
-    required PlatformInt64 offset,
-  });
-
-  Future<CircleItem> crateApiDesktopAccountHandleCreateCircle({
-    required AccountHandle that,
-    required String name,
-  });
-
-  Future<String?> crateApiDesktopAccountHandleCurrentUserRole({
-    required AccountHandle that,
-    required String conversationId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleDeleteConversation({
-    required AccountHandle that,
-    required String conversationId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleDeleteMessages({
-    required AccountHandle that,
-    required String conversationId,
-    required List<String> messageIds,
-  });
-
-  Future<void> crateApiDesktopAccountHandleDownloadAttachment({
-    required AccountHandle that,
-    required String messageId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleDownloadTranscriptAttachment({
-    required AccountHandle that,
-    required String transcriptId,
-    required String messageId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleEditCircleConversation({
-    required AccountHandle that,
-    required String circleId,
-    required String conversationId,
-    required String ownerId,
-    required bool isGroup,
-    required bool add,
-  });
-
-  Future<void> crateApiDesktopAccountHandleEditConversation({
-    required AccountHandle that,
-    required String conversationId,
-    String? name,
-    String? announcement,
-  });
-
-  Future<void> crateApiDesktopAccountHandleExitGroup({
-    required AccountHandle that,
-    required String conversationId,
-  });
-
-  Future<List<String>> crateApiDesktopAccountHandleForwardMessages({
-    required AccountHandle that,
-    required String targetConversationId,
-    required List<String> sourceMessageIds,
-  });
-
-  Future<List<GroupConversationItem>>
-  crateApiDesktopAccountHandleGroupsInCommon({
-    required AccountHandle that,
-    required String userId,
-  });
-
-  Future<List<ImageMessageItem>>
-  crateApiDesktopAccountHandleImageMessagesAround({
-    required AccountHandle that,
-    required String conversationId,
-    required String targetMessageId,
-    required PlatformInt64 before,
-    required PlatformInt64 after,
-  });
-
-  Future<ConversationDetailItem>
-  crateApiDesktopAccountHandleLocalConversationDetail({
-    required AccountHandle that,
-    required String conversationId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleMarkAudioRead({
-    required AccountHandle that,
-    required String messageId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleMarkConversationRead({
-    required AccountHandle that,
-    required String conversationId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleMarkMentionRead({
-    required AccountHandle that,
-    required String conversationId,
-    required String messageId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleMarkTranscriptAudioRead({
-    required AccountHandle that,
-    required String transcriptId,
-    required String messageId,
   });
 
   Stream<BigInt> crateApiDesktopAccountHandleMessageChanges({
     required AccountHandle that,
   });
 
-  Future<List<MessageListItem>> crateApiDesktopAccountHandleMessages({
-    required AccountHandle that,
-    required String conversationId,
-    PlatformInt64? beforeCreatedAtMicros,
-    String? beforeMessageId,
-    required PlatformInt64 limit,
-  });
-
-  Future<List<MessageListItem>> crateApiDesktopAccountHandleMessagesAround({
-    required AccountHandle that,
-    required String conversationId,
-    required String targetMessageId,
-    required PlatformInt64 before,
-    required PlatformInt64 after,
-  });
-
-  Future<List<StickerItem>> crateApiDesktopAccountHandlePersonalStickers({
-    required AccountHandle that,
-  });
-
-  Future<List<MessageListItem>> crateApiDesktopAccountHandlePinnedMessages({
-    required AccountHandle that,
-    required String conversationId,
-  });
-
   AccountProfile crateApiDesktopAccountHandleProfile({
     required AccountHandle that,
-  });
-
-  Future<void> crateApiDesktopAccountHandleRecallMessages({
-    required AccountHandle that,
-    required String conversationId,
-    required List<String> messageIds,
-  });
-
-  Future<List<StickerItem>> crateApiDesktopAccountHandleRecentStickers({
-    required AccountHandle that,
-  });
-
-  Future<void> crateApiDesktopAccountHandleRefreshStickers({
-    required AccountHandle that,
-  });
-
-  Future<void> crateApiDesktopAccountHandleRemoveContact({
-    required AccountHandle that,
-    required String userId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleRemoveSticker({
-    required AccountHandle that,
-    required String stickerId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleReportUser({
-    required AccountHandle that,
-    required String userId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleRotateGroupInvite({
-    required AccountHandle that,
-    required String conversationId,
-  });
-
-  Future<List<ConversationParticipantItem>>
-  crateApiDesktopAccountHandleSearchBotGroupUsers({
-    required AccountHandle that,
-    required String conversationId,
-    required String keyword,
-  });
-
-  Future<List<MessageListItem>> crateApiDesktopAccountHandleSearchMessages({
-    required AccountHandle that,
-    required String conversationId,
-    required String query,
-    String? senderId,
-    required List<String> categories,
-    required int offset,
-    required int limit,
-  });
-
-  Future<String> crateApiDesktopAccountHandleSendAudio({
-    required AccountHandle that,
-    required String conversationId,
-    required String path,
-    required PlatformInt64 durationMillis,
-    required List<int> waveform,
-    String? quoteMessageId,
-  });
-
-  Future<String> crateApiDesktopAccountHandleSendContact({
-    required AccountHandle that,
-    required String conversationId,
-    required String sharedUserId,
-  });
-
-  Future<String> crateApiDesktopAccountHandleSendSticker({
-    required AccountHandle that,
-    required String conversationId,
-    required String stickerId,
-  });
-
-  Future<String> crateApiDesktopAccountHandleSendText({
-    required AccountHandle that,
-    required String conversationId,
-    required String content,
-    String? quoteMessageId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleSetConversationMuted({
-    required AccountHandle that,
-    required String conversationId,
-    required String ownerId,
-    required String category,
-    required PlatformInt64 durationSeconds,
-  });
-
-  Future<void> crateApiDesktopAccountHandleSetConversationPinned({
-    required AccountHandle that,
-    required String conversationId,
-    required bool pinned,
-  });
-
-  Future<void> crateApiDesktopAccountHandleSetDisappearingMessages({
-    required AccountHandle that,
-    required String conversationId,
-    required PlatformInt64 duration,
-  });
-
-  Future<void> crateApiDesktopAccountHandleSetMessagePinned({
-    required AccountHandle that,
-    required String conversationId,
-    required String messageId,
-    required bool pinned,
-  });
-
-  Future<void> crateApiDesktopAccountHandleSetStickerAlbumAdded({
-    required AccountHandle that,
-    required String albumId,
-    required bool added,
-  });
-
-  Future<void> crateApiDesktopAccountHandleSetStickerAlbumOrder({
-    required AccountHandle that,
-    required List<String> albumIds,
-  });
-
-  Future<List<SharedAppItem>> crateApiDesktopAccountHandleSharedApps({
-    required AccountHandle that,
-    required String userId,
-  });
-
-  Future<List<MessageListItem>> crateApiDesktopAccountHandleSharedMessages({
-    required AccountHandle that,
-    required String conversationId,
-    required String kind,
-    required BigInt offset,
-    required BigInt limit,
   });
 
   Future<void> crateApiDesktopAccountHandleShutdown({
@@ -454,46 +114,175 @@ abstract class RustLibApi extends BaseApi {
     required AccountHandle that,
   });
 
-  Future<List<StickerAlbumItem>> crateApiDesktopAccountHandleStickerAlbums({
+  StickerAccess crateApiDesktopAccountHandleSticker({
     required AccountHandle that,
   });
 
-  Future<StickerDetailItem> crateApiDesktopAccountHandleStickerDetail({
-    required AccountHandle that,
-    required String stickerId,
+  UserAccess crateApiDesktopAccountHandleUser({required AccountHandle that});
+
+  Future<void> mixinDesktopCoreRuntimeAttachmentAccessCancelAttachment({
+    required AttachmentAccess that,
+    required String messageId,
   });
 
-  Future<List<StickerAlbumItem>>
-  crateApiDesktopAccountHandleStickerStoreAlbums({required AccountHandle that});
-
-  Future<List<MessageListItem>> crateApiDesktopAccountHandleTranscriptMessages({
-    required AccountHandle that,
+  Future<void>
+  mixinDesktopCoreRuntimeAttachmentAccessCancelTranscriptAttachment({
+    required AttachmentAccess that,
     required String transcriptId,
+    required String messageId,
   });
 
-  Future<void> crateApiDesktopAccountHandleUnblockUser({
-    required AccountHandle that,
+  Future<void> mixinDesktopCoreRuntimeAttachmentAccessDownloadAttachment({
+    required AttachmentAccess that,
+    required String messageId,
+  });
+
+  Future<void>
+  mixinDesktopCoreRuntimeAttachmentAccessDownloadTranscriptAttachment({
+    required AttachmentAccess that,
+    required String transcriptId,
+    required String messageId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeAttachmentAccessMarkAudioRead({
+    required AttachmentAccess that,
+    required String messageId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeAttachmentAccessMarkTranscriptAudioRead({
+    required AttachmentAccess that,
+    required String transcriptId,
+    required String messageId,
+  });
+
+  Future<List<CircleItem>> mixinDesktopCoreRuntimeConversationAccessCircles({
+    required ConversationAccess that,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeConversationAccessClearConversation({
+    required ConversationAccess that,
+    required String conversationId,
+  });
+
+  Future<PlatformInt64>
+  mixinDesktopCoreRuntimeConversationAccessConversationCount({
+    required ConversationAccess that,
+    required String category,
+    String? circleId,
+    required String keyword,
+    required bool unseenOnly,
+  });
+
+  Future<ConversationDetailItem>
+  mixinDesktopCoreRuntimeConversationAccessConversationDetail({
+    required ConversationAccess that,
+    required String conversationId,
+  });
+
+  Future<List<ConversationParticipantItem>>
+  mixinDesktopCoreRuntimeConversationAccessConversationParticipants({
+    required ConversationAccess that,
+    required String conversationId,
+  });
+
+  Future<List<ConversationListData>>
+  mixinDesktopCoreRuntimeConversationAccessConversations({
+    required ConversationAccess that,
+    required String category,
+    String? circleId,
+    required String keyword,
+    required bool unseenOnly,
+    required PlatformInt64 limit,
+    required PlatformInt64 offset,
+  });
+
+  Future<CircleItem> mixinDesktopCoreRuntimeConversationAccessCreateCircle({
+    required ConversationAccess that,
+    required String name,
+  });
+
+  Future<String?> mixinDesktopCoreRuntimeConversationAccessCurrentUserRole({
+    required ConversationAccess that,
+    required String conversationId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeConversationAccessDeleteConversation({
+    required ConversationAccess that,
+    required String conversationId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeConversationAccessEditCircleConversation({
+    required ConversationAccess that,
+    required String circleId,
+    required String conversationId,
+    required String ownerId,
+    required bool isGroup,
+    required bool add,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeConversationAccessEditConversation({
+    required ConversationAccess that,
+    required String conversationId,
+    String? name,
+    String? announcement,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeConversationAccessExitGroup({
+    required ConversationAccess that,
+    required String conversationId,
+  });
+
+  Future<List<GroupConversationItem>>
+  mixinDesktopCoreRuntimeConversationAccessGroupsInCommon({
+    required ConversationAccess that,
     required String userId,
   });
 
-  Future<void> crateApiDesktopAccountHandleUpdateParticipants({
-    required AccountHandle that,
+  Future<ConversationDetailItem>
+  mixinDesktopCoreRuntimeConversationAccessLocalConversationDetail({
+    required ConversationAccess that,
+    required String conversationId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeConversationAccessRotateGroupInvite({
+    required ConversationAccess that,
+    required String conversationId,
+  });
+
+  Future<List<ConversationParticipantItem>>
+  mixinDesktopCoreRuntimeConversationAccessSearchBotGroupUsers({
+    required ConversationAccess that,
+    required String conversationId,
+    required String keyword,
+  });
+
+  Future<void>
+  mixinDesktopCoreRuntimeConversationAccessSetDisappearingMessages({
+    required ConversationAccess that,
+    required String conversationId,
+    required PlatformInt64 duration,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeConversationAccessSetMuted({
+    required ConversationAccess that,
+    required String conversationId,
+    required String ownerId,
+    required String category,
+    required PlatformInt64 durationSeconds,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeConversationAccessSetPinned({
+    required ConversationAccess that,
+    required String conversationId,
+    required bool pinned,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeConversationAccessUpdateParticipants({
+    required ConversationAccess that,
     required String conversationId,
     required String action,
     required List<String> userIds,
     String? role,
-  });
-
-  Future<UserProfileItem?> crateApiDesktopAccountHandleUserProfile({
-    required AccountHandle that,
-    String? userId,
-    String? identityNumber,
-  });
-
-  Future<List<UserProfileItem>>
-  crateApiDesktopAccountHandleUsersByIdentityNumbers({
-    required AccountHandle that,
-    required List<String> identityNumbers,
   });
 
   Future<LoginHandle> crateApiDesktopDesktopHandleBeginLogin({
@@ -529,6 +318,251 @@ abstract class RustLibApi extends BaseApi {
     required LoginHandle that,
   });
 
+  Future<String> mixinDesktopCoreRuntimeMessageAccessCombineForwardMessages({
+    required MessageAccess that,
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeMessageAccessDeleteMessages({
+    required MessageAccess that,
+    required String conversationId,
+    required List<String> messageIds,
+  });
+
+  Future<List<String>> mixinDesktopCoreRuntimeMessageAccessForwardMessages({
+    required MessageAccess that,
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  });
+
+  Future<List<ImageMessageView>>
+  mixinDesktopCoreRuntimeMessageAccessImageMessagesAround({
+    required MessageAccess that,
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeMessageAccessMarkConversationRead({
+    required MessageAccess that,
+    required String conversationId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeMessageAccessMarkMentionRead({
+    required MessageAccess that,
+    required String conversationId,
+    required String messageId,
+  });
+
+  Future<List<MessageListView>> mixinDesktopCoreRuntimeMessageAccessMessages({
+    required MessageAccess that,
+    required String conversationId,
+    PlatformInt64? beforeCreatedAtMicros,
+    String? beforeMessageId,
+    required PlatformInt64 limit,
+  });
+
+  Future<List<MessageListView>>
+  mixinDesktopCoreRuntimeMessageAccessMessagesAround({
+    required MessageAccess that,
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  });
+
+  Future<List<MessageListView>>
+  mixinDesktopCoreRuntimeMessageAccessPinnedMessages({
+    required MessageAccess that,
+    required String conversationId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeMessageAccessRecallMessages({
+    required MessageAccess that,
+    required String conversationId,
+    required List<String> messageIds,
+  });
+
+  Future<List<MessageListView>>
+  mixinDesktopCoreRuntimeMessageAccessSearchMessages({
+    required MessageAccess that,
+    required String conversationId,
+    required String query,
+    String? senderId,
+    required List<String> categories,
+    required int offset,
+    required int limit,
+  });
+
+  Future<String> mixinDesktopCoreRuntimeMessageAccessSendAudio({
+    required MessageAccess that,
+    required String conversationId,
+    required String path,
+    required PlatformInt64 durationMillis,
+    required List<int> waveform,
+    String? quoteMessageId,
+  });
+
+  Future<String> mixinDesktopCoreRuntimeMessageAccessSendContact({
+    required MessageAccess that,
+    required String conversationId,
+    required String sharedUserId,
+  });
+
+  Future<String> mixinDesktopCoreRuntimeMessageAccessSendSticker({
+    required MessageAccess that,
+    required String conversationId,
+    required String stickerId,
+  });
+
+  Future<String> mixinDesktopCoreRuntimeMessageAccessSendText({
+    required MessageAccess that,
+    required String conversationId,
+    required String content,
+    String? quoteMessageId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeMessageAccessSetMessagePinned({
+    required MessageAccess that,
+    required String conversationId,
+    required String messageId,
+    required bool pinned,
+  });
+
+  Future<List<MessageListView>>
+  mixinDesktopCoreRuntimeMessageAccessSharedMessages({
+    required MessageAccess that,
+    required String conversationId,
+    required String kind,
+    required BigInt offset,
+    required BigInt limit,
+  });
+
+  Future<List<MessageListView>>
+  mixinDesktopCoreRuntimeMessageAccessTranscriptMessages({
+    required MessageAccess that,
+    required String transcriptId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeStickerAccessAddSticker({
+    required StickerAccess that,
+    required String stickerId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeStickerAccessAddStickerFromFile({
+    required StickerAccess that,
+    required String messageId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeStickerAccessAddStickerFromPath({
+    required StickerAccess that,
+    required String path,
+  });
+
+  Future<List<StickerItem>> mixinDesktopCoreRuntimeStickerAccessAlbumStickers({
+    required StickerAccess that,
+    required String albumId,
+  });
+
+  Future<List<StickerItem>>
+  mixinDesktopCoreRuntimeStickerAccessPersonalStickers({
+    required StickerAccess that,
+  });
+
+  Future<List<StickerItem>> mixinDesktopCoreRuntimeStickerAccessRecentStickers({
+    required StickerAccess that,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeStickerAccessRefreshStickers({
+    required StickerAccess that,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeStickerAccessRemoveSticker({
+    required StickerAccess that,
+    required String stickerId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeStickerAccessSetStickerAlbumAdded({
+    required StickerAccess that,
+    required String albumId,
+    required bool added,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeStickerAccessSetStickerAlbumOrder({
+    required StickerAccess that,
+    required List<String> albumIds,
+  });
+
+  Future<List<StickerAlbumItem>>
+  mixinDesktopCoreRuntimeStickerAccessStickerAlbums({
+    required StickerAccess that,
+  });
+
+  Future<StickerDetailItem> mixinDesktopCoreRuntimeStickerAccessStickerDetail({
+    required StickerAccess that,
+    required String stickerId,
+  });
+
+  Future<List<StickerAlbumItem>>
+  mixinDesktopCoreRuntimeStickerAccessStickerStoreAlbums({
+    required StickerAccess that,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeUserAccessAddContact({
+    required UserAccess that,
+    required String userId,
+    required String fullName,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeUserAccessBlockUser({
+    required UserAccess that,
+    required String userId,
+  });
+
+  Future<String?> mixinDesktopCoreRuntimeUserAccessBotCreatorId({
+    required UserAccess that,
+    required String userId,
+  });
+
+  Future<String?> mixinDesktopCoreRuntimeUserAccessBotHomeUri({
+    required UserAccess that,
+    required String appId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeUserAccessRemoveContact({
+    required UserAccess that,
+    required String userId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeUserAccessReportUser({
+    required UserAccess that,
+    required String userId,
+  });
+
+  Future<List<SharedAppItem>> mixinDesktopCoreRuntimeUserAccessSharedApps({
+    required UserAccess that,
+    required String userId,
+  });
+
+  Future<void> mixinDesktopCoreRuntimeUserAccessUnblockUser({
+    required UserAccess that,
+    required String userId,
+  });
+
+  Future<UserProfileItem?> mixinDesktopCoreRuntimeUserAccessUserProfile({
+    required UserAccess that,
+    String? userId,
+    String? identityNumber,
+  });
+
+  Future<List<UserProfileItem>>
+  mixinDesktopCoreRuntimeUserAccessUsersByIdentityNumbers({
+    required UserAccess that,
+    required List<String> identityNumbers,
+  });
+
   Future<void> crateApiDesktopInitApp();
 
   Future<DesktopHandle> crateApiDesktopOpenDesktop();
@@ -541,6 +575,24 @@ abstract class RustLibApi extends BaseApi {
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_AccountHandlePtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_AttachmentAccess;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_AttachmentAccess;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_AttachmentAccessPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_ConversationAccess;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_ConversationAccess;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_ConversationAccessPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_DesktopHandle;
@@ -558,6 +610,32 @@ abstract class RustLibApi extends BaseApi {
   get rust_arc_decrement_strong_count_LoginHandle;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_LoginHandlePtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_MessageAccess;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_MessageAccess;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_MessageAccessPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_StickerAccess;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_StickerAccess;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_StickerAccessPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_UserAccess;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_UserAccess;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UserAccessPtr;
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -598,504 +676,67 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiDesktopAccountHandleAddContact({
+  AttachmentAccess crateApiDesktopAccountHandleAttachment({
     required AccountHandle that,
-    required String userId,
-    required String fullName,
   }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
             that,
             serializer,
           );
-          sse_encode_String(userId, serializer);
-          sse_encode_String(fullName, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 2,
-            port: port_,
-          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess,
+          decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleAddContactConstMeta,
-        argValues: [that, userId, fullName],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleAddContactConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_add_contact",
-        argNames: ["that", "userId", "fullName"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleAddSticker({
-    required AccountHandle that,
-    required String stickerId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(stickerId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 3,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleAddStickerConstMeta,
-        argValues: [that, stickerId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleAddStickerConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_add_sticker",
-        argNames: ["that", "stickerId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleAddStickerFromFile({
-    required AccountHandle that,
-    required String messageId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(messageId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 4,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleAddStickerFromFileConstMeta,
-        argValues: [that, messageId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleAddStickerFromFileConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_add_sticker_from_file",
-        argNames: ["that", "messageId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleAddStickerFromPath({
-    required AccountHandle that,
-    required String path,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(path, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 5,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleAddStickerFromPathConstMeta,
-        argValues: [that, path],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleAddStickerFromPathConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_add_sticker_from_path",
-        argNames: ["that", "path"],
-      );
-
-  @override
-  Future<List<StickerItem>> crateApiDesktopAccountHandleAlbumStickers({
-    required AccountHandle that,
-    required String albumId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(albumId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 6,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_sticker_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleAlbumStickersConstMeta,
-        argValues: [that, albumId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleAlbumStickersConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_album_stickers",
-        argNames: ["that", "albumId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleBlockUser({
-    required AccountHandle that,
-    required String userId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(userId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 7,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleBlockUserConstMeta,
-        argValues: [that, userId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleBlockUserConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_block_user",
-        argNames: ["that", "userId"],
-      );
-
-  @override
-  Future<String?> crateApiDesktopAccountHandleBotCreatorId({
-    required AccountHandle that,
-    required String userId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(userId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 8,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleBotCreatorIdConstMeta,
-        argValues: [that, userId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleBotCreatorIdConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_bot_creator_id",
-        argNames: ["that", "userId"],
-      );
-
-  @override
-  Future<String?> crateApiDesktopAccountHandleBotHomeUri({
-    required AccountHandle that,
-    required String appId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(appId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 9,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleBotHomeUriConstMeta,
-        argValues: [that, appId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleBotHomeUriConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_bot_home_uri",
-        argNames: ["that", "appId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleCancelAttachment({
-    required AccountHandle that,
-    required String messageId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(messageId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 10,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleCancelAttachmentConstMeta,
-        argValues: [that, messageId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleCancelAttachmentConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_cancel_attachment",
-        argNames: ["that", "messageId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleCancelTranscriptAttachment({
-    required AccountHandle that,
-    required String transcriptId,
-    required String messageId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(transcriptId, serializer);
-          sse_encode_String(messageId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 11,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta:
-            kCrateApiDesktopAccountHandleCancelTranscriptAttachmentConstMeta,
-        argValues: [that, transcriptId, messageId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleCancelTranscriptAttachmentConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_cancel_transcript_attachment",
-        argNames: ["that", "transcriptId", "messageId"],
-      );
-
-  @override
-  Future<List<CircleItem>> crateApiDesktopAccountHandleCircles({
-    required AccountHandle that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 12,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_circle_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleCirclesConstMeta,
+        constMeta: kCrateApiDesktopAccountHandleAttachmentConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleCirclesConstMeta =>
+  TaskConstMeta get kCrateApiDesktopAccountHandleAttachmentConstMeta =>
       const TaskConstMeta(
-        debugName: "AccountHandle_circles",
+        debugName: "AccountHandle_attachment",
         argNames: ["that"],
       );
 
   @override
-  Future<void> crateApiDesktopAccountHandleClearConversation({
+  ConversationAccess crateApiDesktopAccountHandleConversation({
     required AccountHandle that,
-    required String conversationId,
   }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
             that,
             serializer,
           );
-          sse_encode_String(conversationId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 13,
-            port: port_,
-          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess,
+          decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleClearConversationConstMeta,
-        argValues: [that, conversationId],
+        constMeta: kCrateApiDesktopAccountHandleConversationConstMeta,
+        argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleClearConversationConstMeta =>
+  TaskConstMeta get kCrateApiDesktopAccountHandleConversationConstMeta =>
       const TaskConstMeta(
-        debugName: "AccountHandle_clear_conversation",
-        argNames: ["that", "conversationId"],
-      );
-
-  @override
-  Future<String> crateApiDesktopAccountHandleCombineForwardMessages({
-    required AccountHandle that,
-    required String targetConversationId,
-    required List<String> sourceMessageIds,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(targetConversationId, serializer);
-          sse_encode_list_String(sourceMessageIds, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 14,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleCombineForwardMessagesConstMeta,
-        argValues: [that, targetConversationId, sourceMessageIds],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleCombineForwardMessagesConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_combine_forward_messages",
-        argNames: ["that", "targetConversationId", "sourceMessageIds"],
+        debugName: "AccountHandle_conversation",
+        argNames: ["that"],
       );
 
   @override
@@ -1116,7 +757,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 15,
+              funcId: 4,
               port: port_,
             );
           },
@@ -1140,889 +781,35 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<PlatformInt64> crateApiDesktopAccountHandleConversationCount({
+  MessageAccess crateApiDesktopAccountHandleMessage({
     required AccountHandle that,
-    required String category,
-    String? circleId,
-    required String keyword,
-    required bool unseenOnly,
   }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
             that,
             serializer,
           );
-          sse_encode_String(category, serializer);
-          sse_encode_opt_String(circleId, serializer);
-          sse_encode_String(keyword, serializer);
-          sse_encode_bool(unseenOnly, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 16,
-            port: port_,
-          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_i_64,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess,
+          decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleConversationCountConstMeta,
-        argValues: [that, category, circleId, keyword, unseenOnly],
+        constMeta: kCrateApiDesktopAccountHandleMessageConstMeta,
+        argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleConversationCountConstMeta =>
+  TaskConstMeta get kCrateApiDesktopAccountHandleMessageConstMeta =>
       const TaskConstMeta(
-        debugName: "AccountHandle_conversation_count",
-        argNames: ["that", "category", "circleId", "keyword", "unseenOnly"],
-      );
-
-  @override
-  Future<ConversationDetailItem>
-  crateApiDesktopAccountHandleConversationDetail({
-    required AccountHandle that,
-    required String conversationId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 17,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_conversation_detail_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleConversationDetailConstMeta,
-        argValues: [that, conversationId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleConversationDetailConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_conversation_detail",
-        argNames: ["that", "conversationId"],
-      );
-
-  @override
-  Future<List<ConversationParticipantItem>>
-  crateApiDesktopAccountHandleConversationParticipants({
-    required AccountHandle that,
-    required String conversationId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 18,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_conversation_participant_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta:
-            kCrateApiDesktopAccountHandleConversationParticipantsConstMeta,
-        argValues: [that, conversationId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleConversationParticipantsConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_conversation_participants",
-        argNames: ["that", "conversationId"],
-      );
-
-  @override
-  Future<List<ConversationListItem>> crateApiDesktopAccountHandleConversations({
-    required AccountHandle that,
-    required String category,
-    String? circleId,
-    required String keyword,
-    required bool unseenOnly,
-    required PlatformInt64 limit,
-    required PlatformInt64 offset,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(category, serializer);
-          sse_encode_opt_String(circleId, serializer);
-          sse_encode_String(keyword, serializer);
-          sse_encode_bool(unseenOnly, serializer);
-          sse_encode_i_64(limit, serializer);
-          sse_encode_i_64(offset, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 19,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_conversation_list_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleConversationsConstMeta,
-        argValues: [
-          that,
-          category,
-          circleId,
-          keyword,
-          unseenOnly,
-          limit,
-          offset,
-        ],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleConversationsConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_conversations",
-        argNames: [
-          "that",
-          "category",
-          "circleId",
-          "keyword",
-          "unseenOnly",
-          "limit",
-          "offset",
-        ],
-      );
-
-  @override
-  Future<CircleItem> crateApiDesktopAccountHandleCreateCircle({
-    required AccountHandle that,
-    required String name,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(name, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 20,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_circle_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleCreateCircleConstMeta,
-        argValues: [that, name],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleCreateCircleConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_create_circle",
-        argNames: ["that", "name"],
-      );
-
-  @override
-  Future<String?> crateApiDesktopAccountHandleCurrentUserRole({
-    required AccountHandle that,
-    required String conversationId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 21,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleCurrentUserRoleConstMeta,
-        argValues: [that, conversationId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleCurrentUserRoleConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_current_user_role",
-        argNames: ["that", "conversationId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleDeleteConversation({
-    required AccountHandle that,
-    required String conversationId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 22,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleDeleteConversationConstMeta,
-        argValues: [that, conversationId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleDeleteConversationConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_delete_conversation",
-        argNames: ["that", "conversationId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleDeleteMessages({
-    required AccountHandle that,
-    required String conversationId,
-    required List<String> messageIds,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_list_String(messageIds, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 23,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleDeleteMessagesConstMeta,
-        argValues: [that, conversationId, messageIds],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleDeleteMessagesConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_delete_messages",
-        argNames: ["that", "conversationId", "messageIds"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleDownloadAttachment({
-    required AccountHandle that,
-    required String messageId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(messageId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 24,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleDownloadAttachmentConstMeta,
-        argValues: [that, messageId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleDownloadAttachmentConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_download_attachment",
-        argNames: ["that", "messageId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleDownloadTranscriptAttachment({
-    required AccountHandle that,
-    required String transcriptId,
-    required String messageId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(transcriptId, serializer);
-          sse_encode_String(messageId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 25,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta:
-            kCrateApiDesktopAccountHandleDownloadTranscriptAttachmentConstMeta,
-        argValues: [that, transcriptId, messageId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleDownloadTranscriptAttachmentConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_download_transcript_attachment",
-        argNames: ["that", "transcriptId", "messageId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleEditCircleConversation({
-    required AccountHandle that,
-    required String circleId,
-    required String conversationId,
-    required String ownerId,
-    required bool isGroup,
-    required bool add,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(circleId, serializer);
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(ownerId, serializer);
-          sse_encode_bool(isGroup, serializer);
-          sse_encode_bool(add, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 26,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleEditCircleConversationConstMeta,
-        argValues: [that, circleId, conversationId, ownerId, isGroup, add],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleEditCircleConversationConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_edit_circle_conversation",
-        argNames: [
-          "that",
-          "circleId",
-          "conversationId",
-          "ownerId",
-          "isGroup",
-          "add",
-        ],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleEditConversation({
-    required AccountHandle that,
-    required String conversationId,
-    String? name,
-    String? announcement,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_opt_String(name, serializer);
-          sse_encode_opt_String(announcement, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 27,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleEditConversationConstMeta,
-        argValues: [that, conversationId, name, announcement],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleEditConversationConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_edit_conversation",
-        argNames: ["that", "conversationId", "name", "announcement"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleExitGroup({
-    required AccountHandle that,
-    required String conversationId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 28,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleExitGroupConstMeta,
-        argValues: [that, conversationId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleExitGroupConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_exit_group",
-        argNames: ["that", "conversationId"],
-      );
-
-  @override
-  Future<List<String>> crateApiDesktopAccountHandleForwardMessages({
-    required AccountHandle that,
-    required String targetConversationId,
-    required List<String> sourceMessageIds,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(targetConversationId, serializer);
-          sse_encode_list_String(sourceMessageIds, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 29,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleForwardMessagesConstMeta,
-        argValues: [that, targetConversationId, sourceMessageIds],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleForwardMessagesConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_forward_messages",
-        argNames: ["that", "targetConversationId", "sourceMessageIds"],
-      );
-
-  @override
-  Future<List<GroupConversationItem>>
-  crateApiDesktopAccountHandleGroupsInCommon({
-    required AccountHandle that,
-    required String userId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(userId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 30,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_group_conversation_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleGroupsInCommonConstMeta,
-        argValues: [that, userId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleGroupsInCommonConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_groups_in_common",
-        argNames: ["that", "userId"],
-      );
-
-  @override
-  Future<List<ImageMessageItem>>
-  crateApiDesktopAccountHandleImageMessagesAround({
-    required AccountHandle that,
-    required String conversationId,
-    required String targetMessageId,
-    required PlatformInt64 before,
-    required PlatformInt64 after,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(targetMessageId, serializer);
-          sse_encode_i_64(before, serializer);
-          sse_encode_i_64(after, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 31,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_image_message_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleImageMessagesAroundConstMeta,
-        argValues: [that, conversationId, targetMessageId, before, after],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleImageMessagesAroundConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_image_messages_around",
-        argNames: [
-          "that",
-          "conversationId",
-          "targetMessageId",
-          "before",
-          "after",
-        ],
-      );
-
-  @override
-  Future<ConversationDetailItem>
-  crateApiDesktopAccountHandleLocalConversationDetail({
-    required AccountHandle that,
-    required String conversationId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 32,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_conversation_detail_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta:
-            kCrateApiDesktopAccountHandleLocalConversationDetailConstMeta,
-        argValues: [that, conversationId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleLocalConversationDetailConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_local_conversation_detail",
-        argNames: ["that", "conversationId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleMarkAudioRead({
-    required AccountHandle that,
-    required String messageId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(messageId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 33,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleMarkAudioReadConstMeta,
-        argValues: [that, messageId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleMarkAudioReadConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_mark_audio_read",
-        argNames: ["that", "messageId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleMarkConversationRead({
-    required AccountHandle that,
-    required String conversationId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 34,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleMarkConversationReadConstMeta,
-        argValues: [that, conversationId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleMarkConversationReadConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_mark_conversation_read",
-        argNames: ["that", "conversationId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleMarkMentionRead({
-    required AccountHandle that,
-    required String conversationId,
-    required String messageId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(messageId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 35,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleMarkMentionReadConstMeta,
-        argValues: [that, conversationId, messageId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleMarkMentionReadConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_mark_mention_read",
-        argNames: ["that", "conversationId", "messageId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleMarkTranscriptAudioRead({
-    required AccountHandle that,
-    required String transcriptId,
-    required String messageId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(transcriptId, serializer);
-          sse_encode_String(messageId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 36,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta:
-            kCrateApiDesktopAccountHandleMarkTranscriptAudioReadConstMeta,
-        argValues: [that, transcriptId, messageId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleMarkTranscriptAudioReadConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_mark_transcript_audio_read",
-        argNames: ["that", "transcriptId", "messageId"],
+        debugName: "AccountHandle_message",
+        argNames: ["that"],
       );
 
   @override
@@ -2043,7 +830,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 37,
+              funcId: 6,
               port: port_,
             );
           },
@@ -2067,186 +854,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<List<MessageListItem>> crateApiDesktopAccountHandleMessages({
-    required AccountHandle that,
-    required String conversationId,
-    PlatformInt64? beforeCreatedAtMicros,
-    String? beforeMessageId,
-    required PlatformInt64 limit,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_opt_box_autoadd_i_64(beforeCreatedAtMicros, serializer);
-          sse_encode_opt_String(beforeMessageId, serializer);
-          sse_encode_i_64(limit, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 38,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_message_list_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleMessagesConstMeta,
-        argValues: [
-          that,
-          conversationId,
-          beforeCreatedAtMicros,
-          beforeMessageId,
-          limit,
-        ],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleMessagesConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_messages",
-        argNames: [
-          "that",
-          "conversationId",
-          "beforeCreatedAtMicros",
-          "beforeMessageId",
-          "limit",
-        ],
-      );
-
-  @override
-  Future<List<MessageListItem>> crateApiDesktopAccountHandleMessagesAround({
-    required AccountHandle that,
-    required String conversationId,
-    required String targetMessageId,
-    required PlatformInt64 before,
-    required PlatformInt64 after,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(targetMessageId, serializer);
-          sse_encode_i_64(before, serializer);
-          sse_encode_i_64(after, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 39,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_message_list_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleMessagesAroundConstMeta,
-        argValues: [that, conversationId, targetMessageId, before, after],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleMessagesAroundConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_messages_around",
-        argNames: [
-          "that",
-          "conversationId",
-          "targetMessageId",
-          "before",
-          "after",
-        ],
-      );
-
-  @override
-  Future<List<StickerItem>> crateApiDesktopAccountHandlePersonalStickers({
-    required AccountHandle that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 40,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_sticker_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandlePersonalStickersConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandlePersonalStickersConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_personal_stickers",
-        argNames: ["that"],
-      );
-
-  @override
-  Future<List<MessageListItem>> crateApiDesktopAccountHandlePinnedMessages({
-    required AccountHandle that,
-    required String conversationId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 41,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_message_list_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandlePinnedMessagesConstMeta,
-        argValues: [that, conversationId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandlePinnedMessagesConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_pinned_messages",
-        argNames: ["that", "conversationId"],
-      );
-
-  @override
   AccountProfile crateApiDesktopAccountHandleProfile({
     required AccountHandle that,
   }) {
@@ -2258,7 +865,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_account_profile,
@@ -2278,895 +885,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiDesktopAccountHandleRecallMessages({
-    required AccountHandle that,
-    required String conversationId,
-    required List<String> messageIds,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_list_String(messageIds, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 43,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleRecallMessagesConstMeta,
-        argValues: [that, conversationId, messageIds],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleRecallMessagesConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_recall_messages",
-        argNames: ["that", "conversationId", "messageIds"],
-      );
-
-  @override
-  Future<List<StickerItem>> crateApiDesktopAccountHandleRecentStickers({
-    required AccountHandle that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 44,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_sticker_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleRecentStickersConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleRecentStickersConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_recent_stickers",
-        argNames: ["that"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleRefreshStickers({
-    required AccountHandle that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 45,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleRefreshStickersConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleRefreshStickersConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_refresh_stickers",
-        argNames: ["that"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleRemoveContact({
-    required AccountHandle that,
-    required String userId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(userId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 46,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleRemoveContactConstMeta,
-        argValues: [that, userId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleRemoveContactConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_remove_contact",
-        argNames: ["that", "userId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleRemoveSticker({
-    required AccountHandle that,
-    required String stickerId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(stickerId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 47,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleRemoveStickerConstMeta,
-        argValues: [that, stickerId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleRemoveStickerConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_remove_sticker",
-        argNames: ["that", "stickerId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleReportUser({
-    required AccountHandle that,
-    required String userId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(userId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 48,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleReportUserConstMeta,
-        argValues: [that, userId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleReportUserConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_report_user",
-        argNames: ["that", "userId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleRotateGroupInvite({
-    required AccountHandle that,
-    required String conversationId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 49,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleRotateGroupInviteConstMeta,
-        argValues: [that, conversationId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleRotateGroupInviteConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_rotate_group_invite",
-        argNames: ["that", "conversationId"],
-      );
-
-  @override
-  Future<List<ConversationParticipantItem>>
-  crateApiDesktopAccountHandleSearchBotGroupUsers({
-    required AccountHandle that,
-    required String conversationId,
-    required String keyword,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(keyword, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 50,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_conversation_participant_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSearchBotGroupUsersConstMeta,
-        argValues: [that, conversationId, keyword],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleSearchBotGroupUsersConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_search_bot_group_users",
-        argNames: ["that", "conversationId", "keyword"],
-      );
-
-  @override
-  Future<List<MessageListItem>> crateApiDesktopAccountHandleSearchMessages({
-    required AccountHandle that,
-    required String conversationId,
-    required String query,
-    String? senderId,
-    required List<String> categories,
-    required int offset,
-    required int limit,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(query, serializer);
-          sse_encode_opt_String(senderId, serializer);
-          sse_encode_list_String(categories, serializer);
-          sse_encode_u_32(offset, serializer);
-          sse_encode_u_32(limit, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 51,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_message_list_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSearchMessagesConstMeta,
-        argValues: [
-          that,
-          conversationId,
-          query,
-          senderId,
-          categories,
-          offset,
-          limit,
-        ],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleSearchMessagesConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_search_messages",
-        argNames: [
-          "that",
-          "conversationId",
-          "query",
-          "senderId",
-          "categories",
-          "offset",
-          "limit",
-        ],
-      );
-
-  @override
-  Future<String> crateApiDesktopAccountHandleSendAudio({
-    required AccountHandle that,
-    required String conversationId,
-    required String path,
-    required PlatformInt64 durationMillis,
-    required List<int> waveform,
-    String? quoteMessageId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(path, serializer);
-          sse_encode_i_64(durationMillis, serializer);
-          sse_encode_list_prim_u_8_loose(waveform, serializer);
-          sse_encode_opt_String(quoteMessageId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 52,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSendAudioConstMeta,
-        argValues: [
-          that,
-          conversationId,
-          path,
-          durationMillis,
-          waveform,
-          quoteMessageId,
-        ],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleSendAudioConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_send_audio",
-        argNames: [
-          "that",
-          "conversationId",
-          "path",
-          "durationMillis",
-          "waveform",
-          "quoteMessageId",
-        ],
-      );
-
-  @override
-  Future<String> crateApiDesktopAccountHandleSendContact({
-    required AccountHandle that,
-    required String conversationId,
-    required String sharedUserId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(sharedUserId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 53,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSendContactConstMeta,
-        argValues: [that, conversationId, sharedUserId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleSendContactConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_send_contact",
-        argNames: ["that", "conversationId", "sharedUserId"],
-      );
-
-  @override
-  Future<String> crateApiDesktopAccountHandleSendSticker({
-    required AccountHandle that,
-    required String conversationId,
-    required String stickerId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(stickerId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 54,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSendStickerConstMeta,
-        argValues: [that, conversationId, stickerId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleSendStickerConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_send_sticker",
-        argNames: ["that", "conversationId", "stickerId"],
-      );
-
-  @override
-  Future<String> crateApiDesktopAccountHandleSendText({
-    required AccountHandle that,
-    required String conversationId,
-    required String content,
-    String? quoteMessageId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(content, serializer);
-          sse_encode_opt_String(quoteMessageId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 55,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSendTextConstMeta,
-        argValues: [that, conversationId, content, quoteMessageId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleSendTextConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_send_text",
-        argNames: ["that", "conversationId", "content", "quoteMessageId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleSetConversationMuted({
-    required AccountHandle that,
-    required String conversationId,
-    required String ownerId,
-    required String category,
-    required PlatformInt64 durationSeconds,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(ownerId, serializer);
-          sse_encode_String(category, serializer);
-          sse_encode_i_64(durationSeconds, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 56,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSetConversationMutedConstMeta,
-        argValues: [that, conversationId, ownerId, category, durationSeconds],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleSetConversationMutedConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_set_conversation_muted",
-        argNames: [
-          "that",
-          "conversationId",
-          "ownerId",
-          "category",
-          "durationSeconds",
-        ],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleSetConversationPinned({
-    required AccountHandle that,
-    required String conversationId,
-    required bool pinned,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_bool(pinned, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 57,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSetConversationPinnedConstMeta,
-        argValues: [that, conversationId, pinned],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleSetConversationPinnedConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_set_conversation_pinned",
-        argNames: ["that", "conversationId", "pinned"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleSetDisappearingMessages({
-    required AccountHandle that,
-    required String conversationId,
-    required PlatformInt64 duration,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_i_64(duration, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 58,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta:
-            kCrateApiDesktopAccountHandleSetDisappearingMessagesConstMeta,
-        argValues: [that, conversationId, duration],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleSetDisappearingMessagesConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_set_disappearing_messages",
-        argNames: ["that", "conversationId", "duration"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleSetMessagePinned({
-    required AccountHandle that,
-    required String conversationId,
-    required String messageId,
-    required bool pinned,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(messageId, serializer);
-          sse_encode_bool(pinned, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 59,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSetMessagePinnedConstMeta,
-        argValues: [that, conversationId, messageId, pinned],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleSetMessagePinnedConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_set_message_pinned",
-        argNames: ["that", "conversationId", "messageId", "pinned"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleSetStickerAlbumAdded({
-    required AccountHandle that,
-    required String albumId,
-    required bool added,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(albumId, serializer);
-          sse_encode_bool(added, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 60,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSetStickerAlbumAddedConstMeta,
-        argValues: [that, albumId, added],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleSetStickerAlbumAddedConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_set_sticker_album_added",
-        argNames: ["that", "albumId", "added"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleSetStickerAlbumOrder({
-    required AccountHandle that,
-    required List<String> albumIds,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_list_String(albumIds, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 61,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSetStickerAlbumOrderConstMeta,
-        argValues: [that, albumIds],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleSetStickerAlbumOrderConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_set_sticker_album_order",
-        argNames: ["that", "albumIds"],
-      );
-
-  @override
-  Future<List<SharedAppItem>> crateApiDesktopAccountHandleSharedApps({
-    required AccountHandle that,
-    required String userId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(userId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 62,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_shared_app_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSharedAppsConstMeta,
-        argValues: [that, userId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleSharedAppsConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_shared_apps",
-        argNames: ["that", "userId"],
-      );
-
-  @override
-  Future<List<MessageListItem>> crateApiDesktopAccountHandleSharedMessages({
-    required AccountHandle that,
-    required String conversationId,
-    required String kind,
-    required BigInt offset,
-    required BigInt limit,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(conversationId, serializer);
-          sse_encode_String(kind, serializer);
-          sse_encode_usize(offset, serializer);
-          sse_encode_usize(limit, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 63,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_message_list_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleSharedMessagesConstMeta,
-        argValues: [that, conversationId, kind, offset, limit],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleSharedMessagesConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_shared_messages",
-        argNames: ["that", "conversationId", "kind", "offset", "limit"],
-      );
-
-  @override
   Future<void> crateApiDesktopAccountHandleShutdown({
     required AccountHandle that,
   }) {
@@ -3181,7 +899,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 64,
+            funcId: 8,
             port: port_,
           );
         },
@@ -3217,7 +935,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 65,
+            funcId: 9,
             port: port_,
           );
         },
@@ -3239,172 +957,82 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<List<StickerAlbumItem>> crateApiDesktopAccountHandleStickerAlbums({
+  StickerAccess crateApiDesktopAccountHandleSticker({
     required AccountHandle that,
   }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
             that,
             serializer,
           );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 66,
-            port: port_,
-          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_list_sticker_album_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess,
+          decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleStickerAlbumsConstMeta,
+        constMeta: kCrateApiDesktopAccountHandleStickerConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleStickerAlbumsConstMeta =>
+  TaskConstMeta get kCrateApiDesktopAccountHandleStickerConstMeta =>
       const TaskConstMeta(
-        debugName: "AccountHandle_sticker_albums",
+        debugName: "AccountHandle_sticker",
         argNames: ["that"],
       );
 
   @override
-  Future<StickerDetailItem> crateApiDesktopAccountHandleStickerDetail({
-    required AccountHandle that,
-    required String stickerId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
+  UserAccess crateApiDesktopAccountHandleUser({required AccountHandle that}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
             that,
             serializer,
           );
-          sse_encode_String(stickerId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 67,
-            port: port_,
-          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_sticker_detail_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess,
+          decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleStickerDetailConstMeta,
-        argValues: [that, stickerId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleStickerDetailConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_sticker_detail",
-        argNames: ["that", "stickerId"],
-      );
-
-  @override
-  Future<List<StickerAlbumItem>>
-  crateApiDesktopAccountHandleStickerStoreAlbums({
-    required AccountHandle that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 68,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_sticker_album_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleStickerStoreAlbumsConstMeta,
+        constMeta: kCrateApiDesktopAccountHandleUserConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleStickerStoreAlbumsConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_sticker_store_albums",
-        argNames: ["that"],
-      );
+  TaskConstMeta get kCrateApiDesktopAccountHandleUserConstMeta =>
+      const TaskConstMeta(debugName: "AccountHandle_user", argNames: ["that"]);
 
   @override
-  Future<List<MessageListItem>> crateApiDesktopAccountHandleTranscriptMessages({
-    required AccountHandle that,
-    required String transcriptId,
+  Future<void> mixinDesktopCoreRuntimeAttachmentAccessCancelAttachment({
+    required AttachmentAccess that,
+    required String messageId,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
             that,
             serializer,
           );
-          sse_encode_String(transcriptId, serializer);
+          sse_encode_String(messageId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 69,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_message_list_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleTranscriptMessagesConstMeta,
-        argValues: [that, transcriptId],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleTranscriptMessagesConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_transcript_messages",
-        argNames: ["that", "transcriptId"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleUnblockUser({
-    required AccountHandle that,
-    required String userId,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_String(userId, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 70,
+            funcId: 12,
             port: port_,
           );
         },
@@ -3412,22 +1040,1063 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiDesktopAccountHandleUnblockUserConstMeta,
+        constMeta:
+            kMixinDesktopCoreRuntimeAttachmentAccessCancelAttachmentConstMeta,
+        argValues: [that, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeAttachmentAccessCancelAttachmentConstMeta =>
+      const TaskConstMeta(
+        debugName: "AttachmentAccess_cancel_attachment",
+        argNames: ["that", "messageId"],
+      );
+
+  @override
+  Future<void>
+  mixinDesktopCoreRuntimeAttachmentAccessCancelTranscriptAttachment({
+    required AttachmentAccess that,
+    required String transcriptId,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(transcriptId, serializer);
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeAttachmentAccessCancelTranscriptAttachmentConstMeta,
+        argValues: [that, transcriptId, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeAttachmentAccessCancelTranscriptAttachmentConstMeta =>
+      const TaskConstMeta(
+        debugName: "AttachmentAccess_cancel_transcript_attachment",
+        argNames: ["that", "transcriptId", "messageId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeAttachmentAccessDownloadAttachment({
+    required AttachmentAccess that,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeAttachmentAccessDownloadAttachmentConstMeta,
+        argValues: [that, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeAttachmentAccessDownloadAttachmentConstMeta =>
+      const TaskConstMeta(
+        debugName: "AttachmentAccess_download_attachment",
+        argNames: ["that", "messageId"],
+      );
+
+  @override
+  Future<void>
+  mixinDesktopCoreRuntimeAttachmentAccessDownloadTranscriptAttachment({
+    required AttachmentAccess that,
+    required String transcriptId,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(transcriptId, serializer);
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeAttachmentAccessDownloadTranscriptAttachmentConstMeta,
+        argValues: [that, transcriptId, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeAttachmentAccessDownloadTranscriptAttachmentConstMeta =>
+      const TaskConstMeta(
+        debugName: "AttachmentAccess_download_transcript_attachment",
+        argNames: ["that", "transcriptId", "messageId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeAttachmentAccessMarkAudioRead({
+    required AttachmentAccess that,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeAttachmentAccessMarkAudioReadConstMeta,
+        argValues: [that, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeAttachmentAccessMarkAudioReadConstMeta =>
+      const TaskConstMeta(
+        debugName: "AttachmentAccess_mark_audio_read",
+        argNames: ["that", "messageId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeAttachmentAccessMarkTranscriptAudioRead({
+    required AttachmentAccess that,
+    required String transcriptId,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(transcriptId, serializer);
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeAttachmentAccessMarkTranscriptAudioReadConstMeta,
+        argValues: [that, transcriptId, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeAttachmentAccessMarkTranscriptAudioReadConstMeta =>
+      const TaskConstMeta(
+        debugName: "AttachmentAccess_mark_transcript_audio_read",
+        argNames: ["that", "transcriptId", "messageId"],
+      );
+
+  @override
+  Future<List<CircleItem>> mixinDesktopCoreRuntimeConversationAccessCircles({
+    required ConversationAccess that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_circle_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeConversationAccessCirclesConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessCirclesConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_circles",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeConversationAccessClearConversation({
+    required ConversationAccess that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessClearConversationConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessClearConversationConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_clear_conversation",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
+  Future<PlatformInt64>
+  mixinDesktopCoreRuntimeConversationAccessConversationCount({
+    required ConversationAccess that,
+    required String category,
+    String? circleId,
+    required String keyword,
+    required bool unseenOnly,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(category, serializer);
+          sse_encode_opt_String(circleId, serializer);
+          sse_encode_String(keyword, serializer);
+          sse_encode_bool(unseenOnly, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 20,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessConversationCountConstMeta,
+        argValues: [that, category, circleId, keyword, unseenOnly],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessConversationCountConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_conversation_count",
+        argNames: ["that", "category", "circleId", "keyword", "unseenOnly"],
+      );
+
+  @override
+  Future<ConversationDetailItem>
+  mixinDesktopCoreRuntimeConversationAccessConversationDetail({
+    required ConversationAccess that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 21,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_conversation_detail_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessConversationDetailConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessConversationDetailConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_conversation_detail",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
+  Future<List<ConversationParticipantItem>>
+  mixinDesktopCoreRuntimeConversationAccessConversationParticipants({
+    required ConversationAccess that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 22,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_conversation_participant_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessConversationParticipantsConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessConversationParticipantsConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_conversation_participants",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
+  Future<List<ConversationListData>>
+  mixinDesktopCoreRuntimeConversationAccessConversations({
+    required ConversationAccess that,
+    required String category,
+    String? circleId,
+    required String keyword,
+    required bool unseenOnly,
+    required PlatformInt64 limit,
+    required PlatformInt64 offset,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(category, serializer);
+          sse_encode_opt_String(circleId, serializer);
+          sse_encode_String(keyword, serializer);
+          sse_encode_bool(unseenOnly, serializer);
+          sse_encode_i_64(limit, serializer);
+          sse_encode_i_64(offset, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 23,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_conversation_list_data,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessConversationsConstMeta,
+        argValues: [
+          that,
+          category,
+          circleId,
+          keyword,
+          unseenOnly,
+          limit,
+          offset,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessConversationsConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_conversations",
+        argNames: [
+          "that",
+          "category",
+          "circleId",
+          "keyword",
+          "unseenOnly",
+          "limit",
+          "offset",
+        ],
+      );
+
+  @override
+  Future<CircleItem> mixinDesktopCoreRuntimeConversationAccessCreateCircle({
+    required ConversationAccess that,
+    required String name,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(name, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 24,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_circle_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessCreateCircleConstMeta,
+        argValues: [that, name],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessCreateCircleConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_create_circle",
+        argNames: ["that", "name"],
+      );
+
+  @override
+  Future<String?> mixinDesktopCoreRuntimeConversationAccessCurrentUserRole({
+    required ConversationAccess that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 25,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessCurrentUserRoleConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessCurrentUserRoleConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_current_user_role",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeConversationAccessDeleteConversation({
+    required ConversationAccess that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 26,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessDeleteConversationConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessDeleteConversationConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_delete_conversation",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeConversationAccessEditCircleConversation({
+    required ConversationAccess that,
+    required String circleId,
+    required String conversationId,
+    required String ownerId,
+    required bool isGroup,
+    required bool add,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(circleId, serializer);
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(ownerId, serializer);
+          sse_encode_bool(isGroup, serializer);
+          sse_encode_bool(add, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessEditCircleConversationConstMeta,
+        argValues: [that, circleId, conversationId, ownerId, isGroup, add],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessEditCircleConversationConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_edit_circle_conversation",
+        argNames: [
+          "that",
+          "circleId",
+          "conversationId",
+          "ownerId",
+          "isGroup",
+          "add",
+        ],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeConversationAccessEditConversation({
+    required ConversationAccess that,
+    required String conversationId,
+    String? name,
+    String? announcement,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_opt_String(name, serializer);
+          sse_encode_opt_String(announcement, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 28,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessEditConversationConstMeta,
+        argValues: [that, conversationId, name, announcement],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessEditConversationConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_edit_conversation",
+        argNames: ["that", "conversationId", "name", "announcement"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeConversationAccessExitGroup({
+    required ConversationAccess that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 29,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeConversationAccessExitGroupConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessExitGroupConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_exit_group",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
+  Future<List<GroupConversationItem>>
+  mixinDesktopCoreRuntimeConversationAccessGroupsInCommon({
+    required ConversationAccess that,
+    required String userId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 30,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_group_conversation_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessGroupsInCommonConstMeta,
         argValues: [that, userId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleUnblockUserConstMeta =>
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessGroupsInCommonConstMeta =>
       const TaskConstMeta(
-        debugName: "AccountHandle_unblock_user",
+        debugName: "ConversationAccess_groups_in_common",
         argNames: ["that", "userId"],
       );
 
   @override
-  Future<void> crateApiDesktopAccountHandleUpdateParticipants({
-    required AccountHandle that,
+  Future<ConversationDetailItem>
+  mixinDesktopCoreRuntimeConversationAccessLocalConversationDetail({
+    required ConversationAccess that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 31,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_conversation_detail_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessLocalConversationDetailConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessLocalConversationDetailConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_local_conversation_detail",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeConversationAccessRotateGroupInvite({
+    required ConversationAccess that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 32,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessRotateGroupInviteConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessRotateGroupInviteConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_rotate_group_invite",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
+  Future<List<ConversationParticipantItem>>
+  mixinDesktopCoreRuntimeConversationAccessSearchBotGroupUsers({
+    required ConversationAccess that,
+    required String conversationId,
+    required String keyword,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(keyword, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 33,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_conversation_participant_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessSearchBotGroupUsersConstMeta,
+        argValues: [that, conversationId, keyword],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessSearchBotGroupUsersConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_search_bot_group_users",
+        argNames: ["that", "conversationId", "keyword"],
+      );
+
+  @override
+  Future<void>
+  mixinDesktopCoreRuntimeConversationAccessSetDisappearingMessages({
+    required ConversationAccess that,
+    required String conversationId,
+    required PlatformInt64 duration,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_i_64(duration, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 34,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessSetDisappearingMessagesConstMeta,
+        argValues: [that, conversationId, duration],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessSetDisappearingMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_set_disappearing_messages",
+        argNames: ["that", "conversationId", "duration"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeConversationAccessSetMuted({
+    required ConversationAccess that,
+    required String conversationId,
+    required String ownerId,
+    required String category,
+    required PlatformInt64 durationSeconds,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(ownerId, serializer);
+          sse_encode_String(category, serializer);
+          sse_encode_i_64(durationSeconds, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 35,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeConversationAccessSetMutedConstMeta,
+        argValues: [that, conversationId, ownerId, category, durationSeconds],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessSetMutedConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_set_muted",
+        argNames: [
+          "that",
+          "conversationId",
+          "ownerId",
+          "category",
+          "durationSeconds",
+        ],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeConversationAccessSetPinned({
+    required ConversationAccess that,
+    required String conversationId,
+    required bool pinned,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_bool(pinned, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 36,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeConversationAccessSetPinnedConstMeta,
+        argValues: [that, conversationId, pinned],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeConversationAccessSetPinnedConstMeta =>
+      const TaskConstMeta(
+        debugName: "ConversationAccess_set_pinned",
+        argNames: ["that", "conversationId", "pinned"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeConversationAccessUpdateParticipants({
+    required ConversationAccess that,
     required String conversationId,
     required String action,
     required List<String> userIds,
@@ -3437,7 +2106,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
             that,
             serializer,
           );
@@ -3448,7 +2117,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 71,
+            funcId: 37,
             port: port_,
           );
         },
@@ -3456,97 +2125,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiDesktopAccountHandleUpdateParticipantsConstMeta,
+        constMeta:
+            kMixinDesktopCoreRuntimeConversationAccessUpdateParticipantsConstMeta,
         argValues: [that, conversationId, action, userIds, role],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleUpdateParticipantsConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_update_participants",
-        argNames: ["that", "conversationId", "action", "userIds", "role"],
-      );
-
-  @override
-  Future<UserProfileItem?> crateApiDesktopAccountHandleUserProfile({
-    required AccountHandle that,
-    String? userId,
-    String? identityNumber,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_opt_String(userId, serializer);
-          sse_encode_opt_String(identityNumber, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 72,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_opt_box_autoadd_user_profile_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleUserProfileConstMeta,
-        argValues: [that, userId, identityNumber],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleUserProfileConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_user_profile",
-        argNames: ["that", "userId", "identityNumber"],
-      );
-
-  @override
-  Future<List<UserProfileItem>>
-  crateApiDesktopAccountHandleUsersByIdentityNumbers({
-    required AccountHandle that,
-    required List<String> identityNumbers,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          sse_encode_list_String(identityNumbers, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 73,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_list_user_profile_item,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleUsersByIdentityNumbersConstMeta,
-        argValues: [that, identityNumbers],
-        apiImpl: this,
-      ),
-    );
-  }
-
   TaskConstMeta
-  get kCrateApiDesktopAccountHandleUsersByIdentityNumbersConstMeta =>
+  get kMixinDesktopCoreRuntimeConversationAccessUpdateParticipantsConstMeta =>
       const TaskConstMeta(
-        debugName: "AccountHandle_users_by_identity_numbers",
-        argNames: ["that", "identityNumbers"],
+        debugName: "ConversationAccess_update_participants",
+        argNames: ["that", "conversationId", "action", "userIds", "role"],
       );
 
   @override
@@ -3564,7 +2155,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 74,
+            funcId: 38,
             port: port_,
           );
         },
@@ -3613,7 +2204,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 75,
+            funcId: 39,
             port: port_,
           );
         },
@@ -3665,7 +2256,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 76,
+            funcId: 40,
             port: port_,
           );
         },
@@ -3701,7 +2292,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 77,
+            funcId: 41,
             port: port_,
           );
         },
@@ -3740,7 +2331,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 78,
+            funcId: 42,
             port: port_,
           );
         },
@@ -3771,7 +2362,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 79)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -3805,7 +2396,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 80,
+            funcId: 44,
             port: port_,
           );
         },
@@ -3825,6 +2416,1729 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "LoginHandle_poll", argNames: ["that"]);
 
   @override
+  Future<String> mixinDesktopCoreRuntimeMessageAccessCombineForwardMessages({
+    required MessageAccess that,
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(targetConversationId, serializer);
+          sse_encode_list_String(sourceMessageIds, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 45,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeMessageAccessCombineForwardMessagesConstMeta,
+        argValues: [that, targetConversationId, sourceMessageIds],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessCombineForwardMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_combine_forward_messages",
+        argNames: ["that", "targetConversationId", "sourceMessageIds"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeMessageAccessDeleteMessages({
+    required MessageAccess that,
+    required String conversationId,
+    required List<String> messageIds,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_list_String(messageIds, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 46,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeMessageAccessDeleteMessagesConstMeta,
+        argValues: [that, conversationId, messageIds],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessDeleteMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_delete_messages",
+        argNames: ["that", "conversationId", "messageIds"],
+      );
+
+  @override
+  Future<List<String>> mixinDesktopCoreRuntimeMessageAccessForwardMessages({
+    required MessageAccess that,
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(targetConversationId, serializer);
+          sse_encode_list_String(sourceMessageIds, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 47,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeMessageAccessForwardMessagesConstMeta,
+        argValues: [that, targetConversationId, sourceMessageIds],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessForwardMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_forward_messages",
+        argNames: ["that", "targetConversationId", "sourceMessageIds"],
+      );
+
+  @override
+  Future<List<ImageMessageView>>
+  mixinDesktopCoreRuntimeMessageAccessImageMessagesAround({
+    required MessageAccess that,
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(targetMessageId, serializer);
+          sse_encode_i_64(before, serializer);
+          sse_encode_i_64(after, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 48,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_image_message_view,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeMessageAccessImageMessagesAroundConstMeta,
+        argValues: [that, conversationId, targetMessageId, before, after],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessImageMessagesAroundConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_image_messages_around",
+        argNames: [
+          "that",
+          "conversationId",
+          "targetMessageId",
+          "before",
+          "after",
+        ],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeMessageAccessMarkConversationRead({
+    required MessageAccess that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 49,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeMessageAccessMarkConversationReadConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessMarkConversationReadConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_mark_conversation_read",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeMessageAccessMarkMentionRead({
+    required MessageAccess that,
+    required String conversationId,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 50,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeMessageAccessMarkMentionReadConstMeta,
+        argValues: [that, conversationId, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessMarkMentionReadConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_mark_mention_read",
+        argNames: ["that", "conversationId", "messageId"],
+      );
+
+  @override
+  Future<List<MessageListView>> mixinDesktopCoreRuntimeMessageAccessMessages({
+    required MessageAccess that,
+    required String conversationId,
+    PlatformInt64? beforeCreatedAtMicros,
+    String? beforeMessageId,
+    required PlatformInt64 limit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_opt_box_autoadd_i_64(beforeCreatedAtMicros, serializer);
+          sse_encode_opt_String(beforeMessageId, serializer);
+          sse_encode_i_64(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 51,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_message_list_view,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeMessageAccessMessagesConstMeta,
+        argValues: [
+          that,
+          conversationId,
+          beforeCreatedAtMicros,
+          beforeMessageId,
+          limit,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeMessageAccessMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_messages",
+        argNames: [
+          "that",
+          "conversationId",
+          "beforeCreatedAtMicros",
+          "beforeMessageId",
+          "limit",
+        ],
+      );
+
+  @override
+  Future<List<MessageListView>>
+  mixinDesktopCoreRuntimeMessageAccessMessagesAround({
+    required MessageAccess that,
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(targetMessageId, serializer);
+          sse_encode_i_64(before, serializer);
+          sse_encode_i_64(after, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 52,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_message_list_view,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeMessageAccessMessagesAroundConstMeta,
+        argValues: [that, conversationId, targetMessageId, before, after],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessMessagesAroundConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_messages_around",
+        argNames: [
+          "that",
+          "conversationId",
+          "targetMessageId",
+          "before",
+          "after",
+        ],
+      );
+
+  @override
+  Future<List<MessageListView>>
+  mixinDesktopCoreRuntimeMessageAccessPinnedMessages({
+    required MessageAccess that,
+    required String conversationId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 53,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_message_list_view,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeMessageAccessPinnedMessagesConstMeta,
+        argValues: [that, conversationId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessPinnedMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_pinned_messages",
+        argNames: ["that", "conversationId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeMessageAccessRecallMessages({
+    required MessageAccess that,
+    required String conversationId,
+    required List<String> messageIds,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_list_String(messageIds, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 54,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeMessageAccessRecallMessagesConstMeta,
+        argValues: [that, conversationId, messageIds],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessRecallMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_recall_messages",
+        argNames: ["that", "conversationId", "messageIds"],
+      );
+
+  @override
+  Future<List<MessageListView>>
+  mixinDesktopCoreRuntimeMessageAccessSearchMessages({
+    required MessageAccess that,
+    required String conversationId,
+    required String query,
+    String? senderId,
+    required List<String> categories,
+    required int offset,
+    required int limit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(query, serializer);
+          sse_encode_opt_String(senderId, serializer);
+          sse_encode_list_String(categories, serializer);
+          sse_encode_u_32(offset, serializer);
+          sse_encode_u_32(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 55,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_message_list_view,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeMessageAccessSearchMessagesConstMeta,
+        argValues: [
+          that,
+          conversationId,
+          query,
+          senderId,
+          categories,
+          offset,
+          limit,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessSearchMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_search_messages",
+        argNames: [
+          "that",
+          "conversationId",
+          "query",
+          "senderId",
+          "categories",
+          "offset",
+          "limit",
+        ],
+      );
+
+  @override
+  Future<String> mixinDesktopCoreRuntimeMessageAccessSendAudio({
+    required MessageAccess that,
+    required String conversationId,
+    required String path,
+    required PlatformInt64 durationMillis,
+    required List<int> waveform,
+    String? quoteMessageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(path, serializer);
+          sse_encode_i_64(durationMillis, serializer);
+          sse_encode_list_prim_u_8_loose(waveform, serializer);
+          sse_encode_opt_String(quoteMessageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 56,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeMessageAccessSendAudioConstMeta,
+        argValues: [
+          that,
+          conversationId,
+          path,
+          durationMillis,
+          waveform,
+          quoteMessageId,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeMessageAccessSendAudioConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_send_audio",
+        argNames: [
+          "that",
+          "conversationId",
+          "path",
+          "durationMillis",
+          "waveform",
+          "quoteMessageId",
+        ],
+      );
+
+  @override
+  Future<String> mixinDesktopCoreRuntimeMessageAccessSendContact({
+    required MessageAccess that,
+    required String conversationId,
+    required String sharedUserId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(sharedUserId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 57,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeMessageAccessSendContactConstMeta,
+        argValues: [that, conversationId, sharedUserId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeMessageAccessSendContactConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_send_contact",
+        argNames: ["that", "conversationId", "sharedUserId"],
+      );
+
+  @override
+  Future<String> mixinDesktopCoreRuntimeMessageAccessSendSticker({
+    required MessageAccess that,
+    required String conversationId,
+    required String stickerId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(stickerId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 58,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeMessageAccessSendStickerConstMeta,
+        argValues: [that, conversationId, stickerId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeMessageAccessSendStickerConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_send_sticker",
+        argNames: ["that", "conversationId", "stickerId"],
+      );
+
+  @override
+  Future<String> mixinDesktopCoreRuntimeMessageAccessSendText({
+    required MessageAccess that,
+    required String conversationId,
+    required String content,
+    String? quoteMessageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(content, serializer);
+          sse_encode_opt_String(quoteMessageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 59,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeMessageAccessSendTextConstMeta,
+        argValues: [that, conversationId, content, quoteMessageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeMessageAccessSendTextConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_send_text",
+        argNames: ["that", "conversationId", "content", "quoteMessageId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeMessageAccessSetMessagePinned({
+    required MessageAccess that,
+    required String conversationId,
+    required String messageId,
+    required bool pinned,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(messageId, serializer);
+          sse_encode_bool(pinned, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 60,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeMessageAccessSetMessagePinnedConstMeta,
+        argValues: [that, conversationId, messageId, pinned],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessSetMessagePinnedConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_set_message_pinned",
+        argNames: ["that", "conversationId", "messageId", "pinned"],
+      );
+
+  @override
+  Future<List<MessageListView>>
+  mixinDesktopCoreRuntimeMessageAccessSharedMessages({
+    required MessageAccess that,
+    required String conversationId,
+    required String kind,
+    required BigInt offset,
+    required BigInt limit,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(conversationId, serializer);
+          sse_encode_String(kind, serializer);
+          sse_encode_usize(offset, serializer);
+          sse_encode_usize(limit, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 61,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_message_list_view,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeMessageAccessSharedMessagesConstMeta,
+        argValues: [that, conversationId, kind, offset, limit],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessSharedMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_shared_messages",
+        argNames: ["that", "conversationId", "kind", "offset", "limit"],
+      );
+
+  @override
+  Future<List<MessageListView>>
+  mixinDesktopCoreRuntimeMessageAccessTranscriptMessages({
+    required MessageAccess that,
+    required String transcriptId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(transcriptId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 62,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_message_list_view,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeMessageAccessTranscriptMessagesConstMeta,
+        argValues: [that, transcriptId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeMessageAccessTranscriptMessagesConstMeta =>
+      const TaskConstMeta(
+        debugName: "MessageAccess_transcript_messages",
+        argNames: ["that", "transcriptId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeStickerAccessAddSticker({
+    required StickerAccess that,
+    required String stickerId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(stickerId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 63,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeStickerAccessAddStickerConstMeta,
+        argValues: [that, stickerId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeStickerAccessAddStickerConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_add_sticker",
+        argNames: ["that", "stickerId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeStickerAccessAddStickerFromFile({
+    required StickerAccess that,
+    required String messageId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(messageId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 64,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeStickerAccessAddStickerFromFileConstMeta,
+        argValues: [that, messageId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeStickerAccessAddStickerFromFileConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_add_sticker_from_file",
+        argNames: ["that", "messageId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeStickerAccessAddStickerFromPath({
+    required StickerAccess that,
+    required String path,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(path, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 65,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeStickerAccessAddStickerFromPathConstMeta,
+        argValues: [that, path],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeStickerAccessAddStickerFromPathConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_add_sticker_from_path",
+        argNames: ["that", "path"],
+      );
+
+  @override
+  Future<List<StickerItem>> mixinDesktopCoreRuntimeStickerAccessAlbumStickers({
+    required StickerAccess that,
+    required String albumId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(albumId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 66,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_sticker_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeStickerAccessAlbumStickersConstMeta,
+        argValues: [that, albumId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeStickerAccessAlbumStickersConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_album_stickers",
+        argNames: ["that", "albumId"],
+      );
+
+  @override
+  Future<List<StickerItem>>
+  mixinDesktopCoreRuntimeStickerAccessPersonalStickers({
+    required StickerAccess that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 67,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_sticker_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeStickerAccessPersonalStickersConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeStickerAccessPersonalStickersConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_personal_stickers",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<List<StickerItem>> mixinDesktopCoreRuntimeStickerAccessRecentStickers({
+    required StickerAccess that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 68,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_sticker_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeStickerAccessRecentStickersConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeStickerAccessRecentStickersConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_recent_stickers",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeStickerAccessRefreshStickers({
+    required StickerAccess that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 69,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeStickerAccessRefreshStickersConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeStickerAccessRefreshStickersConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_refresh_stickers",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeStickerAccessRemoveSticker({
+    required StickerAccess that,
+    required String stickerId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(stickerId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 70,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeStickerAccessRemoveStickerConstMeta,
+        argValues: [that, stickerId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeStickerAccessRemoveStickerConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_remove_sticker",
+        argNames: ["that", "stickerId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeStickerAccessSetStickerAlbumAdded({
+    required StickerAccess that,
+    required String albumId,
+    required bool added,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(albumId, serializer);
+          sse_encode_bool(added, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 71,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeStickerAccessSetStickerAlbumAddedConstMeta,
+        argValues: [that, albumId, added],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeStickerAccessSetStickerAlbumAddedConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_set_sticker_album_added",
+        argNames: ["that", "albumId", "added"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeStickerAccessSetStickerAlbumOrder({
+    required StickerAccess that,
+    required List<String> albumIds,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          sse_encode_list_String(albumIds, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 72,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeStickerAccessSetStickerAlbumOrderConstMeta,
+        argValues: [that, albumIds],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeStickerAccessSetStickerAlbumOrderConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_set_sticker_album_order",
+        argNames: ["that", "albumIds"],
+      );
+
+  @override
+  Future<List<StickerAlbumItem>>
+  mixinDesktopCoreRuntimeStickerAccessStickerAlbums({
+    required StickerAccess that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 73,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_sticker_album_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeStickerAccessStickerAlbumsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeStickerAccessStickerAlbumsConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_sticker_albums",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<StickerDetailItem> mixinDesktopCoreRuntimeStickerAccessStickerDetail({
+    required StickerAccess that,
+    required String stickerId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(stickerId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 74,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_sticker_detail_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeStickerAccessStickerDetailConstMeta,
+        argValues: [that, stickerId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeStickerAccessStickerDetailConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_sticker_detail",
+        argNames: ["that", "stickerId"],
+      );
+
+  @override
+  Future<List<StickerAlbumItem>>
+  mixinDesktopCoreRuntimeStickerAccessStickerStoreAlbums({
+    required StickerAccess that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 75,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_sticker_album_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeStickerAccessStickerStoreAlbumsConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeStickerAccessStickerStoreAlbumsConstMeta =>
+      const TaskConstMeta(
+        debugName: "StickerAccess_sticker_store_albums",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeUserAccessAddContact({
+    required UserAccess that,
+    required String userId,
+    required String fullName,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          sse_encode_String(fullName, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 76,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeUserAccessAddContactConstMeta,
+        argValues: [that, userId, fullName],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessAddContactConstMeta =>
+      const TaskConstMeta(
+        debugName: "UserAccess_add_contact",
+        argNames: ["that", "userId", "fullName"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeUserAccessBlockUser({
+    required UserAccess that,
+    required String userId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 77,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeUserAccessBlockUserConstMeta,
+        argValues: [that, userId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessBlockUserConstMeta =>
+      const TaskConstMeta(
+        debugName: "UserAccess_block_user",
+        argNames: ["that", "userId"],
+      );
+
+  @override
+  Future<String?> mixinDesktopCoreRuntimeUserAccessBotCreatorId({
+    required UserAccess that,
+    required String userId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 78,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeUserAccessBotCreatorIdConstMeta,
+        argValues: [that, userId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessBotCreatorIdConstMeta =>
+      const TaskConstMeta(
+        debugName: "UserAccess_bot_creator_id",
+        argNames: ["that", "userId"],
+      );
+
+  @override
+  Future<String?> mixinDesktopCoreRuntimeUserAccessBotHomeUri({
+    required UserAccess that,
+    required String appId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(appId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 79,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeUserAccessBotHomeUriConstMeta,
+        argValues: [that, appId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessBotHomeUriConstMeta =>
+      const TaskConstMeta(
+        debugName: "UserAccess_bot_home_uri",
+        argNames: ["that", "appId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeUserAccessRemoveContact({
+    required UserAccess that,
+    required String userId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 80,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeUserAccessRemoveContactConstMeta,
+        argValues: [that, userId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessRemoveContactConstMeta =>
+      const TaskConstMeta(
+        debugName: "UserAccess_remove_contact",
+        argNames: ["that", "userId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeUserAccessReportUser({
+    required UserAccess that,
+    required String userId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 81,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeUserAccessReportUserConstMeta,
+        argValues: [that, userId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessReportUserConstMeta =>
+      const TaskConstMeta(
+        debugName: "UserAccess_report_user",
+        argNames: ["that", "userId"],
+      );
+
+  @override
+  Future<List<SharedAppItem>> mixinDesktopCoreRuntimeUserAccessSharedApps({
+    required UserAccess that,
+    required String userId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 82,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_shared_app_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeUserAccessSharedAppsConstMeta,
+        argValues: [that, userId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessSharedAppsConstMeta =>
+      const TaskConstMeta(
+        debugName: "UserAccess_shared_apps",
+        argNames: ["that", "userId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeUserAccessUnblockUser({
+    required UserAccess that,
+    required String userId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 83,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeUserAccessUnblockUserConstMeta,
+        argValues: [that, userId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessUnblockUserConstMeta =>
+      const TaskConstMeta(
+        debugName: "UserAccess_unblock_user",
+        argNames: ["that", "userId"],
+      );
+
+  @override
+  Future<UserProfileItem?> mixinDesktopCoreRuntimeUserAccessUserProfile({
+    required UserAccess that,
+    String? userId,
+    String? identityNumber,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+            that,
+            serializer,
+          );
+          sse_encode_opt_String(userId, serializer);
+          sse_encode_opt_String(identityNumber, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 84,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_user_profile_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeUserAccessUserProfileConstMeta,
+        argValues: [that, userId, identityNumber],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessUserProfileConstMeta =>
+      const TaskConstMeta(
+        debugName: "UserAccess_user_profile",
+        argNames: ["that", "userId", "identityNumber"],
+      );
+
+  @override
+  Future<List<UserProfileItem>>
+  mixinDesktopCoreRuntimeUserAccessUsersByIdentityNumbers({
+    required UserAccess that,
+    required List<String> identityNumbers,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+            that,
+            serializer,
+          );
+          sse_encode_list_String(identityNumbers, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 85,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_user_profile_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kMixinDesktopCoreRuntimeUserAccessUsersByIdentityNumbersConstMeta,
+        argValues: [that, identityNumbers],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeUserAccessUsersByIdentityNumbersConstMeta =>
+      const TaskConstMeta(
+        debugName: "UserAccess_users_by_identity_numbers",
+        argNames: ["that", "identityNumbers"],
+      );
+
+  @override
   Future<void> crateApiDesktopInitApp() {
     return handler.executeNormal(
       NormalTask(
@@ -3833,7 +4147,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 81,
+            funcId: 86,
             port: port_,
           );
         },
@@ -3860,7 +4174,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 82,
+            funcId: 87,
             port: port_,
           );
         },
@@ -3888,6 +4202,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle;
 
   RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_AttachmentAccess => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_AttachmentAccess => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_ConversationAccess => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_ConversationAccess => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess;
+
+  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_DesktopHandle => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDesktopHandle;
 
@@ -3903,6 +4233,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get rust_arc_decrement_strong_count_LoginHandle => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLoginHandle;
 
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_MessageAccess => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_MessageAccess => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_StickerAccess => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_StickerAccess => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_UserAccess => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_UserAccess => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess;
+
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -3916,6 +4270,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AccountHandleImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  AttachmentAccess
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return AttachmentAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  ConversationAccess
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ConversationAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -3937,12 +4309,57 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MessageAccess
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return MessageAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  StickerAccess
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return StickerAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  UserAccess
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return UserAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   AccountHandle
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AccountHandleImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  AttachmentAccess
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return AttachmentAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  ConversationAccess
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ConversationAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -3961,6 +4378,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return LoginHandleImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  MessageAccess
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return MessageAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  StickerAccess
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return StickerAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  UserAccess
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return UserAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -3983,6 +4427,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AttachmentAccess
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return AttachmentAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  ConversationAccess
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ConversationAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   DesktopHandle
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDesktopHandle(
     dynamic raw,
@@ -3998,6 +4460,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return LoginHandleImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  MessageAccess
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return MessageAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  StickerAccess
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return StickerAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  UserAccess
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return UserAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -4119,12 +4608,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ConversationListItem dco_decode_conversation_list_item(dynamic raw) {
+  ConversationListData dco_decode_conversation_list_data(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 25)
       throw Exception('unexpected arr length: expect 25 but see ${arr.length}');
-    return ConversationListItem(
+    return ConversationListData(
       conversationId: dco_decode_String(arr[0]),
       ownerId: dco_decode_String(arr[1]),
       name: dco_decode_String(arr[2]),
@@ -4228,12 +4717,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ImageMessageItem dco_decode_image_message_item(dynamic raw) {
+  ImageMessageView dco_decode_image_message_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 5)
       throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
-    return ImageMessageItem(
+    return ImageMessageView(
       messageId: dco_decode_String(arr[0]),
       createdAtMicros: dco_decode_i_64(arr[1]),
       mediaUrl: dco_decode_String(arr[2]),
@@ -4255,12 +4744,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<ConversationListItem> dco_decode_list_conversation_list_item(
+  List<ConversationListData> dco_decode_list_conversation_list_data(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>)
-        .map(dco_decode_conversation_list_item)
+        .map(dco_decode_conversation_list_data)
         .toList();
   }
 
@@ -4290,15 +4779,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<ImageMessageItem> dco_decode_list_image_message_item(dynamic raw) {
+  List<ImageMessageView> dco_decode_list_image_message_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_image_message_item).toList();
+    return (raw as List<dynamic>).map(dco_decode_image_message_view).toList();
   }
 
   @protected
-  List<MessageListItem> dco_decode_list_message_list_item(dynamic raw) {
+  List<MessageListView> dco_decode_list_message_list_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return (raw as List<dynamic>).map(dco_decode_message_list_item).toList();
+    return (raw as List<dynamic>).map(dco_decode_message_list_view).toList();
   }
 
   @protected
@@ -4350,12 +4839,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  MessageListItem dco_decode_message_list_item(dynamic raw) {
+  MessageListView dco_decode_message_list_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 69)
       throw Exception('unexpected arr length: expect 69 but see ${arr.length}');
-    return MessageListItem(
+    return MessageListView(
       messageId: dco_decode_String(arr[0]),
       conversationId: dco_decode_String(arr[1]),
       senderId: dco_decode_String(arr[2]),
@@ -4669,6 +5158,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AttachmentAccess
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return AttachmentAccessImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  ConversationAccess
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return ConversationAccessImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   DesktopHandle
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDesktopHandle(
     SseDeserializer deserializer,
@@ -4693,12 +5206,72 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MessageAccess
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return MessageAccessImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  StickerAccess
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return StickerAccessImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  UserAccess
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return UserAccessImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   AccountHandle
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return AccountHandleImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  AttachmentAccess
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return AttachmentAccessImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  ConversationAccess
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return ConversationAccessImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -4729,6 +5302,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MessageAccess
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return MessageAccessImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  StickerAccess
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return StickerAccessImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  UserAccess
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return UserAccessImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   Map<String, String> sse_decode_Map_String_String_None(
     SseDeserializer deserializer,
   ) {
@@ -4744,6 +5353,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return AccountHandleImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  AttachmentAccess
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return AttachmentAccessImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  ConversationAccess
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return ConversationAccessImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -4768,6 +5401,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return LoginHandleImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  MessageAccess
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return MessageAccessImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  StickerAccess
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return StickerAccessImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  UserAccess
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return UserAccessImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -4911,7 +5580,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ConversationListItem sse_decode_conversation_list_item(
+  ConversationListData sse_decode_conversation_list_data(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -4940,7 +5609,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_circleIds = sse_decode_list_String(deserializer);
     var var_participantCount = sse_decode_i_64(deserializer);
     var var_groupAvatars = sse_decode_list_group_avatar(deserializer);
-    return ConversationListItem(
+    return ConversationListData(
       conversationId: var_conversationId,
       ownerId: var_ownerId,
       name: var_name,
@@ -5054,14 +5723,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  ImageMessageItem sse_decode_image_message_item(SseDeserializer deserializer) {
+  ImageMessageView sse_decode_image_message_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_messageId = sse_decode_String(deserializer);
     var var_createdAtMicros = sse_decode_i_64(deserializer);
     var var_mediaUrl = sse_decode_String(deserializer);
     var var_mediaName = sse_decode_opt_String(deserializer);
     var var_canForward = sse_decode_bool(deserializer);
-    return ImageMessageItem(
+    return ImageMessageView(
       messageId: var_messageId,
       createdAtMicros: var_createdAtMicros,
       mediaUrl: var_mediaUrl,
@@ -5095,15 +5764,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<ConversationListItem> sse_decode_list_conversation_list_item(
+  List<ConversationListData> sse_decode_list_conversation_list_data(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <ConversationListItem>[];
+    var ans_ = <ConversationListData>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_conversation_list_item(deserializer));
+      ans_.add(sse_decode_conversation_list_data(deserializer));
     }
     return ans_;
   }
@@ -5148,29 +5817,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  List<ImageMessageItem> sse_decode_list_image_message_item(
+  List<ImageMessageView> sse_decode_list_image_message_view(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <ImageMessageItem>[];
+    var ans_ = <ImageMessageView>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_image_message_item(deserializer));
+      ans_.add(sse_decode_image_message_view(deserializer));
     }
     return ans_;
   }
 
   @protected
-  List<MessageListItem> sse_decode_list_message_list_item(
+  List<MessageListView> sse_decode_list_message_list_view(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     var len_ = sse_decode_i_32(deserializer);
-    var ans_ = <MessageListItem>[];
+    var ans_ = <MessageListView>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
-      ans_.add(sse_decode_message_list_item(deserializer));
+      ans_.add(sse_decode_message_list_view(deserializer));
     }
     return ans_;
   }
@@ -5270,7 +5939,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  MessageListItem sse_decode_message_list_item(SseDeserializer deserializer) {
+  MessageListView sse_decode_message_list_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_messageId = sse_decode_String(deserializer);
     var var_conversationId = sse_decode_String(deserializer);
@@ -5341,7 +6010,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_mentionRead = sse_decode_opt_box_autoadd_bool(deserializer);
     var var_pinned = sse_decode_bool(deserializer);
     var var_expireIn = sse_decode_opt_box_autoadd_i_64(deserializer);
-    return MessageListItem(
+    return MessageListView(
       messageId: var_messageId,
       conversationId: var_conversationId,
       senderId: var_senderId,
@@ -5732,6 +6401,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+    AttachmentAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as AttachmentAccessImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+    ConversationAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as ConversationAccessImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDesktopHandle(
     DesktopHandle self,
     SseSerializer serializer,
@@ -5758,6 +6453,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+    MessageAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as MessageAccessImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+    StickerAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as StickerAccessImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+    UserAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as UserAccessImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
     AccountHandle self,
     SseSerializer serializer,
@@ -5765,6 +6499,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as AccountHandleImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+    AttachmentAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as AttachmentAccessImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+    ConversationAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as ConversationAccessImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -5796,6 +6556,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+    MessageAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as MessageAccessImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+    StickerAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as StickerAccessImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+    UserAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as UserAccessImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_Map_String_String_None(
     Map<String, String> self,
     SseSerializer serializer,
@@ -5822,6 +6621,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+    AttachmentAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as AttachmentAccessImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
+    ConversationAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as ConversationAccessImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDesktopHandle(
     DesktopHandle self,
     SseSerializer serializer,
@@ -5842,6 +6667,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as LoginHandleImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
+    MessageAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as MessageAccessImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess(
+    StickerAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as StickerAccessImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+    UserAccess self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as UserAccessImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -5981,8 +6845,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_conversation_list_item(
-    ConversationListItem self,
+  void sse_encode_conversation_list_data(
+    ConversationListData self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -6075,8 +6939,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_image_message_item(
-    ImageMessageItem self,
+  void sse_encode_image_message_view(
+    ImageMessageView self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -6109,14 +6973,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_list_conversation_list_item(
-    List<ConversationListItem> self,
+  void sse_encode_list_conversation_list_data(
+    List<ConversationListData> self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
-      sse_encode_conversation_list_item(item, serializer);
+      sse_encode_conversation_list_data(item, serializer);
     }
   }
 
@@ -6157,26 +7021,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_list_image_message_item(
-    List<ImageMessageItem> self,
+  void sse_encode_list_image_message_view(
+    List<ImageMessageView> self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
-      sse_encode_image_message_item(item, serializer);
+      sse_encode_image_message_view(item, serializer);
     }
   }
 
   @protected
-  void sse_encode_list_message_list_item(
-    List<MessageListItem> self,
+  void sse_encode_list_message_list_view(
+    List<MessageListView> self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
-      sse_encode_message_list_item(item, serializer);
+      sse_encode_message_list_view(item, serializer);
     }
   }
 
@@ -6275,8 +7139,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_message_list_item(
-    MessageListItem self,
+  void sse_encode_message_list_view(
+    MessageListView self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -6622,43 +7486,64 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
   String accountId() =>
       RustLib.instance.api.crateApiDesktopAccountHandleAccountId(that: this);
 
-  Future<void> addContact({required String userId, required String fullName}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleAddContact(
-        that: this,
-        userId: userId,
-        fullName: fullName,
-      );
+  AttachmentAccess attachment() =>
+      RustLib.instance.api.crateApiDesktopAccountHandleAttachment(that: this);
 
-  Future<void> addSticker({required String stickerId}) => RustLib.instance.api
-      .crateApiDesktopAccountHandleAddSticker(that: this, stickerId: stickerId);
+  ConversationAccess conversation() =>
+      RustLib.instance.api.crateApiDesktopAccountHandleConversation(that: this);
 
-  Future<void> addStickerFromFile({required String messageId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleAddStickerFromFile(
-        that: this,
-        messageId: messageId,
-      );
+  Stream<BigInt> conversationChanges() => RustLib.instance.api
+      .crateApiDesktopAccountHandleConversationChanges(that: this);
 
-  Future<void> addStickerFromPath({required String path}) => RustLib
+  MessageAccess message() =>
+      RustLib.instance.api.crateApiDesktopAccountHandleMessage(that: this);
+
+  Stream<BigInt> messageChanges() => RustLib.instance.api
+      .crateApiDesktopAccountHandleMessageChanges(that: this);
+
+  AccountProfile profile() =>
+      RustLib.instance.api.crateApiDesktopAccountHandleProfile(that: this);
+
+  Future<void> shutdown() =>
+      RustLib.instance.api.crateApiDesktopAccountHandleShutdown(that: this);
+
+  Future<void> signOut() =>
+      RustLib.instance.api.crateApiDesktopAccountHandleSignOut(that: this);
+
+  StickerAccess sticker() =>
+      RustLib.instance.api.crateApiDesktopAccountHandleSticker(that: this);
+
+  UserAccess user() =>
+      RustLib.instance.api.crateApiDesktopAccountHandleUser(that: this);
+}
+
+@sealed
+class AttachmentAccessImpl extends RustOpaque implements AttachmentAccess {
+  // Not to be used by end users
+  AttachmentAccessImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  AttachmentAccessImpl.frbInternalSseDecode(
+    BigInt ptr,
+    int externalSizeOnNative,
+  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_AttachmentAccess,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_AttachmentAccess,
+    rustArcDecrementStrongCountPtr: RustLib
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_AttachmentAccessPtr,
+  );
+
+  Future<void> cancelAttachment({required String messageId}) => RustLib
       .instance
       .api
-      .crateApiDesktopAccountHandleAddStickerFromPath(that: this, path: path);
-
-  Future<List<StickerItem>> albumStickers({required String albumId}) => RustLib
-      .instance
-      .api
-      .crateApiDesktopAccountHandleAlbumStickers(that: this, albumId: albumId);
-
-  Future<void> blockUser({required String userId}) => RustLib.instance.api
-      .crateApiDesktopAccountHandleBlockUser(that: this, userId: userId);
-
-  Future<String?> botCreatorId({required String userId}) => RustLib.instance.api
-      .crateApiDesktopAccountHandleBotCreatorId(that: this, userId: userId);
-
-  Future<String?> botHomeUri({required String appId}) => RustLib.instance.api
-      .crateApiDesktopAccountHandleBotHomeUri(that: this, appId: appId);
-
-  Future<void> cancelAttachment({required String messageId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleCancelAttachment(
+      .mixinDesktopCoreRuntimeAttachmentAccessCancelAttachment(
         that: this,
         messageId: messageId,
       );
@@ -6667,106 +7552,16 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
     required String transcriptId,
     required String messageId,
   }) => RustLib.instance.api
-      .crateApiDesktopAccountHandleCancelTranscriptAttachment(
+      .mixinDesktopCoreRuntimeAttachmentAccessCancelTranscriptAttachment(
         that: this,
         transcriptId: transcriptId,
         messageId: messageId,
       );
 
-  Future<List<CircleItem>> circles() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleCircles(that: this);
-
-  Future<void> clearConversation({required String conversationId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleClearConversation(
-        that: this,
-        conversationId: conversationId,
-      );
-
-  Future<String> combineForwardMessages({
-    required String targetConversationId,
-    required List<String> sourceMessageIds,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleCombineForwardMessages(
-    that: this,
-    targetConversationId: targetConversationId,
-    sourceMessageIds: sourceMessageIds,
-  );
-
-  Stream<BigInt> conversationChanges() => RustLib.instance.api
-      .crateApiDesktopAccountHandleConversationChanges(that: this);
-
-  Future<PlatformInt64> conversationCount({
-    required String category,
-    String? circleId,
-    required String keyword,
-    required bool unseenOnly,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleConversationCount(
-    that: this,
-    category: category,
-    circleId: circleId,
-    keyword: keyword,
-    unseenOnly: unseenOnly,
-  );
-
-  Future<ConversationDetailItem> conversationDetail({
-    required String conversationId,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleConversationDetail(
-    that: this,
-    conversationId: conversationId,
-  );
-
-  Future<List<ConversationParticipantItem>> conversationParticipants({
-    required String conversationId,
-  }) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleConversationParticipants(
-        that: this,
-        conversationId: conversationId,
-      );
-
-  Future<List<ConversationListItem>> conversations({
-    required String category,
-    String? circleId,
-    required String keyword,
-    required bool unseenOnly,
-    required PlatformInt64 limit,
-    required PlatformInt64 offset,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleConversations(
-    that: this,
-    category: category,
-    circleId: circleId,
-    keyword: keyword,
-    unseenOnly: unseenOnly,
-    limit: limit,
-    offset: offset,
-  );
-
-  Future<CircleItem> createCircle({required String name}) => RustLib
+  Future<void> downloadAttachment({required String messageId}) => RustLib
       .instance
       .api
-      .crateApiDesktopAccountHandleCreateCircle(that: this, name: name);
-
-  Future<String?> currentUserRole({required String conversationId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleCurrentUserRole(
-        that: this,
-        conversationId: conversationId,
-      );
-
-  Future<void> deleteConversation({required String conversationId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleDeleteConversation(
-        that: this,
-        conversationId: conversationId,
-      );
-
-  Future<void> deleteMessages({
-    required String conversationId,
-    required List<String> messageIds,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleDeleteMessages(
-    that: this,
-    conversationId: conversationId,
-    messageIds: messageIds,
-  );
-
-  Future<void> downloadAttachment({required String messageId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleDownloadAttachment(
+      .mixinDesktopCoreRuntimeAttachmentAccessDownloadAttachment(
         that: this,
         messageId: messageId,
       );
@@ -6775,10 +7570,133 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
     required String transcriptId,
     required String messageId,
   }) => RustLib.instance.api
-      .crateApiDesktopAccountHandleDownloadTranscriptAttachment(
+      .mixinDesktopCoreRuntimeAttachmentAccessDownloadTranscriptAttachment(
         that: this,
         transcriptId: transcriptId,
         messageId: messageId,
+      );
+
+  Future<void> markAudioRead({required String messageId}) =>
+      RustLib.instance.api.mixinDesktopCoreRuntimeAttachmentAccessMarkAudioRead(
+        that: this,
+        messageId: messageId,
+      );
+
+  Future<void> markTranscriptAudioRead({
+    required String transcriptId,
+    required String messageId,
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeAttachmentAccessMarkTranscriptAudioRead(
+        that: this,
+        transcriptId: transcriptId,
+        messageId: messageId,
+      );
+}
+
+@sealed
+class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
+  // Not to be used by end users
+  ConversationAccessImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  ConversationAccessImpl.frbInternalSseDecode(
+    BigInt ptr,
+    int externalSizeOnNative,
+  ) : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_ConversationAccess,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_ConversationAccess,
+    rustArcDecrementStrongCountPtr: RustLib
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_ConversationAccessPtr,
+  );
+
+  Future<List<CircleItem>> circles() => RustLib.instance.api
+      .mixinDesktopCoreRuntimeConversationAccessCircles(that: this);
+
+  Future<void> clearConversation({required String conversationId}) => RustLib
+      .instance
+      .api
+      .mixinDesktopCoreRuntimeConversationAccessClearConversation(
+        that: this,
+        conversationId: conversationId,
+      );
+
+  Future<PlatformInt64> conversationCount({
+    required String category,
+    String? circleId,
+    required String keyword,
+    required bool unseenOnly,
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeConversationAccessConversationCount(
+        that: this,
+        category: category,
+        circleId: circleId,
+        keyword: keyword,
+        unseenOnly: unseenOnly,
+      );
+
+  Future<ConversationDetailItem> conversationDetail({
+    required String conversationId,
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeConversationAccessConversationDetail(
+        that: this,
+        conversationId: conversationId,
+      );
+
+  Future<List<ConversationParticipantItem>> conversationParticipants({
+    required String conversationId,
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeConversationAccessConversationParticipants(
+        that: this,
+        conversationId: conversationId,
+      );
+
+  Future<List<ConversationListData>> conversations({
+    required String category,
+    String? circleId,
+    required String keyword,
+    required bool unseenOnly,
+    required PlatformInt64 limit,
+    required PlatformInt64 offset,
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeConversationAccessConversations(
+        that: this,
+        category: category,
+        circleId: circleId,
+        keyword: keyword,
+        unseenOnly: unseenOnly,
+        limit: limit,
+        offset: offset,
+      );
+
+  Future<CircleItem> createCircle({required String name}) => RustLib
+      .instance
+      .api
+      .mixinDesktopCoreRuntimeConversationAccessCreateCircle(
+        that: this,
+        name: name,
+      );
+
+  Future<String?> currentUserRole({required String conversationId}) => RustLib
+      .instance
+      .api
+      .mixinDesktopCoreRuntimeConversationAccessCurrentUserRole(
+        that: this,
+        conversationId: conversationId,
+      );
+
+  Future<void> deleteConversation({required String conversationId}) => RustLib
+      .instance
+      .api
+      .mixinDesktopCoreRuntimeConversationAccessDeleteConversation(
+        that: this,
+        conversationId: conversationId,
       );
 
   Future<void> editCircleConversation({
@@ -6787,171 +7705,54 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
     required String ownerId,
     required bool isGroup,
     required bool add,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleEditCircleConversation(
-    that: this,
-    circleId: circleId,
-    conversationId: conversationId,
-    ownerId: ownerId,
-    isGroup: isGroup,
-    add: add,
-  );
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeConversationAccessEditCircleConversation(
+        that: this,
+        circleId: circleId,
+        conversationId: conversationId,
+        ownerId: ownerId,
+        isGroup: isGroup,
+        add: add,
+      );
 
   Future<void> editConversation({
     required String conversationId,
     String? name,
     String? announcement,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleEditConversation(
-    that: this,
-    conversationId: conversationId,
-    name: name,
-    announcement: announcement,
-  );
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeConversationAccessEditConversation(
+        that: this,
+        conversationId: conversationId,
+        name: name,
+        announcement: announcement,
+      );
 
   Future<void> exitGroup({required String conversationId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleExitGroup(
+      RustLib.instance.api.mixinDesktopCoreRuntimeConversationAccessExitGroup(
         that: this,
         conversationId: conversationId,
       );
-
-  Future<List<String>> forwardMessages({
-    required String targetConversationId,
-    required List<String> sourceMessageIds,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleForwardMessages(
-    that: this,
-    targetConversationId: targetConversationId,
-    sourceMessageIds: sourceMessageIds,
-  );
 
   Future<List<GroupConversationItem>> groupsInCommon({
     required String userId,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleGroupsInCommon(
-    that: this,
-    userId: userId,
-  );
-
-  Future<List<ImageMessageItem>> imageMessagesAround({
-    required String conversationId,
-    required String targetMessageId,
-    required PlatformInt64 before,
-    required PlatformInt64 after,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleImageMessagesAround(
-    that: this,
-    conversationId: conversationId,
-    targetMessageId: targetMessageId,
-    before: before,
-    after: after,
-  );
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeConversationAccessGroupsInCommon(
+        that: this,
+        userId: userId,
+      );
 
   Future<ConversationDetailItem> localConversationDetail({
     required String conversationId,
-  }) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleLocalConversationDetail(
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeConversationAccessLocalConversationDetail(
         that: this,
         conversationId: conversationId,
       );
 
-  Future<void> markAudioRead({required String messageId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleMarkAudioRead(
-        that: this,
-        messageId: messageId,
-      );
-
-  Future<void> markConversationRead({required String conversationId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleMarkConversationRead(
-        that: this,
-        conversationId: conversationId,
-      );
-
-  Future<void> markMentionRead({
-    required String conversationId,
-    required String messageId,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleMarkMentionRead(
-    that: this,
-    conversationId: conversationId,
-    messageId: messageId,
-  );
-
-  Future<void> markTranscriptAudioRead({
-    required String transcriptId,
-    required String messageId,
-  }) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleMarkTranscriptAudioRead(
-        that: this,
-        transcriptId: transcriptId,
-        messageId: messageId,
-      );
-
-  Stream<BigInt> messageChanges() => RustLib.instance.api
-      .crateApiDesktopAccountHandleMessageChanges(that: this);
-
-  Future<List<MessageListItem>> messages({
-    required String conversationId,
-    PlatformInt64? beforeCreatedAtMicros,
-    String? beforeMessageId,
-    required PlatformInt64 limit,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleMessages(
-    that: this,
-    conversationId: conversationId,
-    beforeCreatedAtMicros: beforeCreatedAtMicros,
-    beforeMessageId: beforeMessageId,
-    limit: limit,
-  );
-
-  Future<List<MessageListItem>> messagesAround({
-    required String conversationId,
-    required String targetMessageId,
-    required PlatformInt64 before,
-    required PlatformInt64 after,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleMessagesAround(
-    that: this,
-    conversationId: conversationId,
-    targetMessageId: targetMessageId,
-    before: before,
-    after: after,
-  );
-
-  Future<List<StickerItem>> personalStickers() => RustLib.instance.api
-      .crateApiDesktopAccountHandlePersonalStickers(that: this);
-
-  Future<List<MessageListItem>> pinnedMessages({
-    required String conversationId,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandlePinnedMessages(
-    that: this,
-    conversationId: conversationId,
-  );
-
-  AccountProfile profile() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleProfile(that: this);
-
-  Future<void> recallMessages({
-    required String conversationId,
-    required List<String> messageIds,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleRecallMessages(
-    that: this,
-    conversationId: conversationId,
-    messageIds: messageIds,
-  );
-
-  Future<List<StickerItem>> recentStickers() => RustLib.instance.api
-      .crateApiDesktopAccountHandleRecentStickers(that: this);
-
-  Future<void> refreshStickers() => RustLib.instance.api
-      .crateApiDesktopAccountHandleRefreshStickers(that: this);
-
-  Future<void> removeContact({required String userId}) => RustLib.instance.api
-      .crateApiDesktopAccountHandleRemoveContact(that: this, userId: userId);
-
-  Future<void> removeSticker({required String stickerId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleRemoveSticker(
-        that: this,
-        stickerId: stickerId,
-      );
-
-  Future<void> reportUser({required String userId}) => RustLib.instance.api
-      .crateApiDesktopAccountHandleReportUser(that: this, userId: userId);
-
-  Future<void> rotateGroupInvite({required String conversationId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleRotateGroupInvite(
+  Future<void> rotateGroupInvite({required String conversationId}) => RustLib
+      .instance
+      .api
+      .mixinDesktopCoreRuntimeConversationAccessRotateGroupInvite(
         that: this,
         conversationId: conversationId,
       );
@@ -6959,79 +7760,29 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
   Future<List<ConversationParticipantItem>> searchBotGroupUsers({
     required String conversationId,
     required String keyword,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleSearchBotGroupUsers(
-    that: this,
-    conversationId: conversationId,
-    keyword: keyword,
-  );
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeConversationAccessSearchBotGroupUsers(
+        that: this,
+        conversationId: conversationId,
+        keyword: keyword,
+      );
 
-  Future<List<MessageListItem>> searchMessages({
+  Future<void> setDisappearingMessages({
     required String conversationId,
-    required String query,
-    String? senderId,
-    required List<String> categories,
-    required int offset,
-    required int limit,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleSearchMessages(
-    that: this,
-    conversationId: conversationId,
-    query: query,
-    senderId: senderId,
-    categories: categories,
-    offset: offset,
-    limit: limit,
-  );
+    required PlatformInt64 duration,
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeConversationAccessSetDisappearingMessages(
+        that: this,
+        conversationId: conversationId,
+        duration: duration,
+      );
 
-  Future<String> sendAudio({
-    required String conversationId,
-    required String path,
-    required PlatformInt64 durationMillis,
-    required List<int> waveform,
-    String? quoteMessageId,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleSendAudio(
-    that: this,
-    conversationId: conversationId,
-    path: path,
-    durationMillis: durationMillis,
-    waveform: waveform,
-    quoteMessageId: quoteMessageId,
-  );
-
-  Future<String> sendContact({
-    required String conversationId,
-    required String sharedUserId,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleSendContact(
-    that: this,
-    conversationId: conversationId,
-    sharedUserId: sharedUserId,
-  );
-
-  Future<String> sendSticker({
-    required String conversationId,
-    required String stickerId,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleSendSticker(
-    that: this,
-    conversationId: conversationId,
-    stickerId: stickerId,
-  );
-
-  Future<String> sendText({
-    required String conversationId,
-    required String content,
-    String? quoteMessageId,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleSendText(
-    that: this,
-    conversationId: conversationId,
-    content: content,
-    quoteMessageId: quoteMessageId,
-  );
-
-  Future<void> setConversationMuted({
+  Future<void> setMuted({
     required String conversationId,
     required String ownerId,
     required String category,
     required PlatformInt64 durationSeconds,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleSetConversationMuted(
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeConversationAccessSetMuted(
     that: this,
     conversationId: conversationId,
     ownerId: ownerId,
@@ -7039,125 +7790,28 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
     durationSeconds: durationSeconds,
   );
 
-  Future<void> setConversationPinned({
+  Future<void> setPinned({
     required String conversationId,
     required bool pinned,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleSetConversationPinned(
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeConversationAccessSetPinned(
     that: this,
     conversationId: conversationId,
     pinned: pinned,
   );
-
-  Future<void> setDisappearingMessages({
-    required String conversationId,
-    required PlatformInt64 duration,
-  }) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleSetDisappearingMessages(
-        that: this,
-        conversationId: conversationId,
-        duration: duration,
-      );
-
-  Future<void> setMessagePinned({
-    required String conversationId,
-    required String messageId,
-    required bool pinned,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleSetMessagePinned(
-    that: this,
-    conversationId: conversationId,
-    messageId: messageId,
-    pinned: pinned,
-  );
-
-  Future<void> setStickerAlbumAdded({
-    required String albumId,
-    required bool added,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleSetStickerAlbumAdded(
-    that: this,
-    albumId: albumId,
-    added: added,
-  );
-
-  Future<void> setStickerAlbumOrder({required List<String> albumIds}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleSetStickerAlbumOrder(
-        that: this,
-        albumIds: albumIds,
-      );
-
-  Future<List<SharedAppItem>> sharedApps({required String userId}) => RustLib
-      .instance
-      .api
-      .crateApiDesktopAccountHandleSharedApps(that: this, userId: userId);
-
-  Future<List<MessageListItem>> sharedMessages({
-    required String conversationId,
-    required String kind,
-    required BigInt offset,
-    required BigInt limit,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleSharedMessages(
-    that: this,
-    conversationId: conversationId,
-    kind: kind,
-    offset: offset,
-    limit: limit,
-  );
-
-  Future<void> shutdown() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleShutdown(that: this);
-
-  Future<void> signOut() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleSignOut(that: this);
-
-  Future<List<StickerAlbumItem>> stickerAlbums() => RustLib.instance.api
-      .crateApiDesktopAccountHandleStickerAlbums(that: this);
-
-  Future<StickerDetailItem> stickerDetail({required String stickerId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleStickerDetail(
-        that: this,
-        stickerId: stickerId,
-      );
-
-  Future<List<StickerAlbumItem>> stickerStoreAlbums() => RustLib.instance.api
-      .crateApiDesktopAccountHandleStickerStoreAlbums(that: this);
-
-  Future<List<MessageListItem>> transcriptMessages({
-    required String transcriptId,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleTranscriptMessages(
-    that: this,
-    transcriptId: transcriptId,
-  );
-
-  Future<void> unblockUser({required String userId}) => RustLib.instance.api
-      .crateApiDesktopAccountHandleUnblockUser(that: this, userId: userId);
 
   Future<void> updateParticipants({
     required String conversationId,
     required String action,
     required List<String> userIds,
     String? role,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleUpdateParticipants(
-    that: this,
-    conversationId: conversationId,
-    action: action,
-    userIds: userIds,
-    role: role,
-  );
-
-  Future<UserProfileItem?> userProfile({
-    String? userId,
-    String? identityNumber,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleUserProfile(
-    that: this,
-    userId: userId,
-    identityNumber: identityNumber,
-  );
-
-  Future<List<UserProfileItem>> usersByIdentityNumbers({
-    required List<String> identityNumbers,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleUsersByIdentityNumbers(
-    that: this,
-    identityNumbers: identityNumbers,
-  );
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeConversationAccessUpdateParticipants(
+        that: this,
+        conversationId: conversationId,
+        action: action,
+        userIds: userIds,
+        role: role,
+      );
 }
 
 @sealed
@@ -7236,4 +7890,387 @@ class LoginHandleImpl extends RustOpaque implements LoginHandle {
 
   Future<AccountHandle?> poll() =>
       RustLib.instance.api.crateApiDesktopLoginHandlePoll(that: this);
+}
+
+@sealed
+class MessageAccessImpl extends RustOpaque implements MessageAccess {
+  // Not to be used by end users
+  MessageAccessImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  MessageAccessImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_MessageAccess,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_MessageAccess,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_MessageAccessPtr,
+  );
+
+  Future<String> combineForwardMessages({
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeMessageAccessCombineForwardMessages(
+        that: this,
+        targetConversationId: targetConversationId,
+        sourceMessageIds: sourceMessageIds,
+      );
+
+  Future<void> deleteMessages({
+    required String conversationId,
+    required List<String> messageIds,
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessDeleteMessages(
+    that: this,
+    conversationId: conversationId,
+    messageIds: messageIds,
+  );
+
+  Future<List<String>> forwardMessages({
+    required String targetConversationId,
+    required List<String> sourceMessageIds,
+  }) =>
+      RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessForwardMessages(
+        that: this,
+        targetConversationId: targetConversationId,
+        sourceMessageIds: sourceMessageIds,
+      );
+
+  Future<List<ImageMessageView>> imageMessagesAround({
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeMessageAccessImageMessagesAround(
+        that: this,
+        conversationId: conversationId,
+        targetMessageId: targetMessageId,
+        before: before,
+        after: after,
+      );
+
+  Future<void> markConversationRead({required String conversationId}) => RustLib
+      .instance
+      .api
+      .mixinDesktopCoreRuntimeMessageAccessMarkConversationRead(
+        that: this,
+        conversationId: conversationId,
+      );
+
+  Future<void> markMentionRead({
+    required String conversationId,
+    required String messageId,
+  }) =>
+      RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessMarkMentionRead(
+        that: this,
+        conversationId: conversationId,
+        messageId: messageId,
+      );
+
+  Future<List<MessageListView>> messages({
+    required String conversationId,
+    PlatformInt64? beforeCreatedAtMicros,
+    String? beforeMessageId,
+    required PlatformInt64 limit,
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessMessages(
+    that: this,
+    conversationId: conversationId,
+    beforeCreatedAtMicros: beforeCreatedAtMicros,
+    beforeMessageId: beforeMessageId,
+    limit: limit,
+  );
+
+  Future<List<MessageListView>> messagesAround({
+    required String conversationId,
+    required String targetMessageId,
+    required PlatformInt64 before,
+    required PlatformInt64 after,
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessMessagesAround(
+    that: this,
+    conversationId: conversationId,
+    targetMessageId: targetMessageId,
+    before: before,
+    after: after,
+  );
+
+  Future<List<MessageListView>> pinnedMessages({
+    required String conversationId,
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessPinnedMessages(
+    that: this,
+    conversationId: conversationId,
+  );
+
+  Future<void> recallMessages({
+    required String conversationId,
+    required List<String> messageIds,
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessRecallMessages(
+    that: this,
+    conversationId: conversationId,
+    messageIds: messageIds,
+  );
+
+  Future<List<MessageListView>> searchMessages({
+    required String conversationId,
+    required String query,
+    String? senderId,
+    required List<String> categories,
+    required int offset,
+    required int limit,
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSearchMessages(
+    that: this,
+    conversationId: conversationId,
+    query: query,
+    senderId: senderId,
+    categories: categories,
+    offset: offset,
+    limit: limit,
+  );
+
+  Future<String> sendAudio({
+    required String conversationId,
+    required String path,
+    required PlatformInt64 durationMillis,
+    required List<int> waveform,
+    String? quoteMessageId,
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSendAudio(
+    that: this,
+    conversationId: conversationId,
+    path: path,
+    durationMillis: durationMillis,
+    waveform: waveform,
+    quoteMessageId: quoteMessageId,
+  );
+
+  Future<String> sendContact({
+    required String conversationId,
+    required String sharedUserId,
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSendContact(
+    that: this,
+    conversationId: conversationId,
+    sharedUserId: sharedUserId,
+  );
+
+  Future<String> sendSticker({
+    required String conversationId,
+    required String stickerId,
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSendSticker(
+    that: this,
+    conversationId: conversationId,
+    stickerId: stickerId,
+  );
+
+  Future<String> sendText({
+    required String conversationId,
+    required String content,
+    String? quoteMessageId,
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSendText(
+    that: this,
+    conversationId: conversationId,
+    content: content,
+    quoteMessageId: quoteMessageId,
+  );
+
+  Future<void> setMessagePinned({
+    required String conversationId,
+    required String messageId,
+    required bool pinned,
+  }) =>
+      RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSetMessagePinned(
+        that: this,
+        conversationId: conversationId,
+        messageId: messageId,
+        pinned: pinned,
+      );
+
+  Future<List<MessageListView>> sharedMessages({
+    required String conversationId,
+    required String kind,
+    required BigInt offset,
+    required BigInt limit,
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSharedMessages(
+    that: this,
+    conversationId: conversationId,
+    kind: kind,
+    offset: offset,
+    limit: limit,
+  );
+
+  Future<List<MessageListView>> transcriptMessages({
+    required String transcriptId,
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeMessageAccessTranscriptMessages(
+        that: this,
+        transcriptId: transcriptId,
+      );
+}
+
+@sealed
+class StickerAccessImpl extends RustOpaque implements StickerAccess {
+  // Not to be used by end users
+  StickerAccessImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  StickerAccessImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_StickerAccess,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_StickerAccess,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_StickerAccessPtr,
+  );
+
+  Future<void> addSticker({required String stickerId}) =>
+      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessAddSticker(
+        that: this,
+        stickerId: stickerId,
+      );
+
+  Future<void> addStickerFromFile({required String messageId}) => RustLib
+      .instance
+      .api
+      .mixinDesktopCoreRuntimeStickerAccessAddStickerFromFile(
+        that: this,
+        messageId: messageId,
+      );
+
+  Future<void> addStickerFromPath({required String path}) => RustLib
+      .instance
+      .api
+      .mixinDesktopCoreRuntimeStickerAccessAddStickerFromPath(
+        that: this,
+        path: path,
+      );
+
+  Future<List<StickerItem>> albumStickers({required String albumId}) =>
+      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessAlbumStickers(
+        that: this,
+        albumId: albumId,
+      );
+
+  Future<List<StickerItem>> personalStickers() => RustLib.instance.api
+      .mixinDesktopCoreRuntimeStickerAccessPersonalStickers(that: this);
+
+  Future<List<StickerItem>> recentStickers() => RustLib.instance.api
+      .mixinDesktopCoreRuntimeStickerAccessRecentStickers(that: this);
+
+  Future<void> refreshStickers() => RustLib.instance.api
+      .mixinDesktopCoreRuntimeStickerAccessRefreshStickers(that: this);
+
+  Future<void> removeSticker({required String stickerId}) =>
+      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessRemoveSticker(
+        that: this,
+        stickerId: stickerId,
+      );
+
+  Future<void> setStickerAlbumAdded({
+    required String albumId,
+    required bool added,
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeStickerAccessSetStickerAlbumAdded(
+        that: this,
+        albumId: albumId,
+        added: added,
+      );
+
+  Future<void> setStickerAlbumOrder({required List<String> albumIds}) => RustLib
+      .instance
+      .api
+      .mixinDesktopCoreRuntimeStickerAccessSetStickerAlbumOrder(
+        that: this,
+        albumIds: albumIds,
+      );
+
+  Future<List<StickerAlbumItem>> stickerAlbums() => RustLib.instance.api
+      .mixinDesktopCoreRuntimeStickerAccessStickerAlbums(that: this);
+
+  Future<StickerDetailItem> stickerDetail({required String stickerId}) =>
+      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessStickerDetail(
+        that: this,
+        stickerId: stickerId,
+      );
+
+  Future<List<StickerAlbumItem>> stickerStoreAlbums() => RustLib.instance.api
+      .mixinDesktopCoreRuntimeStickerAccessStickerStoreAlbums(that: this);
+}
+
+@sealed
+class UserAccessImpl extends RustOpaque implements UserAccess {
+  // Not to be used by end users
+  UserAccessImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  UserAccessImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_UserAccess,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_UserAccess,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_UserAccessPtr,
+  );
+
+  Future<void> addContact({required String userId, required String fullName}) =>
+      RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessAddContact(
+        that: this,
+        userId: userId,
+        fullName: fullName,
+      );
+
+  Future<void> blockUser({required String userId}) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeUserAccessBlockUser(that: this, userId: userId);
+
+  Future<String?> botCreatorId({required String userId}) =>
+      RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessBotCreatorId(
+        that: this,
+        userId: userId,
+      );
+
+  Future<String?> botHomeUri({required String appId}) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeUserAccessBotHomeUri(that: this, appId: appId);
+
+  Future<void> removeContact({required String userId}) =>
+      RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessRemoveContact(
+        that: this,
+        userId: userId,
+      );
+
+  Future<void> reportUser({required String userId}) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeUserAccessReportUser(that: this, userId: userId);
+
+  Future<List<SharedAppItem>> sharedApps({required String userId}) => RustLib
+      .instance
+      .api
+      .mixinDesktopCoreRuntimeUserAccessSharedApps(that: this, userId: userId);
+
+  Future<void> unblockUser({required String userId}) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeUserAccessUnblockUser(that: this, userId: userId);
+
+  Future<UserProfileItem?> userProfile({
+    String? userId,
+    String? identityNumber,
+  }) => RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessUserProfile(
+    that: this,
+    userId: userId,
+    identityNumber: identityNumber,
+  );
+
+  Future<List<UserProfileItem>> usersByIdentityNumbers({
+    required List<String> identityNumbers,
+  }) => RustLib.instance.api
+      .mixinDesktopCoreRuntimeUserAccessUsersByIdentityNumbers(
+        that: this,
+        identityNumbers: identityNumbers,
+      );
 }

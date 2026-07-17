@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:mixin_desktop_ui/controllers/paging_controller.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart' as rust;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 const _pageLimit = 15;
@@ -81,10 +81,11 @@ class ConversationListController extends ChangeNotifier {
   }
 
   Future<void> setPinned(ConversationListEntry item) => account
-      .setConversationPinned(conversationId: item.id, pinned: !item.isPinned);
+      .conversation()
+      .setPinned(conversationId: item.id, pinned: !item.isPinned);
 
   Future<void> setMuted(ConversationListEntry item, int durationSeconds) =>
-      account.setConversationMuted(
+      account.conversation().setMuted(
         conversationId: item.id,
         ownerId: item.ownerId,
         category: item.category,
@@ -92,13 +93,13 @@ class ConversationListController extends ChangeNotifier {
       );
 
   Future<void> deleteConversation(ConversationListEntry item) =>
-      account.deleteConversation(conversationId: item.id);
+      account.conversation().deleteConversation(conversationId: item.id);
 
   Future<void> editCircle(
     ConversationListEntry item,
     String circleId,
     bool add,
-  ) => account.editCircleConversation(
+  ) => account.conversation().editCircleConversation(
     circleId: circleId,
     conversationId: item.id,
     ownerId: item.ownerId,
@@ -150,7 +151,7 @@ class ConversationListController extends ChangeNotifier {
 
   Future<int> _queryCount(_PageKey key) async {
     try {
-      final result = await account.conversationCount(
+      final result = await account.conversation().conversationCount(
         category: key.category.name,
         circleId: key.circleId,
         keyword: key.query,
@@ -170,7 +171,7 @@ class ConversationListController extends ChangeNotifier {
     int offset,
   ) async {
     try {
-      final result = await account.conversations(
+      final result = await account.conversation().conversations(
         category: key.category.name,
         circleId: key.circleId,
         keyword: key.query,
@@ -188,12 +189,13 @@ class ConversationListController extends ChangeNotifier {
 
   Future<void> _refreshMetadata() async {
     try {
-      final updatedCircles = await account.circles();
+      final updatedCircles = await account.conversation().circles();
       final requests = <Future<(String, int)>>[
         for (final filter in ConversationCategoryFilter.values)
           if (filter != ConversationCategoryFilter.chats &&
               filter != ConversationCategoryFilter.circle)
             account
+                .conversation()
                 .conversationCount(
                   category: filter.name,
                   circleId: null,
@@ -203,6 +205,7 @@ class ConversationListController extends ChangeNotifier {
                 .then((count) => (filter.name, count.toInt())),
         for (final circle in updatedCircles)
           account
+              .conversation()
               .conversationCount(
                 category: ConversationCategoryFilter.circle.name,
                 circleId: circle.circleId,

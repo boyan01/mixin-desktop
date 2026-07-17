@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:mixin_desktop_ui/controllers/network_controller.dart';
 import 'package:mixin_desktop_ui/network/core_http_client.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 
 void main() {
   test('persists proxy mutations through DesktopHandle', () async {
