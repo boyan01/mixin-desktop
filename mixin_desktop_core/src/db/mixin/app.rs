@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::QueryBuilder;
 
 use crate::db::Error;
 
@@ -30,5 +31,36 @@ impl AppDao {
             .fetch_optional(&self.0)
             .await?;
         Ok(result)
+    }
+
+    pub async fn insert_sdk_apps(&self, apps: &[sdk::App]) -> Result<(), Error> {
+        if apps.is_empty() {
+            return Ok(());
+        }
+        let mut query_builder: QueryBuilder<sqlx::Sqlite> = QueryBuilder::new(
+            r#"INSERT OR REPLACE INTO apps (
+                app_id, app_number, home_uri, redirect_uri, name, icon_url,
+                category, description, app_secret, capabilities, creator_id,
+                resource_patterns, updated_at
+            ) "#,
+        );
+        query_builder.push_values(apps, |mut builder, app| {
+            builder
+                .push_bind(&app.app_id)
+                .push_bind(&app.app_number)
+                .push_bind(&app.home_uri)
+                .push_bind(&app.redirect_uri)
+                .push_bind(&app.name)
+                .push_bind(&app.icon_url)
+                .push_bind(&app.category)
+                .push_bind(&app.description)
+                .push_bind(&app.app_secret)
+                .push_bind(format!("[{}]", app.capabilities.join(", ")))
+                .push_bind(&app.creator_id)
+                .push_bind(format!("[{}]", app.resource_patterns.join(", ")))
+                .push_bind(app.updated_at);
+        });
+        query_builder.build().execute(&self.0).await?;
+        Ok(())
     }
 }

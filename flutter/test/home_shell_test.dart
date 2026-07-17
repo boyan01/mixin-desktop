@@ -14,6 +14,7 @@ import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/chat_view.dart';
 import 'package:mixin_desktop_ui/widgets/conversation_list_view.dart';
 import 'package:mixin_desktop_ui/widgets/home_sidebar.dart';
+import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
 import 'package:provider/provider.dart';
 
 void main() {
@@ -115,21 +116,63 @@ void main() {
   testWidgets('opens and closes the original chat side info route', (
     tester,
   ) async {
-    await _pumpHome(tester, size: const Size(1300, 700));
+    final account = _FakeAccountHandle()
+      ..conversationRefreshCompleter = Completer<void>();
+    await _pumpHome(tester, size: const Size(1300, 700), account: account);
 
     await tester.tap(find.text('Mixin Team'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('chat-info')));
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Mixin Team'), findsWidgets);
+
+    account.conversationRefreshCompleter!.complete();
     await tester.pumpAndSettle();
 
     expect(find.byType(ChatInfoPage), findsOneWidget);
     expect(find.byKey(const Key('chat-side-close')), findsOneWidget);
     expect(tester.getSize(find.byType(ChatInfoPage)).width, 300);
+    expect(find.byType(MixinAppBar), findsOneWidget);
+    expect(find.byType(CellGroup), findsWidgets);
+    expect(find.byType(CellItem), findsWidgets);
+    expect(find.byType(ListTile), findsNothing);
 
     await tester.tap(find.byKey(const Key('chat-side-close')));
     await tester.pumpAndSettle();
     expect(find.byType(ChatInfoPage), findsNothing);
     expect(find.byType(ChatView), findsOneWidget);
+  });
+
+  testWidgets('shows cached shared apps while the refresh is pending', (
+    tester,
+  ) async {
+    const cachedApp = SharedAppItem(
+      appId: 'app-1',
+      name: 'Cached App',
+      iconUrl: '',
+      description: 'Cached description',
+      homeUri: 'https://example.com',
+    );
+    final account = _FakeAccountHandle(sharedAppsValues: const [cachedApp])
+      ..conversationRefreshCompleter = Completer<void>()
+      ..sharedAppsRefreshCompleter = Completer<void>();
+    await _pumpHome(tester, size: const Size(1300, 700), account: account);
+
+    await tester.tap(find.text('Mixin Team'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('chat-info')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Shared Apps'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cached App'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+
+    account.conversationRefreshCompleter!.complete();
+    account.sharedAppsRefreshCompleter!.complete();
+    await tester.pumpAndSettle();
   });
 
   testWidgets('opens ChatView in narrow mode and returns to conversations', (
@@ -410,8 +453,10 @@ class _FakeAccountHandle
         MessageAccess,
         StickerAccess,
         UserAccess {
-  _FakeAccountHandle({List<ConversationListItem>? conversations})
-    : _conversationItems = conversations ?? const [_conversation];
+  _FakeAccountHandle({
+    List<ConversationListItem>? conversations,
+    this.sharedAppsValues = const [],
+  }) : _conversationItems = conversations ?? const [_conversation];
 
   static const _conversation = ConversationListItem(
     conversationId: 'conversation',
@@ -468,10 +513,13 @@ class _FakeAccountHandle
   );
 
   final List<ConversationListItem> _conversationItems;
+  final List<SharedAppItem> sharedAppsValues;
   final conversationKeywords = <String>[];
   final sentTexts = <String>[];
   Object? mutationError;
   Completer<void>? deleteCompleter;
+  Completer<void>? conversationRefreshCompleter;
+  Completer<void>? sharedAppsRefreshCompleter;
 
   @override
   AttachmentAccess attachment() => this;
@@ -558,6 +606,14 @@ class _FakeAccountHandle
   @override
   Future<ConversationDetailItem> conversationDetail({
     required String conversationId,
+  }) async {
+    await conversationRefreshCompleter?.future;
+    return localConversationDetail(conversationId: conversationId);
+  }
+
+  @override
+  Future<ConversationDetailItem> localConversationDetail({
+    required String conversationId,
   }) async => ConversationDetailItem(
     conversationId: conversationId,
     name: conversationId == _secondConversation.conversationId
@@ -576,8 +632,14 @@ class _FakeAccountHandle
   }) async => const [];
 
   @override
-  Future<List<SharedAppItem>> sharedApps({required String userId}) async =>
-      const [];
+  Future<List<SharedAppItem>> localSharedApps({required String userId}) async =>
+      sharedAppsValues;
+
+  @override
+  Future<List<SharedAppItem>> sharedApps({required String userId}) async {
+    await sharedAppsRefreshCompleter?.future;
+    return sharedAppsValues;
+  }
 
   @override
   Future<String?> botCreatorId({required String userId}) async => null;

@@ -9,6 +9,7 @@ use crate::db::mixin::circle::CircleDao;
 use crate::db::mixin::circle_conversation_dao::CircleConversationDao;
 use crate::db::mixin::conversation::ConversationDao;
 use crate::db::mixin::expired_message::ExpiredMessageDao;
+use crate::db::mixin::favorite_app::FavoriteAppDao;
 use crate::db::mixin::flood_message::FloodMessageDao;
 use crate::db::mixin::inscription::InscriptionDao;
 use crate::db::mixin::job::JobDao;
@@ -52,6 +53,7 @@ pub struct MixinDatabase {
     pub pin_message_dao: PinMessageDao,
     pub flood_message_dao: FloodMessageDao,
     pub expired_message_dao: ExpiredMessageDao,
+    pub favorite_app_dao: FavoriteAppDao,
 }
 
 impl MixinDatabase {
@@ -98,6 +100,7 @@ impl MixinDatabase {
             pin_message_dao: PinMessageDao(pool.clone()),
             flood_message_dao: FloodMessageDao::new(pool.clone()),
             expired_message_dao: ExpiredMessageDao(pool.clone()),
+            favorite_app_dao: FavoriteAppDao(pool.clone()),
         })
     }
 }

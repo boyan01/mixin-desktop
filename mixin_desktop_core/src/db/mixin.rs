@@ -8,6 +8,7 @@ pub mod circle;
 pub mod circle_conversation_dao;
 pub mod conversation;
 pub mod expired_message;
+pub mod favorite_app;
 pub mod flood_message;
 pub mod inscription;
 pub mod job;

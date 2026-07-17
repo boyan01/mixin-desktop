@@ -25,27 +25,61 @@ impl Deref for UserAccess {
 }
 
 impl UserAccess {
+    pub async fn local_shared_apps(&self, user_id: String) -> Result<Vec<model::SharedAppItem>> {
+        let user_id = user_id.as_str();
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .favorite_app_dao
+            .find_apps_by_user_id(user_id)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
     pub async fn shared_apps(&self, user_id: String) -> Result<Vec<model::SharedAppItem>> {
         let user_id = user_id.as_str();
         self.ensure_active()?;
-        let ids = self
-            .client
-            .user_api
-            .get_favorite_apps(user_id)
-            .await?
-            .into_iter()
-            .map(|favorite| favorite.app_id)
+        let favorite_apps = self.client.user_api.get_favorite_apps(user_id).await?;
+        let ids = favorite_apps
+            .iter()
+            .map(|favorite| favorite.app_id.clone())
             .collect::<Vec<_>>();
-        if ids.is_empty() {
-            return Ok(Vec::new());
+        self.database
+            .favorite_app_dao
+            .replace_for_user(user_id, &favorite_apps)
+            .await?;
+
+        let mut missing_ids = Vec::new();
+        for app_id in &ids {
+            if self
+                .database
+                .app_dao
+                .find_app_by_id(app_id)
+                .await?
+                .is_none()
+                || !self.database.user_dao.has_user(app_id).await?
+            {
+                missing_ids.push(app_id.clone());
+            }
         }
+        if !missing_ids.is_empty() {
+            let users = self.client.user_api.get_users(&missing_ids).await?;
+            let apps = users
+                .iter()
+                .filter_map(|user| user.app.clone())
+                .collect::<Vec<_>>();
+            self.database.app_dao.insert_sdk_apps(&apps).await?;
+            self.database.user_dao.insert_sdk_users(users).await?;
+        }
+
         Ok(self
-            .client
-            .user_api
-            .get_users(&ids)
+            .database
+            .favorite_app_dao
+            .find_apps_by_user_id(user_id)
             .await?
             .into_iter()
-            .filter_map(|user| user.app)
             .map(Into::into)
             .collect())
     }

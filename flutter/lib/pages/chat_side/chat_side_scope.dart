@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/controllers/chat_side_notifier.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
 
 class ChatSideScope extends InheritedWidget {
   const ChatSideScope({
@@ -64,25 +67,39 @@ class ChatSidePageScaffold extends StatelessWidget {
     final scope = ChatSideScope.of(context);
     return Scaffold(
       backgroundColor: backgroundColor ?? context.theme.popUp,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+      appBar: MixinAppBar(
+        title: title.isEmpty ? null : Text(title),
+        backgroundColor: backgroundColor ?? context.theme.popUp,
         leading: root
-            ? null
+            ? const SizedBox(width: 56)
             : IconButton(
                 onPressed: scope.notifier.pop,
-                icon: const Icon(Icons.arrow_back),
+                icon: SvgPicture.asset(
+                  MixinAssets.back,
+                  width: 20,
+                  height: 20,
+                  colorFilter: ColorFilter.mode(
+                    context.theme.icon,
+                    BlendMode.srcIn,
+                  ),
+                ),
               ),
-        title: Text(title),
-        centerTitle: true,
         actions: [
           ...actions,
-          IconButton(
-            key: root ? const Key('chat-side-close') : null,
-            onPressed: scope.notifier.clear,
-            icon: const Icon(Icons.close),
-          ),
+          if (root)
+            IconButton(
+              key: const Key('chat-side-close'),
+              onPressed: scope.notifier.clear,
+              icon: SvgPicture.asset(
+                MixinAssets.close,
+                width: 20,
+                height: 20,
+                colorFilter: ColorFilter.mode(
+                  context.theme.icon,
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
         ],
       ),
       body: body,

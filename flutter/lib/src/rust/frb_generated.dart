@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -750953352;
+  int get rustContentHash => -1809817486;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -529,6 +529,11 @@ abstract class RustLibApi extends BaseApi {
   Future<String?> mixinDesktopCoreRuntimeUserAccessBotHomeUri({
     required UserAccess that,
     required String appId,
+  });
+
+  Future<List<SharedAppItem>> mixinDesktopCoreRuntimeUserAccessLocalSharedApps({
+    required UserAccess that,
+    required String userId,
   });
 
   Future<void> mixinDesktopCoreRuntimeUserAccessRemoveContact({
@@ -3906,7 +3911,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeUserAccessRemoveContact({
+  Future<List<SharedAppItem>> mixinDesktopCoreRuntimeUserAccessLocalSharedApps({
     required UserAccess that,
     required String userId,
   }) {
@@ -3923,6 +3928,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             generalizedFrbRustBinding,
             serializer,
             funcId: 80,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_shared_app_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeUserAccessLocalSharedAppsConstMeta,
+        argValues: [that, userId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kMixinDesktopCoreRuntimeUserAccessLocalSharedAppsConstMeta =>
+      const TaskConstMeta(
+        debugName: "UserAccess_local_shared_apps",
+        argNames: ["that", "userId"],
+      );
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeUserAccessRemoveContact({
+    required UserAccess that,
+    required String userId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 81,
             port: port_,
           );
         },
@@ -3960,7 +4004,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 81,
+            funcId: 82,
             port: port_,
           );
         },
@@ -3998,7 +4042,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 82,
+            funcId: 83,
             port: port_,
           );
         },
@@ -4036,7 +4080,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 83,
+            funcId: 84,
             port: port_,
           );
         },
@@ -4076,7 +4120,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 84,
+            funcId: 85,
             port: port_,
           );
         },
@@ -4115,7 +4159,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 85,
+            funcId: 86,
             port: port_,
           );
         },
@@ -4147,7 +4191,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 86,
+            funcId: 87,
             port: port_,
           );
         },
@@ -4174,7 +4218,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 87,
+            funcId: 88,
             port: port_,
           );
         },
@@ -8239,6 +8283,12 @@ class UserAccessImpl extends RustOpaque implements UserAccess {
 
   Future<String?> botHomeUri({required String appId}) => RustLib.instance.api
       .mixinDesktopCoreRuntimeUserAccessBotHomeUri(that: this, appId: appId);
+
+  Future<List<SharedAppItem>> localSharedApps({required String userId}) =>
+      RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessLocalSharedApps(
+        that: this,
+        userId: userId,
+      );
 
   Future<void> removeContact({required String userId}) =>
       RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessRemoveContact(

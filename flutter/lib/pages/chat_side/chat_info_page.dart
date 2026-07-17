@@ -9,6 +9,7 @@ import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
 import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
 import 'package:mixin_desktop_ui/widgets/show_message_user_dialog.dart';
 
@@ -25,7 +26,8 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
   rust.ConversationParticipantItem? currentParticipant;
   List<rust.SharedAppItem> sharedApps = const [];
   String? developerId;
-  bool loading = true;
+  bool loadStarted = false;
+  bool participantsLoaded = false;
   bool acting = false;
   Object? error;
   StreamSubscription<BigInt>? conversationChanges;
@@ -40,7 +42,10 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
         if (mounted) setState(() => error = exception);
       },
     );
-    if (loading && detail == null && error == null) unawaited(_load());
+    if (!loadStarted) {
+      loadStarted = true;
+      unawaited(_load());
+    }
   }
 
   Future<void> _loadConversationState() async {
@@ -65,6 +70,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
       setState(() {
         detail = loadedDetail;
         currentParticipant = loadedParticipant;
+        participantsLoaded = true;
       });
     } on Object catch (exception) {
       if (mounted) setState(() => error = exception);
@@ -80,7 +86,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
   Future<void> _load() async {
     final scope = ChatSideScope.of(context);
     try {
-      final detailFuture = scope.account.conversation().conversationDetail(
+      final detailFuture = scope.account.conversation().localConversationDetail(
         conversationId: scope.conversation.id,
       );
       rust.UserProfileItem? loadedUser;
@@ -102,10 +108,10 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
           userId: scope.conversation.ownerId,
           identityNumber: null,
         );
-        loadedApps = await scope.account.user().sharedApps(
+        loadedDeveloperId = await scope.account.user().botCreatorId(
           userId: scope.conversation.ownerId,
         );
-        loadedDeveloperId = await scope.account.user().botCreatorId(
+        loadedApps = await scope.account.user().localSharedApps(
           userId: scope.conversation.ownerId,
         );
       }
@@ -115,17 +121,45 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
         detail = loadedDetail;
         user = loadedUser;
         currentParticipant = loadedParticipant;
+        participantsLoaded = true;
         sharedApps = loadedApps;
         developerId = loadedDeveloperId;
-        loading = false;
         error = null;
       });
+      unawaited(_refreshRemoteState());
     } on Object catch (exception) {
       if (!mounted) return;
       setState(() {
-        loading = false;
         error = exception;
       });
+    }
+  }
+
+  Future<void> _refreshRemoteState() async {
+    final scope = ChatSideScope.of(context);
+    final appsFuture = scope.conversation.isGroup
+        ? null
+        : scope.account.user().sharedApps(userId: scope.conversation.ownerId);
+    try {
+      final refreshedDetail = await scope.account
+          .conversation()
+          .conversationDetail(
+        conversationId: scope.conversation.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        detail = refreshedDetail;
+        error = null;
+      });
+    } on Object catch (exception) {
+      if (mounted) setState(() => error = exception);
+    }
+    if (appsFuture == null) return;
+    try {
+      final loadedApps = await appsFuture;
+      if (mounted) setState(() => sharedApps = loadedApps);
+    } on Object {
+      // Shared apps are optional on ChatInfo; keep showing the local cache.
     }
   }
 
@@ -191,8 +225,10 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
 
   Future<void> _mute() async {
     final scope = ChatSideScope.of(context);
-    final muted =
-        detail!.muteUntilMillis.toInt() > DateTime.now().millisecondsSinceEpoch;
+    final muted = detail == null
+        ? scope.conversation.isMuted
+        : detail!.muteUntilMillis.toInt() >
+              DateTime.now().millisecondsSinceEpoch;
     var seconds = 0;
     if (!muted) {
       final selected = await showDialog<int>(
@@ -230,30 +266,24 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
-      return ChatSidePageScaffold(
-        title: '',
-        root: true,
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (detail == null) {
-      return ChatSidePageScaffold(
-        title: '',
-        root: true,
-        body: ChatSideError(error: error!, onRetry: _load),
-      );
-    }
     final scope = ChatSideScope.of(context);
     final conversation = scope.conversation;
     final isGroup = conversation.isGroup;
+    final announcement = detail?.announcement ?? '';
+    final biography = user?.biography ?? '';
+    final detailName = detail?.name ?? '';
+    final relationship = user?.relationship ?? conversation.relationship;
+    final isBot = user?.isBot ?? conversation.isBot;
     final isOwnerOrAdmin =
         currentParticipant?.role == 'OWNER' ||
         currentParticipant?.role == 'ADMIN';
-    final isExited = isGroup && currentParticipant == null;
-    final muted =
-        detail!.muteUntilMillis.toInt() > DateTime.now().millisecondsSinceEpoch;
-    final expireIn = detail!.expireIn.toInt();
+    final isExited =
+        isGroup && participantsLoaded && currentParticipant == null;
+    final muted = detail == null
+        ? conversation.isMuted
+        : detail!.muteUntilMillis.toInt() >
+              DateTime.now().millisecondsSinceEpoch;
+    final expireIn = detail?.expireIn.toInt() ?? 0;
     final canModifyExpire = !isGroup || isOwnerOrAdmin;
     return ChatSidePageScaffold(
       title: '',
@@ -286,7 +316,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
-                    detail!.name.isEmpty ? conversation.name : detail!.name,
+                    detailName.isEmpty ? conversation.name : detailName,
                     textAlign: TextAlign.center,
                     style: TextStyle(color: context.theme.text, fontSize: 18),
                   ),
@@ -303,10 +333,20 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                     fontSize: 12,
                   ),
                 ),
-                if (!isGroup && user?.relationship == 'STRANGER')
+                if (!isGroup && relationship == 'STRANGER')
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
                     child: TextButton(
+                      style: TextButton.styleFrom(
+                        backgroundColor: context.theme.statusBackground,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 15,
+                          vertical: 7,
+                        ),
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(15)),
+                        ),
+                      ),
                       onPressed: () => _run(
                         () => scope.account.user().addContact(
                           userId: conversation.ownerId,
@@ -314,305 +354,330 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                         ),
                       ),
                       child: Text(
-                        user!.isBot
+                        isBot
                             ? context.l10n.addBotWithPlus
                             : context.l10n.addContactWithPlus,
+                        style: TextStyle(
+                          color: context.theme.accent,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ),
-                if ((isGroup ? detail!.announcement : user?.biography ?? '')
-                    .isNotEmpty)
+                if ((isGroup ? announcement : biography).isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(36, 12, 36, 20),
                     child: Text(
-                      isGroup ? detail!.announcement : user!.biography,
+                      isGroup ? announcement : biography,
                       textAlign: TextAlign.center,
                     ),
                   )
                 else
                   const SizedBox(height: 32),
                 if (isGroup && !isExited)
-                  ChatSideCellGroup(
-                    children: [
-                      ChatSideCell(
-                        title: context.l10n.groupParticipants,
-                        onTap: () => scope.notifier.openDestination(
-                          ConversationInfoDestination.participants,
-                        ),
+                  CellGroup(
+                    cellBackgroundColor: context.theme.listSelected,
+                    child: CellItem(
+                      title: Text(context.l10n.groupParticipants),
+                      onTap: () => scope.notifier.openDestination(
+                        ConversationInfoDestination.participants,
                       ),
-                    ],
+                    ),
                   ),
                 if (!isGroup)
-                  ChatSideCellGroup(
+                  CellGroup(
+                    cellBackgroundColor: context.theme.listSelected,
+                    child: CellItem(
+                      title: Text(context.l10n.shareContact),
+                      trailing: PopupMenuButton<void>(
+                        onSelected: (_) {
+                          final url = user?.codeUrl ?? '';
+                          if (url.isNotEmpty) {
+                            Clipboard.setData(ClipboardData(text: url));
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(child: Text(context.l10n.copyLink)),
+                        ],
+                      ),
+                      onTap: _shareContact,
+                    ),
+                  ),
+                CellGroup(
+                  cellBackgroundColor: context.theme.listSelected,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      ChatSideCell(
-                        title: context.l10n.shareContact,
-                        trailing: PopupMenuButton<void>(
-                          onSelected: (_) {
-                            final url = user?.codeUrl ?? '';
-                            if (url.isNotEmpty) {
-                              Clipboard.setData(ClipboardData(text: url));
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            PopupMenuItem(child: Text(context.l10n.copyLink)),
-                          ],
+                      CellItem(
+                        title: Text(context.l10n.sharedMedia),
+                        onTap: () => scope.notifier.openDestination(
+                          ConversationInfoDestination.sharedMedia,
                         ),
-                        onTap: _shareContact,
+                      ),
+                      if (sharedApps.isNotEmpty)
+                        CellItem(
+                          title: Text(context.l10n.shareApps),
+                          onTap: () => scope.notifier.openDestination(
+                            ConversationInfoDestination.sharedApps,
+                          ),
+                        ),
+                      CellItem(
+                        title: Text(
+                          context.l10n.searchConversation,
+                          maxLines: 1,
+                        ),
+                        onTap: () => scope.notifier.openDestination(
+                          ConversationInfoDestination.searchMessageHistory,
+                        ),
                       ),
                     ],
                   ),
-                ChatSideCellGroup(
-                  children: [
-                    ChatSideCell(
-                      title: context.l10n.sharedMedia,
-                      onTap: () => scope.notifier.openDestination(
-                        ConversationInfoDestination.sharedMedia,
-                      ),
-                    ),
-                    if (sharedApps.isNotEmpty)
-                      ChatSideCell(
-                        title: context.l10n.shareApps,
-                        onTap: () => scope.notifier.openDestination(
-                          ConversationInfoDestination.sharedApps,
-                        ),
-                      ),
-                    ChatSideCell(
-                      title: context.l10n.searchConversation,
-                      onTap: () => scope.notifier.openDestination(
-                        ConversationInfoDestination.searchMessageHistory,
-                      ),
-                    ),
-                  ],
                 ),
                 if (!(isGroup && isExited))
-                  ChatSideCellGroup(
-                    children: [
-                      ChatSideCell(
-                        title: context.l10n.disappearingMessage,
-                        description: _duration(context, expireIn),
-                        onTap: canModifyExpire
-                            ? () => scope.notifier.openDestination(
-                                ConversationInfoDestination.disappearMessages,
-                              )
-                            : null,
-                      ),
-                    ],
+                  CellGroup(
+                    cellBackgroundColor: context.theme.listSelected,
+                    child: CellItem(
+                      title: Text(context.l10n.disappearingMessage),
+                      description: Text(_duration(context, expireIn)),
+                      trailing: canModifyExpire ? const Arrow() : null,
+                      onTap: canModifyExpire
+                          ? () => scope.notifier.openDestination(
+                              ConversationInfoDestination.disappearMessages,
+                            )
+                          : null,
+                    ),
                   ),
                 if (isGroup && isOwnerOrAdmin)
-                  ChatSideCellGroup(
-                    children: [
-                      ChatSideCell(
-                        title: detail!.announcement.isEmpty
+                  CellGroup(
+                    cellBackgroundColor: context.theme.listSelected,
+                    child: CellItem(
+                      title: Text(
+                        announcement.isEmpty
                             ? context.l10n.addGroupDescription
                             : context.l10n.editGroupDescription,
-                        onTap: () async {
-                          final value = await _edit(
-                            detail!.announcement.isEmpty
-                                ? context.l10n.addGroupDescription
-                                : context.l10n.editGroupDescription,
-                            detail!.announcement,
-                            maxLines: 7,
-                          );
-                          if (value == null) return;
-                          await _run(
-                            () => scope.account.conversation().editConversation(
-                              conversationId: conversation.id,
-                              name: null,
-                              announcement: value,
-                            ),
-                          );
-                        },
                       ),
-                    ],
-                  ),
-                ChatSideCellGroup(
-                  children: [
-                    if (!(isGroup && isExited))
-                      ChatSideCell(
-                        title: muted ? context.l10n.unmute : context.l10n.mute,
-                        description: muted
-                            ? DateFormat('yyyy/MM/dd, hh:mm a').format(
-                                DateTime.fromMillisecondsSinceEpoch(
-                                  detail!.muteUntilMillis.toInt(),
-                                ).toLocal(),
-                              )
-                            : null,
-                        trailing: const SizedBox(),
-                        onTap: _mute,
-                      ),
-                    if (!isGroup || isOwnerOrAdmin)
-                      ChatSideCell(
-                        title: context.l10n.editName,
-                        trailing: const SizedBox(),
-                        onTap: () async {
-                          final value = await _edit(
-                            context.l10n.editName,
-                            conversation.name,
-                          );
-                          if (value == null || value.isEmpty) return;
-                          await _run(
-                            isGroup
-                                ? () => scope.account
-                                      .conversation()
-                                      .editConversation(
-                                        conversationId: conversation.id,
-                                        name: value,
-                                        announcement: null,
-                                      )
-                                : () => scope.account.user().addContact(
-                                    userId: conversation.ownerId,
-                                    fullName: value,
-                                  ),
-                          );
-                        },
-                      ),
-                  ],
-                ),
-                if (!isGroup)
-                  ChatSideCellGroup(
-                    children: [
-                      ChatSideCell(
-                        title: context.l10n.groupsInCommon,
-                        onTap: () => scope.notifier.openDestination(
-                          ConversationInfoDestination.groupsInCommon,
-                        ),
-                      ),
-                    ],
-                  ),
-                if (developerId != null)
-                  ChatSideCellGroup(
-                    children: [
-                      ChatSideCell(
-                        title: context.l10n.developer,
-                        trailing: const SizedBox(),
-                        onTap: () => showMessageUserDialog(
-                          context,
-                          account: scope.account,
-                          userId: developerId,
-                        ),
-                      ),
-                    ],
-                  ),
-                ChatSideCellGroup(
-                  children: [
-                    ChatSideCell(
-                      title: context.l10n.editConversations,
-                      onTap: () => scope.notifier.openDestination(
-                        ConversationInfoDestination.circles,
-                      ),
-                    ),
-                  ],
-                ),
-                ChatSideCellGroup(
-                  children: [
-                    if (!isGroup && user?.relationship == 'BLOCKED')
-                      ChatSideCell(
-                        title: context.l10n.unblock,
-                        destructive: true,
-                        onTap: () async {
-                          if (!await _confirm(context.l10n.unblock)) return;
-                          await _run(
-                            () => scope.account.user().unblockUser(
-                              userId: conversation.ownerId,
-                            ),
-                          );
-                        },
-                      ),
-                    if (!isGroup &&
-                        user != null &&
-                        user!.relationship != 'STRANGER')
-                      ChatSideCell(
-                        title: user!.isBot
-                            ? context.l10n.removeBot
-                            : context.l10n.removeContact,
-                        destructive: true,
-                        onTap: () async {
-                          final title = user!.isBot
-                              ? context.l10n.removeBot
-                              : context.l10n.removeContact;
-                          if (!await _confirm(title)) return;
-                          await _run(
-                            () => scope.account.user().removeContact(
-                              userId: conversation.ownerId,
-                            ),
-                          );
-                        },
-                      ),
-                    if (!isGroup && user?.relationship == 'STRANGER')
-                      ChatSideCell(
-                        title: context.l10n.block,
-                        destructive: true,
-                        onTap: () async {
-                          if (!await _confirm(context.l10n.block)) return;
-                          await _run(
-                            () => scope.account.user().blockUser(
-                              userId: conversation.ownerId,
-                            ),
-                          );
-                        },
-                      ),
-                    ChatSideCell(
-                      title: context.l10n.clearChat,
-                      destructive: true,
                       onTap: () async {
-                        if (!await _confirm(context.l10n.clearChat)) return;
+                        final value = await _edit(
+                          announcement.isEmpty
+                              ? context.l10n.addGroupDescription
+                              : context.l10n.editGroupDescription,
+                          announcement,
+                          maxLines: 7,
+                        );
+                        if (value == null) return;
                         await _run(
-                          () => scope.account.conversation().clearConversation(
+                          () => scope.account.conversation().editConversation(
                             conversationId: conversation.id,
+                            name: null,
+                            announcement: value,
                           ),
                         );
                       },
                     ),
-                    if (isGroup)
-                      ChatSideCell(
-                        title: isExited
-                            ? context.l10n.deleteGroup
-                            : context.l10n.exitGroup,
-                        destructive: true,
-                        onTap: () async {
-                          final title = isExited
-                              ? context.l10n.deleteGroup
-                              : context.l10n.exitGroup;
-                          if (!await _confirm(title)) return;
-                          if (isExited) {
-                            await scope.account
-                                .conversation()
-                                .deleteConversation(
-                                  conversationId: conversation.id,
-                                );
-                          } else {
-                            await scope.account.conversation().exitGroup(
-                              conversationId: conversation.id,
+                  ),
+                CellGroup(
+                  cellBackgroundColor: context.theme.listSelected,
+                  child: Column(
+                    children: [
+                      if (!(isGroup && isExited))
+                        CellItem(
+                          title: Text(
+                            muted ? context.l10n.unmute : context.l10n.mute,
+                          ),
+                          description: muted && detail != null
+                              ? Text(
+                                  DateFormat('yyyy/MM/dd, hh:mm a').format(
+                                    DateTime.fromMillisecondsSinceEpoch(
+                                      detail!.muteUntilMillis.toInt(),
+                                    ).toLocal(),
+                                  ),
+                                )
+                              : null,
+                          trailing: null,
+                          onTap: _mute,
+                        ),
+                      if (!isGroup || isOwnerOrAdmin)
+                        CellItem(
+                          title: Text(context.l10n.editName),
+                          trailing: null,
+                          onTap: () async {
+                            final value = await _edit(
+                              context.l10n.editName,
+                              conversation.name,
                             );
-                          }
-                          if (!mounted) return;
-                          scope.notifier.clear();
-                          scope.onConversationDeleted();
-                        },
-                      ),
-                  ],
+                            if (value == null || value.isEmpty) return;
+                            await _run(
+                              isGroup
+                                  ? () => scope.account
+                                        .conversation()
+                                        .editConversation(
+                                          conversationId: conversation.id,
+                                          name: value,
+                                          announcement: null,
+                                        )
+                                  : () => scope.account.user().addContact(
+                                      userId: conversation.ownerId,
+                                      fullName: value,
+                                    ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
                 ),
                 if (!isGroup)
-                  ChatSideCellGroup(
+                  CellGroup(
+                    cellBackgroundColor: context.theme.listSelected,
+                    child: CellItem(
+                      title: Text(context.l10n.groupsInCommon),
+                      onTap: () => scope.notifier.openDestination(
+                        ConversationInfoDestination.groupsInCommon,
+                      ),
+                    ),
+                  ),
+                if (developerId != null)
+                  CellGroup(
+                    cellBackgroundColor: context.theme.listSelected,
+                    child: CellItem(
+                      title: Text(context.l10n.developer),
+                      trailing: null,
+                      onTap: () => showMessageUserDialog(
+                        context,
+                        account: scope.account,
+                        userId: developerId,
+                      ),
+                    ),
+                  ),
+                CellGroup(
+                  cellBackgroundColor: context.theme.listSelected,
+                  child: CellItem(
+                    title: Text(context.l10n.editConversations),
+                    onTap: () => scope.notifier.openDestination(
+                      ConversationInfoDestination.circles,
+                    ),
+                  ),
+                ),
+                CellGroup(
+                  cellBackgroundColor: context.theme.listSelected,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      ChatSideCell(
-                        title: context.l10n.report,
-                        destructive: true,
+                      if (!isGroup && relationship == 'BLOCKED')
+                        CellItem(
+                          title: Text(context.l10n.unblock),
+                          color: context.theme.red,
+                          trailing: null,
+                          onTap: () async {
+                            if (!await _confirm(context.l10n.unblock)) return;
+                            await _run(
+                              () => scope.account.user().unblockUser(
+                                userId: conversation.ownerId,
+                              ),
+                            );
+                          },
+                        ),
+                      if (!isGroup && relationship != 'STRANGER')
+                        CellItem(
+                          title: Text(
+                            isBot
+                                ? context.l10n.removeBot
+                                : context.l10n.removeContact,
+                          ),
+                          color: context.theme.red,
+                          trailing: null,
+                          onTap: () async {
+                            final title = isBot
+                                ? context.l10n.removeBot
+                                : context.l10n.removeContact;
+                            if (!await _confirm(title)) return;
+                            await _run(
+                              () => scope.account.user().removeContact(
+                                userId: conversation.ownerId,
+                              ),
+                            );
+                          },
+                        ),
+                      if (!isGroup && relationship == 'STRANGER')
+                        CellItem(
+                          title: Text(context.l10n.block),
+                          color: context.theme.red,
+                          trailing: null,
+                          onTap: () async {
+                            if (!await _confirm(context.l10n.block)) return;
+                            await _run(
+                              () => scope.account.user().blockUser(
+                                userId: conversation.ownerId,
+                              ),
+                            );
+                          },
+                        ),
+                      CellItem(
+                        title: Text(context.l10n.clearChat),
+                        color: context.theme.red,
+                        trailing: null,
                         onTap: () async {
-                          if (!await _confirm(context.l10n.reportAndBlock)) {
-                            return;
-                          }
+                          if (!await _confirm(context.l10n.clearChat)) return;
                           await _run(
-                            () => scope.account.user().reportUser(
-                              userId: conversation.ownerId,
-                            ),
+                            () =>
+                                scope.account.conversation().clearConversation(
+                                  conversationId: conversation.id,
+                                ),
                           );
                         },
                       ),
+                      if (isGroup)
+                        CellItem(
+                          title: Text(
+                            isExited
+                                ? context.l10n.deleteGroup
+                                : context.l10n.exitGroup,
+                          ),
+                          color: context.theme.red,
+                          trailing: null,
+                          onTap: () async {
+                            final title = isExited
+                                ? context.l10n.deleteGroup
+                                : context.l10n.exitGroup;
+                            if (!await _confirm(title)) return;
+                            if (isExited) {
+                              await scope.account
+                                  .conversation()
+                                  .deleteConversation(
+                                    conversationId: conversation.id,
+                                  );
+                            } else {
+                              await scope.account.conversation().exitGroup(
+                                conversationId: conversation.id,
+                              );
+                            }
+                            if (!mounted) return;
+                            scope.notifier.clear();
+                            scope.onConversationDeleted();
+                          },
+                        ),
                     ],
                   ),
-                if (isGroup)
+                ),
+                if (!isGroup)
+                  CellGroup(
+                    cellBackgroundColor: context.theme.listSelected,
+                    child: CellItem(
+                      title: Text(context.l10n.report),
+                      color: context.theme.red,
+                      trailing: null,
+                      onTap: () async {
+                        if (!await _confirm(context.l10n.reportAndBlock)) {
+                          return;
+                        }
+                        await _run(
+                          () => scope.account.user().reportUser(
+                            userId: conversation.ownerId,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                if (isGroup && detail != null)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     child: Text(

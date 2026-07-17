@@ -136,6 +136,18 @@ impl From<sdk::App> for SharedAppItem {
     }
 }
 
+impl From<crate::db::mixin::app::App> for SharedAppItem {
+    fn from(app: crate::db::mixin::app::App) -> Self {
+        Self {
+            app_id: app.app_id,
+            name: app.name,
+            icon_url: app.icon_url,
+            description: app.description,
+            home_uri: app.home_uri,
+        }
+    }
+}
+
 impl From<crate::db::mixin::circle::CircleSummary> for CircleItem {
     fn from(circle: crate::db::mixin::circle::CircleSummary) -> Self {
         Self {

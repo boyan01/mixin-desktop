@@ -18,21 +18,47 @@ class SharedAppsPage extends StatefulWidget {
 
 class _SharedAppsPageState extends State<SharedAppsPage> {
   List<rust.SharedAppItem> apps = const [];
-  bool loading = true;
+  bool loadStarted = false;
+  bool localLoaded = false;
   Object? error;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (loading && apps.isEmpty && error == null) unawaited(_load());
+    if (!loadStarted) {
+      loadStarted = true;
+      unawaited(_load());
+    }
   }
 
   Future<void> _load() async {
     final scope = ChatSideScope.of(context);
     if (scope.conversation.isGroup) {
-      setState(() => loading = false);
+      setState(() => localLoaded = true);
       return;
     }
+    try {
+      final values = await scope.account.user().localSharedApps(
+        userId: scope.conversation.ownerId,
+      );
+      if (!mounted) return;
+      setState(() {
+        apps = values;
+        localLoaded = true;
+        error = null;
+      });
+      unawaited(_refresh());
+    } on Object catch (exception) {
+      if (!mounted) return;
+      setState(() {
+        localLoaded = true;
+        error = exception;
+      });
+    }
+  }
+
+  Future<void> _refresh() async {
+    final scope = ChatSideScope.of(context);
     try {
       final values = await scope.account.user().sharedApps(
         userId: scope.conversation.ownerId,
@@ -40,25 +66,20 @@ class _SharedAppsPageState extends State<SharedAppsPage> {
       if (!mounted) return;
       setState(() {
         apps = values;
-        loading = false;
         error = null;
       });
     } on Object catch (exception) {
-      if (!mounted) return;
-      setState(() {
-        loading = false;
-        error = exception;
-      });
+      if (mounted && apps.isEmpty) setState(() => error = exception);
     }
   }
 
   @override
   Widget build(BuildContext context) => ChatSidePageScaffold(
     title: context.l10n.shareApps,
-    body: loading
-        ? const Center(child: CircularProgressIndicator())
-        : error != null
-        ? ChatSideError(error: error!, onRetry: _load)
+    body: error != null && apps.isEmpty
+        ? ChatSideError(error: error!, onRetry: _refresh)
+        : !localLoaded
+        ? const SizedBox()
         : apps.isEmpty
         ? Center(child: Text(context.l10n.noResults))
         : ListView.builder(

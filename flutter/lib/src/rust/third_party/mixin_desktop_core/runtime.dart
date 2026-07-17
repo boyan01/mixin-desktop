@@ -268,6 +268,8 @@ abstract class UserAccess implements RustOpaqueInterface {
 
   Future<String?> botHomeUri({required String appId});
 
+  Future<List<SharedAppItem>> localSharedApps({required String userId});
+
   Future<void> removeContact({required String userId});
 
   Future<void> reportUser({required String userId});
