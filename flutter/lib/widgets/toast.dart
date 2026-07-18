@@ -210,7 +210,7 @@ Future<bool> runFutureWithToast(Future<dynamic> future) async {
   try {
     await future;
   } on Object catch (error, stackTrace) {
-    writeAppLog('runFutureWithToast error: $error\n$stackTrace');
+    e('runFutureWithToast error', error, stackTrace);
     showToastFailed(error);
     return false;
   }
@@ -223,7 +223,7 @@ Future<bool> runWithToast(FutureOr<void> Function() function) async {
   try {
     await function();
   } on Object catch (error, stackTrace) {
-    writeAppLog('runWithToast error: $error\n$stackTrace');
+    e('runWithToast error', error, stackTrace);
     showToastFailed(error);
     return false;
   }
@@ -237,7 +237,7 @@ Future<void> runWithLoading(Future<void> Function() function) async {
     await function();
     Toast.dismiss();
   } on Object catch (error, stackTrace) {
-    writeAppLog('runWithLoading error: $error\n$stackTrace');
+    e('runWithLoading error', error, stackTrace);
     showToastFailed(error);
   }
 }

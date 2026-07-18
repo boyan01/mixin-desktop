@@ -112,7 +112,7 @@ class _TranscriptPageState extends State<TranscriptPage>
     _changes = widget.account.messageChanges().listen(
       (_) => unawaited(_refresh()),
       onError: (Object error) {
-        writeAppLog('watch transcript messages failed: $error');
+        e('watch transcript messages failed', error);
       },
     );
   }
@@ -149,7 +149,7 @@ class _TranscriptPageState extends State<TranscriptPage>
         });
       } on Object catch (error) {
         if (!mounted) return;
-        writeAppLog('refresh transcript messages failed: $error');
+        e('refresh transcript messages failed', error);
         setState(() => _loading = false);
       }
     } while (_refreshPending && mounted);
@@ -187,7 +187,7 @@ class _TranscriptPageState extends State<TranscriptPage>
       }
       await _refresh();
     } on Object catch (error) {
-      writeAppLog('download transcript attachment failed: $error');
+      e('download transcript attachment failed', error);
     }
   }
 
@@ -199,7 +199,7 @@ class _TranscriptPageState extends State<TranscriptPage>
       );
       await _refresh();
     } on Object catch (error) {
-      writeAppLog('cancel transcript attachment failed: $error');
+      e('cancel transcript attachment failed', error);
     }
   }
 
@@ -212,7 +212,7 @@ class _TranscriptPageState extends State<TranscriptPage>
       );
       await _refresh();
     } on Object catch (error) {
-      writeAppLog('mark transcript audio read failed: $error');
+      e('mark transcript audio read failed', error);
     }
   }
 

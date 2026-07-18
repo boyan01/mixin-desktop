@@ -8,17 +8,17 @@ import '../third_party/mixin_desktop_core/runtime.dart';
 import '../third_party/mixin_desktop_core/runtime/model.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `account_profile`, `current_device_id_sync`, `current_device_id`, `desktop_platform`, `device_matches`, `forward_changes`, `install_rust_logger`, `persist_profile`, `record_current_device`, `remove_if_exists`, `rename_with_timestamp_if_exists`, `rust_log_sender`
+// These functions are ignored because they are not marked as `pub`: `account_profile`, `current_device_id_sync`, `current_device_id`, `desktop_platform`, `device_matches`, `forward_changes`, `init_rust_logger`, `install_rust_logger`, `persist_profile`, `record_current_device`, `remove_if_exists`, `rename_with_timestamp_if_exists`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `FlutterFileLogger`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `enabled`, `flush`, `from`, `from`, `log`, `try_from`, `try_from`
 
-Future<void> initRustLogger({required String logFilePath}) => RustLib
+String rustLogDirectory() =>
+    RustLib.instance.api.crateApiDesktopRustLogDirectory();
+
+void logFlutter({required String level, required String message}) => RustLib
     .instance
     .api
-    .crateApiDesktopInitRustLogger(logFilePath: logFilePath);
-
-Stream<String> rustLogEvents() =>
-    RustLib.instance.api.crateApiDesktopRustLogEvents();
+    .crateApiDesktopLogFlutter(level: level, message: message);
 
 Future<DesktopHandle> openDesktop() =>
     RustLib.instance.api.crateApiDesktopOpenDesktop();

@@ -18,7 +18,7 @@ Future<void> loadFallbackFonts() async {
   try {
     final matched = Process.runSync('fc-match', ['-f', '%{family}']);
     if (matched.exitCode != 0) {
-      writeAppLog('Failed to get best match font family: ${matched.stderr}');
+      e('Failed to get best match font family: ${matched.stderr}');
       return;
     }
     final result = Process.runSync('fc-list', [
@@ -49,11 +49,11 @@ Future<void> loadFallbackFonts() async {
           fontFamily: fontFamily,
         );
       } on Object catch (error, stackTrace) {
-        writeAppLog('Failed to load fallback font: $error\n$stackTrace');
+        e('Failed to load fallback font', error, stackTrace);
       }
     }
   } on Object catch (error, stackTrace) {
-    writeAppLog('Failed to load system fonts: $error\n$stackTrace');
+    e('Failed to load system fonts', error, stackTrace);
   }
 }
 

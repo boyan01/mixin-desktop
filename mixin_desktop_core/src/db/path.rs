@@ -36,6 +36,10 @@ pub fn account_data_directory(identity_number: &str) -> anyhow::Result<PathBuf> 
     Ok(data_directory()?.join(identity_number))
 }
 
+pub fn log_directory() -> anyhow::Result<PathBuf> {
+    Ok(data_directory()?.join("log"))
+}
+
 pub(crate) async fn create_parent_directory(path: &Path) -> anyhow::Result<()> {
     let parent = path
         .parent()

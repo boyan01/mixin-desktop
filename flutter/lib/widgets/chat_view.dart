@@ -294,7 +294,7 @@ class _ChatViewState extends State<ChatView>
       }
       setState(() => _isEncryptConversation = encrypted);
     } on Object catch (error) {
-      writeAppLog('resolve conversation encryption failed: $error');
+      e('resolve conversation encryption failed', error);
     }
   }
 

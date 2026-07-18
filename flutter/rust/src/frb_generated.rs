@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -940998332;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 917178536;
 
 // Section: executor
 
@@ -7490,27 +7490,26 @@ fn wire__crate__api__desktop__init_app_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             deserializer.end();
             move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok = Result::<_, ()>::Ok({
-                        crate::api::desktop::init_app();
-                    })?;
-                    Ok(output_ok)
-                })())
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || {
+                        let output_ok = crate::api::desktop::init_app()?;
+                        Ok(output_ok)
+                    })(),
+                )
             }
         },
     )
 }
-fn wire__crate__api__desktop__init_rust_logger_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
+fn wire__crate__api__desktop__log_flutter_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "init_rust_logger",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            debug_name: "log_flutter",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -7522,16 +7521,15 @@ fn wire__crate__api__desktop__init_rust_logger_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_log_file_path = <String>::sse_decode(&mut deserializer);
+            let api_level = <String>::sse_decode(&mut deserializer);
+            let api_message = <String>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                    (move || {
-                        let output_ok = crate::api::desktop::init_rust_logger(api_log_file_path)?;
-                        Ok(output_ok)
-                    })(),
-                )
-            }
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok({
+                    crate::api::desktop::log_flutter(api_level, api_message);
+                })?;
+                Ok(output_ok)
+            })())
         },
     )
 }
@@ -7570,17 +7568,16 @@ fn wire__crate__api__desktop__open_desktop_impl(
         },
     )
 }
-fn wire__crate__api__desktop__rust_log_events_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
+fn wire__crate__api__desktop__rust_log_directory_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "rust_log_events",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            debug_name: "rust_log_directory",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -7592,20 +7589,13 @@ fn wire__crate__api__desktop__rust_log_events_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_sink =
-                <StreamSink<String, flutter_rust_bridge::for_generated::SseCodec>>::sse_decode(
-                    &mut deserializer,
-                );
             deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                    (move || async move {
-                        let output_ok = crate::api::desktop::rust_log_events(api_sink).await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
+            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                (move || {
+                    let output_ok = crate::api::desktop::rust_log_directory()?;
+                    Ok(output_ok)
+                })(),
+            )
         },
     )
 }
@@ -10072,9 +10062,7 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         129 => wire__crate__api__desktop__init_app_impl(port, ptr, rust_vec_len, data_len),
-        130 => wire__crate__api__desktop__init_rust_logger_impl(port, ptr, rust_vec_len, data_len),
         131 => wire__crate__api__desktop__open_desktop_impl(port, ptr, rust_vec_len, data_len),
-        132 => wire__crate__api__desktop__rust_log_events_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -10112,6 +10100,8 @@ fn pde_ffi_dispatcher_sync_impl(
         24 => wire__crate__api__desktop__AccountHandle_sticker_impl(ptr, rust_vec_len, data_len),
         27 => wire__crate__api__desktop__AccountHandle_user_impl(ptr, rust_vec_len, data_len),
         70 => wire__crate__api__desktop__LoginHandle_auth_url_impl(ptr, rust_vec_len, data_len),
+        130 => wire__crate__api__desktop__log_flutter_impl(ptr, rust_vec_len, data_len),
+        132 => wire__crate__api__desktop__rust_log_directory_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

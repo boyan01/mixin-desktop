@@ -131,8 +131,8 @@ class _VersionInfoWidgetState extends State<_VersionInfoWidget> {
             to: Navigator.of(context, rootNavigator: true).context,
           ).wrap(
             SettingsLogPage(
-              logs: appLogs,
               onOpenDirectory: openAppLogDirectory,
+              onLoadLogs: readAppLogLines,
             ),
           ),
     );

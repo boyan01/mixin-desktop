@@ -250,8 +250,8 @@ class _SettingsPageState extends State<SettingsPage>
     _push(
       AboutPage(
         version: version,
-        logs: appLogs,
         onOpenLogDirectory: openAppLogDirectory,
+        onLoadLogs: readAppLogLines,
         onOpenUri: (uri) =>
             launchUrl(uri, mode: LaunchMode.externalApplication).then((_) {}),
       ),

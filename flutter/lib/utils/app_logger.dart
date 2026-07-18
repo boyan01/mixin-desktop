@@ -1,56 +1,69 @@
-import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
+import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-final appLogs = ValueNotifier<List<String>>(const []);
-Directory? _logDirectory;
-File? _logFile;
+String? _logDirectoryPath;
+var _isLogReady = false;
 
-String? get appLogFilePath => _logFile?.path;
-
-Future<void> initAppLogger() async {
-  final support = await getApplicationSupportDirectory();
-  final directory = Directory(path.join(support.path, 'logs'));
-  await directory.create(recursive: true);
-  _logDirectory = directory;
-  final now = DateTime.now();
-  _logFile = File(
-    path.join(
-      directory.path,
-      '${now.year.toString().padLeft(4, '0')}-'
-      '${now.month.toString().padLeft(2, '0')}-'
-      '${now.day.toString().padLeft(2, '0')}.log',
-    ),
-  );
+void initializeLogUtil() {
+  _logDirectoryPath = rustLogDirectory();
+  _isLogReady = true;
 }
 
-void writeAppLog(String message) {
-  final line = '${DateTime.now().toIso8601String()} $message';
-  _appendLogLine(line);
-  final file = _logFile;
-  if (file != null) {
-    unawaited(
-      file.writeAsString('$line\n', mode: FileMode.append, flush: true),
-    );
+void v(String message) {
+  _print(message, _LogLevel.verbose);
+}
+
+void d(String message) {
+  _print(message, _LogLevel.debug);
+}
+
+void i(String message) {
+  _print(message, _LogLevel.info);
+}
+
+void w(String message) {
+  _print(message, _LogLevel.warning);
+}
+
+void e(String message, [Object? error, StackTrace? stackTrace]) {
+  var messageWithStack = message;
+  if (error != null) {
+    messageWithStack += ' ($error)';
   }
+  if (stackTrace != null) {
+    messageWithStack += ':\n$stackTrace';
+  }
+  _print(messageWithStack, _LogLevel.error);
 }
 
-void appendRustLogLine(String line) {
-  _appendLogLine(line);
+void wtf(String message) {
+  _print(message, _LogLevel.wtf);
 }
 
-void _appendLogLine(String line) {
-  final next = [...appLogs.value, line];
-  if (next.length > 1000) next.removeRange(0, next.length - 1000);
-  appLogs.value = List.unmodifiable(next);
+void _print(String message, _LogLevel level) {
+  if (!_isLogReady) return;
+  logFlutter(level: level.name, message: message);
 }
+
+enum _LogLevel { verbose, debug, info, warning, error, wtf }
 
 Future<void> openAppLogDirectory() async {
-  final directory = _logDirectory;
+  final directory = _logDirectoryPath;
   if (directory == null) return;
-  await launchUrl(Uri.directory(directory.path));
+  await launchUrl(Uri.directory(directory));
+}
+
+Future<List<String>> readAppLogLines() async {
+  final directory = _logDirectoryPath;
+  if (directory == null) return const [];
+  final logFiles = await Directory(directory)
+      .list()
+      .where((entity) => entity is File && entity.path.endsWith('.log'))
+      .map((entity) => entity as File)
+      .toList();
+  if (logFiles.isEmpty) return const [];
+  logFiles.sort((first, second) => first.path.compareTo(second.path));
+  return logFiles.last.readAsLines();
 }

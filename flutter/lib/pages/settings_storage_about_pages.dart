@@ -395,14 +395,14 @@ class AboutPage extends StatefulWidget {
     required this.version,
     required this.onOpenUri,
     super.key,
-    this.logs,
     this.onOpenLogDirectory,
+    this.onLoadLogs,
   });
 
   final String version;
   final Future<void> Function(Uri uri) onOpenUri;
-  final ValueListenable<List<String>>? logs;
   final Future<void> Function()? onOpenLogDirectory;
+  final Future<List<String>> Function()? onLoadLogs;
 
   @override
   State<AboutPage> createState() => _AboutPageState();
@@ -436,8 +436,8 @@ class _AboutPageState extends State<AboutPage> {
             to: Navigator.of(context, rootNavigator: true).context,
           ).wrap(
             SettingsLogPage(
-              logs: widget.logs,
               onOpenDirectory: widget.onOpenLogDirectory,
+              onLoadLogs: widget.onLoadLogs,
             ),
           ),
     );
@@ -568,11 +568,28 @@ class _AboutLink extends StatelessWidget {
       CellItem(title: Text(title), onTap: () => unawaited(onOpen(uri)));
 }
 
-class SettingsLogPage extends StatelessWidget {
-  const SettingsLogPage({required this.logs, super.key, this.onOpenDirectory});
+class SettingsLogPage extends StatefulWidget {
+  const SettingsLogPage({super.key, this.onOpenDirectory, this.onLoadLogs});
 
-  final ValueListenable<List<String>>? logs;
   final Future<void> Function()? onOpenDirectory;
+  final Future<List<String>> Function()? onLoadLogs;
+
+  @override
+  State<SettingsLogPage> createState() => _SettingsLogPageState();
+}
+
+class _SettingsLogPageState extends State<SettingsLogPage> {
+  late Future<List<String>> _logs;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    _logs = widget.onLoadLogs?.call() ?? Future.value(const []);
+  }
 
   @override
   Widget build(BuildContext context) => Material(
@@ -582,10 +599,16 @@ class SettingsLogPage extends StatelessWidget {
         MixinAppBar(
           leading: const SizedBox(),
           actions: [
-            if (onOpenDirectory != null)
+            if (widget.onLoadLogs != null)
               ActionButton(
                 color: context.mixinTheme.icon,
-                onTap: () => unawaited(onOpenDirectory!()),
+                onTap: () => setState(_reload),
+                child: const Icon(Icons.refresh),
+              ),
+            if (widget.onOpenDirectory != null)
+              ActionButton(
+                color: context.mixinTheme.icon,
+                onTap: () => unawaited(widget.onOpenDirectory!()),
                 child: const Icon(Icons.launch),
               ),
             const SizedBox(width: 8),
@@ -593,26 +616,28 @@ class SettingsLogPage extends StatelessWidget {
           ],
         ),
         Expanded(
-          child: CustomSelectableArea(
-            child: ValueListenableBuilder<List<String>>(
-              valueListenable: logs ?? _emptyLogs,
-              builder: (context, values, _) => ListView.builder(
-                reverse: true,
-                itemCount: values.length,
-                itemBuilder: (context, index) => Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 2,
-                    horizontal: 4,
+          child: FutureBuilder<List<String>>(
+            future: _logs,
+            builder: (context, snapshot) {
+              final logs = snapshot.data;
+              if (logs == null) return const SizedBox();
+              return CustomSelectableArea(
+                child: ListView.builder(
+                  reverse: true,
+                  itemCount: logs.length,
+                  itemBuilder: (context, index) => Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 2,
+                      horizontal: 4,
+                    ),
+                    child: CustomText(logs[logs.length - 1 - index]),
                   ),
-                  child: CustomText(values[values.length - 1 - index]),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ],
     ),
   );
 }
-
-final _emptyLogs = ValueNotifier<List<String>>(const []);

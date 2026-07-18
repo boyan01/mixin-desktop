@@ -87,7 +87,7 @@ class _MediaItem extends StatelessWidget {
         ),
       );
     } on Object catch (error) {
-      writeAppLog('open shared media failed: $error');
+      e('open shared media failed', error);
     }
   }
 

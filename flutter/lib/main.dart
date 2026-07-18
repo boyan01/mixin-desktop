@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:mixin_desktop_ui/app.dart';
 import 'package:mixin_desktop_ui/controllers/app_controller.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
 import 'package:mixin_desktop_ui/src/rust/frb_generated.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/utils/local_notification_center.dart';
@@ -23,7 +22,9 @@ import 'package:window_manager/window_manager.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initAppLogger();
+  await RustLib.init();
+  initializeLogUtil();
+  i('Application started');
   await loadFallbackFonts();
   if (runWebViewTitleBarWidget(
     args,
@@ -39,12 +40,11 @@ Future<void> main(List<String> args) async {
     return;
   }
   FlutterError.onError = (details) {
-    writeAppLog('FlutterError: ${details.exception}\n${details.stack}');
+    e('FlutterError', details.exception, details.stack);
     FlutterError.presentError(details);
   };
   PlatformDispatcher.instance.onError = (error, stackTrace) {
-    writeAppLog('Unhandled error: $error\n$stackTrace');
-    debugPrint('Unhandled error: $error\n$stackTrace');
+    e('Unhandled error', error, stackTrace);
     return true;
   };
 
@@ -58,12 +58,6 @@ Future<void> main(List<String> args) async {
   final initialProtocolUrl = defaultTargetPlatform == TargetPlatform.linux
       ? args.firstOrNull
       : await protocolHandler.getInitialUrl();
-  await RustLib.init();
-  final logFilePath = appLogFilePath;
-  if (logFilePath != null) {
-    await initRustLogger(logFilePath: logFilePath);
-    rustLogEvents().listen(appendRustLogLine);
-  }
   final controller = AppController()..initialize();
   final settingsController = SettingsController();
   await settingsController.initialize();

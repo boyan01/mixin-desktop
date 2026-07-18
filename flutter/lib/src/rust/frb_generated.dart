@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -940998332;
+  int get rustContentHash => 917178536;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -806,11 +806,14 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiDesktopInitApp();
 
-  Future<void> crateApiDesktopInitRustLogger({required String logFilePath});
+  void crateApiDesktopLogFlutter({
+    required String level,
+    required String message,
+  });
 
   Future<DesktopHandle> crateApiDesktopOpenDesktop();
 
-  Stream<String> crateApiDesktopRustLogEvents();
+  String crateApiDesktopRustLogDirectory();
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_AccountHandle;
@@ -6183,7 +6186,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
+          decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiDesktopInitAppConstMeta,
         argValues: [],
@@ -6196,35 +6199,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
-  Future<void> crateApiDesktopInitRustLogger({required String logFilePath}) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
+  void crateApiDesktopLogFlutter({
+    required String level,
+    required String message,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(logFilePath, serializer);
-          pdeCallFfi(
+          sse_encode_String(level, serializer);
+          sse_encode_String(message, serializer);
+          return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
             funcId: 130,
-            port: port_,
-          );
+          )!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopInitRustLoggerConstMeta,
-        argValues: [logFilePath],
+        constMeta: kCrateApiDesktopLogFlutterConstMeta,
+        argValues: [level, message],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopInitRustLoggerConstMeta =>
-      const TaskConstMeta(
-        debugName: "init_rust_logger",
-        argNames: ["logFilePath"],
-      );
+  TaskConstMeta get kCrateApiDesktopLogFlutterConstMeta => const TaskConstMeta(
+    debugName: "log_flutter",
+    argNames: ["level", "message"],
+  );
 
   @override
   Future<DesktopHandle> crateApiDesktopOpenDesktop() {
@@ -6255,36 +6260,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "open_desktop", argNames: []);
 
   @override
-  Stream<String> crateApiDesktopRustLogEvents() {
-    final sink = RustStreamSink<String>();
-    unawaited(
-      handler.executeNormal(
-        NormalTask(
-          callFfi: (port_) {
-            final serializer = SseSerializer(generalizedFrbRustBinding);
-            sse_encode_StreamSink_String_Sse(sink, serializer);
-            pdeCallFfi(
-              generalizedFrbRustBinding,
-              serializer,
-              funcId: 132,
-              port: port_,
-            );
-          },
-          codec: SseCodec(
-            decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
-          ),
-          constMeta: kCrateApiDesktopRustLogEventsConstMeta,
-          argValues: [sink],
-          apiImpl: this,
+  String crateApiDesktopRustLogDirectory() {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          return pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 132,
+          )!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
         ),
+        constMeta: kCrateApiDesktopRustLogDirectoryConstMeta,
+        argValues: [],
+        apiImpl: this,
       ),
     );
-    return sink.stream;
   }
 
-  TaskConstMeta get kCrateApiDesktopRustLogEventsConstMeta =>
-      const TaskConstMeta(debugName: "rust_log_events", argNames: ["sink"]);
+  TaskConstMeta get kCrateApiDesktopRustLogDirectoryConstMeta =>
+      const TaskConstMeta(debugName: "rust_log_directory", argNames: []);
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_AccountHandle => wire

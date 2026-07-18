@@ -3,14 +3,14 @@ use std::fs::{File, OpenOptions};
 use std::io::ErrorKind;
 use std::io::Write;
 use std::path::Path;
-use std::sync::{Arc, Mutex as StdMutex, OnceLock, RwLock};
+use std::sync::{Arc, Mutex as StdMutex, RwLock};
 
 use anyhow::Result;
 use chrono::Local;
 use log::{warn, LevelFilter, Log, Metadata, Record, SetLoggerError};
 use mixin_desktop_core::core::model::auth::{AuthService, AuthorizationSession};
 use mixin_desktop_core::db::app::{AppDatabase, PropertyDao};
-use mixin_desktop_core::db::path::account_data_directory;
+use mixin_desktop_core::db::path::{account_data_directory, log_directory};
 use mixin_desktop_core::db::SignalDatabase;
 use mixin_desktop_core::network::{
     NetworkService, ProxyConfig, ProxySettings, ProxyType, SharedNetworkService,
@@ -23,7 +23,7 @@ use mixin_desktop_core::runtime::{
     UserAccess,
 };
 use sdk::Client;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::Mutex;
 
 use crate::frb_generated::StreamSink;
 
@@ -70,15 +70,13 @@ pub struct HttpResponseItem {
     pub body: Vec<u8>,
 }
 
-static RUST_LOG_EVENTS: OnceLock<broadcast::Sender<String>> = OnceLock::new();
-
 struct FlutterFileLogger {
     file: StdMutex<File>,
 }
 
 impl Log for FlutterFileLogger {
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-        metadata.level() <= log::Level::Info
+        metadata.target() == "flutter" || metadata.level() <= log::Level::Info
     }
 
     fn log(&self, record: &Record<'_>) {
@@ -92,11 +90,11 @@ impl Log for FlutterFileLogger {
             record.target(),
             record.args(),
         );
+        println!("{line}");
         if let Ok(mut file) = self.file.lock() {
             let _ = writeln!(file, "{line}");
             let _ = file.flush();
         }
-        let _ = rust_log_sender().send(line);
     }
 
     fn flush(&self) {
@@ -106,15 +104,11 @@ impl Log for FlutterFileLogger {
     }
 }
 
-fn rust_log_sender() -> &'static broadcast::Sender<String> {
-    RUST_LOG_EVENTS.get_or_init(|| broadcast::channel(1024).0)
-}
-
 fn install_rust_logger(file: File) -> std::result::Result<(), SetLoggerError> {
     log::set_boxed_logger(Box::new(FlutterFileLogger {
         file: StdMutex::new(file),
     }))?;
-    log::set_max_level(LevelFilter::Info);
+    log::set_max_level(LevelFilter::Trace);
     Ok(())
 }
 
@@ -180,30 +174,42 @@ impl TryFrom<ProxySettingsItem> for ProxySettings {
     }
 }
 
-#[flutter_rust_bridge::frb(init)]
-pub fn init_app() {
-    flutter_rust_bridge::setup_default_user_utils();
-}
-
-pub fn init_rust_logger(log_file_path: String) -> Result<()> {
+fn init_rust_logger() -> Result<()> {
+    let directory = log_directory()?;
+    std::fs::create_dir_all(&directory)?;
+    let now = Local::now();
+    let log_file_path = directory.join(format!("{}.log", now.format("%Y-%m-%d")));
     let file = OpenOptions::new()
         .create(true)
         .append(true)
         .open(log_file_path)?;
-    let _ = install_rust_logger(file);
+    install_rust_logger(file)?;
+    flutter_rust_bridge::setup_backtrace();
+    log::info!(target: "logger", "initialized at {}", directory.display());
     Ok(())
 }
 
-pub async fn rust_log_events(sink: StreamSink<String>) -> Result<()> {
-    let mut events = rust_log_sender().subscribe();
-    loop {
-        match events.recv().await {
-            Ok(line) => sink
-                .add(line)
-                .map_err(|error| anyhow::anyhow!("{error:?}"))?,
-            Err(broadcast::error::RecvError::Lagged(_)) => continue,
-            Err(broadcast::error::RecvError::Closed) => return Ok(()),
-        }
+#[flutter_rust_bridge::frb(init)]
+pub fn init_app() -> Result<()> {
+    // Do not call `setup_default_user_utils`: it attempts to install `oslog`, while the
+    // global `log` logger can only be set once. Set up only its backtrace behavior below.
+    init_rust_logger()
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn rust_log_directory() -> Result<String> {
+    Ok(log_directory()?.to_string_lossy().into_owned())
+}
+
+#[flutter_rust_bridge::frb(sync)]
+pub fn log_flutter(level: String, message: String) {
+    match level.as_str() {
+        "verbose" => log::trace!(target: "flutter", "{message}"),
+        "debug" => log::debug!(target: "flutter", "{message}"),
+        "info" => log::info!(target: "flutter", "{message}"),
+        "warning" => log::warn!(target: "flutter", "{message}"),
+        "error" | "wtf" => log::error!(target: "flutter", "{message}"),
+        _ => log::info!(target: "flutter", "{message}"),
     }
 }
 
