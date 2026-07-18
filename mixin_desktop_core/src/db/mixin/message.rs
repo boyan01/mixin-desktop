@@ -388,7 +388,7 @@ LIMIT ?
         &self,
         conversation_id: &str,
         current_user_id: &str,
-    ) -> Result<bool, Error> {
+    ) -> Result<(bool, bool), Error> {
         let mut transaction = self.0.begin().await?;
         let message_ids = sqlx::query_scalar::<_, String>(
             "SELECT message_id FROM messages WHERE conversation_id = ? AND user_id != ? \
@@ -398,10 +398,7 @@ LIMIT ?
         .bind(current_user_id)
         .fetch_all(&mut *transaction)
         .await?;
-        if message_ids.is_empty() {
-            transaction.commit().await?;
-            return Ok(false);
-        }
+        let messages_changed = !message_ids.is_empty();
 
         for chunk in message_ids.chunks(MARK_LIMIT) {
             let sql = format!(
@@ -458,15 +455,20 @@ LIMIT ?
         .bind(current_user_id)
         .fetch_one(&mut *transaction)
         .await?;
-        sqlx::query(
+        let conversation_changed = sqlx::query(
             "UPDATE conversations SET last_read_message_id = ?, unseen_message_count = ? \
-             WHERE conversation_id = ?",
+             WHERE conversation_id = ? AND \
+             (last_read_message_id IS NOT ? OR unseen_message_count IS NOT ?)",
         )
-        .bind(last_read_message_id)
+        .bind(&last_read_message_id)
         .bind(unseen)
         .bind(conversation_id)
+        .bind(&last_read_message_id)
+        .bind(unseen)
         .execute(&mut *transaction)
-        .await?;
+        .await?
+        .rows_affected()
+            > 0;
 
         let jobs = [ACKNOWLEDGE_MESSAGE_RECEIPTS, CREATE_MESSAGE]
             .into_iter()
@@ -505,7 +507,7 @@ LIMIT ?
         }
 
         transaction.commit().await?;
-        Ok(true)
+        Ok((messages_changed, conversation_changed))
     }
 
     pub async fn list_items(
@@ -2789,11 +2791,14 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(database
-            .message_dao
-            .mark_conversation_read("conversation", "me")
-            .await
-            .unwrap());
+        assert_eq!(
+            database
+                .message_dao
+                .mark_conversation_read("conversation", "me")
+                .await
+                .unwrap(),
+            (true, true)
+        );
 
         let status: MessageStatus =
             sqlx::query_scalar("SELECT status FROM messages WHERE message_id = 'incoming'")
@@ -2819,11 +2824,77 @@ mod tests {
                 CREATE_MESSAGE.to_string(),
             ]
         );
-        assert!(!database
-            .message_dao
-            .mark_conversation_read("conversation", "me")
+        assert_eq!(
+            database
+                .message_dao
+                .mark_conversation_read("conversation", "me")
+                .await
+                .unwrap(),
+            (false, false)
+        );
+    }
+
+    #[tokio::test]
+    async fn clears_stale_unseen_count_without_unread_messages() {
+        let (_directory, database) = test_database().await;
+        let now = Utc::now();
+        database
+            .conversation_dao
+            .insert(&Conversation {
+                conversation_id: "conversation".into(),
+                owner_id: Some("other".into()),
+                category: Some(ConversationCategory::Contact),
+                name: String::new(),
+                icon_url: String::new(),
+                announcement: String::new(),
+                code_url: String::new(),
+                created_at: now,
+                status: ConversationStatus::SUCCESS,
+                mute_until: now,
+                expire_in: 0,
+            })
             .await
-            .unwrap());
+            .unwrap();
+        database
+            .message_dao
+            .insert_message(&Message {
+                message_id: "read".into(),
+                user_id: "other".into(),
+                status: MessageStatus::Read,
+                ..message("read")
+            })
+            .await
+            .unwrap();
+        sqlx::query(
+            "UPDATE conversations SET unseen_message_count = 3 \
+             WHERE conversation_id = 'conversation'",
+        )
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
+
+        assert_eq!(
+            database
+                .message_dao
+                .mark_conversation_read("conversation", "me")
+                .await
+                .unwrap(),
+            (false, true)
+        );
+
+        let state: (Option<String>, i64) = sqlx::query_as(
+            "SELECT last_read_message_id, unseen_message_count FROM conversations \
+             WHERE conversation_id = 'conversation'",
+        )
+        .fetch_one(&database.message_dao.0)
+        .await
+        .unwrap();
+        assert_eq!(state, (Some("read".into()), 0));
+        let job_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM jobs")
+            .fetch_one(&database.message_dao.0)
+            .await
+            .unwrap();
+        assert_eq!(job_count, 0);
     }
 
     #[tokio::test]

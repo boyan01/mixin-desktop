@@ -1927,22 +1927,23 @@ impl MessageAccess {
         let conversation_id = conversation_id.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
-        let changed = self
+        let (messages_changed, conversation_changed) = self
             .database
             .message_dao
             .mark_conversation_read(conversation_id, &self.account_id)
             .await?;
-        if !changed {
-            return Ok(());
+        if messages_changed {
+            self.app_service.expired_message.wake();
+            self.app_service
+                .job
+                .wake(sdk::ACKNOWLEDGE_MESSAGE_RECEIPTS)?;
+            self.app_service
+                .job
+                .wake(sdk::blaze_message::CREATE_MESSAGE)?;
         }
-        self.app_service.expired_message.wake();
-        self.app_service
-            .job
-            .wake(sdk::ACKNOWLEDGE_MESSAGE_RECEIPTS)?;
-        self.app_service
-            .job
-            .wake(sdk::blaze_message::CREATE_MESSAGE)?;
-        self.notify_conversation_changed();
+        if messages_changed || conversation_changed {
+            self.notify_conversation_changed();
+        }
         Ok(())
     }
 
