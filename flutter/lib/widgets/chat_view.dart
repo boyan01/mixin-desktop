@@ -3868,7 +3868,7 @@ Future<void> _ignoreMutation(Future<void> mutation) async {
   try {
     await mutation;
   } on Object {
-    // MessageListController already exposes the error through its state.
+    // MessageListController already logs mutation failures with context.
   }
 }
 

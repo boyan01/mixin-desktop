@@ -149,9 +149,8 @@ impl MessageListItem {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Default, sqlx::Type, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MediaStatus {
     Pending,
     Done,
@@ -159,6 +158,59 @@ pub enum MediaStatus {
     Canceled,
     Expired,
     Read,
+}
+
+impl<'q, DB: sqlx::Database> sqlx::Encode<'q, DB> for MediaStatus
+where
+    &'q str: sqlx::Encode<'q, DB>,
+{
+    fn encode_by_ref(
+        &self,
+        buf: &mut <DB as sqlx::Database>::ArgumentBuffer,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        let value = match self {
+            Self::Pending => "PENDING",
+            Self::Done => "DONE",
+            Self::Canceled => "CANCELED",
+            Self::Expired => "EXPIRED",
+            Self::Read => "READ",
+        };
+        <&str as sqlx::Encode<'q, DB>>::encode(value, buf)
+    }
+
+    fn size_hint(&self) -> usize {
+        let value = match self {
+            Self::Pending => "PENDING",
+            Self::Done => "DONE",
+            Self::Canceled => "CANCELED",
+            Self::Expired => "EXPIRED",
+            Self::Read => "READ",
+        };
+        <&str as sqlx::Encode<'q, DB>>::size_hint(&value)
+    }
+}
+
+impl<'r> sqlx::Decode<'r, Sqlite> for MediaStatus {
+    fn decode(value: sqlx::sqlite::SqliteValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        match <Option<&str> as sqlx::Decode<'r, Sqlite>>::decode(value)? {
+            Some("PENDING") => Ok(Self::Pending),
+            Some("DONE") => Ok(Self::Done),
+            Some("CANCELED") | Some("") | None => Ok(Self::Canceled),
+            Some("EXPIRED") => Ok(Self::Expired),
+            Some("READ") => Ok(Self::Read),
+            Some(value) => Err(format!("invalid value {value:?} for enum MediaStatus").into()),
+        }
+    }
+}
+
+impl sqlx::Type<Sqlite> for MediaStatus {
+    fn type_info() -> sqlx::sqlite::SqliteTypeInfo {
+        <str as sqlx::Type<Sqlite>>::type_info()
+    }
+
+    fn compatible(ty: &sqlx::sqlite::SqliteTypeInfo) -> bool {
+        <&str as sqlx::Type<Sqlite>>::compatible(ty)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -2452,6 +2504,35 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["oldest"]
         );
+    }
+
+    #[tokio::test]
+    async fn lists_transferred_messages_with_missing_media_status() {
+        let (_directory, database) = test_database().await;
+        let dao = database.message_dao;
+        dao.insert_message(&message("empty")).await.unwrap();
+        dao.insert_message(&message("null")).await.unwrap();
+        sqlx::query("UPDATE messages SET media_status = '' WHERE message_id = 'empty'")
+            .execute(&dao.0)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE messages SET media_status = NULL WHERE message_id = 'null'")
+            .execute(&dao.0)
+            .await
+            .unwrap();
+
+        let items = dao.list_items("conversation", None, None, 2).await.unwrap();
+        let message = dao
+            .find_message_by_id(&"null".to_string())
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(items.len(), 2);
+        assert!(items
+            .iter()
+            .all(|item| item.media_status == MediaStatus::Canceled));
+        assert_eq!(message.media_status, MediaStatus::Canceled);
     }
 
     #[tokio::test]

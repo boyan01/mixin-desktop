@@ -5,6 +5,7 @@ import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
+import 'package:mixin_desktop_ui/utils/app_logger.dart';
 import 'package:mixin_desktop_ui/widgets/toast.dart';
 
 const _messagePageLimit = 60;
@@ -18,11 +19,21 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     : unreadBoundaryMessageId = conversation.unseenCount > 0
           ? conversation.lastReadMessageId
           : null {
+    i(
+      'Open conversation: conversation_id=${conversation.id}, '
+      'category=${conversation.category}',
+    );
     WidgetsBinding.instance.addObserver(this);
     unawaited(_loadInitial());
     _changeSubscription = account.messageChanges().listen(
       (_) => _scheduleRefresh(),
-      onError: _setError,
+      onError: (Object exception, StackTrace stackTrace) {
+        e(
+          'Message change stream failed: conversation_id=${conversation.id}',
+          exception,
+          stackTrace,
+        );
+      },
     );
   }
 
@@ -41,7 +52,6 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
   bool sending = false;
   bool forwarding = false;
   bool hasMore = true;
-  String? error;
   String? currentUserRole;
   bool initialUnreadAnchorAttempted = false;
   bool initialUnreadAnchorPending = false;
@@ -90,9 +100,12 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       await _syncMentionNames(page);
       _syncInitialUnreadMessageIndex();
       hasMore = page.length == _messagePageLimit;
-      error = null;
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Load older messages failed: conversation_id=${conversation.id}',
+        exception,
+        stackTrace,
+      );
     } finally {
       if (!_disposed) {
         loadingOlder = false;
@@ -108,7 +121,6 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
   }) async {
     final text = content.trim();
     if (text.isEmpty) return false;
-    error = null;
     try {
       await account.message().sendText(
         conversationId: conversation.id,
@@ -118,8 +130,12 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       );
       await _refreshLatest();
       return true;
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Send text failed: conversation_id=${conversation.id}',
+        exception,
+        stackTrace,
+      );
       rethrow;
     }
   }
@@ -127,7 +143,6 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> sendPost(String content) async {
     final text = content.trim();
     if (text.isEmpty) return false;
-    error = null;
     try {
       await account.message().sendPost(
         conversationId: conversation.id,
@@ -135,8 +150,12 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       );
       await _refreshLatest();
       return true;
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Send post failed: conversation_id=${conversation.id}',
+        exception,
+        stackTrace,
+      );
       rethrow;
     }
   }
@@ -154,7 +173,6 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
     sending = true;
-    error = null;
     notifyListeners();
     try {
       await account.message().sendAudio(
@@ -166,8 +184,12 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       );
       await _refreshLatest();
       return true;
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Send audio failed: conversation_id=${conversation.id}',
+        exception,
+        stackTrace,
+      );
       showToastFailed(exception);
       return false;
     } finally {
@@ -195,7 +217,6 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
     sending = true;
-    error = null;
     notifyListeners();
     try {
       await account.message().sendAttachment(
@@ -214,8 +235,12 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       );
       await _refreshLatest();
       return true;
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Send attachment failed: conversation_id=${conversation.id}',
+        exception,
+        stackTrace,
+      );
       showToastFailed(exception);
       return false;
     } finally {
@@ -229,7 +254,6 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
   Future<bool> sendSticker({required String stickerId}) async {
     if (sending || stickerId.trim().isEmpty) return false;
     sending = true;
-    error = null;
     notifyListeners();
     try {
       await account.message().sendSticker(
@@ -238,8 +262,12 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       );
       await _refreshLatest();
       return true;
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Send sticker failed: conversation_id=${conversation.id}',
+        exception,
+        stackTrace,
+      );
       return false;
     } finally {
       if (!_disposed) {
@@ -256,7 +284,6 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     final selected = messages.toList(growable: false);
     if (selected.isEmpty || forwarding) return false;
     forwarding = true;
-    error = null;
     notifyListeners();
     try {
       await account.message().forwardMessages(
@@ -264,8 +291,12 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         sourceMessageIds: selected.map((message) => message.id).toList(),
       );
       return true;
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Forward messages failed: target_conversation_id=$targetConversationId',
+        exception,
+        stackTrace,
+      );
       return false;
     } finally {
       if (!_disposed) {
@@ -284,7 +315,6 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       return false;
     }
     forwarding = true;
-    error = null;
     notifyListeners();
     try {
       await account.message().combineForwardMessages(
@@ -292,8 +322,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         sourceMessageIds: selected.map((message) => message.id).toList(),
       );
       return true;
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Combine forward messages failed: '
+        'target_conversation_id=$targetConversationId',
+        exception,
+        stackTrace,
+      );
       return false;
     } finally {
       if (!_disposed) {
@@ -311,8 +346,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         pinned: pinned,
       );
       await _refreshLatest();
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Set message pinned failed: conversation_id=${conversation.id}, '
+        'message_id=${message.id}',
+        exception,
+        stackTrace,
+      );
       rethrow;
     }
   }
@@ -335,8 +375,12 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         });
       }
       await _refreshLatest();
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Recall messages failed: conversation_id=${conversation.id}',
+        exception,
+        stackTrace,
+      );
       rethrow;
     }
   }
@@ -350,8 +394,12 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         messageIds: selected.map((message) => message.id).toList(),
       );
       await _refreshLatest();
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Delete messages failed: conversation_id=${conversation.id}',
+        exception,
+        stackTrace,
+      );
       rethrow;
     }
   }
@@ -377,8 +425,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
           .where((id) => id != messageId)
           .toList(growable: false);
       if (!_disposed) notifyListeners();
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Mark mention read failed: conversation_id=${conversation.id}, '
+        'message_id=$messageId',
+        exception,
+        stackTrace,
+      );
     } finally {
       _markingMentionRead.remove(messageId);
     }
@@ -392,8 +445,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         await account.attachment().downloadAttachment(messageId: message.id);
       }
       await _refreshLatest();
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Download attachment failed: conversation_id=${conversation.id}, '
+        'message_id=${message.id}',
+        exception,
+        stackTrace,
+      );
       rethrow;
     }
   }
@@ -402,8 +460,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await account.attachment().cancelAttachment(messageId: message.id);
       await _refreshLatest();
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Cancel attachment failed: conversation_id=${conversation.id}, '
+        'message_id=${message.id}',
+        exception,
+        stackTrace,
+      );
       rethrow;
     }
   }
@@ -413,8 +476,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await account.attachment().markAudioRead(messageId: message.id);
       await _refreshLatest();
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Mark audio read failed: conversation_id=${conversation.id}, '
+        'message_id=${message.id}',
+        exception,
+        stackTrace,
+      );
     }
   }
 
@@ -425,10 +493,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     }
     try {
       await account.sticker().addSticker(stickerId: stickerId);
-      error = null;
-      if (!_disposed) notifyListeners();
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Add sticker failed: conversation_id=${conversation.id}, '
+        'message_id=${message.id}',
+        exception,
+        stackTrace,
+      );
       rethrow;
     }
   }
@@ -436,9 +507,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> addImageAsSticker(MessageListEntry message) async {
     try {
       await account.sticker().addStickerFromFile(messageId: message.id);
-      error = null;
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Add image as sticker failed: conversation_id=${conversation.id}, '
+        'message_id=${message.id}',
+        exception,
+        stackTrace,
+      );
       rethrow;
     }
   }
@@ -477,8 +552,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
           return null;
       }
       return null;
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Handle stranger action failed: conversation_id=${conversation.id}, '
+        'action=$action',
+        exception,
+        stackTrace,
+      );
       rethrow;
     }
   }
@@ -491,7 +571,6 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     if (messages.any((message) => message.id == messageId)) return true;
     if (locating) return false;
     locating = true;
-    error = null;
     notifyListeners();
     try {
       final result = await account.message().messagesAround(
@@ -523,10 +602,14 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       await _syncMentionNames(window);
       _syncInitialUnreadMessageIndex();
       hasMore = targetIndex >= before;
-      error = null;
       return true;
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Locate message failed: conversation_id=${conversation.id}, '
+        'message_id=$messageId',
+        exception,
+        stackTrace,
+      );
       return false;
     } finally {
       if (!_disposed) {
@@ -540,7 +623,6 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _loadInitial() async {
     loading = true;
-    error = null;
     initialUnreadAnchorAttempted = false;
     initialUnreadAnchorPending = false;
     initialUnreadAnchorConsumed = false;
@@ -571,8 +653,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
           conversationId: conversation.id,
         );
       }
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      e(
+        'Load conversation messages failed: '
+        'conversation_id=${conversation.id}, category=${conversation.category}',
+        exception,
+        stackTrace,
+      );
     } finally {
       if (!_disposed) {
         loading = false;
@@ -610,7 +697,14 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       initialUnreadAnchorPending = true;
       hasMore = boundaryIndex >= _initialUnreadBefore;
       return window;
-    } on Object {
+    } on Object catch (exception, stackTrace) {
+      e(
+        'Load unread message window failed; falling back to latest messages: '
+        'conversation_id=${conversation.id}, '
+        'target_message_id=$targetMessageId',
+        exception,
+        stackTrace,
+      );
       return null;
     }
   }
@@ -694,10 +788,14 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
             conversationId: conversation.id,
           );
         }
-        error = null;
         notifyListeners();
-      } catch (exception) {
-        _setError(exception);
+      } catch (exception, stackTrace) {
+        e(
+          'Refresh conversation messages failed: '
+          'conversation_id=${conversation.id}',
+          exception,
+          stackTrace,
+        );
       }
     } while (_refreshPending && !_disposed);
     _refreshing = false;
@@ -748,20 +846,19 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       if (resolved.isNotEmpty) {
         mentionNames = Map.unmodifiable({...mentionNames, ...resolved});
       }
-    } catch (_) {
+    } catch (exception, stackTrace) {
       _queriedMentionIdentityNumbers.removeAll(identityNumbers);
+      e(
+        'Resolve mention names failed: conversation_id=${conversation.id}',
+        exception,
+        stackTrace,
+      );
     }
   }
 
   static int _compareMessages(MessageListEntry first, MessageListEntry second) {
     final created = first.createdAt.compareTo(second.createdAt);
     return created != 0 ? created : first.id.compareTo(second.id);
-  }
-
-  void _setError(Object exception) {
-    if (_disposed) return;
-    error = exception.toString();
-    notifyListeners();
   }
 
   @override

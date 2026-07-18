@@ -74,6 +74,8 @@ struct FlutterFileLogger {
     file: StdMutex<File>,
 }
 
+static RUST_LOGGER_INITIALIZED: StdMutex<bool> = StdMutex::new(false);
+
 impl Log for FlutterFileLogger {
     fn enabled(&self, metadata: &Metadata<'_>) -> bool {
         metadata.target() == "flutter" || metadata.level() <= log::Level::Info
@@ -175,6 +177,13 @@ impl TryFrom<ProxySettingsItem> for ProxySettings {
 }
 
 fn init_rust_logger() -> Result<()> {
+    let mut initialized = RUST_LOGGER_INITIALIZED
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if *initialized {
+        return Ok(());
+    }
+
     let directory = log_directory()?;
     std::fs::create_dir_all(&directory)?;
     let now = Local::now();
@@ -185,6 +194,7 @@ fn init_rust_logger() -> Result<()> {
         .open(log_file_path)?;
     install_rust_logger(file)?;
     flutter_rust_bridge::setup_backtrace();
+    *initialized = true;
     log::info!(target: "logger", "initialized at {}", directory.display());
     Ok(())
 }
