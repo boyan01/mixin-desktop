@@ -70,15 +70,7 @@ class QrLoginCard extends StatelessWidget {
       );
     }
 
-    return Material(
-      color: context.theme.popUp,
-      borderRadius: const BorderRadius.all(Radius.circular(13)),
-      elevation: 10,
-      child: ClipRRect(
-        borderRadius: const BorderRadius.all(Radius.circular(13)),
-        child: child,
-      ),
-    );
+    return child;
   }
 }
 
@@ -105,32 +97,32 @@ class _QrContent extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     mainAxisSize: MainAxisSize.min,
     children: [
-      SizedBox.square(
-        dimension: 160,
-        child: ClipRRect(
-          borderRadius: const BorderRadius.all(Radius.circular(11)),
-          clipBehavior: Clip.antiAliasWithSaveLayer,
+      ClipRRect(
+        borderRadius: const BorderRadius.all(Radius.circular(11)),
+        clipBehavior: Clip.antiAliasWithSaveLayer,
+        child: SizedBox.square(
+          dimension: 160,
           child: Stack(
             fit: StackFit.expand,
             children: [
-              if (authUrl case final url?)
-                ColoredBox(
-                  color: Colors.white,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: PrettyQrView.data(
-                      data: url,
-                      errorCorrectLevel: QrErrorCorrectLevel.Q,
-                      decoration: const PrettyQrDecoration(
-                        image: PrettyQrDecorationImage(
-                          image: AssetImage(MixinAssets.logo),
+              authUrl == null
+                  ? const SizedBox()
+                  : Container(
+                      color: Colors.white,
+                      padding: const EdgeInsets.all(8),
+                      child: PrettyQrView.data(
+                        data: authUrl!,
+                        errorCorrectLevel: QrErrorCorrectLevel.Q,
+                        decoration: const PrettyQrDecoration(
+                          image: PrettyQrDecorationImage(
+                            image: AssetImage(MixinAssets.logo),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              if (error != null)
-                DecoratedBox(
+              Visibility(
+                visible: error != null,
+                child: DecoratedBox(
                   decoration: const BoxDecoration(
                     color: Color.fromRGBO(0, 0, 0, 0.86),
                   ),
@@ -169,6 +161,7 @@ class _QrContent extends StatelessWidget {
                     ),
                   ),
                 ),
+              ),
             ],
           ),
         ),
@@ -176,7 +169,6 @@ class _QrContent extends StatelessWidget {
       const SizedBox(height: 16),
       Text(
         title,
-        textAlign: TextAlign.center,
         style: TextStyle(fontSize: 16, color: context.mixinTheme.text),
       ),
       const SizedBox(height: 16),

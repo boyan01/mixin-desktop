@@ -1,24 +1,43 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
+import 'package:auto_size_text/auto_size_text.dart';
+import 'package:decimal/decimal.dart';
+import 'package:decimal/intl.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:hexagon/hexagon.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart' as intl;
 import 'package:latlng/latlng.dart';
 import 'package:map/map.dart' as map;
+import 'package:markdown/markdown.dart' as markdown;
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
+import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/utils/name_color.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
+import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
+import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_layout.dart';
 import 'package:mixin_desktop_ui/widgets/message_media_preview_pages.dart';
+import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
 import 'package:mixin_desktop_ui/widgets/message_style.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
+import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_item.dart';
+import 'package:mixin_desktop_ui/widgets/toast.dart';
+import 'package:pointycastle/digests/sha3.dart';
 
 typedef MessageStringCallback = void Function(String value);
 typedef MessageUriCallback = void Function(Uri uri);
+typedef MessageActionCallback = void Function(String value, {String? title});
 
 class WaitingMessageItem extends StatelessWidget {
   const WaitingMessageItem({
@@ -45,12 +64,18 @@ class WaitingMessageItem extends StatelessWidget {
           text:
               l10n?.chatDecryptionFailedHint(subject) ??
               'Waiting for $subject to get online and establish an encrypted session.',
-          style: TextStyle(fontSize: 16, color: context.theme.text),
+          style: TextStyle(
+            fontSize: context.messageStyle.primaryFontSize,
+            color: context.theme.text,
+          ),
           children: [
             TextSpan(
               mouseCursor: SystemMouseCursors.click,
               text: l10n?.learnMore ?? 'Learn More',
-              style: TextStyle(fontSize: 16, color: context.theme.accent),
+              style: TextStyle(
+                fontSize: context.messageStyle.primaryFontSize,
+                color: context.theme.accent,
+              ),
               recognizer: TapGestureRecognizer()..onTap = onOpenHelp,
             ),
           ],
@@ -65,12 +90,16 @@ class QuoteMessagePreview extends StatelessWidget {
   const QuoteMessagePreview({
     required this.raw,
     required this.messageId,
+    required this.membership,
+    required this.mentionNames,
     required this.onOpenMessage,
     super.key,
   });
 
   final String raw;
   final String? messageId;
+  final String? membership;
+  final Map<String, String> mentionNames;
   final MessageStringCallback? onOpenMessage;
 
   @override
@@ -80,50 +109,72 @@ class QuoteMessagePreview extends StatelessWidget {
     if (quote == null) {
       return _QuoteMessageBase(
         description: l10n?.messageNotFound ?? 'Message not found',
+        icon: SvgPicture.asset(
+          MixinAssets.recall,
+          colorFilter: ColorFilter.mode(
+            context.theme.secondaryText,
+            BlendMode.srcIn,
+          ),
+        ),
       );
     }
     if (!quote.supported) {
       return _QuoteMessageBase(
         description: l10n?.messageNotSupport ?? 'Message not supported',
+        icon: SvgPicture.asset(
+          MixinAssets.recall,
+          colorFilter: ColorFilter.mode(
+            context.theme.secondaryText,
+            BlendMode.srcIn,
+          ),
+        ),
       );
     }
     final image = _quoteImage(quote);
     final iconAsset = MixinAssets.messageIcon(quote.category);
-    return InkWell(
+    return _QuoteMessageBase(
+      senderId: quote.senderId,
+      sender: quote.sender,
+      membership: membership,
+      description: quote.preview(l10n, mentionNames),
       onTap: messageId == null || onOpenMessage == null
           ? null
           : () => onOpenMessage!(messageId!),
-      child: _QuoteMessageBase(
-        sender: quote.sender,
-        description: quote.preview(l10n),
-        icon: iconAsset == null
-            ? null
-            : SvgPicture.asset(
-                iconAsset,
-                width: 16,
-                height: 16,
-                colorFilter: ColorFilter.mode(
-                  context.theme.secondaryText,
-                  BlendMode.srcIn,
-                ),
+      icon: iconAsset == null
+          ? null
+          : SvgPicture.asset(
+              iconAsset,
+              width: 16,
+              height: 16,
+              colorFilter: ColorFilter.mode(
+                context.theme.secondaryText,
+                BlendMode.srcIn,
               ),
-        image: image,
-      ),
+            ),
+      image: image,
     );
   }
 
   Widget? _quoteImage(_QuoteData quote) {
     if (quote.category.endsWith('_CONTACT')) {
-      return AvatarView(
-        userId: quote.sharedUserId ?? '',
-        name: quote.sharedUserName ?? '',
-        avatarUrl: quote.sharedUserAvatarUrl ?? '',
-        size: 48,
+      return Padding(
+        padding: const EdgeInsets.all(6),
+        child: AvatarView(
+          userId: quote.sharedUserId ?? '',
+          name: quote.sharedUserName ?? '',
+          avatarUrl: quote.sharedUserAvatarUrl ?? '',
+          size: 48,
+        ),
       );
     }
-    final source = quote.category.endsWith('_STICKER')
-        ? quote.stickerAssetUrl
-        : quote.mediaUrl ?? quote.thumbUrl ?? quote.thumbImage;
+    if (quote.category.endsWith('_STICKER')) {
+      return StickerItem(
+        stickerId: quote.stickerId,
+        assetUrl: quote.stickerAssetUrl ?? '',
+        assetType: quote.stickerAssetType,
+      );
+    }
+    final source = quote.mediaUrl ?? quote.thumbUrl ?? quote.thumbImage;
     if (source == null) return null;
     final provider = imageProviderForSource(source);
     if (provider == null) return null;
@@ -140,18 +191,40 @@ class QuoteMessagePreview extends StatelessWidget {
   }
 }
 
+Widget? buildMessageQuotePreview(
+  MessageListEntry message, {
+  MessageStringCallback? onOpenMessage,
+  Map<String, String> mentionNames = const {},
+}) {
+  final raw = message.quoteContent;
+  if (raw == null || raw.isEmpty) return null;
+  return QuoteMessagePreview(
+    raw: raw,
+    messageId: message.quoteMessageId,
+    membership: message.quoteUserMembership,
+    mentionNames: mentionNames,
+    onOpenMessage: onOpenMessage,
+  );
+}
+
 class _QuoteMessageBase extends StatelessWidget {
   const _QuoteMessageBase({
     required this.description,
+    this.senderId,
     this.sender,
+    this.membership,
     this.icon,
     this.image,
+    this.onTap,
   });
 
+  final String? senderId;
   final String? sender;
+  final String? membership;
   final String description;
   final Widget? icon;
   final Widget? image;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -159,102 +232,110 @@ class _QuoteMessageBase extends StatelessWidget {
     final preview = lines.isEmpty
         ? ''
         : '${lines.first}${lines.length > 1 ? '...' : ''}';
-    final accent = context.theme.accent;
+    final color = nameColorForId(senderId) ?? context.theme.accent;
 
     return ClipRRect(
       borderRadius: const BorderRadius.all(Radius.circular(8)),
-      child: Container(
-        key: const Key('quote-message-preview'),
-        constraints: const BoxConstraints(minHeight: 50),
-        color: const Color.fromRGBO(0, 0, 0, 0.04),
-        child: Stack(
-          children: [
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              child: Container(
-                key: const Key('quote-message-accent'),
-                width: 6,
-                color: accent,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(left: 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Padding(
-                      padding: const EdgeInsets.only(
-                        top: 6,
-                        left: 6,
-                        bottom: 6,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          if (sender?.isNotEmpty == true)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 4),
-                              child: Text(
-                                sender!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: accent,
-                                  fontSize:
-                                      context.messageStyle.secondaryFontSize,
-                                  height: 1,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          key: const Key('quote-message-preview'),
+          constraints: const BoxConstraints(minHeight: 50),
+          color: const Color.fromRGBO(0, 0, 0, 0.04),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      key: const Key('quote-message-accent'),
+                      width: 6,
+                      color: color,
+                    ),
+                    Flexible(
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          top: 6,
+                          left: 6,
+                          bottom: 6,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            if (sender != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CustomText(
+                                      sender!,
+                                      maxLines: 1,
+                                      style: TextStyle(
+                                        color: color,
+                                        fontSize: context
+                                            .messageStyle
+                                            .secondaryFontSize,
+                                        height: 1,
+                                      ),
+                                    ),
+                                    BadgesWidget(
+                                      verified: false,
+                                      isBot: false,
+                                      membership: membership,
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (icon != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 4),
-                                  child: icon,
-                                ),
-                              Flexible(
-                                child: Text(
-                                  preview,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: context.theme.secondaryText,
-                                    fontSize:
-                                        context.messageStyle.tertiaryFontSize,
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (icon != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 4),
+                                    child: icon,
+                                  ),
+                                Flexible(
+                                  child: CustomText(
+                                    preview,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: context.theme.secondaryText,
+                                      fontSize:
+                                          context.messageStyle.tertiaryFontSize,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (image != null)
-                    SizedBox.square(
-                      key: const Key('quote-message-image'),
-                      dimension: 48,
-                      child: RepaintBoundary(
-                        child: ClipRRect(
-                          borderRadius: const BorderRadius.all(
-                            Radius.circular(6),
-                          ),
-                          child: image,
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              if (image != null)
+                SizedBox.square(
+                  key: const Key('quote-message-image'),
+                  dimension: 48,
+                  child: RepaintBoundary(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.all(Radius.circular(6)),
+                      child: image,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -274,73 +355,59 @@ class ContactMessageItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final userId = message.sharedUserId ?? '';
-    return InkWell(
+    return InteractiveDecoratedBox(
       onTap: userId.isEmpty || onOpenUser == null
           ? null
           : () => onOpenUser!(userId),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 180, maxWidth: 300),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AvatarView(
-              userId: userId,
-              name: message.sharedUserFullName ?? '',
-              avatarUrl: message.sharedUserAvatarUrl ?? '',
-              size: 40,
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          message.sharedUserFullName ?? '',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: context.theme.text,
-                            fontSize: 16,
-                          ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AvatarView(
+            userId: userId,
+            name: message.sharedUserFullName ?? '',
+            avatarUrl: message.sharedUserAvatarUrl ?? '',
+            size: 40,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        Characters(message.sharedUserFullName ?? '')
+                            .replaceAll(Characters(''), Characters('\u200B'))
+                            .toString(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: context.theme.text,
+                          fontSize: context.messageStyle.primaryFontSize,
                         ),
                       ),
-                      if (message.sharedUserIsVerified)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 3),
-                          child: Icon(
-                            Icons.verified,
-                            color: context.theme.accent,
-                            size: 14,
-                          ),
-                        ),
-                      if ((message.sharedUserAppId ?? '').isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 3),
-                          child: Icon(
-                            Icons.smart_toy_outlined,
-                            color: context.theme.accent,
-                            size: 14,
-                          ),
-                        ),
-                    ],
-                  ),
-                  Text(
-                    message.sharedUserIdentityNumber ?? '',
-                    style: TextStyle(
-                      color: context.theme.secondaryText,
-                      fontSize: 14,
                     ),
+                    BadgesWidget(
+                      verified: message.sharedUserIsVerified,
+                      isBot: message.sharedUserAppId != null,
+                      membership: message.sharedUserMembership,
+                    ),
+                  ],
+                ),
+                Text(
+                  message.sharedUserIdentityNumber ?? '',
+                  style: TextStyle(
+                    color: context.theme.secondaryText,
+                    fontSize: context.messageStyle.secondaryFontSize,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -363,15 +430,13 @@ class LocationMessageItem extends StatelessWidget {
       return UnknownSpecialMessage(category: message.category);
     }
     final uri = location.googleMapsUri;
-    return InkWell(
-      onTap: onOpenUri == null ? null : () => onOpenUri!(uri),
-      child: SizedBox(
-        width: 260,
-        height: 180,
+    return SizedBox(
+      width: 260,
+      height: 180,
+      child: InteractiveDecoratedBox(
+        onTap: onOpenUri == null ? null : () => onOpenUri!(uri),
         child: Stack(
-          fit: StackFit.expand,
           children: [
-            const _StaticMapPlaceholder(),
             map.MapLayout(
               controller: map.MapController(
                 location: LatLng.degree(location.latitude, location.longitude),
@@ -380,42 +445,16 @@ class LocationMessageItem extends StatelessWidget {
                 builder: (context, x, y, z) {
                   final url =
                       'https://www.google.com/maps/vt/pb=!1m4!1m3!1i$z!2i$x!3i$y!2m3!1e0!2sm!3i420120488!3m7!2sen!5e1105!12m4!1e68!2m2!1sset!2sRoadmap!4e0!5m1!1e0!23i4111425';
-                  return Image.network(
-                    url,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => const SizedBox.expand(),
-                  );
+                  return MixinImage.network(url);
                 },
               ),
             ),
             Center(
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 16.5),
-                child: Icon(
-                  Icons.location_on,
-                  color: context.theme.red,
-                  size: 36,
-                ),
+                child: SvgPicture.asset(MixinAssets.locationMark),
               ),
             ),
-            if (location.label.isNotEmpty)
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Container(
-                  width: double.infinity,
-                  color: context.theme.primary.withValues(alpha: 0.92),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 7,
-                  ),
-                  child: Text(
-                    location.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: context.theme.text, fontSize: 12),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -427,11 +466,33 @@ class AppButtonGroupMessageItem extends StatelessWidget {
   const AppButtonGroupMessageItem({
     required this.message,
     required this.onAction,
+    required this.isCurrentUser,
+    required this.showNip,
+    required this.highlighted,
+    this.highlightOpacity = 0,
     super.key,
+    this.quote,
+    this.onOpenUri,
+    this.onOpenIdentityNumber,
+    this.mentionNames = const {},
+    this.keyword = '',
+    this.isPinnedPage = false,
+    this.onPinnedMessageTap,
   });
 
   final MessageListEntry message;
-  final MessageStringCallback? onAction;
+  final MessageActionCallback? onAction;
+  final bool isCurrentUser;
+  final bool showNip;
+  final bool highlighted;
+  final double highlightOpacity;
+  final Widget? quote;
+  final MessageUriCallback? onOpenUri;
+  final MessageStringCallback? onOpenIdentityNumber;
+  final Map<String, String> mentionNames;
+  final String keyword;
+  final bool isPinnedPage;
+  final VoidCallback? onPinnedMessageTap;
 
   @override
   Widget build(BuildContext context) {
@@ -439,12 +500,30 @@ class AppButtonGroupMessageItem extends StatelessWidget {
     if (actions == null) {
       return UnknownSpecialMessage(category: message.category);
     }
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 240, maxWidth: 340),
-      child: _ActionButtonLayout(
-        children: actions
-            .map((action) => _ActionButton(action: action, onAction: onAction))
-            .toList(growable: false),
+    return MessageBubble(
+      isCurrentUser: isCurrentUser,
+      showNip: showNip,
+      showBubble: false,
+      highlighted: false,
+      padding: EdgeInsets.zero,
+      quote: quote,
+      isPinnedPage: isPinnedPage,
+      onPinnedMessageTap: onPinnedMessageTap,
+      isDisappearingMessage: (message.expireIn ?? 0) > 0,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 240, maxWidth: 340),
+        child: _ActionButtonLayout(
+          children: actions
+              .map(
+                (action) => _ActionButton(
+                  action: action,
+                  onAction: onAction,
+                  highlighted: highlighted,
+                  highlightOpacity: highlightOpacity,
+                ),
+              )
+              .toList(growable: false),
+        ),
       ),
     );
   }
@@ -457,16 +536,32 @@ class AppCardMessageItem extends StatelessWidget {
     required this.isCurrentUser,
     required this.showNip,
     required this.highlighted,
+    this.highlightOpacity = 0,
     required this.dateAndStatus,
     super.key,
+    this.quote,
+    this.onOpenUri,
+    this.onOpenIdentityNumber,
+    this.mentionNames = const {},
+    this.keyword = '',
+    this.isPinnedPage = false,
+    this.onPinnedMessageTap,
   });
 
   final MessageListEntry message;
-  final MessageStringCallback? onAction;
+  final MessageActionCallback? onAction;
   final bool isCurrentUser;
   final bool showNip;
   final bool highlighted;
+  final double highlightOpacity;
   final Widget dateAndStatus;
+  final Widget? quote;
+  final MessageUriCallback? onOpenUri;
+  final MessageStringCallback? onOpenIdentityNumber;
+  final Map<String, String> mentionNames;
+  final String keyword;
+  final bool isPinnedPage;
+  final VoidCallback? onPinnedMessageTap;
 
   @override
   Widget build(BuildContext context) {
@@ -476,6 +571,11 @@ class AppCardMessageItem extends StatelessWidget {
         isCurrentUser: isCurrentUser,
         showNip: showNip,
         highlighted: highlighted,
+        highlightOpacity: highlightOpacity,
+        quote: quote,
+        isPinnedPage: isPinnedPage,
+        onPinnedMessageTap: onPinnedMessageTap,
+        isDisappearingMessage: (message.expireIn ?? 0) > 0,
         child: MessageLayout(
           spacing: 6,
           content: UnknownSpecialMessage(category: message.category),
@@ -491,7 +591,15 @@ class AppCardMessageItem extends StatelessWidget {
         isCurrentUser: isCurrentUser,
         showNip: showNip,
         highlighted: highlighted,
-        dateAndStatus: dateAndStatus,
+        highlightOpacity: highlightOpacity,
+        quote: quote,
+        onOpenUri: onOpenUri,
+        onOpenIdentityNumber: onOpenIdentityNumber,
+        mentionNames: mentionNames,
+        keyword: keyword,
+        isPinnedPage: isPinnedPage,
+        onPinnedMessageTap: onPinnedMessageTap,
+        isDisappearingMessage: (message.expireIn ?? 0) > 0,
       );
     }
     return MessageBubble(
@@ -499,9 +607,16 @@ class AppCardMessageItem extends StatelessWidget {
       isCurrentUser: isCurrentUser,
       showNip: showNip,
       highlighted: highlighted,
+      highlightOpacity: highlightOpacity,
+      quote: quote,
+      isPinnedPage: isPinnedPage,
+      onPinnedMessageTap: onPinnedMessageTap,
+      isDisappearingMessage: (message.expireIn ?? 0) > 0,
       outerTimeAndStatusWidget: dateAndStatus,
-      child: InkWell(
-        onTap: onAction == null ? null : () => onAction!(card.action),
+      child: InteractiveDecoratedBox(
+        onTap: onAction == null
+            ? null
+            : () => onAction!(card.action, title: card.title),
         child: SelectionArea(
           contextMenuBuilder: (context, selectableState) =>
               const SizedBox.shrink(),
@@ -520,72 +635,94 @@ class _ActionsCardMessage extends StatelessWidget {
     required this.isCurrentUser,
     required this.showNip,
     required this.highlighted,
-    required this.dateAndStatus,
+    required this.highlightOpacity,
+    this.quote,
+    this.onOpenUri,
+    this.onOpenIdentityNumber,
+    this.mentionNames = const {},
+    this.keyword = '',
+    this.isPinnedPage = false,
+    this.onPinnedMessageTap,
+    this.isDisappearingMessage = false,
   });
 
   final String messageId;
   final _AppCardData card;
-  final MessageStringCallback? onAction;
+  final MessageActionCallback? onAction;
   final bool isCurrentUser;
   final bool showNip;
   final bool highlighted;
-  final Widget dateAndStatus;
+  final double highlightOpacity;
+  final Widget? quote;
+  final MessageUriCallback? onOpenUri;
+  final MessageStringCallback? onOpenIdentityNumber;
+  final Map<String, String> mentionNames;
+  final String keyword;
+  final bool isPinnedPage;
+  final VoidCallback? onPinnedMessageTap;
+  final bool isDisappearingMessage;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final availableWidth = constraints.maxWidth.isFinite
-          ? constraints.maxWidth
-          : 750.0;
-      final width = (availableWidth * 0.5)
-          .clamp(
-            math.min(320.0, availableWidth),
-            math.min(375.0, availableWidth),
-          )
-          .toDouble();
-      return Align(
-        alignment: isCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
+      final width = (constraints.maxWidth * 0.5).clamp(320.0, 375.0);
+      return MessageBubble(
+        isCurrentUser: isCurrentUser,
+        showNip: showNip,
+        showBubble: false,
+        padding: EdgeInsets.zero,
+        includeNip: true,
+        highlighted: false,
+        quote: quote,
+        isPinnedPage: isPinnedPage,
+        onPinnedMessageTap: onPinnedMessageTap,
+        isDisappearingMessage: isDisappearingMessage,
         child: Column(
           key: Key('app-card-actions-message-$messageId'),
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            SizedBox(
+            MessageBubble(
               key: Key('app-card-body-$messageId'),
-              width: width,
-              child: MessageBubble(
-                isCurrentUser: isCurrentUser,
-                showNip: showNip,
-                highlighted: highlighted,
-                padding: EdgeInsets.zero,
+              isCurrentUser: isCurrentUser,
+              showNip: true,
+              highlighted: highlighted,
+              highlightOpacity: highlightOpacity,
+              padding: EdgeInsets.zero,
+              clip: true,
+              includeNip: false,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: width, maxWidth: width),
                 child: SelectionArea(
                   contextMenuBuilder: (context, selectableState) =>
                       const SizedBox.shrink(),
-                  child: _ActionsCardBody(card: card),
-                ),
-              ),
-            ),
-            if (card.actions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              MessageBubbleNipPadding(
-                currentUser: isCurrentUser,
-                child: SizedBox(
-                  key: Key('app-card-actions-$messageId'),
-                  width: width,
-                  child: _ActionButtonLayout(
-                    children: card.actions
-                        .map(
-                          (action) =>
-                              _ActionButton(action: action, onAction: onAction),
-                        )
-                        .toList(growable: false),
+                  child: _ActionsCardBody(
+                    card: card,
+                    onOpenUri: onOpenUri,
+                    onOpenIdentityNumber: onOpenIdentityNumber,
+                    mentionNames: mentionNames,
+                    keyword: keyword,
                   ),
                 ),
               ),
-            ],
-            Padding(
-              padding: const EdgeInsets.only(right: 10, left: 10, top: 4),
-              child: dateAndStatus,
+            ),
+            const SizedBox(height: 8),
+            MessageBubbleNipPadding(
+              currentUser: isCurrentUser,
+              child: ConstrainedBox(
+                key: Key('app-card-actions-$messageId'),
+                constraints: BoxConstraints(minWidth: width, maxWidth: width),
+                child: _ActionButtonLayout(
+                  children: card.actions
+                      .map(
+                        (action) => _ActionButton(
+                          action: action,
+                          onAction: onAction,
+                          highlighted: highlighted,
+                          highlightOpacity: highlightOpacity,
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              ),
             ),
           ],
         ),
@@ -597,21 +734,23 @@ class _ActionsCardMessage extends StatelessWidget {
 class TranscriptMessageItem extends StatelessWidget {
   const TranscriptMessageItem({
     required this.message,
+    required this.isCurrentUser,
     required this.overlayDateAndStatus,
     required this.onOpenTranscript,
     super.key,
   });
 
   final MessageListEntry message;
+  final bool isCurrentUser;
   final Widget overlayDateAndStatus;
   final MessageStringCallback? onOpenTranscript;
 
   @override
   Widget build(BuildContext context) {
-    final lines = _TranscriptLine.parseList(message.content);
-    if (lines == null) return UnknownSpecialMessage(category: message.category);
     final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
-    return InkWell(
+    final lines = _TranscriptLine.parseList(message.content, l10n);
+    if (lines == null) return UnknownSpecialMessage(category: message.category);
+    return InteractiveDecoratedBox(
       onTap: onOpenTranscript == null
           ? null
           : () => onOpenTranscript!(message.id),
@@ -624,14 +763,15 @@ class TranscriptMessageItem extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(left: 8, bottom: 4),
+                  padding: const EdgeInsets.only(left: 4, bottom: 4),
                   child: Row(
                     children: [
+                      const SizedBox(width: 4),
                       Text(
                         l10n?.transcript ?? 'Transcript',
                         style: TextStyle(
                           color: context.theme.text,
-                          fontSize: 16,
+                          fontSize: context.messageStyle.primaryFontSize,
                         ),
                       ),
                       const Spacer(),
@@ -640,6 +780,7 @@ class TranscriptMessageItem extends StatelessWidget {
                           color: Color.fromRGBO(0, 0, 0, 0.2),
                           borderRadius: BorderRadius.all(Radius.circular(8)),
                         ),
+                        alignment: Alignment.center,
                         child: SvgPicture.asset(
                           MixinAssets.postDetail,
                           width: 20,
@@ -660,16 +801,18 @@ class TranscriptMessageItem extends StatelessWidget {
                     borderRadius: BorderRadius.all(Radius.circular(6)),
                   ),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       for (final line in lines.take(4))
                         Text(
-                          '${line.name}: ${line.preview}',
+                          Characters('${line.name}: ${line.preview}')
+                              .replaceAll(Characters(''), Characters('\u200B'))
+                              .toString(),
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: context.theme.secondaryText,
-                            fontSize: 12,
+                            fontSize: context.messageStyle.tertiaryFontSize,
                           ),
                         ),
                     ],
@@ -678,7 +821,7 @@ class TranscriptMessageItem extends StatelessWidget {
               ],
             ),
             Positioned(
-              right: 2,
+              right: isCurrentUser ? 1 : 2,
               bottom: 2,
               child: DecoratedBox(
                 decoration: const ShapeDecoration(
@@ -720,60 +863,72 @@ class SnapshotMessageItem extends StatelessWidget {
     final amount = message.snapshotAmount ?? data.amount;
     final symbol = message.snapshotAssetSymbol ?? data.symbol;
     final memo = _decodeSafeMemo(message.snapshotMemo ?? '');
-    return InkWell(
-      onTap: id == null || onOpenSnapshot == null
+    return InteractiveDecoratedBox(
+      onTap: onOpenSnapshot == null
           ? null
-          : () => onOpenSnapshot!(id),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minWidth: kind == SnapshotKind.safeInscription ? 260 : 200,
-          maxWidth: 300,
-        ),
-        child: kind == SnapshotKind.safeInscription
-            ? _InscriptionCard(message: message, data: data)
-            : kind == SnapshotKind.safe
-            ? _SafeSnapshotCard(
-                amount: amount,
-                symbol: symbol,
-                iconUrl: message.snapshotAssetIconUrl,
-                memo: memo,
-              )
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+          : () {
+              if (id != null) {
+                onOpenSnapshot!(id);
+              } else if (kind == SnapshotKind.safeInscription) {
+                showToastFailed(
+                  ToastError(context.l10n.dataLoading),
+                  context: context,
+                );
+              }
+            },
+      child: kind == SnapshotKind.safeInscription
+          ? _InscriptionCard(message: message, data: data)
+          : kind == SnapshotKind.safe
+          ? _SafeSnapshotCard(
+              amount: amount,
+              symbol: symbol,
+              iconUrl: message.snapshotAssetIconUrl,
+              memo: memo,
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (message.snapshotAssetIconUrl?.isNotEmpty == true)
                   _AssetIcon(
                     iconUrl: message.snapshotAssetIconUrl,
                     chainIconUrl: message.snapshotChainIconUrl,
                     size: 40,
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  )
+                else
+                  const SizedBox(width: 40, height: 40),
+                const SizedBox(width: 8),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          amount,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: context.theme.text,
-                            fontSize: 16,
-                          ),
-                        ),
-                        Text(
-                          symbol,
-                          style: TextStyle(
-                            color: context.theme.secondaryText,
-                            fontSize: 12,
-                          ),
+                        Flexible(
+                          child: amount.isEmpty
+                              ? const SizedBox()
+                              : Text(
+                                  _numberFormat(amount),
+                                  style: TextStyle(
+                                    color: context.theme.text,
+                                    fontSize:
+                                        context.messageStyle.secondaryFontSize,
+                                  ),
+                                ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-      ),
+                    Text(
+                      symbol,
+                      style: TextStyle(
+                        color: context.theme.secondaryText,
+                        fontSize: context.messageStyle.tertiaryFontSize,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
     );
   }
 }
@@ -791,25 +946,86 @@ class SystemConversationMessageItem extends StatelessWidget {
   final String currentUserId;
 
   @override
-  Widget build(BuildContext context) {
-    final text = _systemText(context, message, currentUserId);
-    return SystemNoticeItem(text: text, maxLines: null);
-  }
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: context.dynamicColor(const Color.fromRGBO(202, 234, 201, 1)),
+            borderRadius: const BorderRadius.all(Radius.circular(10)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+            child: CustomText(
+              generateSystemMessageText(
+                context,
+                action: message.action,
+                participantId: message.participantId,
+                participantName: message.participantFullName,
+                senderId: message.senderId,
+                senderName: message.senderName,
+                currentUserId: currentUserId,
+                expireIn: message.expireIn,
+              ),
+              style: TextStyle(
+                fontSize: context.messageStyle.secondaryFontSize,
+                color: context.dynamicColor(const Color.fromRGBO(0, 0, 0, 1)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class PinMessageItem extends StatelessWidget {
-  const PinMessageItem({required this.message, super.key});
+  const PinMessageItem({
+    required this.message,
+    this.mentionNames = const {},
+    super.key,
+  });
 
   final MessageListEntry message;
+  final Map<String, String> mentionNames;
 
   @override
   Widget build(BuildContext context) {
     final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations)!;
     final pin = _PinData.parse(message.content);
-    final preview = pin?.preview ?? l10n.aMessage;
-    return SystemNoticeItem(
-      text: l10n.chatPinMessage(message.senderName, preview),
-      maxLines: 1,
+    var preview = pin?.preview(l10n) ?? l10n.aMessage;
+    for (final entry in mentionNames.entries) {
+      preview = preview.replaceAll('@${entry.key}', '@${entry.value}');
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: context.dynamicColor(
+                const Color.fromRGBO(202, 234, 201, 1),
+              ),
+              borderRadius: const BorderRadius.all(Radius.circular(10)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+              child: CustomText(
+                l10n.chatPinMessage(message.senderName, preview),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: context.messageStyle.secondaryFontSize,
+                  color: context.dynamicColor(const Color.fromRGBO(0, 0, 0, 1)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -823,10 +1039,36 @@ class SecretMessageItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
     final uri = Uri.tryParse(l10n?.secretUrl ?? 'https://mixin.one');
-    return SystemNoticeItem(
-      text: l10n?.messageE2ee ?? 'Messages are end-to-end encrypted',
-      color: context.theme.encrypt,
-      onTap: uri == null || onOpenUri == null ? null : () => onOpenUri!(uri),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(left: 8, right: 8, bottom: 4),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: uri == null || onOpenUri == null
+                ? null
+                : () => onOpenUri!(uri),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: context.theme.encrypt,
+                borderRadius: const BorderRadius.all(Radius.circular(10)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Text(
+                  l10n?.messageE2ee ?? 'Messages are end-to-end encrypted',
+                  style: TextStyle(
+                    fontSize: context.messageStyle.secondaryFontSize,
+                    color: context.dynamicColor(
+                      const Color.fromRGBO(0, 0, 0, 1),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -852,7 +1094,10 @@ class StrangerMessageItem extends StatelessWidget {
           bot
               ? (l10n?.chatBotReceptionTitle ?? 'Tap to interact with the bot')
               : (l10n?.strangerHint ?? 'This person is not in your contacts'),
-          style: TextStyle(fontSize: 16, color: context.theme.text),
+          style: TextStyle(
+            fontSize: context.messageStyle.primaryFontSize,
+            color: context.theme.text,
+          ),
         ),
         const SizedBox(height: 10),
         Row(
@@ -880,51 +1125,6 @@ class StrangerMessageItem extends StatelessWidget {
   }
 }
 
-class SystemNoticeItem extends StatelessWidget {
-  const SystemNoticeItem({
-    required this.text,
-    super.key,
-    this.color,
-    this.onTap,
-    this.maxLines = 2,
-  });
-
-  final String text;
-  final Color? color;
-  final VoidCallback? onTap;
-  final int? maxLines;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: const BorderRadius.all(Radius.circular(10)),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 400),
-        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-        decoration: BoxDecoration(
-          color:
-              color ??
-              context.dynamicColor(
-                const Color.fromRGBO(202, 234, 201, 1),
-                darkColor: const Color.fromRGBO(72, 94, 76, 1),
-              ),
-          borderRadius: const BorderRadius.all(Radius.circular(10)),
-        ),
-        child: Text(
-          text,
-          maxLines: maxLines,
-          overflow: maxLines == null
-              ? TextOverflow.clip
-              : TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 14, color: context.theme.text),
-        ),
-      ),
-    ),
-  );
-}
-
 class UnknownSpecialMessage extends StatelessWidget {
   const UnknownSpecialMessage({required this.category, super.key});
 
@@ -941,59 +1141,91 @@ class UnknownSpecialMessage extends StatelessWidget {
 }
 
 class _ActionButton extends StatelessWidget {
-  const _ActionButton({required this.action, required this.onAction});
+  const _ActionButton({
+    required this.action,
+    required this.onAction,
+    required this.highlighted,
+    required this.highlightOpacity,
+  });
 
   final _ActionData action;
-  final MessageStringCallback? onAction;
+  final MessageActionCallback? onAction;
+  final bool highlighted;
+  final double highlightOpacity;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: context.theme.primary,
-    borderRadius: const BorderRadius.all(Radius.circular(8)),
-    child: InkWell(
-      borderRadius: const BorderRadius.all(Radius.circular(8)),
-      onTap: onAction == null ? null : () => onAction!(action.action),
-      child: IntrinsicWidth(
-        child: Stack(
-          fit: StackFit.passthrough,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: Text(
-                action.label,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: action.color, fontSize: 14, height: 1),
-              ),
+  Widget build(BuildContext context) {
+    final bubbleClipper = BubbleClipper(
+      currentUser: false,
+      showNip: false,
+      nipPadding: false,
+    );
+    return InteractiveDecoratedBox.color(
+      cursor: SystemMouseCursors.click,
+      onTap: onAction == null
+          ? null
+          : () => onAction!(action.action, title: action.label),
+      child: MessageBubbleHighlight(
+        clipper: bubbleClipper,
+        currentUser: false,
+        media: true,
+        enabled: highlighted || highlightOpacity > 0,
+        opacity: highlighted ? 1 : highlightOpacity,
+        child: CustomPaint(
+          painter: BubblePainter(
+            color: context.theme.primary,
+            clipper: bubbleClipper,
+          ),
+          child: IntrinsicWidth(
+            child: Stack(
+              fit: StackFit.passthrough,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  child: Text(
+                    action.label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: action.color,
+                      fontSize: context.messageStyle.secondaryFontSize,
+                      height: 1,
+                    ),
+                  ),
+                ),
+                if (action.isSendUserLink)
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: SvgPicture.asset(
+                        MixinAssets.linkSend,
+                        width: 8,
+                        height: 8,
+                      ),
+                    ),
+                  )
+                else if (action.isExternalLink)
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: SvgPicture.asset(
+                        MixinAssets.externalLink,
+                        width: 6,
+                        height: 6,
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            if (action.isSendUserLink)
-              Align(
-                alignment: Alignment.topRight,
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: SvgPicture.asset(
-                    MixinAssets.linkSend,
-                    width: 8,
-                    height: 8,
-                  ),
-                ),
-              )
-            else if (action.isExternalLink)
-              Align(
-                alignment: Alignment.topRight,
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: SvgPicture.asset(
-                    MixinAssets.externalLink,
-                    width: 6,
-                    height: 6,
-                  ),
-                ),
-              ),
-          ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _ActionButtonLayout extends MultiChildRenderObjectWidget {
@@ -1146,9 +1378,19 @@ class _RenderActionButtonLayout extends RenderBox
 }
 
 class _ActionsCardBody extends StatelessWidget {
-  const _ActionsCardBody({required this.card});
+  const _ActionsCardBody({
+    required this.card,
+    required this.onOpenUri,
+    required this.onOpenIdentityNumber,
+    required this.mentionNames,
+    required this.keyword,
+  });
 
   final _AppCardData card;
+  final MessageUriCallback? onOpenUri;
+  final MessageStringCallback? onOpenIdentityNumber;
+  final Map<String, String> mentionNames;
+  final String keyword;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -1167,7 +1409,7 @@ class _ActionsCardBody extends StatelessWidget {
       const SizedBox(height: 10),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Text(
+        child: CustomText(
           card.title,
           style: TextStyle(
             color: context.theme.text,
@@ -1179,9 +1421,17 @@ class _ActionsCardBody extends StatelessWidget {
       const SizedBox(height: 8),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Text(
-          card.description,
-          style: TextStyle(color: context.theme.text, fontSize: 16),
+        child: SelectableMessageText(
+          content: card.description,
+          enableSelection: false,
+          onOpenUri: onOpenUri,
+          onOpenIdentityNumber: onOpenIdentityNumber,
+          mentionNames: mentionNames,
+          keyword: keyword,
+          style: TextStyle(
+            color: context.theme.text,
+            fontSize: context.messageStyle.primaryFontSize,
+          ),
         ),
       ),
       const SizedBox(height: 10),
@@ -1208,88 +1458,47 @@ class _AppCardHeader extends StatelessWidget {
   final _AppCardData card;
 
   @override
-  Widget build(BuildContext context) => ConstrainedBox(
-    constraints: const BoxConstraints(minWidth: 180, maxWidth: 300),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ClipRRect(
-          borderRadius: const BorderRadius.all(Radius.circular(4)),
-          child: card.iconUrl.isEmpty
-              ? Container(
-                  width: 40,
-                  height: 40,
-                  color: context.theme.statusBackground,
-                  child: const Icon(Icons.apps),
-                )
-              : Image.network(
-                  card.iconUrl,
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) =>
-                      const SizedBox.square(dimension: 40),
-                ),
-        ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                card.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: context.theme.text, fontSize: 14),
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      ClipRRect(
+        borderRadius: const BorderRadius.all(Radius.circular(4)),
+        child: card.iconUrl.isEmpty
+            ? const SizedBox.square(dimension: 40)
+            : Image.network(
+                card.iconUrl,
+                width: 40,
+                height: 40,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const SizedBox.square(dimension: 40),
               ),
-              Text(
-                card.description.split('\n').first,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: context.theme.secondaryText,
-                  fontSize: 12,
-                ),
+      ),
+      const SizedBox(width: 8),
+      Flexible(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              card.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: context.theme.text, fontSize: 14),
+            ),
+            Text(
+              card.description.split('\n').first,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: context.theme.secondaryText,
+                fontSize: 12,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
-    ),
+      ),
+    ],
   );
-}
-
-class _StaticMapPlaceholder extends StatelessWidget {
-  const _StaticMapPlaceholder();
-
-  @override
-  Widget build(BuildContext context) => ColoredBox(
-    color: context.theme.background,
-    child: CustomPaint(painter: _MapPainter(color: context.theme.divider)),
-  );
-}
-
-class _MapPainter extends CustomPainter {
-  const _MapPainter({required this.color});
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1;
-    for (var x = 18.0; x < size.width; x += 34) {
-      canvas.drawLine(Offset(x, 0), Offset(x + 50, size.height), paint);
-    }
-    for (var y = 22.0; y < size.height; y += 32) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y - 18), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _MapPainter oldDelegate) =>
-      oldDelegate.color != color;
 }
 
 class _StrangerButton extends StatelessWidget {
@@ -1303,12 +1512,30 @@ class _StrangerButton extends StatelessWidget {
   final MessageStringCallback? onAction;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 162,
-    height: 36,
-    child: OutlinedButton(
-      onPressed: onAction == null ? null : () => onAction!(action),
-      child: Text(text),
+  Widget build(BuildContext context) => InteractiveDecoratedBox.color(
+    onTap: onAction == null ? null : () => onAction!(action),
+    decoration: BoxDecoration(
+      color: context.theme.primary,
+      borderRadius: const BorderRadius.all(Radius.circular(8)),
+    ),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: 162,
+        minHeight: 36,
+        maxHeight: 36,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Center(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: context.messageStyle.primaryFontSize,
+              color: context.theme.accent,
+            ),
+          ),
+        ),
+      ),
     ),
   );
 }
@@ -1324,9 +1551,11 @@ class _InscriptionCard extends StatelessWidget {
     height: 112,
     child: Row(
       children: [
-        _InscriptionContent(
+        InscriptionContent(
           contentType: message.inscriptionContentType ?? data.contentType,
           contentUrl: message.inscriptionContentUrl ?? data.contentUrl,
+          iconUrl: message.inscriptionIconUrl,
+          mode: InscriptionContentMode.small,
         ),
         Expanded(
           child: Padding(
@@ -1336,8 +1565,6 @@ class _InscriptionCard extends StatelessWidget {
               children: [
                 Text(
                   message.inscriptionName ?? data.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(color: context.theme.text, fontSize: 14),
                 ),
                 const SizedBox(height: 4),
@@ -1353,15 +1580,28 @@ class _InscriptionCard extends StatelessWidget {
                 const Spacer(),
                 Row(
                   children: [
-                    Icon(
-                      Icons.hexagon_outlined,
-                      size: 22,
-                      color: context.theme.accent,
+                    ColoredHashWidget(inscriptionHex: message.inscriptionHash),
+                    const SizedBox(width: 10),
+                    HexagonWidget(
+                      type: HexagonType.FLAT,
+                      cornerRadius: 4,
+                      height: 22,
+                      width: 22,
+                      child: SizedBox.square(
+                        dimension: 22,
+                        child: Image.network(
+                          message.inscriptionIconUrl ?? '',
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => SvgPicture.asset(
+                            MixinAssets.collectionPlaceholder,
+                          ),
+                        ),
+                      ),
                     ),
-                    const Spacer(),
-                    _AssetIcon(iconUrl: message.inscriptionIconUrl, size: 22),
+                    const SizedBox(width: 2),
                   ],
                 ),
+                const SizedBox(height: 2),
               ],
             ),
           ),
@@ -1384,41 +1624,60 @@ class _AssetIcon extends StatelessWidget {
     child: Stack(
       children: [
         Positioned.fill(
-          child: ClipOval(
+          child: ClipPath(
+            clipper: _SymbolCustomClipper(
+              chainPlaceholderSize: chainIconUrl?.isNotEmpty == true ? 14 : 0,
+            ),
+            clipBehavior: Clip.antiAliasWithSaveLayer,
             child: iconUrl?.isNotEmpty == true
                 ? Image.network(
                     iconUrl!,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _assetPlaceholder(context),
+                    errorBuilder: (_, _, _) => const SizedBox.expand(),
                   )
-                : _assetPlaceholder(context),
+                : const SizedBox.expand(),
           ),
         ),
         if (chainIconUrl?.isNotEmpty == true)
           Positioned(
-            right: 0,
-            bottom: 0,
-            child: Container(
-              width: size * 0.34,
-              height: size * 0.34,
-              padding: const EdgeInsets.all(1),
-              decoration: BoxDecoration(
-                color: context.theme.primary,
-                shape: BoxShape.circle,
-              ),
-              child: ClipOval(
-                child: Image.network(chainIconUrl!, fit: BoxFit.cover),
-              ),
+            right: 1,
+            bottom: 1,
+            child: Image.network(
+              chainIconUrl!,
+              width: 12,
+              height: 12,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const SizedBox.square(dimension: 12),
             ),
           ),
       ],
     ),
   );
+}
 
-  Widget _assetPlaceholder(BuildContext context) => ColoredBox(
-    color: context.theme.statusBackground,
-    child: Icon(Icons.paid_outlined, size: size * 0.55),
-  );
+class _SymbolCustomClipper extends CustomClipper<Path> {
+  const _SymbolCustomClipper({required this.chainPlaceholderSize});
+
+  final double chainPlaceholderSize;
+
+  @override
+  Path getClip(Size size) {
+    final symbol = Path()..addOval(Offset.zero & size);
+    if (chainPlaceholderSize <= 0) return symbol;
+    final chain = Path()
+      ..addOval(
+        Offset(
+              size.width - chainPlaceholderSize,
+              size.height - chainPlaceholderSize,
+            ) &
+            Size.square(chainPlaceholderSize),
+      );
+    return Path.combine(PathOperation.difference, symbol, chain);
+  }
+
+  @override
+  bool shouldReclip(covariant _SymbolCustomClipper oldClipper) =>
+      oldClipper.chainPlaceholderSize != chainPlaceholderSize;
 }
 
 class _SafeSnapshotCard extends StatelessWidget {
@@ -1442,85 +1701,317 @@ class _SafeSnapshotCard extends StatelessWidget {
       < 25 => 216,
       _ => 232,
     },
-    child: Padding(
-      padding: const EdgeInsets.all(4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    child: Stack(
+      children: [
+        Align(
+          alignment: Alignment.topRight,
+          child: SvgPicture.asset(MixinAssets.bgSnapshot),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _AssetIcon(iconUrl: iconUrl, size: 16),
-              const SizedBox(width: 4),
-              Text(
-                symbol,
-                style: TextStyle(color: context.theme.text, fontSize: 13),
+              Row(
+                children: [
+                  if (iconUrl?.isNotEmpty != true)
+                    const SizedBox.square(dimension: 16)
+                  else
+                    ClipOval(
+                      child: Image.network(
+                        iconUrl!,
+                        width: 16,
+                        height: 16,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            const SizedBox.square(dimension: 16),
+                      ),
+                    ),
+                  const SizedBox(width: 4),
+                  Text(
+                    symbol,
+                    style: TextStyle(color: context.theme.text, fontSize: 13),
+                  ),
+                ],
               ),
+              const SizedBox(height: 16),
+              AutoSizeText(
+                _numberFormat(amount),
+                maxFontSize: 36,
+                minFontSize: 24,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: context.theme.text,
+                  fontFamily: 'MixinCondensed',
+                  fontSize: 36,
+                  height: 1,
+                ),
+              ),
+              if (memo.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                CustomText(
+                  memo,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: context.theme.secondaryText,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+              ] else
+                const SizedBox(height: 6),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            amount,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: context.theme.text,
-              fontSize: 30,
-              height: 1,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          if (memo.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              memo,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: context.theme.secondaryText,
-                fontSize: 12,
-              ),
-            ),
-          ] else
-            const SizedBox(height: 6),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
 
-class _InscriptionContent extends StatelessWidget {
-  const _InscriptionContent({this.contentType, this.contentUrl});
+enum InscriptionContentMode {
+  small(2, 14),
+  large(5, 24);
+
+  const InscriptionContentMode(this.maxLines, this.fontSize);
+
+  final int maxLines;
+  final double fontSize;
+}
+
+class InscriptionContent extends StatelessWidget {
+  const InscriptionContent({
+    required this.mode,
+    this.contentType,
+    this.contentUrl,
+    this.iconUrl,
+    super.key,
+  });
 
   final String? contentType;
   final String? contentUrl;
+  final String? iconUrl;
+  final InscriptionContentMode mode;
 
   @override
   Widget build(BuildContext context) {
     final url = contentUrl;
-    if (url != null &&
-        url.isNotEmpty &&
-        contentType?.startsWith('image/') == true) {
-      return Image.network(
-        url,
-        width: 112,
-        height: 112,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => _placeholder(context),
-      );
-    }
-    return _placeholder(context);
+    final placeholder = SvgPicture.asset(MixinAssets.inscriptionPlaceholder);
+    return AspectRatio(
+      aspectRatio: 1,
+      child: switch (contentType) {
+        final type when type?.startsWith('image') == true && url != null =>
+          Image.network(
+            url,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => placeholder,
+          ),
+        final type
+            when type?.startsWith('text') == true &&
+                url != null &&
+                iconUrl != null =>
+          _TextInscriptionContent(
+            contentUrl: url,
+            iconUrl: iconUrl!,
+            mode: mode,
+          ),
+        _ => placeholder,
+      },
+    );
+  }
+}
+
+class _TextInscriptionContent extends StatefulWidget {
+  const _TextInscriptionContent({
+    required this.contentUrl,
+    required this.iconUrl,
+    required this.mode,
+  });
+
+  final String contentUrl;
+  final String iconUrl;
+  final InscriptionContentMode mode;
+
+  @override
+  State<_TextInscriptionContent> createState() =>
+      _TextInscriptionContentState();
+}
+
+class _TextInscriptionContentState extends State<_TextInscriptionContent> {
+  late Future<String> _content = _loadContent();
+
+  Future<String> _loadContent() async {
+    final response = await http.get(Uri.parse(widget.contentUrl));
+    return _inscriptionDisplayContent(
+      utf8.decode(response.bodyBytes, allowMalformed: true),
+    );
   }
 
-  Widget _placeholder(BuildContext context) => Container(
-    width: 112,
-    height: 112,
-    color: context.theme.statusBackground,
-    child: Icon(Icons.hexagon_outlined, size: 46, color: context.theme.accent),
+  @override
+  void didUpdateWidget(covariant _TextInscriptionContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.contentUrl != widget.contentUrl) {
+      _content = _loadContent();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      Image.asset(MixinAssets.inscriptionTextBackground),
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final textStyle = TextStyle(
+            color: Color.fromRGBO(255, 167, 36, 1),
+            fontSize: widget.mode.fontSize,
+            fontWeight: FontWeight.bold,
+          );
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              HexagonWidget(
+                type: HexagonType.FLAT,
+                cornerRadius: constraints.maxWidth / 3 / 5,
+                height: constraints.maxWidth / 3,
+                width: constraints.maxWidth / 3,
+                child: SizedBox.square(
+                  dimension: constraints.maxWidth / 3,
+                  child: Image.network(
+                    widget.iconUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) =>
+                        SvgPicture.asset(MixinAssets.collectionPlaceholder),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.only(
+                  top: constraints.maxWidth / 40,
+                  right: constraints.maxWidth / 10,
+                  left: constraints.maxWidth / 10,
+                ),
+                child: FutureBuilder<String>(
+                  future: _content,
+                  builder: (context, snapshot) => _MinLinesWrapper(
+                    text: snapshot.data,
+                    style: textStyle,
+                    minLines: widget.mode.maxLines,
+                    child: AutoSizeText(
+                      snapshot.data ?? '',
+                      maxLines: widget.mode.maxLines,
+                      maxFontSize: 24,
+                      minFontSize: widget.mode.fontSize,
+                      overflow: TextOverflow.ellipsis,
+                      style: textStyle,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    ],
   );
 }
 
+class _MinLinesWrapper extends StatelessWidget {
+  const _MinLinesWrapper({
+    required this.text,
+    required this.style,
+    required this.minLines,
+    required this.child,
+  });
+
+  final String? text;
+  final TextStyle style;
+  final int minLines;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final textPainter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: minLines,
+    )..layout(maxWidth: MediaQuery.sizeOf(context).width);
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        minHeight: textPainter.preferredLineHeight * minLines,
+      ),
+      child: child,
+    );
+  }
+}
+
+class ColoredHashWidget extends StatelessWidget {
+  const ColoredHashWidget({
+    required this.inscriptionHex,
+    this.blockSize = const Size(5, 16),
+    this.space = 3,
+    super.key,
+  });
+
+  final String? inscriptionHex;
+  final Size blockSize;
+  final double space;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _inscriptionColors(inscriptionHex);
+    return Row(
+      children: [
+        for (var index = 0; index < colors.length; index++) ...[
+          if (index > 0) SizedBox(width: space),
+          Container(
+            width: blockSize.width,
+            height: blockSize.height,
+            decoration: BoxDecoration(
+              color: colors[index],
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+List<Color> _inscriptionColors(String? value) {
+  final bytes = _hexBytes(value);
+  if (bytes == null) return List<Color>.filled(12, Colors.black12);
+  final digest = SHA3Digest(256).process(Uint8List.fromList(bytes));
+  final data = [...bytes, ...digest.take(4)];
+  return [
+    for (var index = 0; index + 2 < data.length; index += 3)
+      Color.fromARGB(0xFF, data[index], data[index + 1], data[index + 2]),
+  ];
+}
+
+List<int>? _hexBytes(String? value) {
+  if (value == null ||
+      value.length.isOdd ||
+      !RegExp(r'^[0-9a-fA-F]+$').hasMatch(value)) {
+    return null;
+  }
+  return [
+    for (var index = 0; index < value.length; index += 2)
+      int.parse(value.substring(index, index + 2), radix: 16),
+  ];
+}
+
+String _inscriptionDisplayContent(String content) => content.replaceAll(
+  RegExp(r'[\s\p{Other}\p{Cf}\p{Cc}\p{Cn}]', unicode: true),
+  '■',
+);
+
 class _QuoteData {
   const _QuoteData({
+    required this.senderId,
     required this.sender,
     required this.category,
     required this.content,
@@ -1529,12 +2020,15 @@ class _QuoteData {
     required this.thumbUrl,
     required this.thumbImage,
     required this.stickerAssetUrl,
+    required this.stickerAssetType,
+    required this.stickerId,
     required this.sharedUserId,
     required this.sharedUserName,
     required this.sharedUserAvatarUrl,
     required this.sharedUserIdentityNumber,
   });
 
+  final String? senderId;
   final String sender;
   final String category;
   final String content;
@@ -1543,6 +2037,8 @@ class _QuoteData {
   final String? thumbUrl;
   final String? thumbImage;
   final String? stickerAssetUrl;
+  final String? stickerAssetType;
+  final String? stickerId;
   final String? sharedUserId;
   final String? sharedUserName;
   final String? sharedUserAvatarUrl;
@@ -1563,10 +2059,11 @@ class _QuoteData {
       category == 'APP_CARD' ||
       category == 'APP_BUTTON_GROUP';
 
-  String preview(AppLocalizations? l10n) {
-    if (category.endsWith('_TEXT') || category.endsWith('_POST')) {
-      return content;
+  String preview(AppLocalizations? l10n, Map<String, String> mentionNames) {
+    if (category.endsWith('_TEXT')) {
+      return replaceMessageMentions(content, mentionNames);
     }
+    if (category.endsWith('_POST')) return _postOptimizeMarkdown(content);
     if (category.endsWith('_IMAGE')) return l10n?.image ?? 'Image';
     if (category.endsWith('_VIDEO')) return l10n?.video ?? 'Video';
     if (category.endsWith('_LIVE')) return l10n?.live ?? 'Live';
@@ -1611,6 +2108,7 @@ class _QuoteData {
     try {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       return _QuoteData(
+        senderId: _nonEmpty(json['user_id']),
         sender: json['user_full_name']?.toString() ?? '',
         category: json['type']?.toString() ?? '',
         content: json['content']?.toString() ?? '',
@@ -1619,6 +2117,8 @@ class _QuoteData {
         thumbUrl: _nonEmpty(json['thumb_url']),
         thumbImage: _nonEmpty(json['thumb_image']),
         stickerAssetUrl: _nonEmpty(json['asset_url']),
+        stickerAssetType: _nonEmpty(json['asset_type']),
+        stickerId: _nonEmpty(json['sticker_id']),
         sharedUserId: _nonEmpty(json['shared_user_id']),
         sharedUserName: _nonEmpty(json['shared_user_full_name']),
         sharedUserAvatarUrl: _nonEmpty(json['shared_user_avatar_url']),
@@ -1632,6 +2132,16 @@ class _QuoteData {
   }
 }
 
+String _postOptimizeMarkdown(String content) {
+  var optimized = const LineSplitter().convert(content).take(10).join('\r\n');
+  if (optimized.length > 1024) optimized = optimized.substring(0, 1024);
+  return markdown.Document()
+      .parseLines(const LineSplitter().convert(optimized))
+      .map((node) => node.textContent)
+      .join()
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
 class _LocationData {
   const _LocationData(this.latitude, this.longitude, this.name, this.address);
   final double latitude;
@@ -1641,8 +2151,8 @@ class _LocationData {
   String get label => address.isNotEmpty ? address : name;
   Uri get googleMapsUri => Uri.parse(
     address.isEmpty
-        ? 'https://www.google.com/maps/place/@$latitude,$longitude,17z'
-        : 'https://www.google.com/maps/search/${Uri.encodeComponent(address)}/@$latitude,$longitude,17z',
+        ? 'https://www.google.com/maps/place/@$latitude,$longitude,17z?hl=zh-CN'
+        : 'https://www.google.com/maps/search/${Uri.encodeComponent(address)}/@$latitude,$longitude,17z?hl=zh-CN',
   );
 
   static _LocationData? parse(String raw) {
@@ -1799,7 +2309,7 @@ class _TranscriptLine {
   final String name;
   final String preview;
 
-  static List<_TranscriptLine>? parseList(String raw) {
+  static List<_TranscriptLine>? parseList(String raw, AppLocalizations? l10n) {
     try {
       final json = jsonDecode(raw) as List<dynamic>;
       return json.map((item) {
@@ -1807,6 +2317,7 @@ class _TranscriptLine {
         return _TranscriptLine(
           data['name']?.toString() ?? '',
           _categoryPreview(
+            l10n,
             data['category']?.toString() ?? data['type']?.toString() ?? '',
             data['content']?.toString() ?? '',
             mediaName: data['media_name']?.toString(),
@@ -1847,7 +2358,7 @@ class _SnapshotData {
             json['symbol']?.toString() ??
             json['asset_symbol']?.toString() ??
             '',
-        name: json['name']?.toString() ?? 'Inscription',
+        name: json['name']?.toString() ?? '',
         contentType: _nonEmpty(json['content_type']),
         contentUrl: _nonEmpty(json['content_url']),
       );
@@ -1856,7 +2367,7 @@ class _SnapshotData {
         id: null,
         amount: '',
         symbol: '',
-        name: 'Inscription',
+        name: '',
         contentType: null,
         contentUrl: null,
       );
@@ -1881,20 +2392,36 @@ String _decodeSafeMemo(String raw) {
   }
 }
 
+String _numberFormat(String value) {
+  if (value.isEmpty) return value;
+  try {
+    return DecimalFormatter(
+      intl.NumberFormat('#,###.########'),
+    ).format(Decimal.parse(value));
+  } on Object {
+    return value;
+  }
+}
+
 class _PinData {
-  const _PinData(this.messageId, this.preview);
+  const _PinData(this.messageId, this.category, this.content);
   final String? messageId;
-  final String preview;
+  final String category;
+  final String content;
+
+  String preview(AppLocalizations? l10n) {
+    if (category.endsWith('_TEXT')) return content.trim();
+    final preview = _pinCategoryPreview(l10n, category, content);
+    return preview.isEmpty ? preview : ': $preview';
+  }
 
   static _PinData? parse(String raw) {
     try {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       return _PinData(
         _nonEmpty(json['message_id']),
-        _categoryPreview(
-          json['type']?.toString() ?? '',
-          json['content']?.toString() ?? '',
-        ),
+        json['type']?.toString() ?? '',
+        json['content']?.toString() ?? '',
       );
     } on Object {
       return null;
@@ -1902,30 +2429,71 @@ class _PinData {
   }
 }
 
-String _systemText(
-  BuildContext context,
-  MessageListEntry message,
-  String currentUserId,
+String _pinCategoryPreview(
+  AppLocalizations? l10n,
+  String category,
+  String content,
 ) {
+  if (category.endsWith('_POST')) {
+    return content.trim().isEmpty
+        ? (l10n?.post ?? 'Post')
+        : _postOptimizeMarkdown(content.trim());
+  }
+  if (category == 'APP_BUTTON_GROUP') {
+    try {
+      return (jsonDecode(content) as List<dynamic>)
+          .map(
+            (item) =>
+                '[${_ActionData.fromJson(item as Map<String, dynamic>).label}]',
+          )
+          .join();
+    } on Object {
+      return '';
+    }
+  }
+  if (category == 'APP_CARD') {
+    final title = _AppCardData.parse(content)?.title;
+    return '[${title ?? (l10n?.card ?? 'Card')}]';
+  }
+  if (category.startsWith('WEBRTC') || category.startsWith('KRAKEN')) {
+    return l10n?.contentVoice ?? 'Voice call';
+  }
+  if (category == 'MESSAGE_RECALL') {
+    return '[${l10n?.thisMessageWasDeleted ?? 'This message was deleted'}]';
+  }
+  return _categoryPreview(l10n, category, content);
+}
+
+String generateSystemMessageText(
+  BuildContext context, {
+  required String? action,
+  required String? participantId,
+  required String? participantName,
+  required String? senderId,
+  required String? senderName,
+  required String currentUserId,
+  required int? expireIn,
+}) {
   final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations)!;
-  final participant = message.participantId == currentUserId
+  final participant = participantId == currentUserId
       ? l10n.you
-      : message.participantFullName ?? '';
-  final sender = message.senderId == currentUserId
-      ? l10n.you
-      : message.senderName;
-  return switch (message.action?.toUpperCase()) {
+      : participantName ?? '';
+  final sender = senderId == currentUserId ? l10n.you : senderName ?? '';
+  return switch (action?.toUpperCase()) {
     'JOIN' => l10n.chatGroupJoin(participant),
     'EXIT' => l10n.chatGroupExit(participant),
     'ADD' => l10n.chatGroupAdd(sender, participant),
     'REMOVE' => l10n.chatGroupRemove(sender, participant),
     'CREATE' => l10n.createdThisGroup(sender),
     'ROLE' => l10n.nowAnAddmin(participant),
-    'EXPIRE' => _expireSystemText(l10n, sender, message.expireIn),
+    'EXPIRE' => _expireSystemText(l10n, sender, expireIn),
     'UPDATE' => l10n.messageNotSupport,
     _ => l10n.messageNotSupport,
   };
 }
+
+String pinMessagePreview(AppLocalizations l10n, String raw) =>
+    _PinData.parse(raw)?.preview(l10n) ?? l10n.aMessage;
 
 String _expireSystemText(AppLocalizations l10n, String sender, int? expireIn) {
   if (expireIn == null) {
@@ -1952,25 +2520,47 @@ String _formatConversationExpireIn(AppLocalizations l10n, int seconds) {
 }
 
 String _categoryPreview(
+  AppLocalizations? l10n,
   String category,
   String content, {
   String? mediaName,
   String? sharedName,
 }) {
-  if (category.endsWith('_TEXT') || category.endsWith('_POST')) return content;
-  if (category.endsWith('_IMAGE')) return '[Photo]';
-  if (category.endsWith('_VIDEO')) return '[Video]';
-  if (category.endsWith('_AUDIO')) return '[Audio]';
+  if (category.endsWith('_TEXT')) return content.trim();
+  if (category.endsWith('_POST')) {
+    return content.trim().isEmpty ? (l10n?.post ?? 'Post') : content.trim();
+  }
+  if (category == 'SYSTEM_ACCOUNT_SNAPSHOT' ||
+      category == 'SYSTEM_SAFE_SNAPSHOT') {
+    return '[${l10n?.transfer ?? 'Transfer'}]';
+  }
+  if (category.endsWith('_IMAGE')) return '[${l10n?.image ?? 'Image'}]';
+  if (category.endsWith('_VIDEO')) return '[${l10n?.video ?? 'Video'}]';
+  if (category.endsWith('_LIVE')) return '[${l10n?.live ?? 'Live'}]';
+  if (category.endsWith('_AUDIO')) return '[${l10n?.audio ?? 'Audio'}]';
   if (category.endsWith('_DATA')) {
-    return mediaName?.isNotEmpty == true ? mediaName! : '[File]';
+    return mediaName?.isNotEmpty == true
+        ? mediaName!
+        : '[${l10n?.file ?? 'File'}]';
   }
-  if (category.endsWith('_STICKER')) return '[Sticker]';
+  if (category.endsWith('_STICKER')) {
+    return '[${l10n?.sticker ?? 'Sticker'}]';
+  }
   if (category.endsWith('_CONTACT')) {
-    return sharedName?.isNotEmpty == true ? sharedName! : '[Contact]';
+    return sharedName?.isNotEmpty == true
+        ? sharedName!
+        : '[${l10n?.contact ?? 'Contact'}]';
   }
-  if (category.endsWith('_LOCATION')) return '[Location]';
-  if (category.endsWith('_TRANSCRIPT')) return '[Transcript]';
-  return content.isEmpty ? '[Message]' : content;
+  if (category.endsWith('_LOCATION')) {
+    return '[${l10n?.location ?? 'Location'}]';
+  }
+  if (category.endsWith('_TRANSCRIPT')) {
+    return '[${l10n?.transcript ?? 'Transcript'}]';
+  }
+  if (category == 'SYSTEM_SAFE_INSCRIPTION') {
+    return '[${l10n?.collectible ?? 'Collectible'}]';
+  }
+  return l10n?.messageNotSupport ?? 'Message not supported';
 }
 
 String? _nonEmpty(Object? value) {

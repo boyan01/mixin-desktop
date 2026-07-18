@@ -205,6 +205,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<String> dco_decode_StreamSink_String_Sse(dynamic raw);
+
+  @protected
+  RustStreamSink<bool> dco_decode_StreamSink_bool_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<BigInt> dco_decode_StreamSink_u_64_Sse(dynamic raw);
 
   @protected
@@ -226,10 +232,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool dco_decode_box_autoadd_bool(dynamic raw);
 
   @protected
+  double dco_decode_box_autoadd_f_64(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_i_32(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  PinMessagePreviewItem dco_decode_box_autoadd_pin_message_preview_item(
+    dynamic raw,
+  );
 
   @protected
   ProxySettingsItem dco_decode_box_autoadd_proxy_settings_item(dynamic raw);
@@ -247,6 +261,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CircleItem dco_decode_circle_item(dynamic raw);
 
   @protected
+  CodeResult dco_decode_code_result(dynamic raw);
+
+  @protected
   ConversationDetailItem dco_decode_conversation_detail_item(dynamic raw);
 
   @protected
@@ -256,6 +273,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ConversationParticipantItem dco_decode_conversation_participant_item(
     dynamic raw,
   );
+
+  @protected
+  ConversationStorageUsage dco_decode_conversation_storage_usage(dynamic raw);
+
+  @protected
+  double dco_decode_f_64(dynamic raw);
 
   @protected
   GroupAvatar dco_decode_group_avatar(dynamic raw);
@@ -291,6 +314,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_list_conversation_participant_item(dynamic raw);
 
   @protected
+  List<ConversationStorageUsage> dco_decode_list_conversation_storage_usage(
+    dynamic raw,
+  );
+
+  @protected
   List<GroupAvatar> dco_decode_list_group_avatar(dynamic raw);
 
   @protected
@@ -303,6 +331,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<MessageListView> dco_decode_list_message_list_view(dynamic raw);
+
+  @protected
+  List<NotificationMessageView> dco_decode_list_notification_message_view(
+    dynamic raw,
+  );
 
   @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
@@ -326,10 +359,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<StickerItem> dco_decode_list_sticker_item(dynamic raw);
 
   @protected
+  List<StorageCategoryUsage> dco_decode_list_storage_category_usage(
+    dynamic raw,
+  );
+
+  @protected
   List<UserProfileItem> dco_decode_list_user_profile_item(dynamic raw);
 
   @protected
   MessageListView dco_decode_message_list_view(dynamic raw);
+
+  @protected
+  NotificationMessageView dco_decode_notification_message_view(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -344,10 +385,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
 
   @protected
+  double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
+
+  @protected
   int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
 
   @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  PinMessagePreviewItem? dco_decode_opt_box_autoadd_pin_message_preview_item(
+    dynamic raw,
+  );
 
   @protected
   StickerAlbumItem? dco_decode_opt_box_autoadd_sticker_album_item(dynamic raw);
@@ -362,6 +411,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  PinMessagePreviewItem dco_decode_pin_message_preview_item(dynamic raw);
+
+  @protected
   ProxyItem dco_decode_proxy_item(dynamic raw);
 
   @protected
@@ -374,6 +426,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SharedAppItem dco_decode_shared_app_item(dynamic raw);
 
   @protected
+  SnapshotDetailItem dco_decode_snapshot_detail_item(dynamic raw);
+
+  @protected
   StickerAlbumItem dco_decode_sticker_album_item(dynamic raw);
 
   @protected
@@ -381,6 +436,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StickerItem dco_decode_sticker_item(dynamic raw);
+
+  @protected
+  StorageCategoryUsage dco_decode_storage_category_usage(dynamic raw);
 
   @protected
   int dco_decode_u_16(dynamic raw);
@@ -556,6 +614,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<String> sse_decode_StreamSink_String_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<bool> sse_decode_StreamSink_bool_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RustStreamSink<BigInt> sse_decode_StreamSink_u_64_Sse(
     SseDeserializer deserializer,
   );
@@ -579,10 +647,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
+  double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  PinMessagePreviewItem sse_decode_box_autoadd_pin_message_preview_item(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ProxySettingsItem sse_decode_box_autoadd_proxy_settings_item(
@@ -606,6 +682,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CircleItem sse_decode_circle_item(SseDeserializer deserializer);
 
   @protected
+  CodeResult sse_decode_code_result(SseDeserializer deserializer);
+
+  @protected
   ConversationDetailItem sse_decode_conversation_detail_item(
     SseDeserializer deserializer,
   );
@@ -619,6 +698,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ConversationParticipantItem sse_decode_conversation_participant_item(
     SseDeserializer deserializer,
   );
+
+  @protected
+  ConversationStorageUsage sse_decode_conversation_storage_usage(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
   GroupAvatar sse_decode_group_avatar(SseDeserializer deserializer);
@@ -656,6 +743,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   sse_decode_list_conversation_participant_item(SseDeserializer deserializer);
 
   @protected
+  List<ConversationStorageUsage> sse_decode_list_conversation_storage_usage(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<GroupAvatar> sse_decode_list_group_avatar(SseDeserializer deserializer);
 
   @protected
@@ -670,6 +762,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<MessageListView> sse_decode_list_message_list_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<NotificationMessageView> sse_decode_list_notification_message_view(
     SseDeserializer deserializer,
   );
 
@@ -701,12 +798,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<StickerItem> sse_decode_list_sticker_item(SseDeserializer deserializer);
 
   @protected
+  List<StorageCategoryUsage> sse_decode_list_storage_category_usage(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<UserProfileItem> sse_decode_list_user_profile_item(
     SseDeserializer deserializer,
   );
 
   @protected
   MessageListView sse_decode_message_list_view(SseDeserializer deserializer);
+
+  @protected
+  NotificationMessageView sse_decode_notification_message_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -721,10 +828,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
+  double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
   int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  PinMessagePreviewItem? sse_decode_opt_box_autoadd_pin_message_preview_item(
+    SseDeserializer deserializer,
+  );
 
   @protected
   StickerAlbumItem? sse_decode_opt_box_autoadd_sticker_album_item(
@@ -743,6 +858,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  PinMessagePreviewItem sse_decode_pin_message_preview_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ProxyItem sse_decode_proxy_item(SseDeserializer deserializer);
 
   @protected
@@ -759,6 +879,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SharedAppItem sse_decode_shared_app_item(SseDeserializer deserializer);
 
   @protected
+  SnapshotDetailItem sse_decode_snapshot_detail_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   StickerAlbumItem sse_decode_sticker_album_item(SseDeserializer deserializer);
 
   @protected
@@ -768,6 +893,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StickerItem sse_decode_sticker_item(SseDeserializer deserializer);
+
+  @protected
+  StorageCategoryUsage sse_decode_storage_category_usage(
+    SseDeserializer deserializer,
+  );
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -971,6 +1101,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_String_Sse(
+    RustStreamSink<String> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_bool_Sse(
+    RustStreamSink<bool> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_u_64_Sse(
     RustStreamSink<BigInt> self,
     SseSerializer serializer,
@@ -999,11 +1141,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_i_64(
     PlatformInt64 self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_pin_message_preview_item(
+    PinMessagePreviewItem self,
     SseSerializer serializer,
   );
 
@@ -1032,6 +1183,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_circle_item(CircleItem self, SseSerializer serializer);
 
   @protected
+  void sse_encode_code_result(CodeResult self, SseSerializer serializer);
+
+  @protected
   void sse_encode_conversation_detail_item(
     ConversationDetailItem self,
     SseSerializer serializer,
@@ -1048,6 +1202,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     ConversationParticipantItem self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_conversation_storage_usage(
+    ConversationStorageUsage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
   void sse_encode_group_avatar(GroupAvatar self, SseSerializer serializer);
@@ -1098,6 +1261,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_conversation_storage_usage(
+    List<ConversationStorageUsage> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_group_avatar(
     List<GroupAvatar> self,
     SseSerializer serializer,
@@ -1118,6 +1287,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_message_list_view(
     List<MessageListView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_notification_message_view(
+    List<NotificationMessageView> self,
     SseSerializer serializer,
   );
 
@@ -1161,6 +1336,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_storage_category_usage(
+    List<StorageCategoryUsage> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_user_profile_item(
     List<UserProfileItem> self,
     SseSerializer serializer,
@@ -1169,6 +1350,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_message_list_view(
     MessageListView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_notification_message_view(
+    NotificationMessageView self,
     SseSerializer serializer,
   );
 
@@ -1186,11 +1373,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_i_64(
     PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_pin_message_preview_item(
+    PinMessagePreviewItem? self,
     SseSerializer serializer,
   );
 
@@ -1216,6 +1412,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_pin_message_preview_item(
+    PinMessagePreviewItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_proxy_item(ProxyItem self, SseSerializer serializer);
 
   @protected
@@ -1234,6 +1436,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_shared_app_item(SharedAppItem self, SseSerializer serializer);
 
   @protected
+  void sse_encode_snapshot_detail_item(
+    SnapshotDetailItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_sticker_album_item(
     StickerAlbumItem self,
     SseSerializer serializer,
@@ -1247,6 +1455,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_sticker_item(StickerItem self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_storage_category_usage(
+    StorageCategoryUsage self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);

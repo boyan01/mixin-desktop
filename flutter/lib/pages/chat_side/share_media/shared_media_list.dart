@@ -39,8 +39,8 @@ class SharedMediaList extends StatefulWidget {
 class _SharedMediaListState extends State<SharedMediaList> {
   var _loadingMore = false;
   var _hasMore = true;
-  Object? _error;
-  List<MessageListEntry>? _messages;
+  var _initialized = false;
+  List<MessageListEntry> _messages = const [];
   StreamSubscription<BigInt>? _changes;
 
   @override
@@ -48,11 +48,12 @@ class _SharedMediaListState extends State<SharedMediaList> {
     super.didChangeDependencies();
     _changes ??= ChatSideScope.of(context).account.messageChanges().listen(
       (_) => unawaited(_refresh()),
-      onError: (Object exception) {
-        if (mounted) setState(() => _error = exception);
-      },
+      onError: (_) {},
     );
-    if (_messages == null && _error == null) unawaited(_load());
+    if (!_initialized) {
+      _initialized = true;
+      unawaited(_load());
+    }
   }
 
   @override
@@ -68,16 +69,16 @@ class _SharedMediaListState extends State<SharedMediaList> {
         oldWidget.pageSize == widget.pageSize) {
       return;
     }
-    _messages = null;
+    _messages = const [];
     _hasMore = true;
-    _error = null;
+    _initialized = true;
     unawaited(_load());
   }
 
   Future<void> _refresh() async {
     final scope = ChatSideScope.of(context);
     try {
-      final target = _messages?.length ?? widget.pageSize;
+      final target = _messages.isEmpty ? widget.pageSize : _messages.length;
       final result = <MessageListEntry>[];
       while (result.length < target) {
         final page = await scope.account.message().sharedMessages(
@@ -92,10 +93,9 @@ class _SharedMediaListState extends State<SharedMediaList> {
       if (!mounted) return;
       setState(() {
         _messages = result;
-        _error = null;
       });
-    } on Object catch (exception) {
-      if (mounted) setState(() => _error = exception);
+    } on Object {
+      return;
     }
   }
 
@@ -105,22 +105,20 @@ class _SharedMediaListState extends State<SharedMediaList> {
       final result = await scope.account.message().sharedMessages(
         conversationId: scope.conversation.id,
         kind: widget.kind,
-        offset: BigInt.from(_messages?.length ?? 0),
+        offset: BigInt.from(_messages.length),
         limit: BigInt.from(widget.pageSize),
       );
       if (!mounted) return;
       final loaded = result.map(MessageListEntry.fromRust).toList();
       setState(() {
-        _messages = [...?_messages, ...loaded];
+        _messages = [..._messages, ...loaded];
         _hasMore = loaded.length == widget.pageSize;
         _loadingMore = false;
-        _error = null;
       });
-    } on Object catch (error) {
+    } on Object {
       if (!mounted) return;
       setState(() {
         _loadingMore = false;
-        _error = error;
       });
     }
   }
@@ -136,14 +134,6 @@ class _SharedMediaListState extends State<SharedMediaList> {
   @override
   Widget build(BuildContext context) {
     final messages = _messages;
-    if (messages == null) {
-      if (_error != null) {
-        return Center(
-          child: TextButton(onPressed: _load, child: Text(_error.toString())),
-        );
-      }
-      return const Center(child: CircularProgressIndicator());
-    }
     if (messages.isEmpty) {
       return Center(
         child: Column(
@@ -203,13 +193,6 @@ class _SharedMediaListState extends State<SharedMediaList> {
                 ),
               ),
           ],
-          if (_loadingMore)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(12),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ),
         ],
       ),
     );
@@ -234,8 +217,7 @@ class _DateHeaderDelegate extends SliverPersistentHeaderDelegate {
     bool overlapsContent,
   ) => Container(
     color: context.theme.primary,
-    alignment: Alignment.centerLeft,
-    padding: const EdgeInsets.symmetric(horizontal: 10),
+    padding: const EdgeInsets.all(10),
     child: Text(
       DateFormat.yMMMd().format(date),
       style: TextStyle(color: context.theme.secondaryText, fontSize: 14),

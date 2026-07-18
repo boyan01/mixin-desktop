@@ -61,7 +61,6 @@ class MessageDatetimeAndStatus extends StatelessWidget {
               style: TextStyle(
                 color: effectiveColor,
                 fontSize: context.messageStyle.statusFontSize,
-                height: 1,
               ),
             ),
             if (isCurrentUser && !hideStatus) ...[
@@ -122,11 +121,9 @@ class MessageStatusIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final normalized = status.toUpperCase();
-    final effectiveColor =
-        color ??
-        (normalized == 'READ'
-            ? context.theme.accent
-            : context.theme.secondaryText);
+    final effectiveColor = normalized == 'READ'
+        ? context.theme.accent
+        : color ?? context.theme.secondaryText;
     final asset = switch (normalized) {
       'SENT' => MixinAssets.sent,
       'DELIVERED' => MixinAssets.delivered,
@@ -142,8 +139,6 @@ class MessageStatusIcon extends StatelessWidget {
     return SvgPicture.asset(
       asset,
       key: Key('message-status-$messageId'),
-      width: 14,
-      height: 12,
       colorFilter: ColorFilter.mode(effectiveColor, BlendMode.srcIn),
     );
   }

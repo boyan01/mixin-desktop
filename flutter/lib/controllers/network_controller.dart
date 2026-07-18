@@ -55,19 +55,18 @@ class NetworkController extends ChangeNotifier {
   Future<void> addProxy(ProxyItem proxy) => _mutate(
     (current) => ProxySettingsItem(
       enabled: current.enabled,
-      selectedProxyId: current.selectedProxyId ?? proxy.id,
+      selectedProxyId: current.selectedProxyId,
       proxies: [...current.proxies, proxy],
     ),
   );
 
   Future<void> deleteProxy(String id) => _mutate((current) {
     final proxies = current.proxies.where((proxy) => proxy.id != id).toList();
-    final selected = current.selectedProxyId == id
-        ? proxies.firstOrNull?.id
-        : current.selectedProxyId;
+    final selected = current.selectedProxyId ?? current.proxies.firstOrNull?.id;
+    final deletedSelected = selected == id;
     return ProxySettingsItem(
-      enabled: proxies.isNotEmpty && current.enabled,
-      selectedProxyId: selected,
+      enabled: !deletedSelected && proxies.isNotEmpty && current.enabled,
+      selectedProxyId: deletedSelected ? null : current.selectedProxyId,
       proxies: proxies,
     );
   });

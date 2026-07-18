@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mixin_desktop_ui/utils/system_fonts.dart';
 
 const mixinAccent = Color.fromRGBO(61, 117, 227, 1);
 const mixinSecondaryText = Color.fromRGBO(184, 189, 199, 1);
@@ -213,23 +214,13 @@ ThemeData buildMixinTheme(Brightness brightness) {
       ? darkMixinColors
       : lightMixinColors;
   return ThemeData(
-    brightness: brightness,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: colors.accent,
-      brightness: brightness,
-      primary: colors.accent,
-      surface: colors.primary,
-    ),
-    scaffoldBackgroundColor: colors.background,
-    fontFamilyFallback: const [
-      '-apple-system',
-      'BlinkMacSystemFont',
-      'Segoe UI',
-    ],
-    splashFactory: NoSplash.splashFactory,
-    dividerColor: colors.divider,
+    colorScheme: brightness == Brightness.dark
+        ? ColorScheme.dark(primary: colors.text)
+        : ColorScheme.light(primary: colors.text),
+    textSelectionTheme: TextSelectionThemeData(cursorColor: colors.accent),
+    useMaterial3: true,
     extensions: [colors],
-  );
+  ).withFallbackFonts();
 }
 
 extension MixinThemeContext on BuildContext {

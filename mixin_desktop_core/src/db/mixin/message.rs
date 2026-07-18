@@ -62,6 +62,7 @@ pub struct MessageListItem {
     pub sender_identity_number: String,
     pub sender_avatar_url: String,
     pub sender_is_verified: bool,
+    pub sender_membership: Option<String>,
     pub sender_relationship: String,
     pub sender_app_id: Option<String>,
     pub sender_is_scam: bool,
@@ -80,6 +81,7 @@ pub struct MessageListItem {
     pub media_status: MediaStatus,
     pub quote_message_id: Option<String>,
     pub quote_content: Option<String>,
+    pub quote_user_membership: Option<String>,
     pub caption: Option<String>,
     pub action: Option<String>,
     pub participant_id: Option<String>,
@@ -115,6 +117,7 @@ pub struct MessageListItem {
     pub shared_user_identity_number: Option<String>,
     pub shared_user_avatar_url: Option<String>,
     pub shared_user_is_verified: bool,
+    pub shared_user_membership: Option<String>,
     pub shared_user_app_id: Option<String>,
     pub sticker_asset_url: Option<String>,
     pub sticker_asset_width: Option<i32>,
@@ -132,7 +135,12 @@ pub struct ImageMessageItem {
     pub created_at: NaiveDateTime,
     pub media_url: String,
     pub media_name: Option<String>,
+    pub thumb_image: Option<String>,
     pub can_forward: bool,
+    pub user_id: String,
+    pub user_full_name: String,
+    pub user_identity_number: String,
+    pub avatar_url: String,
 }
 
 impl MessageListItem {
@@ -246,7 +254,68 @@ pub struct MiniMessageItem {
     pub conversation_id: String,
 }
 
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct NotificationMessageItem {
+    pub row_id: i64,
+    pub message_id: String,
+    pub conversation_id: String,
+    pub user_id: String,
+    pub sender_name: String,
+    pub category: String,
+    pub content: Option<String>,
+    pub quote_content: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub conversation_name: String,
+    pub conversation_category: String,
+    pub is_muted: bool,
+}
+
 impl MessageDao {
+    pub async fn notification_items_after(
+        &self,
+        current_user_id: &str,
+        after_created_at: NaiveDateTime,
+        after_row_id: i64,
+        limit: i64,
+    ) -> Result<Vec<NotificationMessageItem>, Error> {
+        Ok(sqlx::query_as::<_, NotificationMessageItem>(
+            r#"
+SELECT message.rowid AS row_id,
+       message.message_id,
+       message.conversation_id,
+       message.user_id,
+       COALESCE(sender.full_name, '') AS sender_name,
+       message.category,
+       message.content,
+       message.quote_content,
+       message.created_at,
+       CASE WHEN conversation.category = 'GROUP'
+            THEN conversation.name ELSE COALESCE(owner.full_name, '') END AS conversation_name,
+       COALESCE(conversation.category, '') AS conversation_category,
+       CASE WHEN conversation.category = 'GROUP'
+            THEN conversation.mute_until >= ?4
+            ELSE owner.mute_until >= ?4 END AS is_muted
+FROM messages message
+INNER JOIN conversations conversation
+        ON conversation.conversation_id = message.conversation_id
+INNER JOIN users owner ON owner.user_id = conversation.owner_id
+LEFT JOIN users sender ON sender.user_id = message.user_id
+WHERE message.user_id != ?1
+  AND (message.created_at > ?2
+       OR (message.created_at = ?2 AND message.rowid > ?3))
+ORDER BY message.created_at ASC, message.rowid ASC
+LIMIT ?
+            "#,
+        )
+        .bind(current_user_id)
+        .bind(after_created_at)
+        .bind(after_row_id)
+        .bind(Utc::now().naive_utc())
+        .bind(limit.clamp(1, 200))
+        .fetch_all(&self.0)
+        .await?)
+    }
+
     pub async fn unread_message_ids(
         &self,
         conversation_id: &str,
@@ -403,6 +472,7 @@ SELECT message.message_id,
        COALESCE(sender.identity_number, '') AS sender_identity_number,
        COALESCE(sender.avatar_url, '') AS sender_avatar_url,
        COALESCE(sender.is_verified, FALSE) AS sender_is_verified,
+       sender.membership AS sender_membership,
        COALESCE(sender.relationship, '') AS sender_relationship,
        sender.app_id AS sender_app_id,
        COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
@@ -421,6 +491,7 @@ SELECT message.message_id,
        message.media_status,
        message.quote_message_id,
        message.quote_content,
+       quote_user.membership AS quote_user_membership,
        message.caption,
        message.action,
        message.participant_id,
@@ -456,6 +527,7 @@ SELECT message.message_id,
        shared_user.identity_number AS shared_user_identity_number,
        shared_user.avatar_url AS shared_user_avatar_url,
        COALESCE(shared_user.is_verified, FALSE) AS shared_user_is_verified,
+       shared_user.membership AS shared_user_membership,
        shared_user.app_id AS shared_user_app_id,
        sticker.asset_url AS sticker_asset_url,
        sticker.asset_width AS sticker_asset_width,
@@ -474,6 +546,7 @@ LEFT JOIN users sender ON sender.user_id = message.user_id
 LEFT JOIN users participant ON participant.user_id = message.participant_id
 LEFT JOIN conversations conversation ON conversation.conversation_id = message.conversation_id
 LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
+LEFT JOIN users quote_user ON quote_user.user_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.user_id') END
 LEFT JOIN stickers sticker ON sticker.sticker_id = message.sticker_id
 LEFT JOIN snapshots snapshot ON snapshot.snapshot_id = message.snapshot_id
 LEFT JOIN safe_snapshots safe_snapshot ON safe_snapshot.snapshot_id = message.snapshot_id
@@ -522,6 +595,7 @@ SELECT message.message_id,
        COALESCE(sender.identity_number, '') AS sender_identity_number,
        COALESCE(sender.avatar_url, '') AS sender_avatar_url,
        COALESCE(sender.is_verified, FALSE) AS sender_is_verified,
+       sender.membership AS sender_membership,
        COALESCE(sender.relationship, '') AS sender_relationship,
        sender.app_id AS sender_app_id,
        COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
@@ -540,6 +614,7 @@ SELECT message.message_id,
        message.media_status,
        message.quote_message_id,
        message.quote_content,
+       quote_user.membership AS quote_user_membership,
        message.caption,
        message.action,
        message.participant_id,
@@ -575,6 +650,7 @@ SELECT message.message_id,
        shared_user.identity_number AS shared_user_identity_number,
        shared_user.avatar_url AS shared_user_avatar_url,
        COALESCE(shared_user.is_verified, FALSE) AS shared_user_is_verified,
+       shared_user.membership AS shared_user_membership,
        shared_user.app_id AS shared_user_app_id,
        sticker.asset_url AS sticker_asset_url,
        sticker.asset_width AS sticker_asset_width,
@@ -594,6 +670,7 @@ LEFT JOIN users sender ON sender.user_id = message.user_id
 LEFT JOIN users participant ON participant.user_id = message.participant_id
 LEFT JOIN conversations conversation ON conversation.conversation_id = message.conversation_id
 LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
+LEFT JOIN users quote_user ON quote_user.user_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.user_id') END
 LEFT JOIN stickers sticker ON sticker.sticker_id = message.sticker_id
 LEFT JOIN snapshots snapshot ON snapshot.snapshot_id = message.snapshot_id
 LEFT JOIN safe_snapshots safe_snapshot ON safe_snapshot.snapshot_id = message.snapshot_id
@@ -608,7 +685,7 @@ LEFT JOIN message_mentions mention ON mention.message_id = message.message_id
 LEFT JOIN expired_messages expired ON expired.message_id = message.message_id
 WHERE selected_pin.conversation_id = ?1
   AND message.conversation_id = ?1
-ORDER BY selected_pin.created_at DESC, message.message_id DESC
+ORDER BY message.created_at DESC, message.message_id DESC
             "#,
         )
         .bind(conversation_id)
@@ -669,6 +746,7 @@ SELECT message.message_id,
        COALESCE(sender.identity_number, '') AS sender_identity_number,
        COALESCE(sender.avatar_url, '') AS sender_avatar_url,
        COALESCE(sender.is_verified, FALSE) AS sender_is_verified,
+       sender.membership AS sender_membership,
        COALESCE(sender.relationship, '') AS sender_relationship,
        sender.app_id AS sender_app_id,
        COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
@@ -687,6 +765,7 @@ SELECT message.message_id,
        message.media_status,
        message.quote_message_id,
        message.quote_content,
+       quote_user.membership AS quote_user_membership,
        message.caption,
        message.action,
        message.participant_id,
@@ -722,6 +801,7 @@ SELECT message.message_id,
        shared_user.identity_number AS shared_user_identity_number,
        shared_user.avatar_url AS shared_user_avatar_url,
        COALESCE(shared_user.is_verified, FALSE) AS shared_user_is_verified,
+       shared_user.membership AS shared_user_membership,
        shared_user.app_id AS shared_user_app_id,
        sticker.asset_url AS sticker_asset_url,
        sticker.asset_width AS sticker_asset_width,
@@ -741,6 +821,7 @@ LEFT JOIN users sender ON sender.user_id = message.user_id
 LEFT JOIN users participant ON participant.user_id = message.participant_id
 LEFT JOIN conversations conversation ON conversation.conversation_id = message.conversation_id
 LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
+LEFT JOIN users quote_user ON quote_user.user_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.user_id') END
 LEFT JOIN stickers sticker ON sticker.sticker_id = message.sticker_id
 LEFT JOIN snapshots snapshot ON snapshot.snapshot_id = message.snapshot_id
 LEFT JOIN safe_snapshots safe_snapshot ON safe_snapshot.snapshot_id = message.snapshot_id
@@ -817,6 +898,7 @@ SELECT message.message_id,
        message.created_at,
        message.media_url,
        message.name AS media_name,
+       message.thumb_image,
        CASE
            WHEN message.status IN ('SENT', 'DELIVERED', 'READ')
             AND message.media_status IN ('DONE', 'READ')
@@ -824,8 +906,13 @@ SELECT message.message_id,
             AND COALESCE(json_extract(message.content, '$.shareable'), TRUE) != FALSE
            THEN TRUE ELSE FALSE
        END AS can_forward
+       ,message.user_id
+       ,COALESCE(user.full_name, '') AS user_full_name
+       ,COALESCE(user.identity_number, '') AS user_identity_number
+       ,COALESCE(user.avatar_url, '') AS avatar_url
 FROM image_window
 INNER JOIN messages message ON message.message_id = image_window.message_id
+LEFT JOIN users user ON user.user_id = message.user_id
 ORDER BY message.created_at ASC, message.message_id ASC
             "#,
         )
@@ -898,6 +985,22 @@ ORDER BY message.created_at ASC, message.message_id ASC
     pub async fn insert_outgoing_message(&self, message: &Message, job: &Job) -> Result<(), Error> {
         let mut transaction = self.0.begin().await?;
         Self::insert_outgoing_message_with(&mut transaction, message, job).await?;
+        transaction.commit().await?;
+        Ok(())
+    }
+
+    pub async fn insert_pending_outgoing_message(&self, message: &Message) -> Result<(), Error> {
+        let mut transaction = self.0.begin().await?;
+        insert_message_with(&mut *transaction, message).await?;
+        sqlx::query(
+            "UPDATE conversations SET last_message_id = ?, last_message_created_at = ?, \
+             draft = '' WHERE conversation_id = ?",
+        )
+        .bind(&message.message_id)
+        .bind(message.created_at.and_utc().timestamp_millis())
+        .bind(&message.conversation_id)
+        .execute(&mut *transaction)
+        .await?;
         transaction.commit().await?;
         Ok(())
     }
@@ -1072,6 +1175,82 @@ ORDER BY message.created_at ASC, message.message_id ASC
         .execute(&self.0)
         .await?;
         Ok(())
+    }
+
+    pub async fn complete_pending_attachment(
+        &self,
+        message_id: &str,
+        media_url: &str,
+        update: &AttachmentMessageUpdate,
+        job: &Job,
+    ) -> Result<bool, Error> {
+        let mut transaction = self.0.begin().await?;
+        let result = sqlx::query(
+            r#"UPDATE messages SET
+         status = ?, content = ?, media_url = ?, media_mime_type = ?, media_size = ?,
+         media_status = ?, media_width = ?, media_height = ?, media_digest = ?, media_key = ?,
+         media_waveform = ?, caption = ?, name = ?, thumb_image = ?, media_duration = ?
+          WHERE message_id = ? AND media_status = ?"#,
+        )
+        .bind(update.status)
+        .bind(&update.content)
+        .bind(media_url)
+        .bind(&update.media_mime_type)
+        .bind(update.media_size)
+        .bind(&update.media_status)
+        .bind(update.media_width)
+        .bind(update.media_height)
+        .bind(&update.media_digest)
+        .bind(&update.media_key)
+        .bind(&update.media_waveform)
+        .bind(&update.caption)
+        .bind(&update.name)
+        .bind(&update.thumb_image)
+        .bind(&update.media_duration)
+        .bind(message_id)
+        .bind(MediaStatus::Pending)
+        .execute(&mut *transaction)
+        .await?;
+        if result.rows_affected() == 0 {
+            transaction.rollback().await?;
+            return Ok(false);
+        }
+        Self::insert_job_with(&mut transaction, job).await?;
+        transaction.commit().await?;
+        Ok(true)
+    }
+
+    pub async fn complete_attachment_retry_if_pending(
+        &self,
+        message_id: &str,
+        update: &AttachmentMessageUpdate,
+    ) -> Result<bool, Error> {
+        let result = sqlx::query(
+            r#"UPDATE messages SET
+         status = ?, content = ?, media_mime_type = ?, media_size = ?, media_status = ?,
+         media_width = ?, media_height = ?, media_digest = ?, media_key = ?, media_waveform = ?,
+         caption = ?, name = ?, thumb_image = ?, media_duration = ?
+          WHERE message_id = ? AND media_status = ?"#,
+        )
+        .bind(update.status)
+        .bind(&update.content)
+        .bind(&update.media_mime_type)
+        .bind(update.media_size)
+        .bind(&update.media_status)
+        .bind(update.media_width)
+        .bind(update.media_height)
+        .bind(&update.media_digest)
+        .bind(&update.media_key)
+        .bind(&update.media_waveform)
+        .bind(&update.caption)
+        .bind(&update.name)
+        .bind(&update.thumb_image)
+        .bind(&update.media_duration)
+        .bind(message_id)
+        .bind(MediaStatus::Pending)
+        .execute(&self.0)
+        .await?;
+        Ok(result.rows_affected() > 0)
     }
 
     pub(crate) async fn update_sticker_message(

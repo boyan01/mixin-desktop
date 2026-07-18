@@ -16,7 +16,7 @@ class MessagePresentation {
     required bool isGroupOrBotGroupConversation,
     required bool enableShowAvatar,
   }) {
-    final isCurrentUser = row.message.senderId == currentUserId;
+    final isCurrentUser = row.message.senderRelationship.toUpperCase() == 'ME';
     final showAvatar = isGroupOrBotGroupConversation && enableShowAvatar;
     final showNip =
         !(row.sameUserNext && row.sameDayNext) &&
@@ -45,9 +45,9 @@ class MessagePresentation {
 bool resolveGroupOrBotGroupConversation({
   required MessageListEntry message,
   required bool isGroup,
-  required bool isBot,
+  required bool isBotGroup,
   required String conversationOwnerId,
 }) =>
     isGroup ||
     message.senderId != (message.conversationOwnerId ?? conversationOwnerId) ||
-    isBot;
+    isBotGroup;

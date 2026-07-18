@@ -1,13 +1,69 @@
+import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui';
+
+import 'package:desktop_webview_window/desktop_webview_window.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mixin_desktop_ui/app.dart';
 import 'package:mixin_desktop_ui/controllers/app_controller.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
+import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
 import 'package:mixin_desktop_ui/src/rust/frb_generated.dart';
+import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/utils/local_notification_center.dart';
+import 'package:mixin_desktop_ui/utils/app_logger.dart';
+import 'package:mixin_desktop_ui/utils/system_fonts.dart';
+import 'package:mixin_desktop_ui/widgets/web_view_navigation_bar.dart';
+import 'package:overlay_support/overlay_support.dart';
 import 'package:provider/provider.dart';
+import 'package:protocol_handler/protocol_handler.dart';
+import 'package:screen_retriever/screen_retriever.dart';
+import 'package:window_manager/window_manager.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initAppLogger();
+  await loadFallbackFonts();
+  if (runWebViewTitleBarWidget(
+    args,
+    builder: (context) => Theme(
+      data: buildMixinTheme(Brightness.light),
+      child: const Material(
+        color: Color(0xFFF0E7EA),
+        child: WebViewNavigationBar(),
+      ),
+    ),
+    backgroundColor: const Color(0xFFF0E7EA),
+  )) {
+    return;
+  }
+  FlutterError.onError = (details) {
+    writeAppLog('FlutterError: ${details.exception}\n${details.stack}');
+    FlutterError.presentError(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stackTrace) {
+    writeAppLog('Unhandled error: $error\n$stackTrace');
+    debugPrint('Unhandled error: $error\n$stackTrace');
+    return true;
+  };
+
+  unawaited(initNotificationListener());
+
+  await _initializeDesktopWindow();
+  if (defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.windows) {
+    await protocolHandler.register('mixin');
+  }
+  final initialProtocolUrl = defaultTargetPlatform == TargetPlatform.linux
+      ? args.firstOrNull
+      : await protocolHandler.getInitialUrl();
   await RustLib.init();
+  final logFilePath = appLogFilePath;
+  if (logFilePath != null) {
+    await initRustLogger(logFilePath: logFilePath);
+    rustLogEvents().listen(appendRustLogLine);
+  }
   final controller = AppController()..initialize();
   final settingsController = SettingsController();
   await settingsController.initialize();
@@ -17,7 +73,53 @@ Future<void> main() async {
         ChangeNotifierProvider.value(value: controller),
         ChangeNotifierProvider.value(value: settingsController),
       ],
-      child: const MixinDesktopApp(),
+      child: OverlaySupport.global(
+        child: MixinDesktopApp(initialProtocolUrl: initialProtocolUrl),
+      ),
     ),
   );
+
+  if (_isDesktop) {
+    Size? windowSize;
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      const defaultWindowSize = Size(1280, 750);
+      try {
+        final screen = await screenRetriever.getPrimaryDisplay();
+        final visibleSize = screen.visibleSize ?? screen.size;
+        windowSize = Size(
+          math.min(visibleSize.width, defaultWindowSize.width),
+          math.min(visibleSize.height, defaultWindowSize.height),
+        );
+      } on Object {
+        windowSize = defaultWindowSize;
+      }
+    }
+    await windowManager.waitUntilReadyToShow(
+      WindowOptions(
+        titleBarStyle: defaultTargetPlatform == TargetPlatform.macOS
+            ? TitleBarStyle.hidden
+            : null,
+        minimumSize: const Size(384, 480),
+        size: windowSize,
+        center: defaultTargetPlatform == TargetPlatform.windows ? true : null,
+      ),
+      () async {
+        await windowManager.show();
+        await windowManager.focus();
+      },
+    );
+  }
+}
+
+bool get _isDesktop =>
+    !kIsWeb &&
+    const {
+      TargetPlatform.linux,
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }.contains(defaultTargetPlatform);
+
+Future<void> _initializeDesktopWindow() async {
+  if (!_isDesktop) return;
+  await windowManager.ensureInitialized();
 }

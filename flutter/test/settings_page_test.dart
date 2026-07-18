@@ -19,6 +19,8 @@ const _profile = AccountProfile(
   biography: '',
   phone: '',
   createdAt: '',
+  isVerified: false,
+  fiatCurrency: 'USD',
 );
 
 void main() {
@@ -148,6 +150,8 @@ Future<void> _pumpSettings(
           body: SettingsPage(
             profile: _profile,
             onSignOut: onSignOut,
+            onProfileUpdated: (_, _) async {},
+            onProfileRefresh: () async => _profile,
             onClose: onClose,
           ),
         ),

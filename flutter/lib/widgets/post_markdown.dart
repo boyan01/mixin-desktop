@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/app_protocol_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 MarkdownConfig postMarkdownConfig(
@@ -41,7 +42,9 @@ MarkdownConfig postMarkdownConfig(
         ),
         onTap: (href) {
           final uri = Uri.tryParse(href);
-          if (uri != null) unawaited(launchUrl(uri));
+          if (uri != null && !AppProtocolHandler.maybeOpen(context, uri)) {
+            unawaited(launchUrl(uri));
+          }
         },
       ),
     ],

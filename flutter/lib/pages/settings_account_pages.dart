@@ -1,11 +1,21 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' show AccountProfile;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
+import 'package:mixin_desktop_ui/widgets/buttons.dart';
 import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
+import 'package:mixin_desktop_ui/widgets/toast.dart';
+import 'package:pin_code_fields/pin_code_fields.dart';
 
 typedef SaveProfileCallback =
     Future<void> Function(String fullName, String biography);
@@ -19,6 +29,7 @@ class EditProfileSettingsPage extends StatefulWidget {
     required this.phone,
     required this.avatarUrl,
     required this.onSave,
+    required this.onRefresh,
     super.key,
     this.createdAt,
     this.onBack,
@@ -32,6 +43,7 @@ class EditProfileSettingsPage extends StatefulWidget {
   final String avatarUrl;
   final DateTime? createdAt;
   final SaveProfileCallback onSave;
+  final Future<AccountProfile> Function() onRefresh;
   final VoidCallback? onBack;
 
   @override
@@ -43,7 +55,10 @@ class _EditProfileSettingsPageState extends State<EditProfileSettingsPage> {
   late final TextEditingController _nameController;
   late final TextEditingController _biographyController;
   late final TextEditingController _phoneController;
-  var _saving = false;
+  AccountProfile? _refreshedProfile;
+
+  DateTime? get _createdAt =>
+      DateTime.tryParse(_refreshedProfile?.createdAt ?? '') ?? widget.createdAt;
 
   @override
   void initState() {
@@ -51,6 +66,22 @@ class _EditProfileSettingsPageState extends State<EditProfileSettingsPage> {
     _nameController = TextEditingController(text: widget.fullName);
     _biographyController = TextEditingController(text: widget.biography);
     _phoneController = TextEditingController(text: widget.phone);
+    unawaited(_refresh());
+  }
+
+  Future<void> _refresh() async {
+    try {
+      final profile = await widget.onRefresh();
+      if (!mounted) return;
+      setState(() {
+        _refreshedProfile = profile;
+        _nameController.text = profile.fullName;
+        _biographyController.text = profile.biography;
+        _phoneController.text = profile.phone;
+      });
+    } on Object {
+      // Keep the cached profile when refreshing fails, matching the source.
+    }
   }
 
   @override
@@ -62,19 +93,12 @@ class _EditProfileSettingsPageState extends State<EditProfileSettingsPage> {
   }
 
   Future<void> _save() async {
-    if (_saving) return;
-    setState(() => _saving = true);
-    try {
-      await widget.onSave(
+    await runFutureWithToast(
+      widget.onSave(
         _nameController.text.trim(),
         _biographyController.text.trim(),
-      );
-      if (mounted) widget.onBack?.call();
-    } catch (_) {
-      if (mounted) _showFailure(context);
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+      ),
+    );
   }
 
   @override
@@ -86,17 +110,10 @@ class _EditProfileSettingsPageState extends State<EditProfileSettingsPage> {
           ? null
           : _BackButton(onPressed: widget.onBack!),
       actions: [
-        TextButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: context.theme.accent,
-                  ),
-                )
-              : Text(context.l10n.save),
+        MixinButton(
+          onTap: _save,
+          backgroundTransparent: true,
+          child: Center(child: Text(context.l10n.save)),
         ),
       ],
     ),
@@ -105,14 +122,14 @@ class _EditProfileSettingsPageState extends State<EditProfileSettingsPage> {
         children: [
           const SizedBox(height: 40),
           AvatarView(
-            userId: widget.userId,
-            name: widget.fullName,
-            avatarUrl: widget.avatarUrl,
+            userId: _refreshedProfile?.userId ?? widget.userId,
+            name: _refreshedProfile?.fullName ?? widget.fullName,
+            avatarUrl: _refreshedProfile?.avatarUrl ?? widget.avatarUrl,
             size: 100,
           ),
           const SizedBox(height: 10),
           SelectableText(
-            'Mixin ID: ${widget.identityNumber}',
+            'Mixin ID: ${_refreshedProfile?.identityNumber ?? widget.identityNumber}',
             style: TextStyle(
               fontSize: 14,
               color: context.dynamicColor(
@@ -141,10 +158,10 @@ class _EditProfileSettingsPageState extends State<EditProfileSettingsPage> {
           ),
           const SizedBox(height: 70),
           Text(
-            widget.createdAt == null
+            _createdAt == null
                 ? ''
                 : context.l10n.joinedIn(
-                    DateFormat.yMMMd().format(widget.createdAt!.toLocal()),
+                    DateFormat.yMMMd().format(_createdAt!.toLocal()),
                   ),
             style: TextStyle(fontSize: 14, color: context.theme.secondaryText),
           ),
@@ -218,13 +235,14 @@ class SecuritySettingsPage extends StatefulWidget {
   final Duration autoLockDuration;
   final Future<void> Function(String? passcode) onPasscodeChanged;
   final Future<bool> Function(bool enabled) onBiometricChanged;
-  final ValueChanged<Duration> onAutoLockChanged;
+  final Future<void> Function(Duration value) onAutoLockChanged;
 
   @override
   State<SecuritySettingsPage> createState() => _SecuritySettingsPageState();
 }
 
 class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
+  final autoLockKey = GlobalKey<PopupMenuButtonState<Duration>>();
   late bool _hasPasscode;
   late bool _biometricEnabled;
   late Duration _autoLockDuration;
@@ -243,9 +261,9 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
       if (mounted) setState(() => _hasPasscode = false);
       return;
     }
-    final passcode = await showDialog<String>(
+    final passcode = await showMixinDialog<String>(
       context: context,
-      builder: (context) => const _SetPasscodeDialog(),
+      child: const _SetPasscodeDialog(),
     );
     if (passcode == null) return;
     try {
@@ -262,7 +280,7 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
     if (accepted) {
       setState(() => _biometricEnabled = value);
     } else {
-      _showFailure(context);
+      _showFailure(context, context.l10n.notSupportBiometric);
     }
   }
 
@@ -275,80 +293,80 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
           ? null
           : _BackButton(onPressed: widget.onBack!),
     ),
-    body: SingleChildScrollView(
-      child: Column(
-        children: [
-          const SizedBox(height: 40),
-          CellGroup(
-            cellBackgroundColor: context.theme.settingCellBackgroundColor,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CellItem(
-                  title: Text(context.l10n.screenPasscode),
-                  trailing: SettingsSwitch(
-                    value: _hasPasscode,
-                    onChanged: _togglePasscode,
-                  ),
-                ),
-                if (_hasPasscode)
-                  CellItem(
-                    title: Text(context.l10n.autoLock),
-                    description: Text(
-                      _durationLabel(context, _autoLockDuration),
-                    ),
-                    onTap: _showAutoLockMenu,
-                  ),
-              ],
-            ),
-          ),
-          if (_hasPasscode)
+    body: ConstrainedBox(
+      constraints: const BoxConstraints.expand(),
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 40),
             CellGroup(
               cellBackgroundColor: context.theme.settingCellBackgroundColor,
-              child: CellItem(
-                title: Text(context.l10n.biometric),
-                trailing: SettingsSwitch(
-                  value: _biometricEnabled,
-                  onChanged: _toggleBiometric,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CellItem(
+                    title: Text(context.l10n.screenPasscode),
+                    trailing: SettingsSwitch(
+                      value: _hasPasscode,
+                      onChanged: _togglePasscode,
+                    ),
+                  ),
+                  if (_hasPasscode)
+                    CellItem(
+                      title: Text(context.l10n.autoLock),
+                      description: PopupMenuButton<Duration>(
+                        key: autoLockKey,
+                        color: Color.alphaBlend(
+                          context.theme.listSelected,
+                          context.theme.background,
+                        ),
+                        itemBuilder: (context) =>
+                            [
+                                  Duration.zero,
+                                  const Duration(minutes: 1),
+                                  const Duration(minutes: 5),
+                                  const Duration(hours: 1),
+                                  const Duration(hours: 5),
+                                ]
+                                .map(
+                                  (duration) => PopupMenuItem(
+                                    value: duration,
+                                    child: Text(
+                                      _durationLabel(context, duration),
+                                      style: TextStyle(
+                                        color: context.theme.text,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                        onSelected: (value) async {
+                          setState(() => _autoLockDuration = value);
+                          await widget.onAutoLockChanged(value);
+                        },
+                        child: Text(_durationLabel(context, _autoLockDuration)),
+                      ),
+                      onTap: () => autoLockKey.currentState?.showButtonMenu(),
+                    ),
+                ],
               ),
             ),
-        ],
+            if (_hasPasscode)
+              CellGroup(
+                cellBackgroundColor: context.theme.settingCellBackgroundColor,
+                child: CellItem(
+                  title: Text(context.l10n.biometric),
+                  trailing: SettingsSwitch(
+                    value: _biometricEnabled,
+                    onChanged: _toggleBiometric,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     ),
   );
-
-  Future<void> _showAutoLockMenu() async {
-    final value = await showMenu<Duration>(
-      context: context,
-      color: Color.alphaBlend(
-        context.theme.listSelected,
-        context.theme.background,
-      ),
-      position: const RelativeRect.fromLTRB(180, 140, 40, 0),
-      items:
-          [
-                Duration.zero,
-                const Duration(minutes: 1),
-                const Duration(minutes: 5),
-                const Duration(hours: 1),
-                const Duration(hours: 5),
-              ]
-              .map(
-                (duration) => PopupMenuItem(
-                  value: duration,
-                  child: Text(
-                    _durationLabel(context, duration),
-                    style: TextStyle(color: context.theme.text),
-                  ),
-                ),
-              )
-              .toList(),
-    );
-    if (value == null || !mounted) return;
-    setState(() => _autoLockDuration = value);
-    widget.onAutoLockChanged(value);
-  }
 }
 
 class BackupSettingsPage extends StatefulWidget {
@@ -410,84 +428,78 @@ class _BackupSettingsPageState extends State<BackupSettingsPage> {
       title: Text(context.l10n.chatBackup),
       leading: _BackButton(onPressed: widget.onBack),
     ),
-    body: SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.only(top: 40),
-        child: Column(
-          children: [
-            Icon(
-              Icons.cloud_upload_outlined,
-              size: 72,
-              color: context.theme.secondaryText.withValues(alpha: 0.4),
+    body: Container(
+      alignment: Alignment.topCenter,
+      padding: const EdgeInsets.only(top: 40),
+      child: Column(
+        children: [
+          SvgPicture.asset(
+            MixinAssets.chatBackup,
+            width: 88,
+            height: 58,
+            colorFilter: ColorFilter.mode(
+              context.theme.secondaryText.withValues(alpha: 0.4),
+              BlendMode.srcIn,
             ),
-            const SizedBox(height: 20),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  context.l10n.settingBackupTips,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: context.theme.secondaryText,
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: 500,
+            child: Text(
+              context.l10n.settingBackupTips,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                color: context.theme.secondaryText,
+              ),
+            ),
+          ),
+          const SizedBox(height: 30),
+          CellGroup(
+            cellBackgroundColor: context.theme.settingCellBackgroundColor,
+            child: CellItem(
+              title: Text(context.l10n.backup),
+              onTap: _backingUp ? null : _backup,
+            ),
+          ),
+          CellGroup(
+            cellBackgroundColor: context.theme.settingCellBackgroundColor,
+            child: Column(
+              children: [
+                CellItem(
+                  title: Text(context.l10n.autoBackup),
+                  trailing: SettingsSwitch(
+                    value: _autoBackup,
+                    onChanged: (value) {
+                      setState(() => _autoBackup = value);
+                      widget.onAutoBackupChanged(value);
+                    },
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 30),
-            CellGroup(
-              cellBackgroundColor: context.theme.settingCellBackgroundColor,
-              child: CellItem(
-                title: Text(context.l10n.backup),
-                onTap: _backingUp ? null : _backup,
-                trailing: _backingUp
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Arrow(),
-              ),
-            ),
-            CellGroup(
-              cellBackgroundColor: context.theme.settingCellBackgroundColor,
-              child: Column(
-                children: [
-                  CellItem(
-                    title: Text(context.l10n.autoBackup),
-                    trailing: SettingsSwitch(
-                      value: _autoBackup,
-                      onChanged: (value) {
-                        setState(() => _autoBackup = value);
-                        widget.onAutoBackupChanged(value);
-                      },
-                    ),
+                CellItem(
+                  title: Text(context.l10n.includeFiles),
+                  trailing: SettingsSwitch(
+                    value: _includeFiles,
+                    onChanged: (value) {
+                      setState(() => _includeFiles = value);
+                      widget.onIncludeFilesChanged(value);
+                    },
                   ),
-                  CellItem(
-                    title: Text(context.l10n.includeFiles),
-                    trailing: SettingsSwitch(
-                      value: _includeFiles,
-                      onChanged: (value) {
-                        setState(() => _includeFiles = value);
-                        widget.onIncludeFilesChanged(value);
-                      },
-                    ),
+                ),
+                CellItem(
+                  title: Text(context.l10n.includeVideos),
+                  trailing: SettingsSwitch(
+                    value: _includeVideos,
+                    onChanged: (value) {
+                      setState(() => _includeVideos = value);
+                      widget.onIncludeVideosChanged(value);
+                    },
                   ),
-                  CellItem(
-                    title: Text(context.l10n.includeVideos),
-                    trailing: SettingsSwitch(
-                      value: _includeVideos,
-                      onChanged: (value) {
-                        setState(() => _includeVideos = value);
-                        widget.onIncludeVideosChanged(value);
-                      },
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     ),
   );
@@ -514,34 +526,13 @@ class _AccountDeleteSettingsPageState extends State<AccountDeleteSettingsPage> {
   var _deleting = false;
 
   Future<void> _delete() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: context.theme.popUp,
-        title: Text(
-          context.l10n.deleteMyAccount,
-          style: TextStyle(color: context.theme.red),
-        ),
-        content: Text(
-          context.l10n.deleteAccountDetailHint,
-          style: TextStyle(color: context.theme.text),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              context.l10n.deleteMyAccount,
-              style: TextStyle(color: context.theme.red),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmMixinDialog(
+      context,
+      context.l10n.deleteMyAccount,
+      description: context.l10n.deleteAccountDetailHint,
+      positiveText: context.l10n.deleteMyAccount,
     );
-    if (confirmed != true || !mounted) return;
+    if (confirmed == null || !mounted) return;
     setState(() => _deleting = true);
     try {
       await widget.onDeleteAccount();
@@ -560,11 +551,12 @@ class _AccountDeleteSettingsPageState extends State<AccountDeleteSettingsPage> {
       leading: _BackButton(onPressed: widget.onBack),
     ),
     body: SingleChildScrollView(
-      child: Padding(
+      child: Container(
+        alignment: Alignment.topCenter,
         padding: const EdgeInsets.only(top: 50),
         child: Column(
           children: [
-            Icon(Icons.person_off_outlined, size: 72, color: context.theme.red),
+            SvgPicture.asset(MixinAssets.deleteAccount, width: 70, height: 72),
             const SizedBox(height: 20),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 380),
@@ -624,6 +616,7 @@ class _ProfileField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => _DynamicHorizontalPadding(
     child: Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -641,6 +634,8 @@ class _ProfileField extends StatelessWidget {
           maxLines: 10,
           minLines: 1,
           maxLength: maxLength,
+          contextMenuBuilder: (context, state) =>
+              MixinAdaptiveSelectionToolbar(editableTextState: state),
           style: TextStyle(
             fontSize: 16,
             color: readOnly ? context.theme.secondaryText : context.theme.text,
@@ -660,11 +655,16 @@ class _ProfileField extends StatelessWidget {
             border: _inputBorder,
             focusedBorder: _inputBorder,
             enabledBorder: _inputBorder,
+            hoverColor: Colors.transparent,
+            focusColor: Colors.transparent,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 20,
               vertical: 24,
             ),
-            counterStyle: TextStyle(color: context.theme.secondaryText),
+            counterStyle: TextStyle(
+              fontSize: 14,
+              color: context.theme.secondaryText,
+            ),
           ),
         ),
       ],
@@ -681,11 +681,25 @@ class _SetPasscodeDialog extends StatefulWidget {
 
 class _SetPasscodeDialogState extends State<_SetPasscodeDialog> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
   String? _passcode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_keepFocus);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _keepFocus());
+  }
+
+  void _keepFocus() {
+    if (mounted && !_focusNode.hasFocus) _focusNode.requestFocus();
+  }
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.removeListener(_keepFocus);
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -710,46 +724,57 @@ class _SetPasscodeDialogState extends State<_SetPasscodeDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    backgroundColor: context.theme.popUp,
-    contentPadding: const EdgeInsets.fromLTRB(72, 40, 72, 56),
-    content: SizedBox(
-      width: 376,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            _passcode == null
-                ? context.l10n.setPasscodeDesc
-                : context.l10n.confirmPasscodeDesc,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: context.theme.text,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 20, bottom: 80),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            const Spacer(),
+            Padding(
+              padding: const EdgeInsets.only(right: 12, top: 12),
+              child: MixinCloseButton(),
             ),
+          ],
+        ),
+        Text(
+          _passcode == null
+              ? context.l10n.setPasscodeDesc
+              : context.l10n.confirmPasscodeDesc,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: context.theme.text,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
           ),
-          const SizedBox(height: 40),
-          SizedBox(
-            width: 215,
-            child: TextField(
-              autofocus: true,
-              controller: _controller,
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              textAlign: TextAlign.center,
-              maxLength: 6,
-              style: TextStyle(
-                letterSpacing: 14,
-                fontSize: 22,
-                color: context.theme.text,
-              ),
-              decoration: const InputDecoration(counterText: ''),
-              onChanged: _submit,
+        ),
+        const SizedBox(height: 40),
+        SizedBox(
+          width: 215,
+          child: PinCodeTextField(
+            appContext: context,
+            length: 6,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            autoFocus: true,
+            controller: _controller,
+            focusNode: _focusNode,
+            keyboardType: TextInputType.number,
+            useHapticFeedback: true,
+            pinTheme: PinTheme(
+              activeColor: context.theme.text,
+              inactiveColor: context.theme.text,
+              selectedColor: context.theme.text,
+              fieldWidth: 15,
+              borderWidth: 2,
             ),
+            textStyle: TextStyle(fontSize: 18, color: context.theme.text),
+            autoDisposeControllers: false,
+            showCursor: false,
+            onCompleted: _submit,
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -760,10 +785,11 @@ class _BackButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => IconButton(
-    key: const ValueKey('settings-back'),
-    onPressed: onPressed,
-    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+  Widget build(BuildContext context) => Center(
+    child: MixinBackButton(
+      key: const ValueKey('settings-back'),
+      onTap: onPressed,
+    ),
   );
 }
 
@@ -830,9 +856,7 @@ String _durationLabel(BuildContext context, Duration duration) {
 }
 
 void _showFailure(BuildContext context, [String? message]) {
-  ScaffoldMessenger.maybeOf(
-    context,
-  )?.showSnackBar(SnackBar(content: Text(message ?? context.l10n.failed)));
+  showToastFailed(message ?? context.l10n.failed);
 }
 
 const _inputBorder = OutlineInputBorder(

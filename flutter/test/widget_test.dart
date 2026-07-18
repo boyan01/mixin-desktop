@@ -78,6 +78,7 @@ void main() {
           selectedConversationId: null,
           onQueryChanged: (value) => query = value,
           onToggleUnseen: () {},
+          onCreateActionSelected: (_) {},
           onSelected: (value) => selected = value,
           onPinned: (_) {},
           onMuted: (_, _) {},

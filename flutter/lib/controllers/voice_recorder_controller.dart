@@ -169,26 +169,14 @@ class VoiceRecorderController extends ValueNotifier<VoiceRecorderState> {
     }
     if (recording == null) return false;
     _transitioning = true;
-    _setState(
-      VoiceRecorderState(
-        status: VoiceRecorderStatus.sending,
-        elapsed: recording.duration,
-        recording: recording,
-      ),
-    );
+    _setState(const VoiceRecorderState.idle());
     try {
       await sender(recording);
       await _deleteFile(recording.path);
-      _setState(const VoiceRecorderState.idle());
       return true;
     } catch (error) {
       _setState(
-        VoiceRecorderState(
-          status: VoiceRecorderStatus.recorded,
-          elapsed: recording.duration,
-          recording: recording,
-          error: error,
-        ),
+        VoiceRecorderState(status: VoiceRecorderStatus.idle, error: error),
       );
       return false;
     } finally {

@@ -104,6 +104,10 @@ impl SignalDatabase {
         transaction.commit().await?;
         Ok(())
     }
+
+    pub async fn close(&self) {
+        self.pre_key_dao.0.close().await;
+    }
 }
 
 #[cfg(test)]

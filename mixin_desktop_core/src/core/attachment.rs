@@ -68,7 +68,12 @@ impl AttachmentService {
         message: &Message,
         extra: &AttachmentExtra,
     ) -> Result<AttachmentDownloadResult> {
-        self.download_to(message, extra, false, None).await
+        self.download_to(message, extra, false, None, None).await
+    }
+
+    pub async fn download_public(&self, url: &str) -> Result<Vec<u8>> {
+        let response = self.http_client.get(url).send().await?.error_for_status()?;
+        Ok(response.bytes().await?.to_vec())
     }
 
     pub async fn download_cancellable(
@@ -76,8 +81,9 @@ impl AttachmentService {
         message: &Message,
         extra: &AttachmentExtra,
         cancellation: &CancellationToken,
+        progress: &(dyn Fn(u64, u64) + Send + Sync),
     ) -> Result<AttachmentDownloadResult> {
-        self.download_to(message, extra, false, Some(cancellation))
+        self.download_to(message, extra, false, Some(cancellation), Some(progress))
             .await
     }
 
@@ -86,7 +92,7 @@ impl AttachmentService {
         message: &Message,
         extra: &AttachmentExtra,
     ) -> Result<AttachmentDownloadResult> {
-        self.download_to(message, extra, true, None).await
+        self.download_to(message, extra, true, None, None).await
     }
 
     pub async fn download_transcript_cancellable(
@@ -94,8 +100,9 @@ impl AttachmentService {
         message: &Message,
         extra: &AttachmentExtra,
         cancellation: &CancellationToken,
+        progress: &(dyn Fn(u64, u64) + Send + Sync),
     ) -> Result<AttachmentDownloadResult> {
-        self.download_to(message, extra, true, Some(cancellation))
+        self.download_to(message, extra, true, Some(cancellation), Some(progress))
             .await
     }
 
@@ -275,6 +282,7 @@ impl AttachmentService {
         extra: &AttachmentExtra,
         transcript: bool,
         cancellation: Option<&CancellationToken>,
+        progress: Option<&(dyn Fn(u64, u64) + Send + Sync)>,
     ) -> Result<AttachmentDownloadResult> {
         validate_message(message, extra)?;
         ensure_not_cancelled(cancellation)?;
@@ -318,7 +326,7 @@ impl AttachmentService {
             match (&message.media_key, &message.media_digest) {
                 (Some(key), Some(digest)) => {
                     validate_encryption_material(key, digest)?;
-                    self.download_to_file(&view_url, &download_temp, cancellation)
+                    self.download_to_file(&view_url, &download_temp, cancellation, progress)
                         .await?;
 
                     let input = download_temp.clone();
@@ -334,7 +342,7 @@ impl AttachmentService {
                     tokio::fs::remove_file(&download_temp).await?;
                 }
                 (None, None) => {
-                    self.download_to_file(&view_url, &output_temp, cancellation)
+                    self.download_to_file(&view_url, &output_temp, cancellation, progress)
                         .await?
                 }
                 _ => bail!("attachment key and digest must be provided together"),
@@ -374,6 +382,7 @@ impl AttachmentService {
         view_url: &reqwest::Url,
         path: &Path,
         cancellation: Option<&CancellationToken>,
+        progress: Option<&(dyn Fn(u64, u64) + Send + Sync)>,
     ) -> Result<()> {
         let request = self
             .http_client
@@ -388,7 +397,10 @@ impl AttachmentService {
             None => request.await?,
         }
         .error_for_status()?;
+        let total = response.content_length().unwrap_or_default();
+        progress.map(|callback| callback(0, total));
         let mut stream = response.bytes_stream();
+        let mut received = 0_u64;
         let mut file = tokio::fs::OpenOptions::new()
             .create_new(true)
             .write(true)
@@ -405,10 +417,14 @@ impl AttachmentService {
                 None => stream.next().await,
             };
             let Some(chunk) = chunk else { break };
-            file.write_all(&chunk?).await?;
+            let chunk = chunk?;
+            file.write_all(&chunk).await?;
+            received = received.saturating_add(chunk.len() as u64);
+            progress.map(|callback| callback(received, total));
         }
         file.flush().await?;
         file.sync_all().await?;
+        progress.map(|callback| callback(1, 1));
         Ok(())
     }
 }
@@ -462,7 +478,7 @@ fn validate_path_component(label: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
-fn attachment_path(account_data_dir: &Path, message: &Message) -> Result<PathBuf> {
+pub(crate) fn attachment_path(account_data_dir: &Path, message: &Message) -> Result<PathBuf> {
     let media_type = if message.category.is_image() {
         "Images"
     } else if message.category.is_video() {
@@ -482,7 +498,10 @@ fn attachment_path(account_data_dir: &Path, message: &Message) -> Result<PathBuf
         .join(format!("{}{}", message.message_id, suffix)))
 }
 
-fn transcript_attachment_path(account_data_dir: &Path, message: &Message) -> Result<PathBuf> {
+pub(crate) fn transcript_attachment_path(
+    account_data_dir: &Path,
+    message: &Message,
+) -> Result<PathBuf> {
     let suffix = attachment_suffix(message);
     Ok(account_data_dir
         .join("Media")
@@ -592,7 +611,7 @@ fn encrypt_attachment_file(input: &Path, output: &Path) -> Result<(Vec<u8>, Vec<
         cipher.encrypt_block(&mut block);
         writer.write_all(&block)?;
         hmac.update(&block);
-        digest_hasher.update(&block);
+        digest_hasher.update(block);
         previous.copy_from_slice(&block);
         if count < CBC_BLOCK_SIZE {
             break;
@@ -603,7 +622,7 @@ fn encrypt_attachment_file(input: &Path, output: &Path) -> Result<(Vec<u8>, Vec<
     writer.write_all(&mac)?;
     writer.flush()?;
     writer.get_ref().sync_all()?;
-    digest_hasher.update(&mac);
+    digest_hasher.update(mac);
     Ok((key, digest_hasher.finalize().to_vec()))
 }
 

@@ -13,7 +13,7 @@ use tokio::sync::watch;
 use crate::credential::Credential;
 use crate::{
     AccountApi, ApiError, AssetApi, AttachmentApi, CircleApi, ConversationApi, MessageApi,
-    ProvisioningApi, TokenApi, UserApi,
+    ProvisioningApi, SnapshotApi, TokenApi, UserApi,
 };
 
 pub struct Client {
@@ -27,6 +27,7 @@ pub struct Client {
     pub conversation_api: ConversationApi,
     pub circle_api: CircleApi,
     pub message_api: MessageApi,
+    pub snapshot_api: SnapshotApi,
 }
 
 impl Client {
@@ -47,6 +48,7 @@ impl Client {
             message_api: MessageApi {
                 client: inner.clone(),
             },
+            snapshot_api: SnapshotApi::new(inner.clone()),
         }
     }
 
@@ -60,6 +62,10 @@ impl Client {
     pub fn subscribe_authentication_errors(&self) -> watch::Receiver<bool> {
         self.inner.authentication_failed.subscribe()
     }
+
+    pub fn subscribe_server_error_codes(&self) -> watch::Receiver<Option<i64>> {
+        self.inner.server_error_code.subscribe()
+    }
 }
 
 pub(crate) struct ClientRef {
@@ -67,6 +73,7 @@ pub(crate) struct ClientRef {
     pub(crate) base_url: String,
     pub(crate) client: reqwest::Client,
     authentication_failed: watch::Sender<bool>,
+    server_error_code: watch::Sender<Option<i64>>,
 }
 
 const MIXIN_BASE_URL: &str = "https://api.mixin.one";
@@ -90,6 +97,7 @@ impl ClientRef {
                 .build()
                 .expect("failed to build Mixin HTTP client"),
             authentication_failed: watch::channel(false).0,
+            server_error_code: watch::channel(None).0,
         }
     }
 
@@ -105,6 +113,21 @@ impl ClientRef {
             .client
             .request(Method::GET, format!("{}/{}", self.base_url, path))
             .build()?;
+        self.request(request).await
+    }
+
+    pub(crate) async fn get_with_query<T>(
+        &self,
+        path: &str,
+        query: &[(&str, &str)],
+    ) -> Result<T, ApiError>
+    where
+        T: DeserializeOwned,
+    {
+        let mut url = reqwest::Url::parse(&format!("{}/{}", self.base_url, path))
+            .map_err(|error| anyhow!("invalid request url: {error}"))?;
+        url.query_pairs_mut().extend_pairs(query.iter().copied());
+        let request = self.client.request(Method::GET, url).build()?;
         self.request(request).await
     }
 
@@ -194,6 +217,12 @@ impl ClientRef {
                 )
             })?),
             MixinResponse::Error(err) => {
+                if matches!(
+                    err.code,
+                    crate::err::error_code::TIME_INACCURATE | crate::err::error_code::OLD_VERSION
+                ) {
+                    self.server_error_code.send_replace(Some(err.code));
+                }
                 if err.code == crate::err::error_code::AUTHENTICATION {
                     self.notify_authentication_failed();
                 }
@@ -240,5 +269,25 @@ pub mod tests {
         ));
         authentication_errors.changed().await.unwrap();
         assert!(*authentication_errors.borrow());
+    }
+
+    #[tokio::test]
+    async fn account_health_errors_notify_subscribers() {
+        let client = Client::new(Credential::None);
+        let mut server_errors = client.subscribe_server_error_codes();
+
+        let error = client
+            .inner
+            .parse_response::<Value>(
+                br#"{"error":{"status":400,"code":911,"description":"Clock"}}"#,
+            )
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ApiError::Server(crate::Error { code: 911, .. })
+        ));
+        server_errors.changed().await.unwrap();
+        assert_eq!(*server_errors.borrow(), Some(911));
     }
 }

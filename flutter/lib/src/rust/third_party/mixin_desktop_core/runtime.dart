@@ -29,6 +29,10 @@ abstract class AttachmentAccess implements RustOpaqueInterface {
     required String transcriptId,
     required String messageId,
   });
+
+  Future<void> retryAttachment({required String messageId});
+
+  Future<void> retryTranscriptAttachment({required String transcriptId});
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>>
@@ -63,7 +67,14 @@ abstract class ConversationAccess implements RustOpaqueInterface {
 
   Future<CircleItem> createCircle({required String name});
 
+  Future<String> createGroup({
+    required String name,
+    required List<String> userIds,
+  });
+
   Future<String?> currentUserRole({required String conversationId});
+
+  Future<void> deleteCircle({required String circleId});
 
   Future<void> deleteConversation({required String conversationId});
 
@@ -85,9 +96,17 @@ abstract class ConversationAccess implements RustOpaqueInterface {
 
   Future<List<GroupConversationItem>> groupsInCommon({required String userId});
 
+  Future<String> joinGroup({required String code});
+
   Future<ConversationDetailItem> localConversationDetail({
     required String conversationId,
   });
+
+  Future<String> openUserConversation({required String userId});
+
+  Future<void> reorderCircles({required List<String> circleIds});
+
+  Future<CodeResult> resolveCode({required String code});
 
   Future<void> rotateGroupInvite({required String conversationId});
 
@@ -113,6 +132,8 @@ abstract class ConversationAccess implements RustOpaqueInterface {
     required bool pinned,
   });
 
+  Future<void> updateCircle({required String circleId, required String name});
+
   Future<void> updateParticipants({
     required String conversationId,
     required String action,
@@ -127,6 +148,8 @@ abstract class MessageAccess implements RustOpaqueInterface {
     required String targetConversationId,
     required List<String> sourceMessageIds,
   });
+
+  Future<bool> conversationIsEncrypted({required String conversationId});
 
   Future<void> deleteMessages({
     required String conversationId,
@@ -166,6 +189,16 @@ abstract class MessageAccess implements RustOpaqueInterface {
     required PlatformInt64 after,
   });
 
+  Future<List<NotificationMessageView>> notificationMessages({
+    required PlatformInt64 afterCreatedAtMicros,
+    required PlatformInt64 afterRowId,
+    required PlatformInt64 limit,
+  });
+
+  Future<PinMessagePreviewItem?> pinMessagePreview({
+    required String conversationId,
+  });
+
   Future<List<MessageListView>> pinnedMessages({
     required String conversationId,
   });
@@ -175,6 +208,12 @@ abstract class MessageAccess implements RustOpaqueInterface {
     required List<String> messageIds,
   });
 
+  Future<List<MessageListView>> searchGlobalMessages({
+    required String query,
+    required int offset,
+    required int limit,
+  });
+
   Future<List<MessageListView>> searchMessages({
     required String conversationId,
     required String query,
@@ -182,6 +221,26 @@ abstract class MessageAccess implements RustOpaqueInterface {
     required List<String> categories,
     required int offset,
     required int limit,
+  });
+
+  Future<String> sendAppCard({
+    required String conversationId,
+    required String content,
+  });
+
+  Future<String> sendAttachment({
+    required String conversationId,
+    required String path,
+    required String kind,
+    required String mimeType,
+    String? name,
+    int? width,
+    int? height,
+    PlatformInt64? durationMillis,
+    String? thumbnail,
+    String? caption,
+    String? quoteMessageId,
+    required bool silent,
   });
 
   Future<String> sendAudio({
@@ -195,6 +254,23 @@ abstract class MessageAccess implements RustOpaqueInterface {
   Future<String> sendContact({
     required String conversationId,
     required String sharedUserId,
+    String? quoteMessageId,
+    required bool silent,
+  });
+
+  Future<String> sendPost({
+    required String conversationId,
+    required String content,
+  });
+
+  Future<String> sendRemoteImage({
+    required String conversationId,
+    required String url,
+    required String previewUrl,
+    int? width,
+    int? height,
+    required String mimeType,
+    required bool silent,
   });
 
   Future<String> sendSticker({
@@ -206,6 +282,7 @@ abstract class MessageAccess implements RustOpaqueInterface {
     required String conversationId,
     required String content,
     String? quoteMessageId,
+    required bool silent,
   });
 
   Future<void> setMessagePinned({
@@ -224,6 +301,10 @@ abstract class MessageAccess implements RustOpaqueInterface {
   Future<List<MessageListView>> transcriptMessages({
     required String transcriptId,
   });
+
+  Future<List<String>> unreadMentionMessageIds({
+    required String conversationId,
+  });
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<StickerAccess>>
@@ -240,7 +321,9 @@ abstract class StickerAccess implements RustOpaqueInterface {
 
   Future<List<StickerItem>> recentStickers();
 
-  Future<void> refreshStickers();
+  Future<void> refreshSticker({required String stickerId});
+
+  Future<bool> refreshStickers();
 
   Future<void> removeSticker({required String stickerId});
 
@@ -270,9 +353,23 @@ abstract class UserAccess implements RustOpaqueInterface {
 
   Future<List<SharedAppItem>> localSharedApps({required String userId});
 
+  Future<UserProfileItem?> refreshUserProfile({required String userId});
+
   Future<void> removeContact({required String userId});
 
   Future<void> reportUser({required String userId});
+
+  Future<List<UserProfileItem>> searchLocalUsers({
+    required String query,
+    required String category,
+    required PlatformInt64 limit,
+  });
+
+  Future<UserProfileItem?> searchMaoUser({required String query});
+
+  Future<UserProfileItem> searchUser({required String query});
+
+  Future<List<UserProfileItem>> selectableUsers();
 
   Future<List<SharedAppItem>> sharedApps({required String userId});
 

@@ -12,6 +12,9 @@ class MainFlutterWindow: NSWindow {
     self.styleMask.insert(.fullSizeContentView)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+    PlatformMenuPlugin.register(
+      with: flutterViewController.registrar(forPlugin: "PlatformMenuPlugin")
+    )
 
     super.awakeFromNib()
   }

@@ -8,6 +8,7 @@ use base64ct::{Base64, Encoding};
 use log::warn;
 use sdk::message_category::MessageCategory as _;
 
+use crate::db::mixin::job::Job;
 use crate::db::mixin::message::MediaStatus;
 
 use super::{model, validate_sticker_image, AccountState, StickerDetail, MAX_STICKER_FILE_SIZE};
@@ -67,10 +68,22 @@ impl StickerAccess {
         Ok(())
     }
 
-    pub async fn refresh_stickers(&self) -> Result<()> {
+    pub async fn refresh_stickers(&self) -> Result<bool> {
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
-        for album in self.client.account_api.get_sticker_albums().await? {
+        let existing_album_ids = self
+            .database
+            .sticker_dao
+            .system_store_albums()
+            .await?
+            .into_iter()
+            .map(|album| album.album_id)
+            .collect::<HashSet<_>>();
+        let albums = self.client.account_api.get_sticker_albums().await?;
+        let has_new_album = albums
+            .iter()
+            .any(|album| !existing_album_ids.contains(&album.album_id));
+        for album in albums {
             self.database.sticker_dao.insert_album(&album).await?;
             let stickers = match self
                 .client
@@ -96,7 +109,19 @@ impl StickerAccess {
                     .await?;
             }
         }
-        Ok(())
+        Ok(has_new_album)
+    }
+
+    pub async fn refresh_sticker(&self, sticker_id: String) -> Result<()> {
+        let sticker_id = sticker_id.as_str();
+        self.ensure_active()?;
+        if sticker_id.is_empty() {
+            return Ok(());
+        }
+        self.app_service
+            .job
+            .add(&Job::create_update_sticker_job(sticker_id))
+            .await
     }
 
     pub async fn recent_stickers(&self) -> Result<Vec<model::StickerItem>> {

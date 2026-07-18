@@ -1,12 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
+import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
 import 'package:mixin_desktop_ui/controllers/conversation_list_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
+import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
+import 'package:mixin_desktop_ui/widgets/toast.dart';
+import 'package:super_context_menu/super_context_menu.dart';
 
 class HomeSidebar extends StatelessWidget {
   const HomeSidebar({
@@ -104,24 +115,54 @@ class HomeSidebar extends StatelessWidget {
               if (controller.circles.isNotEmpty) const _Divider(),
               if (controller.circles.isNotEmpty) const SizedBox(height: 12),
               Expanded(
-                child: ListView.builder(
+                child: ReorderableListView.builder(
                   padding: EdgeInsets.zero,
+                  buildDefaultDragHandles: false,
+                  onReorderItem: (oldIndex, newIndex) => unawaited(
+                    _reorderCircles(context, controller, oldIndex, newIndex),
+                  ),
                   itemCount: controller.circles.length,
                   itemBuilder: (context, index) {
                     final circle = controller.circles[index];
-                    return Material(
-                      color: colors.primary,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: _CategoryItem(
-                          asset: MixinAssets.circle,
-                          iconColor: _circleColor(circle.circleId),
-                          title: circle.name,
-                          filter: ConversationCategoryFilter.circle,
-                          circleId: circle.circleId,
-                          controller: controller,
-                          collapsed: collapsed,
-                          onSelected: onCategorySelected,
+                    return Listener(
+                      key: ValueKey(circle.circleId),
+                      onPointerDown: (event) {
+                        if (event.buttons != kPrimaryButton) return;
+                        ReorderableList.maybeOf(context)?.startItemDragReorder(
+                          index: index,
+                          event: event,
+                          recognizer: ImmediateMultiDragGestureRecognizer(
+                            supportedDevices: const {
+                              PointerDeviceKind.touch,
+                              PointerDeviceKind.mouse,
+                            },
+                          ),
+                        );
+                      },
+                      child: ContextMenuWidget(
+                        desktopMenuWidgetBuilder:
+                            CustomDesktopMenuWidgetBuilder(),
+                        menuProvider: (_) => _circleMenu(
+                          context,
+                          controller,
+                          circle,
+                          onCategorySelected,
+                        ),
+                        child: Material(
+                          color: colors.primary,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: _CategoryItem(
+                              asset: MixinAssets.circle,
+                              iconColor: _circleColor(circle.circleId),
+                              title: circle.name,
+                              filter: ConversationCategoryFilter.circle,
+                              circleId: circle.circleId,
+                              controller: controller,
+                              collapsed: collapsed,
+                              onSelected: onCategorySelected,
+                            ),
+                          ),
                         ),
                       ),
                     );
@@ -148,6 +189,7 @@ class HomeSidebar extends StatelessWidget {
                   title: context.l10n.collapse,
                   selected: false,
                   count: 0,
+                  mutedCount: 0,
                   collapsed: collapsed,
                   onTap: onToggleCollapsed,
                 ),
@@ -159,6 +201,125 @@ class HomeSidebar extends StatelessWidget {
       ),
     );
   }
+
+  Menu _circleMenu(
+    BuildContext context,
+    ConversationListController controller,
+    rust.CircleItem circle,
+    VoidCallback onCategorySelected,
+  ) => Menu(
+    children: [
+      MenuAction(
+        image: MenuImage.icon(IconFonts.edit),
+        title: context.l10n.editCircleName,
+        callback: () => unawaited(_renameCircle(context, controller, circle)),
+      ),
+      MenuAction(
+        image: MenuImage.icon(IconFonts.manageCircle),
+        title: context.l10n.editConversations,
+        callback: () =>
+            unawaited(_manageCircleConversations(context, controller, circle)),
+      ),
+      MenuSeparator(),
+      MenuAction(
+        image: MenuImage.icon(IconFonts.delete),
+        title: context.l10n.deleteCircle,
+        attributes: const MenuActionAttributes(destructive: true),
+        callback: () => unawaited(
+          _deleteCircle(context, controller, circle, onCategorySelected),
+        ),
+      ),
+    ],
+  );
+
+  Future<void> _renameCircle(
+    BuildContext context,
+    ConversationListController controller,
+    rust.CircleItem circle,
+  ) async {
+    final name = await _showCircleNameDialog(context, circle.name);
+    if (name == null || !context.mounted) return;
+    try {
+      await controller.updateCircle(circle.circleId, name);
+    } on Object {
+      if (context.mounted) _showFailure(context);
+    }
+  }
+
+  Future<void> _reorderCircles(
+    BuildContext context,
+    ConversationListController controller,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    try {
+      await controller.reorderCircles(oldIndex, newIndex);
+    } on Object {
+      if (context.mounted) _showFailure(context);
+    }
+  }
+
+  Future<void> _manageCircleConversations(
+    BuildContext context,
+    ConversationListController controller,
+    rust.CircleItem circle,
+  ) async {
+    final result = await showConversationMultiSelector(
+      context,
+      account: controller.account,
+      title: circle.name,
+      category: ConversationCategoryFilter.chats,
+      initialCircleId: circle.circleId,
+      allowEmpty: true,
+      confirmedText: context.l10n.done,
+    );
+    if (result == null || !context.mounted) return;
+    try {
+      await controller.replaceCircleConversations(circle.circleId, result);
+    } on Object {
+      if (context.mounted) _showFailure(context);
+    }
+  }
+
+  Future<void> _deleteCircle(
+    BuildContext context,
+    ConversationListController controller,
+    rust.CircleItem circle,
+    VoidCallback onCategorySelected,
+  ) async {
+    final confirmed = await showConfirmMixinDialog(
+      context,
+      context.l10n.deleteTheCircle(circle.name),
+    );
+    if (confirmed == null || !context.mounted) return;
+    try {
+      await controller.deleteCircle(circle.circleId);
+      onCategorySelected();
+    } on Object {
+      if (context.mounted) _showFailure(context);
+    }
+  }
+}
+
+Future<String?> _showCircleNameDialog(
+  BuildContext context,
+  String initialName,
+) async {
+  final result = await showMixinDialog<String>(
+    context: context,
+    child: EditDialog(
+      editText: initialName,
+      title: Text(context.l10n.circles),
+      hintText: context.l10n.editCircleName,
+      positiveAction: context.l10n.edit,
+      maxLength: 64,
+    ),
+  );
+  return result?.trim().isEmpty == true ? null : result?.trim();
+}
+
+void _showFailure(BuildContext context) {
+  showToastFailed(null);
 }
 
 class _Divider extends StatelessWidget {
@@ -203,6 +364,7 @@ class _ProfileItem extends StatelessWidget {
     subtitle: controller.profile.identityNumber,
     selected: selected,
     count: 0,
+    mutedCount: 0,
     collapsed: collapsed,
     onTap: () {
       onTap();
@@ -242,6 +404,7 @@ class _CategoryItem extends StatelessWidget {
         (filter != ConversationCategoryFilter.circle ||
             controller.circleId == circleId),
     count: controller.countFor(filter, circle: circleId),
+    mutedCount: controller.mutedCountFor(filter, circle: circleId),
     collapsed: collapsed,
     iconColor: iconColor,
     onTap: () {
@@ -258,6 +421,7 @@ class _SidebarItem extends StatefulWidget {
     required this.title,
     required this.selected,
     required this.count,
+    required this.mutedCount,
     required this.collapsed,
     required this.onTap,
     this.asset,
@@ -273,6 +437,7 @@ class _SidebarItem extends StatefulWidget {
   final Color? iconColor;
   final bool selected;
   final int count;
+  final int mutedCount;
   final bool collapsed;
   final VoidCallback onTap;
 
@@ -282,10 +447,34 @@ class _SidebarItem extends StatefulWidget {
 
 class _SidebarItemState extends State<_SidebarItem> {
   bool hovering = false;
+  bool hoveringTooltip = false;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.mixinTheme;
+    final dynamicColor = Theme.of(context).brightness == Brightness.light
+        ? const Color.fromRGBO(51, 51, 51, 0.16)
+        : const Color.fromRGBO(255, 255, 255, 0.4);
+    final title = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          widget.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: colors.text, fontSize: 14),
+        ),
+        if (widget.subtitle != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            widget.subtitle!,
+            style: TextStyle(color: colors.secondaryText, fontSize: 12),
+          ),
+        ],
+      ],
+    );
+    final badge = _SidebarBadge(count: widget.count);
     final item = MouseRegion(
       onEnter: (_) => setState(() => hovering = true),
       onExit: (_) => setState(() => hovering = false),
@@ -323,34 +512,8 @@ class _SidebarItemState extends State<_SidebarItem> {
                         ),
                     if (!widget.collapsed) ...[
                       const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              widget.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: colors.text,
-                                fontSize: 14,
-                              ),
-                            ),
-                            if (widget.subtitle != null) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                widget.subtitle!,
-                                style: TextStyle(
-                                  color: colors.secondaryText,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      if (widget.count > 0) _SidebarBadge(count: widget.count),
+                      Expanded(child: title),
+                      if (widget.count > 0) badge,
                     ],
                   ],
                 ),
@@ -364,7 +527,9 @@ class _SidebarItemState extends State<_SidebarItem> {
                     height: 6,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: colors.red,
+                      color: widget.count == widget.mutedCount
+                          ? dynamicColor
+                          : colors.red,
                     ),
                   ),
                 ),
@@ -373,9 +538,39 @@ class _SidebarItemState extends State<_SidebarItem> {
         ),
       ),
     );
-    return widget.collapsed
-        ? Tooltip(message: widget.title, child: item)
-        : item;
+    return PortalTarget(
+      visible: widget.collapsed && (hovering || hoveringTooltip),
+      anchor: const Aligned(
+        follower: Alignment.centerLeft,
+        target: Alignment.centerRight,
+      ),
+      portalFollower: MouseRegion(
+        onEnter: (_) => setState(() => hoveringTooltip = true),
+        onExit: (_) => setState(() => hoveringTooltip = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: colors.background,
+                borderRadius: const BorderRadius.all(Radius.circular(8)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  title,
+                  if (widget.count > 0) ...[const SizedBox(width: 12), badge],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      child: item,
+    );
   }
 }
 

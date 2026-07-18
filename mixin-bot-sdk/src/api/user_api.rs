@@ -30,6 +30,12 @@ pub enum UserRelationship {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Membership {
+    pub plan: String,
+    pub expired_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct User {
     pub user_id: String,
     pub identity_number: String,
@@ -57,6 +63,8 @@ pub struct User {
     pub code_url: String,
     #[serde(default)]
     pub is_deactivated: bool,
+    #[serde(default)]
+    pub membership: Option<Membership>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -85,6 +93,10 @@ pub struct FavoriteApp {
 }
 
 impl UserApi {
+    pub async fn search(&self, query: &str) -> Result<User, ApiError> {
+        self.client.get(&format!("search/{query}")).await
+    }
+
     pub async fn get_user_by_id(&self, user_id: &str) -> Result<User, ApiError> {
         self.client.get(&format!("users/{user_id}")).await
     }

@@ -11,6 +11,81 @@ pub struct UserAccess {
 }
 
 impl UserAccess {
+    pub async fn search_mao_user(&self, query: String) -> Result<Option<model::UserProfileItem>> {
+        let query = query.trim();
+        let candidate = query.trim_end_matches('.');
+        if candidate.is_empty()
+            || candidate.chars().count() > 128
+            || candidate
+                .chars()
+                .all(|character| character.is_ascii_digit())
+            || candidate
+                .chars()
+                .any(|character| character.is_whitespace() || character.is_ascii_uppercase())
+        {
+            return Ok(None);
+        }
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        let user = self.client.user_api.search(query).await?;
+        let profile = self
+            .database
+            .user_dao
+            .insert_sdk_users(vec![user])
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow!("searched MAO user was not persisted"))?;
+        self.notify_conversation_changed();
+        Ok(Some(profile.into()))
+    }
+
+    pub async fn selectable_users(&self) -> Result<Vec<model::UserProfileItem>> {
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .user_dao
+            .selectable_users(&self.account_id)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn search_local_users(
+        &self,
+        query: String,
+        category: String,
+        limit: i64,
+    ) -> Result<Vec<model::UserProfileItem>> {
+        let query = query.trim();
+        if query.is_empty() || limit <= 0 {
+            return Ok(Vec::new());
+        }
+        let users = self
+            .database
+            .user_dao
+            .fuzzy_search_users(&self.account_id, query, limit.min(100))
+            .await?;
+        Ok(users
+            .into_iter()
+            .filter(|user| match category.as_str() {
+                "contacts" => {
+                    matches!(user.relationship, sdk::UserRelationship::Friend)
+                        && user.app_id.is_none()
+                }
+                "bots" => user.app_id.is_some(),
+                "strangers" => {
+                    matches!(user.relationship, sdk::UserRelationship::Stranger)
+                        && user.app_id.is_none()
+                }
+                "groups" => false,
+                _ => true,
+            })
+            .map(Into::into)
+            .collect())
+    }
+
     pub(crate) fn new(state: Arc<AccountState>) -> Self {
         Self { state }
     }
@@ -25,6 +100,30 @@ impl Deref for UserAccess {
 }
 
 impl UserAccess {
+    pub async fn search_user(&self, query: String) -> Result<model::UserProfileItem> {
+        let query = query.trim();
+        if query.chars().count() < 4
+            || !query.chars().enumerate().all(|(index, character)| {
+                character.is_ascii_digit() || (index == 0 && character == '+')
+            })
+        {
+            return Err(anyhow!("user search requires a Mixin ID or phone number"));
+        }
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        let user = self.client.user_api.search(query).await?;
+        let profile = self
+            .database
+            .user_dao
+            .insert_sdk_users(vec![user])
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow!("searched user was not persisted"))?;
+        self.notify_conversation_changed();
+        Ok(profile.into())
+    }
+
     pub async fn local_shared_apps(&self, user_id: String) -> Result<Vec<model::SharedAppItem>> {
         let user_id = user_id.as_str();
         self.ensure_active()?;
@@ -129,6 +228,25 @@ impl UserAccess {
                 .map(Into::into));
         }
         Ok(None)
+    }
+
+    pub async fn refresh_user_profile(
+        &self,
+        user_id: String,
+    ) -> Result<Option<model::UserProfileItem>> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        let users = self.client.user_api.get_users(&[user_id]).await?;
+        let profile = self
+            .database
+            .user_dao
+            .insert_sdk_users(users)
+            .await?
+            .into_iter()
+            .next()
+            .map(Into::into);
+        self.notify_conversation_changed();
+        Ok(profile)
     }
 
     pub async fn users_by_identity_numbers(

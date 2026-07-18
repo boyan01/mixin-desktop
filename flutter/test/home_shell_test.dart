@@ -476,7 +476,9 @@ class _FakeAccountHandle
     mentionCount: 0,
     isMuted: false,
     isVerified: true,
+    isScam: false,
     isBot: false,
+    isBotGroup: false,
     isPinned: false,
     relationship: 'FRIEND',
     identityNumber: '7000',
@@ -503,7 +505,9 @@ class _FakeAccountHandle
     mentionCount: 0,
     isMuted: false,
     isVerified: false,
+    isScam: false,
     isBot: false,
+    isBotGroup: false,
     isPinned: false,
     relationship: 'FRIEND',
     identityNumber: '7001',
@@ -669,6 +673,8 @@ class _FakeAccountHandle
     biography: '',
     phone: '',
     createdAt: '',
+    isVerified: false,
+    fiatCurrency: 'USD',
   );
 
   @override
@@ -676,6 +682,7 @@ class _FakeAccountHandle
     required String conversationId,
     required String content,
     String? quoteMessageId,
+    required bool silent,
   }) async {
     sentTexts.add(content);
     return 'message';

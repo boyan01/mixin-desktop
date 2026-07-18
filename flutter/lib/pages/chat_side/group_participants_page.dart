@@ -1,11 +1,22 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:mixin_desktop_ui/constants/assets.dart';
+import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
+import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
+import 'package:mixin_desktop_ui/widgets/custom_popup_menu.dart';
+import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
+import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
+import 'package:mixin_desktop_ui/widgets/search_text_field.dart';
+import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
 import 'package:mixin_desktop_ui/widgets/show_message_user_dialog.dart';
+import 'package:mixin_desktop_ui/widgets/toast.dart';
+import 'package:super_context_menu/super_context_menu.dart';
 
 import 'chat_side_scope.dart';
 import 'group_invite/group_invite_dialog.dart';
@@ -20,24 +31,24 @@ class GroupParticipantsPage extends StatefulWidget {
 class _GroupParticipantsPageState extends State<GroupParticipantsPage> {
   List<rust.ConversationParticipantItem> _participants = const [];
   bool _loading = true;
-  Object? _error;
   StreamSubscription<BigInt>? _changes;
+  final _searchController = TextEditingController();
+  String _keyword = '';
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _changes ??= ChatSideScope.of(context).account.conversationChanges().listen(
       (_) => unawaited(_load()),
-      onError: (Object error) {
-        if (mounted) setState(() => _error = error);
-      },
+      onError: (_) {},
     );
-    if (_loading && _participants.isEmpty && _error == null) unawaited(_load());
+    if (_loading && _participants.isEmpty) unawaited(_load());
   }
 
   @override
   void dispose() {
     unawaited(_changes?.cancel());
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -51,14 +62,10 @@ class _GroupParticipantsPageState extends State<GroupParticipantsPage> {
       setState(() {
         _participants = participants;
         _loading = false;
-        _error = null;
       });
-    } on Object catch (error) {
+    } on Object {
       if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = error;
-      });
+      setState(() => _loading = false);
     }
   }
 
@@ -68,17 +75,16 @@ class _GroupParticipantsPageState extends State<GroupParticipantsPage> {
     String? role,
   }) async {
     final scope = ChatSideScope.of(context);
-    await scope.account.conversation().updateParticipants(
-      conversationId: scope.conversation.id,
-      action: action,
-      userIds: userIds,
-      role: role,
+    final successful = await runFutureWithToast(
+      scope.account.conversation().updateParticipants(
+        conversationId: scope.conversation.id,
+        action: action,
+        userIds: userIds,
+        role: role,
+      ),
     );
-    if (!mounted) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (!successful || !mounted) return;
+    setState(() => _loading = true);
     await _load();
   }
 
@@ -94,6 +100,28 @@ class _GroupParticipantsPageState extends State<GroupParticipantsPage> {
     await _update('ADD', userIds);
   }
 
+  Future<void> _openParticipant(
+    rust.ConversationParticipantItem participant,
+  ) async {
+    final scope = ChatSideScope.of(context);
+    final result = await showMessageUserDialog(
+      context,
+      account: scope.account,
+      userId: participant.userId,
+    );
+    if (!context.mounted || !mounted || result == null) return;
+    await handleMessageUserDialogResult(
+      context,
+      account: scope.account,
+      result: result,
+      onSelectConversation: scope.onSelectConversation,
+      onSelectConversationInfo: (conversation) {
+        scope.onSelectConversation(conversation);
+        scope.notifier.openDestination(ConversationInfoDestination.infoPage);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scope = ChatSideScope.of(context);
@@ -105,12 +133,23 @@ class _GroupParticipantsPageState extends State<GroupParticipantsPage> {
       }
     }
     final canManage = current?.role == 'OWNER' || current?.role == 'ADMIN';
+    final keyword = _keyword.toLowerCase();
+    final participants = keyword.isEmpty
+        ? _participants
+        : _participants
+              .where(
+                (participant) =>
+                    participant.fullName.toLowerCase().contains(keyword) ||
+                    participant.identityNumber.contains(_keyword),
+              )
+              .toList(growable: false);
     return ChatSidePageScaffold(
       title: context.l10n.groupParticipants,
+      backgroundColor: context.theme.primary,
       actions: [
         if (canManage)
-          PopupMenuButton<_ParticipantAction>(
-            icon: const Icon(Icons.add),
+          CustomPopupMenuButton<_ParticipantAction>(
+            icon: MixinAssets.add,
             onSelected: (action) {
               switch (action) {
                 case _ParticipantAction.add:
@@ -126,266 +165,211 @@ class _GroupParticipantsPageState extends State<GroupParticipantsPage> {
               }
             },
             itemBuilder: (context) => [
-              PopupMenuItem(
+              CustomPopupMenuItem(
                 value: _ParticipantAction.add,
-                child: Text(context.l10n.addParticipants),
+                icon: MixinAssets.contextMenuSearchUser,
+                title: context.l10n.addParticipants,
               ),
-              PopupMenuItem(
+              CustomPopupMenuItem(
                 value: _ParticipantAction.inviteLink,
-                child: Text(context.l10n.inviteToGroupViaLink),
+                icon: MixinAssets.contextMenuLink,
+                title: context.l10n.inviteToGroupViaLink,
               ),
             ],
           ),
       ],
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? ChatSideError(error: _error!, onRetry: _load)
-          : ListView.builder(
-              itemCount: _participants.length,
-              itemBuilder: (context, index) {
-                final participant = _participants[index];
-                return ListTile(
-                  onTap: () => showMessageUserDialog(
-                    context,
-                    account: scope.account,
-                    userId: participant.userId,
-                  ),
-                  leading: AvatarView(
-                    userId: participant.userId,
-                    name: participant.fullName,
-                    avatarUrl: participant.avatarUrl,
-                    size: 44,
-                  ),
-                  title: Text(participant.fullName),
-                  subtitle: Text(participant.identityNumber),
-                  trailing:
-                      canManage &&
-                          participant.userId != scope.currentUserId &&
-                          (current?.role == 'OWNER' || participant.role == null)
-                      ? PopupMenuButton<String>(
-                          onSelected: (value) {
-                            switch (value) {
-                              case 'ADMIN':
-                                unawaited(
-                                  _update('ROLE', [
-                                    participant.userId,
-                                  ], role: 'ADMIN'),
-                                );
-                                break;
-                              case 'MEMBER':
-                                unawaited(
-                                  _update('ROLE', [participant.userId]),
-                                );
-                                break;
-                              case 'REMOVE':
-                                unawaited(
-                                  _update('REMOVE', [participant.userId]),
-                                );
-                                break;
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            if (current?.role == 'OWNER' &&
-                                participant.role != 'ADMIN')
-                              PopupMenuItem(
-                                value: 'ADMIN',
-                                child: Text(context.l10n.admin),
-                              ),
-                            if (current?.role == 'OWNER' &&
-                                participant.role == 'ADMIN')
-                              PopupMenuItem(
-                                value: 'MEMBER',
-                                child: Text(context.l10n.dismissAsAdmin),
-                              ),
-                            PopupMenuItem(
-                              value: 'REMOVE',
-                              child: Text(
-                                context.l10n.removeContact,
-                                style: const TextStyle(color: Colors.red),
-                              ),
-                            ),
-                          ],
-                        )
-                      : participant.role == null
-                      ? null
-                      : Text(
-                          participant.role!,
-                          style: TextStyle(
-                            color: context.theme.secondaryText,
-                            fontSize: 12,
-                          ),
-                        ),
-                );
-              },
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SearchTextField(
+              controller: _searchController,
+              hintText: context.l10n.settingAuthSearchHint,
+              autofocus: true,
+              onChanged: (value) => setState(() => _keyword = value.trim()),
             ),
+          ),
+          if (current != null)
+            Expanded(
+              child: ListView.builder(
+                itemCount: participants.length,
+                padding: const EdgeInsets.only(top: 8),
+                itemBuilder: (context, index) => _ParticipantTile(
+                  participant: participants[index],
+                  currentUser: current!,
+                  currentUserId: scope.currentUserId,
+                  keyword: _keyword,
+                  onOpen: _openParticipant,
+                  onUpdate: _update,
+                ),
+              ),
+            )
+          else
+            const SizedBox(),
+        ],
+      ),
     );
   }
 }
 
 enum _ParticipantAction { add, inviteLink }
 
+class _ParticipantTile extends StatelessWidget {
+  const _ParticipantTile({
+    required this.participant,
+    required this.currentUser,
+    required this.currentUserId,
+    required this.keyword,
+    required this.onOpen,
+    required this.onUpdate,
+  });
+
+  final rust.ConversationParticipantItem participant;
+  final rust.ConversationParticipantItem currentUser;
+  final String currentUserId;
+  final String keyword;
+  final ValueChanged<rust.ConversationParticipantItem> onOpen;
+  final Future<void> Function(String, List<String>, {String? role}) onUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    final tile = Material(
+      color: context.theme.primary,
+      child: InkWell(
+        onTap: () => onOpen(participant),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+          child: Row(
+            children: [
+              AvatarView(
+                userId: participant.userId,
+                name: participant.fullName,
+                avatarUrl: participant.avatarUrl,
+                size: 50,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: CustomText(
+                            participant.fullName.isEmpty
+                                ? '?'
+                                : participant.fullName,
+                            style: TextStyle(
+                              color: context.theme.text,
+                              fontSize: 16,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textMatchers: [
+                              EmojiTextMatcher(),
+                              KeyWordTextMatcher(
+                                keyword,
+                                style: TextStyle(color: context.theme.accent),
+                              ),
+                            ],
+                          ),
+                        ),
+                        BadgesWidget(
+                          verified: participant.isVerified,
+                          isBot: participant.isBot,
+                          membership: participant.membership,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      participant.identityNumber,
+                      style: TextStyle(
+                        color: context.theme.secondaryText,
+                        fontSize: 14,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (participant.role == 'OWNER')
+                _RoleLabel(context.l10n.owner)
+              else if (participant.role == 'ADMIN')
+                _RoleLabel(context.l10n.admin)
+              else
+                const SizedBox(width: 0),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (participant.userId == currentUserId) return tile;
+    return ContextMenuWidget(
+      desktopMenuWidgetBuilder: CustomDesktopMenuWidgetBuilder(),
+      menuProvider: (_) => Menu(
+        children: [
+          MenuAction(
+            image: MenuImage.icon(IconFonts.chat),
+            title: context.l10n.groupPopMenuMessage(participant.fullName),
+            callback: () => onOpen(participant),
+          ),
+          if (currentUser.role == 'OWNER') ...[
+            MenuSeparator(),
+            MenuAction(
+              image: MenuImage.icon(IconFonts.manageUser),
+              title: participant.role == 'ADMIN'
+                  ? context.l10n.dismissAsAdmin
+                  : context.l10n.makeGroupAdmin,
+              callback: () => onUpdate('ROLE', [
+                participant.userId,
+              ], role: participant.role == 'ADMIN' ? null : 'ADMIN'),
+            ),
+          ],
+          if ((currentUser.role != null && participant.role == null) ||
+              currentUser.role == 'OWNER') ...[
+            MenuSeparator(),
+            MenuAction(
+              image: MenuImage.icon(IconFonts.delete),
+              title: context.l10n.groupPopMenuRemove(participant.fullName),
+              callback: () => onUpdate('REMOVE', [participant.userId]),
+              attributes: const MenuActionAttributes(destructive: true),
+            ),
+          ],
+        ],
+      ),
+      child: tile,
+    );
+  }
+}
+
+class _RoleLabel extends StatelessWidget {
+  const _RoleLabel(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    label,
+    style: TextStyle(color: context.theme.secondaryText, fontSize: 14),
+  );
+}
+
 Future<List<String>?> _showParticipantSelector(
   BuildContext context, {
   required rust.AccountHandle account,
   required Set<String> excludedUserIds,
   required int maxSelect,
-}) => showDialog<List<String>>(
-  context: context,
-  builder: (context) => _ParticipantSelectorDialog(
+}) async {
+  final selected = await showConversationMultiSelector(
+    context,
     account: account,
-    excludedUserIds: excludedUserIds,
+    title: context.l10n.addParticipants,
+    filteredOwnerIds: excludedUserIds,
     maxSelect: maxSelect,
-  ),
-);
-
-class _ParticipantSelectorDialog extends StatefulWidget {
-  const _ParticipantSelectorDialog({
-    required this.account,
-    required this.excludedUserIds,
-    required this.maxSelect,
-  });
-
-  final rust.AccountHandle account;
-  final Set<String> excludedUserIds;
-  final int maxSelect;
-
-  @override
-  State<_ParticipantSelectorDialog> createState() =>
-      _ParticipantSelectorDialogState();
-}
-
-class _ParticipantSelectorDialogState
-    extends State<_ParticipantSelectorDialog> {
-  final searchController = TextEditingController();
-  final selected = <String>{};
-  Timer? debounce;
-  List<rust.ConversationListItem> contacts = const [];
-  bool loading = true;
-  Object? error;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_load());
-  }
-
-  @override
-  void dispose() {
-    debounce?.cancel();
-    searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      loading = true;
-      error = null;
-    });
-    try {
-      final count = await widget.account.conversation().conversationCount(
-        category: 'contacts',
-        circleId: null,
-        keyword: searchController.text.trim(),
-        unseenOnly: false,
-      );
-      final result = <rust.ConversationListItem>[];
-      while (result.length < count.toInt()) {
-        final page = await widget.account.conversation().conversations(
-          category: 'contacts',
-          circleId: null,
-          keyword: searchController.text.trim(),
-          unseenOnly: false,
-          limit: 200,
-          offset: result.length,
-        );
-        result.addAll(page);
-        if (page.length < 200) break;
-      }
-      if (!mounted) return;
-      setState(() {
-        contacts = result
-            .where((item) => !widget.excludedUserIds.contains(item.ownerId))
-            .toList();
-        loading = false;
-      });
-    } on Object catch (exception) {
-      if (!mounted) return;
-      setState(() {
-        loading = false;
-        error = exception;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(context.l10n.addParticipants),
-    content: SizedBox(
-      width: 420,
-      height: 520,
-      child: Column(
-        children: [
-          TextField(
-            controller: searchController,
-            autofocus: true,
-            onChanged: (_) {
-              debounce?.cancel();
-              debounce = Timer(const Duration(milliseconds: 300), _load);
-            },
-            decoration: InputDecoration(
-              hintText: context.l10n.search,
-              prefixIcon: const Icon(Icons.search),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: loading
-                ? const Center(child: CircularProgressIndicator())
-                : error != null
-                ? Center(child: Text(error.toString()))
-                : ListView.builder(
-                    itemCount: contacts.length,
-                    itemBuilder: (context, index) {
-                      final contact = contacts[index];
-                      final checked = selected.contains(contact.ownerId);
-                      return CheckboxListTile(
-                        value: checked,
-                        secondary: AvatarView(
-                          userId: contact.ownerId,
-                          name: contact.name,
-                          avatarUrl: contact.avatarUrl,
-                          size: 40,
-                        ),
-                        title: Text(contact.name),
-                        subtitle: Text(contact.identityNumber),
-                        onChanged: checked || selected.length < widget.maxSelect
-                            ? (_) => setState(() {
-                                if (checked) {
-                                  selected.remove(contact.ownerId);
-                                } else {
-                                  selected.add(contact.ownerId);
-                                }
-                              })
-                            : null,
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: Text(context.l10n.cancel),
-      ),
-      FilledButton(
-        onPressed: selected.isEmpty
-            ? null
-            : () => Navigator.pop(context, selected.toList()),
-        child: Text(context.l10n.confirm),
-      ),
-    ],
   );
+  return selected
+      ?.map((conversation) => conversation.ownerId)
+      .toList(growable: false);
 }

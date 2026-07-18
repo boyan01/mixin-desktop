@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
+import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
+import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 import 'package:mixin_desktop_ui/widgets/message_style.dart';
 
 class MessageName extends StatelessWidget {
@@ -11,7 +12,9 @@ class MessageName extends StatelessWidget {
     required this.userIdentityNumber,
     required this.verified,
     required this.isBot,
+    required this.membership,
     required this.showIdentityNumber,
+    required this.onTap,
     super.key,
   });
 
@@ -20,51 +23,52 @@ class MessageName extends StatelessWidget {
   final String userIdentityNumber;
   final bool verified;
   final bool isBot;
+  final String? membership;
   final bool showIdentityNumber;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => Align(
     alignment: Alignment.centerLeft,
-    child: Padding(
-      padding: const EdgeInsets.only(left: 10, bottom: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            child: Text(
+    child: InteractiveDecoratedBox(
+      onTap: onTap,
+      cursor: SystemMouseCursors.click,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 10, bottom: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CustomText(
               userName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: context.messageStyle.secondaryFontSize,
                 color: messageNameColor(userId),
               ),
             ),
-          ),
-          if (showIdentityNumber && userIdentityNumber != '0') ...[
-            const SizedBox(width: 2),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Text(
-                '@$userIdentityNumber',
-                style: TextStyle(
-                  fontSize: context.messageStyle.statusFontSize,
-                  color: context.theme.text.withValues(alpha: 0.5),
+            if (showIdentityNumber && userIdentityNumber != '0') ...[
+              const SizedBox(width: 2),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(
+                  '@$userIdentityNumber',
+                  style: TextStyle(
+                    fontSize: context.messageStyle.statusFontSize,
+                    color: context.theme.text.withValues(alpha: 0.5),
+                  ),
                 ),
+              ),
+            ],
+            Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: BadgesWidget(
+                verified: verified,
+                isBot: isBot,
+                membership: membership,
               ),
             ),
           ],
-          if (verified || isBot)
-            Padding(
-              padding: const EdgeInsets.only(left: 4, right: 4, bottom: 3),
-              child: SvgPicture.asset(
-                verified ? MixinAssets.verified : MixinAssets.botBadge,
-                width: 12,
-                height: 12,
-              ),
-            ),
-        ],
+        ),
       ),
     ),
   );

@@ -6,19 +6,27 @@ import 'dart:typed_data';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:filesize/filesize.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/attachment_status.dart';
+import 'package:mixin_desktop_ui/widgets/image_by_blur_hash.dart';
+import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 import 'package:mixin_desktop_ui/widgets/message_audio.dart';
+import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_layout.dart';
 import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
 import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
 import 'package:mixin_desktop_ui/widgets/post_markdown.dart';
 import 'package:provider/provider.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_item.dart';
+import 'package:mime/mime.dart';
+import 'package:path/path.dart' as p;
 
 typedef MessageEntryCallback = void Function(MessageListEntry message);
 
@@ -38,6 +46,7 @@ class MessageContent extends StatelessWidget {
     this.onOpenUser,
     this.onOpenMessage,
     this.onAction,
+    this.onAppAction,
     this.onOpenTranscript,
     this.onOpenSnapshot,
     this.onOpenImage,
@@ -51,8 +60,16 @@ class MessageContent extends StatelessWidget {
     this.onCancelAttachment,
     this.currentUserId,
     this.mentionNames = const {},
+    this.keyword = '',
     this.showNip = false,
     this.highlighted = false,
+    this.highlightOpacity = 0,
+    this.recalledText,
+    this.onReedit,
+    this.audioPlaylist = const [],
+    this.attachmentSentByCurrentUser,
+    this.isPinnedPage = false,
+    this.onPinnedMessageTap,
   });
 
   final MessageListEntry message;
@@ -63,6 +80,7 @@ class MessageContent extends StatelessWidget {
   final MessageStringCallback? onOpenUser;
   final MessageStringCallback? onOpenMessage;
   final MessageStringCallback? onAction;
+  final MessageActionCallback? onAppAction;
   final MessageStringCallback? onOpenTranscript;
   final MessageStringCallback? onOpenSnapshot;
   final MessageEntryCallback? onOpenImage;
@@ -76,13 +94,21 @@ class MessageContent extends StatelessWidget {
   final MessageEntryCallback? onCancelAttachment;
   final String? currentUserId;
   final Map<String, String> mentionNames;
+  final String keyword;
   final bool showNip;
   final bool highlighted;
+  final double highlightOpacity;
+  final String? recalledText;
+  final ValueChanged<String>? onReedit;
+  final List<MessageListEntry> audioPlaylist;
+  final bool? attachmentSentByCurrentUser;
+  final bool isPinnedPage;
+  final VoidCallback? onPinnedMessageTap;
 
   @override
   Widget build(BuildContext context) {
     final status = message.status.toUpperCase();
-    if (status == 'UNKNOWN') {
+    if (status == 'UNKNOWN' || message.isInvalidSpecialMessage) {
       final l10n = Localizations.of<AppLocalizations>(
         context,
         AppLocalizations,
@@ -121,7 +147,7 @@ class MessageContent extends StatelessWidget {
       );
     }
     if (message.category == 'MESSAGE_PIN') {
-      return PinMessageItem(message: message);
+      return PinMessageItem(message: message, mentionNames: mentionNames);
     }
     if (message.category == 'SECRET') {
       return SecretMessageItem(onOpenUri: onOpenUri);
@@ -154,10 +180,25 @@ class MessageContent extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Flexible(
-            child: Text(
-              isCurrentUser
-                  ? l10n?.youDeletedThisMessage ?? 'You deleted this message'
-                  : l10n?.thisMessageWasDeleted ?? 'This message was deleted',
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: isCurrentUser
+                        ? l10n?.youDeletedThisMessage ??
+                              'You deleted this message'
+                        : l10n?.thisMessageWasDeleted ??
+                              'This message was deleted',
+                  ),
+                  if (recalledText != null)
+                    TextSpan(
+                      text: ' ${l10n?.reedit ?? 'Re-edit'}',
+                      style: TextStyle(color: context.theme.accent),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () => onReedit?.call(recalledText!),
+                    ),
+                ],
+              ),
               style: TextStyle(
                 fontSize: context.messageFontSize(16),
                 color: context.theme.text,
@@ -168,10 +209,16 @@ class MessageContent extends StatelessWidget {
       );
     }
 
+    final quote = buildMessageQuotePreview(
+      message,
+      onOpenMessage: onOpenMessage,
+      mentionNames: mentionNames,
+    );
     Widget content;
     if (message.category.endsWith('_TRANSCRIPT')) {
       content = TranscriptMessageItem(
         message: message,
+        isCurrentUser: isCurrentUser,
         overlayDateAndStatus: overlayDateAndStatus,
         onOpenTranscript: onOpenTranscript,
       );
@@ -198,45 +245,65 @@ class MessageContent extends StatelessWidget {
     } else if (message.category.endsWith('_CONTACT')) {
       content = ContactMessageItem(message: message, onOpenUser: onOpenUser);
     } else if (message.category == 'APP_BUTTON_GROUP') {
-      content = AppButtonGroupMessageItem(message: message, onAction: onAction);
-    } else if (message.category == 'APP_CARD') {
-      content = AppCardMessageItem(
+      content = AppButtonGroupMessageItem(
         message: message,
-        onAction: onAction,
+        onAction: onAppAction,
         isCurrentUser: isCurrentUser,
         showNip: showNip,
         highlighted: highlighted,
+        highlightOpacity: highlightOpacity,
+        quote: quote,
+        isPinnedPage: isPinnedPage,
+        onPinnedMessageTap: onPinnedMessageTap,
+      );
+    } else if (message.category == 'APP_CARD') {
+      content = AppCardMessageItem(
+        message: message,
+        onAction: onAppAction,
+        isCurrentUser: isCurrentUser,
+        showNip: showNip,
+        highlighted: highlighted,
+        highlightOpacity: highlightOpacity,
         dateAndStatus: dateAndStatus,
+        quote: quote,
+        onOpenUri: onOpenUri,
+        onOpenIdentityNumber: onOpenIdentityNumber,
+        mentionNames: mentionNames,
+        keyword: keyword,
+        isPinnedPage: isPinnedPage,
+        onPinnedMessageTap: onPinnedMessageTap,
       );
     } else {
       content = _standardContent(context);
     }
-    final quote = message.quoteContent;
-    if (quote == null || quote.isEmpty) return content;
-    return IntrinsicWidth(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            width: message.isImage || message.isVideo ? 0 : null,
-            child: QuoteMessagePreview(
-              raw: quote,
-              messageId: message.quoteMessageId,
-              onOpenMessage: onOpenMessage,
-            ),
-          ),
-          content,
-        ],
-      ),
-    );
+    return content;
   }
 
   Widget _standardContent(BuildContext context) {
+    final attachmentIsCurrentUser =
+        attachmentSentByCurrentUser ?? isCurrentUser;
     if (message.isImage) {
+      if (message.mediaWidth == null || message.mediaHeight == null) {
+        final l10n = Localizations.of<AppLocalizations>(
+          context,
+          AppLocalizations,
+        );
+        final helpUri = Uri.tryParse(l10n?.chatNotSupportUrl ?? '');
+        return MessageLayout(
+          spacing: 6,
+          content: _UnknownMessage(
+            message: message,
+            onOpenHelp: helpUri == null || onOpenUri == null
+                ? null
+                : () => onOpenUri!(helpUri),
+          ),
+          dateAndStatus: dateAndStatus,
+        );
+      }
       return _ImageMessage(
         message: message,
-        dateAndStatus: dateAndStatus,
+        isCurrentUser: isCurrentUser,
+        sentByCurrentUser: attachmentIsCurrentUser,
         overlayDateAndStatus: overlayDateAndStatus,
         onOpen: onOpenImage,
         onDownloadAttachment: onDownloadAttachment,
@@ -244,24 +311,26 @@ class MessageContent extends StatelessWidget {
         onOpenUri: onOpenUri,
         onOpenIdentityNumber: onOpenIdentityNumber,
         mentionNames: mentionNames,
+        keyword: keyword,
       );
     }
     if (message.isVideo) {
       return _VideoMessage(
         message: message,
-        dateAndStatus: dateAndStatus,
+        isCurrentUser: isCurrentUser,
+        sentByCurrentUser: attachmentIsCurrentUser,
         overlayDateAndStatus: overlayDateAndStatus,
         onOpen: onOpenVideo,
         onDownloadAttachment: onDownloadAttachment,
         onCancelAttachment: onCancelAttachment,
         onOpenUri: onOpenUri,
-        onOpenIdentityNumber: onOpenIdentityNumber,
-        mentionNames: mentionNames,
       );
     }
     if (message.isAudio) {
       return AudioMessageWidget(
         message: message,
+        sentByCurrentUser: attachmentIsCurrentUser,
+        playlist: audioPlaylist,
         onMarkRead: onMarkAudioRead,
         onDownloadAttachment: onDownloadAttachment,
         onCancelAttachment: onCancelAttachment,
@@ -271,18 +340,19 @@ class MessageContent extends StatelessWidget {
       return _StickerMessage(message: message, onOpen: onOpenSticker);
     }
     if (message.category.endsWith('_DATA')) {
-      return _FileMessage(
+      return MessageFile(
         message: message,
+        sentByCurrentUser: attachmentIsCurrentUser,
         onOpen: onOpenFile,
         onDownloadAttachment: onDownloadAttachment,
         onCancelAttachment: onCancelAttachment,
       );
     }
     if (message.isPost) {
-      return MessageLayout(
-        spacing: 6,
-        content: _PostMessage(message: message, onOpen: onOpenPost),
-        dateAndStatus: dateAndStatus,
+      return MessagePost(
+        message: message,
+        onOpen: onOpenPost,
+        overlayDateAndStatus: overlayDateAndStatus,
       );
     }
     if (message.isText) {
@@ -292,6 +362,7 @@ class MessageContent extends StatelessWidget {
         onOpenUri: onOpenUri,
         onOpenIdentityNumber: onOpenIdentityNumber,
         mentionNames: mentionNames,
+        keyword: keyword,
       );
     }
     final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
@@ -316,6 +387,7 @@ class _TextMessage extends StatelessWidget {
     this.onOpenUri,
     this.onOpenIdentityNumber,
     this.mentionNames = const {},
+    this.keyword = '',
   });
 
   final MessageListEntry message;
@@ -323,6 +395,7 @@ class _TextMessage extends StatelessWidget {
   final MessageUriCallback? onOpenUri;
   final MessageStringCallback? onOpenIdentityNumber;
   final Map<String, String> mentionNames;
+  final String keyword;
 
   @override
   Widget build(BuildContext context) => MessageLayout(
@@ -332,6 +405,7 @@ class _TextMessage extends StatelessWidget {
       onOpenUri: onOpenUri,
       onOpenIdentityNumber: onOpenIdentityNumber,
       mentionNames: mentionNames,
+      keyword: keyword,
       style: TextStyle(
         fontSize: context.messageFontSize(16),
         color: context.theme.text,
@@ -344,7 +418,8 @@ class _TextMessage extends StatelessWidget {
 class _ImageMessage extends StatelessWidget {
   const _ImageMessage({
     required this.message,
-    required this.dateAndStatus,
+    required this.isCurrentUser,
+    required this.sentByCurrentUser,
     required this.overlayDateAndStatus,
     this.onOpen,
     this.onDownloadAttachment,
@@ -352,10 +427,12 @@ class _ImageMessage extends StatelessWidget {
     this.onOpenUri,
     this.onOpenIdentityNumber,
     this.mentionNames = const {},
+    this.keyword = '',
   });
 
   final MessageListEntry message;
-  final Widget dateAndStatus;
+  final bool isCurrentUser;
+  final bool sentByCurrentUser;
   final Widget overlayDateAndStatus;
   final MessageEntryCallback? onOpen;
   final MessageEntryCallback? onDownloadAttachment;
@@ -363,55 +440,34 @@ class _ImageMessage extends StatelessWidget {
   final MessageUriCallback? onOpenUri;
   final MessageStringCallback? onOpenIdentityNumber;
   final Map<String, String> mentionNames;
+  final String keyword;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final size = _mediaSize(
+      final size = _imageMessageSize(
         context,
         constraints,
         mediaWidth: message.mediaWidth,
         mediaHeight: message.mediaHeight,
-        maxWidth: 300,
-        minimumWidth: 200,
       );
-      final caption = message.caption?.trim() ?? '';
-      final image = _InteractiveMessageCard(
+      final caption = message.caption ?? '';
+      final hasCaption = caption.trim().isNotEmpty;
+      final image = MessageImage(
         message: message,
-        onTap: _attachmentAction(
-          message,
-          onOpen: onOpen,
-          onDownload: onDownloadAttachment,
-          onCancel: onCancelAttachment,
-        ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.all(Radius.circular(8)),
-          child: SizedBox.fromSize(
-            size: size,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                _MediaImage(
-                  message: message,
-                  fit: BoxFit.cover,
-                  placeholder: _MediaPlaceholder(category: message.category),
-                ),
-                _MediaStatusOverlay(status: message.mediaStatus),
-                if (caption.isEmpty)
-                  Positioned(
-                    right: 4,
-                    bottom: 4,
-                    child: _TimestampPill(child: overlayDateAndStatus),
-                  ),
-              ],
-            ),
-          ),
-        ),
+        size: size,
+        showStatus: !hasCaption,
+        isCurrentUser: isCurrentUser,
+        sentByCurrentUser: sentByCurrentUser,
+        overlayDateAndStatus: overlayDateAndStatus,
+        onOpen: onOpen,
+        onDownloadAttachment: onDownloadAttachment,
+        onCancelAttachment: onCancelAttachment,
       );
       return ConstrainedBox(
         key: Key('message-media-image-${message.id}'),
         constraints: BoxConstraints(maxWidth: size.width),
-        child: caption.isEmpty
+        child: !hasCaption
             ? image
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -422,19 +478,16 @@ class _ImageMessage extends StatelessWidget {
                       horizontal: 12,
                       vertical: 10,
                     ),
-                    child: MessageLayout(
-                      spacing: 6,
-                      content: SelectableMessageText(
-                        content: caption,
-                        onOpenUri: onOpenUri,
-                        onOpenIdentityNumber: onOpenIdentityNumber,
-                        mentionNames: mentionNames,
-                        style: TextStyle(
-                          color: context.theme.text,
-                          fontSize: context.messageFontSize(16),
-                        ),
+                    child: SelectableMessageText(
+                      content: caption,
+                      onOpenUri: onOpenUri,
+                      onOpenIdentityNumber: onOpenIdentityNumber,
+                      mentionNames: mentionNames,
+                      keyword: keyword,
+                      style: TextStyle(
+                        color: context.theme.text,
+                        fontSize: context.messageFontSize(16),
                       ),
-                      dateAndStatus: dateAndStatus,
                     ),
                   ),
                 ],
@@ -444,120 +497,215 @@ class _ImageMessage extends StatelessWidget {
   );
 }
 
+class MessageImage extends StatelessWidget {
+  const MessageImage({
+    required this.message,
+    required this.showStatus,
+    required this.isCurrentUser,
+    required this.sentByCurrentUser,
+    required this.overlayDateAndStatus,
+    this.size,
+    this.onOpen,
+    this.onDownloadAttachment,
+    this.onCancelAttachment,
+    super.key,
+  });
+
+  final MessageListEntry message;
+  final bool showStatus;
+  final bool isCurrentUser;
+  final bool sentByCurrentUser;
+  final Widget overlayDateAndStatus;
+  final Size? size;
+  final MessageEntryCallback? onOpen;
+  final MessageEntryCallback? onDownloadAttachment;
+  final MessageEntryCallback? onCancelAttachment;
+
+  @override
+  Widget build(BuildContext context) => _InteractiveMessageCard(
+    message: message,
+    onTap: _attachmentAction(
+      message,
+      onOpen: onOpen,
+      onDownload: onDownloadAttachment,
+      onCancel: onCancelAttachment,
+    ),
+    child: SizedBox.fromSize(
+      size: size,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _MediaImage(message: message, fit: BoxFit.cover),
+          Center(
+            child: MediaStatusOverlay(
+              messageId: message.id,
+              status: message.mediaStatus,
+              upload: sentByCurrentUser && message.mediaUrl?.isNotEmpty == true,
+            ),
+          ),
+          if (showStatus)
+            Positioned(
+              right: isCurrentUser ? 12 : 4,
+              bottom: 4,
+              child: _TimestampPill(child: overlayDateAndStatus),
+            ),
+          if (size != null && _needsImageExtendIcon(message, size!))
+            Positioned(
+              top: 8,
+              right: isCurrentUser ? 16 : 8,
+              child: const _PostDetailIcon(),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
 class _VideoMessage extends StatelessWidget {
   const _VideoMessage({
     required this.message,
-    required this.dateAndStatus,
+    required this.isCurrentUser,
+    required this.sentByCurrentUser,
     required this.overlayDateAndStatus,
     this.onOpen,
     this.onDownloadAttachment,
     this.onCancelAttachment,
     this.onOpenUri,
-    this.onOpenIdentityNumber,
-    this.mentionNames = const {},
   });
 
   final MessageListEntry message;
-  final Widget dateAndStatus;
+  final bool isCurrentUser;
+  final bool sentByCurrentUser;
   final Widget overlayDateAndStatus;
   final MessageEntryCallback? onOpen;
   final MessageEntryCallback? onDownloadAttachment;
   final MessageEntryCallback? onCancelAttachment;
   final MessageUriCallback? onOpenUri;
-  final MessageStringCallback? onOpenIdentityNumber;
-  final Map<String, String> mentionNames;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final size = _mediaSize(
-        context,
+      final size = _videoMessageSize(
         constraints,
         mediaWidth: message.mediaWidth,
         mediaHeight: message.mediaHeight,
-        maxWidth: 200,
-        minimumWidth: 120,
       );
-      final caption = message.caption?.trim() ?? '';
-      final preview = _InteractiveMessageCard(
+      final preview = MessageVideo(
         message: message,
-        onTap: _attachmentAction(
-          message,
-          onOpen: onOpen,
-          onDownload: onDownloadAttachment,
-          onCancel: onCancelAttachment,
-        ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.all(Radius.circular(8)),
-          child: SizedBox.fromSize(
-            size: size,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                _MediaImage(
-                  message: message,
-                  useMediaUrl: false,
-                  fit: BoxFit.cover,
-                  placeholder: _MediaPlaceholder(category: message.category),
-                ),
-                Center(
-                  child: _MediaStatusOverlay(
-                    status: message.mediaStatus,
-                    done: _StaticMediaIcon(category: message.category),
-                  ),
-                ),
-                Positioned(
-                  top: 6,
-                  left: 6,
-                  child: _MediaLabel(
-                    text: _formatDuration(message.mediaDuration),
-                  ),
-                ),
-                if (caption.isEmpty)
-                  Positioned(
-                    right: 4,
-                    bottom: 4,
-                    child: _TimestampPill(child: overlayDateAndStatus),
-                  ),
-              ],
-            ),
-          ),
-        ),
+        size: size,
+        isCurrentUser: isCurrentUser,
+        sentByCurrentUser: sentByCurrentUser,
+        overlayDateAndStatus: overlayDateAndStatus,
+        onOpen: onOpen,
+        onDownloadAttachment: onDownloadAttachment,
+        onCancelAttachment: onCancelAttachment,
+        onOpenUri: onOpenUri,
       );
       return ConstrainedBox(
         key: Key('message-media-video-${message.id}'),
         constraints: BoxConstraints(maxWidth: size.width),
-        child: caption.isEmpty
-            ? preview
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  preview,
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    child: MessageLayout(
-                      spacing: 6,
-                      content: SelectableMessageText(
-                        content: caption,
-                        onOpenUri: onOpenUri,
-                        onOpenIdentityNumber: onOpenIdentityNumber,
-                        mentionNames: mentionNames,
-                        style: TextStyle(
-                          color: context.theme.text,
-                          fontSize: context.messageFontSize(16),
-                        ),
-                      ),
-                      dateAndStatus: dateAndStatus,
-                    ),
-                  ),
-                ],
-              ),
+        child: preview,
       );
     },
   );
+}
+
+class MessageVideo extends StatelessWidget {
+  const MessageVideo({
+    required this.message,
+    required this.isCurrentUser,
+    required this.sentByCurrentUser,
+    required this.overlayDateAndStatus,
+    this.size,
+    this.overlay,
+    this.onOpen,
+    this.onDownloadAttachment,
+    this.onCancelAttachment,
+    this.onOpenUri,
+    super.key,
+  });
+
+  final MessageListEntry message;
+  final bool isCurrentUser;
+  final bool sentByCurrentUser;
+  final Widget overlayDateAndStatus;
+  final Size? size;
+  final Widget? overlay;
+  final MessageEntryCallback? onOpen;
+  final MessageEntryCallback? onDownloadAttachment;
+  final MessageEntryCallback? onCancelAttachment;
+  final MessageUriCallback? onOpenUri;
+
+  @override
+  Widget build(BuildContext context) => _InteractiveMessageCard(
+    message: message,
+    onTap: _videoAction,
+    child: SizedBox.fromSize(
+      size: size,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          _MediaImage(message: message, useMediaUrl: false, fit: BoxFit.cover),
+          if (message.thumbUrl?.trim().isNotEmpty == true)
+            _imageForSource(
+                  message.thumbUrl,
+                  fit: BoxFit.cover,
+                  allowEmbeddedData: false,
+                  errorBuilder: const SizedBox.shrink(),
+                ) ??
+                const SizedBox.shrink(),
+          overlay ??
+              Stack(
+                fit: StackFit.expand,
+                children: [
+                  Center(
+                    child: MediaStatusOverlay(
+                      messageId: message.id,
+                      status: message.mediaStatus,
+                      upload:
+                          sentByCurrentUser &&
+                          message.mediaUrl?.isNotEmpty == true,
+                      done: SvgPicture.asset(
+                        MixinAssets.videoPlay,
+                        width: 38,
+                        height: 38,
+                      ),
+                    ),
+                  ),
+                  if (message.isVideo)
+                    Positioned(
+                      top: 6,
+                      left: isCurrentUser ? 6 : 14,
+                      child: _MediaLabel(
+                        text: formatMessageDuration(message.mediaDuration),
+                      ),
+                    ),
+                  Positioned(
+                    right: isCurrentUser ? 12 : 4,
+                    bottom: 4,
+                    child: _TimestampPill(child: overlayDateAndStatus),
+                  ),
+                ],
+              ),
+        ],
+      ),
+    ),
+  );
+
+  void _videoAction(MessageListEntry _) {
+    switch (message.mediaStatus.toUpperCase()) {
+      case 'CANCELED':
+        onDownloadAttachment?.call(message);
+      case 'PENDING':
+        onCancelAttachment?.call(message);
+      case 'DONE':
+        onOpen?.call(message);
+      default:
+        if (!message.isLive || onOpenUri == null) return;
+        final uri = Uri.tryParse(message.mediaUrl?.trim() ?? '');
+        if (uri != null) onOpenUri!(uri);
+    }
+  }
 }
 
 class _StickerMessage extends StatelessWidget {
@@ -572,27 +720,32 @@ class _StickerMessage extends StatelessWidget {
       context,
       message.stickerAssetWidth ?? message.mediaWidth,
       message.stickerAssetHeight ?? message.mediaHeight,
+      message.stickerAssetType,
     );
-    final placeholder = _MediaPlaceholder(category: message.category);
+    final placeholder = Container(
+      width: size.width,
+      height: size.height,
+      color: context.theme.stickerPlaceholderColor,
+    );
     final assetUrl = message.stickerAssetUrl ?? message.mediaUrl;
     final sticker = assetUrl == null || assetUrl.isEmpty
         ? null
         : _StickerAsset(
             source: assetUrl,
             assetType: message.stickerAssetType,
+            stickerId: message.stickerId,
             placeholder: placeholder,
+            size: size,
           );
-    final child = SizedBox.fromSize(
-      key: Key('message-media-sticker-${message.id}'),
-      size: size,
-      child: sticker ?? placeholder,
-    );
+    final child = sticker == null
+        ? placeholder
+        : SizedBox.fromSize(
+            key: Key('message-media-sticker-${message.id}'),
+            size: size,
+            child: sticker,
+          );
     if (onOpen == null || message.stickerId?.isNotEmpty != true) return child;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => onOpen!(message),
-      child: MouseRegion(cursor: SystemMouseCursors.click, child: child),
-    );
+    return InteractiveDecoratedBox(onTap: () => onOpen!(message), child: child);
   }
 }
 
@@ -600,152 +753,218 @@ class _StickerAsset extends StatelessWidget {
   const _StickerAsset({
     required this.source,
     required this.assetType,
+    required this.stickerId,
     required this.placeholder,
+    required this.size,
   });
 
   final String source;
   final String? assetType;
+  final String? stickerId;
   final Widget placeholder;
+  final Size size;
 
   @override
   Widget build(BuildContext context) => StickerItem(
     assetUrl: source,
     assetType: assetType,
+    stickerId: stickerId,
     errorWidget: placeholder,
+    width: size.width,
+    height: size.height,
   );
 }
 
-class _FileMessage extends StatelessWidget {
-  const _FileMessage({
+class MessageFile extends StatelessWidget {
+  const MessageFile({
     required this.message,
+    this.sentByCurrentUser,
     this.onOpen,
     this.onDownloadAttachment,
     this.onCancelAttachment,
+    super.key,
   });
 
   final MessageListEntry message;
+  final bool? sentByCurrentUser;
   final MessageEntryCallback? onOpen;
   final MessageEntryCallback? onDownloadAttachment;
   final MessageEntryCallback? onCancelAttachment;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
-    final name = _mediaName(message, l10n?.file ?? 'File');
-    final extension = _fileExtension(name, message.mediaMimeType);
+    final name = message.mediaName ?? '';
+    final extension = _fileExtension(name);
     final action = _attachmentAction(
       message,
       onOpen: onOpen,
       onDownload: onDownloadAttachment,
       onCancel: onCancelAttachment,
     );
-    return _InteractiveMessageCard(
-      message: message,
-      onTap: action,
-      child: ConstrainedBox(
+    final isCurrentUser =
+        sentByCurrentUser ?? message.senderRelationship.toUpperCase() == 'ME';
+    return InteractiveDecoratedBox(
+      onTap: action == null ? null : () => action(message),
+      child: Row(
         key: Key('message-media-file-${message.id}'),
-        constraints: const BoxConstraints(maxWidth: 300, minWidth: 180),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          switch (message.mediaStatus.toUpperCase()) {
+            'CANCELED' =>
+              isCurrentUser && message.mediaUrl?.isNotEmpty == true
+                  ? const AttachmentStatusUpload()
+                  : const AttachmentStatusDownload(),
+            'PENDING' => AttachmentStatusPending(messageId: message.id),
+            'EXPIRED' => const AttachmentStatusWarning(),
+            _ => Container(
+              width: 38,
+              height: 38,
               alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: context.theme.statusBackground,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    extension,
-                    maxLines: 1,
-                    overflow: TextOverflow.clip,
-                    style: TextStyle(
-                      color: context.theme.secondaryText,
-                      fontSize: extension.length > 4 ? 9 : 11,
-                    ),
-                  ),
+              decoration: BoxDecoration(
+                color: context.theme.statusBackground,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                extension,
+                style: const TextStyle(
+                  color: Color.fromRGBO(184, 189, 199, 1),
+                  fontSize: 12,
                 ),
-                _MediaStatusOverlay(status: message.mediaStatus),
-              ],
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: context.messageFontSize(14),
-                      color: context.theme.text,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _formatBytes(message.mediaSize),
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontSize: context.messageFontSize(12),
-                      color: context.theme.secondaryText,
-                    ),
-                  ),
-                ],
               ),
             ),
-          ],
-        ),
+          },
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  Characters(
+                    name,
+                  ).replaceAll(Characters(''), Characters('\u200B')).toString(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: context.messageFontSize(14),
+                    color: context.theme.text,
+                  ),
+                ),
+                Text(
+                  filesize(message.mediaSize),
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: context.messageFontSize(12),
+                    color: context.theme.secondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _PostMessage extends StatelessWidget {
-  const _PostMessage({required this.message, this.onOpen});
+class MessagePost extends StatelessWidget {
+  const MessagePost({
+    required this.message,
+    required this.overlayDateAndStatus,
+    this.onOpen,
+    this.showStatus = true,
+    this.padding,
+    this.decoration,
+    super.key,
+  });
 
   final MessageListEntry message;
+  final Widget overlayDateAndStatus;
   final MessageEntryCallback? onOpen;
+  final bool showStatus;
+  final EdgeInsetsGeometry? padding;
+  final Decoration? decoration;
 
   @override
   Widget build(BuildContext context) {
-    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
-    final content = message.content.trim();
-    final preview = const LineSplitter()
-        .convert(content.isEmpty ? l10n?.post ?? 'Post' : content)
-        .take(10)
-        .join('\r\n');
+    final content = message.content;
+    var preview = const LineSplitter().convert(content).take(10).join('\r\n');
+    if (preview.length > 1024) preview = preview.substring(0, 1024);
     final fontSize = context.messageFontSize(16);
-    return _InteractiveMessageCard(
-      message: message,
-      onTap: onOpen,
-      child: ConstrainedBox(
-        key: Key('message-media-post-${message.id}'),
-        constraints: const BoxConstraints(
-          maxWidth: 400,
-          minWidth: 128,
-          maxHeight: 400,
-        ),
-        child: ScrollConfiguration(
-          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-          child: SingleChildScrollView(
-            physics: const NeverScrollableScrollPhysics(),
-            child: DefaultTextStyle.merge(
-              style: TextStyle(fontSize: fontSize, color: context.theme.text),
-              child: SelectionArea(
-                contextMenuBuilder: (context, selectableState) =>
-                    const SizedBox.shrink(),
-                child: MarkdownBlock(
-                  data: preview,
-                  selectable: false,
-                  config: postMarkdownConfig(context, fontSize: fontSize),
+    return ConstrainedBox(
+      key: Key('message-media-post-${message.id}'),
+      constraints: const BoxConstraints(maxWidth: 400),
+      child: DefaultTextStyle.merge(
+        style: TextStyle(fontSize: fontSize),
+        child: InteractiveDecoratedBox(
+          onTap: onOpen == null ? null : () => onOpen!(message),
+          behavior: HitTestBehavior.deferToChild,
+          child: Container(
+            padding: padding,
+            decoration: decoration,
+            child: Stack(
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: showStatus ? 48 : 0,
+                    minWidth: 128,
+                    maxHeight: 400,
+                  ),
+                  child: ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(
+                      context,
+                    ).copyWith(scrollbars: false),
+                    child: SingleChildScrollView(
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: SelectionArea(
+                        contextMenuBuilder: (context, selectableState) =>
+                            const SizedBox.shrink(),
+                        child: MarkdownBlock(
+                          data: preview,
+                          selectable: false,
+                          config: postMarkdownConfig(
+                            context,
+                            fontSize: fontSize,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      borderRadius: BorderRadius.all(Radius.circular(8)),
+                      color: Color.fromRGBO(0, 0, 0, 0.2),
+                    ),
+                    alignment: Alignment.center,
+                    child: SvgPicture.asset(
+                      MixinAssets.postDetail,
+                      width: 20,
+                      height: 20,
+                    ),
+                  ),
+                ),
+                if (showStatus)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        borderRadius: BorderRadius.all(Radius.circular(8)),
+                        color: Color.fromRGBO(0, 0, 0, 0.2),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      child: overlayDateAndStatus,
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -768,14 +987,7 @@ class _InteractiveMessageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (onTap == null) return child;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.deferToChild,
-        onTap: () => onTap!(message),
-        child: child,
-      ),
-    );
+    return InteractiveDecoratedBox(onTap: () => onTap!(message), child: child);
   }
 }
 
@@ -787,7 +999,7 @@ MessageEntryCallback? _attachmentAction(
 }) => switch (message.mediaStatus.toUpperCase()) {
   'CANCELED' => onDownload,
   'PENDING' => onCancel,
-  'DONE' || 'READ' => onOpen,
+  'DONE' => onOpen,
   _ => null,
 };
 
@@ -828,33 +1040,41 @@ class _UnknownMessage extends StatelessWidget {
 class _MediaImage extends StatelessWidget {
   const _MediaImage({
     required this.message,
-    required this.placeholder,
     required this.fit,
     this.useMediaUrl = true,
   });
 
   final MessageListEntry message;
-  final Widget placeholder;
   final BoxFit fit;
   final bool useMediaUrl;
 
   @override
   Widget build(BuildContext context) {
-    final thumbnail = _imageForSource(
-      message.thumbImage,
-      fit: fit,
-      allowEmbeddedData: true,
-      errorBuilder: placeholder,
-    );
-    final fallback = thumbnail ?? placeholder;
-    if (!useMediaUrl) return fallback;
+    final thumbImage = message.thumbImage;
+    final isUndownloadedGiphy =
+        message.mediaMimeType == 'image/gif' &&
+        (message.mediaSize == null || message.mediaSize == 0);
+    final Widget thumbnail = isUndownloadedGiphy
+        ? _imageForSource(
+                thumbImage,
+                fit: fit,
+                allowEmbeddedData: false,
+                placeholder: ColoredBox(color: context.theme.secondaryText),
+                errorBuilder: ColoredBox(color: context.theme.secondaryText),
+              ) ??
+              ColoredBox(color: context.theme.secondaryText)
+        : thumbImage == null
+        ? const SizedBox()
+        : ImageByBlurHashOrBase64(imageData: thumbImage, fit: fit);
+    if (!useMediaUrl) return thumbnail;
     return _imageForSource(
           message.mediaUrl,
           fit: fit,
           allowEmbeddedData: false,
-          errorBuilder: fallback,
+          placeholder: thumbnail,
+          errorBuilder: thumbnail,
         ) ??
-        fallback;
+        thumbnail;
   }
 }
 
@@ -863,6 +1083,7 @@ Widget? _imageForSource(
   required BoxFit fit,
   required bool allowEmbeddedData,
   required Widget errorBuilder,
+  Widget? placeholder,
 }) {
   final value = source?.trim();
   if (value == null || value.isEmpty) return null;
@@ -882,12 +1103,10 @@ Widget? _imageForSource(
     if (bytes != null) provider = MemoryImage(bytes);
   }
   provider ??= FileImage(File(value));
-  return Image(
-    key: ValueKey('media-image-$value'),
+  return MixinImage(
     image: provider,
     fit: fit,
-    filterQuality: FilterQuality.medium,
-    gaplessPlayback: true,
+    placeholder: placeholder == null ? null : () => placeholder,
     errorBuilder: (_, _, _) => errorBuilder,
   );
 }
@@ -905,110 +1124,28 @@ Uint8List? _decodeImageData(String value) {
   }
 }
 
-class _MediaPlaceholder extends StatelessWidget {
-  const _MediaPlaceholder({required this.category});
+class MediaStatusOverlay extends StatelessWidget {
+  const MediaStatusOverlay({
+    required this.messageId,
+    required this.status,
+    this.upload = false,
+    this.done,
+    super.key,
+  });
 
-  final String category;
-
-  @override
-  Widget build(BuildContext context) {
-    final asset = MixinAssets.messageIcon(category);
-    return ColoredBox(
-      color: context.theme.stickerPlaceholderColor,
-      child: Center(
-        child: asset == null
-            ? Icon(
-                Icons.broken_image_outlined,
-                color: context.theme.secondaryText,
-              )
-            : SvgPicture.asset(
-                asset,
-                width: 28,
-                height: 28,
-                colorFilter: ColorFilter.mode(
-                  context.theme.secondaryText,
-                  BlendMode.srcIn,
-                ),
-              ),
-      ),
-    );
-  }
-}
-
-class _StaticMediaIcon extends StatelessWidget {
-  const _StaticMediaIcon({required this.category});
-
-  final String category;
-
-  @override
-  Widget build(BuildContext context) {
-    final asset = MixinAssets.messageIcon(category);
-    return ExcludeSemantics(
-      child: Container(
-        key: ValueKey('static-media-icon-$category'),
-        width: 38,
-        height: 38,
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          color: Color.fromRGBO(0, 0, 0, 0.3),
-          shape: BoxShape.circle,
-        ),
-        child: asset == null
-            ? const SizedBox()
-            : SvgPicture.asset(
-                asset,
-                width: 22,
-                height: 22,
-                colorFilter: const ColorFilter.mode(
-                  Colors.white,
-                  BlendMode.srcIn,
-                ),
-              ),
-      ),
-    );
-  }
-}
-
-class _MediaStatusOverlay extends StatelessWidget {
-  const _MediaStatusOverlay({required this.status, this.done});
-
+  final String messageId;
   final String status;
+  final bool upload;
   final Widget? done;
 
   @override
   Widget build(BuildContext context) => switch (status.toUpperCase()) {
-    'PENDING' => const Center(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Color.fromRGBO(0, 0, 0, 0.3),
-          shape: BoxShape.circle,
-        ),
-        child: SizedBox.square(
-          dimension: 38,
-          child: Padding(
-            padding: EdgeInsets.all(6),
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white,
-            ),
-          ),
-        ),
-      ),
-    ),
-    'EXPIRED' => const Center(
-      child: CircleAvatar(
-        radius: 19,
-        backgroundColor: Color.fromRGBO(0, 0, 0, 0.3),
-        child: Icon(Icons.warning_amber_rounded, color: Colors.white, size: 28),
-      ),
-    ),
-    'CANCELED' => const Center(
-      child: CircleAvatar(
-        radius: 19,
-        backgroundColor: Color.fromRGBO(0, 0, 0, 0.3),
-        child: Icon(Icons.cloud_off_outlined, color: Colors.white, size: 26),
-      ),
-    ),
+    'PENDING' => AttachmentStatusPending(messageId: messageId),
+    'EXPIRED' => const AttachmentStatusWarning(),
+    'CANCELED' =>
+      upload
+          ? const AttachmentStatusUpload()
+          : const AttachmentStatusDownload(),
     _ => done ?? const SizedBox(),
   };
 }
@@ -1052,118 +1189,137 @@ class _MediaLabel extends StatelessWidget {
   );
 }
 
-Size _mediaSize(
+Size _imageMessageSize(
   BuildContext context,
   BoxConstraints constraints, {
   required int? mediaWidth,
   required int? mediaHeight,
-  required double maxWidth,
-  required double minimumWidth,
 }) {
-  final availableWidth = constraints.maxWidth.isFinite
-      ? constraints.maxWidth
-      : maxWidth;
-  final boundedMaxWidth = math.max(1.0, math.min(availableWidth, maxWidth));
-  final boundedMinimumWidth = math.min(minimumWidth, boundedMaxWidth);
-  final pixelRatio = MediaQuery.devicePixelRatioOf(context);
-  final sourceWidth = (mediaWidth ?? minimumWidth).toDouble();
-  final sourceHeight = (mediaHeight ?? minimumWidth).toDouble();
-  final width = (sourceWidth / pixelRatio).clamp(
-    boundedMinimumWidth,
-    boundedMaxWidth,
+  final sourceWidth = math.max(1, mediaWidth ?? 1);
+  final sourceHeight = math.max(1, mediaHeight ?? 1);
+  final maxWidth = math.min(constraints.maxWidth * 0.6, 300.0);
+  final minWidth = math.max(constraints.maxWidth * 0.2, 200.0);
+  final width = math.max(
+    math.min(sourceWidth / MediaQuery.devicePixelRatioOf(context), maxWidth),
+    minWidth,
   );
-  final aspectRatio = sourceWidth > 0 && sourceHeight > 0
-      ? sourceWidth / sourceHeight
-      : 1.0;
-  final maxHeight = MediaQuery.sizeOf(context).height * 2 / 3;
-  final height = (width / aspectRatio).clamp(60.0, math.max(60.0, maxHeight));
-  return Size(width.toDouble(), height.toDouble());
+  final height = math.min(
+    width / (sourceWidth / sourceHeight),
+    MediaQuery.sizeOf(context).height * 2 / 3,
+  );
+  return Size(width, height);
 }
 
-Size _stickerSize(BuildContext context, int? width, int? height) {
-  const maxSide = 140.0;
-  const minSide = 60.0;
-  final sourceWidth = (width ?? 0).toDouble();
-  final sourceHeight = (height ?? 0).toDouble();
-  if (sourceWidth <= 0 || sourceHeight <= 0) {
-    return const Size.square(maxSide);
+Size _videoMessageSize(
+  BoxConstraints constraints, {
+  required int? mediaWidth,
+  required int? mediaHeight,
+}) {
+  const fallback = 200;
+  final maxWidth = math.min(constraints.maxWidth * 0.6, 200.0);
+  final width = math.min(mediaWidth ?? fallback, maxWidth).toDouble();
+  final scale = (mediaWidth ?? fallback) / (mediaHeight ?? fallback);
+  return Size(width, width / scale);
+}
+
+bool _needsImageExtendIcon(MessageListEntry message, Size size) {
+  final mediaWidth = message.mediaWidth ?? 0;
+  final mediaHeight = message.mediaHeight ?? 0;
+  if (mediaWidth == 0 || mediaHeight == 0) return false;
+  final layoutAspectRatio = size.aspectRatio;
+  if (!layoutAspectRatio.isFinite || layoutAspectRatio == 0) return false;
+  return layoutAspectRatio - mediaWidth / mediaHeight > 0.01;
+}
+
+class _PostDetailIcon extends StatelessWidget {
+  const _PostDetailIcon();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: const BoxDecoration(
+      borderRadius: BorderRadius.all(Radius.circular(8)),
+      color: Color.fromRGBO(0, 0, 0, 0.2),
+    ),
+    alignment: Alignment.center,
+    child: SvgPicture.asset(MixinAssets.postDetail, width: 20, height: 20),
+  );
+}
+
+Size _stickerSize(
+  BuildContext context,
+  int? width,
+  int? height,
+  String? assetType,
+) {
+  final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+  final minSize = 60 * pixelRatio;
+  final maxSize = 140 * pixelRatio;
+  final sourceWidth = width?.toDouble();
+  final sourceHeight = height?.toDouble();
+  double outputWidth;
+  double outputHeight;
+  double scale;
+  if (sourceWidth == null ||
+      sourceHeight == null ||
+      sourceWidth <= 0 ||
+      sourceHeight <= 0) {
+    outputWidth = maxSize;
+    outputHeight = maxSize;
+    scale = 1;
+  } else if (sourceWidth < minSize) {
+    scale = minSize / sourceWidth;
+    if (scale * sourceHeight > maxSize) {
+      outputWidth = maxSize;
+      outputHeight = scale * sourceHeight;
+    } else {
+      outputWidth = scale * sourceWidth;
+      outputHeight = scale * sourceHeight;
+    }
+  } else if (sourceHeight < minSize) {
+    scale = minSize / sourceHeight;
+    if (scale * sourceWidth > maxSize) {
+      outputHeight = maxSize;
+      outputWidth = scale * sourceWidth;
+    } else {
+      outputWidth = scale * sourceWidth;
+      outputHeight = scale * sourceHeight;
+    }
+  } else if (sourceWidth > maxSize || sourceHeight > maxSize) {
+    if (sourceWidth > sourceHeight) {
+      scale = maxSize / sourceWidth;
+      outputWidth = maxSize;
+      outputHeight = scale * sourceHeight;
+    } else {
+      scale = maxSize / sourceHeight;
+      outputHeight = maxSize;
+      outputWidth = scale * sourceWidth;
+    }
+  } else {
+    outputWidth = sourceWidth;
+    outputHeight = sourceHeight;
+    scale = 1;
   }
-  final ratio = sourceWidth / sourceHeight;
-  var size = ratio >= 1
-      ? Size(maxSide, (maxSide / ratio).clamp(minSide, maxSide))
-      : Size((maxSide * ratio).clamp(minSide, maxSide), maxSide);
-  final scale = maxSide / math.max(sourceWidth, sourceHeight);
+  var size = Size(outputWidth, outputHeight) / pixelRatio;
   if (scale <= 0.5 && MediaQuery.devicePixelRatioOf(context) <= 1.5) {
-    size *= 200 / maxSide;
+    if (assetType != 'json' && size.longestSide >= 140) {
+      size *= 200 / 140;
+    }
   }
   return size;
 }
 
-String _formatDuration(String value) {
+String formatMessageDuration(String value) {
   final milliseconds = int.tryParse(value) ?? 0;
   final duration = Duration(milliseconds: math.max(0, milliseconds));
-  final hours = duration.inHours;
-  final minutes = duration.inMinutes.remainder(60);
-  final seconds = duration.inSeconds.remainder(60);
-  if (hours > 0) {
-    return '$hours:${minutes.toString().padLeft(2, '0')}:'
-        '${seconds.toString().padLeft(2, '0')}';
-  }
-  return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  final normalized = duration < const Duration(seconds: 1)
+      ? const Duration(seconds: 1)
+      : duration;
+  return '${normalized.inMinutes.toString().padLeft(2, '0')}:'
+      '${normalized.inSeconds.remainder(60).toString().padLeft(2, '0')}';
 }
 
-String _mediaName(MessageListEntry message, String fallback) {
-  final content = message.content.trim();
-  if (content.isNotEmpty) {
-    try {
-      final decoded = jsonDecode(content);
-      if (decoded is Map<String, dynamic>) {
-        for (final key in const ['name', 'filename', 'file_name']) {
-          final value = decoded[key];
-          if (value is String && value.trim().isNotEmpty) return value.trim();
-        }
-      }
-    } on FormatException {
-      if (!content.startsWith('{') && !content.startsWith('[')) return content;
-    }
-  }
-  final mediaUrl = message.mediaUrl?.trim();
-  if (mediaUrl != null && mediaUrl.isNotEmpty) {
-    final uri = Uri.tryParse(mediaUrl);
-    final path = (uri?.path.isNotEmpty ?? false) ? uri!.path : mediaUrl;
-    final normalized = path.replaceAll('\\', '/');
-    final name = normalized.split('/').last;
-    if (name.isNotEmpty) {
-      try {
-        return Uri.decodeComponent(name);
-      } on FormatException {
-        return name;
-      }
-    }
-  }
-  return fallback;
-}
-
-String _fileExtension(String name, String? mimeType) {
-  final index = name.lastIndexOf('.');
-  if (index >= 0 && index + 1 < name.length) {
-    final value = name.substring(index + 1).trim();
-    if (value.isNotEmpty && value.length <= 6) return value.toUpperCase();
-  }
-  final subtype = mimeType?.split('/').last.trim() ?? '';
-  if (subtype.isNotEmpty && subtype.length <= 6) return subtype.toUpperCase();
-  return 'FILE';
-}
-
-String _formatBytes(int? value) {
-  if (value == null || value <= 0) return '';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  var size = value.toDouble();
-  var unit = 0;
-  while (size >= 1024 && unit < units.length - 1) {
-    size /= 1024;
-    unit++;
-  }
-  final digits = unit == 0 || size >= 10 ? 0 : 1;
-  return '${size.toStringAsFixed(digits)} ${units[unit]}';
+String _fileExtension(String name) {
+  if (lookupMimeType(name) == null) return 'FILE';
+  final extension = p.extension(name).trim().replaceFirst('.', '');
+  return extension.isEmpty ? 'FILE' : extension.toUpperCase();
 }

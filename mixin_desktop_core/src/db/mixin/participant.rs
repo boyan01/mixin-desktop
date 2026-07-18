@@ -25,6 +25,7 @@ pub struct ParticipantListItem {
     pub biography: String,
     pub is_verified: bool,
     pub is_bot: bool,
+    pub membership: Option<String>,
     pub relationship: String,
 }
 
@@ -41,6 +42,7 @@ impl ParticipantDao {
                       COALESCE(user.biography, '') AS biography,
                       COALESCE(user.is_verified, FALSE) AS is_verified,
                       COALESCE(user.app_id, '') != '' AS is_bot,
+                      user.membership AS membership,
                       COALESCE(user.relationship, '') AS relationship
                FROM participants participant
                LEFT JOIN users user ON user.user_id = participant.user_id

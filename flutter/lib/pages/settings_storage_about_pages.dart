@@ -1,13 +1,23 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:filesize/filesize.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/action_button.dart';
+import 'package:mixin_desktop_ui/widgets/buttons.dart';
+import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
 import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
+import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:provider/provider.dart';
 
 class StoragePage extends StatelessWidget {
@@ -95,84 +105,127 @@ class ConversationStorageUsageEntry {
   final int sizeBytes;
 }
 
-class StorageUsageListPage extends StatelessWidget {
+class StorageUsageListPage extends StatefulWidget {
   const StorageUsageListPage({
-    required this.entries,
+    required this.account,
     required this.onSelected,
     super.key,
   });
 
-  final List<ConversationStorageUsageEntry> entries;
+  final AccountHandle account;
   final ValueChanged<ConversationStorageUsageEntry> onSelected;
+
+  @override
+  State<StorageUsageListPage> createState() => _StorageUsageListPageState();
+}
+
+class _StorageUsageListPageState extends State<StorageUsageListPage> {
+  late Future<List<ConversationStorageUsageEntry>> entries = _load();
+  StreamSubscription<FileSystemEvent>? watcher;
+  Timer? reloadTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    watcher = Directory(widget.account.mediaDirectory())
+        .watch(recursive: true)
+        .listen((_) {
+          reloadTimer?.cancel();
+          reloadTimer = Timer(const Duration(milliseconds: 400), () {
+            if (mounted) setState(() => entries = _load());
+          });
+        });
+  }
+
+  @override
+  void dispose() {
+    reloadTimer?.cancel();
+    unawaited(watcher?.cancel());
+    super.dispose();
+  }
+
+  Future<List<ConversationStorageUsageEntry>> _load() async {
+    try {
+      return (await widget.account.storageUsage())
+          .map(
+            (item) => ConversationStorageUsageEntry(
+              conversation: ConversationListEntry.fromRust(item.conversation),
+              sizeBytes: item.sizeBytes.toInt(),
+            ),
+          )
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
+    }
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: context.mixinTheme.background,
     appBar: MixinAppBar(title: Text(context.l10n.storageUsage)),
-    body: entries.isEmpty
-        ? Center(
-            child: Text(
-              context.l10n.noData,
-              style: TextStyle(color: context.mixinTheme.secondaryText),
+    body: FutureBuilder<List<ConversationStorageUsageEntry>>(
+      future: entries,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation(context.mixinTheme.accent),
             ),
-          )
-        : ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 40),
-            itemCount: entries.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final entry = entries[index];
-              return Align(
-                child: CellGroup(
-                  padding: EdgeInsets.zero,
-                  cellBackgroundColor:
-                      context.mixinTheme.settingCellBackgroundColor,
-                  child: CellItem(
-                    leading: ConversationAvatarView(
-                      conversation: entry.conversation,
-                      size: 50,
-                    ),
-                    title: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(entry.conversation.name),
-                        Text(
-                          _formatBytes(entry.sizeBytes),
-                          style: TextStyle(
-                            color: context.mixinTheme.secondaryText,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                    onTap: () => onSelected(entry),
+          );
+        }
+        final entries = snapshot.data!;
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          itemCount: entries.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            final entry = entries[index];
+            return Align(
+              child: CellGroup(
+                padding: EdgeInsets.zero,
+                cellBackgroundColor:
+                    context.mixinTheme.settingCellBackgroundColor,
+                child: CellItem(
+                  leading: ConversationAvatarView(
+                    conversation: entry.conversation,
+                    size: 50,
                   ),
+                  title: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(entry.conversation.name),
+                      Text(
+                        filesize(entry.sizeBytes),
+                        style: TextStyle(
+                          color: context.mixinTheme.secondaryText,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  onTap: () => widget.onSelected(entry),
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
+        );
+      },
+    ),
   );
-}
-
-class StorageCategoryUsage {
-  const StorageCategoryUsage({required this.label, required this.sizeBytes});
-
-  final String label;
-  final int sizeBytes;
 }
 
 class StorageUsageDetailPage extends StatefulWidget {
   const StorageUsageDetailPage({
+    required this.account,
     required this.name,
-    required this.categories,
-    required this.onClear,
+    required this.conversationId,
     super.key,
   });
 
+  final AccountHandle account;
   final String name;
-  final List<StorageCategoryUsage> categories;
-  final Future<void> Function(Set<int> selectedIndexes) onClear;
+  final String conversationId;
 
   @override
   State<StorageUsageDetailPage> createState() => _StorageUsageDetailPageState();
@@ -180,67 +233,161 @@ class StorageUsageDetailPage extends StatefulWidget {
 
 class _StorageUsageDetailPageState extends State<StorageUsageDetailPage> {
   final selectedIndexes = <int>{};
-  var clearing = false;
+  late Future<List<StorageCategoryUsageEntry>> categories = _load();
+  StreamSubscription<FileSystemEvent>? watcher;
+  Timer? reloadTimer;
 
-  Future<void> _clear() async {
-    if (selectedIndexes.isEmpty || clearing) return;
-    setState(() => clearing = true);
-    try {
-      await widget.onClear({...selectedIndexes});
-      if (mounted) setState(selectedIndexes.clear);
-    } finally {
-      if (mounted) setState(() => clearing = false);
-    }
+  @override
+  void initState() {
+    super.initState();
+    watcher = Directory(widget.account.mediaDirectory())
+        .watch(recursive: true)
+        .listen((_) {
+          reloadTimer?.cancel();
+          reloadTimer = Timer(const Duration(milliseconds: 400), () {
+            if (mounted) setState(() => categories = _load());
+          });
+        });
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: context.mixinTheme.background,
-    appBar: MixinAppBar(
-      title: Text(widget.name),
-      actions: [
-        TextButton(
-          key: const ValueKey('storage-clear'),
-          onPressed: selectedIndexes.isEmpty || clearing ? null : _clear,
-          child: clearing
-              ? const SizedBox.square(
-                  dimension: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(context.l10n.clear),
-        ),
-      ],
-    ),
-    body: Container(
-      alignment: Alignment.topCenter,
-      padding: const EdgeInsets.only(top: 40),
-      child: CellGroup(
-        cellBackgroundColor: context.mixinTheme.settingCellBackgroundColor,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var index = 0; index < widget.categories.length; index++)
-              CellItem(
-                title: RadioItem<bool>(
-                  groupValue: true,
-                  value: selectedIndexes.contains(index),
-                  title: Text(widget.categories[index].label),
-                  onChanged: (_) => setState(() {
-                    if (!selectedIndexes.add(index)) {
-                      selectedIndexes.remove(index);
-                    }
-                  }),
+  void dispose() {
+    reloadTimer?.cancel();
+    unawaited(watcher?.cancel());
+    super.dispose();
+  }
+
+  Future<List<StorageCategoryUsageEntry>> _load() async =>
+      (await widget.account.conversationStorageUsage(
+            conversationId: widget.conversationId,
+          ))
+          .map((item) {
+            final label = switch (item.category) {
+              'photos' => context.l10n.photos,
+              'videos' => context.l10n.videos,
+              'audio' => context.l10n.audio,
+              _ => context.l10n.files,
+            };
+            return StorageCategoryUsageEntry(
+              category: item.category,
+              label: label,
+              sizeBytes: item.sizeBytes.toInt(),
+            );
+          })
+          .toList(growable: false);
+
+  Future<void> _clear(List<StorageCategoryUsageEntry> items) async {
+    if (selectedIndexes.isEmpty) return;
+    final successful = await runWithToast(() async {
+      await widget.account.clearConversationStorage(
+        conversationId: widget.conversationId,
+        categories: selectedIndexes
+            .map((index) => items[index].category)
+            .toList(growable: false),
+      );
+    });
+    if (!successful || !mounted) return;
+    setState(() {
+      categories = _load();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      FutureBuilder<List<StorageCategoryUsageEntry>>(
+        future: categories,
+        builder: (context, snapshot) {
+          final items =
+              snapshot.data ??
+              [
+                StorageCategoryUsageEntry(
+                  category: 'photos',
+                  label: context.l10n.photos,
+                  sizeBytes: 0,
                 ),
-                description: Text(
-                  _formatBytes(widget.categories[index].sizeBytes),
+                StorageCategoryUsageEntry(
+                  category: 'videos',
+                  label: context.l10n.videos,
+                  sizeBytes: 0,
                 ),
-                trailing: null,
+                StorageCategoryUsageEntry(
+                  category: 'audio',
+                  label: context.l10n.audio,
+                  sizeBytes: 0,
+                ),
+                StorageCategoryUsageEntry(
+                  category: 'files',
+                  label: context.l10n.files,
+                  sizeBytes: 0,
+                ),
+              ];
+          return Scaffold(
+            backgroundColor: context.mixinTheme.background,
+            appBar: MixinAppBar(
+              title: Text(widget.name),
+              actions: [
+                MixinButton(
+                  key: const ValueKey('storage-clear'),
+                  disable: selectedIndexes.isEmpty,
+                  backgroundTransparent: true,
+                  onTap: () => _clear(items),
+                  child: Center(child: Text(context.l10n.clear)),
+                ),
+              ],
+            ),
+            body: Container(
+              alignment: Alignment.topCenter,
+              padding: const EdgeInsets.only(top: 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CellGroup(
+                    cellBackgroundColor:
+                        context.mixinTheme.settingCellBackgroundColor,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var index = 0; index < items.length; index++)
+                          CellItem(
+                            title: RadioItem<bool>(
+                              groupValue: true,
+                              value: selectedIndexes.contains(index),
+                              title: Text(items[index].label),
+                              onChanged: (_) => setState(() {
+                                if (!selectedIndexes.add(index)) {
+                                  selectedIndexes.remove(index);
+                                }
+                              }),
+                            ),
+                            description: Text(
+                              filesize(items[index].sizeBytes),
+                              style: TextStyle(
+                                color: context.mixinTheme.secondaryText,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-          ],
-        ),
-      ),
-    ),
-  );
+            ),
+          );
+        },
+      );
+}
+
+class StorageCategoryUsageEntry {
+  const StorageCategoryUsageEntry({
+    required this.category,
+    required this.label,
+    required this.sizeBytes,
+  });
+
+  final String category;
+  final String label;
+  final int sizeBytes;
 }
 
 class AboutPage extends StatefulWidget {
@@ -248,14 +395,14 @@ class AboutPage extends StatefulWidget {
     required this.version,
     required this.onOpenUri,
     super.key,
-    this.logs = const [],
+    this.logs,
     this.onOpenLogDirectory,
   });
 
   final String version;
   final Future<void> Function(Uri uri) onOpenUri;
-  final List<String> logs;
-  final VoidCallback? onOpenLogDirectory;
+  final ValueListenable<List<String>>? logs;
+  final Future<void> Function()? onOpenLogDirectory;
 
   @override
   State<AboutPage> createState() => _AboutPageState();
@@ -264,7 +411,6 @@ class AboutPage extends StatefulWidget {
 class _AboutPageState extends State<AboutPage> {
   DateTime? lastTitleTap;
   int titleTapCount = 0;
-  int logoTapCount = 0;
   bool debugMode = false;
 
   void _tapTitle() {
@@ -279,17 +425,21 @@ class _AboutPageState extends State<AboutPage> {
   }
 
   void _tapLogo() {
-    logoTapCount++;
-    if (logoTapCount < 5) return;
-    logoTapCount = 0;
-    Navigator.push(
-      context,
-      MaterialPageRoute<void>(
-        builder: (_) => SettingsLogPage(
-          logs: widget.logs,
-          onOpenDirectory: widget.onOpenLogDirectory,
-        ),
-      ),
+    showGeneralDialog<void>(
+      context: context,
+      barrierColor: Colors.transparent,
+      barrierDismissible: true,
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      pageBuilder: (buildContext, animation, secondaryAnimation) =>
+          InheritedTheme.capture(
+            from: context,
+            to: Navigator.of(context, rootNavigator: true).context,
+          ).wrap(
+            SettingsLogPage(
+              logs: widget.logs,
+              onOpenDirectory: widget.onOpenLogDirectory,
+            ),
+          ),
     );
   }
 
@@ -303,21 +453,31 @@ class _AboutPageState extends State<AboutPage> {
         padding: const EdgeInsets.only(top: 40),
         child: Column(
           children: [
-            GestureDetector(
+            NTapGestureDetector(
               key: const ValueKey('about-logo'),
+              n: 5,
               onTap: _tapLogo,
               child: Image.asset(MixinAssets.aboutLogo, width: 60, height: 60),
             ),
             const SizedBox(height: 24),
             GestureDetector(
               onTap: _tapTitle,
-              child: Text(
-                context.l10n.mixinMessengerDesktop,
-                style: TextStyle(color: context.mixinTheme.text, fontSize: 18),
+              child: Animate(
+                effects: const [
+                  FadeEffect(duration: Duration(milliseconds: 1000)),
+                  ScaleEffect(duration: Duration(milliseconds: 1000)),
+                ],
+                child: Text(
+                  context.l10n.mixinMessengerDesktop,
+                  style: TextStyle(
+                    color: context.mixinTheme.text,
+                    fontSize: 18,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 8),
-            SelectableText(
+            CustomSelectableText(
               widget.version,
               style: TextStyle(
                 color: context.mixinTheme.secondaryText,
@@ -356,6 +516,11 @@ class _AboutPageState extends State<AboutPage> {
                     uri: Uri.parse('https://mixin.one/pages/privacy'),
                     onOpen: widget.onOpenUri,
                   ),
+                  if (defaultTargetPlatform != TargetPlatform.macOS)
+                    CellItem(
+                      title: Text(context.l10n.checkNewVersion),
+                      onTap: _openCheckUpdate,
+                    ),
                 ],
               ),
             ),
@@ -363,7 +528,7 @@ class _AboutPageState extends State<AboutPage> {
               CellGroup(
                 child: CellItem(
                   title: Text(context.l10n.openLogDirectory),
-                  onTap: widget.onOpenLogDirectory,
+                  onTap: () => unawaited(widget.onOpenLogDirectory!()),
                 ),
               ),
           ],
@@ -371,6 +536,20 @@ class _AboutPageState extends State<AboutPage> {
       ),
     ),
   );
+
+  void _openCheckUpdate() {
+    final uri = switch (defaultTargetPlatform) {
+      TargetPlatform.linux => Uri.parse('https://mixin.one/messenger'),
+      TargetPlatform.iOS || TargetPlatform.macOS => Uri.parse(
+        'https://apps.apple.com/app/mixin-messenger/id1571128582',
+      ),
+      TargetPlatform.windows => Uri.parse(
+        'https://apps.microsoft.com/store/detail/mixin-desktop/9NQ6HF99B8NJ',
+      ),
+      _ => Uri.parse('https://mixin.one/messenger'),
+    };
+    unawaited(widget.onOpenUri(uri));
+  }
 }
 
 class _AboutLink extends StatelessWidget {
@@ -392,39 +571,48 @@ class _AboutLink extends StatelessWidget {
 class SettingsLogPage extends StatelessWidget {
   const SettingsLogPage({required this.logs, super.key, this.onOpenDirectory});
 
-  final List<String> logs;
-  final VoidCallback? onOpenDirectory;
+  final ValueListenable<List<String>>? logs;
+  final Future<void> Function()? onOpenDirectory;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: context.mixinTheme.background,
-    appBar: MixinAppBar(
-      actions: [
-        if (onOpenDirectory != null)
-          IconButton(
-            onPressed: onOpenDirectory,
-            icon: const Icon(Icons.launch),
-          ),
-      ],
-    ),
-    body: SelectionArea(
-      child: ListView.builder(
-        reverse: true,
-        itemCount: logs.length,
-        itemBuilder: (context, index) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
-          child: Text(logs[logs.length - 1 - index]),
+  Widget build(BuildContext context) => Material(
+    color: context.mixinTheme.background,
+    child: Column(
+      children: [
+        MixinAppBar(
+          leading: const SizedBox(),
+          actions: [
+            if (onOpenDirectory != null)
+              ActionButton(
+                color: context.mixinTheme.icon,
+                onTap: () => unawaited(onOpenDirectory!()),
+                child: const Icon(Icons.launch),
+              ),
+            const SizedBox(width: 8),
+            MixinCloseButton(onTap: () => Navigator.pop(context)),
+          ],
         ),
-      ),
+        Expanded(
+          child: CustomSelectableArea(
+            child: ValueListenableBuilder<List<String>>(
+              valueListenable: logs ?? _emptyLogs,
+              builder: (context, values, _) => ListView.builder(
+                reverse: true,
+                itemCount: values.length,
+                itemBuilder: (context, index) => Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 2,
+                    horizontal: 4,
+                  ),
+                  child: CustomText(values[values.length - 1 - index]),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     ),
   );
 }
 
-String _formatBytes(int bytes) {
-  if (bytes < 1024) return '$bytes B';
-  final kilobytes = bytes / 1024;
-  if (kilobytes < 1024) return '${kilobytes.toStringAsFixed(1)} KB';
-  final megabytes = kilobytes / 1024;
-  if (megabytes < 1024) return '${megabytes.toStringAsFixed(1)} MB';
-  return '${(megabytes / 1024).toStringAsFixed(1)} GB';
-}
+final _emptyLogs = ValueNotifier<List<String>>(const []);

@@ -205,7 +205,7 @@ async fn start_all_jobs(mut params: JobParams) {
                 session_id: params.session_id.clone(),
                 private_key: params.private_key,
                 sender: params.message_sender,
-                changes: params.changes,
+                changes: params.changes.clone(),
                 expired_message_notify: params.expired_message_notify,
             },
         ),
@@ -228,6 +228,7 @@ async fn start_all_jobs(mut params: JobParams) {
             UpdateStickerJobRunner {
                 database: params.database.clone(),
                 client: params.client.clone(),
+                changes: params.changes,
             },
         ),
         run_job(

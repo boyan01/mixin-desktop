@@ -1,14 +1,27 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
+import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/utils/local_notification_center.dart';
+import 'package:mixin_desktop_ui/widgets/action_button.dart';
+import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
+import 'package:mixin_desktop_ui/widgets/animated_visibility.dart';
+import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
+import 'package:mixin_desktop_ui/widgets/message_content.dart';
+import 'package:mixin_desktop_ui/widgets/message_day_time.dart';
+import 'package:mixin_desktop_ui/widgets/message_datetime_and_status.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
 import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' show ProxyItem;
 import 'package:uuid/uuid.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AppearanceSettingsPage extends StatefulWidget {
   const AppearanceSettingsPage({
@@ -68,109 +81,129 @@ class _AppearanceSettingsPageState extends State<AppearanceSettingsPage> {
   Widget build(BuildContext context) => _PreferenceScaffold(
     title: context.l10n.appearance,
     child: SingleChildScrollView(
-      padding: const EdgeInsets.only(top: 20, bottom: 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SectionTitle(context.l10n.theme),
-          CellGroup(
-            child: Column(
-              children: [
-                CellItem(
-                  title: RadioItem<Brightness?>(
-                    title: Text(context.l10n.followSystem),
-                    value: null,
-                    groupValue: _brightness,
-                    onChanged: _setBrightness,
-                  ),
-                  trailing: null,
-                ),
-                CellItem(
-                  title: RadioItem<Brightness?>(
-                    title: Text(context.l10n.light),
-                    value: Brightness.light,
-                    groupValue: _brightness,
-                    onChanged: _setBrightness,
-                  ),
-                  trailing: null,
-                ),
-                CellItem(
-                  title: RadioItem<Brightness?>(
-                    title: Text(context.l10n.dark),
-                    value: Brightness.dark,
-                    groupValue: _brightness,
-                    onChanged: _setBrightness,
-                  ),
-                  trailing: null,
-                ),
-              ],
-            ),
-          ),
-          _SectionTitle(context.l10n.chats, top: 22),
-          CellGroup(
-            child: Column(
-              children: [
-                _SwitchCell(
-                  title: context.l10n.showAvatar,
-                  value: _showAvatar,
-                  onChanged: (value) {
-                    setState(() => _showAvatar = value);
-                    widget.onShowAvatarChanged(value);
-                  },
-                ),
-                _SwitchCell(
-                  title: context.l10n.showIdentityNumber,
-                  value: _showIdentityNumber,
-                  onChanged: (value) {
-                    setState(() => _showIdentityNumber = value);
-                    widget.onShowIdentityNumberChanged(value);
-                  },
-                ),
-              ],
-            ),
-          ),
-          _SectionTitle(context.l10n.chatTextSize, top: 22),
-          _ChatTextSizePreview(fontSizeDelta: _chatFontSizeDelta),
-          const SizedBox(height: 10),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: Row(
-              children: [
-                const SizedBox(width: 10),
-                Text('A', style: TextStyle(color: context.mixinTheme.text)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: SliderTheme(
-                    data: const SliderThemeData(
-                      trackHeight: 4,
-                      trackShape: RoundedRectSliderTrackShape(),
-                      overlayShape: RoundSliderOverlayShape(overlayRadius: 10),
+      child: Container(
+        padding: const EdgeInsets.only(top: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionTitle(context.l10n.theme),
+            CellGroup(
+              cellBackgroundColor:
+                  context.mixinTheme.settingCellBackgroundColor,
+              child: Column(
+                children: [
+                  CellItem(
+                    title: RadioItem<Brightness?>(
+                      title: Text(context.l10n.followSystem),
+                      value: null,
+                      groupValue: _brightness,
+                      onChanged: _setBrightness,
                     ),
-                    child: Slider(
-                      value: _chatFontSizeDelta.clamp(-2, 4).toDouble(),
-                      min: -2,
-                      max: 4,
-                      divisions: 6,
-                      onChanged: (value) {
-                        setState(() => _chatFontSizeDelta = value);
-                        widget.onChatFontSizeDeltaChanged(value);
-                      },
+                    trailing: null,
+                  ),
+                  CellItem(
+                    title: RadioItem<Brightness?>(
+                      title: Text(context.l10n.light),
+                      value: Brightness.light,
+                      groupValue: _brightness,
+                      onChanged: _setBrightness,
                     ),
+                    trailing: null,
                   ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'A',
-                  style: TextStyle(
-                    fontSize: 24,
-                    color: context.mixinTheme.text,
+                  CellItem(
+                    title: RadioItem<Brightness?>(
+                      title: Text(context.l10n.dark),
+                      value: Brightness.dark,
+                      groupValue: _brightness,
+                      onChanged: _setBrightness,
+                    ),
+                    trailing: null,
                   ),
-                ),
-                const SizedBox(width: 10),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+            _SectionTitle(context.l10n.chats, top: 22),
+            CellGroup(
+              cellBackgroundColor:
+                  context.mixinTheme.settingCellBackgroundColor,
+              child: Column(
+                children: [
+                  _SwitchCell(
+                    title: context.l10n.showAvatar,
+                    value: _showAvatar,
+                    onChanged: (value) {
+                      setState(() => _showAvatar = value);
+                      widget.onShowAvatarChanged(value);
+                    },
+                  ),
+                  _SwitchCell(
+                    title: context.l10n.showIdentityNumber,
+                    value: _showIdentityNumber,
+                    onChanged: (value) {
+                      setState(() => _showIdentityNumber = value);
+                      widget.onShowIdentityNumberChanged(value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SectionTitle(context.l10n.chatTextSize, top: 22),
+                  _ChatTextSizePreview(fontSizeDelta: _chatFontSizeDelta),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const SizedBox(width: 10),
+                      Text(
+                        'A',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: context.mixinTheme.text,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: SliderTheme(
+                          data: const SliderThemeData(
+                            trackHeight: 4,
+                            trackShape: RoundedRectSliderTrackShape(),
+                            overlayShape: RoundSliderOverlayShape(
+                              overlayRadius: 10,
+                            ),
+                          ),
+                          child: Slider(
+                            value: _chatFontSizeDelta.clamp(-2, 4).toDouble(),
+                            min: -2,
+                            max: 4,
+                            divisions: 6,
+                            onChanged: (value) {
+                              setState(() => _chatFontSizeDelta = value);
+                              widget.onChatFontSizeDeltaChanged(value);
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'A',
+                        style: TextStyle(
+                          fontSize: 24,
+                          color: context.mixinTheme.text,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -180,23 +213,38 @@ class NotificationSettingsPage extends StatefulWidget {
   const NotificationSettingsPage({
     required this.messagePreview,
     required this.onMessagePreviewChanged,
-    this.hasNotificationPermission,
-    this.onOpenSystemNotificationSettings,
     super.key,
   });
 
   final bool messagePreview;
   final ValueChanged<bool> onMessagePreviewChanged;
-  final bool? hasNotificationPermission;
-  final VoidCallback? onOpenSystemNotificationSettings;
 
   @override
   State<NotificationSettingsPage> createState() =>
       _NotificationSettingsPageState();
 }
 
-class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
+class _NotificationSettingsPageState extends State<NotificationSettingsPage>
+    with WidgetsBindingObserver {
   late bool _messagePreview = widget.messagePreview;
+  bool? _hasNotificationPermission;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_refreshPermission());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_refreshPermission());
+  }
+
+  Future<void> _refreshPermission() async {
+    final value = await requestNotificationPermission();
+    if (mounted) setState(() => _hasNotificationPermission = value);
+  }
 
   @override
   void didUpdateWidget(NotificationSettingsPage oldWidget) {
@@ -207,14 +255,23 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   }
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => _PreferenceScaffold(
     title: context.l10n.notifications,
-    child: SingleChildScrollView(
-      padding: const EdgeInsets.only(top: 40, bottom: 28),
+    child: Container(
+      alignment: Alignment.topCenter,
+      padding: const EdgeInsets.only(top: 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CellGroup(
+            padding: const EdgeInsets.only(right: 10, left: 10),
+            cellBackgroundColor: context.mixinTheme.settingCellBackgroundColor,
             child: _SwitchCell(
               title: context.l10n.messagePreview,
               value: _messagePreview,
@@ -225,7 +282,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(left: 20, right: 20, top: 10),
+            padding: const EdgeInsets.only(left: 20, bottom: 14, top: 10),
             child: Text(
               context.l10n.messagePreviewDescription,
               style: TextStyle(
@@ -234,25 +291,57 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
               ),
             ),
           ),
-          if (widget.hasNotificationPermission == false) ...[
-            const SizedBox(height: 14),
-            CellGroup(
-              child: CellItem(
-                title: Text(context.l10n.enablePushNotification),
-                onTap: widget.onOpenSystemNotificationSettings,
+          if (Platform.isMacOS)
+            AnimatedVisibility(
+              visible: _hasNotificationPermission == false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CellGroup(
+                    padding: const EdgeInsets.only(right: 10, left: 10),
+                    cellBackgroundColor:
+                        context.mixinTheme.settingCellBackgroundColor,
+                    child: CellItem(
+                      title: Text(context.l10n.enablePushNotification),
+                      onTap: () => launchUrl(
+                        Uri.parse(
+                          'x-apple.systempreferences:com.apple.preference.notifications',
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: 20,
+                      bottom: 14,
+                      top: 10,
+                    ),
+                    child: Text(
+                      context.l10n.notificationContent,
+                      style: TextStyle(
+                        color: context.mixinTheme.secondaryText,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(left: 20, right: 20, top: 10),
-              child: Text(
-                context.l10n.notificationContent,
-                style: TextStyle(
-                  color: context.mixinTheme.secondaryText,
-                  fontSize: 14,
+          if (!Platform.isMacOS)
+            AnimatedVisibility(
+              visible: _hasNotificationPermission == false,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 20, bottom: 14),
+                child: Text(
+                  '${context.l10n.notificationPermissionManually}${context.l10n.notificationContent}',
+                  style: TextStyle(
+                    color: context.mixinTheme.secondaryText,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ),
-          ],
         ],
       ),
     ),
@@ -284,56 +373,63 @@ class ProxySettingsPage extends StatelessWidget {
     final hasProxy = proxies.isNotEmpty;
     final effectiveSelectedProxyId =
         selectedProxyId ?? (hasProxy ? proxies.first.id : null);
-    return _PreferenceScaffold(
-      title: context.l10n.proxy,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.only(top: 40, bottom: 28),
-        child: Column(
-          children: [
-            CellGroup(
-              child: _SwitchCell(
-                title: context.l10n.proxy,
-                value: hasProxy && enabled,
-                onChanged: hasProxy
-                    ? (value) => unawaited(onEnabledChanged(value))
-                    : null,
+    return Scaffold(
+      backgroundColor: context.mixinTheme.background,
+      appBar: MixinAppBar(title: Text(context.l10n.proxy)),
+      body: ConstrainedBox(
+        constraints: const BoxConstraints.expand(),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 40),
+              CellGroup(
+                cellBackgroundColor:
+                    context.mixinTheme.settingCellBackgroundColor,
+                child: _SwitchCell(
+                  title: context.l10n.proxy,
+                  value: hasProxy && enabled,
+                  onChanged: hasProxy
+                      ? (value) => unawaited(onEnabledChanged(value))
+                      : null,
+                ),
               ),
-            ),
-            CellGroup(
-              child: Column(
-                children: [
-                  CellItem(
-                    title: Text(context.l10n.addProxy),
-                    leading: Icon(Icons.add, color: context.mixinTheme.icon),
-                    trailing: null,
-                    onTap: () => _showAddProxyDialog(context),
-                  ),
-                  for (final proxy in proxies) ...[
+              CellGroup(
+                cellBackgroundColor:
+                    context.mixinTheme.settingCellBackgroundColor,
+                child: Column(
+                  children: [
+                    CellItem(
+                      title: Text(context.l10n.addProxy),
+                      leading: Icon(Icons.add, color: context.mixinTheme.icon),
+                      trailing: null,
+                      onTap: () => _showAddProxyDialog(context),
+                    ),
                     Divider(
                       height: 0.5,
                       indent: 56,
                       color: context.mixinTheme.divider,
                     ),
-                    _ProxyCell(
-                      proxy: proxy,
-                      selected: effectiveSelectedProxyId == proxy.id,
-                      onSelected: () => unawaited(onProxySelected(proxy.id)),
-                      onDeleted: () => unawaited(onProxyDeleted(proxy.id)),
-                    ),
+                    for (final proxy in proxies)
+                      _ProxyCell(
+                        proxy: proxy,
+                        selected: effectiveSelectedProxyId == proxy.id,
+                        onSelected: () => unawaited(onProxySelected(proxy.id)),
+                        onDeleted: () => unawaited(onProxyDeleted(proxy.id)),
+                      ),
                   ],
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
   Future<void> _showAddProxyDialog(BuildContext context) async {
-    final proxy = await showDialog<ProxyItem>(
+    final proxy = await showMixinDialog<ProxyItem>(
       context: context,
-      builder: (context) => const _AddProxyDialog(),
+      child: const _AddProxyDialog(),
     );
     if (proxy != null) await onProxyAdded(proxy);
   }
@@ -351,7 +447,6 @@ class _AddProxyDialogState extends State<_AddProxyDialog> {
   final _portController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  String? _error;
 
   @override
   void dispose() {
@@ -363,12 +458,9 @@ class _AddProxyDialogState extends State<_AddProxyDialog> {
   }
 
   void _submit() {
-    final host = _hostController.text.trim();
-    final port = int.tryParse(_portController.text.trim());
-    if (host.isEmpty || port == null || port < 1 || port > 65535) {
-      setState(() => _error = '${context.l10n.host} / ${context.l10n.port}');
-      return;
-    }
+    final host = _hostController.text;
+    final port = int.tryParse(_portController.text);
+    if (port == null) return;
     Navigator.pop(
       context,
       ProxyItem(
@@ -376,24 +468,23 @@ class _AddProxyDialogState extends State<_AddProxyDialog> {
         kind: 'http',
         host: host,
         port: port,
-        username: _usernameController.text.isEmpty
-            ? null
-            : _usernameController.text,
-        password: _passwordController.text.isEmpty
-            ? null
-            : _passwordController.text,
+        username: null,
+        password: null,
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    backgroundColor: context.mixinTheme.popUp,
+  Widget build(BuildContext context) => AlertDialogLayout(
     title: Text(context.l10n.addProxy),
-    content: SizedBox(
-      width: 420,
+    titleMarginBottom: 24,
+    content: DefaultTextStyle.merge(
+      style: TextStyle(
+        fontWeight: FontWeight.normal,
+        fontSize: 14,
+        color: context.mixinTheme.text,
+      ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _DialogLabel(context.l10n.proxyType),
@@ -407,7 +498,6 @@ class _AddProxyDialogState extends State<_AddProxyDialog> {
             secondController: _portController,
             firstHint: context.l10n.host,
             secondHint: context.l10n.port,
-            secondKeyboardType: TextInputType.number,
           ),
           const SizedBox(height: 16),
           _DialogLabel(context.l10n.proxyAuth),
@@ -417,44 +507,41 @@ class _AddProxyDialogState extends State<_AddProxyDialog> {
             secondController: _passwordController,
             firstHint: context.l10n.username,
             secondHint: context.l10n.password,
-            obscureSecond: true,
           ),
-          if (_error != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              _error!,
-              style: TextStyle(color: context.mixinTheme.red, fontSize: 13),
-            ),
-          ],
         ],
       ),
     ),
     actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
+      MixinButton(
+        backgroundTransparent: true,
+        onTap: () => Navigator.pop(context),
         child: Text(context.l10n.cancel),
       ),
-      FilledButton(onPressed: _submit, child: Text(context.l10n.add)),
+      MixinButton(onTap: _submit, child: Text(context.l10n.add)),
     ],
   );
 }
 
 class _ProxyTypeTile extends StatelessWidget {
   @override
-  Widget build(BuildContext context) => Container(
-    height: 52,
-    padding: const EdgeInsets.symmetric(horizontal: 16),
-    decoration: BoxDecoration(
-      color: context.mixinTheme.listSelected,
-      borderRadius: const BorderRadius.all(Radius.circular(8)),
-    ),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text('HTTP', style: TextStyle(color: context.mixinTheme.text)),
-        ),
-        Icon(Icons.check, color: context.mixinTheme.accent, size: 22),
-      ],
+  Widget build(BuildContext context) => Material(
+    color: context.mixinTheme.listSelected,
+    borderRadius: const BorderRadius.all(Radius.circular(8)),
+    child: ListTileTheme(
+      data: ListTileThemeData(dense: true, textColor: context.mixinTheme.text),
+      child: Column(
+        children: [
+          ListTile(
+            title: const Text('HTTP'),
+            trailing: SvgPicture.asset(
+              MixinAssets.checked,
+              width: 24,
+              height: 24,
+            ),
+            onTap: () {},
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -465,16 +552,12 @@ class _ProxyInputGroup extends StatelessWidget {
     required this.secondController,
     required this.firstHint,
     required this.secondHint,
-    this.secondKeyboardType,
-    this.obscureSecond = false,
   });
 
   final TextEditingController firstController;
   final TextEditingController secondController;
   final String firstHint;
   final String secondHint;
-  final TextInputType? secondKeyboardType;
-  final bool obscureSecond;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -488,8 +571,6 @@ class _ProxyInputGroup extends StatelessWidget {
       _ProxyTextField(
         controller: secondController,
         hint: secondHint,
-        keyboardType: secondKeyboardType,
-        obscureText: obscureSecond,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
       ),
     ],
@@ -501,23 +582,19 @@ class _ProxyTextField extends StatelessWidget {
     required this.controller,
     required this.hint,
     required this.borderRadius,
-    this.keyboardType,
-    this.obscureText = false,
   });
 
   final TextEditingController controller;
   final String hint;
   final BorderRadius borderRadius;
-  final TextInputType? keyboardType;
-  final bool obscureText;
 
   @override
   Widget build(BuildContext context) => TextField(
     controller: controller,
-    keyboardType: keyboardType,
-    obscureText: obscureText,
     style: TextStyle(fontSize: 14, color: context.mixinTheme.text),
-    inputFormatters: [LengthLimitingTextInputFormatter(1024)],
+    inputFormatters: [LengthLimitingTextInputFormatter(200)],
+    contextMenuBuilder: (context, state) =>
+        MixinAdaptiveSelectionToolbar(editableTextState: state),
     decoration: InputDecoration(
       isDense: true,
       hintText: hint,
@@ -550,28 +627,35 @@ class _ProxyCell extends StatelessWidget {
   final VoidCallback onDeleted;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-    minLeadingWidth: 20,
-    leading: SizedBox(
-      width: 20,
-      child: selected
-          ? Icon(Icons.check, color: context.mixinTheme.icon, size: 20)
-          : null,
+  Widget build(BuildContext context) => Material(
+    color: context.mixinTheme.settingCellBackgroundColor,
+    child: ListTile(
+      leading: SizedBox(
+        height: double.infinity,
+        width: 20,
+        child: selected
+            ? Icon(Icons.check, color: context.mixinTheme.icon, size: 20)
+            : null,
+      ),
+      minLeadingWidth: 0,
+      title: Text(
+        '${proxy.host}:${proxy.port}',
+        style: TextStyle(fontSize: 16, color: context.mixinTheme.text),
+      ),
+      subtitle: Text(
+        proxy.kind,
+        style: TextStyle(fontSize: 14, color: context.mixinTheme.secondaryText),
+      ),
+      trailing: ActionButton(
+        name: MixinAssets.delete,
+        color: context.mixinTheme.icon,
+        onTap: onDeleted,
+      ),
+      onTap: () {
+        if (selected) return;
+        onSelected();
+      },
     ),
-    title: Text(
-      '${proxy.host}:${proxy.port}',
-      style: TextStyle(fontSize: 16, color: context.mixinTheme.text),
-    ),
-    subtitle: Text(
-      proxy.kind.toUpperCase(),
-      style: TextStyle(fontSize: 14, color: context.mixinTheme.secondaryText),
-    ),
-    trailing: IconButton(
-      tooltip: MaterialLocalizations.of(context).deleteButtonTooltip,
-      onPressed: onDeleted,
-      icon: Icon(Icons.delete_outline, color: context.mixinTheme.icon),
-    ),
-    onTap: selected ? null : onSelected,
   );
 }
 
@@ -611,7 +695,6 @@ class _SwitchCell extends StatelessWidget {
         onChanged: onChanged,
       ),
     ),
-    onTap: onChanged == null ? null : () => onChanged!(!value),
   );
 }
 
@@ -625,7 +708,7 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) => ConstrainedBox(
     constraints: const BoxConstraints(maxWidth: 600),
     child: Padding(
-      padding: EdgeInsets.only(left: 10, right: 10, bottom: 14, top: top),
+      padding: EdgeInsets.only(left: 10, bottom: 14, top: top),
       child: Text(
         text,
         style: TextStyle(color: context.mixinTheme.secondaryText, fontSize: 14),
@@ -652,80 +735,94 @@ class _ChatTextSizePreview extends StatelessWidget {
   final double fontSizeDelta;
 
   @override
-  Widget build(BuildContext context) => ConstrainedBox(
-    constraints: const BoxConstraints(maxWidth: 600),
-    child: IgnorePointer(
+  Widget build(BuildContext context) {
+    final createdAt = DateTime(2023, 1, 1, 8, 25);
+    final messageHi = _previewMessage(
+      id: 'preview-hi',
+      content: context.l10n.sayHi,
+      createdAt: createdAt,
+    );
+    final messageAnswer = _previewMessage(
+      id: 'preview-answer',
+      content: context.l10n.iAmGood,
+      createdAt: createdAt,
+    );
+    return IgnorePointer(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 10),
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+        padding: const EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 10,
+          bottom: 20,
+        ),
         decoration: BoxDecoration(
           color: context.mixinTheme.chatBackground,
-          image: const DecorationImage(
-            image: ExactAssetImage(MixinAssets.chatBackground),
-            repeat: ImageRepeat.repeat,
-          ),
           borderRadius: const BorderRadius.all(Radius.circular(8)),
+          image: DecorationImage(
+            image: const ExactAssetImage(MixinAssets.chatBackground),
+            fit: BoxFit.none,
+            colorFilter: ColorFilter.mode(
+              Theme.of(context).brightness == Brightness.dark
+                  ? Colors.white.withValues(alpha: 0.02)
+                  : Colors.black.withValues(alpha: 0.03),
+              BlendMode.srcIn,
+            ),
+          ),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              '08:25',
-              style: TextStyle(
-                color: context.mixinTheme.secondaryText,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: _PreviewBubble(
-                text: context.l10n.sayHi,
-                fontSize: 14 + fontSizeDelta,
-                color: context.mixinTheme.accent,
-                textColor: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _PreviewBubble(
-                text: context.l10n.iAmGood,
-                fontSize: 14 + fontSizeDelta,
-                color: context.mixinTheme.primary,
-                textColor: context.mixinTheme.text,
-              ),
-            ),
+            MessageDayTime(dateTime: DateTime(2023)),
+            _PreviewMessage(message: messageHi, isCurrentUser: true),
+            _PreviewMessage(message: messageAnswer, isCurrentUser: false),
           ],
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
-class _PreviewBubble extends StatelessWidget {
-  const _PreviewBubble({
-    required this.text,
-    required this.fontSize,
-    required this.color,
-    required this.textColor,
-  });
+MessageListEntry _previewMessage({
+  required String id,
+  required String content,
+  required DateTime createdAt,
+}) => MessageListEntry(
+  id: id,
+  conversationId: 'fake',
+  senderId: 'fake',
+  senderName: '',
+  senderAvatarUrl: '',
+  senderIsVerified: false,
+  category: 'PLAIN_TEXT',
+  content: content,
+  status: 'READ',
+  createdAt: createdAt,
+  mediaDuration: '',
+  mediaStatus: '',
+);
 
-  final String text;
-  final double fontSize;
-  final Color color;
-  final Color textColor;
+class _PreviewMessage extends StatelessWidget {
+  const _PreviewMessage({required this.message, required this.isCurrentUser});
+
+  final MessageListEntry message;
+  final bool isCurrentUser;
 
   @override
-  Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(maxWidth: 360),
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-    decoration: BoxDecoration(
-      color: color,
-      borderRadius: const BorderRadius.all(Radius.circular(12)),
-    ),
-    child: Text(
-      text,
-      style: TextStyle(fontSize: fontSize, color: textColor),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final metadata = MessageDatetimeAndStatus(
+      message: message,
+      isCurrentUser: isCurrentUser,
+    );
+    return MessageBubble(
+      isCurrentUser: isCurrentUser,
+      showNip: true,
+      child: MessageContent(
+        message: message,
+        isCurrentUser: isCurrentUser,
+        dateAndStatus: metadata,
+        overlayDateAndStatus: metadata,
+      ),
+    );
+  }
 }

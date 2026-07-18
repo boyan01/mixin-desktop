@@ -11,7 +11,7 @@ impl CircleConversationDao {
             return Ok(());
         }
         let mut query_builder: QueryBuilder<sqlx::Sqlite> = QueryBuilder::new(
-            "INSERT OR REPLACE INTO circle_conversations (circle_id, conversation_id, created_at) VALUES ",
+            "INSERT OR REPLACE INTO circle_conversations (circle_id, conversation_id, created_at) ",
         );
         query_builder.push_values(cs.iter(), |mut b, c| {
             b.push_bind(&c.circle_id)

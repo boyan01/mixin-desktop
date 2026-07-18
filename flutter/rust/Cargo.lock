@@ -2039,10 +2039,12 @@ name = "mixin_desktop_flutter"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "flutter_rust_bridge",
  "log",
+ "mixin-bot-sdk",
  "mixin_desktop_core",
- "simplelog",
+ "serde_json",
  "tokio",
 ]
 

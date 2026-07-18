@@ -1,16 +1,26 @@
+import 'dart:async';
+
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/controllers/network_controller.dart';
+import 'package:mixin_desktop_ui/controllers/security_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/pages/settings_account_pages.dart';
 import 'package:mixin_desktop_ui/pages/settings_preference_pages.dart';
 import 'package:mixin_desktop_ui/pages/settings_storage_about_pages.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' show AccountProfile;
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart'
+    show AccountHandle, AccountProfile;
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/utils/app_logger.dart';
+import 'package:mixin_desktop_ui/utils/local_notification_center.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
+import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
 import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
+import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -19,12 +29,17 @@ class SettingsPage extends StatefulWidget {
   const SettingsPage({
     required this.profile,
     required this.onSignOut,
+    required this.onProfileUpdated,
+    required this.onProfileRefresh,
     required this.onClose,
     super.key,
   });
 
   final AccountProfile profile;
   final Future<void> Function() onSignOut;
+  final Future<void> Function(String fullName, String biography)
+  onProfileUpdated;
+  final Future<AccountProfile> Function() onProfileRefresh;
   final VoidCallback onClose;
 
   @override
@@ -41,35 +56,46 @@ enum _SettingsDestination {
   about,
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends State<SettingsPage>
+    with WidgetsBindingObserver {
   final _routeNavigatorKey = GlobalKey<NavigatorState>();
   final _detailNavigatorKey = GlobalKey<NavigatorState>();
   var _wideMode = false;
   var _wideDetailOpened = false;
   var _activeDestination = _SettingsDestination.editProfile;
-  var _signingOut = false;
   String? _fullName;
   String? _biography;
-  var _hasPasscode = false;
-  var _biometricEnabled = false;
-  var _autoLockDuration = Duration.zero;
+  bool? _hasNotificationPermission;
 
   String get _displayName => _fullName ?? widget.profile.fullName;
 
-  Future<void> _signOut() async {
-    if (_signingOut) return;
-    setState(() => _signingOut = true);
-    try {
-      await widget.onSignOut();
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.maybeOf(
-          context,
-        )?.showSnackBar(SnackBar(content: Text(context.l10n.failed)));
-      }
-    } finally {
-      if (mounted) setState(() => _signingOut = false);
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_refreshNotificationPermission());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshNotificationPermission());
     }
+  }
+
+  Future<void> _refreshNotificationPermission() async {
+    final value = await requestNotificationPermission();
+    if (mounted) setState(() => _hasNotificationPermission = value);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _signOut() async {
+    await runFutureWithToast(widget.onSignOut());
   }
 
   void _push(Widget page, {bool nested = false}) {
@@ -100,12 +126,14 @@ class _SettingsPageState extends State<SettingsPage> {
           createdAt: DateTime.tryParse(widget.profile.createdAt),
           onBack: _wideMode ? null : _popCallback(context),
           onSave: (fullName, biography) async {
+            await widget.onProfileUpdated(fullName, biography);
             if (!mounted) return;
             setState(() {
               _fullName = fullName;
               _biography = biography;
             });
           },
+          onRefresh: widget.onProfileRefresh,
         ),
       ),
     );
@@ -124,10 +152,21 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _openStorage() {
     setState(() => _activeDestination = _SettingsDestination.storage);
+    final account = context.read<AccountHandle>();
     _push(
       StoragePage(
         onOpenStorageUsage: () => _push(
-          StorageUsageListPage(entries: const [], onSelected: (_) {}),
+          StorageUsageListPage(
+            account: account,
+            onSelected: (entry) => _push(
+              StorageUsageDetailPage(
+                account: account,
+                name: entry.conversation.name,
+                conversationId: entry.conversation.id,
+              ),
+              nested: true,
+            ),
+          ),
           nested: true,
         ),
       ),
@@ -136,22 +175,21 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _openSecurity() {
     setState(() => _activeDestination = _SettingsDestination.security);
+    final security = context.read<SecurityController>();
     _push(
       Builder(
         builder: (context) => SecuritySettingsPage(
           onBack: _wideMode ? null : _popCallback(context),
-          hasPasscode: _hasPasscode,
-          biometricEnabled: _biometricEnabled,
-          autoLockDuration: _autoLockDuration,
-          onPasscodeChanged: (passcode) async {
-            _hasPasscode = passcode != null;
-            if (!_hasPasscode) _biometricEnabled = false;
-          },
+          hasPasscode: security.hasPasscode,
+          biometricEnabled: security.biometric,
+          autoLockDuration: security.lockDuration,
+          onPasscodeChanged: security.setPasscode,
           onBiometricChanged: (enabled) async {
-            _biometricEnabled = enabled;
+            if (!await security.canAuthenticate()) return false;
+            await security.setBiometric(enabled);
             return true;
           },
-          onAutoLockChanged: (duration) => _autoLockDuration = duration,
+          onAutoLockChanged: security.setLockDuration,
         ),
       ),
     );
@@ -203,12 +241,17 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _openAbout() async {
     setState(() => _activeDestination = _SettingsDestination.about);
     final version = await PackageInfo.fromPlatform()
-        .then((info) => '${info.version} (${info.buildNumber})')
+        .then(
+          (info) =>
+              '${info.version}${info.buildNumber.isEmpty ? '' : '(${info.buildNumber})'}',
+        )
         .onError((_, _) => '1.0.0');
     if (!mounted) return;
     _push(
       AboutPage(
         version: version,
+        logs: appLogs,
+        onOpenLogDirectory: openAppLogDirectory,
         onOpenUri: (uri) =>
             launchUrl(uri, mode: LaunchMode.externalApplication).then((_) {}),
       ),
@@ -269,12 +312,16 @@ class _SettingsHome extends StatelessWidget {
 
   final _SettingsPageState state;
 
-  Widget _icon(BuildContext context, String asset) => SvgPicture.asset(
-    asset,
-    width: 24,
-    height: 24,
-    colorFilter: ColorFilter.mode(context.mixinTheme.icon, BlendMode.srcIn),
-  );
+  Widget _icon(BuildContext context, String asset, {Color? color}) =>
+      SvgPicture.asset(
+        asset,
+        width: 24,
+        height: 24,
+        colorFilter: ColorFilter.mode(
+          color ?? context.mixinTheme.text,
+          BlendMode.srcIn,
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -283,26 +330,7 @@ class _SettingsHome extends StatelessWidget {
       color: colors.background,
       child: Column(
         children: [
-          SizedBox(
-            height: 64,
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Padding(
-                padding: const EdgeInsetsDirectional.only(start: 8),
-                child: IconButton(
-                  key: const ValueKey('settings-close'),
-                  onPressed: state.widget.onClose,
-                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-                  icon: SvgPicture.asset(
-                    MixinAssets.close,
-                    width: 20,
-                    height: 20,
-                    colorFilter: ColorFilter.mode(colors.icon, BlendMode.srcIn),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          const SizedBox(height: 64),
           Expanded(
             child: SingleChildScrollView(
               child: Column(
@@ -313,11 +341,13 @@ class _SettingsHome extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   CellGroup(
-                    cellBackgroundColor: colors.listSelected,
                     child: CellItem(
                       key: const ValueKey('settings-edit-profile'),
                       leading: _icon(context, MixinAssets.profile),
-                      title: Text(context.l10n.editProfile),
+                      title: AutoSizeText(
+                        context.l10n.editProfile,
+                        maxLines: 1,
+                      ),
                       selected:
                           state._wideMode &&
                           state._activeDestination ==
@@ -326,13 +356,38 @@ class _SettingsHome extends StatelessWidget {
                     ),
                   ),
                   CellGroup(
-                    cellBackgroundColor: colors.listSelected,
                     child: Column(
                       children: [
                         CellItem(
                           key: const ValueKey('settings-notifications'),
-                          leading: _icon(context, MixinAssets.notification),
-                          title: Text(context.l10n.notifications),
+                          leading: _icon(
+                            context,
+                            MixinAssets.notification,
+                            color: state._hasNotificationPermission == false
+                                ? colors.red
+                                : null,
+                          ),
+                          title: AutoSizeText(
+                            context.l10n.notifications,
+                            maxLines: 1,
+                          ),
+                          color: state._hasNotificationPermission == false
+                              ? colors.red
+                              : colors.text,
+                          trailing: state._hasNotificationPermission == false
+                              ? Padding(
+                                  padding: const EdgeInsets.all(4),
+                                  child: SvgPicture.asset(
+                                    MixinAssets.warning,
+                                    colorFilter: ColorFilter.mode(
+                                      colors.red,
+                                      BlendMode.srcIn,
+                                    ),
+                                    width: 22,
+                                    height: 22,
+                                  ),
+                                )
+                              : const Arrow(),
                           selected:
                               state._wideMode &&
                               state._activeDestination ==
@@ -342,7 +397,10 @@ class _SettingsHome extends StatelessWidget {
                         CellItem(
                           key: const ValueKey('settings-storage'),
                           leading: _icon(context, MixinAssets.storageUsage),
-                          title: Text(context.l10n.dataAndStorageUsage),
+                          title: AutoSizeText(
+                            context.l10n.dataAndStorageUsage,
+                            maxLines: 1,
+                          ),
                           selected:
                               state._wideMode &&
                               state._activeDestination ==
@@ -352,7 +410,10 @@ class _SettingsHome extends StatelessWidget {
                         CellItem(
                           key: const ValueKey('settings-security'),
                           leading: _icon(context, MixinAssets.shield),
-                          title: Text(context.l10n.security),
+                          title: AutoSizeText(
+                            context.l10n.security,
+                            maxLines: 1,
+                          ),
                           selected:
                               state._wideMode &&
                               state._activeDestination ==
@@ -362,7 +423,7 @@ class _SettingsHome extends StatelessWidget {
                         CellItem(
                           key: const ValueKey('settings-proxy'),
                           leading: _icon(context, MixinAssets.proxy),
-                          title: Text(context.l10n.proxy),
+                          title: AutoSizeText(context.l10n.proxy, maxLines: 1),
                           selected:
                               state._wideMode &&
                               state._activeDestination ==
@@ -372,7 +433,10 @@ class _SettingsHome extends StatelessWidget {
                         CellItem(
                           key: const ValueKey('settings-appearance'),
                           leading: _icon(context, MixinAssets.appearance),
-                          title: Text(context.l10n.appearance),
+                          title: AutoSizeText(
+                            context.l10n.appearance,
+                            maxLines: 1,
+                          ),
                           selected:
                               state._wideMode &&
                               state._activeDestination ==
@@ -382,7 +446,7 @@ class _SettingsHome extends StatelessWidget {
                         CellItem(
                           key: const ValueKey('settings-about'),
                           leading: _icon(context, MixinAssets.about),
-                          title: Text(context.l10n.about),
+                          title: AutoSizeText(context.l10n.about, maxLines: 1),
                           selected:
                               state._wideMode &&
                               state._activeDestination ==
@@ -393,22 +457,17 @@ class _SettingsHome extends StatelessWidget {
                     ),
                   ),
                   CellGroup(
-                    cellBackgroundColor: colors.listSelected,
                     child: CellItem(
                       key: const ValueKey('settings-sign-out'),
-                      leading: _icon(context, MixinAssets.signOut),
-                      title: Text(context.l10n.signOut),
+                      leading: _icon(
+                        context,
+                        MixinAssets.signOut,
+                        color: colors.red,
+                      ),
+                      title: AutoSizeText(context.l10n.signOut, maxLines: 1),
                       color: colors.red,
-                      trailing: state._signingOut
-                          ? SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: colors.red,
-                              ),
-                            )
-                          : null,
-                      onTap: state._signingOut ? null : state._signOut,
+                      trailing: const SizedBox(),
+                      onTap: state._signOut,
                     ),
                   ),
                 ],
@@ -440,16 +499,25 @@ class _UserProfile extends StatelessWidget {
       const SizedBox(height: 10),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Text(
-          fullName,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
-            color: context.mixinTheme.text,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CustomText(
+              fullName,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 18,
+                color: context.mixinTheme.text,
+              ),
+            ),
+            BadgesWidget(
+              verified: profile.isVerified,
+              isBot: false,
+              membership: profile.membership,
+            ),
+          ],
         ),
       ),
       const SizedBox(height: 4),

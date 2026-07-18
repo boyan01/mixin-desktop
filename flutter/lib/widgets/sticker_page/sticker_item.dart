@@ -3,11 +3,27 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:lottie/lottie.dart';
+import 'package:mixin_desktop_ui/app.dart';
 import 'package:mixin_desktop_ui/network/core_http_scope.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/utils/cache_client.dart';
 import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
+import 'package:provider/provider.dart';
 
 const _cacheLottieFolderName = 'cache_lottie';
+
+void _triggerRefreshJob(BuildContext context, String? stickerId) {
+  if (stickerId == null || stickerId.isEmpty) return;
+
+  scheduleMicrotask(() {
+    if (!context.mounted) return;
+    unawaited(
+      context.read<rust.AccountHandle>().sticker().refreshSticker(
+        stickerId: stickerId,
+      ),
+    );
+  });
+}
 
 class StickerItem extends HookWidget {
   const StickerItem({
@@ -30,9 +46,7 @@ class StickerItem extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final network = CoreHttpScope.maybeOf(context);
-    final isJson = useMemoized(() => assetType?.toLowerCase() == 'json', [
-      assetType,
-    ]);
+    final isJson = useMemoized(() => assetType == 'json', [assetType]);
     final controller = useAnimationController();
     final cacheClient = useMemoized(
       () => CacheClient(_cacheLottieFolderName, client: network?.client),
@@ -40,8 +54,26 @@ class StickerItem extends HookWidget {
     );
     useEffect(() => cacheClient.close, [cacheClient]);
     final lifecycleState = useAppLifecycleState();
+    final routeVisible = useState(true);
+    final routeAware = useMemoized(
+      () => _StickerRouteAware(
+        () => routeVisible.value = false,
+        () => routeVisible.value = true,
+      ),
+    );
+    final secondNavigatorContext = useMemoized(
+      () => _secondNavigatorContext(context),
+    );
+    final route = ModalRoute.of(secondNavigatorContext ?? context);
+    useEffect(() {
+      if (route == null) return null;
+      rootRouteObserver.subscribe(routeAware, route);
+      return () => rootRouteObserver.unsubscribe(routeAware);
+    }, [routeAware, route]);
     final shouldPlay =
-        lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
+        (lifecycleState == null ||
+            lifecycleState == AppLifecycleState.resumed) &&
+        routeVisible.value;
 
     useEffect(() {
       if (!isJson || controller.duration == null) return null;
@@ -53,9 +85,7 @@ class StickerItem extends HookWidget {
       return null;
     }, [controller, isJson, shouldPlay]);
 
-    final child = assetUrl.isEmpty
-        ? errorWidget ?? const SizedBox()
-        : isJson
+    final child = isJson
         ? LottieBuilder(
             lottie: NetworkLottie(assetUrl, client: cacheClient),
             controller: controller,
@@ -66,8 +96,10 @@ class StickerItem extends HookWidget {
               controller.duration = composition.duration;
               if (shouldPlay) unawaited(controller.repeat());
             },
-            errorBuilder: (context, error, stackTrace) =>
-                errorWidget ?? const SizedBox(),
+            errorBuilder: (context, error, stackTrace) {
+              _triggerRefreshJob(context, stickerId);
+              return errorWidget ?? const SizedBox();
+            },
           )
         : MixinImage.network(
             assetUrl,
@@ -75,8 +107,10 @@ class StickerItem extends HookWidget {
             width: width,
             fit: BoxFit.contain,
             normalizeGif: assetType?.toLowerCase() == 'gif',
-            errorBuilder: (context, error, stackTrace) =>
-                errorWidget ?? const SizedBox(),
+            errorBuilder: (context, error, stackTrace) {
+              _triggerRefreshJob(context, stickerId);
+              return errorWidget ?? const SizedBox();
+            },
           );
 
     if (width == null || height == null) {
@@ -85,6 +119,33 @@ class StickerItem extends HookWidget {
 
     return child;
   }
+}
+
+class _StickerRouteAware extends RouteAware {
+  _StickerRouteAware(this._didPushNext, this._didPopNext);
+
+  final VoidCallback _didPushNext;
+  final VoidCallback _didPopNext;
+
+  @override
+  void didPushNext() => _didPushNext();
+
+  @override
+  void didPopNext() => _didPopNext();
+}
+
+BuildContext? _secondNavigatorContext(BuildContext context) {
+  final rootNavigator = Navigator.maybeOf(context, rootNavigator: true);
+  if (rootNavigator == null) return null;
+
+  BuildContext? find(BuildContext current) {
+    final navigator = current.findAncestorStateOfType<NavigatorState>();
+    if (navigator == null) return null;
+    if (navigator == rootNavigator) return current;
+    return find(navigator.context);
+  }
+
+  return find(context);
 }
 
 class StickerGroupIcon extends StatelessWidget {

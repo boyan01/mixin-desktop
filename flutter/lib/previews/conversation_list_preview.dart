@@ -86,6 +86,7 @@ Widget conversationListPreview() => MaterialApp(
     selectedConversationId: '1',
     onQueryChanged: _ignoreQuery,
     onToggleUnseen: _noop,
+    onCreateActionSelected: (_) {},
     onSelected: _ignoreConversation,
     onPinned: _ignoreConversation,
     onMuted: _ignoreMute,

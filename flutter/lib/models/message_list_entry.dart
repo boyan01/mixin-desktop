@@ -11,6 +11,7 @@ class MessageListEntry {
     this.senderIdentityNumber = '',
     required this.senderAvatarUrl,
     required this.senderIsVerified,
+    this.senderMembership,
     required this.category,
     required this.content,
     required this.status,
@@ -25,6 +26,7 @@ class MessageListEntry {
     this.thumbImage,
     this.quoteMessageId,
     this.quoteContent,
+    this.quoteUserMembership,
     this.caption,
     this.action,
     this.participantId,
@@ -64,6 +66,7 @@ class MessageListEntry {
     this.sharedUserIdentityNumber,
     this.sharedUserAvatarUrl,
     this.sharedUserIsVerified = false,
+    this.sharedUserMembership,
     this.sharedUserAppId,
     this.stickerAssetUrl,
     this.stickerAssetWidth,
@@ -84,6 +87,7 @@ class MessageListEntry {
         senderIdentityNumber: item.senderIdentityNumber ?? '',
         senderAvatarUrl: item.senderAvatarUrl,
         senderIsVerified: item.senderIsVerified,
+        senderMembership: item.senderMembership,
         category: item.category,
         content: item.content,
         status: item.status,
@@ -100,6 +104,7 @@ class MessageListEntry {
         mediaStatus: item.mediaStatus,
         quoteMessageId: item.quoteMessageId,
         quoteContent: item.quoteContent,
+        quoteUserMembership: item.quoteUserMembership,
         caption: item.caption,
         action: item.action,
         participantId: item.participantId,
@@ -139,6 +144,7 @@ class MessageListEntry {
         sharedUserIdentityNumber: item.sharedUserIdentityNumber,
         sharedUserAvatarUrl: item.sharedUserAvatarUrl,
         sharedUserIsVerified: item.sharedUserIsVerified,
+        sharedUserMembership: item.sharedUserMembership,
         sharedUserAppId: item.sharedUserAppId,
         stickerAssetUrl: item.stickerAssetUrl,
         stickerAssetWidth: item.stickerAssetWidth,
@@ -157,6 +163,7 @@ class MessageListEntry {
   final String senderIdentityNumber;
   final String senderAvatarUrl;
   final bool senderIsVerified;
+  final String? senderMembership;
   final String category;
   final String content;
   final String status;
@@ -171,6 +178,7 @@ class MessageListEntry {
   final String mediaStatus;
   final String? quoteMessageId;
   final String? quoteContent;
+  final String? quoteUserMembership;
   final String? caption;
   final String? action;
   final String? participantId;
@@ -210,6 +218,7 @@ class MessageListEntry {
   final String? sharedUserIdentityNumber;
   final String? sharedUserAvatarUrl;
   final bool sharedUserIsVerified;
+  final String? sharedUserMembership;
   final String? sharedUserAppId;
   final String? stickerAssetUrl;
   final int? stickerAssetWidth;
@@ -223,6 +232,7 @@ class MessageListEntry {
   bool get isText => category.endsWith('_TEXT');
   bool get isImage => category.endsWith('_IMAGE');
   bool get isVideo => category.endsWith('_VIDEO') || category.endsWith('_LIVE');
+  bool get isLive => category.endsWith('_LIVE');
   bool get isAudio => category.endsWith('_AUDIO');
   bool get isSticker => category.endsWith('_STICKER');
   bool get isPost => category.endsWith('_POST');

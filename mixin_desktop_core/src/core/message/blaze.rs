@@ -13,7 +13,7 @@ use futures_channel::mpsc::UnboundedSender;
 use log::{error, info, warn};
 use reqwest::header::HeaderValue;
 use reqwest::Method;
-use tokio::sync::watch;
+use tokio::sync::{watch, Notify};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::{Error as WebSocketError, Message};
@@ -57,6 +57,7 @@ pub struct Blaze {
     connection_status: watch::Sender<bool>,
     transactions: Arc<Mutex<HashMap<String, Completer<BlazeMessage>>>>,
     connect_running: Arc<AtomicBool>,
+    reconnect: Notify,
     pending_message_statuses: PendingMessageStatusStore,
 }
 
@@ -243,12 +244,21 @@ impl Blaze {
             user_id,
             transactions: Arc::new(Mutex::new(HashMap::new())),
             connect_running: Arc::new(AtomicBool::new(false)),
+            reconnect: Notify::new(),
             pending_message_statuses: PendingMessageStatusStore::new(changes),
         }
     }
 
     pub fn pending_message_statuses(&self) -> PendingMessageStatusStore {
         self.pending_message_statuses.clone()
+    }
+
+    pub fn subscribe_connection_status(&self) -> watch::Receiver<bool> {
+        self.connection_status.subscribe()
+    }
+
+    pub fn retry_connection(&self) {
+        self.reconnect.notify_one();
     }
 
     pub async fn connect(&self) -> Result<()> {
@@ -277,7 +287,10 @@ impl Blaze {
             }
 
             host_index = (host_index + 1) % WS_HOSTS.len();
-            tokio::time::sleep(RECONNECT_DELAY).await;
+            tokio::select! {
+                _ = tokio::time::sleep(RECONNECT_DELAY) => {}
+                _ = self.reconnect.notified() => {}
+            }
         }
     }
 

@@ -59,6 +59,8 @@ pub struct Conversation {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ConversationRequest {
     pub conversation_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub random_id: Option<String>,
     pub category: Option<ConversationCategory>,
     pub name: Option<String>,
     pub icon_base64: Option<String>,
@@ -125,6 +127,12 @@ impl ConversationApi {
             .await
     }
 
+    pub async fn join(&self, code: &str) -> Result<Conversation, ApiError> {
+        self.client
+            .post(&format!("conversations/{code}/join"), "")
+            .await
+    }
+
     // duration: zero to turn off disappearing messages
     pub async fn disappear(&self, conversation_id: &str, duration: i64) -> Result<(), ApiError> {
         self.client
@@ -145,6 +153,7 @@ mod tests {
     fn serializes_create_participant_without_response_fields() {
         let request = ConversationRequest {
             conversation_id: "conversation".into(),
+            random_id: None,
             category: Some(ConversationCategory::Contact),
             name: None,
             icon_base64: None,
@@ -160,6 +169,7 @@ mod tests {
             value["participants"][0],
             serde_json::json!({"user_id": "recipient"})
         );
+        assert!(value.get("random_id").is_none());
     }
 
     #[tokio::test]

@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
@@ -52,7 +54,7 @@ Menu? buildMessageActionsMenu({
     [
       if (policy.canReply && callbacks.onReply != null)
         MenuAction(
-          image: MenuImage.icon(Icons.reply),
+          image: MenuImage.icon(IconFonts.reply),
           title: context.l10n.reply,
           callback: callbacks.onReply!,
         ),
@@ -66,19 +68,19 @@ Menu? buildMessageActionsMenu({
     [
       if (policy.isPinnedPage && callbacks.onLocateToChat != null)
         MenuAction(
-          image: MenuImage.icon(Icons.my_location),
+          image: MenuImage.icon(IconFonts.positionToChat),
           title: context.l10n.locateToChat,
           callback: callbacks.onLocateToChat!,
         ),
       if (policy.canForward && callbacks.onForward != null)
         MenuAction(
-          image: MenuImage.icon(Icons.forward),
+          image: MenuImage.icon(IconFonts.forward),
           title: context.l10n.forward,
           callback: callbacks.onForward!,
         ),
       if (policy.canSelect && callbacks.onSelect != null)
         MenuAction(
-          image: MenuImage.icon(Icons.check_circle_outline),
+          image: MenuImage.icon(IconFonts.select),
           title: context.l10n.select,
           callback: callbacks.onSelect!,
         ),
@@ -94,7 +96,7 @@ Menu? buildMessageActionsMenu({
     [
       if (policy.canSave && callbacks.onSaveAs != null)
         MenuAction(
-          image: MenuImage.icon(Icons.download_outlined),
+          image: MenuImage.icon(IconFonts.download),
           title: context.l10n.saveAs,
           callback: callbacks.onSaveAs!,
         ),
@@ -103,7 +105,7 @@ Menu? buildMessageActionsMenu({
       if ((policy.canAddSticker || policy.canAddImageAsSticker) &&
           callbacks.onAddSticker != null)
         MenuAction(
-          image: MenuImage.icon(Icons.emoji_emotions_outlined),
+          image: MenuImage.icon(IconFonts.sticker),
           title: context.l10n.addSticker,
           callback: callbacks.onAddSticker!,
         ),
@@ -111,7 +113,7 @@ Menu? buildMessageActionsMenu({
     [
       if (policy.canRecall && callbacks.onRecall != null)
         MenuAction(
-          image: MenuImage.icon(Icons.undo),
+          image: MenuImage.icon(IconFonts.recall),
           title: context.l10n.deleteForEveryone,
           callback: callbacks.onRecall!,
           attributes: const MenuActionAttributes(destructive: true),
@@ -122,6 +124,15 @@ Menu? buildMessageActionsMenu({
           title: context.l10n.deleteForMe,
           callback: callbacks.onDelete!,
           attributes: const MenuActionAttributes(destructive: true),
+        ),
+    ],
+    [
+      if (!kReleaseMode)
+        MenuAction(
+          image: MenuImage.icon(IconFonts.copy),
+          title: 'Copy message',
+          callback: () =>
+              Clipboard.setData(ClipboardData(text: message.toString())),
         ),
     ],
   ];
@@ -149,7 +160,7 @@ List<MenuElement> _copyActions({
     final actions = <MenuElement>[
       if (callbacks.onCopyImage != null)
         MenuAction(
-          image: MenuImage.icon(Icons.copy),
+          image: MenuImage.icon(IconFonts.copy),
           title: context.l10n.copyImage,
           callback: callbacks.onCopyImage!,
         ),
@@ -209,7 +220,7 @@ MenuAction _copyTextAction({
   required String content,
   required ValueChanged<String> onCopy,
 }) => MenuAction(
-  image: MenuImage.icon(Icons.copy),
+  image: MenuImage.icon(IconFonts.copy),
   title: title,
   callback: () => onCopy(content),
 );

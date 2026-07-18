@@ -4,48 +4,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
+import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/utils/system_clipboard.dart';
+import 'package:mixin_desktop_ui/utils/app_logger.dart';
+import 'package:mixin_desktop_ui/utils/web_view.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
 import 'package:mixin_desktop_ui/widgets/message_actions_menu.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
+import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
 import 'package:mixin_desktop_ui/widgets/message_datetime_and_status.dart';
 import 'package:mixin_desktop_ui/widgets/message_day_time.dart';
 import 'package:mixin_desktop_ui/widgets/message_media_preview_pages.dart';
 import 'package:mixin_desktop_ui/widgets/message_name.dart';
 import 'package:mixin_desktop_ui/widgets/message_presentation.dart';
+import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
 import 'package:mixin_desktop_ui/widgets/message_qr_dialog.dart';
 import 'package:mixin_desktop_ui/widgets/message_rows.dart';
+import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
+import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 import 'package:mixin_desktop_ui/widgets/show_message_user_dialog.dart';
 import 'package:mixin_desktop_ui/widgets/transcript_page.dart';
 import 'package:provider/provider.dart';
 import 'package:super_context_menu/super_context_menu.dart';
-import 'package:url_launcher/url_launcher.dart';
-
-Future<void> showPinnedMessagesDialog(
-  BuildContext context, {
-  required rust.AccountHandle account,
-  required String conversationId,
-  required String currentUserId,
-  required String? currentUserRole,
-  required ValueChanged<String> onLocate,
-}) => showDialog<void>(
-  context: context,
-  builder: (_) => Dialog(
-    clipBehavior: Clip.antiAlias,
-    child: PinnedMessagesPage(
-      account: account,
-      conversationId: conversationId,
-      currentUserId: currentUserId,
-      currentUserRole: currentUserRole ?? 'MEMBER',
-      onLocate: onLocate,
-    ),
-  ),
-);
 
 class PinnedMessagesPage extends StatefulWidget {
   const PinnedMessagesPage({
@@ -55,7 +41,9 @@ class PinnedMessagesPage extends StatefulWidget {
     required this.currentUserId,
     required this.currentUserRole,
     required this.onLocate,
-    this.embedded = false,
+    required this.onSelectConversation,
+    required this.onSelectConversationInfo,
+    required this.onOpenUri,
     this.onEmpty,
     this.onCountChanged,
   });
@@ -65,7 +53,9 @@ class PinnedMessagesPage extends StatefulWidget {
   final String currentUserId;
   final String? currentUserRole;
   final ValueChanged<String> onLocate;
-  final bool embedded;
+  final ValueChanged<ConversationListEntry> onSelectConversation;
+  final ValueChanged<ConversationListEntry> onSelectConversationInfo;
+  final ValueChanged<Uri> onOpenUri;
   final VoidCallback? onEmpty;
   final ValueChanged<int>? onCountChanged;
 
@@ -75,11 +65,13 @@ class PinnedMessagesPage extends StatefulWidget {
 
 class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
   List<MessageListEntry> _messages = const [];
+  final Map<String, GlobalKey> _messageKeys = {};
+  final Map<String, GlobalKey> _dayTimeKeys = {};
   StreamSubscription<BigInt>? _changes;
   bool _loading = true;
   bool _refreshing = false;
   bool _refreshPending = false;
-  String? _error;
+  Map<String, String> _mentionNames = const {};
 
   @override
   void initState() {
@@ -88,7 +80,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
     _changes = widget.account.messageChanges().listen(
       (_) => unawaited(_refresh()),
       onError: (Object error) {
-        if (mounted) setState(() => _error = error.toString());
+        writeAppLog('watch pinned messages failed: $error');
       },
     );
   }
@@ -111,27 +103,43 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
         final result = await widget.account.message().pinnedMessages(
           conversationId: widget.conversationId,
         );
+        final messages = result.map(MessageListEntry.fromRust).toList();
+        final mentionNames = await _resolveMentionNames(messages);
         if (!mounted) return;
         setState(() {
-          _messages = result.map(MessageListEntry.fromRust).toList();
+          _messages = messages;
+          _mentionNames = mentionNames;
           _loading = false;
-          _error = null;
         });
         widget.onCountChanged?.call(_messages.length);
-        if (widget.embedded && _messages.isEmpty) widget.onEmpty?.call();
+        if (_messages.isEmpty) widget.onEmpty?.call();
       } on Object catch (error) {
         if (!mounted) return;
-        setState(() {
-          _loading = false;
-          _error = error.toString();
-        });
+        writeAppLog('refresh pinned messages failed: $error');
+        setState(() => _loading = false);
       }
     } while (_refreshPending && mounted);
     _refreshing = false;
   }
 
+  Future<Map<String, String>> _resolveMentionNames(
+    Iterable<MessageListEntry> messages,
+  ) async {
+    final identityNumbers = messageMentionIdentityNumbers(
+      messages.expand((message) => [message.content, message.caption]),
+    );
+    if (identityNumbers.isEmpty) return const {};
+    final users = await widget.account.user().usersByIdentityNumbers(
+      identityNumbers: identityNumbers.toList(growable: false),
+    );
+    return Map.unmodifiable({
+      for (final user in users)
+        if (user.fullName.trim().isNotEmpty)
+          user.identityNumber: user.fullName.trim(),
+    });
+  }
+
   void _locate(String messageId) {
-    if (!widget.embedded) Navigator.pop(context);
     widget.onLocate(messageId);
   }
 
@@ -143,36 +151,18 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
         pinned: false,
       );
       await _refresh();
-      if (mounted && _messages.isEmpty) {
-        if (widget.embedded) {
-          widget.onEmpty?.call();
-        } else {
-          Navigator.pop(context);
-        }
-      }
+      if (mounted && _messages.isEmpty) widget.onEmpty?.call();
     } on Object catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      writeAppLog('unpin message failed: $error');
     }
   }
 
   Future<void> _unpinAll() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.unpinAllMessagesConfirmation),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(context.l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(context.l10n.confirm),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmMixinDialog(
+      context,
+      context.l10n.unpinAllMessagesConfirmation,
     );
-    if (confirmed != true) return;
+    if (confirmed != DialogEvent.positive) return;
     try {
       for (final message in _messages) {
         await widget.account.message().setMessagePinned(
@@ -183,18 +173,24 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
       }
       await _refresh();
     } on Object catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      writeAppLog('unpin all messages failed: $error');
     }
   }
 
   Future<void> _download(MessageListEntry message) async {
     try {
-      await widget.account.attachment().downloadAttachment(
-        messageId: message.id,
-      );
+      if (message.senderRelationship.toUpperCase() == 'ME') {
+        await widget.account.attachment().retryAttachment(
+          messageId: message.id,
+        );
+      } else {
+        await widget.account.attachment().downloadAttachment(
+          messageId: message.id,
+        );
+      }
       await _refresh();
     } on Object catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      writeAppLog('download pinned attachment failed: $error');
     }
   }
 
@@ -203,7 +199,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
       await widget.account.attachment().cancelAttachment(messageId: message.id);
       await _refresh();
     } on Object catch (error) {
-      if (mounted) setState(() => _error = error.toString());
+      writeAppLog('cancel pinned attachment failed: $error');
     }
   }
 
@@ -215,108 +211,106 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final body = Material(
-      color: context.theme.primary,
+    return Material(
+      color: context.theme.popUp,
       child: Column(
         children: [
-          if (!widget.embedded) ...[
-            SizedBox(
-              height: 56,
-              child: Row(
-                children: [
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                  Expanded(
-                    child: Text(
-                      context.l10n.pinnedMessageTitle(
-                        _messages.length,
-                        _messages.length,
-                      ),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: context.theme.text, fontSize: 16),
-                    ),
-                  ),
-                  const SizedBox(width: 56),
-                ],
-              ),
-            ),
-            Divider(height: 1, color: context.theme.divider),
-          ],
           Expanded(child: _body()),
-          if (_messages.isNotEmpty)
-            InkWell(
-              onTap: _unpinAll,
-              child: SizedBox(
-                height: 56,
-                child: Center(
-                  child: Text(
-                    context.l10n.unpinAllMessages,
-                    style: TextStyle(color: context.theme.accent, fontSize: 16),
-                  ),
+          InteractiveDecoratedBox(
+            cursor: SystemMouseCursors.click,
+            onTap: _unpinAll,
+            child: SizedBox(
+              height: 56,
+              child: Center(
+                child: Text(
+                  context.l10n.unpinAllMessages,
+                  style: TextStyle(color: context.theme.accent, fontSize: 16),
                 ),
               ),
             ),
+          ),
         ],
       ),
     );
-    if (widget.embedded) return body;
-    return SizedBox(width: 600, height: 800, child: body);
   }
 
   Widget _body() {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-    }
-    if (_messages.isEmpty) {
-      return Center(
-        child: Text(
-          _error ?? context.l10n.noResults,
-          style: TextStyle(color: context.theme.secondaryText),
-        ),
-      );
-    }
-    return Column(
-      children: [
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Text(
-              _error!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: context.theme.secondaryText),
-            ),
+    if (_loading || _messages.isEmpty) return const SizedBox();
+    return MessageDayTimeViewportWidget(
+      entries: [
+        for (var index = _messages.length - 1; index >= 0; index--)
+          MessageDayTimeViewportEntry(
+            dateTime: _messages[index].createdAt,
+            messageKey: _messageKey(_messages[index].id),
+            dayTimeKey:
+                MessageRowModel(
+                      message: _messages[index],
+                      previous: index + 1 == _messages.length
+                          ? null
+                          : _messages[index + 1],
+                      next: index == 0 ? null : _messages[index - 1],
+                    ).dateTime ==
+                    null
+                ? null
+                : _dayTimeKey(_messages[index].id),
           ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: 16),
-            itemCount: _messages.length,
-            itemBuilder: (context, index) => _PinnedMessage(
-              account: widget.account,
-              message: _messages[index],
-              previous: index == 0 ? null : _messages[index - 1],
-              next: index + 1 == _messages.length ? null : _messages[index + 1],
-              messages: _messages,
-              currentUserId: widget.currentUserId,
-              currentUserRole: widget.currentUserRole,
-              onLocate: _locate,
-              onUnpin: _unpin,
-              onDownload: _download,
-              onCancel: _cancel,
-              onMarkAudioRead: _markAudioRead,
-            ),
-          ),
-        ),
       ],
+      reTraversalKey: Object.hashAll(_messages.map((message) => message.id)),
+      child: ListView.builder(
+        reverse: true,
+        padding: const EdgeInsets.only(bottom: 16),
+        itemCount: _messages.length,
+        itemBuilder: (context, index) {
+          final previous = index + 1 == _messages.length
+              ? null
+              : _messages[index + 1];
+          final next = index == 0 ? null : _messages[index - 1];
+          final row = MessageRowModel(
+            message: _messages[index],
+            previous: previous,
+            next: next,
+          );
+          return _PinnedMessage(
+            key: _messageKey(_messages[index].id),
+            dayTimeKey: row.dateTime == null
+                ? null
+                : _dayTimeKey(_messages[index].id),
+            account: widget.account,
+            message: _messages[index],
+            previous: previous,
+            next: next,
+            messages: _messages,
+            currentUserId: widget.currentUserId,
+            currentUserRole: widget.currentUserRole,
+            mentionNames: _mentionNames,
+            onLocate: _locate,
+            onUnpin: _unpin,
+            onDownload: _download,
+            onCancel: _cancel,
+            onMarkAudioRead: _markAudioRead,
+            onSelectConversation: widget.onSelectConversation,
+            onSelectConversationInfo: widget.onSelectConversationInfo,
+            onOpenUri: widget.onOpenUri,
+          );
+        },
+      ),
     );
   }
+
+  GlobalKey _messageKey(String messageId) => _messageKeys.putIfAbsent(
+    messageId,
+    () => GlobalKey(debugLabel: 'pinned_message_$messageId'),
+  );
+
+  GlobalKey _dayTimeKey(String messageId) => _dayTimeKeys.putIfAbsent(
+    messageId,
+    () => GlobalKey(debugLabel: 'pinned_message_day_time_$messageId'),
+  );
 }
 
 class _PinnedMessage extends StatelessWidget {
   const _PinnedMessage({
+    required this.dayTimeKey,
     required this.account,
     required this.message,
     required this.previous,
@@ -324,13 +318,19 @@ class _PinnedMessage extends StatelessWidget {
     required this.messages,
     required this.currentUserId,
     required this.currentUserRole,
+    required this.mentionNames,
     required this.onLocate,
     required this.onUnpin,
     required this.onDownload,
     required this.onCancel,
     required this.onMarkAudioRead,
+    required this.onSelectConversation,
+    required this.onSelectConversationInfo,
+    required this.onOpenUri,
+    super.key,
   });
 
+  final GlobalKey? dayTimeKey;
   final rust.AccountHandle account;
   final MessageListEntry message;
   final MessageListEntry? previous;
@@ -338,11 +338,15 @@ class _PinnedMessage extends StatelessWidget {
   final List<MessageListEntry> messages;
   final String currentUserId;
   final String? currentUserRole;
+  final Map<String, String> mentionNames;
   final ValueChanged<String> onLocate;
   final MessageEntryCallback onUnpin;
   final MessageEntryCallback onDownload;
   final MessageEntryCallback onCancel;
   final MessageEntryCallback onMarkAudioRead;
+  final ValueChanged<ConversationListEntry> onSelectConversation;
+  final ValueChanged<ConversationListEntry> onSelectConversationInfo;
+  final ValueChanged<Uri> onOpenUri;
 
   @override
   Widget build(BuildContext context) {
@@ -374,14 +378,30 @@ class _PinnedMessage extends StatelessWidget {
         color: Colors.white,
       ),
       showNip: presentation.showNip,
-      onOpenUri: (uri) => unawaited(launchUrl(uri)),
+      isPinnedPage: true,
+      onPinnedMessageTap: () => onLocate(message.id),
+      audioPlaylist: messages,
+      mentionNames: mentionNames,
+      onOpenUri: onOpenUri,
+      onAppAction: (action, {title}) => openMessageAction(
+        context: context,
+        account: account,
+        conversationId: message.conversationId,
+        action: action,
+        title: title,
+        onOpenUri: onOpenUri,
+      ),
       onOpenMessage: onLocate,
       onOpenTranscript: (id) => unawaited(
         showTranscriptDialog(
           context,
           account: account,
           transcriptId: id,
+          sentByCurrentUser: message.senderRelationship.toUpperCase() == 'ME',
           currentUserId: currentUserId,
+          onSelectConversation: onSelectConversation,
+          onSelectConversationInfo: onSelectConversationInfo,
+          onOpenUri: onOpenUri,
         ),
       ),
       onOpenImage: (item) => _openImage(context, item),
@@ -394,7 +414,11 @@ class _PinnedMessage extends StatelessWidget {
       onDownloadAttachment: onDownload,
       onCancelAttachment: onCancel,
     );
-    final rendered = message.category == 'APP_CARD'
+    final bypassBubble =
+        !message.isUnresolvedMessage &&
+        !message.isInvalidSpecialMessage &&
+        const {'APP_BUTTON_GROUP', 'APP_CARD'}.contains(message.category);
+    final rendered = bypassBubble
         ? content
         : MessageBubble(
             isCurrentUser: presentation.isCurrentUser,
@@ -404,6 +428,16 @@ class _PinnedMessage extends StatelessWidget {
             clip: message.clipMessageBubble,
             padding: message.messageBubblePadding,
             forceIsCurrentUserColor: message.forceCurrentMessageBubbleColor,
+            isDisappearingMessage: (message.expireIn ?? 0) > 0,
+            isPinnedPage: true,
+            quote: buildMessageQuotePreview(
+              message,
+              onOpenMessage: onLocate,
+              mentionNames: mentionNames,
+            ),
+            constrainQuoteWidth:
+                message.isImage || message.isVideo || message.isLive,
+            onPinnedMessageTap: () => onLocate(message.id),
             outerTimeAndStatusWidget: message.useOuterMessageDateAndStatus
                 ? status
                 : null,
@@ -420,6 +454,7 @@ class _PinnedMessage extends StatelessWidget {
         ? existingLocalFile(message.mediaUrl)
         : null;
     final interactive = ContextMenuWidget(
+      desktopMenuWidgetBuilder: CustomDesktopMenuWidgetBuilder(),
       menuProvider: (_) => buildMessageActionsMenu(
         context: context,
         message: message,
@@ -442,16 +477,22 @@ class _PinnedMessage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (presentation.showSender)
-          GestureDetector(
-            onTap: () => _showUser(context, userId: message.senderId),
-            child: MessageName(
-              userName: message.senderName,
-              userId: message.senderId,
-              userIdentityNumber: message.senderIdentityNumber,
-              verified: message.senderIsVerified,
-              isBot: message.senderIsBot,
-              showIdentityNumber: false,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: MessageName(
+                  userName: message.senderName,
+                  userId: message.senderId,
+                  userIdentityNumber: message.senderIdentityNumber,
+                  verified: message.senderIsVerified,
+                  isBot: message.senderIsBot,
+                  membership: message.senderMembership,
+                  showIdentityNumber: false,
+                  onTap: () => _showUser(context, userId: message.senderId),
+                ),
+              ),
+            ],
           ),
         interactive,
       ],
@@ -462,11 +503,15 @@ class _PinnedMessage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(width: 8),
-              AvatarView(
-                userId: message.senderId,
-                name: message.senderName,
-                avatarUrl: message.senderAvatarUrl,
-                size: 32,
+              InteractiveDecoratedBox(
+                cursor: SystemMouseCursors.click,
+                onTap: () => _showUser(context, userId: message.senderId),
+                child: AvatarView(
+                  userId: message.senderId,
+                  name: message.senderName,
+                  avatarUrl: message.senderAvatarUrl,
+                  size: 32,
+                ),
               ),
               Flexible(
                 child: Padding(
@@ -474,15 +519,15 @@ class _PinnedMessage extends StatelessWidget {
                   child: column,
                 ),
               ),
-              const SizedBox(width: 65),
+              const SizedBox(width: 33),
             ],
           )
         : Padding(
             padding: EdgeInsets.only(
               left: presentation.isCurrentUser
-                  ? 65
+                  ? 33
                   : (presentation.showAvatar ? 40 : 16),
-              right: presentation.isCurrentUser ? 16 : 65,
+              right: presentation.isCurrentUser ? 16 : 33,
               top: 2,
               bottom: 2,
             ),
@@ -492,7 +537,8 @@ class _PinnedMessage extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (row.dateTime != null) MessageDayTimeChip(dateTime: row.dateTime!),
+        if (row.dateTime != null)
+          MessageDayTime(key: dayTimeKey, dateTime: row.dateTime!),
         Padding(
           padding: row.sameUserPrevious
               ? EdgeInsets.zero
@@ -511,14 +557,20 @@ class _PinnedMessage extends StatelessWidget {
             id: item.id,
             source: item.mediaUrl!,
             name: item.mediaName,
+            thumbImage: item.thumbImage,
+            userId: item.senderId,
+            userFullName: item.senderName,
+            userIdentityNumber: item.senderIdentityNumber,
+            avatarUrl: item.senderAvatarUrl,
           ),
         )
         .toList(growable: false);
     final index = images.indexWhere((item) => item.id == selected.id);
     if (index < 0) return;
-    Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ImagePreviewPage(
+    unawaited(
+      ImagePreviewPage.show(
+        context,
+        ImagePreviewPage(
           images: images,
           initialIndex: index,
           onCopy: (image) async {
@@ -535,18 +587,26 @@ class _PinnedMessage extends StatelessWidget {
   void _openVideo(BuildContext context, MessageListEntry item) {
     final source = item.mediaUrl?.trim() ?? '';
     if (source.isEmpty) return;
-    Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute<void>(
-        builder: (_) => VideoPreviewPage(source: source, title: item.mediaName),
+    unawaited(
+      VideoPreviewPage.show(
+        context,
+        VideoPreviewPage(
+          source: source,
+          title: item.mediaName,
+          userId: item.senderId,
+          userFullName: item.senderName,
+          userIdentityNumber: item.senderIdentityNumber,
+          avatarUrl: item.senderAvatarUrl,
+        ),
       ),
     );
   }
 
   void _openPost(BuildContext context, MessageListEntry item) {
-    Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            PostPreviewPage(content: item.content, title: item.senderName),
+    unawaited(
+      PostPreviewPage.show(
+        context,
+        PostPreviewPage(content: item.content, title: item.senderName),
       ),
     );
   }
@@ -554,11 +614,7 @@ class _PinnedMessage extends StatelessWidget {
   Future<void> _openFile(BuildContext context, MessageListEntry item) async {
     final source = item.mediaUrl?.trim() ?? '';
     if (source.isEmpty) return;
-    final result = await openMessageFile(source);
-    if (!context.mounted || result.type.name == 'done') return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(result.message)));
+    await openOrSaveMessageFile(context, source, mediaName: item.mediaName);
   }
 
   Future<void> _save(MessageListEntry item) async {
@@ -572,13 +628,27 @@ class _PinnedMessage extends StatelessWidget {
     String? userId,
     String? identityNumber,
   }) {
-    unawaited(
-      showMessageUserDialog(
-        context,
-        account: account,
-        userId: userId,
-        identityNumber: identityNumber,
-      ),
+    unawaited(_showUserAndHandle(context, userId, identityNumber));
+  }
+
+  Future<void> _showUserAndHandle(
+    BuildContext context,
+    String? userId,
+    String? identityNumber,
+  ) async {
+    final result = await showMessageUserDialog(
+      context,
+      account: account,
+      userId: userId,
+      identityNumber: identityNumber,
+    );
+    if (!context.mounted || result == null) return;
+    await handleMessageUserDialogResult(
+      context,
+      account: account,
+      result: result,
+      onSelectConversation: onSelectConversation,
+      onSelectConversationInfo: onSelectConversationInfo,
     );
   }
 }

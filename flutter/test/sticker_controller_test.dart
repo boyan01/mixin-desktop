@@ -71,9 +71,10 @@ class _FakeAccount implements AccountHandle, StickerAccess {
   StickerAccess sticker() => this;
 
   @override
-  Future<void> refreshStickers() async {
+  Future<bool> refreshStickers() async {
     refreshCalls++;
     await remoteRefresh?.future;
+    return false;
   }
 
   @override

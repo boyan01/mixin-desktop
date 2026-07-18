@@ -15,12 +15,18 @@ class ConversationListEntry {
     required this.messageStatus,
     required this.senderId,
     required this.senderName,
+    this.lastMessageAction,
+    this.lastMessageParticipantId,
+    this.lastMessageParticipantName,
     required this.updatedAt,
     required this.unseenCount,
     required this.mentionCount,
     required this.isMuted,
     required this.isVerified,
+    this.isScam = false,
     required this.isBot,
+    this.isBotGroup = false,
+    this.membership,
     required this.isPinned,
     required this.relationship,
     required this.identityNumber,
@@ -42,12 +48,18 @@ class ConversationListEntry {
   final String? messageStatus;
   final String? senderId;
   final String? senderName;
+  final String? lastMessageAction;
+  final String? lastMessageParticipantId;
+  final String? lastMessageParticipantName;
   final DateTime updatedAt;
   final int unseenCount;
   final int mentionCount;
   final bool isMuted;
   final bool isVerified;
+  final bool isScam;
   final bool isBot;
+  final bool isBotGroup;
+  final String? membership;
   final bool isPinned;
   final String relationship;
   final String identityNumber;
@@ -72,6 +84,9 @@ class ConversationListEntry {
         messageStatus: item.lastMessageStatus,
         senderId: item.lastMessageSenderId,
         senderName: item.lastMessageSenderName,
+        lastMessageAction: item.lastMessageAction,
+        lastMessageParticipantId: item.lastMessageParticipantId,
+        lastMessageParticipantName: item.lastMessageParticipantName,
         updatedAt: DateTime.fromMillisecondsSinceEpoch(
           item.updatedAtMillis.toInt(),
         ),
@@ -79,7 +94,10 @@ class ConversationListEntry {
         mentionCount: item.mentionCount.toInt(),
         isMuted: item.isMuted,
         isVerified: item.isVerified,
+        isScam: item.isScam,
         isBot: item.isBot,
+        isBotGroup: item.isBotGroup,
+        membership: item.membership,
         isPinned: item.isPinned,
         relationship: item.relationship,
         identityNumber: item.identityNumber,

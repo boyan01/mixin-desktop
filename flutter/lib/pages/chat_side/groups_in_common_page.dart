@@ -7,6 +7,7 @@ import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 
 class GroupsInCommonPage extends StatefulWidget {
   const GroupsInCommonPage({super.key});
@@ -29,8 +30,6 @@ class _GroupsInCommonPageState extends State<GroupsInCommonPage> {
     final userId = scope.conversation.ownerId;
     return scope.account.conversation().groupsInCommon(userId: userId);
   }
-
-  void _reload() => setState(() => _future = _load());
 
   Future<void> _select(rust.GroupConversationItem group) async {
     final scope = ChatSideScope.of(context);
@@ -69,11 +68,13 @@ class _GroupsInCommonPageState extends State<GroupsInCommonPage> {
     body: FutureBuilder<List<rust.GroupConversationItem>>(
       future: _future,
       builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return ChatSideError(error: snapshot.error!, onRetry: _reload);
-        }
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: SizedBox.square(
+              dimension: 24,
+              child: CircularProgressIndicator(),
+            ),
+          );
         }
         final groups = snapshot.data!;
         if (groups.isEmpty) {
@@ -104,26 +105,60 @@ class _GroupsInCommonPageState extends State<GroupsInCommonPage> {
           itemBuilder: (context, index) {
             final group = groups[index];
             return SizedBox(
-              height: 72,
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-                leading: AvatarView(
-                  userId: group.conversationId,
-                  name: group.name,
-                  avatarUrl: group.avatarUrl,
-                  size: 48,
-                ),
-                title: Text(
-                  group.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  context.l10n.participantsCount(
-                    group.participantCount.toInt(),
+              height: 78,
+              child: InteractiveDecoratedBox(
+                onTap: () => _select(group),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        AvatarView(
+                          userId: group.conversationId,
+                          name: group.name,
+                          avatarUrl: group.avatarUrl,
+                          size: 50,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  group.name,
+                                  style: TextStyle(
+                                    color: context.theme.text,
+                                    fontSize: 16,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                SizedBox(
+                                  height: 20,
+                                  child: Text(
+                                    context.l10n.participantsCount(
+                                      group.participantCount.toInt(),
+                                    ),
+                                    style: TextStyle(
+                                      color: context.theme.secondaryText,
+                                      fontSize: 14,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                onTap: () => _select(group),
               ),
             );
           },

@@ -1,12 +1,18 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/controllers/sticker_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/action_button.dart';
+import 'package:mixin_desktop_ui/widgets/buttons.dart';
 import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_item.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
+import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
 
 final _navigatorKey = GlobalKey<NavigatorState>();
 
@@ -15,19 +21,15 @@ Future<void> showStickerStorePageDialog(
   required StickerController controller,
 }) async {
   unawaited(controller.loadStore());
-  await showDialog<void>(
+  await showMixinDialog<void>(
     context: context,
     routeSettings: const RouteSettings(name: 'StickerStore'),
-    builder: (context) => Dialog(
-      backgroundColor: context.theme.popUp,
-      child: SizedBox(
-        width: 480,
-        height: 600,
-        child: Navigator(
-          key: _navigatorKey,
-          onGenerateRoute: (_) => MaterialPageRoute<void>(
-            builder: (_) => _StickerStorePage(controller: controller),
-          ),
+    child: ConstrainedBox(
+      constraints: BoxConstraints.loose(const Size(480, 600)),
+      child: Navigator(
+        key: _navigatorKey,
+        onGenerateRoute: (_) => MaterialPageRoute<void>(
+          builder: (_) => _StickerStorePage(controller: controller),
         ),
       ),
     ),
@@ -44,26 +46,23 @@ class _StickerStorePage extends StatelessWidget {
     children: [
       _StoreHeader(
         title: context.l10n.stickerStore,
-        leading: IconButton(
-          onPressed: () => Navigator.push<void>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => _StickerAlbumManagePage(controller: controller),
+        leading: Center(
+          child: ActionButton(
+            name: MixinAssets.setting,
+            color: context.theme.icon,
+            onTap: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => _StickerAlbumManagePage(controller: controller),
+              ),
             ),
           ),
-          icon: Icon(Icons.settings_outlined, color: context.theme.icon),
         ),
       ),
       Expanded(
         child: AnimatedBuilder(
           animation: controller,
           builder: (context, _) {
-            if (controller.storeLoading && controller.storeAlbums.isEmpty) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (controller.error != null && controller.storeAlbums.isEmpty) {
-              return Center(child: Text(controller.error.toString()));
-            }
             return ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 16),
               itemCount: controller.storeAlbums.length,
@@ -143,10 +142,11 @@ class _StoreAlbumItem extends StatelessWidget {
                 AnimatedOpacity(
                   opacity: album.added ? 0.4 : 1,
                   duration: const Duration(milliseconds: 200),
-                  child: FilledButton(
-                    onPressed: () => onToggle(!album.added),
+                  child: MixinButton(
+                    onTap: () => onToggle(!album.added),
                     child: Text(
                       album.added ? context.l10n.added : context.l10n.add,
+                      style: const TextStyle(fontSize: 14),
                     ),
                   ),
                 ),
@@ -191,19 +191,29 @@ class _StickerAlbumPageState extends State<_StickerAlbumPage> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            GridView.builder(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 112),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 8,
-              ),
-              itemCount: widget.stickers.length,
-              itemBuilder: (context, index) => StickerItem(
-                stickerId: widget.stickers[index].stickerId,
-                assetUrl: widget.stickers[index].assetUrl,
-                assetType: widget.stickers[index].assetType,
-              ),
+            CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 4,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 8,
+                        ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => StickerItem(
+                        stickerId: widget.stickers[index].stickerId,
+                        assetUrl: widget.stickers[index].assetUrl,
+                        assetType: widget.stickers[index].assetType,
+                      ),
+                      childCount: widget.stickers.length,
+                    ),
+                  ),
+                ),
+                const SliverPadding(padding: EdgeInsets.only(bottom: 112)),
+              ],
             ),
             Positioned(
               left: 0,
@@ -225,8 +235,11 @@ class _StickerAlbumPageState extends State<_StickerAlbumPage> {
                 child: Column(
                   children: [
                     const Spacer(),
-                    FilledButton(
-                      onPressed: _toggle,
+                    MixinButton(
+                      backgroundColor: _added
+                          ? context.theme.red
+                          : context.theme.accent,
+                      onTap: _toggle,
                       child: Text(
                         _added
                             ? context.l10n.removeStickers
@@ -257,6 +270,7 @@ class _StickerAlbumManagePage extends StatefulWidget {
 
 class _StickerAlbumManagePageState extends State<_StickerAlbumManagePage> {
   late List<rust.StickerAlbumItem> _albums;
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -265,12 +279,18 @@ class _StickerAlbumManagePageState extends State<_StickerAlbumManagePage> {
   }
 
   @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => Column(
     children: [
       _StoreHeader(title: context.l10n.myStickers, showBack: true),
       Expanded(
-        child: ReorderableListView.builder(
-          buildDefaultDragHandles: false,
+        child: ReorderableList(
+          controller: _scrollController,
           itemCount: _albums.length,
           onReorderItem: (oldIndex, newIndex) async {
             setState(() {
@@ -283,9 +303,21 @@ class _StickerAlbumManagePageState extends State<_StickerAlbumManagePage> {
           },
           itemBuilder: (context, index) {
             final album = _albums[index];
-            return ReorderableDragStartListener(
+            return Listener(
               key: ValueKey(album.albumId),
-              index: index,
+              onPointerDown: (event) {
+                if (event.buttons != kPrimaryButton) return;
+                ReorderableList.maybeOf(context)?.startItemDragReorder(
+                  index: index,
+                  event: event,
+                  recognizer: ImmediateMultiDragGestureRecognizer(
+                    supportedDevices: {
+                      PointerDeviceKind.touch,
+                      PointerDeviceKind.mouse,
+                    },
+                  ),
+                );
+              },
               child: Container(
                 margin: const EdgeInsets.symmetric(
                   vertical: 16,
@@ -306,8 +338,10 @@ class _StickerAlbumManagePageState extends State<_StickerAlbumManagePage> {
                         ),
                       ),
                     ),
-                    IconButton(
-                      onPressed: () async {
+                    ActionButton(
+                      name: MixinAssets.delete,
+                      color: context.theme.secondaryText,
+                      onTap: () async {
                         await widget.controller.setAlbumAdded(
                           album.albumId,
                           false,
@@ -315,10 +349,6 @@ class _StickerAlbumManagePageState extends State<_StickerAlbumManagePage> {
                         if (!mounted) return;
                         setState(() => _albums.remove(album));
                       },
-                      icon: Icon(
-                        Icons.delete_outline,
-                        color: context.theme.secondaryText,
-                      ),
                     ),
                   ],
                 ),
@@ -343,39 +373,14 @@ class _StoreHeader extends StatelessWidget {
   final bool showBack;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 56,
-    child: Stack(
-      alignment: Alignment.center,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: context.theme.text,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child:
-              leading ??
-              (showBack
-                  ? IconButton(
-                      onPressed: () => Navigator.maybeOf(context)?.pop(),
-                      icon: Icon(Icons.arrow_back, color: context.theme.icon),
-                    )
-                  : const SizedBox()),
-        ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: IconButton(
-            onPressed: () =>
-                Navigator.maybeOf(context, rootNavigator: true)?.pop(),
-            icon: Icon(Icons.close, color: context.theme.icon),
-          ),
-        ),
-      ],
-    ),
+  Widget build(BuildContext context) => MixinAppBar(
+    backgroundColor: Colors.transparent,
+    title: Text(title),
+    leading: leading ?? (showBack ? null : const SizedBox()),
+    actions: [
+      MixinCloseButton(
+        onTap: () => Navigator.maybeOf(context, rootNavigator: true)?.pop(),
+      ),
+    ],
   );
 }

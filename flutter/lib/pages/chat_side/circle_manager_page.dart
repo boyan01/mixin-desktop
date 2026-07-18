@@ -6,6 +6,8 @@ import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/action_button.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
 
 import 'chat_side_scope.dart';
 
@@ -82,9 +84,12 @@ class _CircleManagerPageState extends State<CircleManagerPage> {
   }
 
   Future<void> _create() async {
-    final name = await showDialog<String>(
+    final name = await showMixinDialog<String>(
       context: context,
-      builder: (context) => const _CircleNameDialog(),
+      child: EditDialog(
+        title: Text(context.l10n.circles),
+        hintText: context.l10n.editCircleName,
+      ),
     );
     if (name == null || name.isEmpty || !mounted) return;
     final scope = ChatSideScope.of(context);
@@ -110,91 +115,113 @@ class _CircleManagerPageState extends State<CircleManagerPage> {
   @override
   Widget build(BuildContext context) => ChatSidePageScaffold(
     title: context.l10n.circles,
-    actions: [IconButton(onPressed: _create, icon: const Icon(Icons.add))],
-    body: loading
-        ? const Center(child: CircularProgressIndicator())
-        : error != null && circles.isEmpty
-        ? ChatSideError(error: error!, onRetry: _load)
-        : ListView.builder(
-            itemCount: circles.length,
-            itemBuilder: (context, index) {
-              final circle = circles[index];
-              final checked = selected.contains(circle.circleId);
-              return SizedBox(
-                height: 80,
-                child: Material(
-                  color: context.theme.primary,
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => unawaited(_toggle(circle)),
-                        child: SizedBox(
-                          width: 52,
-                          height: 80,
-                          child: Center(
-                            child: SvgPicture.asset(
-                              checked
-                                  ? MixinAssets.circleRemove
-                                  : MixinAssets.circleAdd,
-                              width: 16,
-                              height: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      ClipOval(
-                        child: Container(
-                          color: const Color(0xFFF6F7FA),
-                          width: 50,
-                          height: 50,
-                          alignment: Alignment.center,
-                          child: SvgPicture.asset(
-                            MixinAssets.circle,
-                            width: 24,
-                            height: 24,
-                            colorFilter: ColorFilter.mode(
-                              _circleColor(circle.circleId),
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              circle.name,
-                              style: TextStyle(
-                                color: context.theme.text,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              context.l10n.circleSubtitle(
-                                circle.conversationCount,
-                                circle.conversationCount,
-                              ),
-                              style: TextStyle(
-                                color: context.theme.secondaryText,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
+    backgroundColor: context.theme.background,
+    actions: [ActionButton(name: MixinAssets.add, onTap: _create)],
+    body: ListView(
+      children: [
+        ...circles
+            .where((circle) => selected.contains(circle.circleId))
+            .map(
+              (circle) => _CircleManagerItem(
+                circle: circle,
+                selected: true,
+                onTap: () => unawaited(_toggle(circle)),
+              ),
+            ),
+        if (circles.any((circle) => selected.contains(circle.circleId)) &&
+            circles.any((circle) => !selected.contains(circle.circleId)))
+          const SizedBox(height: 10),
+        ...circles
+            .where((circle) => !selected.contains(circle.circleId))
+            .map(
+              (circle) => _CircleManagerItem(
+                circle: circle,
+                selected: false,
+                onTap: () => unawaited(_toggle(circle)),
+              ),
+            ),
+      ],
+    ),
   );
+}
+
+class _CircleManagerItem extends StatelessWidget {
+  const _CircleManagerItem({
+    required this.circle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final rust.CircleItem circle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 80,
+      color: context.theme.primary,
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: onTap,
+            child: Container(
+              height: 80,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SvgPicture.asset(
+                selected ? MixinAssets.circleRemove : MixinAssets.circleAdd,
+                width: 16,
+                height: 16,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          ClipOval(
+            child: Container(
+              color: context.dynamicColor(
+                const Color.fromRGBO(246, 247, 250, 1),
+                darkColor: const Color.fromRGBO(245, 247, 250, 1),
+              ),
+              width: 50,
+              height: 50,
+              alignment: Alignment.center,
+              child: SvgPicture.asset(
+                MixinAssets.circle,
+                width: 24,
+                height: 24,
+                colorFilter: ColorFilter.mode(
+                  _circleColor(circle.circleId),
+                  BlendMode.srcIn,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                circle.name,
+                style: TextStyle(color: context.theme.text, fontSize: 16),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                context.l10n.circleSubtitle(
+                  circle.conversationCount,
+                  circle.conversationCount,
+                ),
+                style: TextStyle(
+                  color: context.theme.secondaryText,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 Color _circleColor(String id) {
@@ -234,42 +261,4 @@ Color _circleColor(String id) {
     }
   }
   return colors[hash.abs() % colors.length];
-}
-
-class _CircleNameDialog extends StatefulWidget {
-  const _CircleNameDialog();
-
-  @override
-  State<_CircleNameDialog> createState() => _CircleNameDialogState();
-}
-
-class _CircleNameDialogState extends State<_CircleNameDialog> {
-  final controller = TextEditingController();
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(context.l10n.circles),
-    content: TextField(
-      controller: controller,
-      autofocus: true,
-      decoration: InputDecoration(hintText: context.l10n.editCircleName),
-      onSubmitted: (value) => Navigator.pop(context, value.trim()),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: Text(context.l10n.cancel),
-      ),
-      FilledButton(
-        onPressed: () => Navigator.pop(context, controller.text.trim()),
-        child: Text(context.l10n.confirm),
-      ),
-    ],
-  );
 }

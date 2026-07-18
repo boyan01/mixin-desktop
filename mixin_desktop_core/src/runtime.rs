@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::error::Error;
 use std::io::Cursor;
 use std::ops::Deref;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -13,12 +14,14 @@ use log::{error, warn};
 use tokio::sync::{oneshot, watch, RwLock};
 use tokio_util::sync::CancellationToken;
 
+use sdk::api::account_api::AccountUpdateRequest;
 use sdk::message_category::MessageCategory as _;
 use sdk::{Account, Client, Credential, KeyStore, MessageStatus};
 
 use crate::core::attachment::AttachmentService;
 use crate::core::constants::SCP;
 use crate::core::crypto::signal_protocol::SignalProtocol;
+use crate::core::device_transfer::{DeviceTransferControlEvent, DeviceTransferService};
 use crate::core::message::blaze::Blaze;
 use crate::core::message::decrypt::ServiceDecryptMessage;
 use crate::core::message::sender::MessageSender;
@@ -29,6 +32,8 @@ use crate::db::mixin::message::{MediaStatus, Message};
 use crate::db::mixin::sticker::{Sticker, StickerAlbum};
 use crate::db::path::account_data_directory;
 use crate::db::{MixinDatabase, SignalDatabase};
+
+const MIXIN_DATABASE_OPEN_ERROR_PREFIX: &str = "mixin_database_open_error";
 
 mod attachment;
 mod conversation;
@@ -44,8 +49,17 @@ pub use message::MessageAccess;
 pub use sticker::StickerAccess;
 pub use user::UserAccess;
 
-type AccountStartupResult =
-    std::result::Result<(Arc<MixinDatabase>, Arc<SignalDatabase>, Arc<AppService>), String>;
+type AccountStartupResult = std::result::Result<
+    (
+        Arc<MixinDatabase>,
+        Arc<SignalDatabase>,
+        Arc<AppService>,
+        Arc<Blaze>,
+        Arc<DeviceTransferService>,
+        String,
+    ),
+    String,
+>;
 
 const MIN_STICKER_FILE_SIZE: usize = 1024;
 const MAX_STICKER_FILE_SIZE: usize = 1024 * 1024;
@@ -70,9 +84,13 @@ pub struct AccountState {
     signal_database: Arc<SignalDatabase>,
     app_service: Arc<AppService>,
     conversation_changes: watch::Sender<u64>,
+    blaze: Arc<Blaze>,
+    device_transfer: Arc<DeviceTransferService>,
+    account_health: watch::Sender<String>,
     active: AtomicBool,
     mutation_gate: RwLock<()>,
     attachment_downloads: Mutex<HashMap<String, CancellationToken>>,
+    attachment_progresses: Mutex<HashMap<String, f64>>,
 }
 
 impl Deref for AccountRuntime {
@@ -106,6 +124,26 @@ impl AccountState {
             cancellation.cancel();
         }
     }
+
+    fn set_attachment_progress(&self, message_id: &str, completed: u64, total: u64) {
+        let value = if total == 0 {
+            0.0
+        } else {
+            completed as f64 / total as f64
+        }
+        .clamp(0.0, 1.0);
+        self.attachment_progresses
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(message_id.to_string(), value);
+    }
+
+    fn remove_attachment_progress(&self, message_id: &str) {
+        self.attachment_progresses
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(message_id);
+    }
 }
 
 pub struct StickerDetail {
@@ -116,6 +154,15 @@ pub struct StickerDetail {
 }
 
 impl AccountRuntime {
+    pub fn attachment_progress(&self, message_id: &str) -> f64 {
+        self.attachment_progresses
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .get(message_id)
+            .copied()
+            .unwrap_or_default()
+    }
+
     pub async fn start(auth: Auth) -> Result<Self> {
         if auth
             .primary_session_id
@@ -130,12 +177,14 @@ impl AccountRuntime {
         let client = Arc::new(Client::new(credential(&auth)));
         let (shutdown, shutdown_receiver) = watch::channel(false);
         let (conversation_changes, _) = watch::channel(0);
+        let (account_health_updates, _) = watch::channel("ready".to_string());
         let account_conversation_changes = conversation_changes.clone();
         let (ready_sender, ready_receiver) = oneshot::channel();
         let thread = std::thread::Builder::new()
             .name(format!("mixin-account-{account_id}"))
             .spawn({
                 let client = client.clone();
+                let account_health_updates = account_health_updates.clone();
                 move || {
                     let runtime = tokio::runtime::Builder::new_current_thread()
                         .enable_all()
@@ -146,6 +195,7 @@ impl AccountRuntime {
                             client,
                             shutdown_receiver,
                             account_conversation_changes,
+                            account_health_updates,
                             ready_sender,
                         )),
                         Err(error) => {
@@ -154,11 +204,19 @@ impl AccountRuntime {
                     }
                 }
             })?;
-        let (database, signal_database, app_service) = ready_receiver
+        let (
+            database,
+            signal_database,
+            app_service,
+            blaze,
+            device_transfer,
+            initial_account_health,
+        ) = ready_receiver
             .await
             .map_err(|_| anyhow!("account runtime stopped during startup"))?
             .map_err(|error| anyhow!(error))?;
 
+        account_health_updates.send_replace(initial_account_health);
         Ok(Self {
             state: Arc::new(AccountState {
                 account_id,
@@ -168,9 +226,13 @@ impl AccountRuntime {
                 signal_database,
                 app_service,
                 conversation_changes,
+                blaze,
+                device_transfer,
+                account_health: account_health_updates,
                 active: AtomicBool::new(true),
                 mutation_gate: RwLock::new(()),
                 attachment_downloads: Mutex::new(HashMap::new()),
+                attachment_progresses: Mutex::new(HashMap::new()),
             }),
             shutdown,
             thread: Mutex::new(Some(thread)),
@@ -197,6 +259,10 @@ impl AccountRuntime {
         UserAccess::new(self.state.clone())
     }
 
+    pub fn device_transfer(&self) -> Arc<DeviceTransferService> {
+        self.device_transfer.clone()
+    }
+
     pub fn account_id(&self) -> &str {
         &self.account_id
     }
@@ -211,6 +277,328 @@ impl AccountRuntime {
 
     pub fn subscribe_shutdown(&self) -> watch::Receiver<bool> {
         self.shutdown.subscribe()
+    }
+
+    pub fn subscribe_connection_status(&self) -> watch::Receiver<bool> {
+        self.blaze.subscribe_connection_status()
+    }
+
+    pub fn retry_connection(&self) {
+        self.blaze.retry_connection();
+    }
+
+    pub fn subscribe_account_health(&self) -> watch::Receiver<String> {
+        self.account_health.subscribe()
+    }
+
+    pub async fn refresh_account_health(&self) -> Result<()> {
+        let health = account_health(self.client.account_api.get_me().await)?;
+        self.account_health.send_replace(health);
+        self.blaze.retry_connection();
+        Ok(())
+    }
+
+    pub async fn snapshot_by_trace(&self, trace_id: String) -> Result<model::SnapshotDetailItem> {
+        let trace_id = trace_id.trim();
+        if trace_id.is_empty() {
+            return Err(anyhow!("snapshot trace id is empty"));
+        }
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+
+        self.refresh_fiats().await;
+        if let Ok(snapshot) = self
+            .client
+            .snapshot_api
+            .get_snapshot_by_trace_id(trace_id)
+            .await
+        {
+            self.database.snapshot_dao.insert(&snapshot).await?;
+        }
+        let mut detail = self
+            .database
+            .snapshot_dao
+            .find_by_trace_id(trace_id, &self.account.fiat_currency)
+            .await?
+            .ok_or_else(|| anyhow!("snapshot not found"))?;
+
+        if let Ok(asset) = self
+            .client
+            .asset_api
+            .get_asset_by_id(&detail.asset_id)
+            .await
+        {
+            let chain = self.client.asset_api.get_chain(&asset.chain_id).await?;
+            self.database.asset_dao.insert_chain(&chain).await?;
+            self.database.asset_dao.insert_asset(&asset).await?;
+            detail = self
+                .database
+                .snapshot_dao
+                .find_by_id(&detail.snapshot_id, &self.account.fiat_currency)
+                .await?
+                .ok_or_else(|| anyhow!("snapshot not found"))?;
+        }
+
+        let ticker_price_usd = self
+            .ticker_price_usd(&detail.asset_id, detail.created_at)
+            .await;
+
+        Ok(model::SnapshotDetailItem::from_detail(
+            detail,
+            self.account.full_name.clone().unwrap_or_default(),
+            ticker_price_usd,
+        ))
+    }
+
+    pub async fn snapshot_by_id(&self, snapshot_id: String) -> Result<model::SnapshotDetailItem> {
+        let snapshot_id = snapshot_id.trim();
+        if snapshot_id.is_empty() {
+            return Err(anyhow!("snapshot id is empty"));
+        }
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        self.refresh_fiats().await;
+
+        if let Ok(snapshot) = self
+            .client
+            .snapshot_api
+            .get_snapshot_by_id(snapshot_id)
+            .await
+        {
+            self.database.snapshot_dao.insert(&snapshot).await?;
+        }
+        let mut detail = self
+            .database
+            .snapshot_dao
+            .find_by_id(snapshot_id, &self.account.fiat_currency)
+            .await?
+            .ok_or_else(|| anyhow!("snapshot not found"))?;
+        if let Ok(asset) = self
+            .client
+            .asset_api
+            .get_asset_by_id(&detail.asset_id)
+            .await
+        {
+            let chain = self.client.asset_api.get_chain(&asset.chain_id).await?;
+            self.database.asset_dao.insert_chain(&chain).await?;
+            self.database.asset_dao.insert_asset(&asset).await?;
+            detail = self
+                .database
+                .snapshot_dao
+                .find_by_id(snapshot_id, &self.account.fiat_currency)
+                .await?
+                .ok_or_else(|| anyhow!("snapshot not found"))?;
+        }
+        let ticker_price_usd = self
+            .ticker_price_usd(&detail.asset_id, detail.created_at)
+            .await;
+        Ok(model::SnapshotDetailItem::from_detail(
+            detail,
+            self.account.full_name.clone().unwrap_or_default(),
+            ticker_price_usd,
+        ))
+    }
+
+    pub async fn safe_snapshot_by_id(
+        &self,
+        snapshot_id: String,
+    ) -> Result<model::SnapshotDetailItem> {
+        let snapshot_id = snapshot_id.trim();
+        if snapshot_id.is_empty() {
+            return Err(anyhow!("safe snapshot id is empty"));
+        }
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        self.refresh_fiats().await;
+
+        if let Ok(snapshot) = self.client.token_api.get_snapshot_by_id(snapshot_id).await {
+            self.database.safe_snapshot_dao.insert(&snapshot).await?;
+        }
+        let mut detail = self
+            .database
+            .safe_snapshot_dao
+            .find_by_id(snapshot_id, &self.account.fiat_currency)
+            .await?
+            .ok_or_else(|| anyhow!("safe snapshot not found"))?;
+        if let Ok(token) = self
+            .client
+            .token_api
+            .get_asset_by_id(&detail.asset_id)
+            .await
+        {
+            let chain = self.client.asset_api.get_chain(&token.chain_id).await?;
+            self.database.asset_dao.insert_chain(&chain).await?;
+            self.database.asset_dao.insert_token(&token).await?;
+            detail = self
+                .database
+                .safe_snapshot_dao
+                .find_by_id(snapshot_id, &self.account.fiat_currency)
+                .await?
+                .ok_or_else(|| anyhow!("safe snapshot not found"))?;
+        }
+        let ticker_price_usd = self
+            .ticker_price_usd(&detail.asset_id, detail.created_at)
+            .await;
+        Ok(model::SnapshotDetailItem::from_safe_detail(
+            detail,
+            self.account.full_name.clone().unwrap_or_default(),
+            ticker_price_usd,
+        ))
+    }
+
+    async fn refresh_fiats(&self) {
+        match self.client.account_api.get_fiats().await {
+            Ok(fiats) => {
+                if let Err(error) = self.database.fiat_dao.insert_all(&fiats).await {
+                    warn!("failed to persist fiat rates: {error}");
+                }
+            }
+            Err(error) => warn!("failed to refresh fiat rates: {error}"),
+        }
+    }
+
+    async fn ticker_price_usd(
+        &self,
+        asset_id: &str,
+        created_at: chrono::DateTime<chrono::Utc>,
+    ) -> Option<String> {
+        let offset = created_at.to_rfc3339();
+        self.client
+            .snapshot_api
+            .get_ticker(asset_id, Some(&offset))
+            .await
+            .ok()
+            .map(|ticker| ticker.price_usd)
+    }
+
+    pub async fn update_account_profile(
+        &self,
+        full_name: String,
+        biography: String,
+    ) -> Result<Account> {
+        let full_name = full_name.trim();
+        let biography = biography.trim();
+        if full_name.is_empty() {
+            return Err(anyhow!("account name is required"));
+        }
+        if full_name.chars().count() > 40 {
+            return Err(anyhow!("account name exceeds 40 characters"));
+        }
+        if biography.chars().count() > 140 {
+            return Err(anyhow!("account biography exceeds 140 characters"));
+        }
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        Ok(self
+            .client
+            .account_api
+            .update(&AccountUpdateRequest {
+                full_name: Some(full_name),
+                biography: Some(biography),
+            })
+            .await?)
+    }
+
+    pub async fn refresh_account_profile(&self) -> Result<Account> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        Ok(self.client.account_api.get_me().await?)
+    }
+
+    pub async fn storage_usage(&self) -> Result<Vec<model::ConversationStorageUsage>> {
+        self.ensure_active()?;
+        let mut conversations = Vec::new();
+        let mut offset = 0;
+        loop {
+            let page = self
+                .conversation_access()
+                .conversations("chats".to_string(), None, String::new(), false, 200, offset)
+                .await?;
+            let page_len = page.len();
+            conversations.extend(page);
+            if page_len < 200 {
+                break;
+            }
+            offset += page_len as i64;
+        }
+        let media = account_data_directory(&self.account.identity_number)?.join("Media");
+        tokio::task::spawn_blocking(move || {
+            let mut usage = conversations
+                .into_iter()
+                .map(|conversation| {
+                    let size_bytes = ["Images", "Videos", "Audios", "Files"]
+                        .into_iter()
+                        .map(|category| {
+                            directory_size(
+                                &media.join(category).join(&conversation.conversation_id),
+                            )
+                        })
+                        .sum::<u64>();
+                    model::ConversationStorageUsage {
+                        conversation,
+                        size_bytes: i64::try_from(size_bytes).unwrap_or(i64::MAX),
+                    }
+                })
+                .collect::<Vec<_>>();
+            usage.sort_by(|left, right| right.size_bytes.cmp(&left.size_bytes));
+            usage
+        })
+        .await
+        .map_err(|error| anyhow!("storage usage task failed: {error}"))
+    }
+
+    pub async fn conversation_storage_usage(
+        &self,
+        conversation_id: String,
+    ) -> Result<Vec<model::StorageCategoryUsage>> {
+        validate_storage_component("conversation id", &conversation_id)?;
+        let media = account_data_directory(&self.account.identity_number)?.join("Media");
+        tokio::task::spawn_blocking(move || {
+            [
+                ("photos", "Images"),
+                ("videos", "Videos"),
+                ("audio", "Audios"),
+                ("files", "Files"),
+            ]
+            .into_iter()
+            .map(|(category, directory)| model::StorageCategoryUsage {
+                category: category.to_string(),
+                size_bytes: i64::try_from(directory_size(
+                    &media.join(directory).join(&conversation_id),
+                ))
+                .unwrap_or(i64::MAX),
+            })
+            .collect()
+        })
+        .await
+        .map_err(|error| anyhow!("conversation storage usage task failed: {error}"))
+    }
+
+    pub async fn clear_conversation_storage(
+        &self,
+        conversation_id: String,
+        categories: Vec<String>,
+    ) -> Result<()> {
+        validate_storage_component("conversation id", &conversation_id)?;
+        let directories = categories
+            .into_iter()
+            .map(|category| match category.as_str() {
+                "photos" => Ok("Images"),
+                "videos" => Ok("Videos"),
+                "audio" => Ok("Audios"),
+                "files" => Ok("Files"),
+                _ => Err(anyhow!("invalid storage category: {category}")),
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let media = account_data_directory(&self.account.identity_number)?.join("Media");
+        tokio::task::spawn_blocking(move || {
+            for directory in directories {
+                clear_directory_contents(&media.join(directory).join(&conversation_id))?;
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|error| anyhow!("clear storage task failed: {error}"))?
     }
 
     pub async fn shutdown(&self) {
@@ -259,7 +647,58 @@ impl AccountRuntime {
         {
             warn!("failed to clear participant sessions during sign out: {error}");
         }
+        self.signal_database.close().await;
+        self.database.close().await;
     }
+}
+
+fn validate_storage_component(label: &str, value: &str) -> Result<()> {
+    let mut components = Path::new(value).components();
+    if !matches!(components.next(), Some(std::path::Component::Normal(_)))
+        || components.next().is_some()
+    {
+        return Err(anyhow!("invalid {label}"));
+    }
+    Ok(())
+}
+
+fn directory_size(path: &Path) -> u64 {
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return 0;
+    };
+    if metadata.file_type().is_symlink() {
+        return 0;
+    }
+    if metadata.is_file() {
+        return metadata.len();
+    }
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return 0;
+    };
+    entries
+        .filter_map(std::result::Result::ok)
+        .map(|entry| directory_size(&entry.path()))
+        .sum()
+}
+
+fn clear_directory_contents(path: &PathBuf) -> Result<()> {
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return Ok(());
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(anyhow!("invalid storage directory: {}", path.display()));
+    }
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        let child = entry.path();
+        let metadata = std::fs::symlink_metadata(&child)?;
+        if metadata.is_dir() && !metadata.file_type().is_symlink() {
+            std::fs::remove_dir_all(child)?;
+        } else {
+            std::fs::remove_file(child)?;
+        }
+    }
+    Ok(())
 }
 
 impl Drop for AccountRuntime {
@@ -275,10 +714,21 @@ async fn run_account(
     client: Arc<Client>,
     mut shutdown_receiver: watch::Receiver<bool>,
     conversation_changes: watch::Sender<u64>,
+    account_health_updates: watch::Sender<String>,
     ready_sender: oneshot::Sender<AccountStartupResult>,
 ) {
-    let result = prepare_account(&auth, client, conversation_changes).await;
-    let (database, signal_database, blaze, decrypt_message, sender, app_service) = match result {
+    let result = prepare_account(&auth, client.clone(), conversation_changes).await;
+    let (
+        database,
+        signal_database,
+        blaze,
+        decrypt_message,
+        sender,
+        app_service,
+        device_transfer,
+        device_transfer_controls,
+        account_health,
+    ) = match result {
         Ok(services) => services,
         Err(error) => {
             let _ = ready_sender.send(Err(error.to_string()));
@@ -286,7 +736,14 @@ async fn run_account(
         }
     };
     if ready_sender
-        .send(Ok((database, signal_database, app_service.clone())))
+        .send(Ok((
+            database,
+            signal_database,
+            app_service.clone(),
+            blaze.clone(),
+            device_transfer.clone(),
+            account_health,
+        )))
         .is_err()
     {
         return;
@@ -304,12 +761,37 @@ async fn run_account(
         _ = sender.maintain_signal_keys() => {
             warn!("signal key service stopped");
         }
+        _ = device_transfer.run(device_transfer_controls) => {
+            warn!("device transfer service stopped");
+        }
         result = app_service.job.start() => {
             if let Err(error) = result {
                 error!("job service stopped: {error:?}");
             }
         }
+        _ = forward_account_health(client, account_health_updates) => {
+            warn!("account health monitor stopped");
+        }
         _ = shutdown_receiver.changed() => {}
+    }
+}
+
+async fn forward_account_health(client: Arc<Client>, health: watch::Sender<String>) {
+    let mut errors = client.subscribe_server_error_codes();
+    loop {
+        if let Some(code) = *errors.borrow_and_update() {
+            let value = match code {
+                sdk::err::error_code::TIME_INACCURATE => "time_inaccurate",
+                sdk::err::error_code::OLD_VERSION => "update_required",
+                _ => "ready",
+            };
+            if value != "ready" {
+                health.send_replace(value.to_string());
+            }
+        }
+        if errors.changed().await.is_err() {
+            return;
+        }
     }
 }
 
@@ -320,6 +802,9 @@ type AccountServices = (
     Arc<ServiceDecryptMessage>,
     Arc<MessageSender>,
     Arc<AppService>,
+    Arc<DeviceTransferService>,
+    tokio::sync::broadcast::Receiver<DeviceTransferControlEvent>,
+    String,
 );
 
 async fn prepare_account(
@@ -330,12 +815,12 @@ async fn prepare_account(
     let account = &auth.account;
     let account_id = account.user_id.clone();
     let credential = credential(auth);
-    client.account_api.get_me().await?;
+    let account_health = account_health(client.account_api.get_me().await)?;
 
     let database = Arc::new(
         MixinDatabase::new(account.identity_number.clone())
             .await
-            .map_err(|error| anyhow!(error.to_string()))?,
+            .map_err(|error| database_open_error(error.as_ref()))?,
     );
     let signal_database = Arc::new(
         SignalDatabase::connect(account.identity_number.clone())
@@ -365,13 +850,14 @@ async fn prepare_account(
         signal_protocol.clone(),
         signal_service,
     ));
+    let account_data_dir = account_data_directory(&account.identity_number)?;
     let attachment = Arc::new(AttachmentService::new(
         client.clone(),
         reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(10))
             .read_timeout(Duration::from_secs(150))
             .build()?,
-        account_data_directory(&account.identity_number)?,
+        account_data_dir.clone(),
     ));
     let app_service = Arc::new(AppService::new(
         database.clone(),
@@ -381,6 +867,17 @@ async fn prepare_account(
         attachment,
         Some(conversation_changes.clone()),
     ));
+    let (device_transfer_control_sender, device_transfer_controls) =
+        tokio::sync::broadcast::channel(16);
+    let device_transfer = DeviceTransferService::new(
+        database.clone(),
+        sender.clone(),
+        account_id,
+        account.session_id.clone(),
+        auth.primary_session_id.clone(),
+        account_data_dir,
+        conversation_changes.clone(),
+    );
     let decrypt_message = Arc::new(
         ServiceDecryptMessage::new(
             database.clone(),
@@ -390,7 +887,8 @@ async fn prepare_account(
             blaze.pending_message_statuses(),
             auth,
         )
-        .with_conversation_changes(conversation_changes),
+        .with_conversation_changes(conversation_changes)
+        .with_device_transfer_controls(device_transfer_control_sender),
     );
     Ok((
         database,
@@ -399,10 +897,47 @@ async fn prepare_account(
         decrypt_message,
         sender,
         app_service,
+        device_transfer,
+        device_transfer_controls,
+        account_health,
     ))
 }
 
-fn credential(auth: &Auth) -> Credential {
+fn database_open_error(error: &(dyn Error + 'static)) -> anyhow::Error {
+    let Some(code) = sqlite_result_code(error) else {
+        return anyhow!(error.to_string());
+    };
+    anyhow!("{MIXIN_DATABASE_OPEN_ERROR_PREFIX}:{code}:{error}")
+}
+
+fn sqlite_result_code(mut error: &(dyn Error + 'static)) -> Option<i32> {
+    loop {
+        if let Some(sqlx_error) = error.downcast_ref::<sqlx::Error>() {
+            return sqlx_error
+                .as_database_error()
+                .and_then(|database_error| database_error.code())
+                .and_then(|code| code.parse().ok());
+        }
+        error = error.source()?;
+    }
+}
+
+fn account_health<T>(result: std::result::Result<T, sdk::ApiError>) -> Result<String> {
+    match result {
+        Ok(_) => Ok("ready".to_string()),
+        Err(sdk::ApiError::Server(error))
+            if error.code == sdk::err::error_code::TIME_INACCURATE =>
+        {
+            Ok("time_inaccurate".to_string())
+        }
+        Err(sdk::ApiError::Server(error)) if error.code == sdk::err::error_code::OLD_VERSION => {
+            Ok("update_required".to_string())
+        }
+        Err(error) => Err(anyhow!(error.to_string())),
+    }
+}
+
+pub fn credential(auth: &Auth) -> Credential {
     Credential::KeyStore(KeyStore {
         app_id: auth.account.user_id.clone(),
         session_id: auth.account.session_id.clone(),

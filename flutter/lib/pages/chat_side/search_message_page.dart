@@ -1,15 +1,24 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import 'package:markdown/markdown.dart' as markdown;
 import 'package:mixin_desktop_ui/controllers/chat_side_notifier.dart';
+import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/action_button.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
+import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
+import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
+import 'package:mixin_desktop_ui/widgets/search_text_field.dart';
 import 'package:provider/provider.dart';
 
 class SearchMessagePage extends StatefulWidget {
@@ -98,7 +107,7 @@ class _SearchMessagePageState extends State<SearchMessagePage> {
       value,
     );
     debounce?.cancel();
-    debounce = Timer(const Duration(milliseconds: 300), _search);
+    debounce = Timer(const Duration(milliseconds: 150), _search);
   }
 
   Future<void> _search({bool append = false}) async {
@@ -191,6 +200,7 @@ class _SearchMessagePageState extends State<SearchMessagePage> {
   }
 
   void _selectUser(rust.ConversationParticipantItem user) {
+    controller.clear();
     setState(() => selectedUser = user);
     context.read<SearchConversationKeywordNotifier>().value = (user.userId, '');
     focusNode.requestFocus();
@@ -233,90 +243,111 @@ class _SearchMessagePageState extends State<SearchMessagePage> {
                       },
                     ),
                   },
-                  child: TextField(
+                  child: SearchTextField(
+                    fontSize: 16,
                     controller: controller,
                     focusNode: focusNode,
                     onChanged: _changed,
-                    decoration: InputDecoration(
-                      isDense: true,
-                      prefixIcon: const Icon(Icons.search),
-                      prefix: selectedUser == null
-                          ? null
-                          : Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: Text(
-                                '${context.l10n.fromWithColon} ${selectedUser!.fullName}',
+                    hintText: context.l10n.search,
+                    showClear: userMode,
+                    leading: userMode
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                context.l10n.fromWithColon,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: context.theme.text,
+                                ),
                               ),
-                            ),
-                      hintText: context.l10n.search,
-                      suffixIcon: userMode
-                          ? IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  userMode = false;
-                                  selectedUser = null;
-                                  controller.clear();
-                                  messages = const [];
-                                });
-                              },
-                              icon: const Icon(Icons.close),
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: BorderSide.none,
-                      ),
-                      filled: true,
-                    ),
+                              if (selectedUser != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: AvatarView(
+                                    userId: selectedUser!.userId,
+                                    name: selectedUser!.fullName,
+                                    avatarUrl: selectedUser!.avatarUrl,
+                                    size: 20,
+                                  ),
+                                ),
+                            ],
+                          )
+                        : null,
+                    onTapClear: () {
+                      setState(() {
+                        userMode = false;
+                        selectedUser = null;
+                        messages = const [];
+                      });
+                    },
                   ),
                 ),
               ),
               AnimatedSize(
                 duration: const Duration(milliseconds: 200),
+                alignment: Alignment.centerLeft,
                 child: userMode
                     ? const SizedBox()
-                    : IconButton(
-                        onPressed: _enableUserMode,
-                        icon: const Icon(Icons.person_search_outlined),
+                    : SizedBox(
+                        height: 36,
+                        child: ActionButton(
+                          name: MixinAssets.userSearch,
+                          color: context.theme.icon,
+                          onTap: _enableUserMode,
+                        ),
                       ),
               ),
             ],
           ),
         ),
-        if (controller.text.isNotEmpty && selectedUser != null ||
-            controller.text.isNotEmpty && !userMode)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                _FilterChip(
-                  label: context.l10n.text,
-                  selected: selectedCategories == textCategories,
-                  onSelected: () {
-                    setState(() {
-                      selectedCategories = selectedCategories == textCategories
-                          ? null
-                          : textCategories;
-                    });
-                    unawaited(_search());
-                  },
+        AnimatedSize(
+          alignment: Alignment.bottomCenter,
+          duration: const Duration(milliseconds: 200),
+          child: controller.text.isEmpty || (userMode && selectedUser == null)
+              ? const SizedBox(height: 8)
+              : Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Container(
+                    padding: const EdgeInsets.only(left: 16),
+                    height: 32,
+                    alignment: Alignment.center,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: EdgeInsets.zero,
+                      children: [
+                        _FilterChip(
+                          label: context.l10n.text,
+                          selected: selectedCategories == textCategories,
+                          onSelected: () {
+                            setState(() {
+                              selectedCategories =
+                                  selectedCategories == textCategories
+                                  ? null
+                                  : textCategories;
+                            });
+                            unawaited(_search());
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _FilterChip(
+                          label: context.l10n.post,
+                          selected: selectedCategories == postCategories,
+                          onSelected: () {
+                            setState(() {
+                              selectedCategories =
+                                  selectedCategories == postCategories
+                                  ? null
+                                  : postCategories;
+                            });
+                            unawaited(_search());
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: context.l10n.post,
-                  selected: selectedCategories == postCategories,
-                  onSelected: () {
-                    setState(() {
-                      selectedCategories = selectedCategories == postCategories
-                          ? null
-                          : postCategories;
-                    });
-                    unawaited(_search());
-                  },
-                ),
-              ],
-            ),
-          ),
+        ),
         Expanded(child: _body()),
       ],
     ),
@@ -324,49 +355,64 @@ class _SearchMessagePageState extends State<SearchMessagePage> {
 
   Widget _body() {
     if (userMode && selectedUser == null) {
-      if (participantLoading) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      if (error != null) {
-        return ChatSideError(
-          error: error!,
-          onRetry: () => _loadParticipants(controller.text.trim()),
-        );
-      }
+      if (participantLoading || error != null) return const SizedBox();
       final keyword = controller.text.trim().toLowerCase();
-      final filtered = participants.where(
-        (item) =>
-            keyword.isEmpty ||
-            item.fullName.toLowerCase().contains(keyword) ||
-            item.identityNumber.contains(keyword),
-      );
-      return ListView(
-        children: [
-          for (final participant in filtered)
-            ListTile(
-              leading: AvatarView(
-                userId: participant.userId,
-                name: participant.fullName,
-                avatarUrl: participant.avatarUrl,
-                size: 40,
+      final filtered = participants
+          .where(
+            (item) =>
+                keyword.isEmpty ||
+                item.fullName.toLowerCase().contains(keyword) ||
+                item.identityNumber.contains(keyword),
+          )
+          .toList(growable: false);
+      return ListView.builder(
+        itemCount: filtered.length,
+        itemBuilder: (context, index) {
+          final participant = filtered.elementAt(index);
+          return InteractiveDecoratedBox(
+            onTap: () => _selectUser(participant),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+              child: Row(
+                children: [
+                  AvatarView(
+                    userId: participant.userId,
+                    name: participant.fullName,
+                    avatarUrl: participant.avatarUrl,
+                    size: 38,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: CustomText(
+                            participant.fullName,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: context.theme.text,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        BadgesWidget(
+                          verified: participant.isVerified,
+                          isBot: participant.isBot,
+                          membership: participant.membership,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              title: Text(participant.fullName),
-              subtitle: Text(participant.identityNumber),
-              onTap: () => _selectUser(participant),
             ),
-        ],
+          );
+        },
       );
     }
-    if (loading) return const Center(child: CircularProgressIndicator());
-    if (error != null) return ChatSideError(error: error!, onRetry: _search);
-    if (controller.text.trim().isEmpty) return const SizedBox();
-    if (messages.isEmpty) {
-      return Center(
-        child: Text(
-          context.l10n.noResults,
-          style: TextStyle(color: context.theme.secondaryText),
-        ),
-      );
+    if (controller.text.trim().isEmpty || loading || error != null) {
+      return const SizedBox();
     }
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
@@ -376,44 +422,12 @@ class _SearchMessagePageState extends State<SearchMessagePage> {
         return false;
       },
       child: ListView.builder(
-        itemCount: messages.length + (loadingMore ? 1 : 0),
+        itemCount: messages.length,
         itemBuilder: (context, index) {
-          if (index == messages.length) {
-            return const Padding(
-              padding: EdgeInsets.all(12),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
           final message = messages[index];
-          return ListTile(
-            leading: AvatarView(
-              userId: message.senderId,
-              name: message.senderName,
-              avatarUrl: message.senderAvatarUrl,
-              size: 40,
-            ),
-            title: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    message.senderName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Text(
-                  DateFormat.yMd().add_Hm().format(message.createdAt.toLocal()),
-                  style: TextStyle(
-                    color: context.theme.secondaryText,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-            subtitle: _HighlightedText(
-              text: message.content,
-              query: controller.text.trim(),
-            ),
+          return _SearchMessageTile(
+            message: message,
+            keyword: controller.text.trim(),
             onTap: () => _locate(message.id),
           );
         },
@@ -438,10 +452,26 @@ class _FilterChip extends StatelessWidget {
   final VoidCallback onSelected;
 
   @override
-  Widget build(BuildContext context) => ChoiceChip(
-    label: Text(label),
-    selected: selected,
-    onSelected: (_) => onSelected(),
+  Widget build(BuildContext context) => InteractiveDecoratedBox(
+    onTap: onSelected,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: ShapeDecoration(
+        color: selected ? context.theme.accent : context.theme.listSelected,
+        shape: const StadiumBorder(),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 32,
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: selected ? Colors.white : context.theme.text,
+          fontSize: 16,
+          height: 1,
+        ),
+      ),
+    ),
   );
 }
 
@@ -453,23 +483,247 @@ class _HighlightedText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final index = text.toLowerCase().indexOf(query.toLowerCase());
-    if (index < 0) {
-      return Text(text, maxLines: 2, overflow: TextOverflow.ellipsis);
+    final style = TextStyle(color: context.theme.secondaryText, fontSize: 14);
+    final keywords = query
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((value) => value.isNotEmpty)
+        .toList();
+    if (keywords.isEmpty) {
+      return Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      );
     }
+    final matcher = RegExp(
+      '(${keywords.map(RegExp.escape).join('|')})',
+      caseSensitive: false,
+    );
+    final matches = matcher.allMatches(text).toList();
+    if (matches.isEmpty) {
+      return Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      );
+    }
+    var offset = 0;
+    final spans = <InlineSpan>[];
+    for (final match in matches) {
+      if (match.start > offset) {
+        spans.add(TextSpan(text: text.substring(offset, match.start)));
+      }
+      spans.add(
+        TextSpan(
+          text: text.substring(match.start, match.end),
+          style: TextStyle(color: context.theme.accent),
+        ),
+      );
+      offset = match.end;
+    }
+    if (offset < text.length) spans.add(TextSpan(text: text.substring(offset)));
     return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(text: text.substring(0, index)),
-          TextSpan(
-            text: text.substring(index, index + query.length),
-            style: TextStyle(color: context.theme.accent),
-          ),
-          TextSpan(text: text.substring(index + query.length)),
-        ],
-      ),
-      maxLines: 2,
+      TextSpan(children: spans),
+      style: style,
+      maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
   }
+}
+
+class _SearchMessageTile extends StatelessWidget {
+  const _SearchMessageTile({
+    required this.message,
+    required this.keyword,
+    required this.onTap,
+  });
+
+  final MessageListEntry message;
+  final String keyword;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedDecoration = BoxDecoration(
+      borderRadius: const BorderRadius.all(Radius.circular(8)),
+      color: context.theme.listSelected,
+    );
+    final icon = MixinAssets.messageIcon(message.category);
+    final description = _searchMessagePreview(context, message);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: InteractiveDecoratedBox(
+        decoration: const BoxDecoration(),
+        hoveringDecoration: selectedDecoration,
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 72),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+          child: Row(
+            children: [
+              SizedBox.square(
+                dimension: 50,
+                child: AvatarView(
+                  userId: message.senderId,
+                  name: message.senderName,
+                  avatarUrl: message.senderAvatarUrl,
+                  size: 50,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  message.senderName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: context.theme.text,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                              BadgesWidget(
+                                verified: message.senderIsVerified,
+                                isBot: message.senderIsBot,
+                                membership: message.senderMembership,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          _formattedSearchDate(message.createdAt),
+                          style: TextStyle(
+                            color: context.theme.secondaryText,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        if (icon != null)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 2),
+                            child: SvgPicture.asset(
+                              icon,
+                              colorFilter: ColorFilter.mode(
+                                context.theme.secondaryText,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                          ),
+                        Expanded(
+                          child: _HighlightedText(
+                            text: description,
+                            query: keyword,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _searchMessagePreview(BuildContext context, MessageListEntry message) {
+  final category = message.category;
+  final status = message.status.toUpperCase();
+  if (status == 'FAILED') return context.l10n.waitingForThisMessage;
+  if (status == 'UNKNOWN') return context.l10n.messageNotSupport;
+  if (message.isText) return message.content.trim();
+  if (category == 'SYSTEM_ACCOUNT_SNAPSHOT' ||
+      category == 'SYSTEM_SAFE_SNAPSHOT') {
+    return '[${context.l10n.transfer}]';
+  }
+  if (message.isSticker) return '[${context.l10n.sticker}]';
+  if (message.isImage) return '[${context.l10n.image}]';
+  if (category.endsWith('_VIDEO')) return '[${context.l10n.video}]';
+  if (message.isLive) return '[${context.l10n.live}]';
+  if (category.endsWith('_DATA')) return '[${context.l10n.file}]';
+  if (message.isPost) return _postOptimizeMarkdown(message.content.trim());
+  if (category.endsWith('_LOCATION')) return '[${context.l10n.location}]';
+  if (message.isAudio) return '[${context.l10n.audio}]';
+  if (category == 'APP_BUTTON_GROUP') {
+    try {
+      final actions = jsonDecode(message.content) as List<dynamic>;
+      return actions
+          .map((item) => '[${(item as Map<String, dynamic>)['label'] ?? ''}]')
+          .join();
+    } on Object {
+      return '';
+    }
+  }
+  if (category == 'APP_CARD') {
+    try {
+      final card = jsonDecode(message.content) as Map<String, dynamic>;
+      return '[${card['title'] ?? context.l10n.card}]';
+    } on Object {
+      return '[${context.l10n.card}]';
+    }
+  }
+  if (category.endsWith('_CONTACT')) return '[${context.l10n.contact}]';
+  if (message.isRecall) {
+    final isCurrentUser =
+        message.senderId == ChatSideScope.of(context).currentUserId;
+    return '[${isCurrentUser ? context.l10n.youDeletedThisMessage : context.l10n.thisMessageWasDeleted}]';
+  }
+  if (category.endsWith('_TRANSCRIPT')) {
+    return '[${context.l10n.transcript}]';
+  }
+  if (category == 'SYSTEM_SAFE_INSCRIPTION') {
+    return '[${context.l10n.collectible}]';
+  }
+  return context.l10n.messageNotSupport;
+}
+
+String _postOptimizeMarkdown(String content) {
+  final optimized = const LineSplitter().convert(content).take(10).join('\r\n');
+  final truncated = optimized.length > 1024
+      ? optimized.substring(0, 1024)
+      : optimized;
+  final nodes = markdown.Document().parseLines(
+    const LineSplitter().convert(truncated),
+  );
+  return nodes
+      .map((node) => node.textContent)
+      .join()
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
+String _formattedSearchDate(DateTime value) {
+  final now = DateTime.now();
+  final local = value.toLocal();
+  final sameDay =
+      now.year == local.year &&
+      now.month == local.month &&
+      now.day == local.day;
+  if (sameDay) return DateFormat.Hm().format(local);
+  final startOfThisWeek = now.subtract(Duration(days: now.weekday));
+  final startOfValueWeek = local.subtract(Duration(days: local.weekday));
+  final sameWeek =
+      startOfThisWeek.year == startOfValueWeek.year &&
+      startOfThisWeek.month == startOfValueWeek.month &&
+      startOfThisWeek.day == startOfValueWeek.day;
+  if (sameWeek) return DateFormat.E().format(local);
+  if (now.year == local.year) return DateFormat.MMMd().format(local);
+  return DateFormat.yMMMd().format(local);
 }

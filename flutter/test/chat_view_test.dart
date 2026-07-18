@@ -50,7 +50,6 @@ void main() {
               controller: controller,
               focusNode: focusNode,
               quoteMessage: null,
-              sending: false,
               onChanged: (_) {},
               onCancelQuote: () {},
               onSend: () async {},
@@ -1271,6 +1270,7 @@ class _FakeAccountHandle
     required String conversationId,
     required String content,
     String? quoteMessageId,
+    required bool silent,
   }) async {
     if (sendError case final error?) throw error;
     sentTexts.add(content);

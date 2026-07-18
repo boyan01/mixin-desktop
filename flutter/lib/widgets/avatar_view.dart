@@ -24,7 +24,7 @@ class ConversationAvatarView extends StatelessWidget {
     return SizedBox.square(
       dimension: size,
       child: ClipOval(
-        child: _AvatarPuzzles(
+        child: AvatarPuzzlesView(
           avatars: conversation.groupAvatars.take(4).toList(growable: false),
           size: size,
         ),
@@ -33,8 +33,12 @@ class ConversationAvatarView extends StatelessWidget {
   }
 }
 
-class _AvatarPuzzles extends StatelessWidget {
-  const _AvatarPuzzles({required this.avatars, required this.size});
+class AvatarPuzzlesView extends StatelessWidget {
+  const AvatarPuzzlesView({
+    required this.avatars,
+    required this.size,
+    super.key,
+  });
 
   final List<ConversationAvatarEntry> avatars;
   final double size;

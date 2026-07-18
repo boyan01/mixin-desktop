@@ -1,9 +1,22 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
 
 typedef OpenMessageUri = void Function(Uri uri);
 typedef OpenIdentityNumber = void Function(String identityNumber);
+
+Set<String> messageMentionIdentityNumbers(Iterable<String?> texts) => {
+  for (final text in texts)
+    if (text != null)
+      for (final match in RegExp(r'@(\d+)').allMatches(text)) match.group(1)!,
+};
+
+String replaceMessageMentions(String text, Map<String, String> mentionNames) =>
+    text.replaceAllMapped(RegExp(r'@(\d+)'), (match) {
+      final identityNumber = match.group(1)!;
+      return '@${mentionNames[identityNumber] ?? identityNumber}';
+    });
 
 class SelectableMessageText extends StatefulWidget {
   const SelectableMessageText({
@@ -13,6 +26,8 @@ class SelectableMessageText extends StatefulWidget {
     this.onOpenUri,
     this.onOpenIdentityNumber,
     this.mentionNames = const {},
+    this.keyword = '',
+    this.enableSelection = true,
   });
 
   final String content;
@@ -20,6 +35,8 @@ class SelectableMessageText extends StatefulWidget {
   final OpenMessageUri? onOpenUri;
   final OpenIdentityNumber? onOpenIdentityNumber;
   final Map<String, String> mentionNames;
+  final String keyword;
+  final bool enableSelection;
 
   @override
   State<SelectableMessageText> createState() => _SelectableMessageTextState();
@@ -40,6 +57,8 @@ class _SelectableMessageTextState extends State<SelectableMessageText> {
     if (oldWidget.content == widget.content &&
         oldWidget.onOpenUri == widget.onOpenUri &&
         oldWidget.onOpenIdentityNumber == widget.onOpenIdentityNumber &&
+        oldWidget.keyword == widget.keyword &&
+        oldWidget.enableSelection == widget.enableSelection &&
         identical(oldWidget.mentionNames, widget.mentionNames)) {
       return;
     }
@@ -112,28 +131,42 @@ class _SelectableMessageTextState extends State<SelectableMessageText> {
   }
 
   @override
-  Widget build(BuildContext context) => SelectableText.rich(
-    TextSpan(
-      style: widget.style,
-      children: [
-        for (final segment in _segments)
-          TextSpan(
-            text: segment.text,
-            recognizer: segment.recognizer,
-            mouseCursor: segment.recognizer == null
-                ? MouseCursor.defer
-                : SystemMouseCursors.click,
-            style: segment.interactive
-                ? widget.style.copyWith(color: context.theme.accent)
-                : widget.style,
+  Widget build(BuildContext context) {
+    final child = CustomText.rich(
+      TextSpan(
+        style: widget.style,
+        children: [
+          for (final segment in _segments)
+            TextSpan(
+              text: segment.text,
+              recognizer: segment.recognizer,
+              mouseCursor: segment.recognizer == null
+                  ? MouseCursor.defer
+                  : SystemMouseCursors.click,
+              style: segment.interactive
+                  ? widget.style.copyWith(color: context.theme.accent)
+                  : widget.style,
+            ),
+        ],
+      ),
+      textMatchers: [
+        EmojiTextMatcher(),
+        if (widget.keyword.isNotEmpty)
+          KeyWordTextMatcher(
+            widget.keyword,
+            style: TextStyle(
+              backgroundColor: context.theme.highlight,
+              color: context.theme.text,
+            ),
           ),
       ],
-    ),
-    // The message-level ContextMenuWidget owns secondary-click actions.
-    // Keep selection enabled, but do not let SelectableText open a second
-    // Flutter/macOS text toolbar on top of the message menu.
-    contextMenuBuilder: (context, selectableState) => const SizedBox.shrink(),
-  );
+    );
+    if (!widget.enableSelection) return child;
+    return SelectionArea(
+      contextMenuBuilder: (context, selectableState) => const SizedBox.shrink(),
+      child: child,
+    );
+  }
 }
 
 class _TextSegment {

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
 import 'package:super_context_menu/super_context_menu.dart';
 
 import 'share_media/file_page.dart';
@@ -21,6 +23,7 @@ class _SharedMediaPageState extends State<SharedMediaPage> {
   @override
   Widget build(BuildContext context) => ChatSidePageScaffold(
     title: context.l10n.sharedMedia,
+    backgroundColor: context.theme.primary,
     body: Column(
       children: [
         Expanded(
@@ -35,18 +38,19 @@ class _SharedMediaPageState extends State<SharedMediaPage> {
               .entries
               .map(
                 (entry) => Expanded(
-                  child: InkWell(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: () => setState(() => selectedIndex = entry.key),
-                    child: SizedBox(
+                    child: Container(
                       height: 56,
-                      child: Center(
-                        child: Text(
-                          entry.value,
-                          style: TextStyle(
-                            color: entry.key == selectedIndex
-                                ? context.theme.accent
-                                : context.theme.secondaryText,
-                          ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        entry.value,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: entry.key == selectedIndex
+                              ? context.theme.accent
+                              : context.theme.secondaryText,
                         ),
                       ),
                     ),
@@ -72,10 +76,11 @@ class ShareMediaItemMenuWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ContextMenuWidget(
+    desktopMenuWidgetBuilder: CustomDesktopMenuWidgetBuilder(),
     menuProvider: (_) => Menu(
       children: [
         MenuAction(
-          image: MenuImage.icon(Icons.my_location),
+          image: MenuImage.icon(IconFonts.positionToChat),
           title: context.l10n.locateToChat,
           callback: () {
             final scope = ChatSideScope.of(context);

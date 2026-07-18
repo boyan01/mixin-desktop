@@ -6,12 +6,13 @@ import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 enum LoginStatus { loading, ready, provisioning, failed }
 
 class LoginController extends ChangeNotifier {
-  LoginController(this.desktop, this.onAuthenticated) {
+  LoginController(this.desktop, this.onAuthenticated, this.onFailure) {
     refresh();
   }
 
   final DesktopHandle desktop;
   final ValueChanged<AccountHandle> onAuthenticated;
+  final void Function(Object error, StackTrace stackTrace) onFailure;
 
   LoginStatus status = LoginStatus.loading;
   String? authUrl;
@@ -69,7 +70,12 @@ class LoginController extends ChangeNotifier {
       status = LoginStatus.provisioning;
       notifyListeners();
       onAuthenticated(account);
-    } catch (exception) {
+    } catch (exception, stackTrace) {
+      if (exception.toString().contains('login_provisioning_error:')) {
+        _timer?.cancel();
+        onFailure(exception, stackTrace);
+        return;
+      }
       _pollFailures += 1;
       if (_pollFailures >= 3) {
         _timer?.cancel();

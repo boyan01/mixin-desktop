@@ -20,7 +20,11 @@ void main() {
 
     await tester.pumpWidget(
       _LocalizedApp(
-        child: LoginPage(desktop: desktop, onAuthenticated: (_) {}),
+        child: LoginPage(
+          desktop: desktop,
+          onAuthenticated: (_) {},
+          onFailure: (_, _) {},
+        ),
       ),
     );
 

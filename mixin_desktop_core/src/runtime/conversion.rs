@@ -17,12 +17,18 @@ impl From<crate::db::mixin::conversation::ConversationListItem> for Conversation
             last_message_status: item.last_message_status,
             last_message_sender_id: item.last_message_sender_id,
             last_message_sender_name: item.last_message_sender_name,
+            last_message_action: item.last_message_action,
+            last_message_participant_id: item.last_message_participant_id,
+            last_message_participant_name: item.last_message_participant_name,
             updated_at_millis,
             unseen_count: item.unseen_count,
             mention_count: item.mention_count,
             is_muted: item.is_muted,
             is_verified: item.is_verified,
+            is_scam: item.is_scam,
             is_bot: item.is_bot,
+            is_bot_group: item.is_bot_group,
+            membership: item.membership,
             is_pinned: item.is_pinned,
             relationship: item.relationship,
             identity_number: item.identity_number,
@@ -87,6 +93,7 @@ impl From<crate::db::mixin::participant::ParticipantListItem> for ConversationPa
             is_verified: participant.is_verified,
             is_bot: participant.is_bot,
             relationship: participant.relationship,
+            membership: participant.membership,
         }
     }
 }
@@ -104,6 +111,7 @@ impl From<crate::db::mixin::user::User> for ConversationParticipantItem {
             is_verified: user.is_verified,
             is_bot: user.app_id.is_some_and(|app_id| !app_id.is_empty()),
             relationship: format!("{:?}", user.relationship).to_uppercase(),
+            membership: user.membership,
         }
     }
 }
@@ -120,6 +128,7 @@ impl From<crate::db::mixin::user::User> for UserProfileItem {
             is_bot: user.app_id.is_some_and(|app_id| !app_id.is_empty()),
             relationship: format!("{:?}", user.relationship).to_uppercase(),
             code_url: user.code_url,
+            membership: user.membership,
         }
     }
 }
@@ -217,7 +226,12 @@ impl From<crate::db::mixin::message::ImageMessageItem> for ImageMessageView {
             created_at_micros: item.created_at.and_utc().timestamp_micros(),
             media_url: item.media_url,
             media_name: item.media_name,
+            thumb_image: item.thumb_image,
             can_forward: item.can_forward,
+            user_id: item.user_id,
+            user_full_name: item.user_full_name,
+            user_identity_number: item.user_identity_number,
+            avatar_url: item.avatar_url,
         }
     }
 }
@@ -233,6 +247,7 @@ impl From<crate::db::mixin::message::MessageListItem> for MessageListView {
             sender_identity_number: Some(item.sender_identity_number),
             sender_avatar_url: item.sender_avatar_url,
             sender_is_verified: item.sender_is_verified,
+            sender_membership: item.sender_membership,
             sender_relationship: item.sender_relationship,
             sender_app_id: item.sender_app_id,
             sender_is_scam: item.sender_is_scam,
@@ -251,6 +266,7 @@ impl From<crate::db::mixin::message::MessageListItem> for MessageListView {
             media_status: format!("{:?}", item.media_status).to_uppercase(),
             quote_message_id: item.quote_message_id,
             quote_content: item.quote_content,
+            quote_user_membership: item.quote_user_membership,
             caption: item.caption,
             action: item.action,
             participant_id: item.participant_id,
@@ -286,6 +302,7 @@ impl From<crate::db::mixin::message::MessageListItem> for MessageListView {
             shared_user_identity_number: item.shared_user_identity_number,
             shared_user_avatar_url: item.shared_user_avatar_url,
             shared_user_is_verified: item.shared_user_is_verified,
+            shared_user_membership: item.shared_user_membership,
             shared_user_app_id: item.shared_user_app_id,
             sticker_asset_url: item.sticker_asset_url,
             sticker_asset_width: item.sticker_asset_width,
@@ -309,6 +326,7 @@ impl From<crate::db::mixin::transcript_message::TranscriptMessageListItem> for M
             sender_identity_number: Some(item.sender_identity_number),
             sender_avatar_url: item.sender_avatar_url,
             sender_is_verified: item.sender_is_verified,
+            sender_membership: item.sender_membership,
             sender_relationship: item.sender_relationship,
             sender_app_id: item.sender_app_id,
             sender_is_scam: item.sender_is_scam,
@@ -327,6 +345,7 @@ impl From<crate::db::mixin::transcript_message::TranscriptMessageListItem> for M
             media_status: format!("{:?}", item.media_status.unwrap_or_default()).to_uppercase(),
             quote_message_id: item.quote_message_id,
             quote_content: item.quote_content,
+            quote_user_membership: item.quote_user_membership,
             caption: item.caption,
             action: None,
             participant_id: None,
@@ -362,6 +381,7 @@ impl From<crate::db::mixin::transcript_message::TranscriptMessageListItem> for M
             shared_user_identity_number: item.shared_user_identity_number,
             shared_user_avatar_url: item.shared_user_avatar_url,
             shared_user_is_verified: item.shared_user_is_verified,
+            shared_user_membership: item.shared_user_membership,
             shared_user_app_id: item.shared_user_app_id,
             sticker_asset_url: item.sticker_asset_url,
             sticker_asset_width: item.sticker_asset_width,

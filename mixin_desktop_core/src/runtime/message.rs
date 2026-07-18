@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::io::Cursor;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
@@ -7,6 +8,7 @@ use anyhow::{anyhow, Context, Result};
 use base64ct::{Base64, Encoding};
 use chrono::Utc;
 use log::warn;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use sdk::message_category::MessageCategory as _;
@@ -18,13 +20,13 @@ use sdk::{
 use crate::core::model::job::sanitize_transcript_app_card;
 use crate::core::model::AttachmentExtra;
 use crate::db::mixin::job::Job;
-use crate::db::mixin::message::{MediaStatus, Message};
+use crate::db::mixin::message::{AttachmentMessageUpdate, MediaStatus, Message};
 use crate::db::mixin::transcript_message::TranscriptMessage;
 
 use super::{
     combine_transcript_category, forward_category, forward_transcript_category, model,
-    validate_combine_forward_source, AccountState, MAX_AUDIO_DURATION_MILLIS, MAX_AUDIO_FILE_SIZE,
-    MAX_AUDIO_WAVEFORM_SAMPLES,
+    validate_combine_forward_source, AccountState, AttachmentAccess, MAX_AUDIO_DURATION_MILLIS,
+    MAX_AUDIO_FILE_SIZE, MAX_AUDIO_WAVEFORM_SAMPLES,
 };
 
 pub struct MessageAccess {
@@ -32,6 +34,214 @@ pub struct MessageAccess {
 }
 
 impl MessageAccess {
+    #[allow(clippy::too_many_arguments)]
+    pub async fn send_remote_image(
+        &self,
+        conversation_id: String,
+        url: String,
+        preview_url: String,
+        width: Option<i32>,
+        height: Option<i32>,
+        mime_type: String,
+        silent: bool,
+    ) -> Result<String> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        let parsed = url::Url::parse(&url)?;
+        if !matches!(parsed.scheme(), "http" | "https") {
+            return Err(anyhow!("remote image URL must use HTTP or HTTPS"));
+        }
+        if width.is_some_and(|value| value <= 0) || height.is_some_and(|value| value <= 0) {
+            return Err(anyhow!("remote image dimensions must be positive"));
+        }
+        let conversation = self
+            .database
+            .conversation_dao
+            .find_conversation_by_id(&conversation_id)
+            .await?
+            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
+        let text_category = self.text_category(conversation.owner_id.as_deref()).await?;
+        let prefix = text_category
+            .split_once('_')
+            .map(|(prefix, _)| prefix)
+            .ok_or_else(|| anyhow!("invalid message category: {text_category}"))?;
+        let message_id = Uuid::new_v4().to_string();
+        let message = Message {
+            message_id: message_id.clone(),
+            conversation_id,
+            user_id: self.account_id.clone(),
+            category: format!("{prefix}_IMAGE"),
+            media_url: Some(url),
+            media_mime_type: Some(mime_type),
+            media_size: Some(0),
+            media_width: width,
+            media_height: height,
+            media_status: MediaStatus::Pending,
+            thumb_image: Some(preview_url),
+            status: MessageStatus::Sending,
+            created_at: Utc::now().naive_utc(),
+            ..Message::default()
+        };
+        self.database
+            .message_dao
+            .insert_pending_outgoing_message(&message)
+            .await?;
+        self.notify_conversation_changed();
+        if let Err(error) = self.complete_remote_image_from_url(&message, silent).await {
+            warn!(
+                "failed to send remote image {}: {error}",
+                message.message_id
+            );
+            self.database
+                .message_dao
+                .update_media_status(&message.message_id, MediaStatus::Canceled)
+                .await?;
+            self.notify_conversation_changed();
+        }
+        Ok(message_id)
+    }
+
+    pub(crate) async fn complete_remote_image_from_url(
+        &self,
+        message: &Message,
+        silent: bool,
+    ) -> Result<()> {
+        let url = message
+            .media_url
+            .as_deref()
+            .ok_or_else(|| anyhow!("remote image has no URL"))?;
+        let bytes = self.app_service.attachment.download_public(url).await?;
+        let image = image::ImageReader::new(Cursor::new(bytes.as_slice()))
+            .with_guessed_format()?
+            .decode()?;
+        let width = i32::try_from(image.width()).context("remote image is too wide")?;
+        let height = i32::try_from(image.height()).context("remote image is too tall")?;
+        let extension = match message.media_mime_type.as_deref() {
+            Some("image/gif") => "gif",
+            Some("image/png") => "png",
+            Some("image/webp") => "webp",
+            _ => "jpg",
+        };
+        let temporary = std::env::temp_dir().join(format!(
+            "mixin-remote-image-{}.{}",
+            message.message_id, extension
+        ));
+        tokio::fs::write(&temporary, bytes).await?;
+        let result = self
+            .complete_remote_image_file(message, &temporary, width, height, silent)
+            .await;
+        let _ = tokio::fs::remove_file(&temporary).await;
+        result
+    }
+
+    async fn complete_remote_image_file(
+        &self,
+        message: &Message,
+        source: &Path,
+        width: i32,
+        height: i32,
+        silent: bool,
+    ) -> Result<()> {
+        let mime_type = message.media_mime_type.as_deref().unwrap_or("image/gif");
+        let (local_path, media_size) = self
+            .app_service
+            .attachment
+            .import_local(source, message)
+            .await?;
+        let prefix = message
+            .category
+            .split_once('_')
+            .map(|(prefix, _)| prefix)
+            .ok_or_else(|| anyhow!("invalid message category: {}", message.category))?;
+        let upload = self
+            .app_service
+            .attachment
+            .upload(&local_path, prefix != "PLAIN")
+            .await?;
+        let attachment = AttachmentMessage {
+            key: upload.key.clone(),
+            digest: upload.digest.clone(),
+            attachment_id: upload.attachment_id,
+            mime_type: mime_type.to_string(),
+            size: media_size,
+            name: None,
+            width: Some(width),
+            height: Some(height),
+            thumbnail: message.thumb_image.clone(),
+            duration: None,
+            waveform: None,
+            caption: None,
+            created_at: Some(upload.created_at),
+            shareable: Some(true),
+        };
+        let content = Base64::encode_string(serde_json::to_string(&attachment)?.as_bytes());
+        let conversation = self
+            .database
+            .conversation_dao
+            .find_conversation_by_id(&message.conversation_id)
+            .await?
+            .ok_or_else(|| anyhow!("conversation not found: {}", message.conversation_id))?;
+        let job = Job::create_sending_job(
+            &message.message_id,
+            &message.conversation_id,
+            None,
+            None,
+            false,
+            silent,
+            conversation.expire_in,
+        );
+        let completed = self
+            .database
+            .message_dao
+            .complete_pending_attachment(
+                &message.message_id,
+                &local_path.to_string_lossy(),
+                &AttachmentMessageUpdate {
+                    status: MessageStatus::Sending,
+                    content,
+                    media_mime_type: mime_type.to_string(),
+                    media_size,
+                    media_status: MediaStatus::Done,
+                    media_width: Some(width),
+                    media_height: Some(height),
+                    media_digest: upload.digest,
+                    media_key: upload.key,
+                    media_waveform: None,
+                    caption: None,
+                    name: None,
+                    thumb_image: message.thumb_image.clone(),
+                    media_duration: None,
+                },
+                &job,
+            )
+            .await?;
+        if !completed {
+            return Err(anyhow!("remote image send was canceled"));
+        }
+        self.app_service.job.wake(&job.action)?;
+        self.notify_conversation_changed();
+        Ok(())
+    }
+
+    pub async fn notification_messages(
+        &self,
+        after_created_at_micros: i64,
+        after_row_id: i64,
+        limit: i64,
+    ) -> Result<Vec<model::NotificationMessageView>> {
+        let after_created_at = chrono::DateTime::from_timestamp_micros(after_created_at_micros)
+            .map(|value| value.naive_utc())
+            .ok_or_else(|| anyhow!("invalid notification timestamp: {after_created_at_micros}"))?;
+        Ok(self
+            .database
+            .message_dao
+            .notification_items_after(&self.account_id, after_created_at, after_row_id, limit)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
     pub(crate) fn new(state: Arc<AccountState>) -> Self {
         Self { state }
     }
@@ -87,9 +297,36 @@ impl MessageAccess {
         limit: u32,
     ) -> Result<Vec<model::MessageListView>> {
         let sender_id = sender_id.as_deref();
-        let conversation_id = conversation_id.as_str();
-        let query = query.as_str();
-        let categories = categories.as_slice();
+        self.search_message_items(
+            Some(conversation_id.as_str()),
+            query.as_str(),
+            sender_id,
+            categories.as_slice(),
+            offset,
+            limit,
+        )
+        .await
+    }
+
+    pub async fn search_global_messages(
+        &self,
+        query: String,
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<model::MessageListView>> {
+        self.search_message_items(None, query.as_str(), None, &[], offset, limit)
+            .await
+    }
+
+    async fn search_message_items(
+        &self,
+        conversation_id: Option<&str>,
+        query: &str,
+        sender_id: Option<&str>,
+        categories: &[String],
+        offset: u32,
+        limit: u32,
+    ) -> Result<Vec<model::MessageListView>> {
         self.ensure_active()?;
         let mut result = Vec::with_capacity(limit as usize);
         let mut matched_offset = 0_u32;
@@ -99,7 +336,7 @@ impl MessageAccess {
             let matches = self
                 .database
                 .message_fts_dao
-                .search_range(query, Some(conversation_id), BATCH_SIZE, fts_offset)
+                .search_range(query, conversation_id, BATCH_SIZE, fts_offset)
                 .await?;
             let exhausted = matches.len() < BATCH_SIZE as usize;
             fts_offset = fts_offset.saturating_add(matches.len() as u32);
@@ -107,7 +344,7 @@ impl MessageAccess {
                 if let Some(item) = self
                     .database
                     .message_dao
-                    .list_items_around(conversation_id, &matched.message_id, 0, 0)
+                    .list_items_around(matched.conversation_id.as_str(), &matched.message_id, 0, 0)
                     .await?
                     .into_iter()
                     .find(|item| item.message_id == matched.message_id)
@@ -243,6 +480,24 @@ impl MessageAccess {
             .collect())
     }
 
+    pub async fn pin_message_preview(
+        &self,
+        conversation_id: String,
+    ) -> Result<Option<model::PinMessagePreviewItem>> {
+        let conversation_id = conversation_id.as_str();
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .pin_message_dao
+            .latest_preview(conversation_id)
+            .await?
+            .map(|item| model::PinMessagePreviewItem {
+                message_id: item.message_id,
+                content: item.content.unwrap_or_default(),
+                sender_name: item.sender_name.unwrap_or_default(),
+            }))
+    }
+
     pub async fn transcript_messages(
         &self,
         transcript_id: String,
@@ -264,6 +519,102 @@ impl MessageAccess {
         conversation_id: String,
         content: String,
         quote_message_id: Option<String>,
+        silent: bool,
+    ) -> Result<String> {
+        self.send_text_message(conversation_id, content, quote_message_id, false, silent)
+            .await
+    }
+
+    pub async fn conversation_is_encrypted(&self, conversation_id: String) -> Result<bool> {
+        self.ensure_active()?;
+        let conversation = self
+            .database
+            .conversation_dao
+            .find_conversation_by_id(&conversation_id)
+            .await?
+            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
+        Ok(self.text_category(conversation.owner_id.as_deref()).await?
+            != sdk::message_category::PLAIN_TEXT)
+    }
+
+    pub async fn send_post(&self, conversation_id: String, content: String) -> Result<String> {
+        self.send_text_message(conversation_id, content, None, true, false)
+            .await
+    }
+
+    pub async fn send_app_card(&self, conversation_id: String, content: String) -> Result<String> {
+        let conversation_id = conversation_id.as_str();
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        let conversation = self
+            .database
+            .conversation_dao
+            .find_conversation_by_id(conversation_id)
+            .await?
+            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
+        let mut card = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&content)
+            .context("invalid app card")?;
+        if !card.get("title").is_some_and(serde_json::Value::is_string)
+            || !card
+                .get("description")
+                .is_some_and(serde_json::Value::is_string)
+        {
+            return Err(anyhow!("app card title and description are required"));
+        }
+        if card.get("action").and_then(serde_json::Value::as_str) == Some("") {
+            card.insert("action".into(), serde_json::Value::Null);
+        }
+        if card
+            .get("actions")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|actions| {
+                actions.iter().any(|action| {
+                    action
+                        .get("action")
+                        .and_then(serde_json::Value::as_str)
+                        .is_none_or(|action| !is_shareable_app_card_action(action))
+                })
+            })
+        {
+            card.insert("actions".into(), serde_json::Value::Null);
+        }
+        let content = serde_json::to_string(&card)?;
+        let message_id = Uuid::new_v4().to_string();
+        let message = Message {
+            message_id: message_id.clone(),
+            conversation_id: conversation_id.to_string(),
+            user_id: self.account_id.clone(),
+            category: sdk::message_category::APP_CARD.into(),
+            content: Some(content),
+            status: MessageStatus::Sending,
+            created_at: Utc::now().naive_utc(),
+            ..Message::default()
+        };
+        let job = Job::create_sending_job(
+            &message_id,
+            conversation_id,
+            None,
+            None,
+            false,
+            false,
+            conversation.expire_in,
+        );
+        self.database
+            .message_dao
+            .insert_outgoing_message(&message, &job)
+            .await?;
+        self.app_service.job.wake(&job.action)?;
+        self.notify_conversation_changed();
+        Ok(message_id)
+    }
+
+    async fn send_text_message(
+        &self,
+        conversation_id: String,
+        content: String,
+        quote_message_id: Option<String>,
+        post: bool,
+        silent: bool,
     ) -> Result<String> {
         let quote_message_id = quote_message_id.as_deref();
         let conversation_id = conversation_id.as_str();
@@ -279,7 +630,10 @@ impl MessageAccess {
             .find_conversation_by_id(conversation_id)
             .await?
             .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
-        let category = self.text_category(conversation.owner_id.as_deref()).await?;
+        let mut category = self.text_category(conversation.owner_id.as_deref()).await?;
+        if post {
+            category = category.replace("_TEXT", "_POST");
+        }
         let message_id = Uuid::new_v4().to_string();
         let quote_content = match quote_message_id {
             Some(message_id) => self
@@ -312,7 +666,7 @@ impl MessageAccess {
             None,
             None,
             false,
-            false,
+            silent,
             conversation.expire_in,
         );
         self.database
@@ -336,9 +690,12 @@ impl MessageAccess {
         &self,
         conversation_id: String,
         shared_user_id: String,
+        quote_message_id: Option<String>,
+        silent: bool,
     ) -> Result<String> {
         let conversation_id = conversation_id.as_str();
         let shared_user_id = shared_user_id.as_str();
+        let quote_message_id = quote_message_id.as_deref();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
         let conversation = self
@@ -358,6 +715,19 @@ impl MessageAccess {
             .as_bytes(),
         );
         let message_id = Uuid::new_v4().to_string();
+        let quote_content = match quote_message_id {
+            Some(message_id) => self
+                .database
+                .message_dao
+                .find_quote_message_by_id(message_id)
+                .await?
+                .map(|message| serde_json::to_string(&message))
+                .transpose()?,
+            None => None,
+        };
+        if quote_message_id.is_some() && quote_content.is_none() {
+            return Err(anyhow!("quote message not found"));
+        }
         let message = Message {
             message_id: message_id.clone(),
             conversation_id: conversation_id.to_string(),
@@ -365,6 +735,8 @@ impl MessageAccess {
             category,
             content: Some(content),
             shared_user_id: Some(shared_user_id.to_string()),
+            quote_message_id: quote_message_id.map(str::to_string),
+            quote_content,
             status: MessageStatus::Sending,
             created_at: Utc::now().naive_utc(),
             ..Message::default()
@@ -375,7 +747,7 @@ impl MessageAccess {
             None,
             None,
             false,
-            false,
+            silent,
             conversation.expire_in,
         );
         self.database
@@ -539,16 +911,56 @@ impl MessageAccess {
             .attachment
             .import_local(&source, &file_message)
             .await?;
-        let upload = match self
-            .app_service
-            .attachment
-            .upload(&local_path, prefix != "PLAIN")
-            .await
-        {
+        let encoded_waveform = Base64::encode_string(waveform);
+        let message = Message {
+            message_id: message_id.clone(),
+            conversation_id: conversation_id.to_string(),
+            user_id: self.account_id.clone(),
+            category,
+            content: Some(String::new()),
+            media_url: Some(local_path.to_string_lossy().into_owned()),
+            media_mime_type: Some("audio/ogg".to_string()),
+            media_size: Some(actual_size),
+            media_duration: duration_millis.to_string(),
+            media_status: MediaStatus::Pending,
+            media_waveform: Some(encoded_waveform.clone()),
+            quote_message_id: quote_message_id.map(str::to_string),
+            quote_content,
+            status: MessageStatus::Sending,
+            created_at: Utc::now().naive_utc(),
+            ..Message::default()
+        };
+        self.database
+            .message_dao
+            .insert_pending_outgoing_message(&message)
+            .await?;
+        self.notify_conversation_changed();
+
+        let cancellation = CancellationToken::new();
+        self.attachment_downloads
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(message_id.clone(), cancellation.clone());
+        let upload = tokio::select! {
+            result = self.app_service.attachment.upload(&local_path, prefix != "PLAIN") => result,
+            _ = cancellation.cancelled() => Err(anyhow!("attachment upload canceled")),
+        };
+        self.attachment_downloads
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(&message_id);
+        let upload = match upload {
             Ok(upload) => upload,
             Err(error) => {
-                let _ = tokio::fs::remove_file(&local_path).await;
-                return Err(error);
+                self.database
+                    .message_dao
+                    .update_media_status(&message_id, MediaStatus::Canceled)
+                    .await?;
+                self.notify_conversation_changed();
+                if cancellation.is_cancelled() {
+                    return Ok(message_id);
+                }
+                return Err(anyhow!("attachment_upload_failed:{error}"));
             }
         };
         let attachment = AttachmentMessage {
@@ -568,26 +980,6 @@ impl MessageAccess {
             shareable: Some(true),
         };
         let content = Base64::encode_string(serde_json::to_string(&attachment)?.as_bytes());
-        let message = Message {
-            message_id: message_id.clone(),
-            conversation_id: conversation_id.to_string(),
-            user_id: self.account_id.clone(),
-            category,
-            content: Some(content),
-            media_url: Some(local_path.to_string_lossy().into_owned()),
-            media_mime_type: Some("audio/ogg".to_string()),
-            media_size: Some(actual_size),
-            media_duration: duration_millis.to_string(),
-            media_key: upload.key,
-            media_digest: upload.digest,
-            media_status: MediaStatus::Done,
-            media_waveform: Some(Base64::encode_string(waveform)),
-            quote_message_id: quote_message_id.map(str::to_string),
-            quote_content,
-            status: MessageStatus::Sending,
-            created_at: Utc::now().naive_utc(),
-            ..Message::default()
-        };
         let job = Job::create_sending_job(
             &message_id,
             conversation_id,
@@ -597,14 +989,245 @@ impl MessageAccess {
             false,
             conversation.expire_in,
         );
-        if let Err(error) = self
+        let completed = self
             .database
             .message_dao
-            .insert_outgoing_message(&message, &job)
-            .await
+            .complete_pending_attachment(
+                &message_id,
+                &local_path.to_string_lossy(),
+                &AttachmentMessageUpdate {
+                    status: MessageStatus::Sending,
+                    content,
+                    media_mime_type: "audio/ogg".to_string(),
+                    media_size: actual_size,
+                    media_status: MediaStatus::Done,
+                    media_width: None,
+                    media_height: None,
+                    media_digest: upload.digest,
+                    media_key: upload.key,
+                    media_waveform: Some(waveform.to_vec()),
+                    caption: None,
+                    name: None,
+                    thumb_image: None,
+                    media_duration: Some(duration_millis.to_string()),
+                },
+                &job,
+            )
+            .await?;
+        if !completed {
+            return Ok(message_id);
+        }
+        self.app_service.job.wake(&job.action)?;
+        self.notify_conversation_changed();
+        Ok(message_id)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn send_attachment(
+        &self,
+        conversation_id: String,
+        path: String,
+        kind: String,
+        mime_type: String,
+        name: Option<String>,
+        width: Option<i32>,
+        height: Option<i32>,
+        duration_millis: Option<i64>,
+        thumbnail: Option<String>,
+        caption: Option<String>,
+        quote_message_id: Option<String>,
+        silent: bool,
+    ) -> Result<String> {
+        let quote_message_id = quote_message_id.as_deref();
+        let conversation_id = conversation_id.as_str();
+        let path = path.as_str();
+        let kind = kind.trim().to_ascii_uppercase();
+        let mime_type = mime_type.trim();
+        let name = name.filter(|value| !value.trim().is_empty());
+        let caption = caption.filter(|value| !value.trim().is_empty());
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+
+        if !matches!(kind.as_str(), "IMAGE" | "VIDEO" | "DATA") {
+            return Err(anyhow!("unsupported attachment kind: {kind}"));
+        }
+        if mime_type.is_empty() {
+            return Err(anyhow!("attachment MIME type is required"));
+        }
+        if matches!(kind.as_str(), "IMAGE" | "VIDEO")
+            && (width.is_none_or(|value| value <= 0) || height.is_none_or(|value| value <= 0))
         {
-            let _ = tokio::fs::remove_file(&local_path).await;
-            return Err(error.into());
+            return Err(anyhow!("media dimensions must be positive"));
+        }
+        if kind == "VIDEO" && duration_millis.is_none_or(|value| value <= 0) {
+            return Err(anyhow!("video duration must be positive"));
+        }
+        if kind == "DATA" && name.is_none() {
+            return Err(anyhow!("file name is required"));
+        }
+
+        let source = tokio::fs::canonicalize(path)
+            .await
+            .with_context(|| format!("resolve attachment {path}"))?;
+        let metadata = tokio::fs::metadata(&source).await?;
+        if !metadata.is_file() || metadata.len() == 0 {
+            return Err(anyhow!("attachment is empty or is not a file"));
+        }
+        let size = i64::try_from(metadata.len()).context("attachment is too large")?;
+
+        let conversation = self
+            .database
+            .conversation_dao
+            .find_conversation_by_id(conversation_id)
+            .await?
+            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
+        let text_category = self.text_category(conversation.owner_id.as_deref()).await?;
+        let prefix = text_category
+            .split_once('_')
+            .map(|(prefix, _)| prefix)
+            .ok_or_else(|| anyhow!("invalid message category: {text_category}"))?;
+        let category = format!("{prefix}_{kind}");
+        let quote_content = match quote_message_id {
+            Some(message_id) => self
+                .database
+                .message_dao
+                .find_quote_message_by_id(message_id)
+                .await?
+                .map(|message| serde_json::to_string(&message))
+                .transpose()?,
+            None => None,
+        };
+        if quote_message_id.is_some() && quote_content.is_none() {
+            return Err(anyhow!("quote message not found"));
+        }
+
+        let message_id = Uuid::new_v4().to_string();
+        let file_message = Message {
+            message_id: message_id.clone(),
+            conversation_id: conversation_id.to_string(),
+            category: category.clone(),
+            media_mime_type: Some(mime_type.to_string()),
+            name: name.clone(),
+            ..Message::default()
+        };
+        let (local_path, actual_size) = self
+            .app_service
+            .attachment
+            .import_local(&source, &file_message)
+            .await?;
+        if actual_size != size {
+            warn!("attachment size changed while importing {path}: {size} -> {actual_size}");
+        }
+        let message = Message {
+            message_id: message_id.clone(),
+            conversation_id: conversation_id.to_string(),
+            user_id: self.account_id.clone(),
+            category,
+            content: Some(String::new()),
+            media_url: Some(local_path.to_string_lossy().into_owned()),
+            media_mime_type: Some(mime_type.to_string()),
+            media_size: Some(actual_size),
+            media_width: width,
+            media_height: height,
+            media_duration: duration_millis
+                .map(|value| value.to_string())
+                .unwrap_or_default(),
+            thumb_image: thumbnail.clone(),
+            media_status: MediaStatus::Pending,
+            quote_message_id: quote_message_id.map(str::to_string),
+            quote_content,
+            caption: caption.clone(),
+            name: name.clone(),
+            status: MessageStatus::Sending,
+            created_at: Utc::now().naive_utc(),
+            ..Message::default()
+        };
+        self.database
+            .message_dao
+            .insert_pending_outgoing_message(&message)
+            .await?;
+        self.notify_conversation_changed();
+
+        let cancellation = CancellationToken::new();
+        self.attachment_downloads
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(message_id.clone(), cancellation.clone());
+        let upload = tokio::select! {
+            result = self.app_service.attachment.upload(&local_path, prefix != "PLAIN") => result,
+            _ = cancellation.cancelled() => Err(anyhow!("attachment upload canceled")),
+        };
+        self.attachment_downloads
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .remove(&message_id);
+        let upload = match upload {
+            Ok(upload) => upload,
+            Err(error) => {
+                self.database
+                    .message_dao
+                    .update_media_status(&message_id, MediaStatus::Canceled)
+                    .await?;
+                self.notify_conversation_changed();
+                if cancellation.is_cancelled() {
+                    return Ok(message_id);
+                }
+                return Err(anyhow!("attachment_upload_failed:{error}"));
+            }
+        };
+        let attachment = AttachmentMessage {
+            key: upload.key.clone(),
+            digest: upload.digest.clone(),
+            attachment_id: upload.attachment_id,
+            mime_type: mime_type.to_string(),
+            size: actual_size,
+            name: name.clone(),
+            width,
+            height,
+            thumbnail: thumbnail.clone(),
+            duration: duration_millis,
+            waveform: None,
+            caption: caption.clone(),
+            created_at: Some(upload.created_at),
+            shareable: Some(true),
+        };
+        let content = Base64::encode_string(serde_json::to_string(&attachment)?.as_bytes());
+        let job = Job::create_sending_job(
+            &message_id,
+            conversation_id,
+            None,
+            None,
+            false,
+            silent,
+            conversation.expire_in,
+        );
+        let completed = self
+            .database
+            .message_dao
+            .complete_pending_attachment(
+                &message_id,
+                &local_path.to_string_lossy(),
+                &AttachmentMessageUpdate {
+                    status: MessageStatus::Sending,
+                    content,
+                    media_mime_type: mime_type.to_string(),
+                    media_size: actual_size,
+                    media_status: MediaStatus::Done,
+                    media_width: width,
+                    media_height: height,
+                    media_digest: upload.digest,
+                    media_key: upload.key,
+                    media_waveform: None,
+                    caption,
+                    name,
+                    thumb_image: thumbnail,
+                    media_duration: duration_millis.map(|value| value.to_string()),
+                },
+                &job,
+            )
+            .await?;
+        if !completed {
+            return Ok(message_id);
         }
         self.app_service.job.wake(&job.action)?;
         self.notify_conversation_changed();
@@ -998,7 +1621,7 @@ impl MessageAccess {
 
         let mut sources = self.messages_by_ids(source_message_ids).await?;
         for source in &sources {
-            validate_combine_forward_source(&source)?;
+            validate_combine_forward_source(source)?;
         }
         sources.sort_by(|left, right| {
             left.created_at
@@ -1137,7 +1760,13 @@ impl MessageAccess {
                 warn!("failed to index combined transcript {transcript_id}: {error}");
             }
         }
-        self.app_service.job.wake(&job.action)?;
+        if has_attachments {
+            AttachmentAccess::new(self.state.clone())
+                .retry_transcript_attachment(transcript_id.clone())
+                .await?;
+        } else {
+            self.app_service.job.wake(&job.action)?;
+        }
         self.notify_conversation_changed();
         Ok(transcript_id)
     }
@@ -1284,6 +1913,16 @@ impl MessageAccess {
         Ok(())
     }
 
+    pub async fn unread_mention_message_ids(&self, conversation_id: String) -> Result<Vec<String>> {
+        let conversation_id = conversation_id.as_str();
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .message_mention_dao
+            .unread_message_ids(conversation_id)
+            .await?)
+    }
+
     pub async fn mark_conversation_read(&self, conversation_id: String) -> Result<()> {
         let conversation_id = conversation_id.as_str();
         let _mutation = self.mutation_gate.read().await;
@@ -1358,4 +1997,18 @@ impl MessageAccess {
             })
             .collect()
     }
+}
+
+fn is_shareable_app_card_action(action: &str) -> bool {
+    let Ok(uri) = url::Url::parse(action) else {
+        return false;
+    };
+    if uri.scheme() == "mixin" && uri.host_str() == Some("send") {
+        return uri
+            .query_pairs()
+            .any(|(key, value)| key == "user" && !value.trim().is_empty());
+    }
+    matches!(uri.scheme(), "http" | "https")
+        && !(matches!(uri.host_str(), Some("mixin.one" | "www.mixin.one"))
+            && uri.path().trim_matches('/').starts_with("send"))
 }

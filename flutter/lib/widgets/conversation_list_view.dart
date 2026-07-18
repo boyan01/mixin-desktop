@@ -9,11 +9,30 @@ import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
 import 'package:mixin_desktop_ui/controllers/paging_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
+import 'package:mixin_desktop_ui/models/message_list_entry.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart'
+    show UserProfileItem;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/action_button.dart';
+import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
+import 'package:mixin_desktop_ui/widgets/conversation_search_results.dart';
+import 'package:mixin_desktop_ui/widgets/custom_popup_menu.dart';
+import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
+import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
+import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
+import 'package:mixin_desktop_ui/widgets/mute_dialog.dart';
+import 'package:mixin_desktop_ui/widgets/move_window.dart';
+import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
+import 'package:mixin_desktop_ui/widgets/message_datetime_and_status.dart';
+import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
+import 'package:mixin_desktop_ui/widgets/search_text_field.dart';
 import 'package:super_context_menu/super_context_menu.dart';
 import 'package:intl/intl.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+
+enum ConversationCreateAction { searchContact, conversation, group, circle }
 
 class ConversationListView extends StatefulWidget {
   const ConversationListView({
@@ -28,6 +47,7 @@ class ConversationListView extends StatefulWidget {
     required this.selectedConversationId,
     required this.onQueryChanged,
     required this.onToggleUnseen,
+    required this.onCreateActionSelected,
     required this.onSelected,
     required this.onPinned,
     required this.onMuted,
@@ -37,6 +57,20 @@ class ConversationListView extends StatefulWidget {
     super.key,
     this.error,
     this.query = '',
+    this.mentionNames = const {},
+    this.searchMessages = const [],
+    this.searchUsers = const [],
+    this.searchMaoUser,
+    this.searchMao,
+    this.searchMessageConversations = const {},
+    this.searchMessagesLoading = false,
+    this.onSearchMessageSelected,
+    this.onSearchUser,
+    this.onLocalUserSelected,
+    this.onMaoBotOpen,
+    this.onOpenLink,
+    this.audioPlayerBar = const SizedBox.shrink(),
+    this.networkStatus = const SizedBox.shrink(),
   });
 
   final PagingState<ConversationListEntry> pagingState;
@@ -45,19 +79,34 @@ class ConversationListView extends StatefulWidget {
   final bool loading;
   final String? error;
   final String currentUserId;
+  final Map<String, String> mentionNames;
   final Map<String, String> circles;
   final String? currentCircleId;
   final String query;
   final bool filterUnseen;
   final String? selectedConversationId;
   final ValueChanged<String> onQueryChanged;
+  final List<MessageListEntry> searchMessages;
+  final List<UserProfileItem> searchUsers;
+  final UserProfileItem? searchMaoUser;
+  final String? searchMao;
+  final Map<String, ConversationListEntry> searchMessageConversations;
+  final bool searchMessagesLoading;
+  final ValueChanged<MessageListEntry>? onSearchMessageSelected;
+  final ValueChanged<String>? onSearchUser;
+  final ValueChanged<UserProfileItem>? onLocalUserSelected;
+  final ValueChanged<UserProfileItem>? onMaoBotOpen;
+  final ValueChanged<Uri>? onOpenLink;
   final VoidCallback onToggleUnseen;
+  final ValueChanged<ConversationCreateAction> onCreateActionSelected;
   final ValueChanged<ConversationListEntry> onSelected;
   final ValueChanged<ConversationListEntry> onPinned;
   final void Function(ConversationListEntry, int) onMuted;
   final ValueChanged<ConversationListEntry> onDeleted;
   final void Function(ConversationListEntry, String, bool) onCircleChanged;
   final VoidCallback onRetry;
+  final Widget audioPlayerBar;
+  final Widget networkStatus;
 
   @override
   State<ConversationListView> createState() => _ConversationListViewState();
@@ -101,8 +150,41 @@ class _ConversationListViewState extends State<ConversationListView> {
           filterUnseen: widget.filterUnseen,
           onChanged: widget.onQueryChanged,
           onToggleUnseen: widget.onToggleUnseen,
+          onCreateActionSelected: widget.onCreateActionSelected,
         ),
-        Expanded(child: _buildList()),
+        widget.networkStatus,
+        Expanded(
+          child: widget.query.trim().isEmpty
+              ? _buildList()
+              : ConversationSearchResults(
+                  keyword: widget.query,
+                  users: widget.searchUsers,
+                  maoUser: widget.searchMaoUser,
+                  mao: widget.searchMao,
+                  conversations: widget.pagingState.map.values
+                      .whereType<ConversationListEntry>()
+                      .toList(growable: false),
+                  messages: widget.searchMessages,
+                  messageConversations: widget.searchMessageConversations,
+                  loadingMessages: widget.searchMessagesLoading,
+                  mentionNames: widget.mentionNames,
+                  onConversationSelected: widget.onSelected,
+                  onMessageSelected: widget.onSearchMessageSelected ?? (_) {},
+                  onSearchUser: widget.onSearchUser ?? (_) {},
+                  onUserSelected: widget.onLocalUserSelected ?? (_) {},
+                  onMaoBotOpen: widget.onMaoBotOpen ?? (_) {},
+                  onOpenLink: widget.onOpenLink ?? (_) {},
+                  onClear: () {
+                    searchController.clear();
+                    widget.onQueryChanged('');
+                    searchFocusNode.unfocus();
+                  },
+                ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          child: widget.audioPlayerBar,
+        ),
       ],
     ),
   );
@@ -113,15 +195,6 @@ class _ConversationListViewState extends State<ConversationListView> {
         child: CircularProgressIndicator(
           strokeWidth: 2,
           color: context.mixinTheme.accent,
-        ),
-      );
-    }
-    if (widget.error != null && widget.pagingState.count == 0) {
-      return Center(
-        child: TextButton.icon(
-          onPressed: widget.onRetry,
-          icon: const Icon(Icons.refresh),
-          label: Text(context.l10n.retry),
         ),
       );
     }
@@ -149,6 +222,7 @@ class _ConversationListViewState extends State<ConversationListView> {
           child: ConversationItem(
             conversation: conversation,
             currentUserId: widget.currentUserId,
+            mentionNames: widget.mentionNames,
             selected: conversation.id == widget.selectedConversationId,
             onTap: () => widget.onSelected(conversation),
           ),
@@ -165,6 +239,7 @@ class _SearchBar extends StatelessWidget {
     required this.filterUnseen,
     required this.onChanged,
     required this.onToggleUnseen,
+    required this.onCreateActionSelected,
   });
 
   final TextEditingController controller;
@@ -172,226 +247,111 @@ class _SearchBar extends StatelessWidget {
   final bool filterUnseen;
   final ValueChanged<String> onChanged;
   final VoidCallback onToggleUnseen;
+  final ValueChanged<ConversationCreateAction> onCreateActionSelected;
 
   @override
   Widget build(BuildContext context) {
     final isMacOS = defaultTargetPlatform == TargetPlatform.macOS;
     final scaffold = Scaffold.maybeOf(context);
-    return SizedBox(
-      height: 64,
-      child: Row(
-        children: [
-          AnimatedSize(
-            duration: const Duration(milliseconds: 150),
-            child: AnimatedSwitcher(
+    return MoveWindow(
+      child: SizedBox(
+        height: 64,
+        child: Row(
+          children: [
+            AnimatedSize(
               duration: const Duration(milliseconds: 150),
-              child: scaffold?.hasDrawer ?? false
-                  ? IconButton(
-                      key: const ValueKey('open-drawer'),
-                      onPressed: scaffold?.openDrawer,
-                      padding: const EdgeInsets.all(8),
-                      iconSize: 20,
-                      style: _actionButtonStyle(context),
-                      icon: Icon(Icons.menu, color: context.mixinTheme.icon),
-                    )
-                  : const SizedBox(
-                      key: ValueKey('drawer-placeholder'),
-                      width: 16,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 150),
+                child: scaffold?.hasDrawer ?? false
+                    ? ActionButton(
+                        key: const ValueKey('open-drawer'),
+                        onTapUp: (_) => scaffold?.openDrawer(),
+                        child: Icon(
+                          Icons.menu,
+                          size: 20,
+                          color: context.mixinTheme.icon,
+                        ),
+                      )
+                    : const SizedBox(
+                        key: ValueKey('drawer-placeholder'),
+                        width: 16,
+                      ),
+              ),
+            ),
+            Expanded(
+              child: MoveWindowBarrier(
+                child: FocusableActionDetector(
+                  shortcuts: const {
+                    SingleActivator(LogicalKeyboardKey.escape):
+                        _ClearSearchIntent(),
+                  },
+                  actions: {
+                    _ClearSearchIntent: CallbackAction<_ClearSearchIntent>(
+                      onInvoke: (_) {
+                        controller.clear();
+                        onChanged('');
+                        focusNode.unfocus();
+                        return null;
+                      },
                     ),
-            ),
-          ),
-          Expanded(
-            child: CallbackShortcuts(
-              bindings: {
-                const SingleActivator(LogicalKeyboardKey.escape): () {
-                  controller.clear();
-                  onChanged('');
-                  focusNode.unfocus();
-                },
-                SingleActivator(
-                  LogicalKeyboardKey.keyK,
-                  meta: isMacOS,
-                  control: !isMacOS,
-                ): focusNode.requestFocus,
-              },
-              child: _SearchField(
-                controller: controller,
-                focusNode: focusNode,
-                hintText: filterUnseen
-                    ? context.l10n.searchUnread
-                    : '${context.l10n.search} '
-                          '(${isMacOS ? '⌘' : 'Ctrl '}K)',
-                onChanged: onChanged,
+                  },
+                  child: SearchTextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    hintText: filterUnseen
+                        ? context.l10n.searchUnread
+                        : '${context.l10n.search} '
+                              '(${isMacOS ? '⌘' : 'Ctrl '}K)',
+                    onChanged: onChanged,
+                  ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          _ActionButton(
-            asset: MixinAssets.filterUnseen,
-            color: filterUnseen
-                ? context.mixinTheme.accent
-                : context.mixinTheme.icon,
-            onTap: onToggleUnseen,
-          ),
-          const SizedBox(width: 4),
-          _ActionButton(
-            asset: MixinAssets.add,
-            color: context.mixinTheme.secondaryText,
-            onTap: null,
-          ),
-          const SizedBox(width: 12),
-        ],
+            const SizedBox(width: 8),
+            ActionButton(
+              name: MixinAssets.filterUnseen,
+              color: filterUnseen
+                  ? context.mixinTheme.accent
+                  : context.mixinTheme.icon,
+              onTap: onToggleUnseen,
+            ),
+            const SizedBox(width: 4),
+            CustomPopupMenuButton<ConversationCreateAction>(
+              icon: MixinAssets.add,
+              onSelected: onCreateActionSelected,
+              itemBuilder: (context) => [
+                CustomPopupMenuItem(
+                  value: ConversationCreateAction.searchContact,
+                  icon: MixinAssets.contextMenuSearchUser,
+                  title: context.l10n.searchContact,
+                ),
+                CustomPopupMenuItem(
+                  value: ConversationCreateAction.conversation,
+                  icon: MixinAssets.contextMenuCreateConversation,
+                  title: context.l10n.createConversation,
+                ),
+                CustomPopupMenuItem(
+                  value: ConversationCreateAction.group,
+                  icon: MixinAssets.contextMenuCreateGroup,
+                  title: context.l10n.createGroup,
+                ),
+                CustomPopupMenuItem(
+                  value: ConversationCreateAction.circle,
+                  icon: MixinAssets.circle,
+                  title: context.l10n.createCircle,
+                ),
+              ],
+            ),
+            const SizedBox(width: 12),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _SearchField extends StatefulWidget {
-  const _SearchField({
-    required this.controller,
-    required this.focusNode,
-    required this.hintText,
-    required this.onChanged,
-  });
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final String hintText;
-  final ValueChanged<String> onChanged;
-
-  @override
-  State<_SearchField> createState() => _SearchFieldState();
-}
-
-class _SearchFieldState extends State<_SearchField> {
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_changed);
-  }
-
-  @override
-  void didUpdateWidget(covariant _SearchField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller) {
-      oldWidget.controller.removeListener(_changed);
-      widget.controller.addListener(_changed);
-    }
-  }
-
-  void _changed() => setState(() {});
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_changed);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.mixinTheme;
-    final background = Theme.of(context).brightness == Brightness.light
-        ? const Color.fromRGBO(245, 247, 250, 1)
-        : Colors.white.withValues(alpha: 0.08);
-    return Container(
-      height: 36,
-      decoration: ShapeDecoration(
-        color: background,
-        shape: const StadiumBorder(),
-      ),
-      child: Row(
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 16, right: 8),
-            child: SvgPicture.asset(
-              MixinAssets.search,
-              colorFilter: ColorFilter.mode(
-                colors.secondaryText,
-                BlendMode.srcIn,
-              ),
-            ),
-          ),
-          Expanded(
-            child: TextField(
-              controller: widget.controller,
-              focusNode: widget.focusNode,
-              onChanged: widget.onChanged,
-              inputFormatters: [LengthLimitingTextInputFormatter(200)],
-              style: TextStyle(color: colors.text, fontSize: 14),
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                hintText: widget.hintText,
-                hintStyle: TextStyle(color: colors.secondaryText),
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-          ),
-          if (widget.controller.text.isNotEmpty)
-            InkWell(
-              onTap: () {
-                widget.controller.clear();
-                widget.onChanged('');
-              },
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16, left: 8),
-                child: Icon(Icons.close, color: colors.secondaryText, size: 16),
-              ),
-            )
-          else
-            const SizedBox(width: 40),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
-    required this.asset,
-    required this.color,
-    required this.onTap,
-  });
-
-  final String asset;
-  final Color color;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) => IconButton(
-    onPressed: onTap,
-    padding: const EdgeInsets.all(8),
-    iconSize: 24,
-    style: _actionButtonStyle(context),
-    icon: SvgPicture.asset(
-      asset,
-      width: 24,
-      height: 24,
-      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-    ),
-  );
-}
-
-ButtonStyle _actionButtonStyle(BuildContext context) {
-  final hoverColor = Theme.of(context).brightness == Brightness.light
-      ? const Color.fromRGBO(0, 0, 0, 0.03)
-      : const Color.fromRGBO(255, 255, 255, 0.2);
-  return ButtonStyle(
-    fixedSize: const WidgetStatePropertyAll(Size.square(40)),
-    minimumSize: const WidgetStatePropertyAll(Size.square(40)),
-    maximumSize: const WidgetStatePropertyAll(Size.square(40)),
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    shape: const WidgetStatePropertyAll(CircleBorder()),
-    splashFactory: NoSplash.splashFactory,
-    backgroundColor: WidgetStateProperty.resolveWith((states) {
-      if (states.contains(WidgetState.hovered) ||
-          states.contains(WidgetState.pressed)) {
-        return hoverColor;
-      }
-      return Colors.transparent;
-    }),
-    overlayColor: const WidgetStatePropertyAll(Colors.transparent),
-  );
+class _ClearSearchIntent extends Intent {
+  const _ClearSearchIntent();
 }
 
 class ConversationItem extends StatelessWidget {
@@ -401,10 +361,12 @@ class ConversationItem extends StatelessWidget {
     required this.selected,
     required this.onTap,
     super.key,
+    this.mentionNames = const {},
   });
 
   final ConversationListEntry conversation;
   final String currentUserId;
+  final Map<String, String> mentionNames;
   final bool selected;
   final VoidCallback onTap;
 
@@ -413,77 +375,73 @@ class ConversationItem extends StatelessWidget {
     final colors = context.mixinTheme;
     return SizedBox(
       height: 78,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+      child: InteractiveDecoratedBox(
         onTap: onTap,
-        child: ColoredBox(
-          color: colors.primary,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: DecoratedBox(
-              decoration: selected
-                  ? BoxDecoration(
-                      color: colors.listSelected,
-                      borderRadius: const BorderRadius.all(Radius.circular(8)),
-                    )
-                  : const BoxDecoration(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    ConversationAvatarView(
-                      conversation: conversation,
-                      size: 50,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Row(
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          conversation.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: colors.text,
-                                            fontSize: 16,
-                                          ),
+        decoration: BoxDecoration(color: colors.primary),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: DecoratedBox(
+            decoration: selected
+                ? BoxDecoration(
+                    color: colors.listSelected,
+                    borderRadius: const BorderRadius.all(Radius.circular(8)),
+                  )
+                : const BoxDecoration(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  ConversationAvatarView(conversation: conversation, size: 50),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Flexible(
+                                      child: CustomText(
+                                        conversation.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: colors.text,
+                                          fontSize: 16,
                                         ),
                                       ),
-                                      _ConversationBadge(
-                                        verified: conversation.isVerified,
-                                        isBot: conversation.isBot,
-                                      ),
-                                    ],
-                                  ),
+                                    ),
+                                    _ConversationBadge(
+                                      verified: conversation.isVerified,
+                                      isBot: conversation.isBot,
+                                      membership: conversation.membership,
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  _formatTime(context, conversation.updatedAt),
-                                  style: TextStyle(
-                                    color: colors.secondaryText,
-                                    fontSize: 12,
-                                  ),
+                              ),
+                              Text(
+                                _formatTime(context, conversation.updatedAt),
+                                style: TextStyle(
+                                  color: colors.secondaryText,
+                                  fontSize: 12,
                                 ),
-                              ],
-                            ),
-                            _Subtitle(
-                              conversation: conversation,
-                              currentUserId: currentUserId,
-                            ),
-                          ],
-                        ),
+                              ),
+                            ],
+                          ),
+                          _Subtitle(
+                            conversation: conversation,
+                            currentUserId: currentUserId,
+                            mentionNames: mentionNames,
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -494,31 +452,31 @@ class ConversationItem extends StatelessWidget {
 }
 
 class _ConversationBadge extends StatelessWidget {
-  const _ConversationBadge({required this.verified, required this.isBot});
+  const _ConversationBadge({
+    required this.verified,
+    required this.isBot,
+    required this.membership,
+  });
 
   final bool verified;
   final bool isBot;
+  final String? membership;
 
   @override
-  Widget build(BuildContext context) {
-    final asset = verified
-        ? MixinAssets.verified
-        : isBot
-        ? 'assets/images/bot_fill.svg'
-        : null;
-    if (asset == null) return const SizedBox();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: SvgPicture.asset(asset, width: 12, height: 12),
-    );
-  }
+  Widget build(BuildContext context) =>
+      BadgesWidget(verified: verified, isBot: isBot, membership: membership);
 }
 
 class _Subtitle extends StatelessWidget {
-  const _Subtitle({required this.conversation, required this.currentUserId});
+  const _Subtitle({
+    required this.conversation,
+    required this.currentUserId,
+    required this.mentionNames,
+  });
 
   final ConversationListEntry conversation;
   final String currentUserId;
+  final Map<String, String> mentionNames;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -529,6 +487,7 @@ class _Subtitle extends StatelessWidget {
           child: _MessagePreview(
             conversation: conversation,
             currentUserId: currentUserId,
+            mentionNames: mentionNames,
           ),
         ),
         _ConversationIndicators(conversation: conversation),
@@ -541,10 +500,12 @@ class _MessagePreview extends StatelessWidget {
   const _MessagePreview({
     required this.conversation,
     required this.currentUserId,
+    required this.mentionNames,
   });
 
   final ConversationListEntry conversation;
   final String currentUserId;
+  final Map<String, String> mentionNames;
 
   @override
   Widget build(BuildContext context) {
@@ -563,6 +524,7 @@ class _MessagePreview extends StatelessWidget {
             conversation: conversation,
             currentUserId: currentUserId,
             hasDraft: hasDraft,
+            mentionNames: mentionNames,
           ),
         ),
       ],
@@ -575,11 +537,13 @@ class _MessageContent extends StatelessWidget {
     required this.conversation,
     required this.currentUserId,
     required this.hasDraft,
+    required this.mentionNames,
   });
 
   final ConversationListEntry conversation;
   final String currentUserId;
   final bool hasDraft;
+  final Map<String, String> mentionNames;
 
   @override
   Widget build(BuildContext context) {
@@ -588,16 +552,17 @@ class _MessageContent extends StatelessWidget {
     }
     final colors = context.mixinTheme;
     final icon = hasDraft ? null : _messagePreviewIcon(conversation);
-    final text = hasDraft
+    final preview = hasDraft
         ? conversation.draft
         : _messagePreview(context, conversation, currentUserId);
+    final text = hasDraft
+        ? preview
+        : replaceMessageMentions(preview, mentionNames);
     return Row(
       children: [
         if (icon != null) ...[
           SvgPicture.asset(
             icon,
-            width: 14,
-            height: 14,
             colorFilter: ColorFilter.mode(
               colors.secondaryText,
               BlendMode.srcIn,
@@ -613,7 +578,7 @@ class _MessageContent extends StatelessWidget {
           const SizedBox(width: 4),
         ],
         Expanded(
-          child: Text(
+          child: CustomText(
             text,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -640,25 +605,10 @@ class _MessageStatus extends StatelessWidget {
         !_supportsMessageStatus(conversation.contentType)) {
       return const SizedBox();
     }
-    final colors = context.mixinTheme;
-    return switch (conversation.messageStatus) {
-      'SENT' => SvgPicture.asset(
-        MixinAssets.sent,
-        colorFilter: ColorFilter.mode(colors.secondaryText, BlendMode.srcIn),
-      ),
-      'DELIVERED' => SvgPicture.asset(
-        MixinAssets.delivered,
-        colorFilter: ColorFilter.mode(colors.secondaryText, BlendMode.srcIn),
-      ),
-      'READ' => SvgPicture.asset(
-        MixinAssets.read,
-        colorFilter: ColorFilter.mode(colors.accent, BlendMode.srcIn),
-      ),
-      _ => CustomPaint(
-        painter: _SendingStatusPainter(color: colors.secondaryText),
-        child: const SizedBox.square(dimension: 14),
-      ),
-    };
+    return MessageStatusIcon(
+      messageId: 'conversation-${conversation.id}',
+      status: conversation.messageStatus ?? '',
+    );
   }
 }
 
@@ -720,36 +670,6 @@ class _ConversationIndicators extends StatelessWidget {
   }
 }
 
-class _SendingStatusPainter extends CustomPainter {
-  const _SendingStatusPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 1;
-    final center = Offset(size.width / 2, size.height / 2);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: center, width: 11, height: 9),
-        const Radius.circular(2.15),
-      ),
-      paint,
-    );
-    canvas
-      ..drawLine(center, center.translate(0, -3), paint)
-      ..drawLine(center, center.translate(3, 0), paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SendingStatusPainter oldDelegate) =>
-      oldDelegate.color != color;
-}
-
 class _UnreadBadge extends StatelessWidget {
   const _UnreadBadge({required this.text, required this.color});
 
@@ -785,7 +705,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const color = Color.fromRGBO(229, 233, 240, 1);
+    final color = context.dynamicColor(const Color.fromRGBO(229, 233, 240, 1));
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -794,10 +714,10 @@ class _EmptyState extends StatelessWidget {
             MixinAssets.empty,
             width: 58,
             height: 78,
-            colorFilter: const ColorFilter.mode(color, BlendMode.srcIn),
+            colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
           ),
           const SizedBox(height: 24),
-          Text(text, style: const TextStyle(color: color, fontSize: 14)),
+          Text(text, style: TextStyle(color: color, fontSize: 14)),
         ],
       ),
     );
@@ -831,6 +751,7 @@ class _ConversationContextMenu extends StatelessWidget {
       (circleId) => !conversation.circleIds.contains(circleId),
     );
     return ContextMenuWidget(
+      desktopMenuWidgetBuilder: CustomDesktopMenuWidgetBuilder(),
       menuProvider: (_) => Menu(
         children: [
           MenuAction(
@@ -854,7 +775,7 @@ class _ConversationContextMenu extends StatelessWidget {
                 onMuted(conversation, 0);
                 return;
               }
-              final duration = await _showMuteDialog(context);
+              final duration = await showMuteDialog(context);
               if (duration != null) onMuted(conversation, duration);
             },
           ),
@@ -879,26 +800,12 @@ class _ConversationContextMenu extends StatelessWidget {
             image: MenuImage.icon(IconFonts.delete),
             title: context.l10n.deleteChat,
             callback: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text(
-                    context.l10n.conversationDeleteTitle(conversation.name),
-                  ),
-                  content: Text(context.l10n.deleteChatDescription),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: Text(context.l10n.cancel),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: Text(context.l10n.delete),
-                    ),
-                  ],
-                ),
+              final confirmed = await showConfirmMixinDialog(
+                context,
+                context.l10n.conversationDeleteTitle(conversation.name),
+                description: context.l10n.deleteChatDescription,
               );
-              if (confirmed ?? false) onDeleted(conversation);
+              if (confirmed != null) onDeleted(conversation);
             },
           ),
           if (currentCircleId != null &&
@@ -915,27 +822,6 @@ class _ConversationContextMenu extends StatelessWidget {
     );
   }
 }
-
-Future<int?> _showMuteDialog(BuildContext context) => showDialog<int>(
-  context: context,
-  builder: (context) => SimpleDialog(
-    title: Text(context.l10n.contactMuteTitle),
-    children:
-        [
-              (context.l10n.oneHour, 60 * 60),
-              (context.l10n.hour(8, 8), 8 * 60 * 60),
-              ('1 ${context.l10n.unitWeek(1)}', 7 * 24 * 60 * 60),
-              (context.l10n.oneYear, 365 * 24 * 60 * 60),
-            ]
-            .map(
-              (option) => SimpleDialogOption(
-                onPressed: () => Navigator.pop(context, option.$2),
-                child: Text(option.$1),
-              ),
-            )
-            .toList(),
-  ),
-);
 
 bool _supportsMessageStatus(String? category) {
   const unsupported = {
@@ -981,6 +867,22 @@ String _messagePreview(
     text = context.l10n.waitingForThisMessage;
   } else if (conversation.messageStatus == 'UNKNOWN') {
     text = context.l10n.messageNotSupport;
+  } else if (category == 'SYSTEM_CONVERSATION') {
+    text = generateSystemMessageText(
+      context,
+      action: conversation.lastMessageAction,
+      participantId: conversation.lastMessageParticipantId,
+      participantName: conversation.lastMessageParticipantName,
+      senderId: conversation.senderId,
+      senderName: conversation.senderName,
+      currentUserId: currentUserId,
+      expireIn: int.tryParse(conversation.content),
+    );
+  } else if (category == 'MESSAGE_PIN') {
+    text = context.l10n.chatPinMessage(
+      conversation.senderName ?? '',
+      pinMessagePreview(context.l10n, conversation.content),
+    );
   } else if (category.contains('TEXT')) {
     text = conversation.content.trim();
   } else if (category.contains('SNAPSHOT')) {
@@ -1021,6 +923,9 @@ String _messagePreview(
     text = '[${context.l10n.collectible}]';
   } else {
     text = context.l10n.messageNotSupport;
+  }
+  if (category == 'SYSTEM_CONVERSATION' || category == 'MESSAGE_PIN') {
+    return text;
   }
   final showSender =
       conversation.isGroup || conversation.senderId != conversation.ownerId;

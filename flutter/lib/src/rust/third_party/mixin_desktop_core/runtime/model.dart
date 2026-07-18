@@ -6,7 +6,7 @@
 import '../../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `from`
 
 class AccountProfile {
   final String userId;
@@ -16,6 +16,9 @@ class AccountProfile {
   final String biography;
   final String phone;
   final String createdAt;
+  final bool isVerified;
+  final String fiatCurrency;
+  final String? membership;
 
   const AccountProfile({
     required this.userId,
@@ -25,6 +28,9 @@ class AccountProfile {
     required this.biography,
     required this.phone,
     required this.createdAt,
+    required this.isVerified,
+    required this.fiatCurrency,
+    this.membership,
   });
 
   @override
@@ -35,7 +41,10 @@ class AccountProfile {
       identityNumber.hashCode ^
       biography.hashCode ^
       phone.hashCode ^
-      createdAt.hashCode;
+      createdAt.hashCode ^
+      isVerified.hashCode ^
+      fiatCurrency.hashCode ^
+      membership.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -48,7 +57,10 @@ class AccountProfile {
           identityNumber == other.identityNumber &&
           biography == other.biography &&
           phone == other.phone &&
-          createdAt == other.createdAt;
+          createdAt == other.createdAt &&
+          isVerified == other.isVerified &&
+          fiatCurrency == other.fiatCurrency &&
+          membership == other.membership;
 }
 
 class CircleItem {
@@ -74,6 +86,89 @@ class CircleItem {
           circleId == other.circleId &&
           name == other.name &&
           conversationCount == other.conversationCount;
+}
+
+class CodeResult {
+  final String kind;
+  final String? userId;
+  final String? conversationId;
+  final String? conversationName;
+  final PlatformInt64 participantCount;
+  final List<GroupAvatar> participantAvatars;
+  final bool alreadyMember;
+  final String? assetId;
+  final String? assetSymbol;
+  final String? assetIconUrl;
+  final String? chainIconUrl;
+  final String? amount;
+  final List<String> senders;
+  final List<String> receivers;
+  final PlatformInt64 threshold;
+  final String? state;
+  final String? action;
+
+  const CodeResult({
+    required this.kind,
+    this.userId,
+    this.conversationId,
+    this.conversationName,
+    required this.participantCount,
+    required this.participantAvatars,
+    required this.alreadyMember,
+    this.assetId,
+    this.assetSymbol,
+    this.assetIconUrl,
+    this.chainIconUrl,
+    this.amount,
+    required this.senders,
+    required this.receivers,
+    required this.threshold,
+    this.state,
+    this.action,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      userId.hashCode ^
+      conversationId.hashCode ^
+      conversationName.hashCode ^
+      participantCount.hashCode ^
+      participantAvatars.hashCode ^
+      alreadyMember.hashCode ^
+      assetId.hashCode ^
+      assetSymbol.hashCode ^
+      assetIconUrl.hashCode ^
+      chainIconUrl.hashCode ^
+      amount.hashCode ^
+      senders.hashCode ^
+      receivers.hashCode ^
+      threshold.hashCode ^
+      state.hashCode ^
+      action.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CodeResult &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          userId == other.userId &&
+          conversationId == other.conversationId &&
+          conversationName == other.conversationName &&
+          participantCount == other.participantCount &&
+          participantAvatars == other.participantAvatars &&
+          alreadyMember == other.alreadyMember &&
+          assetId == other.assetId &&
+          assetSymbol == other.assetSymbol &&
+          assetIconUrl == other.assetIconUrl &&
+          chainIconUrl == other.chainIconUrl &&
+          amount == other.amount &&
+          senders == other.senders &&
+          receivers == other.receivers &&
+          threshold == other.threshold &&
+          state == other.state &&
+          action == other.action;
 }
 
 class ConversationDetailItem {
@@ -133,12 +228,18 @@ class ConversationListData {
   final String? lastMessageStatus;
   final String? lastMessageSenderId;
   final String? lastMessageSenderName;
+  final String? lastMessageAction;
+  final String? lastMessageParticipantId;
+  final String? lastMessageParticipantName;
   final PlatformInt64 updatedAtMillis;
   final PlatformInt64 unseenCount;
   final PlatformInt64 mentionCount;
   final bool isMuted;
   final bool isVerified;
+  final bool isScam;
   final bool isBot;
+  final bool isBotGroup;
+  final String? membership;
   final bool isPinned;
   final String relationship;
   final String identityNumber;
@@ -160,12 +261,18 @@ class ConversationListData {
     this.lastMessageStatus,
     this.lastMessageSenderId,
     this.lastMessageSenderName,
+    this.lastMessageAction,
+    this.lastMessageParticipantId,
+    this.lastMessageParticipantName,
     required this.updatedAtMillis,
     required this.unseenCount,
     required this.mentionCount,
     required this.isMuted,
     required this.isVerified,
+    required this.isScam,
     required this.isBot,
+    required this.isBotGroup,
+    this.membership,
     required this.isPinned,
     required this.relationship,
     required this.identityNumber,
@@ -189,12 +296,18 @@ class ConversationListData {
       lastMessageStatus.hashCode ^
       lastMessageSenderId.hashCode ^
       lastMessageSenderName.hashCode ^
+      lastMessageAction.hashCode ^
+      lastMessageParticipantId.hashCode ^
+      lastMessageParticipantName.hashCode ^
       updatedAtMillis.hashCode ^
       unseenCount.hashCode ^
       mentionCount.hashCode ^
       isMuted.hashCode ^
       isVerified.hashCode ^
+      isScam.hashCode ^
       isBot.hashCode ^
+      isBotGroup.hashCode ^
+      membership.hashCode ^
       isPinned.hashCode ^
       relationship.hashCode ^
       identityNumber.hashCode ^
@@ -220,12 +333,18 @@ class ConversationListData {
           lastMessageStatus == other.lastMessageStatus &&
           lastMessageSenderId == other.lastMessageSenderId &&
           lastMessageSenderName == other.lastMessageSenderName &&
+          lastMessageAction == other.lastMessageAction &&
+          lastMessageParticipantId == other.lastMessageParticipantId &&
+          lastMessageParticipantName == other.lastMessageParticipantName &&
           updatedAtMillis == other.updatedAtMillis &&
           unseenCount == other.unseenCount &&
           mentionCount == other.mentionCount &&
           isMuted == other.isMuted &&
           isVerified == other.isVerified &&
+          isScam == other.isScam &&
           isBot == other.isBot &&
+          isBotGroup == other.isBotGroup &&
+          membership == other.membership &&
           isPinned == other.isPinned &&
           relationship == other.relationship &&
           identityNumber == other.identityNumber &&
@@ -245,6 +364,7 @@ class ConversationParticipantItem {
   final bool isVerified;
   final bool isBot;
   final String relationship;
+  final String? membership;
 
   const ConversationParticipantItem({
     required this.userId,
@@ -257,6 +377,7 @@ class ConversationParticipantItem {
     required this.isVerified,
     required this.isBot,
     required this.relationship,
+    this.membership,
   });
 
   @override
@@ -270,7 +391,8 @@ class ConversationParticipantItem {
       biography.hashCode ^
       isVerified.hashCode ^
       isBot.hashCode ^
-      relationship.hashCode;
+      relationship.hashCode ^
+      membership.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -286,7 +408,29 @@ class ConversationParticipantItem {
           biography == other.biography &&
           isVerified == other.isVerified &&
           isBot == other.isBot &&
-          relationship == other.relationship;
+          relationship == other.relationship &&
+          membership == other.membership;
+}
+
+class ConversationStorageUsage {
+  final ConversationListData conversation;
+  final PlatformInt64 sizeBytes;
+
+  const ConversationStorageUsage({
+    required this.conversation,
+    required this.sizeBytes,
+  });
+
+  @override
+  int get hashCode => conversation.hashCode ^ sizeBytes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConversationStorageUsage &&
+          runtimeType == other.runtimeType &&
+          conversation == other.conversation &&
+          sizeBytes == other.sizeBytes;
 }
 
 class GroupAvatar {
@@ -349,14 +493,24 @@ class ImageMessageView {
   final PlatformInt64 createdAtMicros;
   final String mediaUrl;
   final String? mediaName;
+  final String? thumbImage;
   final bool canForward;
+  final String userId;
+  final String userFullName;
+  final String userIdentityNumber;
+  final String avatarUrl;
 
   const ImageMessageView({
     required this.messageId,
     required this.createdAtMicros,
     required this.mediaUrl,
     this.mediaName,
+    this.thumbImage,
     required this.canForward,
+    required this.userId,
+    required this.userFullName,
+    required this.userIdentityNumber,
+    required this.avatarUrl,
   });
 
   @override
@@ -365,7 +519,12 @@ class ImageMessageView {
       createdAtMicros.hashCode ^
       mediaUrl.hashCode ^
       mediaName.hashCode ^
-      canForward.hashCode;
+      thumbImage.hashCode ^
+      canForward.hashCode ^
+      userId.hashCode ^
+      userFullName.hashCode ^
+      userIdentityNumber.hashCode ^
+      avatarUrl.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -376,7 +535,12 @@ class ImageMessageView {
           createdAtMicros == other.createdAtMicros &&
           mediaUrl == other.mediaUrl &&
           mediaName == other.mediaName &&
-          canForward == other.canForward;
+          thumbImage == other.thumbImage &&
+          canForward == other.canForward &&
+          userId == other.userId &&
+          userFullName == other.userFullName &&
+          userIdentityNumber == other.userIdentityNumber &&
+          avatarUrl == other.avatarUrl;
 }
 
 class MessageListView {
@@ -387,6 +551,7 @@ class MessageListView {
   final String? senderIdentityNumber;
   final String senderAvatarUrl;
   final bool senderIsVerified;
+  final String? senderMembership;
   final String senderRelationship;
   final String? senderAppId;
   final bool senderIsScam;
@@ -405,6 +570,7 @@ class MessageListView {
   final String mediaStatus;
   final String? quoteMessageId;
   final String? quoteContent;
+  final String? quoteUserMembership;
   final String? caption;
   final String? action;
   final String? participantId;
@@ -440,6 +606,7 @@ class MessageListView {
   final String? sharedUserIdentityNumber;
   final String? sharedUserAvatarUrl;
   final bool sharedUserIsVerified;
+  final String? sharedUserMembership;
   final String? sharedUserAppId;
   final String? stickerAssetUrl;
   final int? stickerAssetWidth;
@@ -458,6 +625,7 @@ class MessageListView {
     this.senderIdentityNumber,
     required this.senderAvatarUrl,
     required this.senderIsVerified,
+    this.senderMembership,
     required this.senderRelationship,
     this.senderAppId,
     required this.senderIsScam,
@@ -476,6 +644,7 @@ class MessageListView {
     required this.mediaStatus,
     this.quoteMessageId,
     this.quoteContent,
+    this.quoteUserMembership,
     this.caption,
     this.action,
     this.participantId,
@@ -511,6 +680,7 @@ class MessageListView {
     this.sharedUserIdentityNumber,
     this.sharedUserAvatarUrl,
     required this.sharedUserIsVerified,
+    this.sharedUserMembership,
     this.sharedUserAppId,
     this.stickerAssetUrl,
     this.stickerAssetWidth,
@@ -531,6 +701,7 @@ class MessageListView {
       senderIdentityNumber.hashCode ^
       senderAvatarUrl.hashCode ^
       senderIsVerified.hashCode ^
+      senderMembership.hashCode ^
       senderRelationship.hashCode ^
       senderAppId.hashCode ^
       senderIsScam.hashCode ^
@@ -549,6 +720,7 @@ class MessageListView {
       mediaStatus.hashCode ^
       quoteMessageId.hashCode ^
       quoteContent.hashCode ^
+      quoteUserMembership.hashCode ^
       caption.hashCode ^
       action.hashCode ^
       participantId.hashCode ^
@@ -584,6 +756,7 @@ class MessageListView {
       sharedUserIdentityNumber.hashCode ^
       sharedUserAvatarUrl.hashCode ^
       sharedUserIsVerified.hashCode ^
+      sharedUserMembership.hashCode ^
       sharedUserAppId.hashCode ^
       stickerAssetUrl.hashCode ^
       stickerAssetWidth.hashCode ^
@@ -606,6 +779,7 @@ class MessageListView {
           senderIdentityNumber == other.senderIdentityNumber &&
           senderAvatarUrl == other.senderAvatarUrl &&
           senderIsVerified == other.senderIsVerified &&
+          senderMembership == other.senderMembership &&
           senderRelationship == other.senderRelationship &&
           senderAppId == other.senderAppId &&
           senderIsScam == other.senderIsScam &&
@@ -624,6 +798,7 @@ class MessageListView {
           mediaStatus == other.mediaStatus &&
           quoteMessageId == other.quoteMessageId &&
           quoteContent == other.quoteContent &&
+          quoteUserMembership == other.quoteUserMembership &&
           caption == other.caption &&
           action == other.action &&
           participantId == other.participantId &&
@@ -659,6 +834,7 @@ class MessageListView {
           sharedUserIdentityNumber == other.sharedUserIdentityNumber &&
           sharedUserAvatarUrl == other.sharedUserAvatarUrl &&
           sharedUserIsVerified == other.sharedUserIsVerified &&
+          sharedUserMembership == other.sharedUserMembership &&
           sharedUserAppId == other.sharedUserAppId &&
           stickerAssetUrl == other.stickerAssetUrl &&
           stickerAssetWidth == other.stickerAssetWidth &&
@@ -668,6 +844,94 @@ class MessageListView {
           mentionRead == other.mentionRead &&
           pinned == other.pinned &&
           expireIn == other.expireIn;
+}
+
+class NotificationMessageView {
+  final PlatformInt64 rowId;
+  final String messageId;
+  final String conversationId;
+  final String senderId;
+  final String senderName;
+  final String category;
+  final String content;
+  final String? quoteContent;
+  final PlatformInt64 createdAtMicros;
+  final String conversationName;
+  final String conversationCategory;
+  final bool isMuted;
+
+  const NotificationMessageView({
+    required this.rowId,
+    required this.messageId,
+    required this.conversationId,
+    required this.senderId,
+    required this.senderName,
+    required this.category,
+    required this.content,
+    this.quoteContent,
+    required this.createdAtMicros,
+    required this.conversationName,
+    required this.conversationCategory,
+    required this.isMuted,
+  });
+
+  @override
+  int get hashCode =>
+      rowId.hashCode ^
+      messageId.hashCode ^
+      conversationId.hashCode ^
+      senderId.hashCode ^
+      senderName.hashCode ^
+      category.hashCode ^
+      content.hashCode ^
+      quoteContent.hashCode ^
+      createdAtMicros.hashCode ^
+      conversationName.hashCode ^
+      conversationCategory.hashCode ^
+      isMuted.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NotificationMessageView &&
+          runtimeType == other.runtimeType &&
+          rowId == other.rowId &&
+          messageId == other.messageId &&
+          conversationId == other.conversationId &&
+          senderId == other.senderId &&
+          senderName == other.senderName &&
+          category == other.category &&
+          content == other.content &&
+          quoteContent == other.quoteContent &&
+          createdAtMicros == other.createdAtMicros &&
+          conversationName == other.conversationName &&
+          conversationCategory == other.conversationCategory &&
+          isMuted == other.isMuted;
+}
+
+class PinMessagePreviewItem {
+  final String messageId;
+  final String content;
+  final String senderName;
+
+  const PinMessagePreviewItem({
+    required this.messageId,
+    required this.content,
+    required this.senderName,
+  });
+
+  @override
+  int get hashCode =>
+      messageId.hashCode ^ content.hashCode ^ senderName.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PinMessagePreviewItem &&
+          runtimeType == other.runtimeType &&
+          messageId == other.messageId &&
+          content == other.content &&
+          senderName == other.senderName;
 }
 
 class SharedAppItem {
@@ -703,6 +967,141 @@ class SharedAppItem {
           iconUrl == other.iconUrl &&
           description == other.description &&
           homeUri == other.homeUri;
+}
+
+class SnapshotDetailItem {
+  final String snapshotId;
+  final String? traceId;
+  final String snapshotType;
+  final String assetId;
+  final String amount;
+  final PlatformInt64 createdAtMillis;
+  final String? opponentId;
+  final String? opponentName;
+  final String? transactionHash;
+  final String? sender;
+  final String? receiver;
+  final String? memo;
+  final int? confirmations;
+  final String? snapshotHash;
+  final String? openingBalance;
+  final String? closingBalance;
+  final String symbol;
+  final String assetName;
+  final String assetIconUrl;
+  final String chainIconUrl;
+  final PlatformInt64 assetConfirmations;
+  final String? assetTag;
+  final String currentUserName;
+  final bool isSafe;
+  final String? priceUsd;
+  final double? fiatRate;
+  final String? tickerPriceUsd;
+  final String? depositHash;
+  final String? withdrawalHash;
+  final String? withdrawalReceiver;
+
+  const SnapshotDetailItem({
+    required this.snapshotId,
+    this.traceId,
+    required this.snapshotType,
+    required this.assetId,
+    required this.amount,
+    required this.createdAtMillis,
+    this.opponentId,
+    this.opponentName,
+    this.transactionHash,
+    this.sender,
+    this.receiver,
+    this.memo,
+    this.confirmations,
+    this.snapshotHash,
+    this.openingBalance,
+    this.closingBalance,
+    required this.symbol,
+    required this.assetName,
+    required this.assetIconUrl,
+    required this.chainIconUrl,
+    required this.assetConfirmations,
+    this.assetTag,
+    required this.currentUserName,
+    required this.isSafe,
+    this.priceUsd,
+    this.fiatRate,
+    this.tickerPriceUsd,
+    this.depositHash,
+    this.withdrawalHash,
+    this.withdrawalReceiver,
+  });
+
+  @override
+  int get hashCode =>
+      snapshotId.hashCode ^
+      traceId.hashCode ^
+      snapshotType.hashCode ^
+      assetId.hashCode ^
+      amount.hashCode ^
+      createdAtMillis.hashCode ^
+      opponentId.hashCode ^
+      opponentName.hashCode ^
+      transactionHash.hashCode ^
+      sender.hashCode ^
+      receiver.hashCode ^
+      memo.hashCode ^
+      confirmations.hashCode ^
+      snapshotHash.hashCode ^
+      openingBalance.hashCode ^
+      closingBalance.hashCode ^
+      symbol.hashCode ^
+      assetName.hashCode ^
+      assetIconUrl.hashCode ^
+      chainIconUrl.hashCode ^
+      assetConfirmations.hashCode ^
+      assetTag.hashCode ^
+      currentUserName.hashCode ^
+      isSafe.hashCode ^
+      priceUsd.hashCode ^
+      fiatRate.hashCode ^
+      tickerPriceUsd.hashCode ^
+      depositHash.hashCode ^
+      withdrawalHash.hashCode ^
+      withdrawalReceiver.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SnapshotDetailItem &&
+          runtimeType == other.runtimeType &&
+          snapshotId == other.snapshotId &&
+          traceId == other.traceId &&
+          snapshotType == other.snapshotType &&
+          assetId == other.assetId &&
+          amount == other.amount &&
+          createdAtMillis == other.createdAtMillis &&
+          opponentId == other.opponentId &&
+          opponentName == other.opponentName &&
+          transactionHash == other.transactionHash &&
+          sender == other.sender &&
+          receiver == other.receiver &&
+          memo == other.memo &&
+          confirmations == other.confirmations &&
+          snapshotHash == other.snapshotHash &&
+          openingBalance == other.openingBalance &&
+          closingBalance == other.closingBalance &&
+          symbol == other.symbol &&
+          assetName == other.assetName &&
+          assetIconUrl == other.assetIconUrl &&
+          chainIconUrl == other.chainIconUrl &&
+          assetConfirmations == other.assetConfirmations &&
+          assetTag == other.assetTag &&
+          currentUserName == other.currentUserName &&
+          isSafe == other.isSafe &&
+          priceUsd == other.priceUsd &&
+          fiatRate == other.fiatRate &&
+          tickerPriceUsd == other.tickerPriceUsd &&
+          depositHash == other.depositHash &&
+          withdrawalHash == other.withdrawalHash &&
+          withdrawalReceiver == other.withdrawalReceiver;
 }
 
 class StickerAlbumItem {
@@ -834,6 +1233,24 @@ class StickerItem {
           lastUseAtMillis == other.lastUseAtMillis;
 }
 
+class StorageCategoryUsage {
+  final String category;
+  final PlatformInt64 sizeBytes;
+
+  const StorageCategoryUsage({required this.category, required this.sizeBytes});
+
+  @override
+  int get hashCode => category.hashCode ^ sizeBytes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StorageCategoryUsage &&
+          runtimeType == other.runtimeType &&
+          category == other.category &&
+          sizeBytes == other.sizeBytes;
+}
+
 class UserProfileItem {
   final String userId;
   final String identityNumber;
@@ -844,6 +1261,7 @@ class UserProfileItem {
   final bool isBot;
   final String relationship;
   final String codeUrl;
+  final String? membership;
 
   const UserProfileItem({
     required this.userId,
@@ -855,6 +1273,7 @@ class UserProfileItem {
     required this.isBot,
     required this.relationship,
     required this.codeUrl,
+    this.membership,
   });
 
   @override
@@ -867,7 +1286,8 @@ class UserProfileItem {
       isVerified.hashCode ^
       isBot.hashCode ^
       relationship.hashCode ^
-      codeUrl.hashCode;
+      codeUrl.hashCode ^
+      membership.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -882,5 +1302,6 @@ class UserProfileItem {
           isVerified == other.isVerified &&
           isBot == other.isBot &&
           relationship == other.relationship &&
-          codeUrl == other.codeUrl;
+          codeUrl == other.codeUrl &&
+          membership == other.membership;
 }

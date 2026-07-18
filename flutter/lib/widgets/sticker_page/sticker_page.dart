@@ -4,12 +4,14 @@ import 'package:flutter_svg/svg.dart';
 import 'package:super_context_menu/super_context_menu.dart';
 
 import '../../constants/assets.dart';
+import '../../constants/icon_fonts.dart';
 import '../../l10n/l10n.dart';
 import '../../theme.dart';
 import '../automatic_keep_alive_client_widget.dart';
 import '../hover_overlay.dart';
 import '../interactive_decorated_box.dart';
 import 'emoji_page.dart';
+import 'giphy_page.dart';
 import 'sticker_data.dart';
 import 'sticker_item.dart';
 
@@ -29,9 +31,11 @@ class StickerPage extends StatelessWidget {
     required this.onEmojiUsed,
     required this.onStickerSelected,
     required this.onRemoveSticker,
+    this.onGifSelected,
     this.onAddSticker,
     this.onOpenStore,
     this.onStickerSent,
+    this.hasNewAlbum = false,
     super.key,
   });
 
@@ -47,9 +51,11 @@ class StickerPage extends StatelessWidget {
   final ValueChanged<String> onEmojiUsed;
   final Future<bool> Function(StickerData) onStickerSelected;
   final Future<void> Function(StickerData) onRemoveSticker;
+  final GiphySelected? onGifSelected;
   final Future<void> Function()? onAddSticker;
   final Future<void> Function()? onOpenStore;
   final VoidCallback? onStickerSent;
+  final bool hasNewAlbum;
 
   @override
   Widget build(BuildContext context) => Material(
@@ -103,7 +109,18 @@ class StickerPage extends StatelessWidget {
                           onStickerSent: onStickerSent,
                         );
                       case PresetStickerGroup.gif:
-                        return const SizedBox();
+                        return AutomaticKeepAliveClientWidget(
+                          child: GiphyPage(
+                            onSelected:
+                                onGifSelected ??
+                                ({
+                                  required url,
+                                  required previewUrl,
+                                  required width,
+                                  required height,
+                                }) async {},
+                          ),
+                        );
                     }
                   }
                   return _StickerAlbumPage(
@@ -123,6 +140,7 @@ class StickerPage extends StatelessWidget {
               tabController: tabController,
               presetStickerGroups: presetStickerGroups,
               stickerAlbums: stickerAlbums,
+              hasNewAlbum: hasNewAlbum,
               onOpenStore: onOpenStore,
             ),
           ],
@@ -262,7 +280,7 @@ class _StickerAlbumPageItem extends StatelessWidget {
           children: [
             MenuAction(
               title: context.l10n.delete,
-              image: MenuImage.icon(Icons.delete_outline),
+              image: MenuImage.icon(IconFonts.delete),
               callback: () => delete?.call(sticker),
             ),
           ],
@@ -281,6 +299,7 @@ class _StickerAlbumBar extends HookWidget {
     required this.tabController,
     required this.presetStickerGroups,
     required this.stickerAlbums,
+    required this.hasNewAlbum,
     this.onOpenStore,
   });
 
@@ -288,6 +307,7 @@ class _StickerAlbumBar extends HookWidget {
   final TabController tabController;
   final List<PresetStickerGroup> presetStickerGroups;
   final List<StickerAlbumData> stickerAlbums;
+  final bool hasNewAlbum;
   final Future<void> Function()? onOpenStore;
 
   @override
@@ -352,6 +372,7 @@ class _StickerAlbumBar extends HookWidget {
             index: index,
             presetStickerGroups: presetStickerGroups,
             stickerAlbums: stickerAlbums,
+            hasNewAlbum: hasNewAlbum,
           ),
         ),
       ),
@@ -364,12 +385,14 @@ class _StickerAlbumBarItem extends StatelessWidget {
     required this.index,
     required this.presetStickerGroups,
     required this.stickerAlbums,
+    required this.hasNewAlbum,
     super.key,
   });
 
   final int index;
   final List<PresetStickerGroup> presetStickerGroups;
   final List<StickerAlbumData> stickerAlbums;
+  final bool hasNewAlbum;
 
   @override
   Widget build(BuildContext context) => SizedBox.fromSize(
@@ -382,11 +405,13 @@ class _StickerAlbumBarItem extends StatelessWidget {
             child: Builder(
               builder: (context) {
                 final presetStickerAlbum = {
-                  PresetStickerGroup.store: MixinAssets.stickerStore,
+                  PresetStickerGroup.store: hasNewAlbum
+                      ? MixinAssets.stickerStoreRedDot
+                      : MixinAssets.stickerStore,
                   PresetStickerGroup.emoji: MixinAssets.emojiSticker,
                   PresetStickerGroup.recent: MixinAssets.recentSticker,
                   PresetStickerGroup.favorite: MixinAssets.personalSticker,
-                  PresetStickerGroup.gif: MixinAssets.sticker,
+                  PresetStickerGroup.gif: MixinAssets.gifSticker,
                 };
 
                 if (index < presetStickerGroups.length) {

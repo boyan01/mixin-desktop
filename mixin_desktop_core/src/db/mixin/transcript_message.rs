@@ -95,6 +95,7 @@ pub struct TranscriptMessageListItem {
     pub sender_identity_number: String,
     pub sender_avatar_url: String,
     pub sender_is_verified: bool,
+    pub sender_membership: Option<String>,
     pub sender_relationship: String,
     pub sender_app_id: Option<String>,
     pub sender_is_scam: bool,
@@ -113,6 +114,7 @@ pub struct TranscriptMessageListItem {
     pub media_status: Option<MediaStatus>,
     pub quote_message_id: Option<String>,
     pub quote_content: Option<String>,
+    pub quote_user_membership: Option<String>,
     pub caption: Option<String>,
     pub media_name: Option<String>,
     pub sticker_id: Option<String>,
@@ -123,6 +125,7 @@ pub struct TranscriptMessageListItem {
     pub shared_user_identity_number: Option<String>,
     pub shared_user_avatar_url: Option<String>,
     pub shared_user_is_verified: bool,
+    pub shared_user_membership: Option<String>,
     pub shared_user_app_id: Option<String>,
     pub sticker_asset_url: Option<String>,
     pub sticker_asset_width: Option<i32>,
@@ -202,6 +205,32 @@ impl TranscriptMessageDao {
              WHERE transcript_id = ? AND message_id = ?",
         )
         .bind(status)
+        .bind(transcript_id)
+        .bind(message_id)
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn complete_attachment_upload(
+        &self,
+        transcript_id: &str,
+        message_id: &str,
+        content: &str,
+        media_key: Option<&str>,
+        media_digest: Option<&str>,
+        media_created_at: DateTime<Utc>,
+    ) -> Result<(), Error> {
+        sqlx::query(
+            "UPDATE transcript_messages SET content = ?, media_key = ?, media_digest = ?, \
+             media_created_at = ?, media_status = ? \
+             WHERE transcript_id = ? AND message_id = ?",
+        )
+        .bind(content)
+        .bind(media_key)
+        .bind(media_digest)
+        .bind(media_created_at.timestamp_millis())
+        .bind(MediaStatus::Done)
         .bind(transcript_id)
         .bind(message_id)
         .execute(&self.0)
@@ -289,6 +318,7 @@ impl TranscriptMessageDao {
                        COALESCE(sender.identity_number, '') AS sender_identity_number,
                        COALESCE(sender.avatar_url, '') AS sender_avatar_url,
                        COALESCE(sender.is_verified, FALSE) AS sender_is_verified,
+                       sender.membership AS sender_membership,
                        COALESCE(sender.relationship, '') AS sender_relationship,
                        sender.app_id AS sender_app_id,
                        COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
@@ -309,6 +339,7 @@ impl TranscriptMessageDao {
                        transcript.media_status AS media_status,
                        transcript.quote_id AS quote_message_id,
                        transcript.quote_content AS quote_content,
+                       quote_user.membership AS quote_user_membership,
                        transcript.caption AS caption,
                        transcript.media_name AS media_name,
                        transcript.sticker_id AS sticker_id,
@@ -319,6 +350,7 @@ impl TranscriptMessageDao {
                        shared_user.identity_number AS shared_user_identity_number,
                        shared_user.avatar_url AS shared_user_avatar_url,
                        COALESCE(shared_user.is_verified, FALSE) AS shared_user_is_verified,
+                       shared_user.membership AS shared_user_membership,
                        shared_user.app_id AS shared_user_app_id,
                        sticker.asset_url AS sticker_asset_url,
                        sticker.asset_width AS sticker_asset_width,
@@ -329,6 +361,7 @@ impl TranscriptMessageDao {
                 INNER JOIN messages AS parent ON parent.message_id = transcript.transcript_id
                 LEFT JOIN users AS sender ON sender.user_id = transcript.user_id
                 LEFT JOIN users AS shared_user ON shared_user.user_id = transcript.shared_user_id
+                LEFT JOIN users AS quote_user ON quote_user.user_id = CASE WHEN json_valid(transcript.quote_content) THEN json_extract(transcript.quote_content, '$.user_id') END
                 LEFT JOIN stickers AS sticker ON sticker.sticker_id = transcript.sticker_id
                 WHERE transcript.transcript_id = ?
                 ORDER BY transcript.created_at, transcript.rowid"#,

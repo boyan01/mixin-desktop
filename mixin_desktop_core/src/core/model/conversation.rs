@@ -156,6 +156,7 @@ impl ConversationService {
             .conversation_api
             .create_conversation(&ConversationRequest {
                 conversation_id: conversation.conversation_id.clone(),
+                random_id: None,
                 category: conversation.category.clone(),
                 name: None,
                 icon_base64: None,

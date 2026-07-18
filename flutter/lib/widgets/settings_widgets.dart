@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/buttons.dart';
+import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
+import 'package:mixin_desktop_ui/widgets/move_window.dart';
 
 class CellGroup extends StatelessWidget {
   const CellGroup({
@@ -27,8 +30,7 @@ class CellGroup extends StatelessWidget {
         borderRadius: borderRadius,
         child: _CellStyle(
           backgroundColor:
-              cellBackgroundColor ??
-              context.mixinTheme.settingCellBackgroundColor,
+              cellBackgroundColor ?? context.mixinTheme.listSelected,
           child: child,
         ),
       ),
@@ -46,7 +48,7 @@ class _CellStyle extends InheritedWidget {
 
   @override
   bool updateShouldNotify(_CellStyle oldWidget) =>
-      oldWidget.backgroundColor != backgroundColor;
+      oldWidget.backgroundColor == backgroundColor;
 }
 
 class CellItem extends StatelessWidget {
@@ -81,43 +83,41 @@ class CellItem extends StatelessWidget {
             background,
           )
         : background;
-    return Material(
-      color: selectedBackground,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.only(
-            top: 17,
-            bottom: 17,
-            left: 16,
-            right: 10,
-          ),
-          child: Row(
-            children: [
-              ?leading,
-              if (leading != null) const SizedBox(width: 8),
-              Expanded(
-                child: DefaultTextStyle.merge(
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: color ?? context.mixinTheme.text,
-                  ),
-                  child: title,
+    return InteractiveDecoratedBox(
+      decoration: BoxDecoration(color: selectedBackground),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(
+          top: 17,
+          bottom: 17,
+          left: 16,
+          right: 10,
+        ),
+        child: Row(
+          children: [
+            ?leading,
+            if (leading != null) const SizedBox(width: 8),
+            Expanded(
+              child: DefaultTextStyle.merge(
+                style: TextStyle(
+                  fontSize: 16,
+                  color: color ?? context.mixinTheme.text,
                 ),
+                child: title,
               ),
-              if (description != null) const SizedBox(width: 4),
-              if (description != null)
-                DefaultTextStyle.merge(
-                  style: TextStyle(
-                    color: context.mixinTheme.secondaryText,
-                    fontSize: 14,
-                  ),
-                  child: description!,
+            ),
+            if (description != null) const SizedBox(width: 4),
+            if (description != null)
+              DefaultTextStyle.merge(
+                style: TextStyle(
+                  color: context.mixinTheme.secondaryText,
+                  fontSize: 14,
                 ),
-              if (trailing != null) const SizedBox(width: 4),
-              ?trailing,
-            ],
-          ),
+                child: description!,
+              ),
+            if (trailing != null) const SizedBox(width: 4),
+            ?trailing,
+          ],
         ),
       ),
     );
@@ -154,51 +154,47 @@ class MixinAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Widget? leading;
 
   @override
-  Widget build(BuildContext context) => AppBar(
-    toolbarHeight: 64,
-    title: title == null
-        ? null
-        : DefaultTextStyle.merge(
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: context.mixinTheme.text,
+  Widget build(BuildContext context) => MoveWindow(
+    child: AppBar(
+      toolbarHeight: 64,
+      title: title == null
+          ? null
+          : DefaultTextStyle.merge(
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: context.mixinTheme.text,
+              ),
+              child: title!,
             ),
-            child: title!,
+      actions: [
+        ...actions.map(
+          (action) => MoveWindowBarrier(
+            child: DefaultTextStyle.merge(
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: context.mixinTheme.accent,
+              ),
+              child: action,
+            ),
           ),
-    actions: [
-      ...actions.map(
-        (action) => DefaultTextStyle.merge(
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: context.mixinTheme.accent,
-          ),
-          child: action,
+        ),
+        const SizedBox(width: 8),
+      ],
+      elevation: 0,
+      centerTitle: true,
+      backgroundColor: backgroundColor ?? context.mixinTheme.primary,
+      leading: MoveWindowBarrier(
+        child: Builder(
+          builder: (context) =>
+              leading ??
+              (ModalRoute.of(context)?.canPop ?? false
+                  ? const Center(child: MixinBackButton())
+                  : const SizedBox(width: 56)),
         ),
       ),
-      const SizedBox(width: 8),
-    ],
-    elevation: 0,
-    centerTitle: true,
-    backgroundColor: backgroundColor ?? context.mixinTheme.primary,
-    leading:
-        leading ??
-        (ModalRoute.of(context)?.canPop ?? false
-            ? IconButton(
-                key: const ValueKey('settings-back'),
-                onPressed: () => Navigator.pop(context),
-                icon: SvgPicture.asset(
-                  MixinAssets.back,
-                  width: 20,
-                  height: 20,
-                  colorFilter: ColorFilter.mode(
-                    context.mixinTheme.icon,
-                    BlendMode.srcIn,
-                  ),
-                ),
-              )
-            : const SizedBox(width: 56)),
+    ),
   );
 
   @override

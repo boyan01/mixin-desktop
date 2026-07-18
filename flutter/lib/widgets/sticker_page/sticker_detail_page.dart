@@ -3,7 +3,10 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/buttons.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_item.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
+import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
 
 Future<void> showStickerDetailPage(
   BuildContext context, {
@@ -12,18 +15,15 @@ Future<void> showStickerDetailPage(
   Future<void> Function()? onAlbumChanged,
 }) async {
   final detail = account.sticker().stickerDetail(stickerId: stickerId);
-  await showDialog<void>(
+  await showMixinDialog<void>(
     context: context,
-    builder: (context) => Dialog(
-      backgroundColor: context.theme.popUp,
+    child: Material(
+      color: Colors.transparent,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
         child: FutureBuilder(
           future: detail,
           builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return _StickerDetailError(error: snapshot.error!);
-            }
             final value = snapshot.data;
             if (value == null) return const _StickerDetailLoading();
             return StickerDetailPage(
@@ -49,32 +49,30 @@ class _StickerDetailLoading extends StatelessWidget {
   const _StickerDetailLoading();
 
   @override
-  Widget build(BuildContext context) => const SizedBox(
-    width: 480,
-    height: 480,
-    child: Center(child: CircularProgressIndicator()),
-  );
-}
-
-class _StickerDetailError extends StatelessWidget {
-  const _StickerDetailError({required this.error});
-
-  final Object error;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 480,
-    height: 240,
+  Widget build(BuildContext context) => AnimatedSize(
+    duration: const Duration(milliseconds: 200),
     child: Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: IconButton(
-            onPressed: () => Navigator.maybeOf(context)?.pop(),
-            icon: const Icon(Icons.close),
+        MixinAppBar(
+          backgroundColor: Colors.transparent,
+          leading: const SizedBox(),
+          actions: [
+            MixinCloseButton(
+              onTap: () =>
+                  Navigator.maybeOf(context, rootNavigator: true)?.pop(),
+            ),
+          ],
+        ),
+        AspectRatio(
+          aspectRatio: 1,
+          child: Container(
+            margin: const EdgeInsets.all(56).copyWith(top: 0),
+            color: context.theme.background,
+            alignment: Alignment.center,
+            child: const SizedBox(height: 256, width: 256),
           ),
         ),
-        Expanded(child: Center(child: Text(error.toString()))),
       ],
     ),
   );
@@ -119,18 +117,17 @@ class StickerDetailPage extends HookWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
-                  height: 56,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: IconButton(
-                      onPressed: () => Navigator.maybeOf(
+                MixinAppBar(
+                  backgroundColor: Colors.transparent,
+                  leading: const SizedBox(),
+                  actions: [
+                    MixinCloseButton(
+                      onTap: () => Navigator.maybeOf(
                         context,
                         rootNavigator: true,
                       )?.pop(),
-                      icon: Icon(Icons.close, color: context.theme.icon),
                     ),
-                  ),
+                  ],
                 ),
                 AspectRatio(
                   aspectRatio: 1,
@@ -170,13 +167,11 @@ class StickerDetailPage extends HookWidget {
                             ),
                           ),
                         ),
-                        FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: albumAdded.value
-                                ? context.theme.red
-                                : context.theme.accent,
-                          ),
-                          onPressed: () async {
+                        MixinButton(
+                          backgroundColor: albumAdded.value
+                              ? context.theme.red
+                              : context.theme.accent,
+                          onTap: () async {
                             final added = !albumAdded.value;
                             await onAlbumAddedChanged(added);
                             albumAdded.value = added;

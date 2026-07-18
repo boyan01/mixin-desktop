@@ -1,11 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:markdown_widget/markdown_widget.dart';
+import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/theme.dart';
@@ -13,6 +17,16 @@ import 'package:open_file/open_file.dart';
 import 'package:path/path.dart' as path;
 import 'package:mixin_desktop_ui/utils/system_clipboard.dart';
 import 'package:mixin_desktop_ui/widgets/post_markdown.dart';
+import 'package:mixin_desktop_ui/widgets/action_button.dart';
+import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/buttons.dart';
+import 'package:mixin_desktop_ui/widgets/custom_popup_menu.dart';
+import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
+import 'package:mixin_desktop_ui/widgets/image_by_blur_hash.dart';
+import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
+import 'package:mixin_desktop_ui/widgets/unbounded_slider.dart';
+import 'package:mixin_desktop_ui/widgets/video_progress_bar.dart';
+import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
@@ -27,13 +41,23 @@ class ImagePreviewEntry {
     required this.id,
     required this.source,
     this.name,
+    this.thumbImage,
     this.canForward = false,
+    this.userId = '',
+    this.userFullName = '',
+    this.userIdentityNumber = '',
+    this.avatarUrl = '',
   });
 
   final String id;
   final String source;
   final String? name;
+  final String? thumbImage;
   final bool canForward;
+  final String userId;
+  final String userFullName;
+  final String userIdentityNumber;
+  final String avatarUrl;
 }
 
 class ImagePreviewPage extends StatefulWidget {
@@ -55,6 +79,17 @@ class ImagePreviewPage extends StatefulWidget {
   final ImagePreviewForward? onForward;
   final ImagePreviewLoader? loadOlder;
   final ImagePreviewLoader? loadNewer;
+
+  static Future<void> show(BuildContext context, ImagePreviewPage page) =>
+      showGeneralDialog<void>(
+        context: context,
+        barrierColor: Colors.transparent,
+        barrierDismissible: true,
+        barrierLabel: MaterialLocalizations.of(
+          context,
+        ).modalBarrierDismissLabel,
+        pageBuilder: (_, _, _) => page,
+      );
 
   @override
   State<ImagePreviewPage> createState() => _ImagePreviewPageState();
@@ -166,108 +201,127 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   Future<void> _forward() async {
     final callback = widget.onForward;
     if (callback == null || !_image.canForward) return;
-    try {
-      final forwarded = await callback(_image);
-      if (!forwarded || !mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${context.l10n.forward} ✓')));
-    } on Object catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
-    }
+    await callback(_image);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_images.isEmpty) {
-      return const Scaffold(body: Center(child: Icon(Icons.broken_image)));
+      return const SizedBox();
     }
     final canGoPrevious = _index > 0;
     final canGoNext = _index + 1 < _images.length;
+    final darwin = Platform.isMacOS || Platform.isIOS;
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
             Navigator.maybePop(context),
+        SingleActivator(
+          LogicalKeyboardKey.keyC,
+          meta: darwin,
+          control: !darwin,
+        ): () =>
+            widget.onCopy?.call(_image),
         const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
             _select(_index - 1),
         const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
             _select(_index + 1),
-        const SingleActivator(LogicalKeyboardKey.add): () => _zoom(1.25),
-        const SingleActivator(LogicalKeyboardKey.equal, shift: true): () =>
+        const SingleActivator(LogicalKeyboardKey.zoomIn): () => _zoom(1.25),
+        SingleActivator(
+          LogicalKeyboardKey.equal,
+          meta: darwin,
+          control: !darwin,
+        ): () =>
             _zoom(1.25),
-        const SingleActivator(LogicalKeyboardKey.numpadAdd): () => _zoom(1.25),
-        const SingleActivator(LogicalKeyboardKey.minus): () => _zoom(0.8),
-        const SingleActivator(LogicalKeyboardKey.numpadSubtract): () =>
+        const SingleActivator(LogicalKeyboardKey.zoomOut): () => _zoom(0.8),
+        SingleActivator(
+          LogicalKeyboardKey.minus,
+          meta: darwin,
+          control: !darwin,
+        ): () =>
             _zoom(0.8),
-        const SingleActivator(LogicalKeyboardKey.keyR): () =>
+        SingleActivator(
+          LogicalKeyboardKey.keyR,
+          meta: darwin,
+          control: !darwin,
+        ): () =>
             setState(() => _quarterTurns = (_quarterTurns + 1) % 4),
       },
       child: Focus(
         autofocus: true,
         child: Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.transparent,
           body: SafeArea(
-            child: Stack(
+            child: Column(
               children: [
-                Positioned.fill(
-                  child: InteractiveViewer(
-                    transformationController: _transformationController,
-                    minScale: 0.5,
-                    maxScale: 5,
-                    child: Center(
-                      child: RotatedBox(
-                        quarterTurns: _quarterTurns,
-                        child: _PreviewImage(source: _image.source),
+                Container(
+                  height: 70,
+                  decoration: BoxDecoration(color: context.theme.primary),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 100),
+                      Expanded(
+                        child: _PreviewBar(
+                          image: _image,
+                          onClose: () => Navigator.maybePop(context),
+                          onZoomOut: () => _zoom(0.8),
+                          onZoomIn: () => _zoom(1.25),
+                          onRotate: () => setState(
+                            () => _quarterTurns = (_quarterTurns + 1) % 4,
+                          ),
+                          onCopy: widget.onCopy,
+                          onSave: widget.onSave,
+                          onForward: _image.canForward ? _forward : null,
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  right: 12,
-                  child: _PreviewToolbar(
-                    image: _image,
-                    onClose: () => Navigator.maybePop(context),
-                    onZoomOut: () => _zoom(0.8),
-                    onZoomIn: () => _zoom(1.25),
-                    onRotate: () =>
-                        setState(() => _quarterTurns = (_quarterTurns + 1) % 4),
-                    onCopy: widget.onCopy,
-                    onSave: widget.onSave,
-                    onForward: _image.canForward ? _forward : null,
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      InteractiveViewer(
+                        transformationController: _transformationController,
+                        minScale: 0.5,
+                        maxScale: 5,
+                        child: Center(
+                          child: RotatedBox(
+                            quarterTurns: _quarterTurns,
+                            child: _PreviewImage(
+                              source: _image.source,
+                              thumbImage: _image.thumbImage,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 30),
+                          child: Row(
+                            children: [
+                              if (canGoPrevious)
+                                InteractiveDecoratedBox(
+                                  onTap: () => _select(_index - 1),
+                                  child: SvgPicture.asset(
+                                    MixinAssets.previewPrevious,
+                                  ),
+                                ),
+                              const Spacer(),
+                              if (canGoNext)
+                                InteractiveDecoratedBox(
+                                  onTap: () => _select(_index + 1),
+                                  child: SvgPicture.asset(
+                                    MixinAssets.previewNext,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                if (canGoPrevious)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: _NavigationButton(
-                      icon: Icons.chevron_left,
-                      onPressed: () => _select(_index - 1),
-                    ),
-                  ),
-                if (canGoNext)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: _NavigationButton(
-                      icon: Icons.chevron_right,
-                      onPressed: () => _select(_index + 1),
-                    ),
-                  ),
-                if (_images.length > 1)
-                  Positioned(
-                    bottom: 18,
-                    left: 0,
-                    right: 0,
-                    child: Text(
-                      '${_index + 1} / ${_images.length}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  ),
               ],
             ),
           ),
@@ -277,8 +331,8 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 }
 
-class _PreviewToolbar extends StatelessWidget {
-  const _PreviewToolbar({
+class _PreviewBar extends StatelessWidget {
+  const _PreviewBar({
     required this.image,
     required this.onClose,
     required this.onZoomOut,
@@ -299,92 +353,200 @@ class _PreviewToolbar extends StatelessWidget {
   final VoidCallback? onForward;
 
   @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      color: Colors.black.withValues(alpha: 0.55),
-      borderRadius: const BorderRadius.all(Radius.circular(8)),
-    ),
-    child: Row(
-      children: [
-        IconButton(
-          tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-          onPressed: onClose,
-          icon: const Icon(Icons.close, color: Colors.white),
-        ),
-        Expanded(
-          child: Text(
-            image.name ?? '',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white),
+  Widget build(BuildContext context) => Row(
+    children: [
+      AvatarView(
+        userId: image.userId,
+        name: image.userFullName,
+        avatarUrl: image.avatarUrl,
+        size: 36,
+      ),
+      const SizedBox(width: 10),
+      Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            image.userFullName,
+            style: TextStyle(fontSize: 16, color: context.theme.text),
           ),
-        ),
-        IconButton(
-          onPressed: onZoomOut,
-          icon: const Icon(Icons.zoom_out, color: Colors.white),
-        ),
-        IconButton(
-          onPressed: onZoomIn,
-          icon: const Icon(Icons.zoom_in, color: Colors.white),
-        ),
-        IconButton(
-          onPressed: onRotate,
-          icon: const Icon(Icons.rotate_right, color: Colors.white),
-        ),
-        if (onCopy != null)
-          IconButton(
-            onPressed: () => onCopy!(image),
-            icon: const Icon(Icons.copy, color: Colors.white),
+          Text(
+            image.userIdentityNumber,
+            style: TextStyle(fontSize: 14, color: context.theme.secondaryText),
           ),
-        if (onSave != null)
-          IconButton(
-            onPressed: () => onSave!(image),
-            icon: const Icon(Icons.download, color: Colors.white),
-          ),
-        if (onForward != null)
-          IconButton(
-            tooltip: context.l10n.forward,
-            onPressed: onForward,
-            icon: const Icon(Icons.forward, color: Colors.white),
-          ),
-      ],
-    ),
+        ],
+      ),
+      const SizedBox(width: 14),
+      _PreviewActions(
+        image: image,
+        onClose: onClose,
+        onZoomOut: onZoomOut,
+        onZoomIn: onZoomIn,
+        onRotate: onRotate,
+        onCopy: onCopy,
+        onSave: onSave,
+        onForward: onForward,
+      ),
+      const SizedBox(width: 24),
+    ],
   );
 }
 
-class _NavigationButton extends StatelessWidget {
-  const _NavigationButton({required this.icon, required this.onPressed});
+class _PreviewActions extends StatelessWidget {
+  const _PreviewActions({
+    required this.image,
+    required this.onClose,
+    required this.onZoomOut,
+    required this.onZoomIn,
+    required this.onRotate,
+    required this.onCopy,
+    required this.onSave,
+    required this.onForward,
+  });
 
-  final IconData icon;
-  final VoidCallback onPressed;
+  final ImagePreviewEntry image;
+  final VoidCallback onClose;
+  final VoidCallback onZoomOut;
+  final VoidCallback onZoomIn;
+  final VoidCallback onRotate;
+  final ImagePreviewAction? onCopy;
+  final ImagePreviewAction? onSave;
+  final VoidCallback? onForward;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(12),
-    child: IconButton.filledTonal(
-      onPressed: onPressed,
-      icon: Icon(icon, color: Colors.white, size: 32),
-    ),
-  );
+  Widget build(BuildContext context) {
+    const divider = SizedBox(width: 14);
+    final collapsible = [
+      if (onForward != null)
+        ActionButton(
+          name: MixinAssets.previewShare,
+          size: 20,
+          color: context.theme.icon,
+          onTap: onForward,
+        ),
+      if (onCopy != null)
+        ActionButton(
+          name: MixinAssets.previewCopy,
+          size: 20,
+          color: context.theme.icon,
+          onTap: () => onCopy!(image),
+        ),
+      if (onSave != null)
+        ActionButton(
+          name: MixinAssets.previewDownload,
+          size: 20,
+          color: context.theme.icon,
+          onTap: () => onSave!(image),
+        ),
+    ];
+    final common = [
+      ActionButton(
+        name: MixinAssets.previewZoomIn,
+        size: 20,
+        color: context.theme.icon,
+        onTap: onZoomIn,
+      ),
+      ActionButton(
+        name: MixinAssets.previewZoomOut,
+        size: 20,
+        color: context.theme.icon,
+        onTap: onZoomOut,
+      ),
+      ActionButton(
+        name: MixinAssets.previewRotate,
+        size: 20,
+        color: context.theme.icon,
+        onTap: onRotate,
+      ),
+    ];
+    final close = ActionButton(
+      name: MixinAssets.previewClose,
+      size: 20,
+      color: context.theme.icon,
+      onTap: onClose,
+    );
+    return Expanded(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final count = common.length + collapsible.length + 1;
+          final collapsed =
+              count * 36 + (count - 1) * 14 >= constraints.maxWidth;
+          final children = <Widget>[
+            ...common,
+            if (!collapsed) ...collapsible,
+            close,
+            if (collapsed)
+              CustomPopupMenuButton<_PreviewActionType>(
+                icon: MixinAssets.previewEllipsis,
+                onSelected: (value) {
+                  switch (value) {
+                    case _PreviewActionType.forward:
+                      onForward?.call();
+                    case _PreviewActionType.copy:
+                      onCopy?.call(image);
+                    case _PreviewActionType.download:
+                      onSave?.call(image);
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (onForward != null)
+                    CustomPopupMenuItem(
+                      value: _PreviewActionType.forward,
+                      icon: MixinAssets.previewShare,
+                      title: context.l10n.forward,
+                    ),
+                  if (onCopy != null)
+                    CustomPopupMenuItem(
+                      value: _PreviewActionType.copy,
+                      icon: MixinAssets.previewCopy,
+                      title: context.l10n.copy,
+                    ),
+                  if (onSave != null)
+                    CustomPopupMenuItem(
+                      value: _PreviewActionType.download,
+                      icon: MixinAssets.previewDownload,
+                      title: context.l10n.download,
+                    ),
+                ],
+              ),
+          ];
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              for (var index = 0; index < children.length; index++) ...[
+                if (index > 0) divider,
+                children[index],
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
 
+enum _PreviewActionType { forward, copy, download }
+
 class _PreviewImage extends StatelessWidget {
-  const _PreviewImage({required this.source});
+  const _PreviewImage({required this.source, this.thumbImage});
 
   final String source;
+  final String? thumbImage;
 
   @override
   Widget build(BuildContext context) {
     final provider = imageProviderForSource(source);
-    if (provider == null) {
-      return const Icon(Icons.broken_image_outlined, color: Colors.white);
-    }
+    final fallback = ImageByBlurHashOrBase64(
+      imageData: thumbImage ?? '',
+      fit: BoxFit.contain,
+    );
+    if (provider == null) return fallback;
     return Image(
       image: provider,
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
-      errorBuilder: (_, _, _) =>
-          const Icon(Icons.broken_image_outlined, color: Colors.white),
+      errorBuilder: (_, _, _) => fallback,
     );
   }
 }
@@ -424,11 +586,28 @@ class VideoPreviewPage extends StatefulWidget {
     super.key,
     this.title,
     this.onForward,
+    this.userId = '',
+    this.userFullName = '',
+    this.userIdentityNumber = '',
+    this.avatarUrl = '',
+    this.isTranscriptPage = false,
   });
 
   final String source;
   final String? title;
   final VideoPreviewForward? onForward;
+  final String userId;
+  final String userFullName;
+  final String userIdentityNumber;
+  final String avatarUrl;
+  final bool isTranscriptPage;
+
+  static Future<void> show(BuildContext context, VideoPreviewPage page) =>
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => page,
+      );
 
   @override
   State<VideoPreviewPage> createState() => _VideoPreviewPageState();
@@ -438,6 +617,8 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
   late final VideoPlayerController _controller;
   late final Future<void> _initialize;
   double _lastAudibleVolume = 1;
+  Timer? _hideControlsTimer;
+  bool _showControls = true;
 
   @override
   void initState() {
@@ -445,6 +626,7 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
     _controller = _videoController(widget.source);
     _initialize = _initializePlayer();
     _controller.addListener(_onPlayerChanged);
+    _restartHideControlsTimer();
   }
 
   Future<void> _initializePlayer() async {
@@ -454,6 +636,7 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
 
   @override
   void dispose() {
+    _hideControlsTimer?.cancel();
     _controller
       ..removeListener(_onPlayerChanged)
       ..dispose();
@@ -471,6 +654,7 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
     } else {
       unawaited(_controller.play());
     }
+    _showControlsTemporarily();
   }
 
   void _seekBy(Duration offset) {
@@ -492,26 +676,28 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
     }
   }
 
+  void _showControlsTemporarily() {
+    if (mounted) setState(() => _showControls = true);
+    _restartHideControlsTimer();
+  }
+
+  void _restartHideControlsTimer() {
+    _hideControlsTimer?.cancel();
+    _hideControlsTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _showControls = false);
+    });
+  }
+
   Future<void> _forward() async {
     final callback = widget.onForward;
     if (callback == null) return;
-    try {
-      final forwarded = await callback();
-      if (!forwarded || !mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${context.l10n.forward} ✓')));
-    } on Object catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
-    }
+    await callback();
   }
 
   @override
   Widget build(BuildContext context) {
     final localFile = existingLocalFile(widget.source);
+    final darwin = Platform.isMacOS || Platform.isIOS;
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
@@ -521,135 +707,309 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
             _seekBy(const Duration(seconds: -15)),
         const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
             _seekBy(const Duration(seconds: 15)),
-        const SingleActivator(LogicalKeyboardKey.keyM): _toggleMute,
+        SingleActivator(
+          LogicalKeyboardKey.keyM,
+          meta: darwin,
+          control: !darwin,
+        ): _toggleMute,
+        SingleActivator(
+          LogicalKeyboardKey.keyC,
+          meta: darwin,
+          control: !darwin,
+        ): () {
+          if (localFile != null) unawaited(copyLocalFileToClipboard(localFile));
+        },
+        const SingleActivator(LogicalKeyboardKey.arrowUp): () => unawaited(
+          _controller.setVolume((_controller.value.volume + 0.1).clamp(0, 1)),
+        ),
+        const SingleActivator(LogicalKeyboardKey.arrowDown): () => unawaited(
+          _controller.setVolume((_controller.value.volume - 0.1).clamp(0, 1)),
+        ),
       },
       child: Focus(
         autofocus: true,
-        child: Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
-            title: Text(widget.title ?? ''),
-            actions: [
-              if (widget.onForward != null)
-                IconButton(
-                  tooltip: context.l10n.forward,
-                  onPressed: _forward,
-                  icon: const Icon(Icons.forward),
-                ),
-              if (localFile != null)
-                IconButton(
-                  tooltip: context.l10n.copy,
-                  onPressed: () =>
-                      unawaited(copyLocalFileToClipboard(localFile)),
-                  icon: const Icon(Icons.copy),
-                ),
-              if (localFile != null)
-                IconButton(
-                  tooltip: context.l10n.saveAs,
-                  onPressed: () => unawaited(
-                    saveMessageFileAs(
-                      widget.source,
-                      suggestedName: widget.title,
-                    ),
-                  ),
-                  icon: const Icon(Icons.download_outlined),
-                ),
-            ],
-          ),
-          body: FutureBuilder<void>(
-            future: _initialize,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return const Center(
-                  child: Icon(
-                    Icons.error_outline,
-                    color: Colors.white,
+        child: Column(
+          children: [
+            Container(
+              color: context.theme.primary,
+              height: 70,
+              child: Row(
+                children: [
+                  const SizedBox(width: 100),
+                  AvatarView(
+                    userId: widget.userId,
+                    name: widget.userFullName,
+                    avatarUrl: widget.avatarUrl,
                     size: 36,
                   ),
-                );
-              }
-              final value = _controller.value;
-              return Column(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: AspectRatio(
-                        aspectRatio: value.aspectRatio <= 0
-                            ? 1
-                            : value.aspectRatio,
-                        child: VideoPlayer(_controller),
+                  const SizedBox(width: 10),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 200),
+                        child: Text(
+                          widget.userFullName,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: context.theme.text,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        widget.userIdentityNumber,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: context.theme.secondaryText,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 14),
+                  const Spacer(),
+                  if (!widget.isTranscriptPage && widget.onForward != null)
+                    ActionButton(
+                      name: MixinAssets.previewShare,
+                      size: 20,
+                      color: context.theme.icon,
+                      onTap: _forward,
+                    ),
+                  const SizedBox(width: 14),
+                  ActionButton(
+                    name: MixinAssets.previewCopy,
+                    size: 20,
+                    color: context.theme.icon,
+                    onTap: localFile == null
+                        ? null
+                        : () => unawaited(copyLocalFileToClipboard(localFile)),
+                  ),
+                  const SizedBox(width: 14),
+                  ActionButton(
+                    name: MixinAssets.previewDownload,
+                    size: 20,
+                    color: context.theme.icon,
+                    onTap: () => unawaited(
+                      saveMessageFileAs(
+                        widget.source,
+                        suggestedName: widget.title,
                       ),
                     ),
                   ),
-                  SafeArea(
-                    top: false,
-                    child: Row(
-                      children: [
-                        IconButton(
-                          tooltip: '-15s',
-                          onPressed: () =>
-                              _seekBy(const Duration(seconds: -15)),
-                          icon: const Icon(
-                            Icons.replay_10,
-                            color: Colors.white,
-                          ),
+                  const SizedBox(width: 14),
+                  ActionButton(
+                    name: MixinAssets.previewClose,
+                    size: 20,
+                    color: context.theme.icon,
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  const SizedBox(width: 24),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Stack(
+                children: [
+                  ColoredBox(
+                    color: context.theme.background,
+                    child: const SizedBox.expand(),
+                  ),
+                  FutureBuilder<void>(
+                    future: _initialize,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState != ConnectionState.done ||
+                          snapshot.hasError) {
+                        return const SizedBox.expand();
+                      }
+                      final aspect = _controller.value.aspectRatio;
+                      return Center(
+                        child: AspectRatio(
+                          aspectRatio: aspect <= 0 ? 1 : aspect,
+                          child: VideoPlayer(_controller),
                         ),
-                        IconButton(
-                          onPressed: _togglePlayback,
-                          icon: Icon(
-                            value.isPlaying ? Icons.pause : Icons.play_arrow,
-                            color: Colors.white,
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: '+15s',
-                          onPressed: () => _seekBy(const Duration(seconds: 15)),
-                          icon: const Icon(
-                            Icons.forward_10,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Expanded(
-                          child: VideoProgressIndicator(
-                            _controller,
-                            allowScrubbing: true,
-                            padding: const EdgeInsets.symmetric(vertical: 18),
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Text(
-                            '${_formatPlayerDuration(value.position)} / '
-                            '${_formatPlayerDuration(value.duration)}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
+                      );
+                    },
+                  ),
+                  SizedBox.expand(
+                    child: MouseRegion(
+                      onHover: (_) => _showControlsTemporarily(),
+                      child: Stack(
+                        children: [
+                          if (_showControls)
+                            Align(
+                              alignment: Alignment.bottomCenter,
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 20),
+                                child: _VideoOperationBar(
+                                  controller: _controller,
+                                  onToggleMute: _toggleMute,
+                                  onBackward: () =>
+                                      _seekBy(const Duration(seconds: -15)),
+                                  onTogglePlayback: _togglePlayback,
+                                  onForward: () =>
+                                      _seekBy(const Duration(seconds: 15)),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: _toggleMute,
-                          icon: Icon(
-                            value.volume == 0
-                                ? Icons.volume_off
-                                : Icons.volume_up,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ],
-              );
-            },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VideoOperationBar extends StatelessWidget {
+  const _VideoOperationBar({
+    required this.controller,
+    required this.onToggleMute,
+    required this.onBackward,
+    required this.onTogglePlayback,
+    required this.onForward,
+  });
+
+  final VideoPlayerController controller;
+  final VoidCallback onToggleMute;
+  final VoidCallback onBackward;
+  final VoidCallback onTogglePlayback;
+  final VoidCallback onForward;
+
+  @override
+  Widget build(BuildContext context) {
+    const foreground = Color.fromARGB(255, 200, 200, 200);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Material(
+        color: const Color.fromRGBO(41, 41, 41, 0.7),
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500, minWidth: 300),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _VideoVolumeBar(
+                          controller: controller,
+                          onToggleMute: onToggleMute,
+                        ),
+                      ),
+                      ActionButton(
+                        onTap: onBackward,
+                        child: const Icon(
+                          CupertinoIcons.gobackward_15,
+                          color: foreground,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ActionButton(
+                        name: controller.value.isPlaying
+                            ? MixinAssets.playerPause
+                            : MixinAssets.playerPlay,
+                        size: 32,
+                        color: foreground,
+                        onTap: onTogglePlayback,
+                      ),
+                      const SizedBox(width: 8),
+                      ActionButton(
+                        onTap: onForward,
+                        child: const Icon(
+                          CupertinoIcons.goforward_15,
+                          color: foreground,
+                        ),
+                      ),
+                      const Spacer(),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _formatPlayerDuration(controller.value.position),
+                        style: const TextStyle(fontSize: 12, color: foreground),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: CupertinoVideoProgressBar(controller)),
+                      const SizedBox(width: 12),
+                      Text(
+                        _formatPlayerDuration(controller.value.duration),
+                        style: const TextStyle(fontSize: 12, color: foreground),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _VideoVolumeBar extends StatelessWidget {
+  const _VideoVolumeBar({required this.controller, required this.onToggleMute});
+
+  final VideoPlayerController controller;
+  final VoidCallback onToggleMute;
+
+  @override
+  Widget build(BuildContext context) {
+    const foreground = Color.fromARGB(255, 200, 200, 200);
+    final volume = controller.value.volume.clamp(0.0, 1.0);
+    return Row(
+      children: [
+        ActionButton(
+          padding: const EdgeInsets.all(4),
+          onTap: onToggleMute,
+          child: Icon(switch (volume) {
+            0 => CupertinoIcons.speaker_slash,
+            < 0.25 => CupertinoIcons.speaker,
+            < 0.5 => CupertinoIcons.speaker_1,
+            < 0.75 => CupertinoIcons.speaker_2,
+            _ => CupertinoIcons.speaker_3,
+          }, color: foreground),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 80,
+          child: SliderTheme(
+            data: const SliderThemeData(
+              trackHeight: 2,
+              thumbShape: RoundSliderThumbShape(
+                enabledThumbRadius: 6,
+                elevation: 0,
+              ),
+              trackShape: UnboundedRoundedRectSliderTrackShape(
+                removeAdditionalActiveTrackHeight: true,
+              ),
+              overlayShape: RoundSliderOverlayShape(overlayRadius: 10),
+              showValueIndicator: ShowValueIndicator.onDrag,
+            ),
+            child: Slider(
+              value: volume,
+              allowedInteraction: SliderInteraction.tapAndSlide,
+              activeColor: context.theme.accent,
+              inactiveColor: foreground.withValues(alpha: 0.6),
+              thumbColor: foreground,
+              onChanged: (value) => unawaited(controller.setVolume(value)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -681,24 +1041,46 @@ class PostPreviewPage extends StatelessWidget {
   final String content;
   final String? title;
 
+  static Future<void> show(BuildContext context, PostPreviewPage page) =>
+      showGeneralDialog<void>(
+        context: context,
+        barrierColor: Colors.transparent,
+        barrierDismissible: true,
+        barrierLabel: MaterialLocalizations.of(
+          context,
+        ).modalBarrierDismissLabel,
+        pageBuilder: (_, _, _) => page,
+      );
+
   @override
   Widget build(BuildContext context) {
     final fontSize = 16 + context.watch<SettingsController>().chatFontSizeDelta;
-    return Scaffold(
-      appBar: AppBar(title: Text(title ?? '')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: DefaultTextStyle.merge(
-            style: TextStyle(fontSize: fontSize, color: context.theme.text),
-            child: MarkdownWidget(
-              data: content,
-              selectable: true,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-              config: postMarkdownConfig(context, fontSize: fontSize),
+    return Material(
+      color: context.theme.background,
+      child: Column(
+        children: [
+          MixinAppBar(
+            leading: const SizedBox(),
+            actions: [MixinCloseButton(onTap: () => Navigator.pop(context))],
+          ),
+          Expanded(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: DefaultTextStyle.merge(
+                style: TextStyle(fontSize: fontSize, color: context.theme.text),
+                child: MarkdownWidget(
+                  data: content,
+                  selectable: true,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 8,
+                  ),
+                  config: postMarkdownConfig(context, fontSize: fontSize),
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -709,17 +1091,89 @@ Future<OpenResult> openMessageFile(String source) {
   return OpenFile.open(file.path);
 }
 
+Future<void> openOrSaveMessageFile(
+  BuildContext context,
+  String source, {
+  String? mediaName,
+}) async {
+  final name = mediaName?.trim().isNotEmpty == true
+      ? mediaName!.trim()
+      : path.basename(_localFile(source).path);
+  if (!_shouldOpenDirectly(name)) {
+    await saveMessageFileAs(source, suggestedName: name);
+    return;
+  }
+  try {
+    final result = await openMessageFile(source);
+    if (result.type == ResultType.done) return;
+  } on Object {
+    // The source UI reports the localized open failure below.
+  }
+  if (context.mounted) {
+    showToastFailed(ToastError(context.l10n.unableToOpenFile(name)));
+  }
+}
+
 Future<String?> saveMessageFileAs(
   String source, {
   String? suggestedName,
 }) async {
-  final file = _localFile(source);
-  final location = await getSaveLocation(
-    suggestedName: suggestedName ?? path.basename(file.path),
-  );
-  if (location == null) return null;
-  await file.copy(location.path);
-  return location.path;
+  try {
+    final file = _localFile(source);
+    final location = await getSaveLocation(
+      suggestedName: suggestedName ?? path.basename(file.path),
+    );
+    if (location == null) return null;
+    await file.copy(location.path);
+    showToastSuccessful();
+    return location.path;
+  } on Object catch (error) {
+    showToastFailed(error);
+    return null;
+  }
+}
+
+bool _shouldOpenDirectly(String mediaName) {
+  const allowList = {
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.gif',
+    '.bmp',
+    '.webp',
+    '.avif',
+    '.mp4',
+    '.mp3',
+    '.wav',
+    '.m4a',
+    '.m4v',
+    '.mov',
+    '.avi',
+    '.mkv',
+    '.flv',
+    '.wmv',
+    '.3gp',
+    '.mpg',
+    '.mpeg',
+    '.ogv',
+    '.ogm',
+    '.ogg',
+    '.webm',
+    '.m3u8',
+    '.ts',
+    '.pdf',
+    '.doc',
+    '.docx',
+    '.xls',
+    '.xlsx',
+    '.ppt',
+    '.pptx',
+    '.txt',
+    '.rtf',
+    '.csv',
+    '.log',
+  };
+  return allowList.contains(path.extension(mediaName).toLowerCase());
 }
 
 File _localFile(String source) {

@@ -28,6 +28,7 @@ pub struct User {
     pub code_url: String,
     pub code_id: String,
     pub is_deactivated: bool,
+    pub membership: Option<String>,
 }
 
 impl From<sdk::User> for User {
@@ -49,11 +50,60 @@ impl From<sdk::User> for User {
             code_url: value.code_url,
             code_id: value.code_id,
             is_deactivated: value.is_deactivated,
+            membership: value
+                .membership
+                .and_then(|membership| serde_json::to_string(&membership).ok()),
         }
     }
 }
 
 impl UserDao {
+    pub async fn selectable_users(&self, current_user_id: &str) -> Result<Vec<User>, Error> {
+        Ok(sqlx::query_as::<_, User>(
+            r#"SELECT * FROM users
+               WHERE user_id != ?
+                 AND identity_number != '0'
+                 AND is_deactivated = FALSE
+                 AND (relationship = 'FRIEND'
+                      OR (app_id IS NOT NULL AND app_id != ''))
+               ORDER BY CASE WHEN app_id IS NULL OR app_id = '' THEN 0 ELSE 1 END,
+                        full_name COLLATE NOCASE,
+                        user_id"#,
+        )
+        .bind(current_user_id)
+        .fetch_all(&self.0)
+        .await?)
+    }
+
+    pub async fn fuzzy_search_users(
+        &self,
+        current_user_id: &str,
+        keyword: &str,
+        limit: i64,
+    ) -> Result<Vec<User>, Error> {
+        Ok(sqlx::query_as::<_, User>(
+            r#"SELECT * FROM users
+               WHERE user_id != ?
+                 AND identity_number != '0'
+                 AND (instr(lower(full_name), lower(?)) > 0
+                      OR instr(lower(identity_number), lower(?)) > 0)
+               ORDER BY (full_name = ? COLLATE NOCASE
+                         OR identity_number = ? COLLATE NOCASE) DESC,
+                        CASE relationship WHEN 'FRIEND' THEN 0 ELSE 1 END,
+                        full_name COLLATE NOCASE,
+                        user_id
+               LIMIT ?"#,
+        )
+        .bind(current_user_id)
+        .bind(keyword)
+        .bind(keyword)
+        .bind(keyword)
+        .bind(keyword)
+        .bind(limit)
+        .fetch_all(&self.0)
+        .await?)
+    }
+
     pub async fn search_bot_group_users(
         &self,
         current_user_id: &str,
@@ -185,7 +235,7 @@ impl UserDao {
         let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             r#"INSERT OR REPLACE INTO users (user_id, identity_number, relationship, full_name, avatar_url,
               phone, is_verified, created_at, mute_until, has_pin, app_id, biography, is_scam, 
-              code_url, code_id, is_deactivated)"#,
+              code_url, code_id, is_deactivated, membership)"#,
         );
 
         let db_users = users.into_iter().map(User::from).collect::<Vec<_>>();
@@ -206,7 +256,8 @@ impl UserDao {
                 .push_bind(user.is_scam)
                 .push_bind(&user.code_url)
                 .push_bind(&user.code_id)
-                .push_bind(user.is_deactivated);
+                .push_bind(user.is_deactivated)
+                .push_bind(&user.membership);
         });
 
         let query = query_builder.build();

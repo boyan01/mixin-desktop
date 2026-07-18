@@ -16,6 +16,15 @@ impl TokenApi {
         self.client.get(&format!("safe/assets/{asset_id}")).await
     }
 
+    pub async fn get_snapshot_by_id(
+        &self,
+        snapshot_id: &str,
+    ) -> Result<SafeSnapshotShot, crate::ApiError> {
+        self.client
+            .get(&format!("safe/snapshots/{snapshot_id}"))
+            .await
+    }
+
     pub async fn get_inscription_item(
         &self,
         hash: &str,

@@ -13,7 +13,6 @@ import 'package:mixin_desktop_ui/pages/chat_side/shared_apps_page.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/shared_media_page.dart';
 import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:provider/provider.dart';
 
 const kChatSidePageWidth = 300.0;
 
@@ -27,6 +26,7 @@ class ChatSideRouter extends StatelessWidget {
     required this.routeMode,
     required this.onLocateMessage,
     required this.onSelectConversation,
+    required this.onOpenUri,
     required this.onConversationDeleted,
     this.leadingPages = const [],
     super.key,
@@ -41,6 +41,7 @@ class ChatSideRouter extends StatelessWidget {
   final bool routeMode;
   final ValueChanged<String> onLocateMessage;
   final ValueChanged<ConversationListEntry> onSelectConversation;
+  final ValueChanged<Uri> onOpenUri;
   final VoidCallback onConversationDeleted;
 
   @override
@@ -59,20 +60,17 @@ class ChatSideRouter extends StatelessWidget {
             pages: pages,
             onDidRemovePage: (_) => notifier.onPopPage(),
           );
-    return ChangeNotifierProvider(
-      create: (_) =>
-          SearchConversationKeywordNotifier(chatSideNotifier: notifier),
-      child: ChatSideScope(
-        account: account,
-        conversation: conversation,
-        notifier: notifier,
-        currentUserId: account.accountId(),
-        routeMode: routeMode,
-        onLocateMessage: onLocateMessage,
-        onSelectConversation: onSelectConversation,
-        onConversationDeleted: onConversationDeleted,
-        child: navigator,
-      ),
+    return ChatSideScope(
+      account: account,
+      conversation: conversation,
+      notifier: notifier,
+      currentUserId: account.accountId(),
+      routeMode: routeMode,
+      onLocateMessage: onLocateMessage,
+      onSelectConversation: onSelectConversation,
+      onOpenUri: onOpenUri,
+      onConversationDeleted: onConversationDeleted,
+      child: navigator,
     );
   }
 }

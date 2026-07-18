@@ -15,6 +15,9 @@ use sdk::{
     RESEND_KEY, RESEND_MESSAGES,
 };
 
+use crate::core::constants::TEAM_MIXIN_USER_ID;
+use crate::core::util::generate_conversation_id;
+
 use crate::core::crypto::signal_protocol::SignalProtocol;
 use crate::core::message::blaze::Blaze;
 use crate::core::model::signal::SignalService;
@@ -41,6 +44,37 @@ pub struct MessageResult {
 }
 
 impl MessageSender {
+    pub async fn send_plain_json_to_session(
+        &self,
+        action: &str,
+        content: String,
+        recipient_session_id: Option<String>,
+    ) -> Result<()> {
+        let conversation_id = self
+            .database
+            .participant_dao
+            .find_any_joined_conversation_id(&self.account_id)
+            .await?
+            .unwrap_or_else(|| {
+                generate_conversation_id(&self.account_id, TEAM_MIXIN_USER_ID).to_string()
+            });
+        let plain_text = PlainJsonMessage {
+            action: action.to_string(),
+            content: Some(content),
+            ..PlainJsonMessage::default()
+        };
+        let encoded = Base64::encode_string(&serde_json::to_vec(&plain_text)?);
+        let message = BlazeMessage::new_plain_json(
+            &conversation_id,
+            self.get_check_sum(&conversation_id).await?,
+            &self.account_id,
+            encoded,
+            recipient_session_id,
+        );
+        self.deliver(message).await?;
+        Ok(())
+    }
+
     pub fn new(
         blaze: Arc<Blaze>,
         conversation: ConversationService,

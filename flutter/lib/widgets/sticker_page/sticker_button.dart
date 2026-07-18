@@ -9,6 +9,7 @@ import 'package:mixin_desktop_ui/widgets/sticker_page/add_sticker_dialog.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_page.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_store.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_data.dart';
+import 'package:mixin_desktop_ui/widgets/sticker_page/giphy_page.dart';
 
 class StickerButton extends HookWidget {
   const StickerButton({
@@ -18,6 +19,7 @@ class StickerButton extends HookWidget {
     required this.onStickerSelected,
     required this.onStickerSent,
     required this.onEmojiUsed,
+    required this.onGifSelected,
     super.key,
   });
 
@@ -27,6 +29,7 @@ class StickerButton extends HookWidget {
   final Future<bool> Function(String stickerId) onStickerSelected;
   final VoidCallback onStickerSent;
   final ValueChanged<String> onEmojiUsed;
+  final GiphySelected onGifSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +63,7 @@ class StickerButton extends HookWidget {
         PresetStickerGroup.emoji,
         PresetStickerGroup.recent,
         PresetStickerGroup.favorite,
+        if (giphyApiKey.isNotEmpty) PresetStickerGroup.gif,
       ],
     );
 
@@ -128,12 +132,20 @@ class StickerButton extends HookWidget {
                 );
                 await controller.removeSticker(source);
               },
+              onGifSelected: onGifSelected,
+              hasNewAlbum: controller.hasNewAlbum,
               onAddSticker: () => pickAndShowAddStickerDialog(
                 context,
                 onSave: controller.addStickerFromPath,
               ),
-              onOpenStore: () =>
-                  showStickerStorePageDialog(context, controller: controller),
+              onOpenStore: () async {
+                await controller.markStoreViewed();
+                if (!context.mounted) return;
+                await showStickerStorePageDialog(
+                  context,
+                  controller: controller,
+                );
+              },
               onStickerSent: () {
                 HoverOverlay.forceHidden(context);
                 onStickerSent();

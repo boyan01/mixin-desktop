@@ -7,7 +7,10 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/attachment_status.dart';
+import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 import 'package:mixin_desktop_ui/widgets/message_style.dart';
+import 'package:mixin_desktop_ui/widgets/waveform_widget.dart';
 import 'package:ogg_opus_player/ogg_opus_player.dart';
 
 typedef AudioMessageCallback = void Function(MessageListEntry message);
@@ -16,12 +19,16 @@ class AudioMessageWidget extends StatefulWidget {
   const AudioMessageWidget({
     required this.message,
     super.key,
+    this.playlist = const [],
+    this.sentByCurrentUser,
     this.onMarkRead,
     this.onDownloadAttachment,
     this.onCancelAttachment,
   });
 
   final MessageListEntry message;
+  final List<MessageListEntry> playlist;
+  final bool? sentByCurrentUser;
   final AudioMessageCallback? onMarkRead;
   final AudioMessageCallback? onDownloadAttachment;
   final AudioMessageCallback? onCancelAttachment;
@@ -83,7 +90,12 @@ class _AudioMessageWidgetState extends State<AudioMessageWidget> {
           _coordinator.stop();
           return;
         }
-        final started = await _coordinator.play(widget.message.id, path);
+        final started = await _coordinator.play(
+          widget.message,
+          path,
+          playlist: widget.playlist,
+          onMarkRead: widget.onMarkRead,
+        );
         if (started && status == 'DONE' && !_markedRead) {
           _markedRead = true;
           widget.onMarkRead?.call(widget.message);
@@ -97,11 +109,11 @@ class _AudioMessageWidgetState extends State<AudioMessageWidget> {
   @override
   Widget build(BuildContext context) {
     final status = widget.message.mediaStatus.toUpperCase();
+    final sentByCurrentUser =
+        widget.sentByCurrentUser ??
+        widget.message.senderRelationship.toUpperCase() == 'ME';
     final isCurrentUser =
         widget.message.senderRelationship.toUpperCase() == 'ME';
-    final localPath = _localMediaPath(widget.message.mediaUrl);
-    final playable =
-        (status == 'DONE' || status == 'READ') && localPath != null;
     final playing =
         _coordinator.currentMessageId == widget.message.id &&
         _coordinator.isPlaying;
@@ -114,40 +126,34 @@ class _AudioMessageWidgetState extends State<AudioMessageWidget> {
         : 0.0;
     final waveform = _decodeWaveform(widget.message.mediaWaveform);
     final useReadWaveform = isCurrentUser || status == 'READ';
-    final callbackAvailable = switch (status) {
-      'CANCELED' => widget.onDownloadAttachment != null,
-      'PENDING' => widget.onCancelAttachment != null,
-      'DONE' || 'READ' => playable,
-      _ => false,
-    };
-
-    Widget child = Row(
-      key: Key('message-media-audio-${widget.message.id}'),
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _AudioStatusButton(
-          messageId: widget.message.id,
-          status: status,
-          playing: playing,
-          upload:
-              status == 'CANCELED' &&
-              isCurrentUser &&
-              (widget.message.mediaUrl?.isNotEmpty ?? false),
-        ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                key: Key('audio-waveform-${widget.message.id}'),
-                width: 238,
-                height: 12,
-                child: CustomPaint(
-                  painter: AudioWaveformPainter(
+    return InteractiveDecoratedBox(
+      onTap: _onTap,
+      child: Row(
+        key: Key('message-media-audio-${widget.message.id}'),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _AudioStatusButton(
+            messageId: widget.message.id,
+            status: status,
+            playing: playing,
+            upload:
+                status == 'CANCELED' &&
+                sentByCurrentUser &&
+                (widget.message.mediaUrl?.isNotEmpty ?? false),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  key: Key('audio-waveform-${widget.message.id}'),
+                  width: 238,
+                  height: 12,
+                  child: WaveformWidget(
+                    value: progress,
                     waveform: waveform,
-                    progress: progress,
                     backgroundColor: useReadWaveform
                         ? context.theme.waveformBackground
                         : context.theme.accent,
@@ -156,27 +162,20 @@ class _AudioMessageWidgetState extends State<AudioMessageWidget> {
                         : context.theme.accent,
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _formatDuration(duration),
-                style: TextStyle(
-                  fontSize: context.messageStyle.tertiaryFontSize,
-                  color: context.theme.secondaryText,
+                const SizedBox(height: 8),
+                Text(
+                  _formatDuration(duration),
+                  style: TextStyle(
+                    fontSize: context.messageStyle.tertiaryFontSize,
+                    color: context.theme.secondaryText,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
-    if (!callbackAvailable) return child;
-    child = GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: _onTap,
-      child: child,
-    );
-    return MouseRegion(cursor: SystemMouseCursors.click, child: child);
   }
 }
 
@@ -194,142 +193,21 @@ class _AudioStatusButton extends StatelessWidget {
   final bool upload;
 
   @override
-  Widget build(BuildContext context) {
-    final glyph = switch (status) {
-      'CANCELED' => upload ? _AudioGlyph.upload : _AudioGlyph.download,
-      'PENDING' => _AudioGlyph.pending,
-      'EXPIRED' => _AudioGlyph.warning,
-      _ => playing ? _AudioGlyph.pause : _AudioGlyph.play,
-    };
-    return Container(
-      key: Key('audio-status-$messageId-${glyph.name}'),
-      width: 38,
-      height: 38,
-      decoration: BoxDecoration(
-        color: context.theme.statusBackground,
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: glyph == _AudioGlyph.pending
-          ? Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox.square(
-                  dimension: 38,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: context.theme.accent,
-                  ),
-                ),
-                Container(width: 10, height: 10, color: context.theme.accent),
-              ],
-            )
-          : CustomPaint(
-              size: _glyphSize(glyph),
-              painter: _AudioGlyphPainter(
-                glyph: glyph,
-                color: glyph == _AudioGlyph.warning
-                    ? context.theme.text
-                    : context.theme.accent,
-              ),
-            ),
-    );
-  }
-}
-
-enum _AudioGlyph { play, pause, download, upload, pending, warning }
-
-Size _glyphSize(_AudioGlyph glyph) => switch (glyph) {
-  _AudioGlyph.play => const Size(11, 12),
-  _AudioGlyph.pause => const Size(12, 14),
-  _AudioGlyph.download || _AudioGlyph.upload => const Size(14, 14),
-  _AudioGlyph.warning => const Size(18, 18),
-  _AudioGlyph.pending => Size.zero,
-};
-
-class _AudioGlyphPainter extends CustomPainter {
-  const _AudioGlyphPainter({required this.glyph, required this.color});
-
-  final _AudioGlyph glyph;
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    switch (glyph) {
-      case _AudioGlyph.play:
-        canvas.drawPath(
-          Path()
-            ..moveTo(1, 1)
-            ..lineTo(size.width - 1, size.height / 2)
-            ..lineTo(1, size.height - 1)
-            ..close(),
-          paint..style = PaintingStyle.fill,
-        );
-      case _AudioGlyph.pause:
-        paint.style = PaintingStyle.fill;
-        canvas
-          ..drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromLTWH(0, 0, 4, size.height),
-              const Radius.circular(2),
-            ),
-            paint,
-          )
-          ..drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromLTWH(8, 0, 4, size.height),
-              const Radius.circular(2),
-            ),
-            paint,
-          );
-      case _AudioGlyph.download:
-      case _AudioGlyph.upload:
-        paint.style = PaintingStyle.stroke;
-        final isUpload = glyph == _AudioGlyph.upload;
-        final startY = isUpload ? size.height - 1 : 1.0;
-        final endY = isUpload ? 1.0 : size.height - 1;
-        canvas
-          ..drawLine(
-            Offset(size.width / 2, startY),
-            Offset(size.width / 2, endY),
-            paint,
-          )
-          ..drawLine(
-            Offset(size.width / 2, endY),
-            Offset(1, isUpload ? 6 : 8),
-            paint,
-          )
-          ..drawLine(
-            Offset(size.width / 2, endY),
-            Offset(size.width - 1, isUpload ? 6 : 8),
-            paint,
-          );
-      case _AudioGlyph.warning:
-        paint.style = PaintingStyle.stroke;
-        canvas.drawCircle(size.center(Offset.zero), 8, paint);
-        paint.style = PaintingStyle.fill;
-        canvas
-          ..drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromLTWH(8, 4, 2, 7),
-              const Radius.circular(1),
-            ),
-            paint,
-          )
-          ..drawCircle(const Offset(9, 14), 1, paint);
-      case _AudioGlyph.pending:
-        break;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _AudioGlyphPainter oldDelegate) =>
-      glyph != oldDelegate.glyph || color != oldDelegate.color;
+  Widget build(BuildContext context) => KeyedSubtree(
+    key: Key('audio-status-$messageId-$status-$playing-$upload'),
+    child: switch (status) {
+      'CANCELED' =>
+        upload
+            ? const AttachmentStatusUpload()
+            : const AttachmentStatusDownload(),
+      'PENDING' => AttachmentStatusPending(messageId: messageId),
+      'EXPIRED' => const AttachmentStatusWarning(),
+      _ =>
+        playing
+            ? const AttachmentStatusAudioStop()
+            : const AttachmentStatusAudioPlay(),
+    },
+  );
 }
 
 class AudioMessagePlaybackCoordinator extends ChangeNotifier {
@@ -340,9 +218,16 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
   OggOpusPlayer? _player;
   Timer? _positionTimer;
   int _listenerOwners = 0;
-  String? currentMessageId;
+  String? _currentMessageId;
+  MessageListEntry? currentMessage;
   Duration position = Duration.zero;
   bool isPlaying = false;
+  double speed = 1;
+  List<MessageListEntry> _playlist = const [];
+  int _playlistIndex = -1;
+  AudioMessageCallback? _onMarkRead;
+
+  String? get currentMessageId => _currentMessageId;
 
   void attach() => _listenerOwners++;
 
@@ -351,16 +236,44 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
     if (_listenerOwners == 0) stop();
   }
 
-  Future<bool> play(String messageId, String path) async {
+  Future<bool> play(
+    MessageListEntry message,
+    String path, {
+    List<MessageListEntry> playlist = const [],
+    AudioMessageCallback? onMarkRead,
+  }) async {
     _stop(deactivateSession: false);
+    _playlist = playlist.where((item) => item.isAudio).toList(growable: false);
+    _playlistIndex = _playlist.indexWhere((item) => item.id == message.id);
+    if (_playlistIndex < 0) {
+      _playlist = [message];
+      _playlistIndex = 0;
+    }
+    _onMarkRead = onMarkRead;
+    return _start(message.id, path, message);
+  }
+
+  Future<bool> playPreview(String previewId, String path) async {
+    _stop(deactivateSession: false);
+    return _start(previewId, path, null);
+  }
+
+  Future<bool> _start(
+    String messageId,
+    String path,
+    MessageListEntry? message,
+  ) async {
+    _disposePlayer();
     try {
       final session = await AudioSession.instance;
       await session.configure(const AudioSessionConfiguration.speech());
       await session.setActive(true);
       final player = OggOpusPlayer(path);
       _player = player;
-      currentMessageId = messageId;
+      _currentMessageId = messageId;
+      currentMessage = message;
       player.state.addListener(_handlePlayerState);
+      player.setPlaybackRate(speed);
       player.play();
       isPlaying = true;
       _positionTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
@@ -379,9 +292,23 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
     }
   }
 
+  void pause() => _player?.pause();
+
+  void resume() => _player?.play();
+
+  void setPlaybackRate(double value) {
+    speed = value;
+    _player?.setPlaybackRate(value);
+    notifyListeners();
+  }
+
   void _handlePlayerState() {
     final state = _player?.state.value;
-    if (state == PlayerState.ended || state == PlayerState.error) {
+    if (state == PlayerState.ended) {
+      unawaited(_playNext());
+      return;
+    }
+    if (state == PlayerState.error) {
       stop();
       return;
     }
@@ -392,17 +319,44 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
   void stop() => _stop(deactivateSession: true);
 
   void _stop({required bool deactivateSession}) {
+    _disposePlayer();
+    _playlist = const [];
+    _playlistIndex = -1;
+    _onMarkRead = null;
+    if (deactivateSession) unawaited(_deactivateAudioSession());
+    notifyListeners();
+  }
+
+  void _disposePlayer() {
     _positionTimer?.cancel();
     _positionTimer = null;
     final player = _player;
     _player = null;
     player?.state.removeListener(_handlePlayerState);
     player?.dispose();
-    currentMessageId = null;
+    _currentMessageId = null;
+    currentMessage = null;
     position = Duration.zero;
     isPlaying = false;
-    if (deactivateSession) unawaited(_deactivateAudioSession());
-    notifyListeners();
+  }
+
+  Future<void> _playNext() async {
+    final nextIndex = _playlistIndex + 1;
+    if (nextIndex >= _playlist.length) {
+      stop();
+      return;
+    }
+    final next = _playlist[nextIndex];
+    final path = _localMediaPath(next.mediaUrl);
+    if (path == null ||
+        !const {'DONE', 'READ'}.contains(next.mediaStatus.toUpperCase())) {
+      _playlistIndex = nextIndex;
+      await _playNext();
+      return;
+    }
+    _playlistIndex = nextIndex;
+    if (next.mediaStatus.toUpperCase() == 'DONE') _onMarkRead?.call(next);
+    await _start(next.id, path, next);
   }
 
   Future<void> _deactivateAudioSession() async {
@@ -415,77 +369,6 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
       );
     } catch (_) {}
   }
-}
-
-class AudioWaveformPainter extends CustomPainter {
-  const AudioWaveformPainter({
-    required this.waveform,
-    required this.progress,
-    required this.backgroundColor,
-    required this.foregroundColor,
-  });
-
-  final List<int> waveform;
-  final double progress;
-  final Color backgroundColor;
-  final Color foregroundColor;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const barWidth = 2.0;
-    const barSpacing = 2.0;
-    const minBarHeight = 2.0;
-    final count = math.min(
-      60,
-      math.max(
-        1,
-        ((size.width + barSpacing) / (barWidth + barSpacing)).floor(),
-      ),
-    );
-    final samples = List<int>.filled(count, 0);
-    for (var index = 0; index < waveform.length; index++) {
-      final target = (index * count / waveform.length).floor().clamp(
-        0,
-        count - 1,
-      );
-      samples[target] = math.max(samples[target], waveform[index]);
-    }
-    final maxSample = samples.reduce(math.max);
-    final ratio = maxSample == 0 ? 0.0 : size.height / maxSample;
-    final path = Path();
-    for (var index = 0; index < count; index++) {
-      final height = math.max(minBarHeight, samples[index] * ratio);
-      final left = index * (barWidth + barSpacing);
-      path.addRRect(
-        RRect.fromRectAndCorners(
-          Rect.fromLTWH(left, size.height - height, barWidth, height),
-          topLeft: const Radius.circular(1),
-          topRight: const Radius.circular(1),
-        ),
-      );
-    }
-    final progressX = size.width * progress;
-    final foregroundPath = Path.combine(
-      PathOperation.intersect,
-      Path()..addRect(Rect.fromLTRB(0, 0, progressX, size.height)),
-      path,
-    );
-    final backgroundPath = Path.combine(
-      PathOperation.intersect,
-      Path()..addRect(Rect.fromLTRB(progressX, 0, size.width, size.height)),
-      path,
-    );
-    canvas
-      ..drawPath(foregroundPath, Paint()..color = foregroundColor)
-      ..drawPath(backgroundPath, Paint()..color = backgroundColor);
-  }
-
-  @override
-  bool shouldRepaint(covariant AudioWaveformPainter oldDelegate) =>
-      oldDelegate.waveform != waveform ||
-      oldDelegate.progress != progress ||
-      oldDelegate.backgroundColor != backgroundColor ||
-      oldDelegate.foregroundColor != foregroundColor;
 }
 
 String? _localMediaPath(String? source) {
@@ -510,7 +393,9 @@ List<int> _decodeWaveform(String? value) {
 }
 
 String _formatDuration(Duration duration) {
-  final minutes = duration.inMinutes;
-  final seconds = duration.inSeconds.remainder(60);
-  return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  final value = duration < const Duration(seconds: 1)
+      ? const Duration(seconds: 1)
+      : duration;
+  return '${value.inMinutes.toString().padLeft(2, '0')}:'
+      '${value.inSeconds.remainder(60).toString().padLeft(2, '0')}';
 }

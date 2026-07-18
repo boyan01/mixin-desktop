@@ -51,13 +51,19 @@ pub struct ConversationListItem {
     pub last_message_status: Option<String>,
     pub last_message_sender_id: Option<String>,
     pub last_message_sender_name: Option<String>,
+    pub last_message_action: Option<String>,
+    pub last_message_participant_id: Option<String>,
+    pub last_message_participant_name: Option<String>,
     pub last_message_created_at: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub unseen_count: i64,
     pub mention_count: i64,
     pub is_muted: bool,
     pub is_verified: bool,
+    pub is_scam: bool,
     pub is_bot: bool,
+    pub is_bot_group: bool,
+    pub membership: Option<String>,
     pub is_pinned: bool,
     pub relationship: String,
     pub identity_number: String,
@@ -151,6 +157,9 @@ SELECT conversation.conversation_id,
        last_message.status AS last_message_status,
        last_message.user_id AS last_message_sender_id,
        last_message_sender.full_name AS last_message_sender_name,
+       last_message.action AS last_message_action,
+       last_message.participant_id AS last_message_participant_id,
+       last_message_participant.full_name AS last_message_participant_name,
        conversation.last_message_created_at,
        conversation.created_at,
        COALESCE(conversation.unseen_message_count, 0) AS unseen_count,
@@ -166,7 +175,15 @@ SELECT conversation.conversation_id,
            ELSE COALESCE(owner.mute_until > CURRENT_TIMESTAMP, FALSE)
        END AS is_muted,
        COALESCE(owner.is_verified, FALSE) AS is_verified,
+       COALESCE(owner.is_scam, FALSE) AS is_scam,
        (conversation.category = 'CONTACT' AND owner.app_id IS NOT NULL) AS is_bot,
+       (conversation.category = 'CONTACT' AND owner.app_id IS NOT NULL AND EXISTS (
+           SELECT 1
+           FROM messages bot_group_message
+           WHERE bot_group_message.conversation_id = conversation.conversation_id
+             AND bot_group_message.user_id != conversation.owner_id
+       )) AS is_bot_group,
+       CASE WHEN conversation.category = 'CONTACT' THEN owner.membership ELSE NULL END AS membership,
        conversation.pin_time IS NOT NULL AS is_pinned,
        COALESCE(owner.relationship, '') AS relationship,
        COALESCE(owner.identity_number, '') AS identity_number,
@@ -200,6 +217,7 @@ FROM conversations conversation
 INNER JOIN users owner ON owner.user_id = conversation.owner_id
 LEFT JOIN messages last_message ON last_message.message_id = conversation.last_message_id
 LEFT JOIN users last_message_sender ON last_message_sender.user_id = last_message.user_id
+LEFT JOIN users last_message_participant ON last_message_participant.user_id = last_message.participant_id
 WHERE conversation.category IN ('CONTACT', 'GROUP')
   AND (
       ?1 = 'chats'

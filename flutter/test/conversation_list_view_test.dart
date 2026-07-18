@@ -138,6 +138,7 @@ void main() {
             selectedConversationId: null,
             onQueryChanged: (_) {},
             onToggleUnseen: () {},
+            onCreateActionSelected: (_) {},
             onSelected: (_) {},
             onPinned: (_) {},
             onMuted: (_, _) {},

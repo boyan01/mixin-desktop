@@ -31,13 +31,14 @@ void main() {
 class _FakeAccountHandle
     implements
         AccountHandle,
-        AttachmentAccess,
         ConversationAccess,
         MessageAccess,
         StickerAccess,
         UserAccess {
   @override
-  AttachmentAccess attachment() => this;
+  AttachmentAccess attachment() => _attachment;
+
+  final AttachmentAccess _attachment = _FakeAttachmentAccess();
 
   @override
   ConversationAccess conversation() => this;
@@ -73,6 +74,11 @@ class _FakeAccountHandle
   @override
   bool get isDisposed => disposed;
 
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeAttachmentAccess implements AttachmentAccess {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

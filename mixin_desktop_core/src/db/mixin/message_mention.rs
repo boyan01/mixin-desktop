@@ -42,6 +42,16 @@ fn parse_mention_data(
 }
 
 impl MessageMentionDao {
+    pub async fn unread_message_ids(&self, conversation_id: &str) -> Result<Vec<String>, Error> {
+        Ok(sqlx::query_scalar::<_, String>(
+            "SELECT message_id FROM message_mentions \
+             WHERE conversation_id = ? AND COALESCE(has_read, FALSE) = FALSE",
+        )
+        .bind(conversation_id)
+        .fetch_all(&self.0)
+        .await?)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn parse_and_save_mention_data(
         &self,

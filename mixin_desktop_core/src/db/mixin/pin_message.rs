@@ -22,7 +22,41 @@ pub struct PinMessageMinimal {
     pub content: Option<String>,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct PinMessagePreview {
+    pub message_id: String,
+    pub content: Option<String>,
+    pub sender_name: Option<String>,
+}
+
 impl PinMessageDao {
+    pub async fn latest_preview(
+        &self,
+        conversation_id: &str,
+    ) -> Result<Option<PinMessagePreview>, Error> {
+        Ok(sqlx::query_as::<_, PinMessagePreview>(
+            r#"
+SELECT pin.message_id,
+       pin_event.content,
+       sender.full_name AS sender_name
+FROM pin_messages pin
+INNER JOIN messages pinned_message ON pinned_message.message_id = pin.message_id
+LEFT JOIN messages pin_event
+       ON pin_event.conversation_id = pin.conversation_id
+      AND pin_event.category = 'MESSAGE_PIN'
+      AND pin_event.quote_message_id = pin.message_id
+LEFT JOIN users sender ON sender.user_id = pin_event.user_id
+WHERE pin.conversation_id = ?
+ORDER BY pinned_message.created_at DESC,
+         pin_event.created_at DESC
+LIMIT 1
+            "#,
+        )
+        .bind(conversation_id)
+        .fetch_optional(&self.0)
+        .await?)
+    }
+
     pub async fn delete_pin_message(&self, message_id: &[String]) -> Result<(), Error> {
         for chunk in message_id.chunks(MARK_LIMIT) {
             let query = format!(

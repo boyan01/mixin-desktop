@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
 
-use crate::api::user_api::UserRelationship;
+use crate::api::user_api::{Membership, UserRelationship};
 use crate::client::ClientRef;
 use crate::{ApiError, Sticker};
 
@@ -12,9 +12,23 @@ pub struct AccountApi {
 }
 
 impl AccountApi {
+    pub async fn code(&self, code: &str) -> Result<Value, ApiError> {
+        self.client.get(&format!("codes/{code}")).await
+    }
+
+    pub async fn get_fiats(&self) -> Result<Vec<Fiat>, ApiError> {
+        self.client.get("fiats").await
+    }
+
     pub(crate) fn new(client: Arc<ClientRef>) -> Self {
         AccountApi { client }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Fiat {
+    pub code: String,
+    pub rate: f64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -72,12 +86,18 @@ pub struct Account {
     pub tip_key_base64: String,
     pub transfer_confirmation_threshold: i64,
     pub transfer_notification_threshold: i64,
+    #[serde(default)]
+    pub membership: Option<Membership>,
 }
 
 impl AccountApi {
     pub async fn get_me(&self) -> Result<Account, ApiError> {
         let account: Account = self.client.get("me").await?;
         Ok(account)
+    }
+
+    pub async fn update(&self, request: &AccountUpdateRequest<'_>) -> Result<Account, ApiError> {
+        self.client.post("me", request).await
     }
 
     pub async fn get_sticker_by_id(&self, sticker_id: &str) -> Result<Sticker, ApiError> {
@@ -142,6 +162,14 @@ impl AccountApi {
     }
 }
 
+#[derive(Serialize, Default)]
+pub struct AccountUpdateRequest<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub full_name: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub biography: Option<&'a str>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StickerAlbum {
     pub album_id: String,
@@ -167,7 +195,7 @@ struct AddStickerRequest<'a> {
 
 #[cfg(test)]
 mod test {
-    use super::AddStickerRequest;
+    use super::{AccountUpdateRequest, AddStickerRequest};
     use crate::client::tests::new_test_client;
 
     #[test]
@@ -187,6 +215,18 @@ mod test {
             })
             .unwrap(),
             serde_json::json!({"data_base64": "aW1hZ2U="})
+        );
+    }
+
+    #[test]
+    fn serializes_account_profile_update() {
+        assert_eq!(
+            serde_json::to_value(AccountUpdateRequest {
+                full_name: Some("Mixin"),
+                biography: Some("Messenger"),
+            })
+            .unwrap(),
+            serde_json::json!({"full_name": "Mixin", "biography": "Messenger"})
         );
     }
 

@@ -7,6 +7,7 @@ class StickerController extends ChangeNotifier {
 
   static const _recentEmojiKey = 'recent_used_emoji';
   static const _recentEmojiLimit = 35;
+  static const _hasNewAlbumKey = 'has_new_sticker_album';
   static const _remoteRefreshInterval = Duration(hours: 24);
   static final Map<String, Future<bool>> _remoteRefreshes = {};
 
@@ -22,6 +23,7 @@ class StickerController extends ChangeNotifier {
   bool loading = false;
   bool storeLoading = false;
   bool initialized = false;
+  bool hasNewAlbum = false;
   bool _refreshSucceeded = false;
   bool _disposed = false;
 
@@ -55,7 +57,10 @@ class StickerController extends ChangeNotifier {
         now - lastRefreshAt < _remoteRefreshInterval.inMilliseconds) {
       return false;
     }
-    await account.sticker().refreshStickers();
+    final hasNewAlbum = await account.sticker().refreshStickers();
+    if (hasNewAlbum) {
+      await preferences.setBool('${_hasNewAlbumKey}_$accountId', true);
+    }
     await preferences.setInt(refreshKey, now);
     return true;
   }
@@ -70,6 +75,9 @@ class StickerController extends ChangeNotifier {
         await _loadPrimaryLocal();
         final preferences = await SharedPreferences.getInstance();
         recentEmojis = preferences.getStringList(_recentEmojiKey) ?? const [];
+        hasNewAlbum =
+            preferences.getBool('${_hasNewAlbumKey}_${account.accountId()}') ??
+            false;
         initialized = true;
         _notify();
         await _loadAlbumStickers();
@@ -119,6 +127,17 @@ class StickerController extends ChangeNotifier {
       storeLoading = false;
       _notify();
     }
+  }
+
+  Future<void> markStoreViewed() async {
+    if (!hasNewAlbum) return;
+    hasNewAlbum = false;
+    _notify();
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(
+      '${_hasNewAlbumKey}_${account.accountId()}',
+      false,
+    );
   }
 
   Future<void> _loadStoreLocal() async {

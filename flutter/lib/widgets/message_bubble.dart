@@ -1,6 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/action_button.dart';
 
 const _nipWidth = 9.0;
 const _lightCurrentBubble = Color.fromRGBO(197, 237, 253, 1);
@@ -15,6 +20,37 @@ extension BubbleColor on BuildContext {
 }
 
 extension MessageBubbleSemantics on MessageListEntry {
+  bool get isInvalidImageMessage =>
+      isImage && (mediaWidth == null || mediaHeight == null);
+
+  bool get isInvalidSpecialMessage {
+    try {
+      final value = jsonDecode(content);
+      if (category.endsWith('_LOCATION')) {
+        return value is! Map<String, dynamic> ||
+            value['latitude'] is! num ||
+            value['longitude'] is! num;
+      }
+      if (category.endsWith('_TRANSCRIPT') || category == 'APP_BUTTON_GROUP') {
+        return value is! List<dynamic> ||
+            value.any((item) => item is! Map<String, dynamic>);
+      }
+      if (category == 'APP_CARD') {
+        if (value is! Map<String, dynamic>) return true;
+        final actions = value['actions'];
+        return actions != null &&
+            (actions is! List<dynamic> ||
+                actions.any((item) => item is! Map<String, dynamic>));
+      }
+      return false;
+    } on Object {
+      return category.endsWith('_LOCATION') ||
+          category.endsWith('_TRANSCRIPT') ||
+          category == 'APP_BUTTON_GROUP' ||
+          category == 'APP_CARD';
+    }
+  }
+
   bool get isUnresolvedMessage {
     final normalized = status.toUpperCase();
     return normalized == 'UNKNOWN' || normalized == 'FAILED';
@@ -22,10 +58,14 @@ extension MessageBubbleSemantics on MessageListEntry {
 
   bool get showMessageBubble =>
       isUnresolvedMessage ||
+      isInvalidImageMessage ||
+      isInvalidSpecialMessage ||
       (!isSticker && !(isImage && (caption?.trim().isEmpty ?? true)));
 
   bool get includeMessageBubbleNip =>
       !isUnresolvedMessage &&
+      !isInvalidImageMessage &&
+      !isInvalidSpecialMessage &&
       ((isImage && (caption?.trim().isEmpty ?? true)) ||
           isVideo ||
           category.endsWith('_LOCATION') ||
@@ -33,6 +73,8 @@ extension MessageBubbleSemantics on MessageListEntry {
 
   bool get clipMessageBubble =>
       !isUnresolvedMessage &&
+      !isInvalidImageMessage &&
+      !isInvalidSpecialMessage &&
       (isImage ||
           isVideo ||
           isSticker ||
@@ -41,6 +83,8 @@ extension MessageBubbleSemantics on MessageListEntry {
 
   bool get useOuterMessageDateAndStatus =>
       !isUnresolvedMessage &&
+      !isInvalidImageMessage &&
+      !isInvalidSpecialMessage &&
       (isAudio ||
           isSticker ||
           category.endsWith('_DATA') ||
@@ -59,7 +103,8 @@ extension MessageBubbleSemantics on MessageListEntry {
       ? false
       : null;
 
-  EdgeInsetsGeometry get messageBubblePadding => isUnresolvedMessage
+  EdgeInsetsGeometry get messageBubblePadding =>
+      isUnresolvedMessage || isInvalidImageMessage || isInvalidSpecialMessage
       ? const EdgeInsets.all(8)
       : category.endsWith('_TRANSCRIPT')
       ? const EdgeInsets.only(top: 4, bottom: 2, right: 2, left: 2)
@@ -83,8 +128,15 @@ class MessageBubble extends StatelessWidget {
     this.clip = false,
     this.padding = const EdgeInsets.all(8),
     this.highlighted = false,
+    this.highlightOpacity = 0,
     this.outerTimeAndStatusWidget,
     this.forceIsCurrentUserColor,
+    this.isDisappearingMessage = false,
+    this.isPinnedPage = false,
+    this.onPinnedMessageTap,
+    this.quote,
+    this.constrainQuoteWidth = false,
+    this.highlightMedia = false,
   });
 
   final Widget child;
@@ -95,8 +147,15 @@ class MessageBubble extends StatelessWidget {
   final bool clip;
   final EdgeInsetsGeometry padding;
   final bool highlighted;
+  final double highlightOpacity;
   final Widget? outerTimeAndStatusWidget;
   final bool? forceIsCurrentUserColor;
+  final bool isDisappearingMessage;
+  final bool isPinnedPage;
+  final VoidCallback? onPinnedMessageTap;
+  final Widget? quote;
+  final bool constrainQuoteWidth;
+  final bool highlightMedia;
 
   @override
   Widget build(BuildContext context) {
@@ -110,6 +169,25 @@ class MessageBubble extends StatelessWidget {
     }
     content = Padding(padding: padding, child: content);
 
+    if (quote != null) {
+      content = IntrinsicWidth(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: constrainQuoteWidth ? 0 : null,
+              child: MessageBubbleNipPadding(
+                currentUser: isCurrentUser,
+                child: quote!,
+              ),
+            ),
+            content,
+          ],
+        ),
+      );
+    }
+
     if (clip) {
       content = RepaintBoundary(
         child: ClipPath(clipper: clipper, child: content),
@@ -119,26 +197,58 @@ class MessageBubble extends StatelessWidget {
     final bubbleColor = context.messageBubbleColor(
       forceIsCurrentUserColor ?? isCurrentUser,
     );
-    if (showBubble) {
+    if (quote != null || showBubble) {
       content = CustomPaint(
-        painter: BubblePainter(
-          color: highlighted
-              ? Color.alphaBlend(
-                  context.theme.accent.withValues(alpha: 0.16),
-                  bubbleColor,
-                )
-              : bubbleColor,
-          clipper: clipper,
-        ),
+        painter: BubblePainter(color: bubbleColor, clipper: clipper),
         child: content,
       );
-    } else if (highlighted) {
-      content = DecoratedBox(
-        decoration: BoxDecoration(
-          color: context.theme.accent.withValues(alpha: 0.16),
-          borderRadius: const BorderRadius.all(Radius.circular(8)),
-        ),
+    }
+    final effectiveHighlightOpacity = highlighted ? 1.0 : highlightOpacity;
+    if ((quote != null || showBubble || highlightMedia) &&
+        effectiveHighlightOpacity > 0) {
+      content = MessageBubbleHighlight(
+        clipper: clipper,
+        currentUser: isCurrentUser,
+        media: highlightMedia,
+        opacity: effectiveHighlightOpacity,
         child: content,
+      );
+    }
+
+    if (isPinnedPage) {
+      final pinArrow = ActionButton(
+        size: 16,
+        name: MixinAssets.pinArrow,
+        onTap: onPinnedMessageTap,
+      );
+      content = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isCurrentUser) pinArrow,
+          Flexible(child: content),
+          if (!isCurrentUser) pinArrow,
+        ],
+      );
+    }
+
+    if (isDisappearingMessage) {
+      final icon = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: SvgPicture.asset(
+          Theme.of(context).brightness == Brightness.dark
+              ? MixinAssets.expiringDark
+              : MixinAssets.expiring,
+          width: 16,
+          height: 16,
+        ),
+      );
+      content = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isCurrentUser) icon,
+          Flexible(child: content),
+          if (!isCurrentUser) icon,
+        ],
       );
     }
 
@@ -158,6 +268,67 @@ class MessageBubble extends StatelessWidget {
       ),
     );
   }
+}
+
+class MessageBubbleHighlight extends StatelessWidget {
+  const MessageBubbleHighlight({
+    required this.clipper,
+    required this.currentUser,
+    required this.media,
+    required this.child,
+    super.key,
+    this.enabled = true,
+    this.opacity = 1,
+  });
+
+  final CustomClipper<Path> clipper;
+  final bool currentUser;
+  final bool media;
+  final Widget child;
+  final bool enabled;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled || opacity <= 0) return child;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final color = media || currentUser
+        ? Colors.black
+        : dark
+        ? Colors.white
+        : Colors.black;
+    final baseOpacity = media
+        ? 0.2
+        : currentUser
+        ? (dark ? 0.18 : 0.16)
+        : (dark ? 0.12 : 0.13);
+    return CustomPaint(
+      foregroundPainter: _MessageBubbleHighlightPainter(
+        clipper: clipper,
+        color: color.withValues(alpha: baseOpacity * opacity),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _MessageBubbleHighlightPainter extends CustomPainter {
+  const _MessageBubbleHighlightPainter({
+    required this.clipper,
+    required this.color,
+  });
+
+  final CustomClipper<Path> clipper;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawPath(clipper.getClip(size), Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MessageBubbleHighlightPainter oldDelegate) =>
+      clipper != oldDelegate.clipper || color != oldDelegate.color;
 }
 
 class MessageBubbleNipPadding extends StatelessWidget {

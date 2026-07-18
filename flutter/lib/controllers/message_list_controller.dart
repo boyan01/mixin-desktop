@@ -5,6 +5,7 @@ import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
+import 'package:mixin_desktop_ui/widgets/toast.dart';
 
 const _messagePageLimit = 60;
 const _initialUnreadBefore = 15;
@@ -31,6 +32,8 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
 
   List<MessageListEntry> messages = const [];
   List<MessageListEntry> pinnedMessages = const [];
+  rust.PinMessagePreviewItem? pinMessagePreview;
+  List<String> unreadMentionMessageIds = const [];
   Map<String, String> mentionNames = const {};
   bool loading = true;
   bool loadingOlder = false;
@@ -53,6 +56,10 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
   bool _disposed = false;
   final Set<String> _markingMentionRead = {};
   final Set<String> _markedMentionRead = {};
+  final Map<String, String> _recalledText = {};
+  final Map<String, Timer> _recalledTextTimers = {};
+
+  String? recalledText(String messageId) => _recalledText[messageId];
   final Set<String> _queriedMentionIdentityNumbers = {};
 
   bool get _canMarkRead {
@@ -94,28 +101,43 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  Future<bool> sendText(String content, {String? quoteMessageId}) async {
+  Future<bool> sendText(
+    String content, {
+    String? quoteMessageId,
+    bool silent = false,
+  }) async {
     final text = content.trim();
-    if (text.isEmpty || sending) return false;
-    sending = true;
+    if (text.isEmpty) return false;
     error = null;
-    notifyListeners();
     try {
       await account.message().sendText(
         conversationId: conversation.id,
         content: text,
         quoteMessageId: quoteMessageId,
+        silent: silent,
       );
       await _refreshLatest();
       return true;
     } catch (exception) {
       _setError(exception);
-      return false;
-    } finally {
-      if (!_disposed) {
-        sending = false;
-        notifyListeners();
-      }
+      rethrow;
+    }
+  }
+
+  Future<bool> sendPost(String content) async {
+    final text = content.trim();
+    if (text.isEmpty) return false;
+    error = null;
+    try {
+      await account.message().sendPost(
+        conversationId: conversation.id,
+        content: text,
+      );
+      await _refreshLatest();
+      return true;
+    } catch (exception) {
+      _setError(exception);
+      rethrow;
     }
   }
 
@@ -146,6 +168,55 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       return true;
     } catch (exception) {
       _setError(exception);
+      showToastFailed(exception);
+      return false;
+    } finally {
+      if (!_disposed) {
+        sending = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<bool> sendAttachment({
+    required String path,
+    required String kind,
+    required String mimeType,
+    String? name,
+    int? width,
+    int? height,
+    int? durationMillis,
+    String? thumbnail,
+    String? caption,
+    String? quoteMessageId,
+    bool silent = false,
+  }) async {
+    if (sending || path.trim().isEmpty || mimeType.trim().isEmpty) {
+      return false;
+    }
+    sending = true;
+    error = null;
+    notifyListeners();
+    try {
+      await account.message().sendAttachment(
+        conversationId: conversation.id,
+        path: path,
+        kind: kind,
+        mimeType: mimeType,
+        name: name,
+        width: width,
+        height: height,
+        durationMillis: durationMillis,
+        thumbnail: thumbnail,
+        caption: caption,
+        quoteMessageId: quoteMessageId,
+        silent: silent,
+      );
+      await _refreshLatest();
+      return true;
+    } catch (exception) {
+      _setError(exception);
+      showToastFailed(exception);
       return false;
     } finally {
       if (!_disposed) {
@@ -254,6 +325,15 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         conversationId: conversation.id,
         messageIds: selected.map((message) => message.id).toList(),
       );
+      for (final message in selected.where((message) => message.isText)) {
+        _recalledText[message.id] = message.content;
+        _recalledTextTimers.remove(message.id)?.cancel();
+        _recalledTextTimers[message.id] = Timer(const Duration(minutes: 6), () {
+          _recalledText.remove(message.id);
+          _recalledTextTimers.remove(message.id);
+          if (!_disposed) notifyListeners();
+        });
+      }
       await _refreshLatest();
     } catch (exception) {
       _setError(exception);
@@ -277,28 +357,40 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> markMentionRead(MessageListEntry message) async {
-    if (message.mentionRead != false ||
-        _markingMentionRead.contains(message.id) ||
-        _markedMentionRead.contains(message.id)) {
+    if (message.mentionRead != false) return;
+    await markMentionReadById(message.id);
+  }
+
+  Future<void> markMentionReadById(String messageId) async {
+    if (_markingMentionRead.contains(messageId) ||
+        _markedMentionRead.contains(messageId)) {
       return;
     }
-    _markingMentionRead.add(message.id);
+    _markingMentionRead.add(messageId);
     try {
       await account.message().markMentionRead(
-        conversationId: message.conversationId,
-        messageId: message.id,
+        conversationId: conversation.id,
+        messageId: messageId,
       );
-      _markedMentionRead.add(message.id);
+      _markedMentionRead.add(messageId);
+      unreadMentionMessageIds = unreadMentionMessageIds
+          .where((id) => id != messageId)
+          .toList(growable: false);
+      if (!_disposed) notifyListeners();
     } catch (exception) {
       _setError(exception);
     } finally {
-      _markingMentionRead.remove(message.id);
+      _markingMentionRead.remove(messageId);
     }
   }
 
   Future<void> downloadAttachment(MessageListEntry message) async {
     try {
-      await account.attachment().downloadAttachment(messageId: message.id);
+      if (message.senderRelationship.toUpperCase() == 'ME') {
+        await account.attachment().retryAttachment(messageId: message.id);
+      } else {
+        await account.attachment().downloadAttachment(messageId: message.id);
+      }
       await _refreshLatest();
     } catch (exception) {
       _setError(exception);
@@ -373,6 +465,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
             conversationId: conversation.id,
             content: 'Hi',
             quoteMessageId: null,
+            silent: false,
           );
           await _refreshLatest();
           break;
@@ -459,10 +552,14 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         conversationId: conversation.id,
       );
       final pinnedFuture = _loadPinnedMessages();
+      final pinPreviewFuture = _loadPinMessagePreview();
+      final unreadMentionsFuture = _loadUnreadMentionMessageIds();
       final unreadWindow = await _loadInitialUnreadWindow();
       final page = unreadWindow ?? await _loadPage();
       currentUserRole = await roleFuture;
       pinnedMessages = await pinnedFuture;
+      pinMessagePreview = await pinPreviewFuture;
+      unreadMentionMessageIds = await unreadMentionsFuture;
       if (_disposed) return;
       messages = page;
       await _syncMentionNames(page);
@@ -543,6 +640,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     return result.map(MessageListEntry.fromRust).toList(growable: false);
   }
 
+  Future<rust.PinMessagePreviewItem?> _loadPinMessagePreview() =>
+      account.message().pinMessagePreview(conversationId: conversation.id);
+
+  Future<List<String>> _loadUnreadMentionMessageIds() => account
+      .message()
+      .unreadMentionMessageIds(conversationId: conversation.id);
+
   void _scheduleRefresh() {
     if (initialUnreadAnchorPending) {
       _refreshDeferredUntilInitialUnreadAnchor = true;
@@ -582,6 +686,8 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         messages = byId.values.toList(growable: false)..sort(_compareMessages);
         await _syncMentionNames(latest);
         pinnedMessages = await _loadPinnedMessages();
+        pinMessagePreview = await _loadPinMessagePreview();
+        unreadMentionMessageIds = await _loadUnreadMentionMessageIds();
         _syncInitialUnreadMessageIndex();
         if (_canMarkRead) {
           await account.message().markConversationRead(
@@ -663,6 +769,9 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_changeSubscription?.cancel());
+    for (final timer in _recalledTextTimers.values) {
+      timer.cancel();
+    }
     super.dispose();
   }
 }
