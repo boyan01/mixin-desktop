@@ -52,6 +52,7 @@ pub struct ServiceDecryptMessage {
     session_id: String,
     pending_message_statuses: PendingMessageStatusStore,
     conversation_changes: Option<watch::Sender<u64>>,
+    notification_changes: Option<watch::Sender<u64>>,
     device_transfer_controls: Option<broadcast::Sender<DeviceTransferControlEvent>>,
 }
 
@@ -106,12 +107,18 @@ impl ServiceDecryptMessage {
             session_id: auth.account.session_id.clone(),
             pending_message_statuses,
             conversation_changes: None,
+            notification_changes: None,
             device_transfer_controls: None,
         }
     }
 
     pub fn with_conversation_changes(mut self, sender: watch::Sender<u64>) -> Self {
         self.conversation_changes = Some(sender);
+        self
+    }
+
+    pub fn with_notification_changes(mut self, sender: watch::Sender<u64>) -> Self {
+        self.notification_changes = Some(sender);
         self
     }
 
@@ -148,6 +155,11 @@ impl ServiceDecryptMessage {
                         Ok(()) => {
                             processed += 1;
                             if let Some(sender) = &self.conversation_changes {
+                                sender.send_modify(|revision| {
+                                    *revision = revision.wrapping_add(1);
+                                });
+                            }
+                            if let Some(sender) = &self.notification_changes {
                                 sender.send_modify(|revision| {
                                     *revision = revision.wrapping_add(1);
                                 });

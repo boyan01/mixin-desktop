@@ -272,6 +272,9 @@ class _FakeAccountHandle
   Stream<BigInt> messageChanges() => _changes.stream;
 
   @override
+  Stream<NotificationEvent> desktopNotificationEvents() => const Stream.empty();
+
+  @override
   Future<List<MessageListItem>> messages({
     required String conversationId,
     int? beforeCreatedAtMicros,

@@ -6,7 +6,8 @@
 import '../../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `from`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `NotificationEventBatch`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`
 
 class AccountProfile {
   final String userId;
@@ -846,67 +847,55 @@ class MessageListView {
           expireIn == other.expireIn;
 }
 
-class NotificationMessageView {
-  final PlatformInt64 rowId;
+class NotificationEvent {
   final String messageId;
   final String conversationId;
-  final String senderId;
   final String senderName;
   final String category;
   final String content;
-  final String? quoteContent;
   final PlatformInt64 createdAtMicros;
   final String conversationName;
   final String conversationCategory;
-  final bool isMuted;
+  final String? dismissMessageId;
 
-  const NotificationMessageView({
-    required this.rowId,
+  const NotificationEvent({
     required this.messageId,
     required this.conversationId,
-    required this.senderId,
     required this.senderName,
     required this.category,
     required this.content,
-    this.quoteContent,
     required this.createdAtMicros,
     required this.conversationName,
     required this.conversationCategory,
-    required this.isMuted,
+    this.dismissMessageId,
   });
 
   @override
   int get hashCode =>
-      rowId.hashCode ^
       messageId.hashCode ^
       conversationId.hashCode ^
-      senderId.hashCode ^
       senderName.hashCode ^
       category.hashCode ^
       content.hashCode ^
-      quoteContent.hashCode ^
       createdAtMicros.hashCode ^
       conversationName.hashCode ^
       conversationCategory.hashCode ^
-      isMuted.hashCode;
+      dismissMessageId.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is NotificationMessageView &&
+      other is NotificationEvent &&
           runtimeType == other.runtimeType &&
-          rowId == other.rowId &&
           messageId == other.messageId &&
           conversationId == other.conversationId &&
-          senderId == other.senderId &&
           senderName == other.senderName &&
           category == other.category &&
           content == other.content &&
-          quoteContent == other.quoteContent &&
           createdAtMicros == other.createdAtMicros &&
           conversationName == other.conversationName &&
           conversationCategory == other.conversationCategory &&
-          isMuted == other.isMuted;
+          dismissMessageId == other.dismissMessageId;
 }
 
 class PinMessagePreviewItem {

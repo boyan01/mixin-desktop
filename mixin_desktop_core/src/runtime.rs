@@ -84,6 +84,7 @@ pub struct AccountState {
     signal_database: Arc<SignalDatabase>,
     app_service: Arc<AppService>,
     conversation_changes: watch::Sender<u64>,
+    notification_changes: watch::Sender<u64>,
     blaze: Arc<Blaze>,
     device_transfer: Arc<DeviceTransferService>,
     account_health: watch::Sender<String>,
@@ -177,8 +178,10 @@ impl AccountRuntime {
         let client = Arc::new(Client::new(credential(&auth)));
         let (shutdown, shutdown_receiver) = watch::channel(false);
         let (conversation_changes, _) = watch::channel(0);
+        let (notification_changes, _) = watch::channel(0);
         let (account_health_updates, _) = watch::channel("ready".to_string());
         let account_conversation_changes = conversation_changes.clone();
+        let account_notification_changes = notification_changes.clone();
         let (ready_sender, ready_receiver) = oneshot::channel();
         let thread = std::thread::Builder::new()
             .name(format!("mixin-account-{account_id}"))
@@ -195,6 +198,7 @@ impl AccountRuntime {
                             client,
                             shutdown_receiver,
                             account_conversation_changes,
+                            account_notification_changes,
                             account_health_updates,
                             ready_sender,
                         )),
@@ -226,6 +230,7 @@ impl AccountRuntime {
                 signal_database,
                 app_service,
                 conversation_changes,
+                notification_changes,
                 blaze,
                 device_transfer,
                 account_health: account_health_updates,
@@ -273,6 +278,53 @@ impl AccountRuntime {
 
     pub fn subscribe_conversation_changes(&self) -> watch::Receiver<u64> {
         self.conversation_changes.subscribe()
+    }
+
+    pub fn subscribe_notification_changes(&self) -> watch::Receiver<u64> {
+        self.notification_changes.subscribe()
+    }
+
+    pub async fn notification_event_batch(
+        &self,
+        after_created_at_micros: i64,
+        after_row_id: i64,
+        limit: i64,
+    ) -> Result<model::NotificationEventBatch> {
+        let after_created_at = chrono::DateTime::from_timestamp_micros(after_created_at_micros)
+            .map(|value| value.naive_utc())
+            .ok_or_else(|| anyhow!("invalid notification timestamp: {after_created_at_micros}"))?;
+        let limit = limit.clamp(1, 200);
+        let messages = self
+            .database
+            .message_dao
+            .notification_items_after(&self.account_id, after_created_at, after_row_id, limit)
+            .await?;
+        let (next_created_at_micros, next_row_id) = messages
+            .last()
+            .map(|message| {
+                (
+                    message.created_at.and_utc().timestamp_micros(),
+                    message.row_id,
+                )
+            })
+            .unwrap_or((after_created_at_micros, after_row_id));
+        let has_more = messages.len() == limit as usize;
+        let events = messages
+            .into_iter()
+            .filter_map(|message| {
+                model::NotificationEvent::from_message(
+                    message,
+                    &self.account_id,
+                    &self.account.identity_number,
+                )
+            })
+            .collect();
+        Ok(model::NotificationEventBatch {
+            events,
+            next_created_at_micros,
+            next_row_id,
+            has_more,
+        })
     }
 
     pub fn subscribe_shutdown(&self) -> watch::Receiver<bool> {
@@ -714,10 +766,17 @@ async fn run_account(
     client: Arc<Client>,
     mut shutdown_receiver: watch::Receiver<bool>,
     conversation_changes: watch::Sender<u64>,
+    notification_changes: watch::Sender<u64>,
     account_health_updates: watch::Sender<String>,
     ready_sender: oneshot::Sender<AccountStartupResult>,
 ) {
-    let result = prepare_account(&auth, client.clone(), conversation_changes).await;
+    let result = prepare_account(
+        &auth,
+        client.clone(),
+        conversation_changes,
+        notification_changes,
+    )
+    .await;
     let (
         database,
         signal_database,
@@ -811,6 +870,7 @@ async fn prepare_account(
     auth: &Auth,
     client: Arc<Client>,
     conversation_changes: watch::Sender<u64>,
+    notification_changes: watch::Sender<u64>,
 ) -> Result<AccountServices> {
     let account = &auth.account;
     let account_id = account.user_id.clone();
@@ -888,6 +948,7 @@ async fn prepare_account(
             auth,
         )
         .with_conversation_changes(conversation_changes)
+        .with_notification_changes(notification_changes)
         .with_device_transfer_controls(device_transfer_control_sender),
     );
     Ok((

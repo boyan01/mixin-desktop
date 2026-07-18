@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 917178536;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1192865353;
 
 // Section: executor
 
@@ -495,6 +495,70 @@ fn wire__crate__api__desktop__AccountHandle_conversation_storage_usage_impl(
                             crate::api::desktop::AccountHandle::conversation_storage_usage(
                                 &*api_that_guard,
                                 api_conversation_id,
+                            )
+                            .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__desktop__AccountHandle_desktop_notification_events_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "AccountHandle_desktop_notification_events",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
+            >>::sse_decode(&mut deserializer);
+            let api_sink = <StreamSink<
+                mixin_desktop_core::runtime::model::NotificationEvent,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            crate::api::desktop::AccountHandle::desktop_notification_events(
+                                &*api_that_guard,
+                                api_sink,
                             )
                             .await?;
                         Ok(output_ok)
@@ -4474,71 +4538,6 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_messages_around_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_notification_messages_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "MessageAccess_notification_messages",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<
-                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageAccess>,
-            >>::sse_decode(&mut deserializer);
-            let api_after_created_at_micros = <i64>::sse_decode(&mut deserializer);
-            let api_after_row_id = <i64>::sse_decode(&mut deserializer);
-            let api_limit = <i64>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                    (move || async move {
-                        let mut api_that_guard = None;
-                        let decode_indices_ =
-                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
-                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                    &api_that, 0, false,
-                                )],
-                            );
-                        for i in decode_indices_ {
-                            match i {
-                                0 => {
-                                    api_that_guard =
-                                        Some(api_that.lockable_decode_async_ref().await)
-                                }
-                                _ => unreachable!(),
-                            }
-                        }
-                        let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::notification_messages(
-                                &*api_that_guard,
-                                api_after_created_at_micros,
-                                api_after_row_id,
-                                api_limit,
-                            )
-                            .await?;
-                        Ok(output_ok)
-                    })()
-                    .await,
-                )
-            }
-        },
-    )
-}
 fn wire__mixin_desktop_core__runtime__MessageAccess_pin_message_preview_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -7817,20 +7816,17 @@ const _: fn() = || {
         let _: Option<i64> = MessageListView.expire_in;
     }
     {
-        let NotificationMessageView =
-            None::<mixin_desktop_core::runtime::model::NotificationMessageView>.unwrap();
-        let _: i64 = NotificationMessageView.row_id;
-        let _: String = NotificationMessageView.message_id;
-        let _: String = NotificationMessageView.conversation_id;
-        let _: String = NotificationMessageView.sender_id;
-        let _: String = NotificationMessageView.sender_name;
-        let _: String = NotificationMessageView.category;
-        let _: String = NotificationMessageView.content;
-        let _: Option<String> = NotificationMessageView.quote_content;
-        let _: i64 = NotificationMessageView.created_at_micros;
-        let _: String = NotificationMessageView.conversation_name;
-        let _: String = NotificationMessageView.conversation_category;
-        let _: bool = NotificationMessageView.is_muted;
+        let NotificationEvent =
+            None::<mixin_desktop_core::runtime::model::NotificationEvent>.unwrap();
+        let _: String = NotificationEvent.message_id;
+        let _: String = NotificationEvent.conversation_id;
+        let _: String = NotificationEvent.sender_name;
+        let _: String = NotificationEvent.category;
+        let _: String = NotificationEvent.content;
+        let _: i64 = NotificationEvent.created_at_micros;
+        let _: String = NotificationEvent.conversation_name;
+        let _: String = NotificationEvent.conversation_category;
+        let _: Option<String> = NotificationEvent.dismiss_message_id;
     }
     {
         let PinMessagePreviewItem =
@@ -8150,6 +8146,19 @@ impl SseDecode for StreamSink<String, flutter_rust_bridge::for_generated::SseCod
 }
 
 impl SseDecode for StreamSink<bool, flutter_rust_bridge::for_generated::SseCodec> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <String>::sse_decode(deserializer);
+        return StreamSink::deserialize(inner);
+    }
+}
+
+impl SseDecode
+    for StreamSink<
+        mixin_desktop_core::runtime::model::NotificationEvent,
+        flutter_rust_bridge::for_generated::SseCodec,
+    >
+{
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <String>::sse_decode(deserializer);
@@ -8622,22 +8631,6 @@ impl SseDecode for Vec<mixin_desktop_core::runtime::model::MessageListView> {
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::NotificationMessageView> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(
-                <mixin_desktop_core::runtime::model::NotificationMessageView>::sse_decode(
-                    deserializer,
-                ),
-            );
-        }
-        return ans_;
-    }
-}
-
 impl SseDecode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -8896,34 +8889,28 @@ impl SseDecode for mixin_desktop_core::runtime::model::MessageListView {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::NotificationMessageView {
+impl SseDecode for mixin_desktop_core::runtime::model::NotificationEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_rowId = <i64>::sse_decode(deserializer);
         let mut var_messageId = <String>::sse_decode(deserializer);
         let mut var_conversationId = <String>::sse_decode(deserializer);
-        let mut var_senderId = <String>::sse_decode(deserializer);
         let mut var_senderName = <String>::sse_decode(deserializer);
         let mut var_category = <String>::sse_decode(deserializer);
         let mut var_content = <String>::sse_decode(deserializer);
-        let mut var_quoteContent = <Option<String>>::sse_decode(deserializer);
         let mut var_createdAtMicros = <i64>::sse_decode(deserializer);
         let mut var_conversationName = <String>::sse_decode(deserializer);
         let mut var_conversationCategory = <String>::sse_decode(deserializer);
-        let mut var_isMuted = <bool>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::NotificationMessageView {
-            row_id: var_rowId,
+        let mut var_dismissMessageId = <Option<String>>::sse_decode(deserializer);
+        return mixin_desktop_core::runtime::model::NotificationEvent {
             message_id: var_messageId,
             conversation_id: var_conversationId,
-            sender_id: var_senderId,
             sender_name: var_senderName,
             category: var_category,
             content: var_content,
-            quote_content: var_quoteContent,
             created_at_micros: var_createdAtMicros,
             conversation_name: var_conversationName,
             conversation_category: var_conversationCategory,
-            is_muted: var_isMuted,
+            dismiss_message_id: var_dismissMessageId,
         };
     }
 }
@@ -9390,85 +9377,91 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        9 => wire__crate__api__desktop__AccountHandle_device_transfer_command_impl(
+        9 => wire__crate__api__desktop__AccountHandle_desktop_notification_events_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        10 => wire__crate__api__desktop__AccountHandle_device_transfer_events_impl(
+        10 => wire__crate__api__desktop__AccountHandle_device_transfer_command_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__desktop__AccountHandle_message_changes_impl(
+        11 => wire__crate__api__desktop__AccountHandle_device_transfer_events_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        16 => wire__crate__api__desktop__AccountHandle_refresh_account_health_impl(
+        15 => wire__crate__api__desktop__AccountHandle_message_changes_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        17 => wire__crate__api__desktop__AccountHandle_refresh_profile_impl(
+        17 => wire__crate__api__desktop__AccountHandle_refresh_account_health_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        19 => wire__crate__api__desktop__AccountHandle_safe_snapshot_by_id_impl(
+        18 => wire__crate__api__desktop__AccountHandle_refresh_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        20 => wire__crate__api__desktop__AccountHandle_shutdown_impl(
+        20 => wire__crate__api__desktop__AccountHandle_safe_snapshot_by_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__desktop__AccountHandle_sign_out_impl(
+        21 => wire__crate__api__desktop__AccountHandle_shutdown_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => wire__crate__api__desktop__AccountHandle_snapshot_by_id_impl(
+        22 => wire__crate__api__desktop__AccountHandle_sign_out_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        23 => wire__crate__api__desktop__AccountHandle_snapshot_by_trace_impl(
+        23 => wire__crate__api__desktop__AccountHandle_snapshot_by_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__desktop__AccountHandle_storage_usage_impl(
+        24 => wire__crate__api__desktop__AccountHandle_snapshot_by_trace_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__desktop__AccountHandle_update_profile_impl(
+        26 => wire__crate__api__desktop__AccountHandle_storage_usage_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__mixin_desktop_core__runtime__AttachmentAccess_cancel_attachment_impl(
+        27 => wire__crate__api__desktop__AccountHandle_update_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => {
+        29 => wire__mixin_desktop_core__runtime__AttachmentAccess_cancel_attachment_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        30 => {
             wire__mixin_desktop_core__runtime__AttachmentAccess_cancel_transcript_attachment_impl(
                 port,
                 ptr,
@@ -9476,13 +9469,13 @@ fn pde_ffi_dispatcher_primary_impl(
                 data_len,
             )
         }
-        30 => wire__mixin_desktop_core__runtime__AttachmentAccess_download_attachment_impl(
+        31 => wire__mixin_desktop_core__runtime__AttachmentAccess_download_attachment_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => {
+        32 => {
             wire__mixin_desktop_core__runtime__AttachmentAccess_download_transcript_attachment_impl(
                 port,
                 ptr,
@@ -9490,290 +9483,284 @@ fn pde_ffi_dispatcher_primary_impl(
                 data_len,
             )
         }
-        32 => wire__mixin_desktop_core__runtime__AttachmentAccess_mark_audio_read_impl(
+        33 => wire__mixin_desktop_core__runtime__AttachmentAccess_mark_audio_read_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => wire__mixin_desktop_core__runtime__AttachmentAccess_mark_transcript_audio_read_impl(
+        34 => wire__mixin_desktop_core__runtime__AttachmentAccess_mark_transcript_audio_read_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        34 => wire__mixin_desktop_core__runtime__AttachmentAccess_retry_attachment_impl(
+        35 => wire__mixin_desktop_core__runtime__AttachmentAccess_retry_attachment_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        35 => wire__mixin_desktop_core__runtime__AttachmentAccess_retry_transcript_attachment_impl(
+        36 => wire__mixin_desktop_core__runtime__AttachmentAccess_retry_transcript_attachment_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__mixin_desktop_core__runtime__ConversationAccess_circles_impl(
+        37 => wire__mixin_desktop_core__runtime__ConversationAccess_circles_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => wire__mixin_desktop_core__runtime__ConversationAccess_clear_conversation_impl(
+        38 => wire__mixin_desktop_core__runtime__ConversationAccess_clear_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        38 => wire__mixin_desktop_core__runtime__ConversationAccess_conversation_count_impl(
+        39 => wire__mixin_desktop_core__runtime__ConversationAccess_conversation_count_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__mixin_desktop_core__runtime__ConversationAccess_conversation_detail_impl(
+        40 => wire__mixin_desktop_core__runtime__ConversationAccess_conversation_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        40 => wire__mixin_desktop_core__runtime__ConversationAccess_conversation_participants_impl(
+        41 => wire__mixin_desktop_core__runtime__ConversationAccess_conversation_participants_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        41 => wire__mixin_desktop_core__runtime__ConversationAccess_conversations_impl(
+        42 => wire__mixin_desktop_core__runtime__ConversationAccess_conversations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        42 => wire__mixin_desktop_core__runtime__ConversationAccess_create_circle_impl(
+        43 => wire__mixin_desktop_core__runtime__ConversationAccess_create_circle_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        43 => wire__mixin_desktop_core__runtime__ConversationAccess_create_group_impl(
+        44 => wire__mixin_desktop_core__runtime__ConversationAccess_create_group_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        44 => wire__mixin_desktop_core__runtime__ConversationAccess_current_user_role_impl(
+        45 => wire__mixin_desktop_core__runtime__ConversationAccess_current_user_role_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        45 => wire__mixin_desktop_core__runtime__ConversationAccess_delete_circle_impl(
+        46 => wire__mixin_desktop_core__runtime__ConversationAccess_delete_circle_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        46 => wire__mixin_desktop_core__runtime__ConversationAccess_delete_conversation_impl(
+        47 => wire__mixin_desktop_core__runtime__ConversationAccess_delete_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => wire__mixin_desktop_core__runtime__ConversationAccess_edit_circle_conversation_impl(
+        48 => wire__mixin_desktop_core__runtime__ConversationAccess_edit_circle_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        48 => wire__mixin_desktop_core__runtime__ConversationAccess_edit_conversation_impl(
+        49 => wire__mixin_desktop_core__runtime__ConversationAccess_edit_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        49 => wire__mixin_desktop_core__runtime__ConversationAccess_exit_group_impl(
+        50 => wire__mixin_desktop_core__runtime__ConversationAccess_exit_group_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        50 => wire__mixin_desktop_core__runtime__ConversationAccess_groups_in_common_impl(
+        51 => wire__mixin_desktop_core__runtime__ConversationAccess_groups_in_common_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__mixin_desktop_core__runtime__ConversationAccess_join_group_impl(
+        52 => wire__mixin_desktop_core__runtime__ConversationAccess_join_group_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        52 => wire__mixin_desktop_core__runtime__ConversationAccess_local_conversation_detail_impl(
+        53 => wire__mixin_desktop_core__runtime__ConversationAccess_local_conversation_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__mixin_desktop_core__runtime__ConversationAccess_open_user_conversation_impl(
+        54 => wire__mixin_desktop_core__runtime__ConversationAccess_open_user_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        54 => wire__mixin_desktop_core__runtime__ConversationAccess_reorder_circles_impl(
+        55 => wire__mixin_desktop_core__runtime__ConversationAccess_reorder_circles_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__mixin_desktop_core__runtime__ConversationAccess_resolve_code_impl(
+        56 => wire__mixin_desktop_core__runtime__ConversationAccess_resolve_code_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        56 => wire__mixin_desktop_core__runtime__ConversationAccess_rotate_group_invite_impl(
+        57 => wire__mixin_desktop_core__runtime__ConversationAccess_rotate_group_invite_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        57 => wire__mixin_desktop_core__runtime__ConversationAccess_search_bot_group_users_impl(
+        58 => wire__mixin_desktop_core__runtime__ConversationAccess_search_bot_group_users_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        58 => wire__mixin_desktop_core__runtime__ConversationAccess_set_disappearing_messages_impl(
+        59 => wire__mixin_desktop_core__runtime__ConversationAccess_set_disappearing_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__mixin_desktop_core__runtime__ConversationAccess_set_muted_impl(
+        60 => wire__mixin_desktop_core__runtime__ConversationAccess_set_muted_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        60 => wire__mixin_desktop_core__runtime__ConversationAccess_set_pinned_impl(
+        61 => wire__mixin_desktop_core__runtime__ConversationAccess_set_pinned_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        61 => wire__mixin_desktop_core__runtime__ConversationAccess_update_circle_impl(
+        62 => wire__mixin_desktop_core__runtime__ConversationAccess_update_circle_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        62 => wire__mixin_desktop_core__runtime__ConversationAccess_update_participants_impl(
+        63 => wire__mixin_desktop_core__runtime__ConversationAccess_update_participants_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        63 => wire__crate__api__desktop__DesktopHandle_abort_saved_login_impl(
+        64 => wire__crate__api__desktop__DesktopHandle_abort_saved_login_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        64 => wire__crate__api__desktop__DesktopHandle_begin_login_impl(
+        65 => wire__crate__api__desktop__DesktopHandle_begin_login_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        65 => wire__crate__api__desktop__DesktopHandle_http_request_impl(
+        66 => wire__crate__api__desktop__DesktopHandle_http_request_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        66 => wire__crate__api__desktop__DesktopHandle_proxy_settings_impl(
+        67 => wire__crate__api__desktop__DesktopHandle_proxy_settings_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        67 => wire__crate__api__desktop__DesktopHandle_recreate_account_database_impl(
+        68 => wire__crate__api__desktop__DesktopHandle_recreate_account_database_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        68 => wire__crate__api__desktop__DesktopHandle_restore_account_impl(
+        69 => wire__crate__api__desktop__DesktopHandle_restore_account_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        69 => wire__crate__api__desktop__DesktopHandle_set_proxy_settings_impl(
+        70 => wire__crate__api__desktop__DesktopHandle_set_proxy_settings_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        71 => wire__crate__api__desktop__LoginHandle_poll_impl(port, ptr, rust_vec_len, data_len),
-        72 => wire__mixin_desktop_core__runtime__MessageAccess_combine_forward_messages_impl(
+        72 => wire__crate__api__desktop__LoginHandle_poll_impl(port, ptr, rust_vec_len, data_len),
+        73 => wire__mixin_desktop_core__runtime__MessageAccess_combine_forward_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        73 => wire__mixin_desktop_core__runtime__MessageAccess_conversation_is_encrypted_impl(
+        74 => wire__mixin_desktop_core__runtime__MessageAccess_conversation_is_encrypted_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        74 => wire__mixin_desktop_core__runtime__MessageAccess_delete_messages_impl(
+        75 => wire__mixin_desktop_core__runtime__MessageAccess_delete_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        75 => wire__mixin_desktop_core__runtime__MessageAccess_forward_messages_impl(
+        76 => wire__mixin_desktop_core__runtime__MessageAccess_forward_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        76 => wire__mixin_desktop_core__runtime__MessageAccess_image_messages_around_impl(
+        77 => wire__mixin_desktop_core__runtime__MessageAccess_image_messages_around_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        77 => wire__mixin_desktop_core__runtime__MessageAccess_mark_conversation_read_impl(
+        78 => wire__mixin_desktop_core__runtime__MessageAccess_mark_conversation_read_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        78 => wire__mixin_desktop_core__runtime__MessageAccess_mark_mention_read_impl(
+        79 => wire__mixin_desktop_core__runtime__MessageAccess_mark_mention_read_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        79 => wire__mixin_desktop_core__runtime__MessageAccess_messages_impl(
+        80 => wire__mixin_desktop_core__runtime__MessageAccess_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        80 => wire__mixin_desktop_core__runtime__MessageAccess_messages_around_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        81 => wire__mixin_desktop_core__runtime__MessageAccess_notification_messages_impl(
+        81 => wire__mixin_desktop_core__runtime__MessageAccess_messages_around_impl(
             port,
             ptr,
             rust_vec_len,
@@ -10080,26 +10067,26 @@ fn pde_ffi_dispatcher_sync_impl(
         6 => {
             wire__crate__api__desktop__AccountHandle_conversation_impl(ptr, rust_vec_len, data_len)
         }
-        11 => wire__crate__api__desktop__AccountHandle_download_progress_impl(
+        12 => wire__crate__api__desktop__AccountHandle_download_progress_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        12 => wire__crate__api__desktop__AccountHandle_media_directory_impl(
+        13 => wire__crate__api__desktop__AccountHandle_media_directory_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        13 => wire__crate__api__desktop__AccountHandle_message_impl(ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__desktop__AccountHandle_profile_impl(ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__desktop__AccountHandle_retry_connection_impl(
+        14 => wire__crate__api__desktop__AccountHandle_message_impl(ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__desktop__AccountHandle_profile_impl(ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__desktop__AccountHandle_retry_connection_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__desktop__AccountHandle_sticker_impl(ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__desktop__AccountHandle_user_impl(ptr, rust_vec_len, data_len),
-        70 => wire__crate__api__desktop__LoginHandle_auth_url_impl(ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__desktop__AccountHandle_sticker_impl(ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__desktop__AccountHandle_user_impl(ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__desktop__LoginHandle_auth_url_impl(ptr, rust_vec_len, data_len),
         130 => wire__crate__api__desktop__log_flutter_impl(ptr, rust_vec_len, data_len),
         132 => wire__crate__api__desktop__rust_log_directory_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
@@ -10691,38 +10678,33 @@ impl
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::NotificationMessageView>
+    for FrbWrapper<mixin_desktop_core::runtime::model::NotificationEvent>
 {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.0.row_id.into_into_dart().into_dart(),
             self.0.message_id.into_into_dart().into_dart(),
             self.0.conversation_id.into_into_dart().into_dart(),
-            self.0.sender_id.into_into_dart().into_dart(),
             self.0.sender_name.into_into_dart().into_dart(),
             self.0.category.into_into_dart().into_dart(),
             self.0.content.into_into_dart().into_dart(),
-            self.0.quote_content.into_into_dart().into_dart(),
             self.0.created_at_micros.into_into_dart().into_dart(),
             self.0.conversation_name.into_into_dart().into_dart(),
             self.0.conversation_category.into_into_dart().into_dart(),
-            self.0.is_muted.into_into_dart().into_dart(),
+            self.0.dismiss_message_id.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::NotificationMessageView>
+    for FrbWrapper<mixin_desktop_core::runtime::model::NotificationEvent>
 {
 }
 impl
     flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::NotificationMessageView>,
-    > for mixin_desktop_core::runtime::model::NotificationMessageView
+        FrbWrapper<mixin_desktop_core::runtime::model::NotificationEvent>,
+    > for mixin_desktop_core::runtime::model::NotificationEvent
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::runtime::model::NotificationMessageView> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::NotificationEvent> {
         self.into()
     }
 }
@@ -11200,6 +11182,18 @@ impl SseEncode for StreamSink<bool, flutter_rust_bridge::for_generated::SseCodec
     }
 }
 
+impl SseEncode
+    for StreamSink<
+        mixin_desktop_core::runtime::model::NotificationEvent,
+        flutter_rust_bridge::for_generated::SseCodec,
+    >
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        unimplemented!("")
+    }
+}
+
 impl SseEncode for StreamSink<u64, flutter_rust_bridge::for_generated::SseCodec> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -11516,18 +11510,6 @@ impl SseEncode for Vec<mixin_desktop_core::runtime::model::MessageListView> {
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::NotificationMessageView> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <mixin_desktop_core::runtime::model::NotificationMessageView>::sse_encode(
-                item, serializer,
-            );
-        }
-    }
-}
-
 impl SseEncode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -11688,21 +11670,18 @@ impl SseEncode for mixin_desktop_core::runtime::model::MessageListView {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::NotificationMessageView {
+impl SseEncode for mixin_desktop_core::runtime::model::NotificationEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i64>::sse_encode(self.row_id, serializer);
         <String>::sse_encode(self.message_id, serializer);
         <String>::sse_encode(self.conversation_id, serializer);
-        <String>::sse_encode(self.sender_id, serializer);
         <String>::sse_encode(self.sender_name, serializer);
         <String>::sse_encode(self.category, serializer);
         <String>::sse_encode(self.content, serializer);
-        <Option<String>>::sse_encode(self.quote_content, serializer);
         <i64>::sse_encode(self.created_at_micros, serializer);
         <String>::sse_encode(self.conversation_name, serializer);
         <String>::sse_encode(self.conversation_category, serializer);
-        <bool>::sse_encode(self.is_muted, serializer);
+        <Option<String>>::sse_encode(self.dismiss_message_id, serializer);
     }
 }
 

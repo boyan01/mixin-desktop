@@ -46,6 +46,8 @@ abstract class AccountHandle implements RustOpaqueInterface {
     required String conversationId,
   });
 
+  Stream<NotificationEvent> desktopNotificationEvents();
+
   Future<void> deviceTransferCommand({required String command});
 
   Stream<String> deviceTransferEvents();

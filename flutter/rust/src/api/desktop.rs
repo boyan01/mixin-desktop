@@ -6,7 +6,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex as StdMutex, RwLock};
 
 use anyhow::Result;
-use chrono::Local;
+use chrono::{Local, Utc};
 use log::{warn, LevelFilter, Log, Metadata, Record, SetLoggerError};
 use mixin_desktop_core::core::model::auth::{AuthService, AuthorizationSession};
 use mixin_desktop_core::db::app::{AppDatabase, PropertyDao};
@@ -16,7 +16,8 @@ use mixin_desktop_core::network::{
     NetworkService, ProxyConfig, ProxySettings, ProxyType, SharedNetworkService,
 };
 use mixin_desktop_core::runtime::model::{
-    AccountProfile, ConversationStorageUsage, SnapshotDetailItem, StorageCategoryUsage,
+    AccountProfile, ConversationStorageUsage, NotificationEvent, SnapshotDetailItem,
+    StorageCategoryUsage,
 };
 use mixin_desktop_core::runtime::{
     credential, AccountRuntime, AttachmentAccess, ConversationAccess, MessageAccess, StickerAccess,
@@ -532,6 +533,45 @@ impl AccountHandle {
 
     pub async fn message_changes(&self, sink: StreamSink<u64>) -> Result<()> {
         forward_changes(&self.runtime, sink).await
+    }
+
+    pub async fn desktop_notification_events(
+        &self,
+        sink: StreamSink<NotificationEvent>,
+    ) -> Result<()> {
+        let mut changes = self.runtime.subscribe_notification_changes();
+        let mut shutdown = self.runtime.subscribe_shutdown();
+        let mut created_at_micros = Utc::now().timestamp_micros();
+        let mut row_id = 0;
+        loop {
+            loop {
+                let batch = self
+                    .runtime
+                    .notification_event_batch(created_at_micros, row_id, 200)
+                    .await?;
+                created_at_micros = batch.next_created_at_micros;
+                row_id = batch.next_row_id;
+                for event in batch.events {
+                    sink.add(event)
+                        .map_err(|error| anyhow::anyhow!("{error:?}"))?;
+                }
+                if !batch.has_more {
+                    break;
+                }
+            }
+            tokio::select! {
+                changed = changes.changed() => {
+                    if changed.is_err() {
+                        return Ok(());
+                    }
+                }
+                changed = shutdown.changed() => {
+                    if changed.is_err() || *shutdown.borrow() {
+                        return Ok(());
+                    }
+                }
+            }
+        }
     }
 
     pub async fn device_transfer_events(&self, sink: StreamSink<String>) -> Result<()> {

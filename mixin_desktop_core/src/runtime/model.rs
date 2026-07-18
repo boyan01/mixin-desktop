@@ -385,38 +385,73 @@ pub struct MessageListView {
     pub expire_in: Option<i64>,
 }
 
-pub struct NotificationMessageView {
-    pub row_id: i64,
+pub struct NotificationEvent {
     pub message_id: String,
     pub conversation_id: String,
-    pub sender_id: String,
     pub sender_name: String,
     pub category: String,
     pub content: String,
-    pub quote_content: Option<String>,
     pub created_at_micros: i64,
     pub conversation_name: String,
     pub conversation_category: String,
-    pub is_muted: bool,
+    pub dismiss_message_id: Option<String>,
 }
 
-impl From<crate::db::mixin::message::NotificationMessageItem> for NotificationMessageView {
-    fn from(value: crate::db::mixin::message::NotificationMessageItem) -> Self {
-        Self {
-            row_id: value.row_id,
+pub struct NotificationEventBatch {
+    pub events: Vec<NotificationEvent>,
+    pub next_created_at_micros: i64,
+    pub next_row_id: i64,
+    pub has_more: bool,
+}
+
+impl NotificationEvent {
+    pub(crate) fn from_message(
+        value: crate::db::mixin::message::NotificationMessageItem,
+        current_user_id: &str,
+        current_identity_number: &str,
+    ) -> Option<Self> {
+        let dismiss_message_id = (value.category == sdk::message_category::MESSAGE_RECALL)
+            .then(|| value.content.clone().unwrap_or_default());
+        let mentioned = value.category.contains("TEXT")
+            && mentions_identity(
+                value.content.as_deref().unwrap_or_default(),
+                current_identity_number,
+            );
+        let quoted = value
+            .quote_content
+            .as_deref()
+            .and_then(|content| serde_json::from_str::<serde_json::Value>(content).ok())
+            .is_some_and(|quote| {
+                quote.get("user_id").and_then(serde_json::Value::as_str) == Some(current_user_id)
+            });
+        if dismiss_message_id.is_none() && value.is_muted && !mentioned && !quoted {
+            return None;
+        }
+        Some(Self {
             message_id: value.message_id,
             conversation_id: value.conversation_id,
-            sender_id: value.user_id,
             sender_name: value.sender_name,
             category: value.category,
             content: value.content.unwrap_or_default(),
-            quote_content: value.quote_content,
             created_at_micros: value.created_at.and_utc().timestamp_micros(),
             conversation_name: value.conversation_name,
             conversation_category: value.conversation_category,
-            is_muted: value.is_muted,
-        }
+            dismiss_message_id,
+        })
     }
+}
+
+fn mentions_identity(content: &str, identity_number: &str) -> bool {
+    if identity_number.is_empty() {
+        return false;
+    }
+    let mention = format!("@{identity_number}");
+    content.match_indices(&mention).any(|(index, _)| {
+        content[index + mention.len()..]
+            .chars()
+            .next()
+            .is_none_or(|character| !character.is_ascii_digit())
+    })
 }
 
 pub struct ImageMessageView {
@@ -430,4 +465,82 @@ pub struct ImageMessageView {
     pub user_full_name: String,
     pub user_identity_number: String,
     pub avatar_url: String,
+}
+
+#[cfg(test)]
+mod notification_tests {
+    use chrono::DateTime;
+
+    use super::NotificationEvent;
+    use crate::db::mixin::message::NotificationMessageItem;
+
+    fn message(
+        category: &str,
+        content: &str,
+        quote_content: Option<&str>,
+        is_muted: bool,
+    ) -> NotificationMessageItem {
+        NotificationMessageItem {
+            row_id: 1,
+            message_id: "message".to_string(),
+            conversation_id: "conversation".to_string(),
+            user_id: "sender".to_string(),
+            sender_name: "Sender".to_string(),
+            category: category.to_string(),
+            content: Some(content.to_string()),
+            quote_content: quote_content.map(str::to_string),
+            created_at: DateTime::UNIX_EPOCH.naive_utc(),
+            conversation_name: "Conversation".to_string(),
+            conversation_category: "GROUP".to_string(),
+            is_muted,
+        }
+    }
+
+    #[test]
+    fn filters_muted_messages_without_a_mention_or_quote() {
+        let event = NotificationEvent::from_message(
+            message("SIGNAL_TEXT", "hello @70001", None, true),
+            "current-user",
+            "7000",
+        );
+
+        assert!(event.is_none());
+    }
+
+    #[test]
+    fn keeps_muted_messages_that_mention_or_quote_the_current_user() {
+        let mention = NotificationEvent::from_message(
+            message("SIGNAL_TEXT", "hello @7000", None, true),
+            "current-user",
+            "7000",
+        );
+        let quote = NotificationEvent::from_message(
+            message(
+                "SIGNAL_TEXT",
+                "reply",
+                Some(r#"{"user_id":"current-user"}"#),
+                true,
+            ),
+            "current-user",
+            "7000",
+        );
+
+        assert!(mention.is_some());
+        assert!(quote.is_some());
+    }
+
+    #[test]
+    fn converts_recall_messages_to_dismiss_events_even_when_muted() {
+        let event = NotificationEvent::from_message(
+            message("MESSAGE_RECALL", "recalled-message", None, true),
+            "current-user",
+            "7000",
+        )
+        .unwrap();
+
+        assert_eq!(
+            event.dismiss_message_id.as_deref(),
+            Some("recalled-message")
+        );
+    }
 }

@@ -211,6 +211,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustStreamSink<bool> dco_decode_StreamSink_bool_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<NotificationEvent>
+  dco_decode_StreamSink_notification_event_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<BigInt> dco_decode_StreamSink_u_64_Sse(dynamic raw);
 
   @protected
@@ -333,11 +337,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<MessageListView> dco_decode_list_message_list_view(dynamic raw);
 
   @protected
-  List<NotificationMessageView> dco_decode_list_notification_message_view(
-    dynamic raw,
-  );
-
-  @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
 
   @protected
@@ -370,7 +369,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageListView dco_decode_message_list_view(dynamic raw);
 
   @protected
-  NotificationMessageView dco_decode_notification_message_view(dynamic raw);
+  NotificationEvent dco_decode_notification_event(dynamic raw);
 
   @protected
   String? dco_decode_opt_String(dynamic raw);
@@ -624,6 +623,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<NotificationEvent>
+  sse_decode_StreamSink_notification_event_Sse(SseDeserializer deserializer);
+
+  @protected
   RustStreamSink<BigInt> sse_decode_StreamSink_u_64_Sse(
     SseDeserializer deserializer,
   );
@@ -766,11 +769,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  List<NotificationMessageView> sse_decode_list_notification_message_view(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
 
   @protected
@@ -811,9 +809,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageListView sse_decode_message_list_view(SseDeserializer deserializer);
 
   @protected
-  NotificationMessageView sse_decode_notification_message_view(
-    SseDeserializer deserializer,
-  );
+  NotificationEvent sse_decode_notification_event(SseDeserializer deserializer);
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
@@ -1113,6 +1109,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_notification_event_Sse(
+    RustStreamSink<NotificationEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_u_64_Sse(
     RustStreamSink<BigInt> self,
     SseSerializer serializer,
@@ -1291,12 +1293,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_list_notification_message_view(
-    List<NotificationMessageView> self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
@@ -1354,8 +1350,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_notification_message_view(
-    NotificationMessageView self,
+  void sse_encode_notification_event(
+    NotificationEvent self,
     SseSerializer serializer,
   );
 

@@ -189,12 +189,6 @@ abstract class MessageAccess implements RustOpaqueInterface {
     required PlatformInt64 after,
   });
 
-  Future<List<NotificationMessageView>> notificationMessages({
-    required PlatformInt64 afterCreatedAtMicros,
-    required PlatformInt64 afterRowId,
-    required PlatformInt64 limit,
-  });
-
   Future<PinMessagePreviewItem?> pinMessagePreview({
     required String conversationId,
   });

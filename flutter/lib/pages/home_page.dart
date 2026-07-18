@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -168,73 +167,29 @@ class _HomeBodyState extends State<_HomeBody> {
   bool commandPaletteShowing = false;
   String? locateMessageId;
   int locateRequest = 0;
-  StreamSubscription<BigInt>? messageNotificationSubscription;
+  StreamSubscription<NotificationEvent>? notificationEventSubscription;
   StreamSubscription<Uri>? notificationSelectionSubscription;
   DeviceTransferController? deviceTransferController;
-  var notificationCursorMicros = DateTime.now().microsecondsSinceEpoch;
-  var notificationCursorRowId = 0;
-  var loadingNotifications = false;
-  var notificationRefreshPending = false;
-  final notifiedMessageIds = <String>{};
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (messageNotificationSubscription != null) return;
+    if (notificationEventSubscription != null) return;
     final account = context.read<AccountHandle>();
     deviceTransferController = DeviceTransferController(account);
-    messageNotificationSubscription = account.messageChanges().listen(
-      (_) => unawaited(_loadMessageNotifications(account)),
+    notificationEventSubscription = account.desktopNotificationEvents().listen(
+      (event) => unawaited(_showMessageNotification(event)),
+      onError: (_) {},
     );
     notificationSelectionSubscription = notificationSelections.listen((uri) {
       unawaited(_selectNotification(uri));
     });
   }
 
-  Future<void> _loadMessageNotifications(AccountHandle account) async {
-    if (loadingNotifications) {
-      notificationRefreshPending = true;
-      return;
-    }
-    loadingNotifications = true;
-    try {
-      do {
-        notificationRefreshPending = false;
-        List<NotificationMessageView> messages;
-        do {
-          messages = await account.message().notificationMessages(
-            afterCreatedAtMicros: notificationCursorMicros,
-            afterRowId: notificationCursorRowId,
-            limit: 200,
-          );
-          if (messages.isNotEmpty) {
-            final last = messages.last;
-            notificationCursorMicros = last.createdAtMicros.toInt();
-            notificationCursorRowId = last.rowId.toInt();
-          }
-          for (final message in messages) {
-            if (!mounted) return;
-            if (!notifiedMessageIds.add(message.messageId)) continue;
-            if (notifiedMessageIds.length > 512) {
-              notifiedMessageIds.remove(notifiedMessageIds.first);
-            }
-            await _showMessageNotification(account, message);
-          }
-        } while (messages.length == 200);
-      } while (notificationRefreshPending);
-    } on Object {
-      return;
-    } finally {
-      loadingNotifications = false;
-    }
-  }
-
-  Future<void> _showMessageNotification(
-    AccountHandle account,
-    NotificationMessageView message,
-  ) async {
-    if (message.category == 'MESSAGE_RECALL') {
-      await dismissMessageNotification(message.content);
+  Future<void> _showMessageNotification(NotificationEvent message) async {
+    final dismissMessageId = message.dismissMessageId;
+    if (dismissMessageId != null) {
+      await dismissMessageNotification(dismissMessageId);
       return;
     }
     final createdAt = DateTime.fromMicrosecondsSinceEpoch(
@@ -249,23 +204,6 @@ class _HomeBodyState extends State<_HomeBody> {
         WidgetsBinding.instance.lifecycleState == null ||
         WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     if (appActive && selectedConversation?.id == message.conversationId) return;
-
-    final profile = account.profile();
-    final mentioned =
-        message.category.contains('TEXT') &&
-        RegExp(
-          '@${RegExp.escape(profile.identityNumber)}(?!\\d)',
-        ).hasMatch(message.content);
-    var quoted = false;
-    if (message.quoteContent?.isNotEmpty == true) {
-      try {
-        final quote = jsonDecode(message.quoteContent!) as Map<String, dynamic>;
-        quoted = quote['user_id'] == profile.userId;
-      } on Object {
-        quoted = false;
-      }
-    }
-    if (message.isMuted && !mentioned && !quoted) return;
 
     final preview = context.read<SettingsController>().messagePreview
         ? _notificationPreview(context, message)
@@ -1000,7 +938,7 @@ class _HomeBodyState extends State<_HomeBody> {
 
   @override
   void dispose() {
-    unawaited(messageNotificationSubscription?.cancel());
+    unawaited(notificationEventSubscription?.cancel());
     unawaited(notificationSelectionSubscription?.cancel());
     unawaited(deviceTransferController?.dispose());
     chatSideController.dispose();
@@ -1615,10 +1553,7 @@ class _SetupNameOverlayState extends State<_SetupNameOverlay> {
   );
 }
 
-String _notificationPreview(
-  BuildContext context,
-  NotificationMessageView message,
-) {
+String _notificationPreview(BuildContext context, NotificationEvent message) {
   final category = message.category;
   String text;
   if (category.contains('TEXT')) {

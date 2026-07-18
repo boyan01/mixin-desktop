@@ -223,25 +223,6 @@ impl MessageAccess {
         Ok(())
     }
 
-    pub async fn notification_messages(
-        &self,
-        after_created_at_micros: i64,
-        after_row_id: i64,
-        limit: i64,
-    ) -> Result<Vec<model::NotificationMessageView>> {
-        let after_created_at = chrono::DateTime::from_timestamp_micros(after_created_at_micros)
-            .map(|value| value.naive_utc())
-            .ok_or_else(|| anyhow!("invalid notification timestamp: {after_created_at_micros}"))?;
-        Ok(self
-            .database
-            .message_dao
-            .notification_items_after(&self.account_id, after_created_at, after_row_id, limit)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
-    }
-
     pub(crate) fn new(state: Arc<AccountState>) -> Self {
         Self { state }
     }

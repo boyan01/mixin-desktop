@@ -553,6 +553,12 @@ class _FakeAccountHandle
   Stream<BigInt> conversationChanges() => const Stream.empty();
 
   @override
+  Stream<String> accountHealth() => Stream.value('ready');
+
+  @override
+  Stream<bool> connectionStatus() => Stream.value(true);
+
+  @override
   Future<PlatformInt64> conversationCount({
     required String category,
     String? circleId,
@@ -598,6 +604,12 @@ class _FakeAccountHandle
 
   @override
   Stream<BigInt> messageChanges() => const Stream.empty();
+
+  @override
+  Stream<NotificationEvent> desktopNotificationEvents() => const Stream.empty();
+
+  @override
+  Stream<String> deviceTransferEvents() => const Stream.empty();
 
   @override
   Future<List<MessageListItem>> messages({
