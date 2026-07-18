@@ -23,16 +23,20 @@ export CARGOKIT_DARWIN_ARCHS=$ARCHS
 export CARGOKIT_CONFIGURATION=$CONFIGURATION
 
 # Path to directory containing Cargo.toml.
-export CARGOKIT_MANIFEST_DIR=$PODS_TARGET_SRCROOT/$1
+CARGOKIT_POD_SOURCE_DIR=$(cd "$PODS_TARGET_SRCROOT" ; pwd -P)
+CARGOKIT_MANIFEST_DIR=$(cd "$CARGOKIT_POD_SOURCE_DIR/$1" ; pwd -P)
+export CARGOKIT_MANIFEST_DIR
 
-# Temporary directory for build artifacts.
-export CARGOKIT_TARGET_TEMP_DIR=$TARGET_TEMP_DIR
+# Keep Rust build artifacts outside Flutter's build directory so they survive
+# `flutter clean` and can be reused by subsequent builds.
+CARGOKIT_WORKSPACE_DIR=$(cd "$CARGOKIT_MANIFEST_DIR/../.." ; pwd -P)
+export CARGOKIT_TARGET_TEMP_DIR=$CARGOKIT_WORKSPACE_DIR/target/cargokit
 
 # Output directory for final artifacts.
 export CARGOKIT_OUTPUT_DIR=$PODS_CONFIGURATION_BUILD_DIR/$PRODUCT_NAME
 
 # Directory to store built tool artifacts.
-export CARGOKIT_TOOL_TEMP_DIR=$TARGET_TEMP_DIR/build_tool
+export CARGOKIT_TOOL_TEMP_DIR=$CARGOKIT_TARGET_TEMP_DIR/build_tool
 
 # Directory inside root project. Not necessarily the top level directory of root project.
 export CARGOKIT_ROOT_PROJECT_DIR=$SRCROOT

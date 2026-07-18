@@ -145,20 +145,30 @@ class RustBuilder {
   Future<String> build() async {
     final extraArgs = _buildOptions?.flags ?? [];
     final manifestPath = path.join(environment.manifestDir, 'Cargo.toml');
+    final isDarwin = target.darwinPlatform != null;
+    var cargoCommand = 'build';
+    if (isDarwin) {
+      cargoCommand = 'rustc';
+    } else if (target.android == null && environment.glibcVersion != null) {
+      cargoCommand = 'zigbuild';
+    }
     runCommand(
       'rustup',
       [
         'run',
         _toolchain,
         'cargo',
-        (target.android == null && environment.glibcVersion != null)
-            ? 'zigbuild'
-            : 'build',
+        cargoCommand,
         ...extraArgs,
         '--manifest-path',
         manifestPath,
         '-p',
         environment.crateInfo.packageName,
+        if (isDarwin) ...[
+          '--lib',
+          '--crate-type',
+          'staticlib',
+        ],
         if (!environment.configuration.isDebug) '--release',
         '--target',
         target.rust +

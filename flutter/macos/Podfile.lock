@@ -54,7 +54,7 @@ SPEC CHECKSUMS:
   desktop_keep_screen_on: bfedcf75be8bd8b4a21db3dcf48667427087792c
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   irondash_engine_context: 893c7d96d20ce361d7e996f39d360c4c2f9869ba
-  mixin_desktop_flutter: 3720d58ff64e960f19869c6cdd86a490f9c3d090
+  mixin_desktop_flutter: a3cd9ad04b70e613095159b581c30dc874fd82a3
   ogg_opus_player: 954784304f4e2722780018c4abf284e4f93cddf5
   protocol_handler_macos: f9cd7b13bcaf6b0425f7410cbe52376cb843a936
   super_native_extensions: c2795d6d9aedf4a79fae25cb6160b71b50549189
