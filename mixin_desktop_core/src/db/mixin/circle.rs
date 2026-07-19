@@ -84,7 +84,7 @@ impl CircleDao {
 
     pub async fn update_orders(&self, ids: &[String]) -> Result<(), Error> {
         let now = Utc::now();
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         for (index, id) in ids.iter().enumerate() {
             sqlx::query("UPDATE circles SET ordered_at = ? WHERE circle_id = ?")
                 .bind((now + Duration::milliseconds(index as i64)).timestamp_millis())

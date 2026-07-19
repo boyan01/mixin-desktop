@@ -37,7 +37,7 @@ impl MessageFtsDao {
             return Ok(());
         };
 
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         delete_message_fts(&mut transaction, message_id).await?;
 
         let content = normalize_content(content);
@@ -67,21 +67,21 @@ impl MessageFtsDao {
     }
 
     pub async fn delete_by_message_id(&self, message_id: &str) -> Result<u64, Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         let deleted = delete_message_fts(&mut transaction, message_id).await?;
         transaction.commit().await?;
         Ok(deleted)
     }
 
     pub async fn delete_by_conversation_id(&self, conversation_id: &str) -> Result<u64, Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         let deleted = delete_conversation_fts(&mut transaction, conversation_id).await?;
         transaction.commit().await?;
         Ok(deleted)
     }
 
     pub(crate) async fn migrate_batch(&self, anchor: Option<i64>) -> Result<Option<i64>, Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         let rows = sqlx::query(
             r#"SELECT m.rowid AS source_rowid, m.message_id, m.conversation_id, m.category, m.user_id,
                CASE WHEN typeof(m.created_at) = 'integer' THEN m.created_at

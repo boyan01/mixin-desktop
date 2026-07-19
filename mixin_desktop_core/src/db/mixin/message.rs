@@ -506,7 +506,7 @@ LIMIT ?4
         conversation_id: &str,
         current_user_id: &str,
     ) -> Result<(bool, bool), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         let message_ids = sqlx::query_scalar::<_, String>(
             "SELECT message_id FROM messages WHERE conversation_id = ? AND user_id != ? \
              AND status IN ('SENT', 'DELIVERED') ORDER BY created_at ASC, rowid ASC",
@@ -1255,14 +1255,14 @@ ORDER BY message.created_at ASC, message.message_id ASC
     }
 
     pub async fn insert_outgoing_message(&self, message: &Message, job: &Job) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         Self::insert_outgoing_message_with(&mut transaction, message, job).await?;
         transaction.commit().await?;
         Ok(())
     }
 
     pub async fn insert_pending_outgoing_message(&self, message: &Message) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         insert_message_with(&mut *transaction, message).await?;
         sqlx::query(
             "UPDATE conversations SET last_message_id = ?, last_message_created_at = ?, \
@@ -1283,7 +1283,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
         job: &Job,
         transcripts: &[TranscriptMessage],
     ) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         TranscriptMessageDao::insert_all_with(&mut transaction, transcripts).await?;
         Self::insert_outgoing_message_with(&mut transaction, message, job).await?;
         transaction.commit().await?;
@@ -1341,7 +1341,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
         expire_in: i64,
         job_id: &str,
     ) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         if let Some(content) = content {
             sqlx::query("UPDATE messages SET content = ? WHERE message_id = ?")
                 .bind(content)
@@ -1456,7 +1456,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
         update: &AttachmentMessageUpdate,
         job: &Job,
     ) -> Result<bool, Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         let result = sqlx::query(
             r#"UPDATE messages SET
          status = ?, content = ?, media_url = ?, media_mime_type = ?, media_size = ?,
@@ -1792,7 +1792,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
         if message_ids.iter().collect::<HashSet<_>>().len() != message_ids.len() {
             return Err(anyhow::anyhow!("delete message ids contain duplicates").into());
         }
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         for message_id in message_ids {
             let exists = sqlx::query_scalar::<_, bool>(
                 "SELECT EXISTS(SELECT 1 FROM messages \
@@ -1845,7 +1845,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
     }
 
     pub async fn clear_conversation(&self, conversation_id: &str) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         crate::db::mixin::message_fts::delete_conversation_fts(&mut transaction, conversation_id)
             .await?;
         sqlx::query(
@@ -1886,7 +1886,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
         if message_ids.iter().collect::<HashSet<_>>().len() != message_ids.len() {
             return Err(anyhow::anyhow!("recall message ids contain duplicates").into());
         }
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         for job in jobs {
             Self::insert_job_with(&mut transaction, job).await?;
         }
@@ -1949,7 +1949,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
         created_at: DateTime<Utc>,
         job: &Job,
     ) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         let exists = sqlx::query_scalar::<_, bool>(
             "SELECT EXISTS(SELECT 1 FROM messages \
              WHERE conversation_id = ? AND message_id = ?)",
@@ -2049,7 +2049,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
         conversation_id: &str,
         message_id: &str,
     ) -> Result<u64, Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
 
         let result = sqlx::query(
             r#"UPDATE messages SET
@@ -2103,7 +2103,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
         conversation_id: &str,
         message_id: &str,
     ) -> Result<u64, Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
 
         sqlx::query(
             "UPDATE messages SET content = NULL WHERE conversation_id = ? \
@@ -2241,6 +2241,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use chrono::Utc;
 
     use sdk::message_category::{MESSAGE_PIN, PLAIN_IMAGE, PLAIN_TEXT};
@@ -3109,6 +3111,73 @@ mod tests {
                 .await
                 .unwrap(),
             (false, false)
+        );
+    }
+
+    #[tokio::test]
+    async fn mark_read_waits_for_a_concurrent_writer_without_blocking_readers() {
+        let (_directory, database) = test_database().await;
+        let now = Utc::now();
+        database
+            .conversation_dao
+            .insert(&Conversation {
+                conversation_id: "conversation".into(),
+                owner_id: Some("other".into()),
+                category: Some(ConversationCategory::Contact),
+                name: String::new(),
+                icon_url: String::new(),
+                announcement: String::new(),
+                code_url: String::new(),
+                created_at: now,
+                status: ConversationStatus::SUCCESS,
+                mute_until: now,
+                expire_in: 0,
+            })
+            .await
+            .unwrap();
+        database
+            .message_dao
+            .insert_message(&Message {
+                message_id: "incoming".into(),
+                user_id: "other".into(),
+                status: MessageStatus::Sent,
+                ..message("incoming")
+            })
+            .await
+            .unwrap();
+
+        let mut writer = database
+            .message_dao
+            .0
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .unwrap();
+        sqlx::query("UPDATE conversations SET name = 'writer' WHERE conversation_id = ?")
+            .bind("conversation")
+            .execute(&mut *writer)
+            .await
+            .unwrap();
+
+        let dao = database.message_dao.clone();
+        let mark_read =
+            tokio::spawn(async move { dao.mark_conversation_read("conversation", "me").await });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(!mark_read.is_finished());
+
+        let message_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM messages")
+            .fetch_one(&database.message_dao.0)
+            .await
+            .unwrap();
+        assert_eq!(message_count, 1);
+
+        writer.commit().await.unwrap();
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), mark_read)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap(),
+            (true, true)
         );
     }
 

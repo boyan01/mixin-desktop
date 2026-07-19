@@ -19,7 +19,7 @@ pub struct ParticipantSession {
 
 impl ParticipantSessionDao {
     pub async fn clear_for_sign_out(&self, session_id: &str) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         sqlx::query("DELETE FROM participant_session WHERE session_id = ?")
             .bind(session_id)
             .execute(&mut *transaction)
@@ -36,7 +36,7 @@ impl ParticipantSessionDao {
         conversation_id: &str,
         sessions: &[ParticipantSession],
     ) -> Result<(), sqlx::Error> {
-        let mut tx = self.0.begin().await?;
+        let mut tx = self.0.begin_with("BEGIN IMMEDIATE").await?;
 
         sqlx::query("DELETE FROM participant_session WHERE conversation_id = ?")
             .bind(conversation_id)

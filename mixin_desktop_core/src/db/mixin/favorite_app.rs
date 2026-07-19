@@ -12,7 +12,7 @@ impl FavoriteAppDao {
         user_id: &str,
         apps: &[sdk::FavoriteApp],
     ) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         sqlx::query("DELETE FROM favorite_apps WHERE user_id = ?")
             .bind(user_id)
             .execute(&mut *transaction)

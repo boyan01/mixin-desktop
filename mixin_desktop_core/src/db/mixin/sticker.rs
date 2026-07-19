@@ -228,7 +228,7 @@ impl StickerDao {
     }
 
     pub async fn set_album_order(&self, album_ids: &[String]) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         for (ordered_at, album_id) in album_ids.iter().enumerate() {
             sqlx::query("UPDATE sticker_albums SET ordered_at = ? WHERE album_id = ?")
                 .bind(ordered_at as i64)

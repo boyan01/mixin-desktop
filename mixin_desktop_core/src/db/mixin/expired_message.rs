@@ -38,7 +38,7 @@ impl ExpiredMessageDao {
     }
 
     pub async fn update_message_expired_at(&self, data: &[(String, i64)]) -> Result<u64, Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         let mut rows_affected = 0;
         for (message_id, expire_at) in data {
             rows_affected += sqlx::query(

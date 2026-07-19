@@ -102,7 +102,7 @@ impl SignalDatabase {
     }
 
     pub async fn clear(&self) -> Result<(), db::Error> {
-        let mut transaction = self.pre_key_dao.0.begin().await?;
+        let mut transaction = self.pre_key_dao.0.begin_with("BEGIN IMMEDIATE").await?;
         for table in [
             "sender_keys",
             "identities",
@@ -139,7 +139,7 @@ async fn migrate(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
         bail!("signal database has no Drift user_version");
     }
 
-    let mut transaction = pool.begin().await?;
+    let mut transaction = pool.begin_with("BEGIN IMMEDIATE").await?;
     sqlx::raw_sql(include_str!("schema.sql"))
         .execute(&mut *transaction)
         .await?;

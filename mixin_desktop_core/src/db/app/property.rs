@@ -26,7 +26,7 @@ impl PropertyDao {
     }
 
     pub async fn update(&self, values: &[(&str, &str, Option<&str>)]) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         for (group, key, value) in values {
             if let Some(value) = value {
                 sqlx::query(

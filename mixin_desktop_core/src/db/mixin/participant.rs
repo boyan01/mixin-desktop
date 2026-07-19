@@ -61,7 +61,7 @@ impl ParticipantDao {
         conversation_id: &str,
         participants: &[Participant],
     ) -> Result<(), Error> {
-        let mut tx = self.0.begin().await?;
+        let mut tx = self.0.begin_with("BEGIN IMMEDIATE").await?;
 
         sqlx::query("DELETE FROM participants WHERE conversation_id = ?")
             .bind(conversation_id)

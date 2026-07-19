@@ -138,7 +138,7 @@ pub struct TranscriptMessageListItem {
 
 impl TranscriptMessageDao {
     pub async fn insert_all(&self, transcripts: &[TranscriptMessage]) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         Self::insert_all_with(&mut transaction, transcripts).await?;
         transaction.commit().await?;
         Ok(())

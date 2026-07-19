@@ -61,7 +61,7 @@ async fn migrate(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
         bail!("app database has no Drift user_version");
     }
 
-    let mut transaction = pool.begin().await?;
+    let mut transaction = pool.begin_with("BEGIN IMMEDIATE").await?;
     sqlx::raw_sql(include_str!("app/schema.sql"))
         .execute(&mut *transaction)
         .await?;

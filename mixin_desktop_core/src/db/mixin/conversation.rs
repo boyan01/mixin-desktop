@@ -420,7 +420,7 @@ SELECT EXISTS (
     }
 
     pub async fn delete_local(&self, conversation_id: &str) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         crate::db::mixin::message_fts::delete_conversation_fts(&mut transaction, conversation_id)
             .await?;
         for query in [

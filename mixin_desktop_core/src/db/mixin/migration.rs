@@ -94,7 +94,7 @@ async fn create_current_schema(pool: &Pool<Sqlite>) -> anyhow::Result<()> {
         bail!("mixin database has no Drift user_version");
     }
 
-    let mut transaction = pool.begin().await?;
+    let mut transaction = pool.begin_with("BEGIN IMMEDIATE").await?;
     sqlx::raw_sql(include_str!("schema.sql"))
         .execute(&mut *transaction)
         .await?;
@@ -104,7 +104,7 @@ async fn create_current_schema(pool: &Pool<Sqlite>) -> anyhow::Result<()> {
 }
 
 async fn run_migrations(pool: &Pool<Sqlite>, source_version: i64) -> anyhow::Result<()> {
-    let mut transaction = pool.begin().await?;
+    let mut transaction = pool.begin_with("BEGIN IMMEDIATE").await?;
     for migration in MIGRATIONS
         .iter()
         .filter(|migration| migration.target_version > source_version)

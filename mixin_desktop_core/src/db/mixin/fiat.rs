@@ -5,7 +5,7 @@ pub struct FiatDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 
 impl FiatDao {
     pub async fn insert_all(&self, fiats: &[sdk::Fiat]) -> Result<(), Error> {
-        let mut transaction = self.0.begin().await?;
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         for fiat in fiats {
             sqlx::query("INSERT OR REPLACE INTO fiats (code, rate) VALUES (?, ?)")
                 .bind(&fiat.code)
