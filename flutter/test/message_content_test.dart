@@ -562,6 +562,8 @@ void main() {
     final body = find.byKey(const Key('app-card-body-actions-card'));
     final actions = find.byKey(const Key('app-card-actions-actions-card'));
     expect(tester.getSize(body).width, 320);
+    expect(tester.getSize(actions).width, tester.getSize(body).width);
+    expect(tester.getTopLeft(actions).dx, tester.getTopLeft(body).dx);
     expect(tester.getSize(card).height, lessThan(150));
     expect(
       tester.getTopLeft(actions).dy,

@@ -137,6 +137,7 @@ class MessageBubble extends StatelessWidget {
     this.quote,
     this.constrainQuoteWidth = false,
     this.highlightMedia = false,
+    this.shrinkWrap = false,
   });
 
   final Widget child;
@@ -156,6 +157,7 @@ class MessageBubble extends StatelessWidget {
   final Widget? quote;
   final bool constrainQuoteWidth;
   final bool highlightMedia;
+  final bool shrinkWrap;
 
   @override
   Widget build(BuildContext context) {
@@ -254,6 +256,7 @@ class MessageBubble extends StatelessWidget {
 
     return Align(
       alignment: isCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
+      widthFactor: shrinkWrap ? 1 : null,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,

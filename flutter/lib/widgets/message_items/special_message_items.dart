@@ -630,6 +630,7 @@ class AppCardMessageItem extends StatelessWidget {
         showNip: showNip,
         highlighted: highlighted,
         highlightOpacity: highlightOpacity,
+        dateAndStatus: dateAndStatus,
         quote: quote,
         onOpenUri: onOpenUri,
         onOpenIdentityNumber: onOpenIdentityNumber,
@@ -674,6 +675,7 @@ class _ActionsCardMessage extends StatelessWidget {
     required this.showNip,
     required this.highlighted,
     required this.highlightOpacity,
+    required this.dateAndStatus,
     this.quote,
     this.onOpenUri,
     this.onOpenIdentityNumber,
@@ -691,6 +693,7 @@ class _ActionsCardMessage extends StatelessWidget {
   final bool showNip;
   final bool highlighted;
   final double highlightOpacity;
+  final Widget dateAndStatus;
   final Widget? quote;
   final MessageUriCallback? onOpenUri;
   final MessageStringCallback? onOpenIdentityNumber;
@@ -715,11 +718,11 @@ class _ActionsCardMessage extends StatelessWidget {
         isPinnedPage: isPinnedPage,
         onPinnedMessageTap: onPinnedMessageTap,
         isDisappearingMessage: isDisappearingMessage,
+        outerTimeAndStatusWidget: dateAndStatus,
         child: Column(
           key: Key('app-card-actions-message-$messageId'),
           children: [
             MessageBubble(
-              key: Key('app-card-body-$messageId'),
               isCurrentUser: isCurrentUser,
               showNip: true,
               highlighted: highlighted,
@@ -727,7 +730,9 @@ class _ActionsCardMessage extends StatelessWidget {
               padding: EdgeInsets.zero,
               clip: true,
               includeNip: false,
+              shrinkWrap: true,
               child: ConstrainedBox(
+                key: Key('app-card-body-$messageId'),
                 constraints: BoxConstraints(minWidth: width, maxWidth: width),
                 child: SelectionArea(
                   contextMenuBuilder: (context, selectableState) =>
