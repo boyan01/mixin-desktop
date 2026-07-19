@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:mixin_desktop_ui/src/rust/api/logging.dart';
 import 'package:mixin_desktop_ui/src/rust/third_party/mixin_desktop_core/runtime/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -38,7 +39,15 @@ void w(String message) {
 void e(String message, [Object? error, StackTrace? stackTrace]) {
   var messageWithStack = message;
   if (error != null) {
-    messageWithStack += ' ($error)';
+    if (error case AnyhowException(:final message)) {
+      final lines = message.split('\n');
+      final errorMessage = lines.length <= 10
+          ? message
+          : '${lines.take(9).join('\n')}\n... ${lines.length - 9} lines omitted';
+      messageWithStack += ' (AnyhowException($errorMessage))';
+    } else {
+      messageWithStack += ' ($error)';
+    }
   }
   if (stackTrace != null) {
     messageWithStack += ':\n$stackTrace';
