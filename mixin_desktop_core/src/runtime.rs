@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::io::Cursor;
+use std::io::{Cursor, ErrorKind};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -25,6 +25,7 @@ use crate::core::device_transfer::{DeviceTransferControlEvent, DeviceTransferSer
 use crate::core::message::blaze::Blaze;
 use crate::core::message::decrypt::ServiceDecryptMessage;
 use crate::core::message::sender::MessageSender;
+use crate::core::model::auth::AuthService;
 use crate::core::model::signal::SignalService;
 use crate::core::model::{AppService, AttachmentExtra, ConversationService};
 use crate::db::app::Auth;
@@ -38,6 +39,9 @@ const MIXIN_DATABASE_OPEN_ERROR_PREFIX: &str = "mixin_database_open_error";
 mod attachment;
 mod conversation;
 mod conversion;
+pub mod desktop;
+pub mod logging;
+pub mod login;
 mod message;
 pub mod model;
 mod sticker;
@@ -78,7 +82,8 @@ pub struct AccountRuntime {
 #[doc(hidden)]
 pub struct AccountState {
     account_id: String,
-    account: Account,
+    profile: watch::Sender<Account>,
+    auth_service: Arc<AuthService>,
     client: Arc<Client>,
     database: Arc<MixinDatabase>,
     signal_database: Arc<SignalDatabase>,
@@ -164,7 +169,7 @@ impl AccountRuntime {
             .unwrap_or_default()
     }
 
-    pub async fn start(auth: Auth) -> Result<Self> {
+    pub async fn start(auth: Auth, auth_service: Arc<AuthService>) -> Result<Self> {
         if auth
             .primary_session_id
             .as_deref()
@@ -175,6 +180,7 @@ impl AccountRuntime {
         }
         let account_id = auth.account.user_id.clone();
         let account = auth.account.clone();
+        let (profile, _) = watch::channel(account);
         let client = Arc::new(Client::new(credential(&auth)));
         let (shutdown, shutdown_receiver) = watch::channel(false);
         let (conversation_changes, _) = watch::channel(0);
@@ -224,7 +230,8 @@ impl AccountRuntime {
         Ok(Self {
             state: Arc::new(AccountState {
                 account_id,
-                account,
+                profile,
+                auth_service,
                 client,
                 database,
                 signal_database,
@@ -272,8 +279,18 @@ impl AccountRuntime {
         &self.account_id
     }
 
-    pub fn account(&self) -> &Account {
-        &self.account
+    pub fn account(&self) -> Account {
+        self.profile.borrow().clone()
+    }
+
+    pub fn subscribe_profile_changes(&self) -> watch::Receiver<Account> {
+        self.profile.subscribe()
+    }
+
+    pub fn media_directory(&self) -> Result<PathBuf> {
+        let directory = account_data_directory(&self.account().identity_number)?.join("Media");
+        std::fs::create_dir_all(&directory)?;
+        Ok(directory)
     }
 
     pub fn subscribe_conversation_changes(&self) -> watch::Receiver<u64> {
@@ -309,14 +326,11 @@ impl AccountRuntime {
             })
             .unwrap_or((after_created_at_micros, after_row_id));
         let has_more = messages.len() == limit as usize;
+        let identity_number = self.account().identity_number;
         let events = messages
             .into_iter()
             .filter_map(|message| {
-                model::NotificationEvent::from_message(
-                    message,
-                    &self.account_id,
-                    &self.account.identity_number,
-                )
+                model::NotificationEvent::from_message(message, &self.account_id, &identity_number)
             })
             .collect();
         Ok(model::NotificationEventBatch {
@@ -357,6 +371,7 @@ impl AccountRuntime {
         }
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
+        let account = self.account();
 
         self.refresh_fiats().await;
         if let Ok(snapshot) = self
@@ -370,7 +385,7 @@ impl AccountRuntime {
         let mut detail = self
             .database
             .snapshot_dao
-            .find_by_trace_id(trace_id, &self.account.fiat_currency)
+            .find_by_trace_id(trace_id, &account.fiat_currency)
             .await?
             .ok_or_else(|| anyhow!("snapshot not found"))?;
 
@@ -386,7 +401,7 @@ impl AccountRuntime {
             detail = self
                 .database
                 .snapshot_dao
-                .find_by_id(&detail.snapshot_id, &self.account.fiat_currency)
+                .find_by_id(&detail.snapshot_id, &account.fiat_currency)
                 .await?
                 .ok_or_else(|| anyhow!("snapshot not found"))?;
         }
@@ -397,7 +412,7 @@ impl AccountRuntime {
 
         Ok(model::SnapshotDetailItem::from_detail(
             detail,
-            self.account.full_name.clone().unwrap_or_default(),
+            account.full_name.unwrap_or_default(),
             ticker_price_usd,
         ))
     }
@@ -409,6 +424,7 @@ impl AccountRuntime {
         }
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
+        let account = self.account();
         self.refresh_fiats().await;
 
         if let Ok(snapshot) = self
@@ -422,7 +438,7 @@ impl AccountRuntime {
         let mut detail = self
             .database
             .snapshot_dao
-            .find_by_id(snapshot_id, &self.account.fiat_currency)
+            .find_by_id(snapshot_id, &account.fiat_currency)
             .await?
             .ok_or_else(|| anyhow!("snapshot not found"))?;
         if let Ok(asset) = self
@@ -437,7 +453,7 @@ impl AccountRuntime {
             detail = self
                 .database
                 .snapshot_dao
-                .find_by_id(snapshot_id, &self.account.fiat_currency)
+                .find_by_id(snapshot_id, &account.fiat_currency)
                 .await?
                 .ok_or_else(|| anyhow!("snapshot not found"))?;
         }
@@ -446,7 +462,7 @@ impl AccountRuntime {
             .await;
         Ok(model::SnapshotDetailItem::from_detail(
             detail,
-            self.account.full_name.clone().unwrap_or_default(),
+            account.full_name.unwrap_or_default(),
             ticker_price_usd,
         ))
     }
@@ -461,6 +477,7 @@ impl AccountRuntime {
         }
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
+        let account = self.account();
         self.refresh_fiats().await;
 
         if let Ok(snapshot) = self.client.token_api.get_snapshot_by_id(snapshot_id).await {
@@ -469,7 +486,7 @@ impl AccountRuntime {
         let mut detail = self
             .database
             .safe_snapshot_dao
-            .find_by_id(snapshot_id, &self.account.fiat_currency)
+            .find_by_id(snapshot_id, &account.fiat_currency)
             .await?
             .ok_or_else(|| anyhow!("safe snapshot not found"))?;
         if let Ok(token) = self
@@ -484,7 +501,7 @@ impl AccountRuntime {
             detail = self
                 .database
                 .safe_snapshot_dao
-                .find_by_id(snapshot_id, &self.account.fiat_currency)
+                .find_by_id(snapshot_id, &account.fiat_currency)
                 .await?
                 .ok_or_else(|| anyhow!("safe snapshot not found"))?;
         }
@@ -493,7 +510,7 @@ impl AccountRuntime {
             .await;
         Ok(model::SnapshotDetailItem::from_safe_detail(
             detail,
-            self.account.full_name.clone().unwrap_or_default(),
+            account.full_name.unwrap_or_default(),
             ticker_price_usd,
         ))
     }
@@ -541,20 +558,41 @@ impl AccountRuntime {
         }
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
-        Ok(self
+        let account = self
             .client
             .account_api
             .update(&AccountUpdateRequest {
                 full_name: Some(full_name),
                 biography: Some(biography),
             })
-            .await?)
+            .await?;
+        self.persist_account_profile(account).await
     }
 
     pub async fn refresh_account_profile(&self) -> Result<Account> {
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
-        Ok(self.client.account_api.get_me().await?)
+        let account = self.client.account_api.get_me().await?;
+        self.persist_account_profile(account).await
+    }
+
+    async fn persist_account_profile(&self, account: Account) -> Result<Account> {
+        if account.user_id != self.account_id {
+            return Err(anyhow!("profile account does not match the active account"));
+        }
+        let mut auth = self
+            .auth_service
+            .get_auth()
+            .ok_or_else(|| anyhow!("account authorization not found"))?;
+        if auth.user_id != self.account_id {
+            return Err(anyhow!(
+                "saved authorization does not match the active account"
+            ));
+        }
+        auth.account = account.clone();
+        self.auth_service.save_auth(&auth).await?;
+        self.profile.send_replace(account.clone());
+        Ok(account)
     }
 
     pub async fn storage_usage(&self) -> Result<Vec<model::ConversationStorageUsage>> {
@@ -573,7 +611,7 @@ impl AccountRuntime {
             }
             offset += page_len as i64;
         }
-        let media = account_data_directory(&self.account.identity_number)?.join("Media");
+        let media = account_data_directory(&self.account().identity_number)?.join("Media");
         tokio::task::spawn_blocking(move || {
             let mut usage = conversations
                 .into_iter()
@@ -604,7 +642,7 @@ impl AccountRuntime {
         conversation_id: String,
     ) -> Result<Vec<model::StorageCategoryUsage>> {
         validate_storage_component("conversation id", &conversation_id)?;
-        let media = account_data_directory(&self.account.identity_number)?.join("Media");
+        let media = account_data_directory(&self.account().identity_number)?.join("Media");
         tokio::task::spawn_blocking(move || {
             [
                 ("photos", "Images"),
@@ -642,7 +680,7 @@ impl AccountRuntime {
                 _ => Err(anyhow!("invalid storage category: {category}")),
             })
             .collect::<Result<Vec<_>>>()?;
-        let media = account_data_directory(&self.account.identity_number)?.join("Media");
+        let media = account_data_directory(&self.account().identity_number)?.join("Media");
         tokio::task::spawn_blocking(move || {
             for directory in directories {
                 clear_directory_contents(&media.join(directory).join(&conversation_id))?;
@@ -669,12 +707,8 @@ impl AccountRuntime {
     }
 
     pub async fn revoke_session(&self) {
-        if let Err(error) = self
-            .client
-            .account_api
-            .logout(&self.account.session_id)
-            .await
-        {
+        let session_id = self.account().session_id;
+        if let Err(error) = self.client.account_api.logout(&session_id).await {
             warn!("failed to revoke account session during sign out: {error}");
         }
     }
@@ -684,8 +718,12 @@ impl AccountRuntime {
         self.cancel_attachment_downloads();
     }
 
-    pub async fn sign_out(&self) {
+    pub async fn sign_out(&self) -> Result<()> {
+        let data_directory = account_data_directory(&self.account().identity_number)?;
+        self.begin_sign_out();
+        let clear_auth_error = self.auth_service.clear_auth(&self.account_id).await.err();
         let _mutation = self.mutation_gate.write().await;
+        let session_id = self.account().session_id;
         self.shutdown_inner().await;
         self.revoke_session().await;
         if let Err(error) = self.signal_database.clear().await {
@@ -694,13 +732,25 @@ impl AccountRuntime {
         if let Err(error) = self
             .database
             .participant_session_dao
-            .clear_for_sign_out(&self.account.session_id)
+            .clear_for_sign_out(&session_id)
             .await
         {
             warn!("failed to clear participant sessions during sign out: {error}");
         }
         self.signal_database.close().await;
         self.database.close().await;
+        match tokio::fs::remove_dir_all(&data_directory).await {
+            Ok(()) => {}
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => warn!(
+                "failed to clear account data directory {} after sign out: {error}",
+                data_directory.display()
+            ),
+        }
+        if let Some(error) = clear_auth_error {
+            warn!("failed to clear local auth after sign out: {error}");
+        }
+        Ok(())
     }
 }
 

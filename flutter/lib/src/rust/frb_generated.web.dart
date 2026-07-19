@@ -6,12 +6,16 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
+import 'api/account.dart';
 import 'api/desktop.dart';
+import 'api/logging.dart';
+import 'api/login.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
 import 'third_party/mixin_desktop_core/runtime.dart';
+import 'third_party/mixin_desktop_core/runtime/logging.dart';
 import 'third_party/mixin_desktop_core/runtime/model.dart';
 
 abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
@@ -206,6 +210,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<String> dco_decode_StreamSink_String_Sse(dynamic raw);
+
+  @protected
+  RustStreamSink<AccountProfile> dco_decode_StreamSink_account_profile_Sse(
+    dynamic raw,
+  );
 
   @protected
   RustStreamSink<bool> dco_decode_StreamSink_bool_Sse(dynamic raw);
@@ -614,6 +623,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<String> sse_decode_StreamSink_String_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<AccountProfile> sse_decode_StreamSink_account_profile_Sse(
     SseDeserializer deserializer,
   );
 
@@ -1099,6 +1113,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_String_Sse(
     RustStreamSink<String> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_account_profile_Sse(
+    RustStreamSink<AccountProfile> self,
     SseSerializer serializer,
   );
 

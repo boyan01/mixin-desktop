@@ -4,91 +4,14 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
-import '../third_party/mixin_desktop_core/runtime.dart';
-import '../third_party/mixin_desktop_core/runtime/model.dart';
+import 'account.dart';
+import 'login.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `account_profile`, `current_device_id_sync`, `current_device_id`, `desktop_platform`, `device_matches`, `forward_changes`, `init_rust_logger`, `install_rust_logger`, `persist_profile`, `record_current_device`, `remove_if_exists`, `rename_with_timestamp_if_exists`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `FlutterFileLogger`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `enabled`, `flush`, `from`, `from`, `log`, `try_from`, `try_from`
-
-String rustLogDirectory() =>
-    RustLib.instance.api.crateApiDesktopRustLogDirectory();
-
-void logFlutter({required String level, required String message}) => RustLib
-    .instance
-    .api
-    .crateApiDesktopLogFlutter(level: level, message: message);
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `try_from`, `try_from`
 
 Future<DesktopHandle> openDesktop() =>
     RustLib.instance.api.crateApiDesktopOpenDesktop();
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>>
-abstract class AccountHandle implements RustOpaqueInterface {
-  Stream<String> accountHealth();
-
-  String accountId();
-
-  AttachmentAccess attachment();
-
-  Future<void> clearConversationStorage({
-    required String conversationId,
-    required List<String> categories,
-  });
-
-  Stream<bool> connectionStatus();
-
-  ConversationAccess conversation();
-
-  Stream<BigInt> conversationChanges();
-
-  Future<List<StorageCategoryUsage>> conversationStorageUsage({
-    required String conversationId,
-  });
-
-  Stream<NotificationEvent> desktopNotificationEvents();
-
-  Future<void> deviceTransferCommand({required String command});
-
-  Stream<String> deviceTransferEvents();
-
-  double downloadProgress({required String messageId});
-
-  String mediaDirectory();
-
-  MessageAccess message();
-
-  Stream<BigInt> messageChanges();
-
-  AccountProfile profile();
-
-  Future<void> refreshAccountHealth();
-
-  Future<AccountProfile> refreshProfile();
-
-  void retryConnection();
-
-  Future<SnapshotDetailItem> safeSnapshotById({required String snapshotId});
-
-  Future<void> shutdown();
-
-  Future<void> signOut();
-
-  Future<SnapshotDetailItem> snapshotById({required String snapshotId});
-
-  Future<SnapshotDetailItem> snapshotByTrace({required String traceId});
-
-  StickerAccess sticker();
-
-  Future<List<ConversationStorageUsage>> storageUsage();
-
-  Future<AccountProfile> updateProfile({
-    required String fullName,
-    required String biography,
-  });
-
-  UserAccess user();
-}
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<DesktopHandle>>
 abstract class DesktopHandle implements RustOpaqueInterface {
@@ -112,13 +35,6 @@ abstract class DesktopHandle implements RustOpaqueInterface {
   Future<AccountHandle?> restoreAccount();
 
   Future<void> setProxySettings({required ProxySettingsItem settings});
-}
-
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<LoginHandle>>
-abstract class LoginHandle implements RustOpaqueInterface {
-  String authUrl();
-
-  Future<AccountHandle?> poll();
 }
 
 class HttpResponseItem {

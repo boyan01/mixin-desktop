@@ -18,22 +18,16 @@ class LoginController extends ChangeNotifier {
   String? authUrl;
   String? error;
   LoginHandle? _login;
-  Timer? _timer;
-  var _polling = false;
-  var _ticks = 0;
-  var _pollFailures = 0;
   var _requestVersion = 0;
 
   Future<void> refresh() async {
     final requestVersion = ++_requestVersion;
-    _timer?.cancel();
+    _login?.cancel();
     _login?.dispose();
     _login = null;
     authUrl = null;
     error = null;
     status = LoginStatus.loading;
-    _ticks = 0;
-    _pollFailures = 0;
     notifyListeners();
 
     try {
@@ -46,7 +40,7 @@ class LoginController extends ChangeNotifier {
       authUrl = login.authUrl();
       status = LoginStatus.ready;
       notifyListeners();
-      _timer = Timer.periodic(const Duration(seconds: 1), (_) => _poll());
+      unawaited(_waitForAuthentication(login, requestVersion));
     } catch (exception) {
       if (requestVersion != _requestVersion) return;
       status = LoginStatus.failed;
@@ -55,43 +49,42 @@ class LoginController extends ChangeNotifier {
     }
   }
 
-  Future<void> _poll() async {
-    if (_polling || _login == null) return;
-    if (++_ticks > 60) {
-      unawaited(refresh());
-      return;
-    }
-    _polling = true;
+  Future<void> _waitForAuthentication(
+    LoginHandle login,
+    int requestVersion,
+  ) async {
     try {
-      final account = await _login!.poll();
-      _pollFailures = 0;
-      if (account == null) return;
-      _timer?.cancel();
-      status = LoginStatus.provisioning;
-      notifyListeners();
+      final account = await login.wait();
+      if (requestVersion != _requestVersion || !identical(_login, login)) {
+        unawaited(account.shutdown());
+        account.dispose();
+        return;
+      }
+      _login = null;
+      login.dispose();
       onAuthenticated(account);
     } catch (exception, stackTrace) {
+      if (requestVersion != _requestVersion || !identical(_login, login)) {
+        return;
+      }
+      if (exception.toString().contains('authorization timed out')) {
+        unawaited(refresh());
+        return;
+      }
       if (exception.toString().contains('login_provisioning_error:')) {
-        _timer?.cancel();
         onFailure(exception, stackTrace);
         return;
       }
-      _pollFailures += 1;
-      if (_pollFailures >= 3) {
-        _timer?.cancel();
-        status = LoginStatus.failed;
-        error = exception.toString();
-        notifyListeners();
-      }
-    } finally {
-      _polling = false;
+      status = LoginStatus.failed;
+      error = exception.toString();
+      notifyListeners();
     }
   }
 
   @override
   void dispose() {
     _requestVersion += 1;
-    _timer?.cancel();
+    _login?.cancel();
     _login?.dispose();
     super.dispose();
   }

@@ -39,8 +39,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(PrettyQrView), findsOneWidget);
+    expect(desktop.login.waitCalls, 1);
 
     await tester.pumpWidget(const SizedBox.shrink());
+    expect(desktop.login.isCancelled, isTrue);
     expect(desktop.login.isDisposed, isTrue);
   });
 
@@ -116,13 +118,22 @@ class _FakeDesktopHandle implements DesktopHandle {
 }
 
 class _FakeLoginHandle implements LoginHandle {
+  final _account = Completer<AccountHandle>();
   var _isDisposed = false;
+  var isCancelled = false;
+  var waitCalls = 0;
 
   @override
   String authUrl() => 'mixin://device/auth?id=test&pub_key=test';
 
   @override
-  Future<AccountHandle?> poll() async => null;
+  void cancel() => isCancelled = true;
+
+  @override
+  Future<AccountHandle> wait() {
+    waitCalls++;
+    return _account.future;
+  }
 
   @override
   void dispose() => _isDisposed = true;

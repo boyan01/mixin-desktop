@@ -38,6 +38,11 @@ class ConversationListController extends ChangeNotifier {
   ConversationListController(this.account) : profile = account.profile() {
     _activatePage();
     unawaited(_refreshMetadata());
+    _profileSubscription = account.profileChanges().listen((value) {
+      if (_disposed || profile == value) return;
+      profile = value;
+      notifyListeners();
+    }, onError: _setError);
     _changeSubscription = account.conversationChanges().listen((_) {
       _activePage.update();
       unawaited(_refreshMetadata());
@@ -66,6 +71,7 @@ class ConversationListController extends ChangeNotifier {
   String? error;
 
   StreamSubscription<BigInt>? _changeSubscription;
+  StreamSubscription<rust.AccountProfile>? _profileSubscription;
   PagingController<ConversationListEntry>? _currentPage;
   VoidCallback? _currentPageListener;
   PagingController<ConversationListEntry>? _transientPage;
@@ -382,18 +388,13 @@ class ConversationListController extends ChangeNotifier {
   }
 
   Future<void> updateProfile(String fullName, String biography) async {
-    profile = await account.updateProfile(
+    await account.updateProfile(
       fullName: fullName.trim(),
       biography: biography.trim(),
     );
-    notifyListeners();
   }
 
-  Future<rust.AccountProfile> refreshProfile() async {
-    profile = await account.refreshProfile();
-    notifyListeners();
-    return profile;
-  }
+  Future<rust.AccountProfile> refreshProfile() => account.refreshProfile();
 
   Future<List<ConversationListEntry>> _allConversations(
     ConversationCategoryFilter category, {
@@ -583,6 +584,7 @@ class ConversationListController extends ChangeNotifier {
     _disposed = true;
     _searchTimer?.cancel();
     unawaited(_changeSubscription?.cancel());
+    unawaited(_profileSubscription?.cancel());
     if (_currentPage != null && _currentPageListener != null) {
       _currentPage!.removeListener(_currentPageListener!);
     }

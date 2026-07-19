@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/src/rust/api/account.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:provider/provider.dart';
 

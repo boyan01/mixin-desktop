@@ -3,7 +3,10 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/account.dart';
 import 'api/desktop.dart';
+import 'api/logging.dart';
+import 'api/login.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -11,6 +14,7 @@ import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'third_party/mixin_desktop_core/runtime.dart';
+import 'third_party/mixin_desktop_core/runtime/logging.dart';
 import 'third_party/mixin_desktop_core/runtime/model.dart';
 
 /// Main entrypoint of the Rust API
@@ -57,7 +61,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
   @override
   Future<void> executeRustInitializers() async {
-    await api.crateApiDesktopInitApp();
+    await api.crateApiLoggingInitApp();
   }
 
   @override
@@ -68,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1192865353;
+  int get rustContentHash => 1547707994;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -80,124 +84,128 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
-  Stream<String> crateApiDesktopAccountHandleAccountHealth({
+  Stream<String> crateApiAccountAccountHandleAccountHealth({
     required AccountHandle that,
   });
 
-  String crateApiDesktopAccountHandleAccountId({required AccountHandle that});
+  String crateApiAccountAccountHandleAccountId({required AccountHandle that});
 
-  AttachmentAccess crateApiDesktopAccountHandleAttachment({
+  AttachmentAccess crateApiAccountAccountHandleAttachment({
     required AccountHandle that,
   });
 
-  Future<void> crateApiDesktopAccountHandleClearConversationStorage({
+  Future<void> crateApiAccountAccountHandleClearConversationStorage({
     required AccountHandle that,
     required String conversationId,
     required List<String> categories,
   });
 
-  Stream<bool> crateApiDesktopAccountHandleConnectionStatus({
+  Stream<bool> crateApiAccountAccountHandleConnectionStatus({
     required AccountHandle that,
   });
 
-  ConversationAccess crateApiDesktopAccountHandleConversation({
+  ConversationAccess crateApiAccountAccountHandleConversation({
     required AccountHandle that,
   });
 
-  Stream<BigInt> crateApiDesktopAccountHandleConversationChanges({
+  Stream<BigInt> crateApiAccountAccountHandleConversationChanges({
     required AccountHandle that,
   });
 
   Future<List<StorageCategoryUsage>>
-  crateApiDesktopAccountHandleConversationStorageUsage({
+  crateApiAccountAccountHandleConversationStorageUsage({
     required AccountHandle that,
     required String conversationId,
   });
 
   Stream<NotificationEvent>
-  crateApiDesktopAccountHandleDesktopNotificationEvents({
+  crateApiAccountAccountHandleDesktopNotificationEvents({
     required AccountHandle that,
   });
 
-  Future<void> crateApiDesktopAccountHandleDeviceTransferCommand({
+  Future<void> crateApiAccountAccountHandleDeviceTransferCommand({
     required AccountHandle that,
     required String command,
   });
 
-  Stream<String> crateApiDesktopAccountHandleDeviceTransferEvents({
+  Stream<String> crateApiAccountAccountHandleDeviceTransferEvents({
     required AccountHandle that,
   });
 
-  double crateApiDesktopAccountHandleDownloadProgress({
+  double crateApiAccountAccountHandleDownloadProgress({
     required AccountHandle that,
     required String messageId,
   });
 
-  String crateApiDesktopAccountHandleMediaDirectory({
+  String crateApiAccountAccountHandleMediaDirectory({
     required AccountHandle that,
   });
 
-  MessageAccess crateApiDesktopAccountHandleMessage({
+  MessageAccess crateApiAccountAccountHandleMessage({
     required AccountHandle that,
   });
 
-  Stream<BigInt> crateApiDesktopAccountHandleMessageChanges({
+  Stream<BigInt> crateApiAccountAccountHandleMessageChanges({
     required AccountHandle that,
   });
 
-  AccountProfile crateApiDesktopAccountHandleProfile({
+  AccountProfile crateApiAccountAccountHandleProfile({
     required AccountHandle that,
   });
 
-  Future<void> crateApiDesktopAccountHandleRefreshAccountHealth({
+  Stream<AccountProfile> crateApiAccountAccountHandleProfileChanges({
     required AccountHandle that,
   });
 
-  Future<AccountProfile> crateApiDesktopAccountHandleRefreshProfile({
+  Future<void> crateApiAccountAccountHandleRefreshAccountHealth({
     required AccountHandle that,
   });
 
-  void crateApiDesktopAccountHandleRetryConnection({
+  Future<AccountProfile> crateApiAccountAccountHandleRefreshProfile({
     required AccountHandle that,
   });
 
-  Future<SnapshotDetailItem> crateApiDesktopAccountHandleSafeSnapshotById({
-    required AccountHandle that,
-    required String snapshotId,
-  });
-
-  Future<void> crateApiDesktopAccountHandleShutdown({
+  void crateApiAccountAccountHandleRetryConnection({
     required AccountHandle that,
   });
 
-  Future<void> crateApiDesktopAccountHandleSignOut({
-    required AccountHandle that,
-  });
-
-  Future<SnapshotDetailItem> crateApiDesktopAccountHandleSnapshotById({
+  Future<SnapshotDetailItem> crateApiAccountAccountHandleSafeSnapshotById({
     required AccountHandle that,
     required String snapshotId,
   });
 
-  Future<SnapshotDetailItem> crateApiDesktopAccountHandleSnapshotByTrace({
+  Future<void> crateApiAccountAccountHandleShutdown({
+    required AccountHandle that,
+  });
+
+  Future<void> crateApiAccountAccountHandleSignOut({
+    required AccountHandle that,
+  });
+
+  Future<SnapshotDetailItem> crateApiAccountAccountHandleSnapshotById({
+    required AccountHandle that,
+    required String snapshotId,
+  });
+
+  Future<SnapshotDetailItem> crateApiAccountAccountHandleSnapshotByTrace({
     required AccountHandle that,
     required String traceId,
   });
 
-  StickerAccess crateApiDesktopAccountHandleSticker({
+  StickerAccess crateApiAccountAccountHandleSticker({
     required AccountHandle that,
   });
 
   Future<List<ConversationStorageUsage>>
-  crateApiDesktopAccountHandleStorageUsage({required AccountHandle that});
+  crateApiAccountAccountHandleStorageUsage({required AccountHandle that});
 
-  Future<AccountProfile> crateApiDesktopAccountHandleUpdateProfile({
+  Future<AccountProfile> crateApiAccountAccountHandleUpdateProfile({
     required AccountHandle that,
     required String fullName,
     required String biography,
   });
 
-  UserAccess crateApiDesktopAccountHandleUser({required AccountHandle that});
+  UserAccess crateApiAccountAccountHandleUser({required AccountHandle that});
 
   Future<void> mixinDesktopCoreRuntimeAttachmentAccessCancelAttachment({
     required AttachmentAccess that,
@@ -447,9 +455,11 @@ abstract class RustLibApi extends BaseApi {
     required ProxySettingsItem settings,
   });
 
-  String crateApiDesktopLoginHandleAuthUrl({required LoginHandle that});
+  String crateApiLoginLoginHandleAuthUrl({required LoginHandle that});
 
-  Future<AccountHandle?> crateApiDesktopLoginHandlePoll({
+  void crateApiLoginLoginHandleCancel({required LoginHandle that});
+
+  Future<AccountHandle> crateApiLoginLoginHandleWait({
     required LoginHandle that,
   });
 
@@ -801,16 +811,22 @@ abstract class RustLibApi extends BaseApi {
     required List<String> identityNumbers,
   });
 
-  Future<void> crateApiDesktopInitApp();
+  Future<String> mixinDesktopCoreRuntimeLoggingDirectory();
 
-  void crateApiDesktopLogFlutter({
+  Future<void> mixinDesktopCoreRuntimeLoggingInit({
+    required String appName,
+    required String appVersion,
+    required String buildNumber,
+  });
+
+  Future<void> crateApiLoggingInitApp();
+
+  void crateApiLoggingLogFlutter({
     required String level,
     required String message,
   });
 
   Future<DesktopHandle> crateApiDesktopOpenDesktop();
-
-  String crateApiDesktopRustLogDirectory();
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_AccountHandle;
@@ -892,7 +908,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
-  Stream<String> crateApiDesktopAccountHandleAccountHealth({
+  Stream<String> crateApiAccountAccountHandleAccountHealth({
     required AccountHandle that,
   }) {
     final sink = RustStreamSink<String>();
@@ -917,7 +933,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeSuccessData: sse_decode_unit,
             decodeErrorData: sse_decode_AnyhowException,
           ),
-          constMeta: kCrateApiDesktopAccountHandleAccountHealthConstMeta,
+          constMeta: kCrateApiAccountAccountHandleAccountHealthConstMeta,
           argValues: [that, sink],
           apiImpl: this,
         ),
@@ -926,14 +942,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return sink.stream;
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleAccountHealthConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleAccountHealthConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_account_health",
         argNames: ["that", "sink"],
       );
 
   @override
-  String crateApiDesktopAccountHandleAccountId({required AccountHandle that}) {
+  String crateApiAccountAccountHandleAccountId({required AccountHandle that}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -948,21 +964,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_String,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleAccountIdConstMeta,
+        constMeta: kCrateApiAccountAccountHandleAccountIdConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleAccountIdConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleAccountIdConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_account_id",
         argNames: ["that"],
       );
 
   @override
-  AttachmentAccess crateApiDesktopAccountHandleAttachment({
+  AttachmentAccess crateApiAccountAccountHandleAttachment({
     required AccountHandle that,
   }) {
     return handler.executeSync(
@@ -980,21 +996,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleAttachmentConstMeta,
+        constMeta: kCrateApiAccountAccountHandleAttachmentConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleAttachmentConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_attachment",
         argNames: ["that"],
       );
 
   @override
-  Future<void> crateApiDesktopAccountHandleClearConversationStorage({
+  Future<void> crateApiAccountAccountHandleClearConversationStorage({
     required AccountHandle that,
     required String conversationId,
     required List<String> categories,
@@ -1021,7 +1037,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
-            kCrateApiDesktopAccountHandleClearConversationStorageConstMeta,
+            kCrateApiAccountAccountHandleClearConversationStorageConstMeta,
         argValues: [that, conversationId, categories],
         apiImpl: this,
       ),
@@ -1029,14 +1045,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiDesktopAccountHandleClearConversationStorageConstMeta =>
+  get kCrateApiAccountAccountHandleClearConversationStorageConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_clear_conversation_storage",
         argNames: ["that", "conversationId", "categories"],
       );
 
   @override
-  Stream<bool> crateApiDesktopAccountHandleConnectionStatus({
+  Stream<bool> crateApiAccountAccountHandleConnectionStatus({
     required AccountHandle that,
   }) {
     final sink = RustStreamSink<bool>();
@@ -1061,7 +1077,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeSuccessData: sse_decode_unit,
             decodeErrorData: sse_decode_AnyhowException,
           ),
-          constMeta: kCrateApiDesktopAccountHandleConnectionStatusConstMeta,
+          constMeta: kCrateApiAccountAccountHandleConnectionStatusConstMeta,
           argValues: [that, sink],
           apiImpl: this,
         ),
@@ -1070,14 +1086,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return sink.stream;
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleConnectionStatusConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleConnectionStatusConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_connection_status",
         argNames: ["that", "sink"],
       );
 
   @override
-  ConversationAccess crateApiDesktopAccountHandleConversation({
+  ConversationAccess crateApiAccountAccountHandleConversation({
     required AccountHandle that,
   }) {
     return handler.executeSync(
@@ -1095,21 +1111,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleConversationConstMeta,
+        constMeta: kCrateApiAccountAccountHandleConversationConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleConversationConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleConversationConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_conversation",
         argNames: ["that"],
       );
 
   @override
-  Stream<BigInt> crateApiDesktopAccountHandleConversationChanges({
+  Stream<BigInt> crateApiAccountAccountHandleConversationChanges({
     required AccountHandle that,
   }) {
     final sink = RustStreamSink<BigInt>();
@@ -1134,7 +1150,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeSuccessData: sse_decode_unit,
             decodeErrorData: sse_decode_AnyhowException,
           ),
-          constMeta: kCrateApiDesktopAccountHandleConversationChangesConstMeta,
+          constMeta: kCrateApiAccountAccountHandleConversationChangesConstMeta,
           argValues: [that, sink],
           apiImpl: this,
         ),
@@ -1143,7 +1159,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return sink.stream;
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleConversationChangesConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleConversationChangesConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_conversation_changes",
         argNames: ["that", "sink"],
@@ -1151,7 +1167,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<StorageCategoryUsage>>
-  crateApiDesktopAccountHandleConversationStorageUsage({
+  crateApiAccountAccountHandleConversationStorageUsage({
     required AccountHandle that,
     required String conversationId,
   }) {
@@ -1176,7 +1192,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
-            kCrateApiDesktopAccountHandleConversationStorageUsageConstMeta,
+            kCrateApiAccountAccountHandleConversationStorageUsageConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -1184,7 +1200,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiDesktopAccountHandleConversationStorageUsageConstMeta =>
+  get kCrateApiAccountAccountHandleConversationStorageUsageConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_conversation_storage_usage",
         argNames: ["that", "conversationId"],
@@ -1192,7 +1208,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Stream<NotificationEvent>
-  crateApiDesktopAccountHandleDesktopNotificationEvents({
+  crateApiAccountAccountHandleDesktopNotificationEvents({
     required AccountHandle that,
   }) {
     final sink = RustStreamSink<NotificationEvent>();
@@ -1218,7 +1234,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeErrorData: sse_decode_AnyhowException,
           ),
           constMeta:
-              kCrateApiDesktopAccountHandleDesktopNotificationEventsConstMeta,
+              kCrateApiAccountAccountHandleDesktopNotificationEventsConstMeta,
           argValues: [that, sink],
           apiImpl: this,
         ),
@@ -1228,14 +1244,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiDesktopAccountHandleDesktopNotificationEventsConstMeta =>
+  get kCrateApiAccountAccountHandleDesktopNotificationEventsConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_desktop_notification_events",
         argNames: ["that", "sink"],
       );
 
   @override
-  Future<void> crateApiDesktopAccountHandleDeviceTransferCommand({
+  Future<void> crateApiAccountAccountHandleDeviceTransferCommand({
     required AccountHandle that,
     required String command,
   }) {
@@ -1259,7 +1275,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiDesktopAccountHandleDeviceTransferCommandConstMeta,
+        constMeta: kCrateApiAccountAccountHandleDeviceTransferCommandConstMeta,
         argValues: [that, command],
         apiImpl: this,
       ),
@@ -1267,14 +1283,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiDesktopAccountHandleDeviceTransferCommandConstMeta =>
+  get kCrateApiAccountAccountHandleDeviceTransferCommandConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_device_transfer_command",
         argNames: ["that", "command"],
       );
 
   @override
-  Stream<String> crateApiDesktopAccountHandleDeviceTransferEvents({
+  Stream<String> crateApiAccountAccountHandleDeviceTransferEvents({
     required AccountHandle that,
   }) {
     final sink = RustStreamSink<String>();
@@ -1299,7 +1315,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeSuccessData: sse_decode_unit,
             decodeErrorData: sse_decode_AnyhowException,
           ),
-          constMeta: kCrateApiDesktopAccountHandleDeviceTransferEventsConstMeta,
+          constMeta: kCrateApiAccountAccountHandleDeviceTransferEventsConstMeta,
           argValues: [that, sink],
           apiImpl: this,
         ),
@@ -1309,14 +1325,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kCrateApiDesktopAccountHandleDeviceTransferEventsConstMeta =>
+  get kCrateApiAccountAccountHandleDeviceTransferEventsConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_device_transfer_events",
         argNames: ["that", "sink"],
       );
 
   @override
-  double crateApiDesktopAccountHandleDownloadProgress({
+  double crateApiAccountAccountHandleDownloadProgress({
     required AccountHandle that,
     required String messageId,
   }) {
@@ -1335,21 +1351,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_f_64,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleDownloadProgressConstMeta,
+        constMeta: kCrateApiAccountAccountHandleDownloadProgressConstMeta,
         argValues: [that, messageId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleDownloadProgressConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleDownloadProgressConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_download_progress",
         argNames: ["that", "messageId"],
       );
 
   @override
-  String crateApiDesktopAccountHandleMediaDirectory({
+  String crateApiAccountAccountHandleMediaDirectory({
     required AccountHandle that,
   }) {
     return handler.executeSync(
@@ -1366,21 +1382,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_String,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiDesktopAccountHandleMediaDirectoryConstMeta,
+        constMeta: kCrateApiAccountAccountHandleMediaDirectoryConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleMediaDirectoryConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleMediaDirectoryConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_media_directory",
         argNames: ["that"],
       );
 
   @override
-  MessageAccess crateApiDesktopAccountHandleMessage({
+  MessageAccess crateApiAccountAccountHandleMessage({
     required AccountHandle that,
   }) {
     return handler.executeSync(
@@ -1398,21 +1414,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleMessageConstMeta,
+        constMeta: kCrateApiAccountAccountHandleMessageConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleMessageConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleMessageConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_message",
         argNames: ["that"],
       );
 
   @override
-  Stream<BigInt> crateApiDesktopAccountHandleMessageChanges({
+  Stream<BigInt> crateApiAccountAccountHandleMessageChanges({
     required AccountHandle that,
   }) {
     final sink = RustStreamSink<BigInt>();
@@ -1437,7 +1453,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             decodeSuccessData: sse_decode_unit,
             decodeErrorData: sse_decode_AnyhowException,
           ),
-          constMeta: kCrateApiDesktopAccountHandleMessageChangesConstMeta,
+          constMeta: kCrateApiAccountAccountHandleMessageChangesConstMeta,
           argValues: [that, sink],
           apiImpl: this,
         ),
@@ -1446,14 +1462,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return sink.stream;
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleMessageChangesConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleMessageChangesConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_message_changes",
         argNames: ["that", "sink"],
       );
 
   @override
-  AccountProfile crateApiDesktopAccountHandleProfile({
+  AccountProfile crateApiAccountAccountHandleProfile({
     required AccountHandle that,
   }) {
     return handler.executeSync(
@@ -1470,58 +1486,62 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_account_profile,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleProfileConstMeta,
+        constMeta: kCrateApiAccountAccountHandleProfileConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleProfileConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleProfileConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_profile",
         argNames: ["that"],
       );
 
   @override
-  Future<void> crateApiDesktopAccountHandleRefreshAccountHealth({
+  Stream<AccountProfile> crateApiAccountAccountHandleProfileChanges({
     required AccountHandle that,
   }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 17,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+    final sink = RustStreamSink<AccountProfile>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+              that,
+              serializer,
+            );
+            sse_encode_StreamSink_account_profile_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 17,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_AnyhowException,
+          ),
+          constMeta: kCrateApiAccountAccountHandleProfileChangesConstMeta,
+          argValues: [that, sink],
+          apiImpl: this,
         ),
-        constMeta: kCrateApiDesktopAccountHandleRefreshAccountHealthConstMeta,
-        argValues: [that],
-        apiImpl: this,
       ),
     );
+    return sink.stream;
   }
 
-  TaskConstMeta
-  get kCrateApiDesktopAccountHandleRefreshAccountHealthConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleProfileChangesConstMeta =>
       const TaskConstMeta(
-        debugName: "AccountHandle_refresh_account_health",
-        argNames: ["that"],
+        debugName: "AccountHandle_profile_changes",
+        argNames: ["that", "sink"],
       );
 
   @override
-  Future<AccountProfile> crateApiDesktopAccountHandleRefreshProfile({
+  Future<void> crateApiAccountAccountHandleRefreshAccountHealth({
     required AccountHandle that,
   }) {
     return handler.executeNormal(
@@ -1540,24 +1560,61 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_account_profile,
+          decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiDesktopAccountHandleRefreshProfileConstMeta,
+        constMeta: kCrateApiAccountAccountHandleRefreshAccountHealthConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleRefreshProfileConstMeta =>
+  TaskConstMeta
+  get kCrateApiAccountAccountHandleRefreshAccountHealthConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_refresh_account_health",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<AccountProfile> crateApiAccountAccountHandleRefreshProfile({
+    required AccountHandle that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_account_profile,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiAccountAccountHandleRefreshProfileConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiAccountAccountHandleRefreshProfileConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_refresh_profile",
         argNames: ["that"],
       );
 
   @override
-  void crateApiDesktopAccountHandleRetryConnection({
+  void crateApiAccountAccountHandleRetryConnection({
     required AccountHandle that,
   }) {
     return handler.executeSync(
@@ -1568,27 +1625,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleRetryConnectionConstMeta,
+        constMeta: kCrateApiAccountAccountHandleRetryConnectionConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleRetryConnectionConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleRetryConnectionConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_retry_connection",
         argNames: ["that"],
       );
 
   @override
-  Future<SnapshotDetailItem> crateApiDesktopAccountHandleSafeSnapshotById({
+  Future<SnapshotDetailItem> crateApiAccountAccountHandleSafeSnapshotById({
     required AccountHandle that,
     required String snapshotId,
   }) {
@@ -1604,7 +1661,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 21,
             port: port_,
           );
         },
@@ -1612,57 +1669,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_snapshot_detail_item,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiDesktopAccountHandleSafeSnapshotByIdConstMeta,
+        constMeta: kCrateApiAccountAccountHandleSafeSnapshotByIdConstMeta,
         argValues: [that, snapshotId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleSafeSnapshotByIdConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleSafeSnapshotByIdConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_safe_snapshot_by_id",
         argNames: ["that", "snapshotId"],
       );
 
   @override
-  Future<void> crateApiDesktopAccountHandleShutdown({
-    required AccountHandle that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 21,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiDesktopAccountHandleShutdownConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopAccountHandleShutdownConstMeta =>
-      const TaskConstMeta(
-        debugName: "AccountHandle_shutdown",
-        argNames: ["that"],
-      );
-
-  @override
-  Future<void> crateApiDesktopAccountHandleSignOut({
+  Future<void> crateApiAccountAccountHandleShutdown({
     required AccountHandle that,
   }) {
     return handler.executeNormal(
@@ -1682,23 +1703,59 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleSignOutConstMeta,
+        constMeta: kCrateApiAccountAccountHandleShutdownConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleSignOutConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleShutdownConstMeta =>
+      const TaskConstMeta(
+        debugName: "AccountHandle_shutdown",
+        argNames: ["that"],
+      );
+
+  @override
+  Future<void> crateApiAccountAccountHandleSignOut({
+    required AccountHandle that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 23,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiAccountAccountHandleSignOutConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiAccountAccountHandleSignOutConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_sign_out",
         argNames: ["that"],
       );
 
   @override
-  Future<SnapshotDetailItem> crateApiDesktopAccountHandleSnapshotById({
+  Future<SnapshotDetailItem> crateApiAccountAccountHandleSnapshotById({
     required AccountHandle that,
     required String snapshotId,
   }) {
@@ -1714,7 +1771,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1722,21 +1779,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_snapshot_detail_item,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiDesktopAccountHandleSnapshotByIdConstMeta,
+        constMeta: kCrateApiAccountAccountHandleSnapshotByIdConstMeta,
         argValues: [that, snapshotId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleSnapshotByIdConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleSnapshotByIdConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_snapshot_by_id",
         argNames: ["that", "snapshotId"],
       );
 
   @override
-  Future<SnapshotDetailItem> crateApiDesktopAccountHandleSnapshotByTrace({
+  Future<SnapshotDetailItem> crateApiAccountAccountHandleSnapshotByTrace({
     required AccountHandle that,
     required String traceId,
   }) {
@@ -1752,7 +1809,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1760,21 +1817,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_snapshot_detail_item,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiDesktopAccountHandleSnapshotByTraceConstMeta,
+        constMeta: kCrateApiAccountAccountHandleSnapshotByTraceConstMeta,
         argValues: [that, traceId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleSnapshotByTraceConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleSnapshotByTraceConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_snapshot_by_trace",
         argNames: ["that", "traceId"],
       );
 
   @override
-  StickerAccess crateApiDesktopAccountHandleSticker({
+  StickerAccess crateApiAccountAccountHandleSticker({
     required AccountHandle that,
   }) {
     return handler.executeSync(
@@ -1785,21 +1842,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
         },
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerStickerAccess,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleStickerConstMeta,
+        constMeta: kCrateApiAccountAccountHandleStickerConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleStickerConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleStickerConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_sticker",
         argNames: ["that"],
@@ -1807,7 +1864,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<ConversationStorageUsage>>
-  crateApiDesktopAccountHandleStorageUsage({required AccountHandle that}) {
+  crateApiAccountAccountHandleStorageUsage({required AccountHandle that}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -1819,7 +1876,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1827,21 +1884,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_list_conversation_storage_usage,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiDesktopAccountHandleStorageUsageConstMeta,
+        constMeta: kCrateApiAccountAccountHandleStorageUsageConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleStorageUsageConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleStorageUsageConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_storage_usage",
         argNames: ["that"],
       );
 
   @override
-  Future<AccountProfile> crateApiDesktopAccountHandleUpdateProfile({
+  Future<AccountProfile> crateApiAccountAccountHandleUpdateProfile({
     required AccountHandle that,
     required String fullName,
     required String biography,
@@ -1859,7 +1916,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1867,21 +1924,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_account_profile,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiDesktopAccountHandleUpdateProfileConstMeta,
+        constMeta: kCrateApiAccountAccountHandleUpdateProfileConstMeta,
         argValues: [that, fullName, biography],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleUpdateProfileConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleUpdateProfileConstMeta =>
       const TaskConstMeta(
         debugName: "AccountHandle_update_profile",
         argNames: ["that", "fullName", "biography"],
       );
 
   @override
-  UserAccess crateApiDesktopAccountHandleUser({required AccountHandle that}) {
+  UserAccess crateApiAccountAccountHandleUser({required AccountHandle that}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -1890,21 +1947,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
         },
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserAccess,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopAccountHandleUserConstMeta,
+        constMeta: kCrateApiAccountAccountHandleUserConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopAccountHandleUserConstMeta =>
+  TaskConstMeta get kCrateApiAccountAccountHandleUserConstMeta =>
       const TaskConstMeta(debugName: "AccountHandle_user", argNames: ["that"]);
 
   @override
@@ -1924,7 +1981,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1967,7 +2024,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 31,
             port: port_,
           );
         },
@@ -2007,7 +2064,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 32,
             port: port_,
           );
         },
@@ -2050,7 +2107,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 33,
             port: port_,
           );
         },
@@ -2090,7 +2147,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 34,
             port: port_,
           );
         },
@@ -2132,7 +2189,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 35,
             port: port_,
           );
         },
@@ -2172,7 +2229,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 36,
             port: port_,
           );
         },
@@ -2213,7 +2270,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 37,
             port: port_,
           );
         },
@@ -2251,7 +2308,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 38,
             port: port_,
           );
         },
@@ -2290,7 +2347,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 39,
             port: port_,
           );
         },
@@ -2337,7 +2394,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 39,
+            funcId: 40,
             port: port_,
           );
         },
@@ -2378,7 +2435,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 40,
+            funcId: 41,
             port: port_,
           );
         },
@@ -2419,7 +2476,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 41,
+            funcId: 42,
             port: port_,
           );
         },
@@ -2470,7 +2527,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 42,
+            funcId: 43,
             port: port_,
           );
         },
@@ -2526,7 +2583,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 43,
+            funcId: 44,
             port: port_,
           );
         },
@@ -2568,7 +2625,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 44,
+            funcId: 45,
             port: port_,
           );
         },
@@ -2608,7 +2665,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 45,
+            funcId: 46,
             port: port_,
           );
         },
@@ -2648,7 +2705,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 46,
+            funcId: 47,
             port: port_,
           );
         },
@@ -2688,7 +2745,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 47,
+            funcId: 48,
             port: port_,
           );
         },
@@ -2736,7 +2793,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 48,
+            funcId: 49,
             port: port_,
           );
         },
@@ -2787,7 +2844,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 49,
+            funcId: 50,
             port: port_,
           );
         },
@@ -2827,7 +2884,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 50,
+            funcId: 51,
             port: port_,
           );
         },
@@ -2867,7 +2924,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 51,
+            funcId: 52,
             port: port_,
           );
         },
@@ -2907,7 +2964,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 52,
+            funcId: 53,
             port: port_,
           );
         },
@@ -2947,7 +3004,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 53,
+            funcId: 54,
             port: port_,
           );
         },
@@ -2987,7 +3044,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 54,
+            funcId: 55,
             port: port_,
           );
         },
@@ -3027,7 +3084,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 55,
+            funcId: 56,
             port: port_,
           );
         },
@@ -3067,7 +3124,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 56,
+            funcId: 57,
             port: port_,
           );
         },
@@ -3107,7 +3164,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 57,
+            funcId: 58,
             port: port_,
           );
         },
@@ -3150,7 +3207,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 58,
+            funcId: 59,
             port: port_,
           );
         },
@@ -3193,7 +3250,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 59,
+            funcId: 60,
             port: port_,
           );
         },
@@ -3239,7 +3296,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 60,
+            funcId: 61,
             port: port_,
           );
         },
@@ -3286,7 +3343,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 61,
+            funcId: 62,
             port: port_,
           );
         },
@@ -3327,7 +3384,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 62,
+            funcId: 63,
             port: port_,
           );
         },
@@ -3373,7 +3430,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 63,
+            funcId: 64,
             port: port_,
           );
         },
@@ -3411,7 +3468,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 64,
+            funcId: 65,
             port: port_,
           );
         },
@@ -3447,7 +3504,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 65,
+            funcId: 66,
             port: port_,
           );
         },
@@ -3496,7 +3553,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 66,
+            funcId: 67,
             port: port_,
           );
         },
@@ -3548,7 +3605,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 67,
+            funcId: 68,
             port: port_,
           );
         },
@@ -3584,7 +3641,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 68,
+            funcId: 69,
             port: port_,
           );
         },
@@ -3622,7 +3679,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 69,
+            funcId: 70,
             port: port_,
           );
         },
@@ -3661,7 +3718,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 70,
+            funcId: 71,
             port: port_,
           );
         },
@@ -3683,7 +3740,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  String crateApiDesktopLoginHandleAuthUrl({required LoginHandle that}) {
+  String crateApiLoginLoginHandleAuthUrl({required LoginHandle that}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
@@ -3692,27 +3749,53 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 71)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 72)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopLoginHandleAuthUrlConstMeta,
+        constMeta: kCrateApiLoginLoginHandleAuthUrlConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopLoginHandleAuthUrlConstMeta =>
+  TaskConstMeta get kCrateApiLoginLoginHandleAuthUrlConstMeta =>
       const TaskConstMeta(
         debugName: "LoginHandle_auth_url",
         argNames: ["that"],
       );
 
   @override
-  Future<AccountHandle?> crateApiDesktopLoginHandlePoll({
+  void crateApiLoginLoginHandleCancel({required LoginHandle that}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLoginHandle(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 73)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiLoginLoginHandleCancelConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLoginLoginHandleCancelConstMeta =>
+      const TaskConstMeta(debugName: "LoginHandle_cancel", argNames: ["that"]);
+
+  @override
+  Future<AccountHandle> crateApiLoginLoginHandleWait({
     required LoginHandle that,
   }) {
     return handler.executeNormal(
@@ -3726,24 +3809,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 72,
+            funcId: 74,
             port: port_,
           );
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle,
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiDesktopLoginHandlePollConstMeta,
+        constMeta: kCrateApiLoginLoginHandleWaitConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopLoginHandlePollConstMeta =>
-      const TaskConstMeta(debugName: "LoginHandle_poll", argNames: ["that"]);
+  TaskConstMeta get kCrateApiLoginLoginHandleWaitConstMeta =>
+      const TaskConstMeta(debugName: "LoginHandle_wait", argNames: ["that"]);
 
   @override
   Future<String> mixinDesktopCoreRuntimeMessageAccessCombineForwardMessages({
@@ -3764,7 +3847,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 73,
+            funcId: 75,
             port: port_,
           );
         },
@@ -3804,7 +3887,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 74,
+            funcId: 76,
             port: port_,
           );
         },
@@ -3846,7 +3929,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 75,
+            funcId: 77,
             port: port_,
           );
         },
@@ -3887,7 +3970,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 76,
+            funcId: 78,
             port: port_,
           );
         },
@@ -3934,7 +4017,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 77,
+            funcId: 79,
             port: port_,
           );
         },
@@ -3980,7 +4063,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 78,
+            funcId: 80,
             port: port_,
           );
         },
@@ -4022,7 +4105,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 79,
+            funcId: 81,
             port: port_,
           );
         },
@@ -4068,7 +4151,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 80,
+            funcId: 82,
             port: port_,
           );
         },
@@ -4125,7 +4208,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 81,
+            funcId: 83,
             port: port_,
           );
         },
@@ -4171,7 +4254,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 82,
+            funcId: 84,
             port: port_,
           );
         },
@@ -4213,7 +4296,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 83,
+            funcId: 85,
             port: port_,
           );
         },
@@ -4254,7 +4337,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 84,
+            funcId: 86,
             port: port_,
           );
         },
@@ -4298,7 +4381,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 85,
+            funcId: 87,
             port: port_,
           );
         },
@@ -4349,7 +4432,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 86,
+            funcId: 88,
             port: port_,
           );
         },
@@ -4406,7 +4489,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 87,
+            funcId: 89,
             port: port_,
           );
         },
@@ -4466,7 +4549,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 88,
+            funcId: 90,
             port: port_,
           );
         },
@@ -4541,7 +4624,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 89,
+            funcId: 91,
             port: port_,
           );
         },
@@ -4599,7 +4682,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 90,
+            funcId: 92,
             port: port_,
           );
         },
@@ -4645,7 +4728,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 91,
+            funcId: 93,
             port: port_,
           );
         },
@@ -4695,7 +4778,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 92,
+            funcId: 94,
             port: port_,
           );
         },
@@ -4755,7 +4838,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 93,
+            funcId: 95,
             port: port_,
           );
         },
@@ -4799,7 +4882,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 94,
+            funcId: 96,
             port: port_,
           );
         },
@@ -4847,7 +4930,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 95,
+            funcId: 97,
             port: port_,
           );
         },
@@ -4894,7 +4977,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 96,
+            funcId: 98,
             port: port_,
           );
         },
@@ -4934,7 +5017,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 97,
+            funcId: 99,
             port: port_,
           );
         },
@@ -4975,7 +5058,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 98,
+            funcId: 100,
             port: port_,
           );
         },
@@ -5015,7 +5098,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 99,
+            funcId: 101,
             port: port_,
           );
         },
@@ -5053,7 +5136,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 100,
+            funcId: 102,
             port: port_,
           );
         },
@@ -5093,7 +5176,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 101,
+            funcId: 103,
             port: port_,
           );
         },
@@ -5133,7 +5216,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 102,
+            funcId: 104,
             port: port_,
           );
         },
@@ -5171,7 +5254,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 103,
+            funcId: 105,
             port: port_,
           );
         },
@@ -5209,7 +5292,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 104,
+            funcId: 106,
             port: port_,
           );
         },
@@ -5248,7 +5331,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 105,
+            funcId: 107,
             port: port_,
           );
         },
@@ -5285,7 +5368,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 106,
+            funcId: 108,
             port: port_,
           );
         },
@@ -5325,7 +5408,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 107,
+            funcId: 109,
             port: port_,
           );
         },
@@ -5366,7 +5449,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 108,
+            funcId: 110,
             port: port_,
           );
         },
@@ -5406,7 +5489,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 109,
+            funcId: 111,
             port: port_,
           );
         },
@@ -5445,7 +5528,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 110,
+            funcId: 112,
             port: port_,
           );
         },
@@ -5484,7 +5567,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 111,
+            funcId: 113,
             port: port_,
           );
         },
@@ -5522,7 +5605,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 112,
+            funcId: 114,
             port: port_,
           );
         },
@@ -5564,7 +5647,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 113,
+            funcId: 115,
             port: port_,
           );
         },
@@ -5602,7 +5685,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 114,
+            funcId: 116,
             port: port_,
           );
         },
@@ -5640,7 +5723,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 115,
+            funcId: 117,
             port: port_,
           );
         },
@@ -5678,7 +5761,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 116,
+            funcId: 118,
             port: port_,
           );
         },
@@ -5716,7 +5799,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 117,
+            funcId: 119,
             port: port_,
           );
         },
@@ -5755,7 +5838,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 118,
+            funcId: 120,
             port: port_,
           );
         },
@@ -5795,7 +5878,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 119,
+            funcId: 121,
             port: port_,
           );
         },
@@ -5833,7 +5916,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 120,
+            funcId: 122,
             port: port_,
           );
         },
@@ -5876,7 +5959,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 121,
+            funcId: 123,
             port: port_,
           );
         },
@@ -5915,7 +5998,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 122,
+            funcId: 124,
             port: port_,
           );
         },
@@ -5953,7 +6036,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 123,
+            funcId: 125,
             port: port_,
           );
         },
@@ -5988,7 +6071,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 124,
+            funcId: 126,
             port: port_,
           );
         },
@@ -6027,7 +6110,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 125,
+            funcId: 127,
             port: port_,
           );
         },
@@ -6065,7 +6148,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 126,
+            funcId: 128,
             port: port_,
           );
         },
@@ -6105,7 +6188,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 127,
+            funcId: 129,
             port: port_,
           );
         },
@@ -6144,7 +6227,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 128,
+            funcId: 130,
             port: port_,
           );
         },
@@ -6168,7 +6251,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiDesktopInitApp() {
+  Future<String> mixinDesktopCoreRuntimeLoggingDirectory() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -6176,7 +6259,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 129,
+            funcId: 131,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kMixinDesktopCoreRuntimeLoggingDirectoryConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeLoggingDirectoryConstMeta =>
+      const TaskConstMeta(debugName: "directory", argNames: []);
+
+  @override
+  Future<void> mixinDesktopCoreRuntimeLoggingInit({
+    required String appName,
+    required String appVersion,
+    required String buildNumber,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(appName, serializer);
+          sse_encode_String(appVersion, serializer);
+          sse_encode_String(buildNumber, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 132,
             port: port_,
           );
         },
@@ -6184,18 +6301,48 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: sse_decode_AnyhowException,
         ),
-        constMeta: kCrateApiDesktopInitAppConstMeta,
+        constMeta: kMixinDesktopCoreRuntimeLoggingInitConstMeta,
+        argValues: [appName, appVersion, buildNumber],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kMixinDesktopCoreRuntimeLoggingInitConstMeta =>
+      const TaskConstMeta(
+        debugName: "init",
+        argNames: ["appName", "appVersion", "buildNumber"],
+      );
+
+  @override
+  Future<void> crateApiLoggingInitApp() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 133,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta: kCrateApiLoggingInitAppConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopInitAppConstMeta =>
+  TaskConstMeta get kCrateApiLoggingInitAppConstMeta =>
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
-  void crateApiDesktopLogFlutter({
+  void crateApiLoggingLogFlutter({
     required String level,
     required String message,
   }) {
@@ -6208,21 +6355,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 130,
+            funcId: 134,
           )!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
           decodeErrorData: null,
         ),
-        constMeta: kCrateApiDesktopLogFlutterConstMeta,
+        constMeta: kCrateApiLoggingLogFlutterConstMeta,
         argValues: [level, message],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kCrateApiDesktopLogFlutterConstMeta => const TaskConstMeta(
+  TaskConstMeta get kCrateApiLoggingLogFlutterConstMeta => const TaskConstMeta(
     debugName: "log_flutter",
     argNames: ["level", "message"],
   );
@@ -6236,7 +6383,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 131,
+            funcId: 135,
             port: port_,
           );
         },
@@ -6254,32 +6401,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiDesktopOpenDesktopConstMeta =>
       const TaskConstMeta(debugName: "open_desktop", argNames: []);
-
-  @override
-  String crateApiDesktopRustLogDirectory() {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 132,
-          )!;
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
-        ),
-        constMeta: kCrateApiDesktopRustLogDirectoryConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiDesktopRustLogDirectoryConstMeta =>
-      const TaskConstMeta(debugName: "rust_log_directory", argNames: []);
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_AccountHandle => wire
@@ -6579,6 +6700,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   RustStreamSink<String> dco_decode_StreamSink_String_Sse(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
+  RustStreamSink<AccountProfile> dco_decode_StreamSink_account_profile_Sse(
+    dynamic raw,
+  ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     throw UnimplementedError();
   }
@@ -7749,6 +7878,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   RustStreamSink<String> sse_decode_StreamSink_String_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
+  RustStreamSink<AccountProfile> sse_decode_StreamSink_account_profile_Sse(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -9344,6 +9481,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_StreamSink_account_profile_Sse(
+    RustStreamSink<AccountProfile> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_account_profile,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_StreamSink_bool_Sse(
     RustStreamSink<bool> self,
     SseSerializer serializer,
@@ -10346,121 +10500,124 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
   );
 
   Stream<String> accountHealth() => RustLib.instance.api
-      .crateApiDesktopAccountHandleAccountHealth(that: this);
+      .crateApiAccountAccountHandleAccountHealth(that: this);
 
   String accountId() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleAccountId(that: this);
+      RustLib.instance.api.crateApiAccountAccountHandleAccountId(that: this);
 
   AttachmentAccess attachment() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleAttachment(that: this);
+      RustLib.instance.api.crateApiAccountAccountHandleAttachment(that: this);
 
   Future<void> clearConversationStorage({
     required String conversationId,
     required List<String> categories,
   }) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleClearConversationStorage(
+      RustLib.instance.api.crateApiAccountAccountHandleClearConversationStorage(
         that: this,
         conversationId: conversationId,
         categories: categories,
       );
 
   Stream<bool> connectionStatus() => RustLib.instance.api
-      .crateApiDesktopAccountHandleConnectionStatus(that: this);
+      .crateApiAccountAccountHandleConnectionStatus(that: this);
 
   ConversationAccess conversation() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleConversation(that: this);
+      RustLib.instance.api.crateApiAccountAccountHandleConversation(that: this);
 
   Stream<BigInt> conversationChanges() => RustLib.instance.api
-      .crateApiDesktopAccountHandleConversationChanges(that: this);
+      .crateApiAccountAccountHandleConversationChanges(that: this);
 
   Future<List<StorageCategoryUsage>> conversationStorageUsage({
     required String conversationId,
   }) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleConversationStorageUsage(
+      RustLib.instance.api.crateApiAccountAccountHandleConversationStorageUsage(
         that: this,
         conversationId: conversationId,
       );
 
   Stream<NotificationEvent> desktopNotificationEvents() => RustLib.instance.api
-      .crateApiDesktopAccountHandleDesktopNotificationEvents(that: this);
+      .crateApiAccountAccountHandleDesktopNotificationEvents(that: this);
 
   Future<void> deviceTransferCommand({required String command}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleDeviceTransferCommand(
+      RustLib.instance.api.crateApiAccountAccountHandleDeviceTransferCommand(
         that: this,
         command: command,
       );
 
   Stream<String> deviceTransferEvents() => RustLib.instance.api
-      .crateApiDesktopAccountHandleDeviceTransferEvents(that: this);
+      .crateApiAccountAccountHandleDeviceTransferEvents(that: this);
 
   double downloadProgress({required String messageId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleDownloadProgress(
+      RustLib.instance.api.crateApiAccountAccountHandleDownloadProgress(
         that: this,
         messageId: messageId,
       );
 
   String mediaDirectory() => RustLib.instance.api
-      .crateApiDesktopAccountHandleMediaDirectory(that: this);
+      .crateApiAccountAccountHandleMediaDirectory(that: this);
 
   MessageAccess message() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleMessage(that: this);
+      RustLib.instance.api.crateApiAccountAccountHandleMessage(that: this);
 
   Stream<BigInt> messageChanges() => RustLib.instance.api
-      .crateApiDesktopAccountHandleMessageChanges(that: this);
+      .crateApiAccountAccountHandleMessageChanges(that: this);
 
   AccountProfile profile() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleProfile(that: this);
+      RustLib.instance.api.crateApiAccountAccountHandleProfile(that: this);
+
+  Stream<AccountProfile> profileChanges() => RustLib.instance.api
+      .crateApiAccountAccountHandleProfileChanges(that: this);
 
   Future<void> refreshAccountHealth() => RustLib.instance.api
-      .crateApiDesktopAccountHandleRefreshAccountHealth(that: this);
+      .crateApiAccountAccountHandleRefreshAccountHealth(that: this);
 
   Future<AccountProfile> refreshProfile() => RustLib.instance.api
-      .crateApiDesktopAccountHandleRefreshProfile(that: this);
+      .crateApiAccountAccountHandleRefreshProfile(that: this);
 
   void retryConnection() => RustLib.instance.api
-      .crateApiDesktopAccountHandleRetryConnection(that: this);
+      .crateApiAccountAccountHandleRetryConnection(that: this);
 
   Future<SnapshotDetailItem> safeSnapshotById({required String snapshotId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleSafeSnapshotById(
+      RustLib.instance.api.crateApiAccountAccountHandleSafeSnapshotById(
         that: this,
         snapshotId: snapshotId,
       );
 
   Future<void> shutdown() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleShutdown(that: this);
+      RustLib.instance.api.crateApiAccountAccountHandleShutdown(that: this);
 
   Future<void> signOut() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleSignOut(that: this);
+      RustLib.instance.api.crateApiAccountAccountHandleSignOut(that: this);
 
   Future<SnapshotDetailItem> snapshotById({required String snapshotId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleSnapshotById(
+      RustLib.instance.api.crateApiAccountAccountHandleSnapshotById(
         that: this,
         snapshotId: snapshotId,
       );
 
   Future<SnapshotDetailItem> snapshotByTrace({required String traceId}) =>
-      RustLib.instance.api.crateApiDesktopAccountHandleSnapshotByTrace(
+      RustLib.instance.api.crateApiAccountAccountHandleSnapshotByTrace(
         that: this,
         traceId: traceId,
       );
 
   StickerAccess sticker() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleSticker(that: this);
+      RustLib.instance.api.crateApiAccountAccountHandleSticker(that: this);
 
   Future<List<ConversationStorageUsage>> storageUsage() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleStorageUsage(that: this);
+      RustLib.instance.api.crateApiAccountAccountHandleStorageUsage(that: this);
 
   Future<AccountProfile> updateProfile({
     required String fullName,
     required String biography,
-  }) => RustLib.instance.api.crateApiDesktopAccountHandleUpdateProfile(
+  }) => RustLib.instance.api.crateApiAccountAccountHandleUpdateProfile(
     that: this,
     fullName: fullName,
     biography: biography,
   );
 
   UserAccess user() =>
-      RustLib.instance.api.crateApiDesktopAccountHandleUser(that: this);
+      RustLib.instance.api.crateApiAccountAccountHandleUser(that: this);
 }
 
 @sealed
@@ -10905,10 +11062,13 @@ class LoginHandleImpl extends RustOpaque implements LoginHandle {
   );
 
   String authUrl() =>
-      RustLib.instance.api.crateApiDesktopLoginHandleAuthUrl(that: this);
+      RustLib.instance.api.crateApiLoginLoginHandleAuthUrl(that: this);
 
-  Future<AccountHandle?> poll() =>
-      RustLib.instance.api.crateApiDesktopLoginHandlePoll(that: this);
+  void cancel() =>
+      RustLib.instance.api.crateApiLoginLoginHandleCancel(that: this);
+
+  Future<AccountHandle> wait() =>
+      RustLib.instance.api.crateApiLoginLoginHandleWait(that: this);
 }
 
 @sealed

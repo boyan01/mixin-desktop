@@ -45,34 +45,10 @@ impl AuthService {
         let session = self.begin_authorization("rust").await?;
         info!("login url: {}", session.auth_url());
 
-        let time_out = sleep(Duration::from_secs(60));
-        tokio::pin!(time_out);
-        loop {
-            tokio::select! {
-                result = self.poll_authorization(&session) => {
-                    match result {
-                        Ok(auth) => {
-                            if let Some(auth) = auth {
-                                return Ok(auth);
-                            }
-                        }
-                        Err(err) => {
-                            return Err(err);
-                        }
-                    }
-                }
-                _ = &mut time_out => {
-                    info!("time out");
-                    break;
-                }
-                _ = tokio::signal::ctrl_c() => {
-                    break;
-                }
-            }
-            sleep(Duration::from_secs(1)).await;
+        tokio::select! {
+            result = self.wait_authorization(&session, Duration::from_secs(60)) => result,
+            _ = tokio::signal::ctrl_c() => Err(anyhow!("authorization cancelled")),
         }
-
-        Err(anyhow!("need auth"))
     }
 
     pub async fn begin_authorization(
@@ -110,6 +86,26 @@ impl AuthService {
         check_auth(client, &session.device_id, &session.key_pair).await
     }
 
+    pub async fn wait_authorization(
+        &self,
+        session: &AuthorizationSession,
+        timeout: Duration,
+    ) -> anyhow::Result<AuthResult> {
+        let timeout = sleep(timeout);
+        tokio::pin!(timeout);
+        loop {
+            tokio::select! {
+                result = self.poll_authorization(session) => {
+                    if let Some(result) = result? {
+                        return Ok(result);
+                    }
+                }
+                _ = &mut timeout => return Err(anyhow!("authorization timed out")),
+            }
+            sleep(Duration::from_secs(1)).await;
+        }
+    }
+
     pub async fn complete_authorization(&self, result: AuthResult) -> anyhow::Result<Auth> {
         let identity_number = result.auth.account.identity_number.clone();
         let signal_database = crate::db::SignalDatabase::connect(identity_number)
@@ -144,12 +140,11 @@ impl AuthService {
     }
 
     pub async fn save_auth(&self, auth: &Auth) -> anyhow::Result<()> {
+        self.auth_dao.save_auth(auth).await?;
         {
             let mut a = self.auth.lock().unwrap();
             *a = Some(auth.clone());
         }
-
-        self.auth_dao.save_auth(auth).await?;
         Ok(())
     }
 

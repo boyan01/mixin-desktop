@@ -690,6 +690,9 @@ class _FakeAccountHandle
   );
 
   @override
+  Stream<AccountProfile> profileChanges() => const Stream.empty();
+
+  @override
   Future<String> sendText({
     required String conversationId,
     required String content,

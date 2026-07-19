@@ -26,6 +26,7 @@ rand = "0.10.2"
 rand_core = "0.5.1"
 futures-channel = "0.3.32"
 log = "0.4"
+log4rs = { version = "1.4.0", default-features = false, features = ["console_appender"] }
 simplelog = { version = "0.12.2", features = ["test"] }
 lazy_static = "1.5.0"
 md5 = "0.8.1"

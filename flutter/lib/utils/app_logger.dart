@@ -1,13 +1,21 @@
 import 'dart:io';
 
-import 'package:mixin_desktop_ui/src/rust/api/desktop.dart';
+import 'package:mixin_desktop_ui/src/rust/api/logging.dart';
+import 'package:mixin_desktop_ui/src/rust/third_party/mixin_desktop_core/runtime/logging.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 String? _logDirectoryPath;
 var _isLogReady = false;
 
-void initializeLogUtil() {
-  _logDirectoryPath = rustLogDirectory();
+Future<void> initializeLogUtil() async {
+  final packageInfo = await PackageInfo.fromPlatform();
+  await init(
+    appName: packageInfo.appName,
+    appVersion: packageInfo.version,
+    buildNumber: packageInfo.buildNumber,
+  );
+  _logDirectoryPath = await directory();
   _isLogReady = true;
 }
 
@@ -64,6 +72,13 @@ Future<List<String>> readAppLogLines() async {
       .map((entity) => entity as File)
       .toList();
   if (logFiles.isEmpty) return const [];
-  logFiles.sort((first, second) => first.path.compareTo(second.path));
-  return logFiles.last.readAsLines();
+  final filesByModifiedTime = await Future.wait(
+    logFiles.map(
+      (file) async => (file: file, modified: await file.lastModified()),
+    ),
+  );
+  filesByModifiedTime.sort(
+    (first, second) => first.modified.compareTo(second.modified),
+  );
+  return filesByModifiedTime.last.file.readAsLines();
 }
