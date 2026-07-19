@@ -172,6 +172,27 @@ class CodeResult {
           action == other.action;
 }
 
+class ConversationChangeEvent {
+  final List<String> conversationIds;
+  final bool reloadAll;
+
+  const ConversationChangeEvent({
+    required this.conversationIds,
+    required this.reloadAll,
+  });
+
+  @override
+  int get hashCode => conversationIds.hashCode ^ reloadAll.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConversationChangeEvent &&
+          runtimeType == other.runtimeType &&
+          conversationIds == other.conversationIds &&
+          reloadAll == other.reloadAll;
+}
+
 class ConversationDetailItem {
   final String conversationId;
   final String name;
@@ -242,6 +263,7 @@ class ConversationListData {
   final bool isBotGroup;
   final String? membership;
   final bool isPinned;
+  final PlatformInt64 pinTimeMillis;
   final String relationship;
   final String identityNumber;
   final List<String> circleIds;
@@ -275,6 +297,7 @@ class ConversationListData {
     required this.isBotGroup,
     this.membership,
     required this.isPinned,
+    required this.pinTimeMillis,
     required this.relationship,
     required this.identityNumber,
     required this.circleIds,
@@ -310,6 +333,7 @@ class ConversationListData {
       isBotGroup.hashCode ^
       membership.hashCode ^
       isPinned.hashCode ^
+      pinTimeMillis.hashCode ^
       relationship.hashCode ^
       identityNumber.hashCode ^
       circleIds.hashCode ^
@@ -347,6 +371,7 @@ class ConversationListData {
           isBotGroup == other.isBotGroup &&
           membership == other.membership &&
           isPinned == other.isPinned &&
+          pinTimeMillis == other.pinTimeMillis &&
           relationship == other.relationship &&
           identityNumber == other.identityNumber &&
           circleIds == other.circleIds &&
@@ -432,6 +457,37 @@ class ConversationStorageUsage {
           runtimeType == other.runtimeType &&
           conversation == other.conversation &&
           sizeBytes == other.sizeBytes;
+}
+
+class ConversationUnseenCount {
+  final String category;
+  final String? circleId;
+  final PlatformInt64 count;
+  final PlatformInt64 mutedCount;
+
+  const ConversationUnseenCount({
+    required this.category,
+    this.circleId,
+    required this.count,
+    required this.mutedCount,
+  });
+
+  @override
+  int get hashCode =>
+      category.hashCode ^
+      circleId.hashCode ^
+      count.hashCode ^
+      mutedCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConversationUnseenCount &&
+          runtimeType == other.runtimeType &&
+          category == other.category &&
+          circleId == other.circleId &&
+          count == other.count &&
+          mutedCount == other.mutedCount;
 }
 
 class GroupAvatar {

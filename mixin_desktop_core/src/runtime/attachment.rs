@@ -64,7 +64,7 @@ impl AttachmentAccess {
                 .message_dao
                 .update_media_status(message_id, MediaStatus::Pending)
                 .await?;
-            self.notify_conversation_changed();
+            self.notify_messages_changed();
             let result = MessageAccess::new(self.state.clone())
                 .complete_remote_image_from_url(&message, false)
                 .await;
@@ -73,7 +73,7 @@ impl AttachmentAccess {
                     .message_dao
                     .update_media_status(message_id, MediaStatus::Canceled)
                     .await?;
-                self.notify_conversation_changed();
+                self.notify_messages_changed();
                 return Err(error);
             }
             return Ok(());
@@ -101,7 +101,7 @@ impl AttachmentAccess {
             .message_dao
             .update_media_status(message_id, MediaStatus::Pending)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_messages_changed();
 
         let result: Result<()> = async {
             let existing = message.content.as_deref().and_then(|content| {
@@ -205,13 +205,13 @@ impl AttachmentAccess {
                 .message_dao
                 .update_media_status(message_id, MediaStatus::Canceled)
                 .await?;
-            self.notify_conversation_changed();
+            self.notify_messages_changed();
             if cancellation.is_cancelled() {
                 return Ok(());
             }
             return Err(error);
         }
-        self.notify_conversation_changed();
+        self.notify_messages_changed();
         Ok(())
     }
 
@@ -282,7 +282,7 @@ impl AttachmentAccess {
                 .transcript_message_dao
                 .update_media_status(transcript_id, message_id, MediaStatus::Pending)
                 .await?;
-            self.notify_conversation_changed();
+            self.notify_messages_changed();
             let downloaded = self
                 .app_service
                 .attachment
@@ -326,13 +326,13 @@ impl AttachmentAccess {
                 .transcript_message_dao
                 .update_media_status(transcript_id, message_id, MediaStatus::Canceled)
                 .await?;
-            self.notify_conversation_changed();
+            self.notify_messages_changed();
             if cancellation.is_cancelled() {
                 return Ok(());
             }
             return Err(error);
         }
-        self.notify_conversation_changed();
+        self.notify_messages_changed();
         Ok(())
     }
 
@@ -373,7 +373,7 @@ impl AttachmentAccess {
             .message_dao
             .update_media_status(transcript_id, MediaStatus::Pending)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_messages_changed();
 
         let result: Result<()> = async {
             let parent_prefix = parent.category.split_once('_').map(|(prefix, _)| prefix);
@@ -471,10 +471,10 @@ impl AttachmentAccess {
                 .message_dao
                 .update_media_status(transcript_id, MediaStatus::Canceled)
                 .await?;
-            self.notify_conversation_changed();
+            self.notify_messages_changed();
             return Err(error);
         }
-        self.notify_conversation_changed();
+        self.notify_messages_changed();
         Ok(())
     }
 
@@ -500,7 +500,7 @@ impl AttachmentAccess {
             .transcript_message_dao
             .update_media_status(transcript_id, message_id, MediaStatus::Canceled)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_messages_changed();
         Ok(())
     }
 
@@ -531,7 +531,7 @@ impl AttachmentAccess {
             .transcript_message_dao
             .update_media_status(transcript_id, message_id, MediaStatus::Read)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_messages_changed();
         Ok(())
     }
 
@@ -579,7 +579,7 @@ impl AttachmentAccess {
                 .message_dao
                 .update_media_status(message_id, MediaStatus::Pending)
                 .await?;
-            self.notify_conversation_changed();
+            self.notify_messages_changed();
             let downloaded = self
                 .app_service
                 .attachment
@@ -622,13 +622,13 @@ impl AttachmentAccess {
                 .message_dao
                 .update_media_status(message_id, MediaStatus::Canceled)
                 .await?;
-            self.notify_conversation_changed();
+            self.notify_messages_changed();
             if cancellation.is_cancelled() {
                 return Ok(());
             }
             return Err(error);
         }
-        self.notify_conversation_changed();
+        self.notify_messages_changed();
         Ok(())
     }
 
@@ -648,7 +648,7 @@ impl AttachmentAccess {
             .message_dao
             .update_media_status(message_id, MediaStatus::Canceled)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_messages_changed();
         Ok(())
     }
 
@@ -675,7 +675,7 @@ impl AttachmentAccess {
             .message_dao
             .update_media_status(message_id, MediaStatus::Read)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_messages_changed();
         Ok(())
     }
 }

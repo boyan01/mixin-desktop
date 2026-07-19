@@ -86,7 +86,7 @@ impl MessageAccess {
             .message_dao
             .insert_pending_outgoing_message(&message)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(&message.conversation_id);
         if let Err(error) = self.complete_remote_image_from_url(&message, silent).await {
             warn!(
                 "failed to send remote image {}: {error}",
@@ -96,7 +96,7 @@ impl MessageAccess {
                 .message_dao
                 .update_media_status(&message.message_id, MediaStatus::Canceled)
                 .await?;
-            self.notify_conversation_changed();
+            self.notify_conversation_changed(&message.conversation_id);
         }
         Ok(message_id)
     }
@@ -219,7 +219,7 @@ impl MessageAccess {
             return Err(anyhow!("remote image send was canceled"));
         }
         self.app_service.job.wake(&job.action)?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(&message.conversation_id);
         Ok(())
     }
 
@@ -585,7 +585,7 @@ impl MessageAccess {
             .insert_outgoing_message(&message, &job)
             .await?;
         self.app_service.job.wake(&job.action)?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(message_id)
     }
 
@@ -663,7 +663,7 @@ impl MessageAccess {
             warn!("failed to index outgoing message {message_id}: {error}");
         }
         self.app_service.job.wake(&job.action)?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(message_id)
     }
 
@@ -736,7 +736,7 @@ impl MessageAccess {
             .insert_outgoing_message(&message, &job)
             .await?;
         self.app_service.job.wake(&job.action)?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(message_id)
     }
 
@@ -814,7 +814,7 @@ impl MessageAccess {
             .update_last_used(sticker_id)
             .await?;
         self.app_service.job.wake(&job.action)?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(message_id)
     }
 
@@ -915,7 +915,7 @@ impl MessageAccess {
             .message_dao
             .insert_pending_outgoing_message(&message)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
 
         let cancellation = CancellationToken::new();
         self.attachment_downloads
@@ -937,7 +937,7 @@ impl MessageAccess {
                     .message_dao
                     .update_media_status(&message_id, MediaStatus::Canceled)
                     .await?;
-                self.notify_conversation_changed();
+                self.notify_conversation_changed(conversation_id);
                 if cancellation.is_cancelled() {
                     return Ok(message_id);
                 }
@@ -999,7 +999,7 @@ impl MessageAccess {
             return Ok(message_id);
         }
         self.app_service.job.wake(&job.action)?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(message_id)
     }
 
@@ -1127,7 +1127,7 @@ impl MessageAccess {
             .message_dao
             .insert_pending_outgoing_message(&message)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
 
         let cancellation = CancellationToken::new();
         self.attachment_downloads
@@ -1149,7 +1149,7 @@ impl MessageAccess {
                     .message_dao
                     .update_media_status(&message_id, MediaStatus::Canceled)
                     .await?;
-                self.notify_conversation_changed();
+                self.notify_conversation_changed(conversation_id);
                 if cancellation.is_cancelled() {
                     return Ok(message_id);
                 }
@@ -1211,7 +1211,7 @@ impl MessageAccess {
             return Ok(message_id);
         }
         self.app_service.job.wake(&job.action)?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(message_id)
     }
 
@@ -1568,7 +1568,7 @@ impl MessageAccess {
             forwarded_ids.push(message_id);
         }
         self.app_service.job.wake(sdk::SENDING_MESSAGE)?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(target_conversation_id);
         Ok(forwarded_ids)
     }
 
@@ -1748,7 +1748,7 @@ impl MessageAccess {
         } else {
             self.app_service.job.wake(&job.action)?;
         }
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(target_conversation_id);
         Ok(transcript_id)
     }
 
@@ -1771,7 +1771,7 @@ impl MessageAccess {
             .message_dao
             .delete_messages_batch(conversation_id, message_ids)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -1809,7 +1809,7 @@ impl MessageAccess {
             .recall_messages_with_jobs(conversation_id, message_ids, &jobs)
             .await?;
         self.app_service.job.wake(sdk::RECALL_MESSAGE)?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -1864,7 +1864,7 @@ impl MessageAccess {
             .set_message_pinned_with_job(conversation_id, message_id, pinned, Utc::now(), &job)
             .await?;
         self.app_service.job.wake(sdk::PIN_MESSAGE)?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -1890,7 +1890,7 @@ impl MessageAccess {
         let job = Job::create_mention_read_ack_job(conversation_id, message_id);
         self.database.job_dao.insert_job(&job).await?;
         self.app_service.job.wake(sdk::CREATE_MESSAGE)?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -1923,7 +1923,7 @@ impl MessageAccess {
                 .wake(sdk::blaze_message::CREATE_MESSAGE)?;
         }
         if messages_changed || conversation_changed {
-            self.notify_conversation_changed();
+            self.notify_conversation_changed(conversation_id);
         }
         Ok(())
     }

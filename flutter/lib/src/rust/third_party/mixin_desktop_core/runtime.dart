@@ -52,6 +52,12 @@ abstract class ConversationAccess implements RustOpaqueInterface {
     required String conversationId,
   });
 
+  Future<List<ConversationListData>> conversationItems();
+
+  Future<List<ConversationListData>> conversationItemsByIds({
+    required List<String> conversationIds,
+  });
+
   Future<List<ConversationParticipantItem>> conversationParticipants({
     required String conversationId,
   });
@@ -96,6 +102,8 @@ abstract class ConversationAccess implements RustOpaqueInterface {
 
   Future<List<GroupConversationItem>> groupsInCommon({required String userId});
 
+  Future<bool> isBotGroup({required String conversationId});
+
   Future<String> joinGroup({required String code});
 
   Future<ConversationDetailItem> localConversationDetail({
@@ -131,6 +139,8 @@ abstract class ConversationAccess implements RustOpaqueInterface {
     required String conversationId,
     required bool pinned,
   });
+
+  Future<List<ConversationUnseenCount>> unseenConversationCounts();
 
   Future<void> updateCircle({required String circleId, required String name});
 

@@ -4,7 +4,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use base64ct::{Base64, Encoding};
 use log::error;
 use serde::Deserialize;
-use tokio::sync::{watch, Notify};
+use tokio::sync::Notify;
 
 use sdk::err::error_code::BAD_DATA;
 use sdk::message_category::MessageCategory;
@@ -13,6 +13,7 @@ use sdk::{
     PIN_MESSAGE, RECALL_MESSAGE, SENDING_MESSAGE,
 };
 
+use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::crypto::encrypted_protocol;
 use crate::core::message::sender::{MessageResult, MessageSender};
 use crate::core::model::{AttachmentExtra, ConversationService};
@@ -30,7 +31,7 @@ pub(super) struct SendingJobRunner {
     pub(super) session_id: String,
     pub(super) private_key: Vec<u8>,
     pub(super) sender: Arc<MessageSender>,
-    pub(super) changes: Option<watch::Sender<u64>>,
+    pub(super) changes: Option<ConversationChangeNotifier>,
     pub(super) expired_message_notify: Arc<Notify>,
 }
 
@@ -58,9 +59,9 @@ impl JobTrigger for SendingJobRunner {
 }
 
 impl SendingJobRunner {
-    fn notify_changes(&self) {
+    fn notify_changes(&self, conversation_id: &str) {
         if let Some(changes) = &self.changes {
-            changes.send_modify(|revision| *revision = revision.wrapping_add(1));
+            changes.notify(conversation_id);
         }
     }
 
@@ -192,7 +193,7 @@ impl SendingJobRunner {
                 } else {
                     self.database.job_dao.delete_job_by_id(&job.job_id).await?;
                 }
-                self.notify_changes();
+                self.notify_changes(&message.conversation_id);
                 return Ok(false);
             }
             return Err(error);
@@ -256,7 +257,7 @@ impl SendingJobRunner {
                     &job.job_id,
                 )
                 .await?;
-            self.notify_changes();
+            self.notify_changes(&message.conversation_id);
             return Ok(false);
         }
         let expire_in = i32::try_from(payload.expire_in)
@@ -353,7 +354,7 @@ impl SendingJobRunner {
                     &job.job_id,
                 )
                 .await?;
-            self.notify_changes();
+            self.notify_changes(&message.conversation_id);
             return Ok(false);
         };
 
@@ -380,7 +381,7 @@ impl SendingJobRunner {
                     self.expired_message_notify.notify_one();
                 }
             }
-            self.notify_changes();
+            self.notify_changes(&message.conversation_id);
             return Ok(false);
         }
         Ok(true)

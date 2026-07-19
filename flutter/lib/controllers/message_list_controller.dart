@@ -13,18 +13,22 @@ const _initialUnreadBefore = 15;
 const _initialUnreadAfterMinimum = 45;
 const _initialUnreadAfterMaximum = 200;
 final _mentionIdentityNumberPattern = RegExp(r'@(\d+)');
+final _botGroupCache = <String, ({bool value, DateTime expiresAt})>{};
+final _botGroupLoads = <String, Future<bool>>{};
 
 class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
   MessageListController({required this.account, required this.conversation})
     : unreadBoundaryMessageId = conversation.unseenCount > 0
           ? conversation.lastReadMessageId
-          : null {
+          : null,
+      isBotGroup = conversation.isBotGroup {
     i(
       'Open conversation: conversation_id=${conversation.id}, '
       'category=${conversation.category}',
     );
     WidgetsBinding.instance.addObserver(this);
     unawaited(_loadInitial());
+    unawaited(_loadBotGroup());
     _changeSubscription = account.messageChanges().listen(
       (_) => _scheduleRefresh(),
       onError: (Object exception, StackTrace stackTrace) {
@@ -56,6 +60,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
   bool initialUnreadAnchorAttempted = false;
   bool initialUnreadAnchorPending = false;
   bool initialUnreadAnchorConsumed = false;
+  bool isBotGroup;
   int? initialUnreadMessageIndex;
   String? initialUnreadMessageId;
 
@@ -71,6 +76,37 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
 
   String? recalledText(String messageId) => _recalledText[messageId];
   final Set<String> _queriedMentionIdentityNumbers = {};
+
+  Future<void> _loadBotGroup() async {
+    if (!conversation.isBot) return;
+    final cached = _botGroupCache[conversation.id];
+    if (cached != null && cached.expiresAt.isAfter(DateTime.now())) {
+      isBotGroup = cached.value;
+      return;
+    }
+    try {
+      final value = await _botGroupLoads.putIfAbsent(
+        conversation.id,
+        () =>
+            account.conversation().isBotGroup(conversationId: conversation.id),
+      );
+      _botGroupCache[conversation.id] = (
+        value: value,
+        expiresAt: DateTime.now().add(const Duration(minutes: 10)),
+      );
+      if (_disposed || isBotGroup == value) return;
+      isBotGroup = value;
+      notifyListeners();
+    } catch (exception, stackTrace) {
+      e(
+        'Load bot group failed: conversation_id=${conversation.id}',
+        exception,
+        stackTrace,
+      );
+    } finally {
+      _botGroupLoads.remove(conversation.id);
+    }
+  }
 
   bool get _canMarkRead {
     final state = WidgetsBinding.instance.lifecycleState;

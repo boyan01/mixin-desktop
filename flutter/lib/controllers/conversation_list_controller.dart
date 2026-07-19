@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:mixin_desktop_ui/controllers/paging_controller.dart';
+import 'package:mixin_desktop_ui/controllers/conversation_list_store.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/command_palette_item.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
@@ -10,14 +10,22 @@ import 'package:mixin_desktop_ui/utils/app_logger.dart';
 import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
-const _pageLimit = 15;
+const _unseenCountThrottle = Duration(milliseconds: 333);
+const _changeMergeWindow = Duration(milliseconds: 16);
+const _initialMentionPrewarmCount = 15;
+const _retryDelays = [
+  Duration(seconds: 1),
+  Duration(seconds: 2),
+  Duration(seconds: 4),
+  Duration(seconds: 8),
+  Duration(seconds: 16),
+  Duration(seconds: 30),
+];
 
-typedef _PageKey = ({
-  ConversationCategoryFilter category,
-  String? circleId,
-  String query,
-  bool unseenOnly,
-});
+Duration _retryDelay(int attempt) =>
+    _retryDelays[attempt < _retryDelays.length
+        ? attempt
+        : _retryDelays.length - 1];
 
 String? _completeMao(String value) {
   final text = value.trim();
@@ -37,24 +45,34 @@ String? _completeMao(String value) {
 
 class ConversationListController extends ChangeNotifier {
   ConversationListController(this.account) : profile = account.profile() {
-    _activatePage();
-    unawaited(_refreshMetadata());
-    _profileSubscription = account.profileChanges().listen((value) {
-      if (_disposed || profile == value) return;
-      profile = value;
-      notifyListeners();
-    }, onError: _setError);
-    _changeSubscription = account.conversationChanges().listen((_) {
-      _activePage.update();
-      unawaited(_refreshMetadata());
-    }, onError: _setError);
+    _itemPositionsListener.itemPositions.addListener(_warmVisibleMentions);
+    _profileSubscription = account.profileChanges().listen(
+      (value) {
+        if (_disposed || profile == value) return;
+        profile = value;
+        notifyListeners();
+      },
+      onError: (Object exception, StackTrace stackTrace) {
+        e('Profile change stream failed', exception, stackTrace);
+      },
+    );
+    _changeSubscription = account.conversationChanges().listen(
+      _scheduleChanges,
+      onError: (Object exception, StackTrace stackTrace) {
+        e('Conversation change stream failed', exception, stackTrace);
+      },
+    );
+    unawaited(_start());
   }
 
   final rust.AccountHandle account;
   rust.AccountProfile profile;
-  final Map<_PageKey, PagingController<ConversationListEntry>> _pages = {};
+  final ConversationListStore _store = ConversationListStore();
   final Map<String, int> _unseenCounts = {};
   final Map<String, int> _mutedUnseenCounts = {};
+  final ItemPositionsListener _itemPositionsListener =
+      ItemPositionsListener.create();
+  final ItemScrollController _itemScrollController = ItemScrollController();
 
   List<rust.CircleItem> circles = const [];
   ConversationCategoryFilter category = ConversationCategoryFilter.chats;
@@ -69,35 +87,32 @@ class ConversationListController extends ChangeNotifier {
   List<MessageListEntry> searchMessages = const [];
   Map<String, ConversationListEntry> searchMessageConversations = const {};
   Map<String, String> mentionNames = const {};
-  String? error;
 
-  StreamSubscription<BigInt>? _changeSubscription;
+  StreamSubscription<rust.ConversationChangeEvent>? _changeSubscription;
   StreamSubscription<rust.AccountProfile>? _profileSubscription;
-  PagingController<ConversationListEntry>? _currentPage;
-  VoidCallback? _currentPageListener;
-  PagingController<ConversationListEntry>? _transientPage;
-  _PageKey? _transientPageKey;
+  List<ConversationListEntry> _visibleConversations = const [];
   Timer? _searchTimer;
+  Timer? _changeTimer;
+  Timer? _reloadRetryTimer;
+  Timer? _unseenCountTimer;
   int _searchRevision = 0;
-  List<ConversationListEntry>? _allChats;
+  int _changeRetryAttempt = 0;
+  int _reloadRetryAttempt = 0;
+  final Set<String> _pendingConversationIds = {};
+  final Set<String> _pendingMentionIdentityNumbers = {};
+  bool _reloadAllPending = false;
+  bool _flushingChanges = false;
+  bool _unseenCountRefreshPending = false;
+  bool _refreshingUnseenCounts = false;
+  bool _initialized = false;
   final List<String> _recentConversationIds = [];
   var _disposed = false;
 
-  PagingController<ConversationListEntry> get _activePage => _currentPage!;
-  PagingState<ConversationListEntry> get pagingState => _activePage.value;
-  ItemPositionsListener get itemPositionsListener =>
-      _activePage.itemPositionsListener;
-  ItemScrollController get itemScrollController =>
-      _activePage.itemScrollController;
+  bool get initialized => _initialized;
+  ItemPositionsListener get itemPositionsListener => _itemPositionsListener;
+  ItemScrollController get itemScrollController => _itemScrollController;
 
-  List<ConversationListEntry> get visibleConversations {
-    final entries = _activePage.value.map.entries.toList()
-      ..sort((left, right) => left.key.compareTo(right.key));
-    return entries
-        .map((entry) => entry.value)
-        .whereType<ConversationListEntry>()
-        .toList(growable: false);
-  }
+  List<ConversationListEntry> get visibleConversations => _visibleConversations;
 
   int countFor(ConversationCategoryFilter filter, {String? circle}) =>
       _unseenCounts[filter == ConversationCategoryFilter.circle
@@ -114,42 +129,29 @@ class ConversationListController extends ChangeNotifier {
   void selectCategory(ConversationCategoryFilter value, {String? circle}) {
     category = value;
     circleId = circle;
-    _activatePage();
+    _rebuildView();
   }
 
   void setQuery(String value) {
     if (query == value) return;
     query = value;
-    _activatePage();
+    _rebuildView();
     _scheduleMessageSearch();
   }
 
   void toggleUnseen() {
     filterUnseen = !filterUnseen;
-    _activatePage();
+    _rebuildView();
     _scheduleMessageSearch();
   }
 
   Future<void> refresh() async {
-    _allChats = null;
-    _activePage.update();
-    await _refreshMetadata();
+    await _reloadAll();
   }
 
-  Future<ConversationListEntry?> findConversation(String conversationId) async {
-    for (final page in _pages.values) {
-      for (final item in page.value.map.values) {
-        if (item.id == conversationId) return item;
-      }
-    }
-    final chats = _allChats ??= await _allConversations(
-      ConversationCategoryFilter.chats,
-    );
-    for (final item in chats) {
-      if (item.id == conversationId) return item;
-    }
-    return null;
-  }
+  Future<ConversationListEntry?> findConversation(
+    String conversationId,
+  ) async => _store.item(conversationId);
 
   void recordRecentConversation(String conversationId) {
     _recentConversationIds
@@ -161,41 +163,28 @@ class ConversationListController extends ChangeNotifier {
   Future<List<CommandPaletteItem>> searchCommandPalette(String keyword) async {
     final normalized = keyword.trim();
     if (normalized.isEmpty) {
-      final conversations = _allChats ??= await _allConversations(
-        ConversationCategoryFilter.chats,
-      );
-      final byId = {for (final item in conversations) item.id: item};
       return _recentConversationIds.reversed
-          .map((id) => byId[id])
+          .map(_store.item)
           .whereType<ConversationListEntry>()
           .map((item) => CommandPaletteItem.conversation(item, normalized))
           .toList(growable: false);
     }
-    final results = await Future.wait<dynamic>([
-      account.conversation().conversations(
-        category: ConversationCategoryFilter.chats.name,
-        circleId: null,
-        keyword: normalized,
-        unseenOnly: false,
-        limit: 100,
-        offset: 0,
-      ),
-      account.user().searchLocalUsers(
-        query: normalized,
-        category: ConversationCategoryFilter.chats.name,
-        limit: 100,
-      ),
-    ]);
+    final conversations = _store.filtered((
+      category: ConversationCategoryFilter.chats,
+      circleId: null,
+      query: normalized,
+      unseenOnly: false,
+    ));
+    final users = await account.user().searchLocalUsers(
+      query: normalized,
+      category: ConversationCategoryFilter.chats.name,
+      limit: 100,
+    );
     final items = <CommandPaletteItem>[
-      ...(results[0] as List<rust.ConversationListItem>).map(
-        (item) => CommandPaletteItem.conversation(
-          ConversationListEntry.fromRust(item),
-          normalized,
-        ),
+      ...conversations.map(
+        (item) => CommandPaletteItem.conversation(item, normalized),
       ),
-      ...(results[1] as List<rust.UserProfileItem>).map(
-        (item) => CommandPaletteItem.user(item, normalized),
-      ),
+      ...users.map((item) => CommandPaletteItem.user(item, normalized)),
     ];
     items.sort((left, right) => right.matchScore.compareTo(left.matchScore));
     return items;
@@ -233,14 +222,6 @@ class ConversationListController extends ChangeNotifier {
             category: category.name,
             limit: 64,
           ),
-          _allChats == null
-              ? _allConversations(ConversationCategoryFilter.chats).then((
-                  items,
-                ) {
-                  _allChats = items;
-                  return const <rust.MessageListItem>[];
-                })
-              : Future.value(const <rust.MessageListItem>[]),
         ]);
         if (_disposed || revision != _searchRevision) return;
         final messages = (results[0] as List<rust.MessageListItem>)
@@ -253,18 +234,22 @@ class ConversationListController extends ChangeNotifier {
         searchMessages = messages;
         searchUsers = results[1] as List<rust.UserProfileItem>;
         searchMessageConversations = {
-          for (final item in _allChats ?? const <ConversationListEntry>[])
-            item.id: item,
+          for (final item in _store.items) item.id: item,
         };
         searchMessagesLoading = false;
         notifyListeners();
-      } on Object catch (exception) {
+      } catch (exception, stackTrace) {
         if (_disposed || revision != _searchRevision) return;
         searchMessages = const [];
         searchUsers = const [];
         searchMessageConversations = const {};
         searchMessagesLoading = false;
-        _setError(exception);
+        e(
+          'Search conversations failed: query=$normalized',
+          exception,
+          stackTrace,
+        );
+        notifyListeners();
       }
     });
   }
@@ -317,7 +302,7 @@ class ConversationListController extends ChangeNotifier {
     final normalized = name.trim();
     if (normalized.isEmpty) throw ArgumentError.value(name, 'name');
     final circle = await account.conversation().createCircle(name: normalized);
-    await _refreshMetadata();
+    await _refreshCircles();
     return circle;
   }
 
@@ -326,7 +311,7 @@ class ConversationListController extends ChangeNotifier {
       circleId: circleId,
       name: name.trim(),
     );
-    await _refreshMetadata();
+    await _refreshCircles();
   }
 
   Future<void> deleteCircle(String circleId) async {
@@ -335,17 +320,19 @@ class ConversationListController extends ChangeNotifier {
         this.circleId == circleId) {
       selectCategory(ConversationCategoryFilter.chats);
     }
-    await _refreshMetadata();
+    await _refreshCircles();
   }
 
   Future<void> replaceCircleConversations(
     String circleId,
     List<ConversationListEntry> selected,
   ) async {
-    final existing = await _allConversations(
-      ConversationCategoryFilter.chats,
+    final existing = _store.filtered((
+      category: ConversationCategoryFilter.circle,
       circleId: circleId,
-    );
+      query: '',
+      unseenOnly: false,
+    ));
     final existingById = {for (final item in existing) item.id: item};
     final selectedById = {for (final item in selected) item.id: item};
     for (final item in selectedById.values) {
@@ -397,203 +384,235 @@ class ConversationListController extends ChangeNotifier {
 
   Future<rust.AccountProfile> refreshProfile() => account.refreshProfile();
 
-  Future<List<ConversationListEntry>> _allConversations(
-    ConversationCategoryFilter category, {
-    String? circleId,
-  }) async {
-    final count = await account.conversation().conversationCount(
-      category: category.name,
-      circleId: circleId,
-      keyword: '',
-      unseenOnly: false,
-    );
-    final result = <ConversationListEntry>[];
-    while (result.length < count.toInt()) {
-      final page = await account.conversation().conversations(
-        category: category.name,
-        circleId: circleId,
-        keyword: '',
-        unseenOnly: false,
-        limit: 200,
-        offset: result.length,
-      );
-      result.addAll(page.map(ConversationListEntry.fromRust));
-      if (page.length < 200) break;
-    }
-    return result;
-  }
+  ConversationListFilter get _filter => (
+    category: category,
+    circleId: circleId,
+    query: query.trim(),
+    unseenOnly: filterUnseen,
+  );
 
-  void _activatePage() {
-    final key = (
-      category: category,
-      circleId: circleId,
-      query: query.trim(),
-      unseenOnly: filterUnseen,
-    );
-    if (_currentPage != null && _currentPageListener != null) {
-      _currentPage!.removeListener(_currentPageListener!);
-    }
-
-    PagingController<ConversationListEntry> createPage() => PagingController(
-      limit: _pageLimit,
-      queryCount: () => _queryCount(key),
-      queryRange: (limit, offset) => _queryRange(key, limit, offset),
-    );
-
-    final cacheable = key.query.isEmpty && !key.unseenOnly;
-    late final PagingController<ConversationListEntry> page;
-    if (cacheable) {
-      _transientPage?.dispose();
-      _transientPage = null;
-      _transientPageKey = null;
-      page = _pages.putIfAbsent(key, createPage);
-    } else {
-      if (_transientPageKey != key) {
-        _transientPage?.dispose();
-        _transientPage = createPage();
-        _transientPageKey = key;
-      }
-      page = _transientPage!;
-    }
-    _currentPage = page;
-    _currentPageListener = () {
-      loading = !page.value.initialized;
-      if (!_disposed) notifyListeners();
-    };
-    page.addListener(_currentPageListener!);
-    loading = !page.value.initialized;
+  void _rebuildView() {
+    _visibleConversations = _store.filtered(_filter);
+    _warmVisibleMentions();
+    loading = !_initialized;
     if (!_disposed) notifyListeners();
-  }
-
-  Future<int> _queryCount(_PageKey key) async {
-    try {
-      final result = await account.conversation().conversationCount(
-        category: key.category.name,
-        circleId: key.circleId,
-        keyword: key.query,
-        unseenOnly: key.unseenOnly,
-      );
-      error = null;
-      return result.toInt();
-    } catch (exception, stackTrace) {
-      _setError(exception, stackTrace);
-      return 0;
-    }
-  }
-
-  Future<List<ConversationListEntry>> _queryRange(
-    _PageKey key,
-    int limit,
-    int offset,
-  ) async {
-    try {
-      final result = await account.conversation().conversations(
-        category: key.category.name,
-        circleId: key.circleId,
-        keyword: key.query,
-        unseenOnly: key.unseenOnly,
-        limit: limit,
-        offset: offset,
-      );
-      await _cacheMentionNames(
-        result.map((conversation) => conversation.lastMessage),
-      );
-      error = null;
-      return result.map(ConversationListEntry.fromRust).toList(growable: false);
-    } catch (exception, stackTrace) {
-      _setError(exception, stackTrace);
-      return const [];
-    }
   }
 
   Future<void> _cacheMentionNames(Iterable<String?> texts) async {
     final identityNumbers = messageMentionIdentityNumbers(texts)
-        .where((identityNumber) => !mentionNames.containsKey(identityNumber))
+        .where(
+          (identityNumber) =>
+              !mentionNames.containsKey(identityNumber) &&
+              !_pendingMentionIdentityNumbers.contains(identityNumber),
+        )
         .toList(growable: false);
     if (identityNumbers.isEmpty) return;
-    final users = await account.user().usersByIdentityNumbers(
-      identityNumbers: identityNumbers,
-    );
+    _pendingMentionIdentityNumbers.addAll(identityNumbers);
+    try {
+      final users = await account.user().usersByIdentityNumbers(
+        identityNumbers: identityNumbers,
+      );
+      if (_disposed) return;
+      mentionNames = Map.unmodifiable({
+        ...mentionNames,
+        for (final user in users)
+          if (user.fullName.trim().isNotEmpty)
+            user.identityNumber: user.fullName.trim(),
+      });
+      notifyListeners();
+    } catch (exception, stackTrace) {
+      if (!_disposed) {
+        e('Load conversation mention names failed', exception, stackTrace);
+      }
+    } finally {
+      _pendingMentionIdentityNumbers.removeAll(identityNumbers);
+    }
+  }
+
+  void _warmVisibleMentions() {
     if (_disposed) return;
-    mentionNames = Map.unmodifiable({
-      ...mentionNames,
-      for (final user in users)
-        if (user.fullName.trim().isNotEmpty)
-          user.identityNumber: user.fullName.trim(),
+    final texts = <String?>[];
+    for (final position in _itemPositionsListener.itemPositions.value) {
+      if (position.index >= 0 &&
+          position.index < _visibleConversations.length) {
+        texts.add(_visibleConversations[position.index].content);
+      }
+    }
+    if (texts.isNotEmpty) unawaited(_cacheMentionNames(texts));
+  }
+
+  Future<void> _start() async {
+    await _reloadAll();
+    if (_pendingConversationIds.isNotEmpty || _reloadAllPending) {
+      _scheduleChangeFlush();
+    }
+  }
+
+  Future<void> _reloadAll() async {
+    try {
+      final results = await Future.wait<dynamic>([
+        account.conversation().conversationItems(),
+        account.conversation().circles(),
+      ]);
+      if (_disposed) return;
+      final conversations = (results[0] as List<rust.ConversationListItem>)
+          .map(ConversationListEntry.fromRust)
+          .toList(growable: false);
+      _store.replaceAll(conversations);
+      circles = results[1] as List<rust.CircleItem>;
+      _initialized = true;
+      _reloadRetryTimer?.cancel();
+      _reloadRetryTimer = null;
+      _reloadRetryAttempt = 0;
+      _changeRetryAttempt = 0;
+      i('Loaded conversation list: count=${conversations.length}');
+      _rebuildView();
+      unawaited(
+        _cacheMentionNames(
+          conversations
+              .take(_initialMentionPrewarmCount)
+              .map((item) => item.content),
+        ),
+      );
+      _scheduleUnseenCountRefresh(immediate: true);
+    } catch (exception, stackTrace) {
+      if (_disposed) return;
+      e('Load conversation list failed', exception, stackTrace);
+      loading = !_initialized;
+      notifyListeners();
+      _scheduleReloadRetry();
+    }
+  }
+
+  void _scheduleReloadRetry() {
+    if (_disposed || _reloadRetryTimer != null) return;
+    final delay = _retryDelay(_reloadRetryAttempt++);
+    w('Retry conversation list load in ${delay.inSeconds}s');
+    _reloadRetryTimer = Timer(delay, () {
+      _reloadRetryTimer = null;
+      unawaited(_start());
     });
   }
 
-  Future<void> _refreshMetadata() async {
+  void _scheduleChanges(rust.ConversationChangeEvent event) {
+    if (_disposed) return;
+    _reloadAllPending |= event.reloadAll;
+    _pendingConversationIds.addAll(event.conversationIds);
+    _scheduleChangeFlush();
+  }
+
+  void _scheduleChangeFlush({Duration delay = _changeMergeWindow}) {
+    if (!_initialized || _flushingChanges || _changeTimer != null) return;
+    _changeTimer = Timer(delay, () {
+      _changeTimer = null;
+      unawaited(_flushChanges());
+    });
+  }
+
+  Future<void> _flushChanges() async {
+    _flushingChanges = true;
+    Duration? retryDelay;
+    final reloadAll = _reloadAllPending;
+    final ids = _pendingConversationIds.toList(growable: false);
+    _reloadAllPending = false;
+    _pendingConversationIds.clear();
     try {
-      final updatedCircles = await account.conversation().circles();
-      final conversations = await _allConversations(
-        ConversationCategoryFilter.chats,
-      );
+      if (reloadAll) {
+        await _reloadAll();
+      } else if (ids.isNotEmpty) {
+        final changed = await account.conversation().conversationItemsByIds(
+          conversationIds: ids,
+        );
+        if (_disposed) return;
+        final entries = changed
+            .map(ConversationListEntry.fromRust)
+            .toList(growable: false);
+        _store.applyChanges(ids, entries);
+        _rebuildView();
+        unawaited(_cacheMentionNames(entries.map((item) => item.content)));
+        _scheduleUnseenCountRefresh();
+        _changeRetryAttempt = 0;
+      }
+    } catch (exception, stackTrace) {
+      if (!_disposed) {
+        _pendingConversationIds.addAll(ids);
+        _reloadAllPending |= reloadAll;
+        retryDelay = _retryDelay(_changeRetryAttempt++);
+        e(
+          'Apply conversation changes failed: reload_all=$reloadAll ids=$ids '
+          'retry_in=${retryDelay.inSeconds}s',
+          exception,
+          stackTrace,
+        );
+      }
+    } finally {
+      _flushingChanges = false;
+      if (_reloadAllPending || _pendingConversationIds.isNotEmpty) {
+        _scheduleChangeFlush(delay: retryDelay ?? _changeMergeWindow);
+      }
+    }
+  }
+
+  Future<void> _refreshCircles() async {
+    try {
+      circles = await account.conversation().circles();
+      if (!_disposed) notifyListeners();
+    } catch (exception, stackTrace) {
+      if (!_disposed) {
+        e('Refresh conversation circles failed', exception, stackTrace);
+      }
+    }
+  }
+
+  void _scheduleUnseenCountRefresh({bool immediate = false}) {
+    if (_disposed) return;
+    _unseenCountRefreshPending = true;
+    if (_refreshingUnseenCounts || _unseenCountTimer != null) return;
+    _unseenCountTimer = Timer(
+      immediate ? Duration.zero : _unseenCountThrottle,
+      () {
+        _unseenCountTimer = null;
+        unawaited(_refreshUnseenCounts());
+      },
+    );
+  }
+
+  Future<void> _refreshUnseenCounts() async {
+    _refreshingUnseenCounts = true;
+    _unseenCountRefreshPending = false;
+    try {
+      final counts = await account.conversation().unseenConversationCounts();
       if (_disposed) return;
-      circles = updatedCircles;
-      _allChats = conversations;
-      _unseenCounts
-        ..clear()
-        ..addAll(_categoryCounts(conversations, muted: false));
-      _mutedUnseenCounts
-        ..clear()
-        ..addAll(_categoryCounts(conversations, muted: true));
-      error = null;
+      _unseenCounts.clear();
+      _mutedUnseenCounts.clear();
+      for (final item in counts) {
+        final key = item.category == ConversationCategoryFilter.circle.name
+            ? 'circle:${item.circleId}'
+            : item.category;
+        _unseenCounts[key] = item.count.toInt();
+        _mutedUnseenCounts[key] = item.mutedCount.toInt();
+      }
       notifyListeners();
     } catch (exception, stackTrace) {
-      _setError(exception, stackTrace);
+      if (!_disposed) {
+        e('Refresh unseen conversation counts failed', exception, stackTrace);
+      }
+    } finally {
+      _refreshingUnseenCounts = false;
+      if (_unseenCountRefreshPending) _scheduleUnseenCountRefresh();
     }
-  }
-
-  Map<String, int> _categoryCounts(
-    List<ConversationListEntry> conversations, {
-    required bool muted,
-  }) {
-    final result = <String, int>{};
-    for (final conversation in conversations) {
-      if (conversation.unseenCount <= 0 || (muted && !conversation.isMuted)) {
-        continue;
-      }
-      void increment(String key) =>
-          result.update(key, (count) => count + 1, ifAbsent: () => 1);
-
-      if (conversation.isGroup) {
-        increment(ConversationCategoryFilter.groups.name);
-      } else if (conversation.isBot) {
-        increment(ConversationCategoryFilter.bots.name);
-      } else if (conversation.relationship == 'FRIEND') {
-        increment(ConversationCategoryFilter.contacts.name);
-      } else {
-        increment(ConversationCategoryFilter.strangers.name);
-      }
-      for (final circleId in conversation.circleIds) {
-        increment('circle:$circleId');
-      }
-    }
-    return result;
-  }
-
-  void _setError(Object exception, [StackTrace? stackTrace]) {
-    if (_disposed) return;
-    e('Conversation list failed', exception, stackTrace);
-    loading = false;
-    error = exception.toString();
-    notifyListeners();
   }
 
   @override
   void dispose() {
     _disposed = true;
     _searchTimer?.cancel();
+    _changeTimer?.cancel();
+    _reloadRetryTimer?.cancel();
+    _unseenCountTimer?.cancel();
+    _itemPositionsListener.itemPositions.removeListener(_warmVisibleMentions);
     unawaited(_changeSubscription?.cancel());
     unawaited(_profileSubscription?.cancel());
-    if (_currentPage != null && _currentPageListener != null) {
-      _currentPage!.removeListener(_currentPageListener!);
-    }
-    for (final page in _pages.values) {
-      page.dispose();
-    }
-    _transientPage?.dispose();
     super.dispose();
   }
 }

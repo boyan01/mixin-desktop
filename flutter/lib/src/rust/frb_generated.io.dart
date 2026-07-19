@@ -218,6 +218,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustStreamSink<bool> dco_decode_StreamSink_bool_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<ConversationChangeEvent>
+  dco_decode_StreamSink_conversation_change_event_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<NotificationEvent>
   dco_decode_StreamSink_notification_event_Sse(dynamic raw);
 
@@ -275,6 +279,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CodeResult dco_decode_code_result(dynamic raw);
 
   @protected
+  ConversationChangeEvent dco_decode_conversation_change_event(dynamic raw);
+
+  @protected
   ConversationDetailItem dco_decode_conversation_detail_item(dynamic raw);
 
   @protected
@@ -287,6 +294,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ConversationStorageUsage dco_decode_conversation_storage_usage(dynamic raw);
+
+  @protected
+  ConversationUnseenCount dco_decode_conversation_unseen_count(dynamic raw);
 
   @protected
   double dco_decode_f_64(dynamic raw);
@@ -326,6 +336,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ConversationStorageUsage> dco_decode_list_conversation_storage_usage(
+    dynamic raw,
+  );
+
+  @protected
+  List<ConversationUnseenCount> dco_decode_list_conversation_unseen_count(
     dynamic raw,
   );
 
@@ -635,6 +650,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<ConversationChangeEvent>
+  sse_decode_StreamSink_conversation_change_event_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RustStreamSink<NotificationEvent>
   sse_decode_StreamSink_notification_event_Sse(SseDeserializer deserializer);
 
@@ -700,6 +721,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CodeResult sse_decode_code_result(SseDeserializer deserializer);
 
   @protected
+  ConversationChangeEvent sse_decode_conversation_change_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ConversationDetailItem sse_decode_conversation_detail_item(
     SseDeserializer deserializer,
   );
@@ -716,6 +742,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ConversationStorageUsage sse_decode_conversation_storage_usage(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ConversationUnseenCount sse_decode_conversation_unseen_count(
     SseDeserializer deserializer,
   );
 
@@ -759,6 +790,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ConversationStorageUsage> sse_decode_list_conversation_storage_usage(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ConversationUnseenCount> sse_decode_list_conversation_unseen_count(
     SseDeserializer deserializer,
   );
 
@@ -1127,6 +1163,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_conversation_change_event_Sse(
+    RustStreamSink<ConversationChangeEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_notification_event_Sse(
     RustStreamSink<NotificationEvent> self,
     SseSerializer serializer,
@@ -1206,6 +1248,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_code_result(CodeResult self, SseSerializer serializer);
 
   @protected
+  void sse_encode_conversation_change_event(
+    ConversationChangeEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_conversation_detail_item(
     ConversationDetailItem self,
     SseSerializer serializer,
@@ -1226,6 +1274,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_conversation_storage_usage(
     ConversationStorageUsage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_conversation_unseen_count(
+    ConversationUnseenCount self,
     SseSerializer serializer,
   );
 
@@ -1283,6 +1337,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_conversation_storage_usage(
     List<ConversationStorageUsage> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_conversation_unseen_count(
+    List<ConversationUnseenCount> self,
     SseSerializer serializer,
   );
 

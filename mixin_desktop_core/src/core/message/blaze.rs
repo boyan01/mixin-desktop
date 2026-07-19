@@ -27,6 +27,7 @@ use sdk::{
     BlazeAckMessage, Client, Credential, MessageStatus, ACKNOWLEDGE_MESSAGE_RECEIPTS, ERROR_ACTION,
 };
 
+use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::message::completer::Completer;
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
@@ -64,11 +65,11 @@ pub struct Blaze {
 #[derive(Clone, Default)]
 pub struct PendingMessageStatusStore {
     statuses: Arc<tokio::sync::Mutex<HashMap<String, MessageStatus>>>,
-    changes: Option<watch::Sender<u64>>,
+    changes: Option<ConversationChangeNotifier>,
 }
 
 impl PendingMessageStatusStore {
-    fn new(changes: Option<watch::Sender<u64>>) -> Self {
+    fn new(changes: Option<ConversationChangeNotifier>) -> Self {
         Self {
             statuses: Default::default(),
             changes,
@@ -88,7 +89,15 @@ impl PendingMessageStatusStore {
             .await?
         {
             if let Some(changes) = &self.changes {
-                changes.send_modify(|revision| *revision = revision.wrapping_add(1));
+                if let Some(conversation_id) = database
+                    .message_dao
+                    .conversation_id_by_message_id(message_id)
+                    .await?
+                {
+                    changes.notify(conversation_id);
+                } else {
+                    changes.notify_all();
+                }
             }
             return Ok(());
         }
@@ -232,7 +241,7 @@ impl Blaze {
         client: Arc<Client>,
         credential: Credential,
         user_id: String,
-        changes: Option<watch::Sender<u64>>,
+        changes: Option<ConversationChangeNotifier>,
     ) -> Self {
         let (connection_status, _) = watch::channel(false);
         Blaze {

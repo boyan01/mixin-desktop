@@ -21,6 +21,7 @@ use sdk::{
     SystemCircleAction, SYSTEM_USER,
 };
 
+use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::crypto::compose_message::ComposeMessageData;
 use crate::core::crypto::encrypted_protocol;
 use crate::core::crypto::signal_protocol::SignalProtocol;
@@ -52,7 +53,7 @@ pub struct ServiceDecryptMessage {
     private_key: Vec<u8>,
     session_id: String,
     pending_message_statuses: PendingMessageStatusStore,
-    conversation_changes: Option<watch::Sender<u64>>,
+    conversation_changes: Option<ConversationChangeNotifier>,
     notification_changes: Option<watch::Sender<u64>>,
     device_transfer_controls: Option<broadcast::Sender<DeviceTransferControlEvent>>,
 }
@@ -93,7 +94,7 @@ impl ServiceDecryptMessage {
         }
     }
 
-    pub fn with_conversation_changes(mut self, sender: watch::Sender<u64>) -> Self {
+    pub fn with_conversation_changes(mut self, sender: ConversationChangeNotifier) -> Self {
         self.conversation_changes = Some(sender);
         self
     }
@@ -133,12 +134,10 @@ impl ServiceDecryptMessage {
 
                 for message in messages {
                     match self.process_message(&message).await {
-                        Ok(()) => {
+                        Ok(conversation_id) => {
                             processed += 1;
                             if let Some(sender) = &self.conversation_changes {
-                                sender.send_modify(|revision| {
-                                    *revision = revision.wrapping_add(1);
-                                });
+                                sender.notify(conversation_id);
                             }
                             if let Some(sender) = &self.notification_changes {
                                 sender.send_modify(|revision| {
@@ -178,8 +177,9 @@ impl ServiceDecryptMessage {
         }
     }
 
-    async fn process_message(&self, message: &FloodMessage) -> Result<()> {
+    async fn process_message(&self, message: &FloodMessage) -> Result<String> {
         let data: BlazeMessageData = serde_json::from_slice(message.data.as_bytes())?;
+        let conversation_id = data.conversation_id.clone();
         info!("process message: {} {}", data.message_id, data.category);
         if self
             .database
@@ -198,7 +198,7 @@ impl ServiceDecryptMessage {
                 .flood_message_dao
                 .delete_flood_message(&message.message_id)
                 .await?;
-            return Ok(());
+            return Ok(conversation_id);
         }
 
         let status = match self.parse_flood_message(&data).await {
@@ -215,7 +215,7 @@ impl ServiceDecryptMessage {
             .flood_message_dao
             .delete_flood_message(&message.message_id)
             .await?;
-        Ok(())
+        Ok(conversation_id)
     }
 
     async fn handle_invalid_message(&self, data: &BlazeMessageData) -> Result<MessageStatus> {

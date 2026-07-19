@@ -3,8 +3,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use chrono::Utc;
 use mixin_desktop_core::runtime::model::{
-    AccountProfile, ConversationStorageUsage, NotificationEvent, SnapshotDetailItem,
-    StorageCategoryUsage,
+    AccountProfile, ConversationChangeEvent, ConversationStorageUsage, NotificationEvent,
+    SnapshotDetailItem, StorageCategoryUsage,
 };
 use mixin_desktop_core::runtime::{
     AccountRuntime, AttachmentAccess, ConversationAccess, MessageAccess, StickerAccess, UserAccess,
@@ -148,12 +148,15 @@ impl AccountHandle {
         self.runtime.user_access()
     }
 
-    pub async fn conversation_changes(&self, sink: StreamSink<u64>) -> Result<()> {
-        forward_changes(&self.runtime, sink).await
+    pub async fn conversation_changes(
+        &self,
+        sink: StreamSink<ConversationChangeEvent>,
+    ) -> Result<()> {
+        forward_conversation_changes(&self.runtime, sink).await
     }
 
     pub async fn message_changes(&self, sink: StreamSink<u64>) -> Result<()> {
-        forward_changes(&self.runtime, sink).await
+        forward_message_changes(&self.runtime, sink).await
     }
 
     pub async fn desktop_notification_events(
@@ -302,8 +305,47 @@ fn account_profile(account: &sdk::Account) -> AccountProfile {
     }
 }
 
-async fn forward_changes(runtime: &AccountRuntime, sink: StreamSink<u64>) -> Result<()> {
+async fn forward_conversation_changes(
+    runtime: &AccountRuntime,
+    sink: StreamSink<ConversationChangeEvent>,
+) -> Result<()> {
+    use mixin_desktop_core::core::conversation_change::ConversationChange;
+
     let mut changes = runtime.subscribe_conversation_changes();
+    let mut shutdown = runtime.subscribe_shutdown();
+    loop {
+        if *shutdown.borrow() {
+            break;
+        }
+        tokio::select! {
+            result = changes.recv() => {
+                let event = match result {
+                    Ok(ConversationChange::Conversation(conversation_id)) => ConversationChangeEvent {
+                        conversation_ids: vec![conversation_id],
+                        reload_all: false,
+                    },
+                    Ok(ConversationChange::All) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => ConversationChangeEvent {
+                        conversation_ids: Vec::new(),
+                        reload_all: true,
+                    },
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                };
+                if sink.add(event).is_err() {
+                    break;
+                }
+            }
+            result = shutdown.changed() => {
+                if result.is_err() || *shutdown.borrow() {
+                    break;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn forward_message_changes(runtime: &AccountRuntime, sink: StreamSink<u64>) -> Result<()> {
+    let mut changes = runtime.subscribe_message_changes();
     let mut shutdown = runtime.subscribe_shutdown();
     loop {
         if *shutdown.borrow() {
@@ -314,8 +356,7 @@ async fn forward_changes(runtime: &AccountRuntime, sink: StreamSink<u64>) -> Res
                 if result.is_err() {
                     break;
                 }
-                let revision = *changes.borrow();
-                if sink.add(revision).is_err() {
+                if sink.add(*changes.borrow()).is_err() {
                     break;
                 }
             }

@@ -20,6 +20,7 @@ use sdk::{Account, Client, Credential, KeyStore, MessageStatus};
 
 use crate::core::attachment::AttachmentService;
 use crate::core::constants::SCP;
+use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::crypto::signal_protocol::SignalProtocol;
 use crate::core::device_transfer::{DeviceTransferControlEvent, DeviceTransferService};
 use crate::core::message::blaze::Blaze;
@@ -92,7 +93,7 @@ pub struct AccountState {
     database: Arc<MixinDatabase>,
     signal_database: Arc<SignalDatabase>,
     app_service: Arc<AppService>,
-    conversation_changes: watch::Sender<u64>,
+    conversation_changes: ConversationChangeNotifier,
     notification_changes: watch::Sender<u64>,
     blaze: Arc<Blaze>,
     device_transfer: Arc<DeviceTransferService>,
@@ -112,9 +113,16 @@ impl Deref for AccountRuntime {
 }
 
 impl AccountState {
-    fn notify_conversation_changed(&self) {
-        self.conversation_changes
-            .send_modify(|revision| *revision = revision.wrapping_add(1));
+    fn notify_conversation_changed(&self, conversation_id: &str) {
+        self.conversation_changes.notify(conversation_id);
+    }
+
+    fn notify_all_conversations_changed(&self) {
+        self.conversation_changes.notify_all();
+    }
+
+    fn notify_messages_changed(&self) {
+        self.conversation_changes.notify_messages();
     }
 
     fn ensure_active(&self) -> Result<()> {
@@ -187,7 +195,7 @@ impl AccountRuntime {
             result => account_health(result)?,
         };
         let (shutdown, shutdown_receiver) = watch::channel(false);
-        let (conversation_changes, _) = watch::channel(0);
+        let conversation_changes = ConversationChangeNotifier::new();
         let (notification_changes, _) = watch::channel(0);
         let (account_health_updates, _) = watch::channel("ready".to_string());
         let account_conversation_changes = conversation_changes.clone();
@@ -298,8 +306,15 @@ impl AccountRuntime {
         Ok(directory)
     }
 
-    pub fn subscribe_conversation_changes(&self) -> watch::Receiver<u64> {
-        self.conversation_changes.subscribe()
+    pub fn subscribe_conversation_changes(
+        &self,
+    ) -> tokio::sync::broadcast::Receiver<crate::core::conversation_change::ConversationChange>
+    {
+        self.conversation_changes.subscribe_events()
+    }
+
+    pub fn subscribe_message_changes(&self) -> watch::Receiver<u64> {
+        self.conversation_changes.subscribe_revision()
     }
 
     pub fn subscribe_notification_changes(&self) -> watch::Receiver<u64> {
@@ -821,7 +836,7 @@ async fn run_account(
     auth: Auth,
     client: Arc<Client>,
     mut shutdown_receiver: watch::Receiver<bool>,
-    conversation_changes: watch::Sender<u64>,
+    conversation_changes: ConversationChangeNotifier,
     notification_changes: watch::Sender<u64>,
     account_health_updates: watch::Sender<String>,
     initial_account_health: String,
@@ -927,7 +942,7 @@ type AccountServices = (
 async fn prepare_account(
     auth: &Auth,
     client: Arc<Client>,
-    conversation_changes: watch::Sender<u64>,
+    conversation_changes: ConversationChangeNotifier,
     notification_changes: watch::Sender<u64>,
     account_health: String,
 ) -> Result<AccountServices> {

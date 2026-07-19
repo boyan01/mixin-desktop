@@ -25,11 +25,24 @@ pub struct ConversationListData {
     pub is_bot_group: bool,
     pub membership: Option<String>,
     pub is_pinned: bool,
+    pub pin_time_millis: i64,
     pub relationship: String,
     pub identity_number: String,
     pub circle_ids: Vec<String>,
     pub participant_count: i64,
     pub group_avatars: Vec<GroupAvatar>,
+}
+
+pub struct ConversationChangeEvent {
+    pub conversation_ids: Vec<String>,
+    pub reload_all: bool,
+}
+
+pub struct ConversationUnseenCount {
+    pub category: String,
+    pub circle_id: Option<String>,
+    pub count: i64,
+    pub muted_count: i64,
 }
 
 pub struct GroupAvatar {

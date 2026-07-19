@@ -949,11 +949,11 @@ class _HomeBodyState extends State<_HomeBody> {
   Widget build(BuildContext context) {
     final controller = context.watch<ConversationListController>();
     final conversationList = ConversationListView(
-      pagingState: controller.pagingState,
+      conversations: controller.visibleConversations,
+      initialized: controller.initialized,
       itemPositionsListener: controller.itemPositionsListener,
       itemScrollController: controller.itemScrollController,
       loading: controller.loading,
-      error: controller.error,
       currentUserId: controller.profile.userId,
       mentionNames: controller.mentionNames,
       circles: {
@@ -1021,7 +1021,6 @@ class _HomeBodyState extends State<_HomeBody> {
           _showActionFailure();
         }
       },
-      onRetry: controller.refresh,
       audioPlayerBar: AudioPlayerBar(
         selectedConversationId: selectedConversation?.id,
         findConversation: controller.findConversation,

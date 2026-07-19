@@ -36,7 +36,7 @@ impl UserAccess {
             .into_iter()
             .next()
             .ok_or_else(|| anyhow!("searched MAO user was not persisted"))?;
-        self.notify_conversation_changed();
+        self.notify_all_conversations_changed();
         Ok(Some(profile.into()))
     }
 
@@ -120,7 +120,7 @@ impl UserAccess {
             .into_iter()
             .next()
             .ok_or_else(|| anyhow!("searched user was not persisted"))?;
-        self.notify_conversation_changed();
+        self.notify_all_conversations_changed();
         Ok(profile.into())
     }
 
@@ -245,7 +245,7 @@ impl UserAccess {
             .into_iter()
             .next()
             .map(Into::into);
-        self.notify_conversation_changed();
+        self.notify_all_conversations_changed();
         Ok(profile)
     }
 
@@ -304,7 +304,7 @@ impl UserAccess {
         self.ensure_active()?;
         let user = self.client.user_api.report_and_block(user_id).await?;
         self.database.user_dao.insert_sdk_users(vec![user]).await?;
-        self.notify_conversation_changed();
+        self.notify_all_conversations_changed();
         Ok(())
     }
 
@@ -313,7 +313,7 @@ impl UserAccess {
         self.ensure_active()?;
         let user = self.client.user_api.update_relationship(&action).await?;
         self.database.user_dao.insert_sdk_users(vec![user]).await?;
-        self.notify_conversation_changed();
+        self.notify_all_conversations_changed();
         Ok(())
     }
 

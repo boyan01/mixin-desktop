@@ -6,10 +6,10 @@ use std::time::Duration;
 use anyhow::Result;
 use chrono::Utc;
 use log::error;
-use tokio::sync::watch;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 
+use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::db::MixinDatabase;
 
 pub struct ExpiredMessageService {
@@ -18,7 +18,7 @@ pub struct ExpiredMessageService {
 }
 
 impl ExpiredMessageService {
-    pub fn new(database: Arc<MixinDatabase>, changes: Option<watch::Sender<u64>>) -> Self {
+    pub fn new(database: Arc<MixinDatabase>, changes: Option<ConversationChangeNotifier>) -> Self {
         let notify = Arc::new(Notify::new());
         let runner_notify = notify.clone();
         let handle = tokio::spawn(async move {
@@ -26,9 +26,7 @@ impl ExpiredMessageService {
                 match cleanup_expired_messages(&database).await {
                     Ok(true) => {
                         if let Some(changes) = &changes {
-                            changes.send_modify(|revision| {
-                                *revision = revision.wrapping_add(1);
-                            });
+                            changes.notify_all();
                         }
                     }
                     Ok(false) => {}

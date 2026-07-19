@@ -30,6 +30,7 @@ impl From<crate::db::mixin::conversation::ConversationListItem> for Conversation
             is_bot_group: item.is_bot_group,
             membership: item.membership,
             is_pinned: item.is_pinned,
+            pin_time_millis: item.pin_time_millis,
             relationship: item.relationship,
             identity_number: item.identity_number,
             circle_ids: item
@@ -51,6 +52,17 @@ impl From<crate::db::mixin::conversation::ConversationListItem> for Conversation
                     })
                 })
                 .collect(),
+        }
+    }
+}
+
+impl From<crate::db::mixin::conversation::ConversationUnseenCountItem> for ConversationUnseenCount {
+    fn from(item: crate::db::mixin::conversation::ConversationUnseenCountItem) -> Self {
+        Self {
+            category: item.category,
+            circle_id: item.circle_id,
+            count: item.count,
+            muted_count: item.muted_count,
         }
     }
 }

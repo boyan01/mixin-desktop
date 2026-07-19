@@ -14,13 +14,14 @@ use sha2::Sha256;
 use sqlx::{AssertSqlSafe, QueryBuilder, Row, Sqlite};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{broadcast, watch, Mutex};
+use tokio::sync::{broadcast, Mutex};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use sdk::message_category::MessageCategory;
 
 use crate::core::attachment::{attachment_path, transcript_attachment_path};
+use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::message::sender::MessageSender;
 use crate::db::mixin::message::{MediaStatus, Message};
 use crate::db::mixin::message_fts::message_fts_content;
@@ -176,7 +177,7 @@ pub struct DeviceTransferService {
     account_data_dir: PathBuf,
     state: Mutex<TransferState>,
     events: broadcast::Sender<DeviceTransferEvent>,
-    conversation_changes: watch::Sender<u64>,
+    conversation_changes: ConversationChangeNotifier,
 }
 
 impl DeviceTransferService {
@@ -187,7 +188,7 @@ impl DeviceTransferService {
         session_id: String,
         primary_session_id: Option<String>,
         account_data_dir: PathBuf,
-        conversation_changes: watch::Sender<u64>,
+        conversation_changes: ConversationChangeNotifier,
     ) -> Arc<Self> {
         let (events, _) = broadcast::channel(64);
         Arc::new(Self {
@@ -563,8 +564,7 @@ impl DeviceTransferService {
                         &TransferCommand::simple(&self.device_id, "finish"),
                     )
                     .await?;
-                    self.conversation_changes
-                        .send_modify(|revision| *revision = revision.wrapping_add(1));
+                    self.conversation_changes.notify_all();
                     self.emit(DeviceTransferEvent::simple("restore_succeed"));
                     return Ok(());
                 }

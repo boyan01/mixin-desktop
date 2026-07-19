@@ -4,9 +4,9 @@ pub use circle::CircleService;
 pub use conversation::ConversationService;
 pub use message::*;
 use sdk::Client;
-use tokio::sync::watch;
 
 use crate::core::attachment::AttachmentService;
+use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::message::sender::MessageSender;
 use crate::core::model::job::JobService;
 use crate::db::app::Auth;
@@ -36,7 +36,7 @@ impl AppService {
         auth: &Auth,
         message_sender: Arc<MessageSender>,
         attachment: Arc<AttachmentService>,
-        changes: Option<watch::Sender<u64>>,
+        changes: Option<ConversationChangeNotifier>,
     ) -> Self {
         let account_id = auth.account.user_id.clone();
         let conversation = ConversationService::new(db.clone(), client.clone(), account_id.clone());

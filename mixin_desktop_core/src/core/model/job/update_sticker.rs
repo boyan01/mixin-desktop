@@ -4,8 +4,8 @@ use anyhow::Result;
 use chrono::Utc;
 use log::warn;
 use sdk::Client;
-use tokio::sync::watch;
 
+use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::db::MixinDatabase;
 
 use super::{JobCategory, JobTrigger};
@@ -13,7 +13,7 @@ use super::{JobCategory, JobTrigger};
 pub(super) struct UpdateStickerJobRunner {
     pub(super) database: Arc<MixinDatabase>,
     pub(super) client: Arc<Client>,
-    pub(super) changes: Option<watch::Sender<u64>>,
+    pub(super) changes: Option<ConversationChangeNotifier>,
 }
 
 impl JobTrigger for UpdateStickerJobRunner {
@@ -48,9 +48,7 @@ impl UpdateStickerJobRunner {
                 Ok(()) => {
                     self.database.job_dao.delete_job_by_id(&job.job_id).await?;
                     if let Some(changes) = &self.changes {
-                        changes.send_modify(|revision| {
-                            *revision = revision.wrapping_add(1);
-                        });
+                        changes.notify_messages();
                     }
                 }
                 Err(error)

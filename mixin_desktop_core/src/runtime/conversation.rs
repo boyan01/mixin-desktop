@@ -30,7 +30,7 @@ impl ConversationAccess {
                 let user: sdk::User = serde_json::from_value(value)?;
                 let user_id = user.user_id.clone();
                 self.database.user_dao.insert_sdk_users(vec![user]).await?;
-                self.notify_conversation_changed();
+                self.notify_all_conversations_changed();
                 Ok(model::CodeResult {
                     kind: "user".to_string(),
                     user_id: Some(user_id),
@@ -211,7 +211,7 @@ impl ConversationAccess {
             .conversation
             .refresh_conversation(&conversation_id)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(&conversation_id);
         Ok(conversation_id)
     }
 
@@ -258,7 +258,7 @@ impl ConversationAccess {
             .conversation
             .refresh_conversation(&conversation_id)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(&conversation_id);
         Ok(conversation_id)
     }
 
@@ -276,6 +276,50 @@ impl Deref for ConversationAccess {
 }
 
 impl ConversationAccess {
+    pub async fn conversation_items(&self) -> Result<Vec<model::ConversationListData>> {
+        Ok(self
+            .database
+            .conversation_dao
+            .all_items()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn conversation_items_by_ids(
+        &self,
+        conversation_ids: Vec<String>,
+    ) -> Result<Vec<model::ConversationListData>> {
+        Ok(self
+            .database
+            .conversation_dao
+            .list_items_by_ids(&conversation_ids)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn unseen_conversation_counts(&self) -> Result<Vec<model::ConversationUnseenCount>> {
+        Ok(self
+            .database
+            .conversation_dao
+            .unseen_counts()
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn is_bot_group(&self, conversation_id: String) -> Result<bool> {
+        Ok(self
+            .database
+            .conversation_dao
+            .is_bot_group(&conversation_id)
+            .await?)
+    }
+
     pub async fn conversation_count(
         &self,
         category: String,
@@ -478,7 +522,7 @@ impl ConversationAccess {
             .conversation
             .refresh_conversation(conversation_id)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -498,7 +542,7 @@ impl ConversationAccess {
             .conversation_dao
             .update_expire_in(conversation_id, duration)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -514,7 +558,7 @@ impl ConversationAccess {
             .circle_dao
             .insert_circles(std::slice::from_ref(&circle))
             .await?;
-        self.notify_conversation_changed();
+        self.notify_all_conversations_changed();
         Ok(circle.into())
     }
 
@@ -535,7 +579,7 @@ impl ConversationAccess {
             .circle_dao
             .update_name(circle_id, &circle.name)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_all_conversations_changed();
         Ok(())
     }
 
@@ -549,7 +593,7 @@ impl ConversationAccess {
             .delete_by_circle(circle_id)
             .await?;
         self.database.circle_dao.delete(circle_id).await?;
-        self.notify_conversation_changed();
+        self.notify_all_conversations_changed();
         Ok(())
     }
 
@@ -571,7 +615,7 @@ impl ConversationAccess {
             ));
         }
         self.database.circle_dao.update_orders(&circle_ids).await?;
-        self.notify_conversation_changed();
+        self.notify_all_conversations_changed();
         Ok(())
     }
 
@@ -616,7 +660,7 @@ impl ConversationAccess {
             .conversation
             .refresh_conversation(&conversation_id)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(&conversation_id);
         Ok(conversation_id)
     }
 
@@ -648,7 +692,7 @@ impl ConversationAccess {
             .conversation
             .refresh_conversation(conversation_id)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -661,7 +705,7 @@ impl ConversationAccess {
             .conversation_dao
             .delete_local(conversation_id)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -674,7 +718,7 @@ impl ConversationAccess {
             .conversation
             .refresh_conversation(conversation_id)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -686,7 +730,7 @@ impl ConversationAccess {
             .message_dao
             .clear_conversation(conversation_id)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -709,7 +753,7 @@ impl ConversationAccess {
             .conversation_dao
             .set_pinned(conversation_id, pinned)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -761,7 +805,7 @@ impl ConversationAccess {
                 response.mute_until,
             )
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -773,7 +817,7 @@ impl ConversationAccess {
             .conversation_dao
             .delete_local(conversation_id)
             .await?;
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -818,7 +862,7 @@ impl ConversationAccess {
                 .delete(circle_id, conversation_id)
                 .await?;
         }
-        self.notify_conversation_changed();
+        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 }

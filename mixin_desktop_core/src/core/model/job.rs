@@ -25,7 +25,7 @@ use futures::{future::pending, StreamExt};
 use log::{error, info};
 use strum_macros::Display;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio::sync::{watch, Mutex, Notify};
+use tokio::sync::{Mutex, Notify};
 use tokio::time::{interval, sleep};
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -36,6 +36,7 @@ use sdk::{
     SENDING_MESSAGE,
 };
 
+use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::message::sender::{MessageResult, MessageSender};
 use crate::db::app::Auth;
 use crate::db::mixin::job::{
@@ -62,7 +63,7 @@ impl JobService {
         message_sender: Arc<MessageSender>,
         client: Arc<Client>,
         auth: &Auth,
-        changes: Option<watch::Sender<u64>>,
+        changes: Option<ConversationChangeNotifier>,
         expired_message_notify: Arc<Notify>,
     ) -> Self {
         let (ack_sender, ack_receiver) = channel(1);
@@ -182,7 +183,7 @@ struct JobParams {
     message_sender: Arc<MessageSender>,
     private_key: Vec<u8>,
     session_id: String,
-    changes: Option<watch::Sender<u64>>,
+    changes: Option<ConversationChangeNotifier>,
     expired_message_notify: Arc<Notify>,
 }
 

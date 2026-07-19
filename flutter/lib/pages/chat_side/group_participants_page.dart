@@ -31,7 +31,7 @@ class GroupParticipantsPage extends StatefulWidget {
 class _GroupParticipantsPageState extends State<GroupParticipantsPage> {
   List<rust.ConversationParticipantItem> _participants = const [];
   bool _loading = true;
-  StreamSubscription<BigInt>? _changes;
+  StreamSubscription<rust.ConversationChangeEvent>? _changes;
   final _searchController = TextEditingController();
   String _keyword = '';
 

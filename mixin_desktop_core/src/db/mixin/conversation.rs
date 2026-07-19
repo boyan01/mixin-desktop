@@ -68,11 +68,20 @@ pub struct ConversationListItem {
     pub is_bot_group: bool,
     pub membership: Option<String>,
     pub is_pinned: bool,
+    pub pin_time_millis: i64,
     pub relationship: String,
     pub identity_number: String,
     pub circle_ids: String,
     pub participant_count: i64,
     pub group_avatar_data: String,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct ConversationUnseenCountItem {
+    pub category: String,
+    pub circle_id: Option<String>,
+    pub count: i64,
+    pub muted_count: i64,
 }
 
 impl ConversationListItem {
@@ -139,6 +148,54 @@ WHERE conversation.category IN ('CONTACT', 'GROUP')
         limit: i64,
         offset: i64,
     ) -> Result<Vec<ConversationListItem>, Error> {
+        self.list_items_inner(
+            category,
+            circle_id,
+            keyword,
+            unseen_only,
+            limit.clamp(1, 500),
+            offset,
+            "",
+        )
+        .await
+    }
+
+    pub async fn all_items(&self) -> Result<Vec<ConversationListItem>, Error> {
+        self.list_items_inner("chats", None, "", false, i64::MAX, 0, "")
+            .await
+    }
+
+    pub async fn list_items_by_ids(
+        &self,
+        conversation_ids: &[String],
+    ) -> Result<Vec<ConversationListItem>, Error> {
+        if conversation_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ids = serde_json::to_string(conversation_ids).map_err(anyhow::Error::from)?;
+        self.list_items_inner(
+            "chats",
+            None,
+            "",
+            false,
+            conversation_ids.len() as i64,
+            0,
+            &ids,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn list_items_inner(
+        &self,
+        category: &str,
+        circle_id: Option<&str>,
+        keyword: &str,
+        unseen_only: bool,
+        limit: i64,
+        offset: i64,
+        conversation_ids_json: &str,
+    ) -> Result<Vec<ConversationListItem>, Error> {
         let result = sqlx::query_as::<_, ConversationListItem>(
             r#"
 SELECT conversation.conversation_id,
@@ -180,14 +237,10 @@ SELECT conversation.conversation_id,
        COALESCE(owner.is_verified, FALSE) AS is_verified,
        COALESCE(owner.is_scam, FALSE) AS is_scam,
        (conversation.category = 'CONTACT' AND owner.app_id IS NOT NULL) AS is_bot,
-       (conversation.category = 'CONTACT' AND owner.app_id IS NOT NULL AND EXISTS (
-           SELECT 1
-           FROM messages bot_group_message
-           WHERE bot_group_message.conversation_id = conversation.conversation_id
-             AND bot_group_message.user_id != conversation.owner_id
-       )) AS is_bot_group,
+       FALSE AS is_bot_group,
        CASE WHEN conversation.category = 'CONTACT' THEN owner.membership ELSE NULL END AS membership,
        conversation.pin_time IS NOT NULL AS is_pinned,
+       COALESCE(conversation.pin_time, 0) AS pin_time_millis,
        COALESCE(owner.relationship, '') AS relationship,
        COALESCE(owner.identity_number, '') AS identity_number,
        COALESCE((
@@ -244,6 +297,7 @@ WHERE conversation.category IN ('CONTACT', 'GROUP')
       OR owner.identity_number LIKE '%' || ?4 || '%' COLLATE NOCASE
       OR COALESCE(last_message.content, '') LIKE '%' || ?4 || '%' COLLATE NOCASE
   )
+  AND (?7 = '' OR conversation.conversation_id IN (SELECT value FROM json_each(?7)))
 ORDER BY conversation.pin_time DESC,
          (conversation.status != 3 AND LENGTH(COALESCE(conversation.draft, '')) > 0) DESC,
          conversation.last_message_created_at DESC,
@@ -255,11 +309,82 @@ LIMIT ?5 OFFSET ?6
         .bind(circle_id.unwrap_or_default())
         .bind(unseen_only)
         .bind(keyword.trim())
-        .bind(limit.clamp(1, 500))
+        .bind(limit.max(1))
         .bind(offset.max(0))
+        .bind(conversation_ids_json)
         .fetch_all(&self.0)
         .await?;
         Ok(result)
+    }
+
+    pub async fn unseen_counts(&self) -> Result<Vec<ConversationUnseenCountItem>, Error> {
+        Ok(sqlx::query_as::<_, ConversationUnseenCountItem>(
+            r#"
+WITH base AS (
+    SELECT conversation.conversation_id,
+           CASE
+               WHEN conversation.category = 'GROUP' THEN 'groups'
+               WHEN owner.app_id IS NOT NULL THEN 'bots'
+               WHEN owner.relationship = 'FRIEND' THEN 'contacts'
+               ELSE 'strangers'
+           END AS category,
+           CASE
+               WHEN conversation.category = 'GROUP'
+                   THEN conversation.mute_until > CAST(unixepoch('subsec') * 1000 AS INTEGER)
+               ELSE owner.mute_until > CAST(unixepoch('subsec') * 1000 AS INTEGER)
+           END AS is_muted
+    FROM conversations conversation
+    INNER JOIN users owner ON owner.user_id = conversation.owner_id
+    WHERE conversation.category IN ('CONTACT', 'GROUP')
+      AND COALESCE(conversation.unseen_message_count, 0) > 0
+), classified AS (
+    SELECT conversation_id, 'chats' AS category, is_muted FROM base
+    UNION ALL
+    SELECT conversation_id, category, is_muted FROM base
+)
+SELECT category,
+       NULL AS circle_id,
+       COUNT(1) AS count,
+       COALESCE(SUM(CASE WHEN is_muted THEN 1 ELSE 0 END), 0) AS muted_count
+FROM classified
+GROUP BY category
+UNION ALL
+SELECT 'circle' AS category,
+       circle_conversation.circle_id,
+       COUNT(1) AS count,
+       COALESCE(SUM(CASE WHEN base.is_muted THEN 1 ELSE 0 END), 0) AS muted_count
+FROM base
+INNER JOIN circle_conversations circle_conversation
+        ON circle_conversation.conversation_id = base.conversation_id
+GROUP BY circle_conversation.circle_id
+            "#,
+        )
+        .fetch_all(&self.0)
+        .await?)
+    }
+
+    pub async fn is_bot_group(&self, conversation_id: &str) -> Result<bool, Error> {
+        Ok(sqlx::query_scalar(
+            r#"
+SELECT EXISTS (
+    SELECT 1
+    FROM conversations conversation
+    INNER JOIN users owner ON owner.user_id = conversation.owner_id
+    WHERE conversation.conversation_id = ?
+      AND conversation.category = 'CONTACT'
+      AND owner.app_id IS NOT NULL
+      AND EXISTS (
+          SELECT 1
+          FROM messages message
+          WHERE message.conversation_id = conversation.conversation_id
+            AND message.user_id != conversation.owner_id
+      )
+)
+            "#,
+        )
+        .bind(conversation_id)
+        .fetch_one(&self.0)
+        .await?)
     }
 
     pub async fn set_pinned(&self, conversation_id: &str, pinned: bool) -> Result<(), Error> {
@@ -665,6 +790,70 @@ mod tests {
                 Some(String::new()),
             )
         );
+    }
+
+    #[tokio::test]
+    async fn keeps_bot_group_detection_out_of_the_list_query() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        let now = Utc::now();
+        sqlx::query(
+            "INSERT INTO users (user_id, identity_number, relationship, full_name, avatar_url, \
+             created_at, mute_until, app_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind("bot")
+        .bind("7000")
+        .bind("FRIEND")
+        .bind("Bot")
+        .bind("")
+        .bind(now.timestamp_millis())
+        .bind(now.timestamp_millis())
+        .bind("bot-app")
+        .execute(&database.conversation_dao.0)
+        .await
+        .unwrap();
+        database
+            .conversation_dao
+            .insert(&Conversation {
+                conversation_id: "conversation".into(),
+                owner_id: Some("bot".into()),
+                category: Some(ConversationCategory::Contact),
+                name: String::new(),
+                icon_url: String::new(),
+                announcement: String::new(),
+                code_url: String::new(),
+                created_at: now,
+                status: ConversationStatus::SUCCESS,
+                mute_until: now,
+                expire_in: 0,
+            })
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO messages (message_id, conversation_id, user_id, category, status, \
+             created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind("message")
+        .bind("conversation")
+        .bind("participant")
+        .bind("PLAIN_TEXT")
+        .bind("READ")
+        .bind(now.timestamp_millis())
+        .execute(&database.conversation_dao.0)
+        .await
+        .unwrap();
+
+        let items = database.conversation_dao.all_items().await.unwrap();
+        assert_eq!(items.len(), 1);
+        assert!(items[0].is_bot);
+        assert!(!items[0].is_bot_group);
+        assert!(database
+            .conversation_dao
+            .is_bot_group("conversation")
+            .await
+            .unwrap());
     }
 
     #[tokio::test]

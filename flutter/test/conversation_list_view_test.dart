@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mixin_desktop_ui/controllers/paging_controller.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
@@ -127,7 +126,8 @@ void main() {
         home: Scaffold(
           drawer: const Drawer(child: Text('Navigation')),
           body: ConversationListView(
-            pagingState: const PagingState(initialized: true),
+            conversations: const [],
+            initialized: true,
             itemPositionsListener: ItemPositionsListener.create(),
             itemScrollController: ItemScrollController(),
             loading: false,
@@ -144,7 +144,6 @@ void main() {
             onMuted: (_, _) {},
             onDeleted: (_) {},
             onCircleChanged: (_, _, _) {},
-            onRetry: () {},
           ),
         ),
       ),

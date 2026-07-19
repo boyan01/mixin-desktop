@@ -1016,6 +1016,18 @@ ORDER BY message.created_at ASC, message.message_id ASC
         Ok(result)
     }
 
+    pub async fn conversation_id_by_message_id(
+        &self,
+        message_id: &str,
+    ) -> Result<Option<String>, Error> {
+        Ok(
+            sqlx::query_scalar("SELECT conversation_id FROM messages WHERE message_id = ?")
+                .bind(message_id)
+                .fetch_optional(&self.0)
+                .await?,
+        )
+    }
+
     pub async fn find_messages_by_ids(
         &self,
         message_ids: &[String],

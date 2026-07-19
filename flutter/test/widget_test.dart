@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
-import 'package:mixin_desktop_ui/controllers/paging_controller.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/conversation_list_view.dart';
@@ -62,12 +61,8 @@ void main() {
     await tester.pumpWidget(
       _LocalizedApp(
         child: ConversationListView(
-          pagingState: PagingState(
-            map: {0: conversation},
-            count: 1,
-            initialized: true,
-            hasData: true,
-          ),
+          conversations: [conversation],
+          initialized: true,
           itemPositionsListener: ItemPositionsListener.create(),
           itemScrollController: ItemScrollController(),
           loading: false,
@@ -84,7 +79,6 @@ void main() {
           onMuted: (_, _) {},
           onDeleted: (_) {},
           onCircleChanged: (_, _, _) {},
-          onRetry: () {},
         ),
       ),
     );

@@ -36,7 +36,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
   String? developerId;
   bool loadStarted = false;
   bool participantsLoaded = false;
-  StreamSubscription<BigInt>? conversationChanges;
+  StreamSubscription<rust.ConversationChangeEvent>? conversationChanges;
 
   @override
   void didChangeDependencies() {

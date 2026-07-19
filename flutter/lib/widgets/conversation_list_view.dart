@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
-import 'package:mixin_desktop_ui/controllers/paging_controller.dart';
 import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
@@ -36,7 +35,8 @@ enum ConversationCreateAction { searchContact, conversation, group, circle }
 
 class ConversationListView extends StatefulWidget {
   const ConversationListView({
-    required this.pagingState,
+    required this.conversations,
+    required this.initialized,
     required this.itemPositionsListener,
     required this.itemScrollController,
     required this.loading,
@@ -53,9 +53,7 @@ class ConversationListView extends StatefulWidget {
     required this.onMuted,
     required this.onDeleted,
     required this.onCircleChanged,
-    required this.onRetry,
     super.key,
-    this.error,
     this.query = '',
     this.mentionNames = const {},
     this.searchMessages = const [],
@@ -73,11 +71,11 @@ class ConversationListView extends StatefulWidget {
     this.networkStatus = const SizedBox.shrink(),
   });
 
-  final PagingState<ConversationListEntry> pagingState;
+  final List<ConversationListEntry> conversations;
+  final bool initialized;
   final ItemPositionsListener itemPositionsListener;
   final ItemScrollController itemScrollController;
   final bool loading;
-  final String? error;
   final String currentUserId;
   final Map<String, String> mentionNames;
   final Map<String, String> circles;
@@ -104,7 +102,6 @@ class ConversationListView extends StatefulWidget {
   final void Function(ConversationListEntry, int) onMuted;
   final ValueChanged<ConversationListEntry> onDeleted;
   final void Function(ConversationListEntry, String, bool) onCircleChanged;
-  final VoidCallback onRetry;
   final Widget audioPlayerBar;
   final Widget networkStatus;
 
@@ -140,57 +137,112 @@ class _ConversationListViewState extends State<ConversationListView> {
   }
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: context.mixinTheme.primary,
-    child: Column(
-      children: [
-        _SearchBar(
-          controller: searchController,
-          focusNode: searchFocusNode,
-          filterUnseen: widget.filterUnseen,
-          onChanged: widget.onQueryChanged,
-          onToggleUnseen: widget.onToggleUnseen,
-          onCreateActionSelected: widget.onCreateActionSelected,
-        ),
-        widget.networkStatus,
-        Expanded(
-          child: widget.query.trim().isEmpty
-              ? _buildList()
-              : ConversationSearchResults(
-                  keyword: widget.query,
-                  users: widget.searchUsers,
-                  maoUser: widget.searchMaoUser,
-                  mao: widget.searchMao,
-                  conversations: widget.pagingState.map.values
-                      .whereType<ConversationListEntry>()
-                      .toList(growable: false),
-                  messages: widget.searchMessages,
-                  messageConversations: widget.searchMessageConversations,
-                  loadingMessages: widget.searchMessagesLoading,
-                  mentionNames: widget.mentionNames,
-                  onConversationSelected: widget.onSelected,
-                  onMessageSelected: widget.onSearchMessageSelected ?? (_) {},
-                  onSearchUser: widget.onSearchUser ?? (_) {},
-                  onUserSelected: widget.onLocalUserSelected ?? (_) {},
-                  onMaoBotOpen: widget.onMaoBotOpen ?? (_) {},
-                  onOpenLink: widget.onOpenLink ?? (_) {},
-                  onClear: () {
-                    searchController.clear();
-                    widget.onQueryChanged('');
-                    searchFocusNode.unfocus();
-                  },
-                ),
-        ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          child: widget.audioPlayerBar,
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final content = widget.query.trim().isEmpty
+        ? _ConversationListBody(
+            conversations: widget.conversations,
+            initialized: widget.initialized,
+            loading: widget.loading,
+            filterUnseen: widget.filterUnseen,
+            itemPositionsListener: widget.itemPositionsListener,
+            itemScrollController: widget.itemScrollController,
+            currentUserId: widget.currentUserId,
+            mentionNames: widget.mentionNames,
+            circles: widget.circles,
+            currentCircleId: widget.currentCircleId,
+            selectedConversationId: widget.selectedConversationId,
+            onSelected: widget.onSelected,
+            onPinned: widget.onPinned,
+            onMuted: widget.onMuted,
+            onDeleted: widget.onDeleted,
+            onCircleChanged: widget.onCircleChanged,
+          )
+        : ConversationSearchResults(
+            keyword: widget.query,
+            users: widget.searchUsers,
+            maoUser: widget.searchMaoUser,
+            mao: widget.searchMao,
+            conversations: widget.conversations,
+            messages: widget.searchMessages,
+            messageConversations: widget.searchMessageConversations,
+            loadingMessages: widget.searchMessagesLoading,
+            mentionNames: widget.mentionNames,
+            onConversationSelected: widget.onSelected,
+            onMessageSelected: widget.onSearchMessageSelected ?? (_) {},
+            onSearchUser: widget.onSearchUser ?? (_) {},
+            onUserSelected: widget.onLocalUserSelected ?? (_) {},
+            onMaoBotOpen: widget.onMaoBotOpen ?? (_) {},
+            onOpenLink: widget.onOpenLink ?? (_) {},
+            onClear: () {
+              searchController.clear();
+              widget.onQueryChanged('');
+              searchFocusNode.unfocus();
+            },
+          );
+    return Material(
+      color: context.mixinTheme.primary,
+      child: Column(
+        children: [
+          _SearchBar(
+            controller: searchController,
+            focusNode: searchFocusNode,
+            filterUnseen: widget.filterUnseen,
+            onChanged: widget.onQueryChanged,
+            onToggleUnseen: widget.onToggleUnseen,
+            onCreateActionSelected: widget.onCreateActionSelected,
+          ),
+          widget.networkStatus,
+          Expanded(child: content),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            child: widget.audioPlayerBar,
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-  Widget _buildList() {
-    if (widget.loading && !widget.pagingState.initialized) {
+class _ConversationListBody extends StatelessWidget {
+  const _ConversationListBody({
+    required this.conversations,
+    required this.initialized,
+    required this.loading,
+    required this.filterUnseen,
+    required this.itemPositionsListener,
+    required this.itemScrollController,
+    required this.currentUserId,
+    required this.mentionNames,
+    required this.circles,
+    required this.currentCircleId,
+    required this.selectedConversationId,
+    required this.onSelected,
+    required this.onPinned,
+    required this.onMuted,
+    required this.onDeleted,
+    required this.onCircleChanged,
+  });
+
+  final List<ConversationListEntry> conversations;
+  final bool initialized;
+  final bool loading;
+  final bool filterUnseen;
+  final ItemPositionsListener itemPositionsListener;
+  final ItemScrollController itemScrollController;
+  final String currentUserId;
+  final Map<String, String> mentionNames;
+  final Map<String, String> circles;
+  final String? currentCircleId;
+  final String? selectedConversationId;
+  final ValueChanged<ConversationListEntry> onSelected;
+  final ValueChanged<ConversationListEntry> onPinned;
+  final void Function(ConversationListEntry, int) onMuted;
+  final ValueChanged<ConversationListEntry> onDeleted;
+  final void Function(ConversationListEntry, String, bool) onCircleChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading && !initialized) {
       return Center(
         child: CircularProgressIndicator(
           strokeWidth: 2,
@@ -198,33 +250,31 @@ class _ConversationListViewState extends State<ConversationListView> {
         ),
       );
     }
-    if (widget.pagingState.count == 0) {
-      final searching = widget.query.isNotEmpty || widget.filterUnseen;
+    if (conversations.isEmpty) {
       return _EmptyState(
-        text: searching ? context.l10n.searchEmpty : context.l10n.noData,
+        text: filterUnseen ? context.l10n.searchEmpty : context.l10n.noData,
       );
     }
     return ScrollablePositionedList.builder(
-      itemPositionsListener: widget.itemPositionsListener,
-      itemScrollController: widget.itemScrollController,
-      itemCount: widget.pagingState.count,
+      itemPositionsListener: itemPositionsListener,
+      itemScrollController: itemScrollController,
+      itemCount: conversations.length,
       itemBuilder: (context, index) {
-        final conversation = widget.pagingState.map[index];
-        if (conversation == null) return const SizedBox(height: 78);
+        final conversation = conversations[index];
         return _ConversationContextMenu(
           conversation: conversation,
-          onPinned: widget.onPinned,
-          onMuted: widget.onMuted,
-          onDeleted: widget.onDeleted,
-          circles: widget.circles,
-          currentCircleId: widget.currentCircleId,
-          onCircleChanged: widget.onCircleChanged,
+          onPinned: onPinned,
+          onMuted: onMuted,
+          onDeleted: onDeleted,
+          circles: circles,
+          currentCircleId: currentCircleId,
+          onCircleChanged: onCircleChanged,
           child: ConversationItem(
             conversation: conversation,
-            currentUserId: widget.currentUserId,
-            mentionNames: widget.mentionNames,
-            selected: conversation.id == widget.selectedConversationId,
-            onTap: () => widget.onSelected(conversation),
+            currentUserId: currentUserId,
+            mentionNames: mentionNames,
+            selected: conversation.id == selectedConversationId,
+            onTap: () => onSelected(conversation),
           ),
         );
       },

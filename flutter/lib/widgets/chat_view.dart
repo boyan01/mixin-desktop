@@ -1620,7 +1620,7 @@ class _MessageList extends StatelessWidget {
             currentUserId: currentUserId,
             isGroup: conversation.isGroup,
             isBot: conversation.isBot,
-            isBotGroup: conversation.isBotGroup,
+            isBotGroup: controller.isBotGroup,
             conversationOwnerId: conversation.ownerId,
             currentUserRole: controller.currentUserRole,
             messages: messages,

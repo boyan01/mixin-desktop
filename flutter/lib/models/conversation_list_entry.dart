@@ -28,6 +28,7 @@ class ConversationListEntry {
     this.isBotGroup = false,
     this.membership,
     required this.isPinned,
+    this.pinTime,
     required this.relationship,
     required this.identityNumber,
     required this.circleIds,
@@ -61,6 +62,7 @@ class ConversationListEntry {
   final bool isBotGroup;
   final String? membership;
   final bool isPinned;
+  final DateTime? pinTime;
   final String relationship;
   final String identityNumber;
   final List<String> circleIds;
@@ -99,6 +101,9 @@ class ConversationListEntry {
         isBotGroup: item.isBotGroup,
         membership: item.membership,
         isPinned: item.isPinned,
+        pinTime: item.pinTimeMillis.toInt() == 0
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(item.pinTimeMillis.toInt()),
         relationship: item.relationship,
         identityNumber: item.identityNumber,
         circleIds: item.circleIds,

@@ -480,6 +480,7 @@ class _FakeAccountHandle
     isBot: false,
     isBotGroup: false,
     isPinned: false,
+    pinTimeMillis: 0,
     relationship: 'FRIEND',
     identityNumber: '7000',
     circleIds: [],
@@ -509,6 +510,7 @@ class _FakeAccountHandle
     isBot: false,
     isBotGroup: false,
     isPinned: false,
+    pinTimeMillis: 0,
     relationship: 'FRIEND',
     identityNumber: '7001',
     circleIds: [],
@@ -550,7 +552,22 @@ class _FakeAccountHandle
   Future<List<CircleItem>> circles() async => const [];
 
   @override
-  Stream<BigInt> conversationChanges() => const Stream.empty();
+  Stream<ConversationChangeEvent> conversationChanges() => const Stream.empty();
+
+  @override
+  Future<List<ConversationListItem>> conversationItems() async =>
+      _conversationItems;
+
+  @override
+  Future<List<ConversationListItem>> conversationItemsByIds({
+    required List<String> conversationIds,
+  }) async => _conversationItems
+      .where((item) => conversationIds.contains(item.conversationId))
+      .toList(growable: false);
+
+  @override
+  Future<List<ConversationUnseenCount>> unseenConversationCounts() async =>
+      const [];
 
   @override
   Stream<String> accountHealth() => Stream.value('ready');

@@ -8,7 +8,7 @@ import '../third_party/mixin_desktop_core/runtime.dart';
 import '../third_party/mixin_desktop_core/runtime/model.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `account_profile`, `forward_changes`, `new`
+// These functions are ignored because they are not marked as `pub`: `account_profile`, `forward_conversation_changes`, `forward_message_changes`, `new`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>>
 abstract class AccountHandle implements RustOpaqueInterface {
@@ -27,7 +27,7 @@ abstract class AccountHandle implements RustOpaqueInterface {
 
   ConversationAccess conversation();
 
-  Stream<BigInt> conversationChanges();
+  Stream<ConversationChangeEvent> conversationChanges();
 
   Future<List<StorageCategoryUsage>> conversationStorageUsage({
     required String conversationId,
