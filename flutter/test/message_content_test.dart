@@ -5,8 +5,11 @@ import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/image_by_blur_hash.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
+import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
 import 'package:provider/provider.dart';
 
 void main() {
@@ -374,12 +377,17 @@ void main() {
 
     Future<void> render(MessageListEntry message) => tester.pumpWidget(
       _TestApp(
-        child: MessageContent(
-          message: message,
+        child: MessageBubble(
           isCurrentUser: false,
-          dateAndStatus: const Text('time'),
-          overlayDateAndStatus: const Text('overlay'),
-          onOpenMessage: opened.add,
+          showNip: false,
+          quote: buildMessageQuotePreview(message, onOpenMessage: opened.add),
+          child: MessageContent(
+            message: message,
+            isCurrentUser: false,
+            dateAndStatus: const Text('time'),
+            overlayDateAndStatus: const Text('overlay'),
+            onOpenMessage: opened.add,
+          ),
         ),
       ),
     );
@@ -391,10 +399,15 @@ void main() {
         quoteContent: 'not-json',
       ),
     );
-    expect(find.text('Message not found'), findsOneWidget);
+    expect(find.byKey(const Key('quote-message-preview')), findsOneWidget);
     expect(find.byType(InkWell), findsNothing);
-    await tester.tap(find.text('Message not found'));
+    await tester.tap(find.byKey(const Key('quote-message-preview')));
     expect(opened, isEmpty);
+
+    await render(
+      _message(content: 'Reply body', quoteMessageId: 'unavailable'),
+    );
+    expect(find.byKey(const Key('quote-message-preview')), findsOneWidget);
 
     await render(
       _message(
@@ -405,10 +418,8 @@ void main() {
             '"content":"RAW_QUOTE_PAYLOAD","media_name":"quote.pdf"}',
       ),
     );
-    expect(find.text('Quoted Alice'), findsOneWidget);
-    expect(find.text('quote.pdf'), findsOneWidget);
-    expect(find.text('RAW_QUOTE_PAYLOAD'), findsNothing);
-    await tester.tap(find.text('quote.pdf'));
+    expect(find.byKey(const Key('quote-message-preview')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('quote-message-preview')));
     await tester.pump();
     expect(opened, ['quoted-message']);
   });
@@ -418,18 +429,32 @@ void main() {
   ) async {
     await tester.pumpWidget(
       _TestApp(
-        child: MessageContent(
-          message: _message(
-            content: 'Reply body',
-            quoteMessageId: 'quoted-contact',
-            quoteContent:
-                '{"user_full_name":"Quoted Alice","type":"PLAIN_CONTACT",'
-                '"shared_user_id":"bob","shared_user_full_name":"Bob",'
-                '"shared_user_identity_number":"7000"}',
-          ),
+        child: MessageBubble(
           isCurrentUser: false,
-          dateAndStatus: const Text('time'),
-          overlayDateAndStatus: const Text('overlay'),
+          showNip: false,
+          quote: buildMessageQuotePreview(
+            _message(
+              content: 'Reply body',
+              quoteMessageId: 'quoted-contact',
+              quoteContent:
+                  '{"user_full_name":"Quoted Alice","type":"PLAIN_CONTACT",'
+                  '"shared_user_id":"bob","shared_user_full_name":"Bob",'
+                  '"shared_user_identity_number":"7000"}',
+            ),
+          ),
+          child: MessageContent(
+            message: _message(
+              content: 'Reply body',
+              quoteMessageId: 'quoted-contact',
+              quoteContent:
+                  '{"user_full_name":"Quoted Alice","type":"PLAIN_CONTACT",'
+                  '"shared_user_id":"bob","shared_user_full_name":"Bob",'
+                  '"shared_user_identity_number":"7000"}',
+            ),
+            isCurrentUser: false,
+            dateAndStatus: const Text('time'),
+            overlayDateAndStatus: const Text('overlay'),
+          ),
         ),
       ),
     );
@@ -445,11 +470,62 @@ void main() {
       tester.widget<Container>(preview).color,
       const Color.fromRGBO(0, 0, 0, 0.04),
     );
-    expect(tester.widget<Text>(find.text('Quoted Alice')).style?.fontSize, 14);
-    expect(tester.widget<Text>(find.text('7000')).style?.fontSize, 12);
     expect(
-      tester.getTopRight(find.text('7000')).dx,
-      lessThan(tester.getTopLeft(image).dx),
+      tester.getTopLeft(image).dx,
+      greaterThan(tester.getTopLeft(preview).dx),
+    );
+  });
+
+  testWidgets('keeps Flutter quote media preview widgets by category', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _TestApp(
+        child: Column(
+          children: [
+            QuoteMessagePreview(
+              raw:
+                  '{"type":"PLAIN_IMAGE","media_url":"data:image/png;base64,'
+                  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlF9ScAAAAASUVORK5CYII="}',
+              messageId: 'image',
+              membership: null,
+              mentionNames: const {},
+              onOpenMessage: null,
+            ),
+            QuoteMessagePreview(
+              raw: '{"type":"PLAIN_VIDEO","thumb_image":"invalid"}',
+              messageId: 'video',
+              membership: null,
+              mentionNames: const {},
+              onOpenMessage: null,
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.byType(MixinImage), findsOneWidget);
+    expect(find.byType(ImageByBlurHashOrBase64), findsOneWidget);
+  });
+
+  testWidgets('does not create a blank sender row for a nameless quote', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _TestApp(
+        child: QuoteMessagePreview(
+          raw: '{"user_id":"me","type":"PLAIN_TEXT","content":"Quoted"}',
+          messageId: 'quoted',
+          membership: null,
+          mentionNames: const {},
+          onOpenMessage: null,
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSize(find.byKey(const Key('quote-message-preview'))).height,
+      50,
     );
   });
 

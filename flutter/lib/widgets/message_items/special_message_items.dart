@@ -24,6 +24,7 @@ import 'package:mixin_desktop_ui/utils/name_color.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
 import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
+import 'package:mixin_desktop_ui/widgets/image_by_blur_hash.dart';
 import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_layout.dart';
@@ -174,20 +175,45 @@ class QuoteMessagePreview extends StatelessWidget {
         assetType: quote.stickerAssetType,
       );
     }
-    final source = quote.mediaUrl ?? quote.thumbUrl ?? quote.thumbImage;
-    if (source == null) return null;
-    final provider = imageProviderForSource(source);
-    if (provider == null) return null;
-    return ClipRRect(
-      borderRadius: const BorderRadius.all(Radius.circular(6)),
-      child: Image(
-        image: provider,
-        width: 48,
-        height: 48,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => const SizedBox.square(dimension: 48),
-      ),
-    );
+    if (quote.category.endsWith('_IMAGE')) {
+      return _QuoteImage(quote: quote);
+    }
+    if (quote.category.endsWith('_VIDEO')) {
+      final thumbnail = quote.thumbImage;
+      return thumbnail == null
+          ? const SizedBox()
+          : ImageByBlurHashOrBase64(imageData: thumbnail);
+    }
+    if (quote.category.endsWith('_LIVE')) {
+      final thumbnail = quote.thumbImage;
+      final placeholder = thumbnail == null
+          ? const SizedBox()
+          : ImageByBlurHashOrBase64(imageData: thumbnail);
+      return MixinImage.network(
+        quote.thumbUrl ?? '',
+        placeholder: () => placeholder,
+        errorBuilder: (_, _, _) => placeholder,
+      );
+    }
+    return null;
+  }
+}
+
+class _QuoteImage extends StatelessWidget {
+  const _QuoteImage({required this.quote});
+
+  final _QuoteData quote;
+
+  @override
+  Widget build(BuildContext context) {
+    final source = quote.mediaUrl;
+    final provider = source == null ? null : imageProviderForSource(source);
+    final thumbnail = quote.thumbImage;
+    final fallback = thumbnail == null
+        ? const SizedBox()
+        : ImageByBlurHashOrBase64(imageData: thumbnail);
+    if (provider == null) return fallback;
+    return MixinImage(image: provider, errorBuilder: (_, _, _) => fallback);
   }
 }
 
@@ -196,11 +222,14 @@ Widget? buildMessageQuotePreview(
   MessageStringCallback? onOpenMessage,
   Map<String, String> mentionNames = const {},
 }) {
-  final raw = message.quoteContent;
-  if (raw == null || raw.isEmpty) return null;
+  final messageId = message.quoteMessageId;
+  if (messageId == null || messageId.isEmpty) return null;
   return QuoteMessagePreview(
-    raw: raw,
-    messageId: message.quoteMessageId,
+    // Keep the quote surface while its local payload is unavailable, matching
+    // flutter-app's "Message not found" fallback instead of flattening the
+    // reply into an ordinary bubble.
+    raw: message.quoteContent ?? '',
+    messageId: messageId,
     membership: message.quoteUserMembership,
     mentionNames: mentionNames,
     onOpenMessage: onOpenMessage,
@@ -243,98 +272,107 @@ class _QuoteMessageBase extends StatelessWidget {
           key: const Key('quote-message-preview'),
           constraints: const BoxConstraints(minHeight: 50),
           color: const Color.fromRGBO(0, 0, 0, 0.04),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      key: const Key('quote-message-accent'),
-                      width: 6,
-                      color: color,
-                    ),
-                    Flexible(
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                          top: 6,
-                          left: 6,
-                          bottom: 6,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            if (sender != null)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    CustomText(
-                                      sender!,
+          child: IntrinsicHeight(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        key: const Key('quote-message-accent'),
+                        width: 6,
+                        color: color,
+                      ),
+                      Flexible(
+                        child: Padding(
+                          padding: const EdgeInsets.only(
+                            top: 6,
+                            left: 6,
+                            bottom: 6,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              if (sender != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CustomText(
+                                        sender!,
+                                        maxLines: 1,
+                                        style: TextStyle(
+                                          color: color,
+                                          fontSize: context
+                                              .messageStyle
+                                              .secondaryFontSize,
+                                          height: 1,
+                                        ),
+                                      ),
+                                      BadgesWidget(
+                                        verified: false,
+                                        isBot: false,
+                                        membership: membership,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (icon != null)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 4),
+                                      child: icon,
+                                    ),
+                                  Flexible(
+                                    child: CustomText(
+                                      preview,
                                       maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        color: color,
+                                        color: context.theme.secondaryText,
                                         fontSize: context
                                             .messageStyle
-                                            .secondaryFontSize,
-                                        height: 1,
+                                            .tertiaryFontSize,
                                       ),
                                     ),
-                                    BadgesWidget(
-                                      verified: false,
-                                      isBot: false,
-                                      membership: membership,
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (icon != null)
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 4),
-                                    child: icon,
-                                  ),
-                                Flexible(
-                                  child: CustomText(
-                                    preview,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: context.theme.secondaryText,
-                                      fontSize:
-                                          context.messageStyle.tertiaryFontSize,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (image != null)
+                  Align(
+                    alignment: Alignment.center,
+                    child: SizedBox.square(
+                      key: const Key('quote-message-image'),
+                      dimension: 48,
+                      child: RepaintBoundary(
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(6),
+                          ),
+                          child: image,
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (image != null)
-                SizedBox.square(
-                  key: const Key('quote-message-image'),
-                  dimension: 48,
-                  child: RepaintBoundary(
-                    child: ClipRRect(
-                      borderRadius: const BorderRadius.all(Radius.circular(6)),
-                      child: image,
-                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -2029,7 +2067,7 @@ class _QuoteData {
   });
 
   final String? senderId;
-  final String sender;
+  final String? sender;
   final String category;
   final String content;
   final String? mediaName;
@@ -2109,7 +2147,7 @@ class _QuoteData {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       return _QuoteData(
         senderId: _nonEmpty(json['user_id']),
-        sender: json['user_full_name']?.toString() ?? '',
+        sender: _nonEmpty(json['user_full_name']),
         category: json['type']?.toString() ?? '',
         content: json['content']?.toString() ?? '',
         mediaName: _nonEmpty(json['media_name']),
