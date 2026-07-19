@@ -15,7 +15,8 @@ import 'package:intl/intl.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
 import 'package:mixin_desktop_ui/controllers/chat_side_notifier.dart';
-import 'package:mixin_desktop_ui/controllers/message_list_controller.dart';
+import 'package:mixin_desktop_ui/controllers/message_controller.dart';
+import 'package:mixin_desktop_ui/controllers/message_action_controller.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/controllers/sticker_controller.dart';
 import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
@@ -35,6 +36,8 @@ import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
 import 'package:mixin_desktop_ui/widgets/animated_visibility.dart';
 import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
 import 'package:mixin_desktop_ui/widgets/chat_drop_overlay.dart';
+import 'package:mixin_desktop_ui/widgets/chat/chat_history_viewport.dart';
+import 'package:mixin_desktop_ui/widgets/chat/chat_scroll_coordinator.dart';
 import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
 import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
@@ -66,7 +69,6 @@ import 'package:mixin_desktop_ui/widgets/waveform_widget.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_button.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_detail_page.dart';
 import 'package:provider/provider.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:super_context_menu/super_context_menu.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -114,30 +116,25 @@ class ChatView extends StatefulWidget {
 
 class _ChatViewState extends State<ChatView>
     with SingleTickerProviderStateMixin {
-  late MessageListController _messageController;
+  late MessageActionController _messageActions;
+  late MessageController _messageController;
+  late final ChatScrollCoordinator _scrollCoordinator;
   late String _currentUserId;
   late final TextEditingController _inputController;
   late final FocusNode _inputFocusNode;
   late final VoiceRecorderController _voiceRecorderController;
   late StickerController _stickerController;
-  final ItemScrollController _messageScrollController = ItemScrollController();
-  final ItemPositionsListener _messagePositionsListener =
-      ItemPositionsListener.create();
   MessageListEntry? _quoteMessage;
   String? _highlightedMessageId;
   double _highlightOpacity = 0;
   late final AnimationController _highlightController;
-  bool _initialUnreadScrollScheduled = false;
   final Set<String> _selectedMessageIds = {};
-  final Map<String, GlobalKey> _messageKeys = {};
-  final Map<String, GlobalKey> _messageDayTimeKeys = {};
   Timer? _mentionTimer;
   int _mentionRevision = 0;
   List<rust.ConversationParticipantItem> _mentionUsers = const [];
   String _mentionKeyword = '';
   int _mentionIndex = 0;
   bool _isEncryptConversation = true;
-  bool _showJumpToLatest = false;
   bool _showPinnedMessage = false;
   bool _showScamWarning = false;
 
@@ -151,10 +148,8 @@ class _ChatViewState extends State<ChatView>
           )
           ..addListener(_onHighlightAnimation)
           ..addStatusListener(_onHighlightStatus);
+    _scrollCoordinator = ChatScrollCoordinator();
     _createMessageController();
-    _messagePositionsListener.itemPositions.addListener(
-      _onMessagePositionsChanged,
-    );
     unawaited(_loadOverlayPreferences());
     _inputController = TextEditingController(text: widget.draft);
     _inputController.addListener(_onInputChanged);
@@ -175,18 +170,15 @@ class _ChatViewState extends State<ChatView>
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.account, widget.account) ||
         oldWidget.conversation.id != widget.conversation.id) {
-      _messageController.removeListener(_onMessageControllerChanged);
       _messageController.dispose();
+      _messageActions.dispose();
       _createMessageController();
-      _showJumpToLatest = false;
       unawaited(_loadOverlayPreferences());
       _quoteMessage = null;
       _highlightedMessageId = null;
       _highlightOpacity = 0;
       _highlightController.reset();
       _selectedMessageIds.clear();
-      _messageKeys.clear();
-      _messageDayTimeKeys.clear();
       _clearMentions();
       unawaited(_voiceRecorderController.cancel());
       if (!identical(oldWidget.account, widget.account)) {
@@ -211,13 +203,18 @@ class _ChatViewState extends State<ChatView>
 
   void _createMessageController() {
     _currentUserId = widget.account.accountId();
-    _initialUnreadScrollScheduled = false;
     _isEncryptConversation = !widget.conversation.isBot;
-    _messageController = MessageListController(
+    _messageController = MessageController(
       account: widget.account,
       conversation: widget.conversation,
+      limit: 60,
+      initialMessageId: widget.locateMessageId,
     );
-    _messageController.addListener(_onMessageControllerChanged);
+    _messageActions = MessageActionController(
+      account: widget.account,
+      conversation: widget.conversation,
+      messageController: _messageController,
+    );
     unawaited(_refreshConversationEncryption());
   }
 
@@ -256,27 +253,17 @@ class _ChatViewState extends State<ChatView>
     );
   }
 
-  void _onMessagePositionsChanged() {
-    final positions = _messagePositionsListener.itemPositions.value;
-    final latestVisible = positions.any(
-      (position) =>
-          position.index == 0 &&
-          position.itemLeadingEdge < 1 &&
-          position.itemTrailingEdge > 0,
-    );
-    final show = _messageController.messages.isNotEmpty && !latestVisible;
-    if (mounted && show != _showJumpToLatest) {
-      setState(() => _showJumpToLatest = show);
-    }
-  }
-
   Future<void> _jumpToLatest() async {
-    if (!_messageScrollController.isAttached) return;
-    await _messageScrollController.scrollTo(
-      index: 0,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
+    if (_messageController.state.isLatest &&
+        await _scrollCoordinator.scrollToBottomIfInLoadedWindow(
+          animated: true,
+        )) {
+      return;
+    }
+    _scrollCoordinator.animateNextRestore(
+      direction: ChatScrollRestoreDirection.towardNewer,
     );
+    _messageController.loadLatestWindow();
   }
 
   Future<void> _refreshConversationEncryption() async {
@@ -306,43 +293,6 @@ class _ChatViewState extends State<ChatView>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _inputFocusNode.requestFocus();
     });
-  }
-
-  void _onMessageControllerChanged() {
-    final controller = _messageController;
-    if (_initialUnreadScrollScheduled ||
-        !controller.initialUnreadAnchorPending ||
-        controller.initialUnreadMessageIndex == null) {
-      return;
-    }
-    _initialUnreadScrollScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _jumpToInitialUnread(controller, 0),
-    );
-  }
-
-  void _jumpToInitialUnread(
-    MessageListController controller,
-    int attachmentAttempt,
-  ) {
-    if (!mounted || !identical(controller, _messageController)) return;
-    final messageIndex = controller.initialUnreadMessageIndex;
-    if (!controller.initialUnreadAnchorPending || messageIndex == null) return;
-    if (!_messageScrollController.isAttached) {
-      if (attachmentAttempt < 4) {
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _jumpToInitialUnread(controller, attachmentAttempt + 1),
-        );
-      }
-      return;
-    }
-    if (messageIndex < 0 || messageIndex >= controller.messages.length) {
-      controller.consumeInitialUnreadAnchor();
-      return;
-    }
-    final reverseIndex = controller.messages.length - messageIndex - 1;
-    _messageScrollController.jumpTo(index: reverseIndex, alignment: 0.12);
-    controller.consumeInitialUnreadAnchor();
   }
 
   void _onInputChanged() {
@@ -438,7 +388,7 @@ class _ChatViewState extends State<ChatView>
   }
 
   Future<void> _sendVoiceRecording() async {
-    final messageController = _messageController;
+    final messageController = _messageActions;
     final quoteMessage = _quoteMessage;
     final sent = await _voiceRecorderController.send((recording) async {
       final success = await messageController.sendAudio(
@@ -449,9 +399,7 @@ class _ChatViewState extends State<ChatView>
       );
       if (!success) throw StateError('Failed to send voice message');
     });
-    if (!mounted ||
-        !identical(messageController, _messageController) ||
-        !sent) {
+    if (!mounted || !identical(messageController, _messageActions) || !sent) {
       return;
     }
     setState(() => _quoteMessage = null);
@@ -508,7 +456,7 @@ class _ChatViewState extends State<ChatView>
             thumbnail,
             caption,
             required silent,
-          }) => _messageController.sendAttachment(
+          }) => _messageActions.sendAttachment(
             path: path,
             kind: kind,
             mimeType: mimeType,
@@ -526,7 +474,7 @@ class _ChatViewState extends State<ChatView>
   }
 
   Future<bool> _sendSticker(String stickerId) async {
-    final sent = await _messageController.sendSticker(stickerId: stickerId);
+    final sent = await _messageActions.sendSticker(stickerId: stickerId);
     if (!mounted || !sent) return false;
     setState(() => _quoteMessage = null);
     unawaited(_stickerController.refreshLocal());
@@ -534,7 +482,7 @@ class _ChatViewState extends State<ChatView>
   }
 
   Future<void> _sendText({bool silent = false}) async {
-    final messageController = _messageController;
+    final messageController = _messageActions;
     final original = _inputController.text;
     if (original.trim().isEmpty) return;
     if (original.length > _maxTextLength) {
@@ -560,7 +508,7 @@ class _ChatViewState extends State<ChatView>
       return;
     }
     unawaited(
-      _messageController.sendPost(content).catchError((Object _) => false),
+      _messageActions.sendPost(content).catchError((Object _) => false),
     );
     _inputController.clear();
     widget.onDraftChanged('');
@@ -592,11 +540,11 @@ class _ChatViewState extends State<ChatView>
       title: context.l10n.forward,
     );
     if (target == null || !mounted) return;
-    final controller = _messageController;
+    final controller = _messageActions;
     await runWithLoading(() async {
       await controller.forwardMessages(messages, target.id);
     });
-    if (!mounted || !identical(controller, _messageController)) {
+    if (!mounted || !identical(controller, _messageActions)) {
       return;
     }
     setState(_selectedMessageIds.clear);
@@ -609,11 +557,11 @@ class _ChatViewState extends State<ChatView>
       title: context.l10n.forward,
     );
     if (target == null || !mounted) return;
-    final controller = _messageController;
+    final controller = _messageActions;
     await runWithLoading(() async {
       await controller.combineForwardMessages(messages, target.id);
     });
-    if (!mounted || !identical(controller, _messageController)) {
+    if (!mounted || !identical(controller, _messageActions)) {
       return;
     }
     setState(_selectedMessageIds.clear);
@@ -633,48 +581,43 @@ class _ChatViewState extends State<ChatView>
     );
   }
 
-  GlobalKey _messageKey(String messageId) => _messageKeys.putIfAbsent(
-    messageId,
-    () => GlobalKey(debugLabel: 'message_$messageId'),
-  );
-
-  GlobalKey _messageDayTimeKey(String messageId) =>
-      _messageDayTimeKeys.putIfAbsent(
-        messageId,
-        () => GlobalKey(debugLabel: 'message_day_time_$messageId'),
-      );
-
   Future<void> _locateMessage(String messageId) async {
     final controller = _messageController;
-    final found = await controller.locateMessage(messageId);
-    if (!found || !mounted || !identical(controller, _messageController)) {
+    final conversationId = widget.conversation.id;
+    if (await _scrollCoordinator.scrollToMessageIfInLoadedWindow(
+      messageId,
+      animated: true,
+    )) {
+      if (!mounted ||
+          !identical(controller, _messageController) ||
+          widget.conversation.id != conversationId) {
+        return;
+      }
+      _highlightMessage(messageId);
       return;
     }
-    await WidgetsBinding.instance.endOfFrame;
-    var targetContext = _messageKey(messageId).currentContext;
-    if (targetContext == null && _messageScrollController.isAttached) {
-      final messageIndex = controller.messages.indexWhere(
-        (message) => message.id == messageId,
-      );
-      if (messageIndex >= 0) {
-        final reverseIndex = controller.messages.length - messageIndex - 1;
-        await _messageScrollController.scrollTo(
-          index: reverseIndex,
-          alignment: 0.5,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-        await WidgetsBinding.instance.endOfFrame;
-        targetContext = _messageKey(messageId).currentContext;
-      }
-    }
-    if (targetContext == null || !targetContext.mounted || !mounted) return;
-    await Scrollable.ensureVisible(
-      targetContext,
-      alignment: 0.5,
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOut,
+    final direction = await controller.restoreDirectionFromSource(
+      sourceMessageId: controller.state.center?.id,
+      targetMessageId: messageId,
     );
+    if (!mounted ||
+        !identical(controller, _messageController) ||
+        widget.conversation.id != conversationId) {
+      return;
+    }
+    _scrollCoordinator.animateNextMessageRestore(
+      messageId,
+      direction: switch (direction) {
+        MessageWindowDirection.older => ChatScrollRestoreDirection.towardOlder,
+        MessageWindowDirection.newer => ChatScrollRestoreDirection.towardNewer,
+        null => null,
+      },
+      onComplete: () => _highlightMessage(messageId),
+    );
+    controller.loadAroundMessage(messageId);
+  }
+
+  void _highlightMessage(String messageId) {
     if (!mounted) return;
     setState(() {
       _highlightedMessageId = messageId;
@@ -705,8 +648,8 @@ class _ChatViewState extends State<ChatView>
   }
 
   Future<void> _copySelectedMessages() async {
-    await runWithToast(() async {
-      final selected = _messageController.messages
+    try {
+      final selected = _messageActions.messages
           .where((message) => _selectedMessageIds.contains(message.id))
           .toList(growable: false);
       final formatter = DateFormat.yMd().add_Hms();
@@ -720,16 +663,16 @@ class _ChatViewState extends State<ChatView>
           .join('\n\n');
       await Clipboard.setData(ClipboardData(text: text));
       if (mounted) setState(_selectedMessageIds.clear);
-    });
+    } catch (exception, stackTrace) {
+      e('Copy selected messages failed', exception, stackTrace);
+    }
   }
 
   @override
   void dispose() {
-    _messagePositionsListener.itemPositions.removeListener(
-      _onMessagePositionsChanged,
-    );
-    _messageController.removeListener(_onMessageControllerChanged);
     _messageController.dispose();
+    _messageActions.dispose();
+    _scrollCoordinator.dispose();
     _mentionTimer?.cancel();
     _inputController
       ..removeListener(_onInputChanged)
@@ -747,229 +690,233 @@ class _ChatViewState extends State<ChatView>
   }
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _messageController,
-    builder: (context, child) => Material(
-      color: context.theme.primary,
-      child: Column(
-        children: [
-          _ChatHeader(
-            conversation: widget.conversation,
-            onBack: widget.onBack,
-            onSearch: widget.onSearch,
-            onInfo: widget.onInfo,
-            showInfoAction: widget.showInfoAction,
-            selectionMode: _selectedMessageIds.isNotEmpty,
-            onCancelSelection: () => setState(_selectedMessageIds.clear),
-            onBot: widget.conversation.isBot
-                ? () => unawaited(_openBotApp())
-                : null,
-          ),
-          Expanded(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: context.theme.chatBackground,
-                image: DecorationImage(
-                  image: const ExactAssetImage(MixinAssets.chatBackground),
-                  fit: BoxFit.cover,
-                  colorFilter: ColorFilter.mode(
-                    Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white.withValues(alpha: 0.02)
-                        : Colors.black.withValues(alpha: 0.03),
-                    BlendMode.srcIn,
-                  ),
+  Widget build(BuildContext context) => Material(
+    color: context.theme.primary,
+    child: Column(
+      children: [
+        _ChatHeader(
+          conversation: widget.conversation,
+          onBack: widget.onBack,
+          onSearch: widget.onSearch,
+          onInfo: widget.onInfo,
+          showInfoAction: widget.showInfoAction,
+          selectionMode: _selectedMessageIds.isNotEmpty,
+          onCancelSelection: () => setState(_selectedMessageIds.clear),
+          onBot: widget.conversation.isBot
+              ? () => unawaited(_openBotApp())
+              : null,
+        ),
+        Expanded(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: context.theme.chatBackground,
+              image: DecorationImage(
+                image: const ExactAssetImage(MixinAssets.chatBackground),
+                fit: BoxFit.cover,
+                colorFilter: ColorFilter.mode(
+                  Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white.withValues(alpha: 0.02)
+                      : Colors.black.withValues(alpha: 0.03),
+                  BlendMode.srcIn,
                 ),
               ),
-              child: ChatDropOverlay(
-                enabled: _selectedMessageIds.isEmpty,
-                onFilesDropped: _showAttachments,
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: context.theme.divider),
-                          ),
+            ),
+            child: ChatDropOverlay(
+              enabled: _selectedMessageIds.isEmpty,
+              onFilesDropped: _showAttachments,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          bottom: BorderSide(color: context.theme.divider),
                         ),
-                        child: Stack(
-                          children: [
-                            RepaintBoundary(
-                              child: _MessageList(
-                                account: widget.account,
-                                controller: _messageController,
-                                currentUserId: _currentUserId,
-                                conversation: widget.conversation,
-                                scrollController: _messageScrollController,
-                                positionsListener: _messagePositionsListener,
-                                selectedMessageIds: _selectedMessageIds,
-                                highlightedMessageId: _highlightedMessageId,
-                                highlightOpacity: _highlightOpacity,
-                                messageKey: _messageKey,
-                                messageDayTimeKey: _messageDayTimeKey,
-                                onReply: _replyTo,
-                                onForward: (messages) =>
-                                    unawaited(_forwardMessages(messages)),
-                                onSelect: _selectMessage,
-                                onToggleSelection: _toggleMessageSelection,
-                                onOpenMessage: _locateMessage,
-                                onReedit: _reedit,
-                                onSelectConversation:
-                                    widget.onSelectConversation,
-                                onSelectConversationInfo:
-                                    widget.onSelectConversationInfo,
-                                onOpenUri: widget.onOpenUri,
-                                onStickerAlbumChanged:
-                                    _stickerController.refreshLocal,
-                              ),
+                      ),
+                      child: Stack(
+                        children: [
+                          RepaintBoundary(
+                            child: _MessageList(
+                              account: widget.account,
+                              messageController: _messageController,
+                              actions: _messageActions,
+                              scrollCoordinator: _scrollCoordinator,
+                              currentUserId: _currentUserId,
+                              conversation: widget.conversation,
+                              selectedMessageIds: _selectedMessageIds,
+                              highlightedMessageId: _highlightedMessageId,
+                              highlightOpacity: _highlightOpacity,
+                              onReply: _replyTo,
+                              onForward: (messages) =>
+                                  unawaited(_forwardMessages(messages)),
+                              onSelect: _selectMessage,
+                              onToggleSelection: _toggleMessageSelection,
+                              onOpenMessage: _locateMessage,
+                              onReedit: _reedit,
+                              onSelectConversation: widget.onSelectConversation,
+                              onSelectConversationInfo:
+                                  widget.onSelectConversationInfo,
+                              onOpenUri: widget.onOpenUri,
+                              onStickerAlbumChanged:
+                                  _stickerController.refreshLocal,
                             ),
-                            Positioned(
-                              left: 6,
-                              right: 6,
-                              bottom: 6,
-                              child: _ScamWarningBanner(
-                                visible: _showScamWarning,
-                                onDismiss: _dismissScamWarning,
-                              ),
+                          ),
+                          Positioned(
+                            left: 6,
+                            right: 6,
+                            bottom: 6,
+                            child: _ScamWarningBanner(
+                              visible: _showScamWarning,
+                              onDismiss: _dismissScamWarning,
                             ),
-                            Positioned(
-                              right: 16,
-                              bottom: 16,
-                              child: Column(
+                          ),
+                          Positioned(
+                            right: 16,
+                            bottom: 16,
+                            child: ListenableBuilder(
+                              listenable: _messageActions,
+                              builder: (context, child) => Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   _JumpMentionButton(
-                                    messageIds: _messageController
-                                        .unreadMentionMessageIds,
+                                    messageIds:
+                                        _messageActions.unreadMentionMessageIds,
                                     onJump: (messageId) async {
                                       await _locateMessage(messageId);
-                                      await _messageController
-                                          .markMentionReadById(messageId);
+                                      await _messageActions.markMentionReadById(
+                                        messageId,
+                                      );
                                     },
                                     onClear: () async {
                                       for (final messageId
-                                          in _messageController
+                                          in _messageActions
                                               .unreadMentionMessageIds) {
-                                        await _messageController
+                                        await _messageActions
                                             .markMentionReadById(messageId);
                                       }
                                     },
                                   ),
-                                  _JumpCurrentButton(
-                                    visible: _showJumpToLatest,
-                                    onTap: _jumpToLatest,
+                                  ValueListenableBuilder<bool>(
+                                    valueListenable:
+                                        _scrollCoordinator.showJumpToLatest,
+                                    builder: (context, visible, child) =>
+                                        _JumpCurrentButton(
+                                          visible: visible,
+                                          onTap: _jumpToLatest,
+                                        ),
                                   ),
                                 ],
                               ),
                             ),
-                            _PinMessagesBanner(
-                              messages: _messageController.pinnedMessages,
-                              preview: _messageController.pinMessagePreview,
+                          ),
+                          ListenableBuilder(
+                            listenable: _messageActions,
+                            builder: (context, child) => _PinMessagesBanner(
+                              messageIds: _messageActions.pinnedMessageIds,
+                              preview: _messageActions.pinMessagePreview,
                               visible: _showPinnedMessage,
                               onDismiss: _dismissPinnedMessage,
                               onOpenAll: widget.onOpenPinnedMessages,
                               onLocate: _locateMessage,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                    if (_selectedMessageIds.isNotEmpty)
-                      _SelectionBottomBar(
-                        selectedMessages: _messageController.messages
-                            .where(
-                              (message) =>
-                                  _selectedMessageIds.contains(message.id),
-                            )
-                            .toList(growable: false),
-                        currentUserId: _currentUserId,
-                        onCombineForward: _combineForwardMessages,
-                        onForward: _forwardMessages,
-                        onCopy: _copySelectedMessages,
-                        onDelete: (messages) async {
-                          await runWithLoading(() async {
-                            await _messageController.deleteMessages(messages);
-                          });
-                          if (mounted) setState(_selectedMessageIds.clear);
-                        },
-                        onRecall: (messages) async {
-                          await runWithLoading(() async {
-                            await _messageController.recallMessages(messages);
-                          });
-                          if (mounted) setState(_selectedMessageIds.clear);
-                        },
-                      )
-                    else if (widget.conversation.isGroup &&
-                        widget.conversation.participantCount == 0)
-                      const _GroupCannotSendBar()
-                    else
-                      VoiceRecorderBarOverlayComposition(
-                        controller: _voiceRecorderController,
-                        onCancel: _voiceRecorderController.cancel,
-                        onStop: _voiceRecorderController.stop,
-                        onRetry: _voiceRecorderController.start,
-                        onSend: _sendVoiceRecording,
-                        child: ChatInputBar(
-                          controller: _inputController,
-                          focusNode: _inputFocusNode,
-                          isEncryptConversation: _isEncryptConversation,
-                          quoteMessage: _quoteMessage,
-                          onChanged: widget.onDraftChanged,
-                          onCancelQuote: () =>
-                              setState(() => _quoteMessage = null),
-                          onSend: _sendText,
-                          onSendSilent: () => _sendText(silent: true),
-                          onSendPost: _sendPost,
-                          mentionUsers: _mentionUsers,
-                          mentionKeyword: _mentionKeyword,
-                          mentionIndex: _mentionIndex,
-                          onMentionMove: _moveMention,
-                          onMentionSelected: _selectMention,
-                          onPasteFiles: _showAttachments,
-                          onContactPressed: () => unawaited(_sendContact()),
-                          onFilesPressed: () => unawaited(_pickAttachments()),
-                          onPicturesPressed: () =>
-                              unawaited(_pickAttachments()),
-                          onVoicePressed: () =>
-                              unawaited(_startVoiceRecording()),
-                          stickerAction: StickerButton(
-                            textEditingController: _inputController,
-                            controller: _stickerController,
-                            onStickerSelected: _sendSticker,
-                            onGifSelected:
-                                ({
-                                  required url,
-                                  required previewUrl,
-                                  required width,
-                                  required height,
-                                }) => widget.account.message().sendRemoteImage(
-                                  conversationId: widget.conversation.id,
-                                  url: url,
-                                  previewUrl: previewUrl,
-                                  width: width,
-                                  height: height,
-                                  mimeType: 'image/gif',
-                                  silent: false,
-                                ),
-                            onStickerSent: () {},
-                            onEmojiUsed: (_) {
-                              widget.onDraftChanged(_inputController.text);
-                              _inputFocusNode.requestFocus();
-                            },
-                            child: const _ChatInputAction(
-                              actionKey: Key('chat-sticker'),
-                              asset: MixinAssets.sticker,
-                            ),
+                  ),
+                  if (_selectedMessageIds.isNotEmpty)
+                    _SelectionBottomBar(
+                      selectedMessages: _messageController.state.list
+                          .where(
+                            (message) =>
+                                _selectedMessageIds.contains(message.id),
+                          )
+                          .toList(growable: false),
+                      currentUserId: _currentUserId,
+                      onCombineForward: _combineForwardMessages,
+                      onForward: _forwardMessages,
+                      onCopy: _copySelectedMessages,
+                      onDelete: (messages) async {
+                        await runWithLoading(() async {
+                          await _messageActions.deleteMessages(messages);
+                        });
+                        if (mounted) setState(_selectedMessageIds.clear);
+                      },
+                      onRecall: (messages) async {
+                        await runWithLoading(() async {
+                          await _messageActions.recallMessages(messages);
+                        });
+                        if (mounted) setState(_selectedMessageIds.clear);
+                      },
+                    )
+                  else if (widget.conversation.isGroup &&
+                      widget.conversation.participantCount == 0)
+                    const _GroupCannotSendBar()
+                  else
+                    VoiceRecorderBarOverlayComposition(
+                      controller: _voiceRecorderController,
+                      onCancel: _voiceRecorderController.cancel,
+                      onStop: _voiceRecorderController.stop,
+                      onRetry: _voiceRecorderController.start,
+                      onSend: _sendVoiceRecording,
+                      child: ChatInputBar(
+                        controller: _inputController,
+                        focusNode: _inputFocusNode,
+                        isEncryptConversation: _isEncryptConversation,
+                        quoteMessage: _quoteMessage,
+                        onChanged: widget.onDraftChanged,
+                        onCancelQuote: () =>
+                            setState(() => _quoteMessage = null),
+                        onSend: _sendText,
+                        onSendSilent: () => _sendText(silent: true),
+                        onSendPost: _sendPost,
+                        mentionUsers: _mentionUsers,
+                        mentionKeyword: _mentionKeyword,
+                        mentionIndex: _mentionIndex,
+                        onMentionMove: _moveMention,
+                        onMentionSelected: _selectMention,
+                        onPasteFiles: _showAttachments,
+                        onContactPressed: () => unawaited(_sendContact()),
+                        onFilesPressed: () => unawaited(_pickAttachments()),
+                        onPicturesPressed: () => unawaited(_pickAttachments()),
+                        onVoicePressed: () => unawaited(_startVoiceRecording()),
+                        stickerAction: StickerButton(
+                          textEditingController: _inputController,
+                          controller: _stickerController,
+                          onStickerSelected: _sendSticker,
+                          onGifSelected:
+                              ({
+                                required url,
+                                required previewUrl,
+                                required width,
+                                required height,
+                              }) => widget.account.message().sendRemoteImage(
+                                conversationId: widget.conversation.id,
+                                url: url,
+                                previewUrl: previewUrl,
+                                width: width,
+                                height: height,
+                                mimeType: 'image/gif',
+                                silent: false,
+                              ),
+                          onStickerSent: () {},
+                          onEmojiUsed: (_) {
+                            widget.onDraftChanged(_inputController.text);
+                            _inputFocusNode.requestFocus();
+                          },
+                          child: const _ChatInputAction(
+                            actionKey: Key('chat-sticker'),
+                            asset: MixinAssets.sticker,
                           ),
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -1423,7 +1370,7 @@ class _JumpMentionButton extends StatelessWidget {
 
 class _PinMessagesBanner extends StatelessWidget {
   const _PinMessagesBanner({
-    required this.messages,
+    required this.messageIds,
     required this.preview,
     required this.visible,
     required this.onDismiss,
@@ -1431,7 +1378,7 @@ class _PinMessagesBanner extends StatelessWidget {
     this.onOpenAll,
   });
 
-  final List<MessageListEntry> messages;
+  final List<String> messageIds;
   final rust.PinMessagePreviewItem? preview;
   final bool visible;
   final VoidCallback onDismiss;
@@ -1440,14 +1387,14 @@ class _PinMessagesBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pinnedMessage = messages.isEmpty ? null : messages.first;
-    final showPreview = visible && pinnedMessage != null;
-    final preview = pinnedMessage == null
+    final pinnedMessageId = messageIds.firstOrNull;
+    final showPreview = visible && pinnedMessageId != null;
+    final preview = pinnedMessageId == null
         ? ''
         : context.l10n.chatPinMessage(
-            this.preview?.senderName ?? pinnedMessage.senderName,
+            this.preview?.senderName ?? '',
             this.preview == null
-                ? _messagePreview(context, pinnedMessage)
+                ? context.l10n.aMessage
                 : pinMessagePreview(context.l10n, this.preview!.content),
           );
     return Positioned(
@@ -1456,7 +1403,7 @@ class _PinMessagesBanner extends StatelessWidget {
       left: 10,
       height: 64,
       child: AnimatedVisibility(
-        visible: showPreview || messages.isNotEmpty,
+        visible: showPreview || messageIds.isNotEmpty,
         child: Row(
           children: [
             Expanded(
@@ -1475,9 +1422,9 @@ class _PinMessagesBanner extends StatelessWidget {
                       Expanded(
                         child: InteractiveDecoratedBox(
                           cursor: SystemMouseCursors.click,
-                          onTap: pinnedMessage == null
+                          onTap: pinnedMessageId == null
                               ? null
-                              : () => onLocate(pinnedMessage.id),
+                              : () => onLocate(pinnedMessageId),
                           child: CustomText(
                             preview,
                             maxLines: 2,
@@ -1492,7 +1439,7 @@ class _PinMessagesBanner extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             AnimatedVisibility(
-              visible: messages.isNotEmpty,
+              visible: messageIds.isNotEmpty,
               child: InteractiveDecoratedBox(
                 onTap: onOpenAll,
                 child: Container(
@@ -1532,16 +1479,14 @@ class _PinMessagesBanner extends StatelessWidget {
 class _MessageList extends StatelessWidget {
   const _MessageList({
     required this.account,
-    required this.controller,
+    required this.messageController,
+    required this.actions,
+    required this.scrollCoordinator,
     required this.currentUserId,
     required this.conversation,
-    required this.scrollController,
-    required this.positionsListener,
     required this.selectedMessageIds,
     required this.highlightedMessageId,
     required this.highlightOpacity,
-    required this.messageKey,
-    required this.messageDayTimeKey,
     required this.onReply,
     required this.onForward,
     required this.onSelect,
@@ -1555,16 +1500,14 @@ class _MessageList extends StatelessWidget {
   });
 
   final rust.AccountHandle account;
-  final MessageListController controller;
+  final MessageController messageController;
+  final MessageActionController actions;
+  final ChatScrollCoordinator scrollCoordinator;
   final String currentUserId;
   final ConversationListEntry conversation;
-  final ItemScrollController scrollController;
-  final ItemPositionsListener positionsListener;
   final Set<String> selectedMessageIds;
   final String? highlightedMessageId;
   final double highlightOpacity;
-  final GlobalKey Function(String messageId) messageKey;
-  final GlobalKey Function(String messageId) messageDayTimeKey;
   final ValueChanged<MessageListEntry> onReply;
   final ValueChanged<List<MessageListEntry>> onForward;
   final ValueChanged<MessageListEntry> onSelect;
@@ -1577,131 +1520,63 @@ class _MessageList extends StatelessWidget {
   final Future<void> Function() onStickerAlbumChanged;
 
   @override
-  Widget build(BuildContext context) {
-    final messages = controller.messages;
-    final scrollableList = NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        final metrics = notification.metrics;
-        if (metrics.pixels >= metrics.maxScrollExtent - 80) {
-          controller.loadOlder();
-        }
-        return false;
-      },
-      child: ScrollablePositionedList.builder(
-        itemScrollController: scrollController,
-        itemPositionsListener: positionsListener,
-        reverse: true,
-        minCacheExtent: 800,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: messages.length,
-        itemBuilder: (context, index) {
-          final messageIndex = messages.length - index - 1;
-          final message = messages[messageIndex];
-          final previous = messageIndex == 0
-              ? null
-              : messages[messageIndex - 1];
-          final next = messageIndex + 1 >= messages.length
-              ? null
-              : messages[messageIndex + 1];
-          final row = MessageRowModel(
-            message: message,
-            previous: previous,
-            next: next,
-          );
-          final chatMessage = _ChatMessage(
-            key: messageKey(message.id),
-            dayTimeKey: row.dateTime == null
-                ? null
-                : messageDayTimeKey(message.id),
-            account: account,
-            message: message,
-            previous: previous,
-            next: next,
-            currentUserId: currentUserId,
-            isGroup: conversation.isGroup,
-            isBot: conversation.isBot,
-            isBotGroup: controller.isBotGroup,
-            conversationOwnerId: conversation.ownerId,
-            currentUserRole: controller.currentUserRole,
-            messages: messages,
-            mentionNames: controller.mentionNames,
-            selected: selectedMessageIds.contains(message.id),
-            highlightOpacity: highlightedMessageId == message.id
-                ? highlightOpacity
-                : 0,
-            inSelectionMode: selectedMessageIds.isNotEmpty,
-            onReply: () => onReply(message),
-            onForward: () => onForward([message]),
-            onSelect: () => onSelect(message),
-            onToggleSelection: () => onToggleSelection(message),
-            onTogglePin: () => unawaited(
-              _ignoreMutation(
-                controller.setMessagePinned(message, !message.pinned),
-              ),
-            ),
-            onRecall: () => unawaited(
-              _ignoreMutation(controller.recallMessages([message])),
-            ),
-            onDelete: () => unawaited(
-              _ignoreMutation(controller.deleteMessages([message])),
-            ),
-            onOpenMessage: onOpenMessage,
-            recalledText: controller.recalledText(message.id),
-            onReedit: onReedit,
-            onSelectConversation: onSelectConversation,
-            onSelectConversationInfo: onSelectConversationInfo,
-            onOpenUri: onOpenUri,
-            onMarkMentionRead: () =>
-                unawaited(controller.markMentionRead(message)),
-            onMarkAudioRead: (audio) =>
-                unawaited(controller.markAudioRead(audio)),
-            onDownloadAttachment: () => unawaited(
-              _ignoreMutation(controller.downloadAttachment(message)),
-            ),
-            onCancelAttachment: () => unawaited(
-              _ignoreMutation(controller.cancelAttachment(message)),
-            ),
-            onAddSticker: () => controller.addSticker(message),
-            onAddImageAsSticker: () => controller.addImageAsSticker(message),
-            onStrangerAction: (action) =>
-                controller.handleStrangerAction(message, action),
-            onStickerAlbumChanged: onStickerAlbumChanged,
-          );
-          if (message.id != controller.unreadBoundaryMessageId ||
-              next == null) {
-            return chatMessage;
-          }
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [chatMessage, const _UnreadMessageBar()],
-          );
-        },
-      ),
-    );
-    final messageList = MessageDayTimeViewportWidget(
-      entries: [
-        for (var index = 0; index < messages.length; index++)
-          MessageDayTimeViewportEntry(
-            dateTime: messages[index].createdAt,
-            messageKey: messageKey(messages[index].id),
-            dayTimeKey:
-                MessageRowModel(
-                      message: messages[index],
-                      previous: index == 0 ? null : messages[index - 1],
-                      next: index + 1 == messages.length
-                          ? null
-                          : messages[index + 1],
-                    ).dateTime ==
-                    null
-                ? null
-                : messageDayTimeKey(messages[index].id),
-          ),
-      ],
-      reTraversalKey: Object.hashAll(messages.map((message) => message.id)),
-      child: scrollableList,
-    );
-    return messageList;
-  }
+  Widget build(BuildContext context) => ChatHistoryViewport(
+    messageController: messageController,
+    presentationListenable: actions,
+    scrollCoordinator: scrollCoordinator,
+    unreadBar: const _UnreadMessageBar(),
+    messageBuilder: (row, dayTimeKey) {
+      final message = row.message;
+      return _ChatMessage(
+        dayTimeKey: dayTimeKey,
+        account: account,
+        message: message,
+        previous: row.previous,
+        next: row.next,
+        currentUserId: currentUserId,
+        isGroup: conversation.isGroup,
+        isBot: conversation.isBot,
+        isBotGroup: actions.isBotGroup,
+        conversationOwnerId: conversation.ownerId,
+        currentUserRole: actions.currentUserRole,
+        messages: messageController.state.list,
+        mentionNames: actions.mentionNames,
+        selected: selectedMessageIds.contains(message.id),
+        highlightOpacity: highlightedMessageId == message.id
+            ? highlightOpacity
+            : 0,
+        inSelectionMode: selectedMessageIds.isNotEmpty,
+        onReply: () => onReply(message),
+        onForward: () => onForward([message]),
+        onSelect: () => onSelect(message),
+        onToggleSelection: () => onToggleSelection(message),
+        onTogglePin: () => unawaited(
+          _ignoreMutation(actions.setMessagePinned(message, !message.pinned)),
+        ),
+        onRecall: () =>
+            unawaited(_ignoreMutation(actions.recallMessages([message]))),
+        onDelete: () =>
+            unawaited(_ignoreMutation(actions.deleteMessages([message]))),
+        onOpenMessage: onOpenMessage,
+        recalledText: actions.recalledText(message.id),
+        onReedit: onReedit,
+        onSelectConversation: onSelectConversation,
+        onSelectConversationInfo: onSelectConversationInfo,
+        onOpenUri: onOpenUri,
+        onMarkMentionRead: () => unawaited(actions.markMentionRead(message)),
+        onMarkAudioRead: (audio) => unawaited(actions.markAudioRead(audio)),
+        onDownloadAttachment: () =>
+            unawaited(_ignoreMutation(actions.downloadAttachment(message))),
+        onCancelAttachment: () =>
+            unawaited(_ignoreMutation(actions.cancelAttachment(message))),
+        onAddSticker: () => actions.addSticker(message),
+        onAddImageAsSticker: () => actions.addImageAsSticker(message),
+        onStrangerAction: (action) =>
+            actions.handleStrangerAction(message, action),
+        onStickerAlbumChanged: onStickerAlbumChanged,
+      );
+    },
+  );
 }
 
 class _UnreadMessageBar extends StatelessWidget {
@@ -1760,7 +1635,6 @@ class _ChatMessage extends StatefulWidget {
     required this.onAddImageAsSticker,
     required this.onStrangerAction,
     required this.onStickerAlbumChanged,
-    super.key,
   });
 
   final GlobalKey? dayTimeKey;
@@ -1835,9 +1709,8 @@ class _ChatMessageState extends State<_ChatMessage> {
         settings.messageShowIdentityNumber &&
         widget.message.senderIdentityNumber.isNotEmpty &&
         widget.message.senderIdentityNumber != '0';
-    final (selectedUserId, searchKeyword) = context
-        .watch<SearchConversationKeywordNotifier>()
-        .value;
+    final search = context.watch<SearchConversationKeywordNotifier?>()?.value;
+    final (selectedUserId, searchKeyword) = search ?? (null, '');
     final messageKeyword =
         selectedUserId == null || selectedUserId == widget.message.senderId
         ? searchKeyword
@@ -3868,7 +3741,7 @@ Future<void> _ignoreMutation(Future<void> mutation) async {
   try {
     await mutation;
   } on Object {
-    // MessageListController already logs mutation failures with context.
+    // MessageActionController already logs mutation failures with context.
   }
 }
 

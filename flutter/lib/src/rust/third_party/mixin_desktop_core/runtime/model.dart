@@ -903,6 +903,31 @@ class MessageListView {
           expireIn == other.expireIn;
 }
 
+class MessageOrderInfoView {
+  final String messageId;
+  final PlatformInt64 rowId;
+  final PlatformInt64 createdAtMicros;
+
+  const MessageOrderInfoView({
+    required this.messageId,
+    required this.rowId,
+    required this.createdAtMicros,
+  });
+
+  @override
+  int get hashCode =>
+      messageId.hashCode ^ rowId.hashCode ^ createdAtMicros.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MessageOrderInfoView &&
+          runtimeType == other.runtimeType &&
+          messageId == other.messageId &&
+          rowId == other.rowId &&
+          createdAtMicros == other.createdAtMicros;
+}
+
 class NotificationEvent {
   final String messageId;
   final String conversationId;

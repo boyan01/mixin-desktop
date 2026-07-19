@@ -133,6 +133,112 @@ pub struct MessageListItem {
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
+pub struct MessageOrderInfo {
+    pub message_id: String,
+    pub row_id: i64,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
+    pub created_at: NaiveDateTime,
+}
+
+const MESSAGE_LIST_QUERY_PREFIX: &str = r#"
+SELECT message.message_id,
+       message.conversation_id,
+       message.user_id,
+       COALESCE(sender.full_name, '') AS sender_name,
+       COALESCE(sender.identity_number, '') AS sender_identity_number,
+       COALESCE(sender.avatar_url, '') AS sender_avatar_url,
+       COALESCE(sender.is_verified, FALSE) AS sender_is_verified,
+       sender.membership AS sender_membership,
+       COALESCE(sender.relationship, '') AS sender_relationship,
+       sender.app_id AS sender_app_id,
+       COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
+       CASE WHEN COALESCE(sender.app_id, '') != '' THEN TRUE ELSE FALSE END AS sender_is_bot,
+       message.category,
+       message.content,
+       message.status,
+       message.created_at,
+       message.media_url,
+       message.media_mime_type,
+       message.media_size,
+       message.media_duration,
+       message.media_width,
+       message.media_height,
+       message.thumb_image,
+       message.media_status,
+       message.quote_message_id,
+       message.quote_content,
+       quote_user.membership AS quote_user_membership,
+       message.caption,
+       message.action,
+       message.participant_id,
+       participant.full_name AS participant_full_name,
+       message.snapshot_id,
+       COALESCE(snapshot.type, safe_snapshot.type) AS snapshot_type,
+       COALESCE(snapshot.amount, safe_snapshot.amount) AS snapshot_amount,
+       COALESCE(snapshot.memo, safe_snapshot.memo) AS snapshot_memo,
+       COALESCE(snapshot.asset_id, safe_snapshot.asset_id) AS snapshot_asset_id,
+       COALESCE(asset.symbol, token.symbol) AS snapshot_asset_symbol,
+       COALESCE(asset.icon_url, token.icon_url) AS snapshot_asset_icon_url,
+       chain.icon_url AS snapshot_chain_icon_url,
+       COALESCE(snapshot.opponent_id, safe_snapshot.opponent_id) AS snapshot_opponent_id,
+       COALESCE(snapshot.transaction_hash, safe_snapshot.transaction_hash) AS snapshot_transaction_hash,
+       CAST(COALESCE(snapshot.created_at, safe_snapshot.created_at) AS TEXT) AS snapshot_created_at,
+       safe_snapshot.inscription_hash,
+       inscription_item.collection_hash AS inscription_collection_hash,
+       inscription_item.sequence AS inscription_sequence,
+       inscription_item.content_type AS inscription_content_type,
+       inscription_item.content_url AS inscription_content_url,
+       inscription_collection.name AS inscription_name,
+       inscription_collection.icon_url AS inscription_icon_url,
+       message.hyperlink,
+       message.name AS media_name,
+       message.album_id,
+       message.sticker_id,
+       message.shared_user_id,
+       message.media_waveform,
+       message.thumb_url,
+       conversation.owner_id AS conversation_owner_id,
+       conversation.category AS conversation_category,
+       shared_user.full_name AS shared_user_full_name,
+       shared_user.identity_number AS shared_user_identity_number,
+       shared_user.avatar_url AS shared_user_avatar_url,
+       COALESCE(shared_user.is_verified, FALSE) AS shared_user_is_verified,
+       shared_user.membership AS shared_user_membership,
+       shared_user.app_id AS shared_user_app_id,
+       sticker.asset_url AS sticker_asset_url,
+       sticker.asset_width AS sticker_asset_width,
+       sticker.asset_height AS sticker_asset_height,
+       sticker.name AS sticker_asset_name,
+       sticker.asset_type AS sticker_asset_type,
+       mention.has_read AS mention_read,
+       CASE WHEN pin.message_id IS NOT NULL THEN TRUE ELSE FALSE END AS pinned,
+       CASE
+           WHEN message.category = 'SYSTEM_CONVERSATION' AND message.action = 'EXPIRE'
+               THEN CAST(message.content AS INTEGER)
+           ELSE expired.expire_in
+       END AS expire_in
+FROM messages message
+LEFT JOIN users sender ON sender.user_id = message.user_id
+LEFT JOIN users participant ON participant.user_id = message.participant_id
+LEFT JOIN conversations conversation ON conversation.conversation_id = message.conversation_id
+LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
+LEFT JOIN users quote_user ON quote_user.user_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.user_id') END
+LEFT JOIN stickers sticker ON sticker.sticker_id = message.sticker_id
+LEFT JOIN snapshots snapshot ON snapshot.snapshot_id = message.snapshot_id
+LEFT JOIN safe_snapshots safe_snapshot ON safe_snapshot.snapshot_id = message.snapshot_id
+LEFT JOIN assets asset ON asset.asset_id = snapshot.asset_id
+LEFT JOIN tokens token ON token.asset_id = safe_snapshot.asset_id
+LEFT JOIN chains chain ON chain.chain_id = COALESCE(asset.chain_id, token.chain_id)
+LEFT JOIN inscription_items inscription_item
+       ON inscription_item.inscription_hash = safe_snapshot.inscription_hash
+LEFT JOIN inscription_collections inscription_collection
+       ON inscription_collection.collection_hash = inscription_item.collection_hash
+LEFT JOIN message_mentions mention ON mention.message_id = message.message_id
+LEFT JOIN pin_messages pin ON pin.message_id = message.message_id
+LEFT JOIN expired_messages expired ON expired.message_id = message.message_id
+"#;
+
+#[derive(Debug, Clone, sqlx::FromRow)]
 pub struct ImageMessageItem {
     pub message_id: String,
     #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
@@ -628,17 +734,15 @@ LEFT JOIN expired_messages expired ON expired.message_id = message.message_id
 WHERE message.conversation_id = ?1
   AND (
       ?2 IS NULL
-      OR CASE WHEN typeof(message.created_at) = 'integer' THEN message.created_at
-              ELSE CAST(unixepoch(message.created_at, 'subsec') * 1000 AS INTEGER) END < ?2
+      OR message.created_at < ?2
       OR (
-          CASE WHEN typeof(message.created_at) = 'integer' THEN message.created_at
-               ELSE CAST(unixepoch(message.created_at, 'subsec') * 1000 AS INTEGER) END = ?2
-          AND message.message_id < ?3
+          message.created_at = ?2
+          AND message.rowid < (
+              SELECT rowid FROM messages WHERE message_id = ?3
+          )
       )
   )
-ORDER BY CASE WHEN typeof(message.created_at) = 'integer' THEN message.created_at
-              ELSE CAST(unixepoch(message.created_at, 'subsec') * 1000 AS INTEGER) END DESC,
-         message.message_id DESC
+ORDER BY message.created_at DESC, message.rowid DESC
 LIMIT ?4
             "#,
         )
@@ -649,6 +753,93 @@ LIMIT ?4
         .fetch_all(&self.0)
         .await?;
         Ok(result)
+    }
+
+    pub async fn list_items_by_ids(
+        &self,
+        message_ids: &[String],
+    ) -> Result<Vec<MessageListItem>, Error> {
+        if message_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut items = Vec::with_capacity(message_ids.len());
+        for chunk in message_ids.chunks(MARK_LIMIT) {
+            let sql = format!(
+                "{MESSAGE_LIST_QUERY_PREFIX} WHERE message.message_id IN ({})",
+                expand_var(chunk.len()),
+            );
+            items.extend(
+                sqlx::query_as::<_, MessageListItem>(sqlx::AssertSqlSafe(sql))
+                    .bind_list(chunk)
+                    .fetch_all(&self.0)
+                    .await?,
+            );
+        }
+        Ok(items)
+    }
+
+    pub async fn message_order_info(
+        &self,
+        message_id: &str,
+    ) -> Result<Option<MessageOrderInfo>, Error> {
+        Ok(sqlx::query_as::<_, MessageOrderInfo>(
+            "SELECT message_id, rowid AS row_id, created_at \
+             FROM messages WHERE message_id = ? LIMIT 1",
+        )
+        .bind(message_id)
+        .fetch_optional(&self.0)
+        .await?)
+    }
+
+    pub async fn message_ids_before(
+        &self,
+        conversation_id: &str,
+        anchor: &MessageOrderInfo,
+        limit: i64,
+    ) -> Result<Vec<String>, Error> {
+        Ok(sqlx::query_scalar(
+            r#"
+SELECT message_id
+FROM messages
+WHERE conversation_id = ?
+  AND (created_at < ? OR (created_at = ? AND rowid < ?))
+ORDER BY created_at DESC, rowid DESC
+LIMIT ?
+            "#,
+        )
+        .bind(conversation_id)
+        .bind(anchor.created_at.and_utc().timestamp_millis())
+        .bind(anchor.created_at.and_utc().timestamp_millis())
+        .bind(anchor.row_id)
+        .bind(limit.clamp(1, 200))
+        .fetch_all(&self.0)
+        .await?)
+    }
+
+    pub async fn message_ids_after(
+        &self,
+        conversation_id: &str,
+        anchor: &MessageOrderInfo,
+        limit: i64,
+    ) -> Result<Vec<String>, Error> {
+        Ok(sqlx::query_scalar(
+            r#"
+SELECT message_id
+FROM messages
+WHERE conversation_id = ?
+  AND (created_at > ? OR (created_at = ? AND rowid > ?))
+ORDER BY created_at ASC, rowid ASC
+LIMIT ?
+            "#,
+        )
+        .bind(conversation_id)
+        .bind(anchor.created_at.and_utc().timestamp_millis())
+        .bind(anchor.created_at.and_utc().timestamp_millis())
+        .bind(anchor.row_id)
+        .bind(limit.clamp(1, 200))
+        .fetch_all(&self.0)
+        .await?)
     }
 
     pub async fn list_pinned_items(
@@ -2539,6 +2730,53 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["oldest"]
         );
+    }
+
+    #[tokio::test]
+    async fn message_window_queries_use_row_id_ordering() {
+        let (_directory, database) = test_database().await;
+        let dao = database.message_dao;
+        let created_at = Utc::now().naive_utc();
+        for message_id in ["first", "center", "last"] {
+            dao.insert_message(&Message {
+                message_id: message_id.to_string(),
+                created_at,
+                ..message(message_id)
+            })
+            .await
+            .unwrap();
+        }
+
+        let center = dao.message_order_info("center").await.unwrap().unwrap();
+        assert_eq!(
+            dao.message_ids_before("conversation", &center, 10)
+                .await
+                .unwrap(),
+            ["first"]
+        );
+        assert_eq!(
+            dao.message_ids_after("conversation", &center, 10)
+                .await
+                .unwrap(),
+            ["last"]
+        );
+        let items = dao
+            .list_items_by_ids(&["last".to_string(), "first".to_string()])
+            .await
+            .unwrap();
+        assert_eq!(items.len(), 2);
+
+        let plan = sqlx::query_as::<_, (i64, i64, i64, String)>(
+            "EXPLAIN QUERY PLAN SELECT message_id FROM messages \
+             WHERE conversation_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 60",
+        )
+        .bind("conversation")
+        .fetch_all(&dao.0)
+        .await
+        .unwrap();
+        assert!(plan.iter().any(|(_, _, _, detail)| {
+            detail.contains("index_messages_conversation_id_created_at")
+        }));
     }
 
     #[tokio::test]

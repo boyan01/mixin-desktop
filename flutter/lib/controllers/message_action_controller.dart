@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:mixin_desktop_ui/controllers/message_controller.dart';
 import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
@@ -8,29 +9,31 @@ import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/utils/app_logger.dart';
 import 'package:mixin_desktop_ui/widgets/toast.dart';
 
-const _messagePageLimit = 60;
-const _initialUnreadBefore = 15;
-const _initialUnreadAfterMinimum = 45;
-const _initialUnreadAfterMaximum = 200;
 final _mentionIdentityNumberPattern = RegExp(r'@(\d+)');
 final _botGroupCache = <String, ({bool value, DateTime expiresAt})>{};
 final _botGroupLoads = <String, Future<bool>>{};
 
-class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
-  MessageListController({required this.account, required this.conversation})
-    : unreadBoundaryMessageId = conversation.unseenCount > 0
-          ? conversation.lastReadMessageId
-          : null,
-      isBotGroup = conversation.isBotGroup {
+class MessageActionController extends ChangeNotifier {
+  MessageActionController({
+    required this.account,
+    required this.conversation,
+    required this.messageController,
+  }) : isBotGroup = conversation.isBotGroup {
     i(
       'Open conversation: conversation_id=${conversation.id}, '
       'category=${conversation.category}',
     );
-    WidgetsBinding.instance.addObserver(this);
-    unawaited(_loadInitial());
+    messageController.addListener(_onMessagesChanged);
+    unawaited(_loadMetadata());
+    unawaited(_syncMentionNames(messages));
     unawaited(_loadBotGroup());
-    _changeSubscription = account.messageChanges().listen(
-      (_) => _scheduleRefresh(),
+    _changeSubscription = account.conversationChanges().listen(
+      (event) {
+        if (event.reloadAll ||
+            event.conversationIds.contains(conversation.id)) {
+          _scheduleMetadataRefresh();
+        }
+      },
       onError: (Object exception, StackTrace stackTrace) {
         e(
           'Message change stream failed: conversation_id=${conversation.id}',
@@ -43,31 +46,21 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
 
   final rust.AccountHandle account;
   final ConversationListEntry conversation;
-  final String? unreadBoundaryMessageId;
+  final MessageController messageController;
 
-  List<MessageListEntry> messages = const [];
-  List<MessageListEntry> pinnedMessages = const [];
+  List<MessageListEntry> get messages => messageController.state.list;
+  List<String> pinnedMessageIds = const [];
   rust.PinMessagePreviewItem? pinMessagePreview;
   List<String> unreadMentionMessageIds = const [];
   Map<String, String> mentionNames = const {};
-  bool loading = true;
-  bool loadingOlder = false;
-  bool locating = false;
   bool sending = false;
   bool forwarding = false;
-  bool hasMore = true;
   String? currentUserRole;
-  bool initialUnreadAnchorAttempted = false;
-  bool initialUnreadAnchorPending = false;
-  bool initialUnreadAnchorConsumed = false;
   bool isBotGroup;
-  int? initialUnreadMessageIndex;
-  String? initialUnreadMessageId;
 
-  StreamSubscription<BigInt>? _changeSubscription;
-  bool _refreshing = false;
-  bool _refreshPending = false;
-  bool _refreshDeferredUntilInitialUnreadAnchor = false;
+  StreamSubscription<rust.ConversationChangeEvent>? _changeSubscription;
+  bool _refreshingMetadata = false;
+  bool _metadataRefreshPending = false;
   bool _disposed = false;
   final Set<String> _markingMentionRead = {};
   final Set<String> _markedMentionRead = {};
@@ -108,46 +101,9 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  bool get _canMarkRead {
-    final state = WidgetsBinding.instance.lifecycleState;
-    return state == null || state == AppLifecycleState.resumed;
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _scheduleRefresh();
-  }
-
-  Future<void> loadOlder() async {
-    if (loading || loadingOlder || !hasMore || messages.isEmpty) return;
-    loadingOlder = true;
+  void _onMessagesChanged() {
+    unawaited(_syncMentionNames(messages));
     notifyListeners();
-    try {
-      final page = await _loadPage(
-        beforeCreatedAt: messages.first.createdAt,
-        beforeMessageId: messages.first.id,
-      );
-      if (_disposed) return;
-      final existingIds = messages.map((message) => message.id).toSet();
-      messages = [
-        ...page.where((message) => !existingIds.contains(message.id)),
-        ...messages,
-      ];
-      await _syncMentionNames(page);
-      _syncInitialUnreadMessageIndex();
-      hasMore = page.length == _messagePageLimit;
-    } catch (exception, stackTrace) {
-      e(
-        'Load older messages failed: conversation_id=${conversation.id}',
-        exception,
-        stackTrace,
-      );
-    } finally {
-      if (!_disposed) {
-        loadingOlder = false;
-        notifyListeners();
-      }
-    }
   }
 
   Future<bool> sendText(
@@ -158,13 +114,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     final text = content.trim();
     if (text.isEmpty) return false;
     try {
-      await account.message().sendText(
+      final messageId = await account.message().sendText(
         conversationId: conversation.id,
         content: text,
         quoteMessageId: quoteMessageId,
         silent: silent,
       );
-      await _refreshLatest();
+      await messageController.refreshMessages([messageId]);
       return true;
     } catch (exception, stackTrace) {
       e(
@@ -180,11 +136,11 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     final text = content.trim();
     if (text.isEmpty) return false;
     try {
-      await account.message().sendPost(
+      final messageId = await account.message().sendPost(
         conversationId: conversation.id,
         content: text,
       );
-      await _refreshLatest();
+      await messageController.refreshMessages([messageId]);
       return true;
     } catch (exception, stackTrace) {
       e(
@@ -211,14 +167,14 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     sending = true;
     notifyListeners();
     try {
-      await account.message().sendAudio(
+      final messageId = await account.message().sendAudio(
         conversationId: conversation.id,
         path: path,
         durationMillis: duration.inMilliseconds,
         waveform: waveform,
         quoteMessageId: quoteMessageId,
       );
-      await _refreshLatest();
+      await messageController.refreshMessages([messageId]);
       return true;
     } catch (exception, stackTrace) {
       e(
@@ -255,7 +211,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     sending = true;
     notifyListeners();
     try {
-      await account.message().sendAttachment(
+      final messageId = await account.message().sendAttachment(
         conversationId: conversation.id,
         path: path,
         kind: kind,
@@ -269,7 +225,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         quoteMessageId: quoteMessageId,
         silent: silent,
       );
-      await _refreshLatest();
+      await messageController.refreshMessages([messageId]);
       return true;
     } catch (exception, stackTrace) {
       e(
@@ -292,11 +248,11 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     sending = true;
     notifyListeners();
     try {
-      await account.message().sendSticker(
+      final messageId = await account.message().sendSticker(
         conversationId: conversation.id,
         stickerId: stickerId,
       );
-      await _refreshLatest();
+      await messageController.refreshMessages([messageId]);
       return true;
     } catch (exception, stackTrace) {
       e(
@@ -381,7 +337,8 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         messageId: message.id,
         pinned: pinned,
       );
-      await _refreshLatest();
+      await messageController.refreshMessages([message.id]);
+      await _refreshMetadata();
     } catch (exception, stackTrace) {
       e(
         'Set message pinned failed: conversation_id=${conversation.id}, '
@@ -410,7 +367,9 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
           if (!_disposed) notifyListeners();
         });
       }
-      await _refreshLatest();
+      await messageController.refreshMessages(
+        selected.map((message) => message.id),
+      );
     } catch (exception, stackTrace) {
       e(
         'Recall messages failed: conversation_id=${conversation.id}',
@@ -429,7 +388,8 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
         conversationId: conversation.id,
         messageIds: selected.map((message) => message.id).toList(),
       );
-      await _refreshLatest();
+      messageController.removeMessages(selected.map((message) => message.id));
+      await _refreshMetadata();
     } catch (exception, stackTrace) {
       e(
         'Delete messages failed: conversation_id=${conversation.id}',
@@ -480,7 +440,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       } else {
         await account.attachment().downloadAttachment(messageId: message.id);
       }
-      await _refreshLatest();
+      await messageController.refreshMessages([message.id]);
     } catch (exception, stackTrace) {
       e(
         'Download attachment failed: conversation_id=${conversation.id}, '
@@ -495,7 +455,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> cancelAttachment(MessageListEntry message) async {
     try {
       await account.attachment().cancelAttachment(messageId: message.id);
-      await _refreshLatest();
+      await messageController.refreshMessages([message.id]);
     } catch (exception, stackTrace) {
       e(
         'Cancel attachment failed: conversation_id=${conversation.id}, '
@@ -511,7 +471,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     if (message.mediaStatus.toUpperCase() != 'DONE') return;
     try {
       await account.attachment().markAudioRead(messageId: message.id);
-      await _refreshLatest();
+      await messageController.refreshMessages([message.id]);
     } catch (exception, stackTrace) {
       e(
         'Mark audio read failed: conversation_id=${conversation.id}, '
@@ -572,13 +532,13 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
           await _refreshLatest();
           break;
         case 'say_hi':
-          await account.message().sendText(
+          final messageId = await account.message().sendText(
             conversationId: conversation.id,
             content: 'Hi',
             quoteMessageId: null,
             silent: false,
           );
-          await _refreshLatest();
+          await messageController.refreshMessages([messageId]);
           break;
         case 'open_home':
           final appId = message.senderAppId?.trim();
@@ -599,72 +559,7 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  Future<bool> locateMessage(
-    String messageId, {
-    int before = 30,
-    int after = 30,
-  }) async {
-    if (messages.any((message) => message.id == messageId)) return true;
-    if (locating) return false;
-    locating = true;
-    notifyListeners();
-    try {
-      final result = await account.message().messagesAround(
-        conversationId: conversation.id,
-        targetMessageId: messageId,
-        before: before,
-        after: after,
-      );
-      if (_disposed) return false;
-      final window = result
-          .map(MessageListEntry.fromRust)
-          .toList(growable: false);
-      final targetIndex = window.indexWhere(
-        (message) => message.id == messageId,
-      );
-      if (targetIndex < 0) return false;
-
-      final currentIds = messages.map((message) => message.id).toSet();
-      final overlaps = window.any((message) => currentIds.contains(message.id));
-      if (overlaps) {
-        final byId = <String, MessageListEntry>{
-          for (final message in messages) message.id: message,
-          for (final message in window) message.id: message,
-        };
-        messages = byId.values.toList(growable: false)..sort(_compareMessages);
-      } else {
-        messages = window;
-      }
-      await _syncMentionNames(window);
-      _syncInitialUnreadMessageIndex();
-      hasMore = targetIndex >= before;
-      return true;
-    } catch (exception, stackTrace) {
-      e(
-        'Locate message failed: conversation_id=${conversation.id}, '
-        'message_id=$messageId',
-        exception,
-        stackTrace,
-      );
-      return false;
-    } finally {
-      if (!_disposed) {
-        locating = false;
-        notifyListeners();
-      }
-    }
-  }
-
-  Future<void> retry() => _loadInitial();
-
-  Future<void> _loadInitial() async {
-    loading = true;
-    initialUnreadAnchorAttempted = false;
-    initialUnreadAnchorPending = false;
-    initialUnreadAnchorConsumed = false;
-    initialUnreadMessageIndex = null;
-    initialUnreadMessageId = null;
-    notifyListeners();
+  Future<void> _loadMetadata() async {
     try {
       final roleFuture = account.conversation().currentUserRole(
         conversationId: conversation.id,
@@ -672,103 +567,24 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       final pinnedFuture = _loadPinnedMessages();
       final pinPreviewFuture = _loadPinMessagePreview();
       final unreadMentionsFuture = _loadUnreadMentionMessageIds();
-      final unreadWindow = await _loadInitialUnreadWindow();
-      final page = unreadWindow ?? await _loadPage();
       currentUserRole = await roleFuture;
-      pinnedMessages = await pinnedFuture;
+      pinnedMessageIds = await pinnedFuture;
       pinMessagePreview = await pinPreviewFuture;
       unreadMentionMessageIds = await unreadMentionsFuture;
       if (_disposed) return;
-      messages = page;
-      await _syncMentionNames(page);
-      if (unreadWindow == null) {
-        hasMore = page.length == _messagePageLimit;
-      }
-      if (_canMarkRead) {
-        await account.message().markConversationRead(
-          conversationId: conversation.id,
-        );
-      }
+      notifyListeners();
     } catch (exception, stackTrace) {
       e(
-        'Load conversation messages failed: '
+        'Load conversation metadata failed: '
         'conversation_id=${conversation.id}, category=${conversation.category}',
         exception,
         stackTrace,
       );
-    } finally {
-      if (!_disposed) {
-        loading = false;
-        notifyListeners();
-      }
     }
   }
 
-  Future<List<MessageListEntry>?> _loadInitialUnreadWindow() async {
-    final targetMessageId = unreadBoundaryMessageId?.trim();
-    if (targetMessageId == null || targetMessageId.isEmpty) return null;
-
-    initialUnreadAnchorAttempted = true;
-    final after = conversation.unseenCount
-        .clamp(_initialUnreadAfterMinimum, _initialUnreadAfterMaximum)
-        .toInt();
-    try {
-      final result = await account.message().messagesAround(
-        conversationId: conversation.id,
-        targetMessageId: targetMessageId,
-        before: _initialUnreadBefore,
-        after: after,
-      );
-      final window = result
-          .map(MessageListEntry.fromRust)
-          .toList(growable: false);
-      final boundaryIndex = window.indexWhere(
-        (message) => message.id == targetMessageId,
-      );
-      final firstUnreadIndex = boundaryIndex + 1;
-      if (boundaryIndex < 0 || firstUnreadIndex >= window.length) return null;
-
-      initialUnreadMessageIndex = firstUnreadIndex;
-      initialUnreadMessageId = window[firstUnreadIndex].id;
-      initialUnreadAnchorPending = true;
-      hasMore = boundaryIndex >= _initialUnreadBefore;
-      return window;
-    } on Object catch (exception, stackTrace) {
-      e(
-        'Load unread message window failed; falling back to latest messages: '
-        'conversation_id=${conversation.id}, '
-        'target_message_id=$targetMessageId',
-        exception,
-        stackTrace,
-      );
-      return null;
-    }
-  }
-
-  Future<List<MessageListEntry>> _loadPage({
-    DateTime? beforeCreatedAt,
-    String? beforeMessageId,
-    int limit = _messagePageLimit,
-  }) async {
-    final result = await account.message().messages(
-      conversationId: conversation.id,
-      beforeCreatedAtMicros: beforeCreatedAt?.microsecondsSinceEpoch,
-      beforeMessageId: beforeMessageId,
-      limit: limit,
-    );
-    return result
-        .map(MessageListEntry.fromRust)
-        .toList(growable: false)
-        .reversed
-        .toList(growable: false);
-  }
-
-  Future<List<MessageListEntry>> _loadPinnedMessages() async {
-    final result = await account.message().pinnedMessages(
-      conversationId: conversation.id,
-    );
-    return result.map(MessageListEntry.fromRust).toList(growable: false);
-  }
+  Future<List<String>> _loadPinnedMessages() =>
+      account.message().pinnedMessageIds(conversationId: conversation.id);
 
   Future<rust.PinMessagePreviewItem?> _loadPinMessagePreview() =>
       account.message().pinMessagePreview(conversationId: conversation.id);
@@ -777,81 +593,39 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
       .message()
       .unreadMentionMessageIds(conversationId: conversation.id);
 
-  void _scheduleRefresh() {
-    if (initialUnreadAnchorPending) {
-      _refreshDeferredUntilInitialUnreadAnchor = true;
+  void _scheduleMetadataRefresh() {
+    if (_refreshingMetadata) {
+      _metadataRefreshPending = true;
       return;
     }
-    if (_refreshing) {
-      _refreshPending = true;
-      return;
-    }
-    unawaited(_refreshLatest());
+    unawaited(_refreshMetadata());
   }
 
   Future<void> _refreshLatest() async {
-    if (_refreshing) {
-      _refreshPending = true;
+    messageController.loadLatestWindow();
+    await _refreshMetadata();
+  }
+
+  Future<void> _refreshMetadata() async {
+    if (_refreshingMetadata) {
+      _metadataRefreshPending = true;
       return;
     }
-    _refreshing = true;
+    _refreshingMetadata = true;
     do {
-      _refreshPending = false;
+      _metadataRefreshPending = false;
       try {
-        final refreshLimit = messages.length.clamp(_messagePageLimit, 200);
-        final latest = await _loadPage(limit: refreshLimit);
-        if (_disposed) return;
-        final retainedCount = (messages.length - refreshLimit).clamp(
-          0,
-          messages.length,
-        );
-        final byId = <String, MessageListEntry>{
-          for (final message
-              in initialUnreadMessageId == null
-                  ? messages.take(retainedCount)
-                  : messages)
-            message.id: message,
-          for (final message in latest) message.id: message,
-        };
-        messages = byId.values.toList(growable: false)..sort(_compareMessages);
-        await _syncMentionNames(latest);
-        pinnedMessages = await _loadPinnedMessages();
-        pinMessagePreview = await _loadPinMessagePreview();
-        unreadMentionMessageIds = await _loadUnreadMentionMessageIds();
-        _syncInitialUnreadMessageIndex();
-        if (_canMarkRead) {
-          await account.message().markConversationRead(
-            conversationId: conversation.id,
-          );
-        }
-        notifyListeners();
+        await _loadMetadata();
       } catch (exception, stackTrace) {
         e(
-          'Refresh conversation messages failed: '
+          'Refresh conversation metadata failed: '
           'conversation_id=${conversation.id}',
           exception,
           stackTrace,
         );
       }
-    } while (_refreshPending && !_disposed);
-    _refreshing = false;
-  }
-
-  void consumeInitialUnreadAnchor() {
-    if (!initialUnreadAnchorPending) return;
-    initialUnreadAnchorPending = false;
-    initialUnreadAnchorConsumed = true;
-    if (_refreshDeferredUntilInitialUnreadAnchor) {
-      _refreshDeferredUntilInitialUnreadAnchor = false;
-      _scheduleRefresh();
-    }
-  }
-
-  void _syncInitialUnreadMessageIndex() {
-    final messageId = initialUnreadMessageId;
-    if (messageId == null) return;
-    final index = messages.indexWhere((message) => message.id == messageId);
-    initialUnreadMessageIndex = index < 0 ? null : index;
+    } while (_metadataRefreshPending && !_disposed);
+    _refreshingMetadata = false;
   }
 
   Future<void> _syncMentionNames(Iterable<MessageListEntry> entries) async {
@@ -892,15 +666,10 @@ class MessageListController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  static int _compareMessages(MessageListEntry first, MessageListEntry second) {
-    final created = first.createdAt.compareTo(second.createdAt);
-    return created != 0 ? created : first.id.compareTo(second.id);
-  }
-
   @override
   void dispose() {
     _disposed = true;
-    WidgetsBinding.instance.removeObserver(this);
+    messageController.removeListener(_onMessagesChanged);
     unawaited(_changeSubscription?.cancel());
     for (final timer in _recalledTextTimers.values) {
       timer.cancel();

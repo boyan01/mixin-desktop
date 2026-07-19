@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mixin_desktop_ui/controllers/message_list_controller.dart';
+import 'package:mixin_desktop_ui/controllers/message_controller.dart';
+import 'package:mixin_desktop_ui/controllers/message_action_controller.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 
@@ -17,12 +18,19 @@ void main() {
       ),
     );
     final account = _FakeAccountHandle([_message('first')]);
-    final controller = MessageListController(
+    final messages = MessageController(
       account: account,
       conversation: _conversation,
+      limit: 60,
+    );
+    final controller = MessageActionController(
+      account: account,
+      conversation: _conversation,
+      messageController: messages,
     );
     addTearDown(() {
       controller.dispose();
+      messages.dispose();
       account.close();
     });
 
@@ -44,12 +52,19 @@ void main() {
       _message('first'),
       _message('expired'),
     ]);
-    final controller = MessageListController(
+    final messages = MessageController(
       account: account,
       conversation: _conversation,
+      limit: 60,
+    );
+    final controller = MessageActionController(
+      account: account,
+      conversation: _conversation,
+      messageController: messages,
     );
     addTearDown(() {
       controller.dispose();
+      messages.dispose();
       account.close();
     });
     await tester.pumpAndSettle();
@@ -67,6 +82,59 @@ void main() {
     expect(controller.messages.map((message) => message.id), ['first']);
   });
 
+  testWidgets('message revision refreshes attachment state', (tester) async {
+    final account = _FakeAccountHandle([
+      _message('attachment', mediaStatus: 'CANCELED'),
+    ]);
+    final messages = MessageController(
+      account: account,
+      conversation: _conversation,
+      limit: 60,
+    );
+    addTearDown(() {
+      messages.dispose();
+      account.close();
+    });
+    await tester.pumpAndSettle();
+
+    account.messagesInDatabase[0] = _message('attachment', mediaStatus: 'DONE');
+    account.notifyMessageRevision();
+    await tester.pumpAndSettle();
+
+    expect(messages.state.list.single.mediaStatus, 'DONE');
+  });
+
+  testWidgets('new message refresh keeps loaded history', (tester) async {
+    final account = _FakeAccountHandle([
+      for (var index = 0; index < 120; index++)
+        _message('message-$index', minute: index),
+    ]);
+    final messages = MessageController(
+      account: account,
+      conversation: _conversation,
+      limit: 60,
+    );
+    addTearDown(() {
+      messages.dispose();
+      account.close();
+    });
+    await tester.pumpAndSettle();
+
+    messages.before();
+    await tester.pumpAndSettle();
+    expect(messages.state.list, hasLength(120));
+
+    account.messagesInDatabase.add(_message('new-message', minute: 120));
+    account.notifyChanged();
+    await tester.pumpAndSettle();
+
+    expect(messages.state.list, hasLength(121));
+    expect(
+      messages.state.list.map((message) => message.id),
+      containsAll(['message-0', 'new-message']),
+    );
+  });
+
   testWidgets('loads the initial window around the unread boundary', (
     tester,
   ) async {
@@ -76,25 +144,27 @@ void main() {
       _message('first-unread'),
       _message('latest'),
     ]);
-    final controller = MessageListController(
+    final messages = MessageController(
       account: account,
       conversation: _unreadConversation,
+      limit: 60,
+    );
+    final controller = MessageActionController(
+      account: account,
+      conversation: _unreadConversation,
+      messageController: messages,
     );
     addTearDown(() {
       controller.dispose();
+      messages.dispose();
       account.close();
     });
 
     await tester.pumpAndSettle();
 
-    expect(account.messagesAroundCalls, 1);
-    expect(account.aroundTarget, 'last-read');
-    expect(account.aroundBefore, 15);
-    expect(account.aroundAfter, 45);
-    expect(controller.initialUnreadAnchorAttempted, isTrue);
-    expect(controller.initialUnreadAnchorPending, isTrue);
-    expect(controller.initialUnreadMessageId, 'first-unread');
-    expect(controller.initialUnreadMessageIndex, 2);
+    expect(account.messagesAroundCalls, 0);
+    expect(messages.state.center?.id, 'last-read');
+    expect(messages.state.lastReadMessageId, 'last-read');
     expect(controller.messages.map((message) => message.id), [
       'older',
       'last-read',
@@ -107,12 +177,19 @@ void main() {
     tester,
   ) async {
     final account = _FakeAccountHandle([]);
-    final controller = MessageListController(
+    final messages = MessageController(
       account: account,
       conversation: _conversation,
+      limit: 60,
+    );
+    final controller = MessageActionController(
+      account: account,
+      conversation: _conversation,
+      messageController: messages,
     );
     addTearDown(() {
       controller.dispose();
+      messages.dispose();
       account.close();
     });
     await tester.pumpAndSettle();
@@ -135,12 +212,19 @@ void main() {
     tester,
   ) async {
     final account = _FakeAccountHandle([]);
-    final controller = MessageListController(
+    final messages = MessageController(
       account: account,
       conversation: _conversation,
+      limit: 60,
+    );
+    final controller = MessageActionController(
+      account: account,
+      conversation: _conversation,
+      messageController: messages,
     );
     addTearDown(() {
       controller.dispose();
+      messages.dispose();
       account.close();
     });
     await tester.pumpAndSettle();
@@ -206,7 +290,11 @@ final _unreadConversation = ConversationListEntry(
   groupAvatars: [],
 );
 
-MessageListItem _message(String id) => MessageListItem(
+MessageListItem _message(
+  String id, {
+  String mediaStatus = '',
+  int minute = 0,
+}) => MessageListItem(
   messageId: id,
   conversationId: 'conversation',
   senderId: 'other',
@@ -219,9 +307,14 @@ MessageListItem _message(String id) => MessageListItem(
   category: 'PLAIN_TEXT',
   content: id,
   status: 'SENT',
-  createdAtMicros: DateTime(2026, 7, 16, 12).microsecondsSinceEpoch,
+  createdAtMicros: DateTime(
+    2026,
+    7,
+    16,
+    12,
+  ).add(Duration(minutes: minute)).microsecondsSinceEpoch,
   mediaDuration: '',
-  mediaStatus: '',
+  mediaStatus: mediaStatus,
   sharedUserIsVerified: false,
   pinned: false,
 );
@@ -238,6 +331,8 @@ class _FakeAccountHandle
 
   final List<MessageListItem> messagesInDatabase;
   final _changes = StreamController<BigInt>.broadcast();
+  final _conversationChanges =
+      StreamController<ConversationChangeEvent>.broadcast();
   var markReadCalls = 0;
   var messagesAroundCalls = 0;
   String? aroundTarget;
@@ -265,11 +360,29 @@ class _FakeAccountHandle
   @override
   UserAccess user() => this;
 
-  void notifyChanged() => _changes.add(BigInt.one);
-  Future<void> close() => _changes.close();
+  void notifyChanged() {
+    _changes.add(BigInt.one);
+    _conversationChanges.add(
+      const ConversationChangeEvent(
+        conversationIds: ['conversation'],
+        reloadAll: false,
+      ),
+    );
+  }
+
+  void notifyMessageRevision() => _changes.add(BigInt.one);
+
+  Future<void> close() async {
+    await _changes.close();
+    await _conversationChanges.close();
+  }
 
   @override
   Stream<BigInt> messageChanges() => _changes.stream;
+
+  @override
+  Stream<ConversationChangeEvent> conversationChanges() =>
+      _conversationChanges.stream;
 
   @override
   Stream<NotificationEvent> desktopNotificationEvents() => const Stream.empty();
@@ -295,6 +408,62 @@ class _FakeAccountHandle
   }
 
   @override
+  Future<List<MessageListItem>> messageItemsByIds({
+    required List<String> messageIds,
+  }) async {
+    final ids = messageIds.toSet();
+    return messagesInDatabase
+        .where((message) => ids.contains(message.messageId))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<MessageOrderInfoView?> messageOrderInfo({
+    required String messageId,
+  }) async {
+    final index = messagesInDatabase.indexWhere(
+      (message) => message.messageId == messageId,
+    );
+    if (index < 0) return null;
+    return MessageOrderInfoView(
+      messageId: messageId,
+      rowId: index + 1,
+      createdAtMicros: messagesInDatabase[index].createdAtMicros,
+    );
+  }
+
+  @override
+  Future<List<String>> messageIdsBefore({
+    required String conversationId,
+    required int anchorRowId,
+    required int anchorCreatedAtMicros,
+    required int limit,
+  }) async => messagesInDatabase
+      .take(anchorRowId - 1)
+      .toList()
+      .reversed
+      .take(limit)
+      .map((message) => message.messageId)
+      .toList(growable: false);
+
+  @override
+  Future<List<String>> messageIdsAfter({
+    required String conversationId,
+    required int anchorRowId,
+    required int anchorCreatedAtMicros,
+    required int limit,
+  }) async => messagesInDatabase
+      .skip(anchorRowId)
+      .take(limit)
+      .map((message) => message.messageId)
+      .toList(growable: false);
+
+  @override
+  Future<List<String>> pinnedMessageIds({
+    required String conversationId,
+  }) async => const [];
+
+  @override
   Future<void> markConversationRead({required String conversationId}) async {
     markReadCalls++;
   }
@@ -310,7 +479,13 @@ class _FakeAccountHandle
     aroundTarget = targetMessageId;
     aroundBefore = before;
     aroundAfter = after;
-    return List.of(messagesInDatabase);
+    final target = messagesInDatabase.indexWhere(
+      (message) => message.messageId == targetMessageId,
+    );
+    if (target < 0) return const [];
+    final start = (target - before).clamp(0, messagesInDatabase.length);
+    final end = (target + after + 1).clamp(0, messagesInDatabase.length);
+    return messagesInDatabase.sublist(start, end);
   }
 
   @override

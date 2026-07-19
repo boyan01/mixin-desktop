@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use base64ct::{Base64, Encoding};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use log::warn;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -268,6 +268,90 @@ impl MessageAccess {
             .collect())
     }
 
+    pub async fn message_items_by_ids(
+        &self,
+        message_ids: Vec<String>,
+    ) -> Result<Vec<model::MessageListView>> {
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .message_dao
+            .list_items_by_ids(&message_ids)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
+    pub async fn message_order_info(
+        &self,
+        message_id: String,
+    ) -> Result<Option<model::MessageOrderInfoView>> {
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .message_dao
+            .message_order_info(&message_id)
+            .await?
+            .map(|info| model::MessageOrderInfoView {
+                message_id: info.message_id,
+                row_id: info.row_id,
+                created_at_micros: info.created_at.and_utc().timestamp_micros(),
+            }))
+    }
+
+    pub async fn message_ids_before(
+        &self,
+        conversation_id: String,
+        anchor_row_id: i64,
+        anchor_created_at_micros: i64,
+        limit: i64,
+    ) -> Result<Vec<String>> {
+        self.ensure_active()?;
+        let created_at = DateTime::from_timestamp_micros(anchor_created_at_micros)
+            .ok_or_else(|| anyhow!("invalid message timestamp"))?
+            .naive_utc();
+        self.database
+            .message_dao
+            .message_ids_before(
+                &conversation_id,
+                &crate::db::mixin::message::MessageOrderInfo {
+                    message_id: String::new(),
+                    row_id: anchor_row_id,
+                    created_at,
+                },
+                limit,
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn message_ids_after(
+        &self,
+        conversation_id: String,
+        anchor_row_id: i64,
+        anchor_created_at_micros: i64,
+        limit: i64,
+    ) -> Result<Vec<String>> {
+        self.ensure_active()?;
+        let created_at = DateTime::from_timestamp_micros(anchor_created_at_micros)
+            .ok_or_else(|| anyhow!("invalid message timestamp"))?
+            .naive_utc();
+        self.database
+            .message_dao
+            .message_ids_after(
+                &conversation_id,
+                &crate::db::mixin::message::MessageOrderInfo {
+                    message_id: String::new(),
+                    row_id: anchor_row_id,
+                    created_at,
+                },
+                limit,
+            )
+            .await
+            .map_err(Into::into)
+    }
+
     pub async fn search_messages(
         &self,
         conversation_id: String,
@@ -459,6 +543,15 @@ impl MessageAccess {
             .into_iter()
             .map(Into::into)
             .collect())
+    }
+
+    pub async fn pinned_message_ids(&self, conversation_id: String) -> Result<Vec<String>> {
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .pin_message_dao
+            .message_ids(&conversation_id)
+            .await?)
     }
 
     pub async fn pin_message_preview(

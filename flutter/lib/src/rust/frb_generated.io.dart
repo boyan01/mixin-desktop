@@ -256,6 +256,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
 
   @protected
+  MessageOrderInfoView dco_decode_box_autoadd_message_order_info_view(
+    dynamic raw,
+  );
+
+  @protected
   PinMessagePreviewItem dco_decode_box_autoadd_pin_message_preview_item(
     dynamic raw,
   );
@@ -391,6 +396,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageListView dco_decode_message_list_view(dynamic raw);
 
   @protected
+  MessageOrderInfoView dco_decode_message_order_info_view(dynamic raw);
+
+  @protected
   NotificationEvent dco_decode_notification_event(dynamic raw);
 
   @protected
@@ -413,6 +421,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  MessageOrderInfoView? dco_decode_opt_box_autoadd_message_order_info_view(
+    dynamic raw,
+  );
 
   @protected
   PinMessagePreviewItem? dco_decode_opt_box_autoadd_pin_message_preview_item(
@@ -692,6 +705,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  MessageOrderInfoView sse_decode_box_autoadd_message_order_info_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   PinMessagePreviewItem sse_decode_box_autoadd_pin_message_preview_item(
     SseDeserializer deserializer,
   );
@@ -857,6 +875,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MessageListView sse_decode_message_list_view(SseDeserializer deserializer);
 
   @protected
+  MessageOrderInfoView sse_decode_message_order_info_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   NotificationEvent sse_decode_notification_event(SseDeserializer deserializer);
 
   @protected
@@ -879,6 +902,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  MessageOrderInfoView? sse_decode_opt_box_autoadd_message_order_info_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   PinMessagePreviewItem? sse_decode_opt_box_autoadd_pin_message_preview_item(
@@ -1215,6 +1243,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_message_order_info_view(
+    MessageOrderInfoView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_pin_message_preview_item(
     PinMessagePreviewItem self,
     SseSerializer serializer,
@@ -1428,6 +1462,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_message_order_info_view(
+    MessageOrderInfoView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_notification_event(
     NotificationEvent self,
     SseSerializer serializer,
@@ -1455,6 +1495,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_i_64(
     PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_message_order_info_view(
+    MessageOrderInfoView? self,
     SseSerializer serializer,
   );
 

@@ -31,6 +31,21 @@ pub struct PinMessagePreview {
 }
 
 impl PinMessageDao {
+    pub async fn message_ids(&self, conversation_id: &str) -> Result<Vec<String>, Error> {
+        Ok(sqlx::query_scalar(
+            r#"
+SELECT pin.message_id
+FROM pin_messages pin INDEXED BY index_pin_messages_conversation_id
+INNER JOIN messages message ON message.message_id = pin.message_id
+WHERE pin.conversation_id = ?
+ORDER BY message.created_at DESC, message.message_id DESC
+            "#,
+        )
+        .bind(conversation_id)
+        .fetch_all(&self.0)
+        .await?)
+    }
+
     pub async fn latest_preview(
         &self,
         conversation_id: &str,

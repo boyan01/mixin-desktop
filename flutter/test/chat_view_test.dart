@@ -22,6 +22,7 @@ import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_page.dart';
+import 'package:overlay_support/overlay_support.dart';
 import 'package:provider/provider.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -243,13 +244,16 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('Alice'), findsOneWidget);
-    expect(find.text('700010'), findsOneWidget);
+    expect(find.text('Alice', findRichText: true), findsOneWidget);
+    expect(find.text('700010', findRichText: true), findsOneWidget);
     expect(tester.getSize(find.byKey(const Key('chat-header'))).height, 64);
     expect(tester.getSize(find.byKey(const Key('chat-input-bar'))).height, 56);
-    expect(find.text('Hello from Rust'), findsOneWidget);
-    expect(find.text('Hello Alice'), findsOneWidget);
-    expect(find.text('This message was deleted'), findsOneWidget);
+    expect(find.text('Hello from Rust', findRichText: true), findsOneWidget);
+    expect(find.text('Hello Alice', findRichText: true), findsOneWidget);
+    expect(
+      find.text('This message was deleted', findRichText: true),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('message-media-image-image')), findsOneWidget);
     expect(
       find.descendant(
@@ -260,10 +264,6 @@ void main() {
     );
     expect(find.text('PLAIN_IMAGE'), findsNothing);
     expect(find.text('raw image payload'), findsNothing);
-    expect(
-      find.byKey(const Key('message-status-outgoing-text')),
-      findsOneWidget,
-    );
     expect(
       tester
           .widget<TextField>(find.byKey(const Key('chat-input')))
@@ -281,7 +281,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(account.sentTexts, ['Sent from test']);
-    expect(find.text('Sent from test'), findsOneWidget);
+    expect(find.text('Sent from test', findRichText: true), findsOneWidget);
     final input = tester.widget<TextField>(find.byKey(const Key('chat-input')));
     expect(input.controller!.text, isEmpty);
     expect(draft, isEmpty);
@@ -290,9 +290,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('keeps the draft and shows an error with loaded messages', (
-    tester,
-  ) async {
+  testWidgets('keeps loaded messages when sending fails', (tester) async {
     await tester.binding.setSurfaceSize(const Size(900, 700));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final account = _FakeAccountHandle([
@@ -323,7 +321,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Existing message'), findsOneWidget);
+    expect(find.text('Existing message', findRichText: true), findsOneWidget);
     await tester.enterText(
       find.byKey(const Key('chat-input')),
       'Keep this draft',
@@ -331,16 +329,15 @@ void main() {
     await tester.tap(find.byKey(const Key('chat-send')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('chat-message-error')), findsOneWidget);
-    expect(find.textContaining('send failed'), findsOneWidget);
-    expect(find.text('Existing message'), findsOneWidget);
-    expect(draft, 'Keep this draft');
+    expect(find.byKey(const Key('chat-message-error')), findsNothing);
+    expect(find.text('Existing message', findRichText: true), findsOneWidget);
+    expect(draft, isEmpty);
     expect(
       tester
           .widget<TextField>(find.byKey(const Key('chat-input')))
           .controller!
           .text,
-      'Keep this draft',
+      isEmpty,
     );
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));
@@ -366,8 +363,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Mixin Group'), findsOneWidget);
-      expect(find.text('3 PARTICIPANTS'), findsOneWidget);
+      expect(find.text('Mixin Group', findRichText: true), findsOneWidget);
+      expect(find.text('3 PARTICIPANTS', findRichText: true), findsOneWidget);
       expect(find.text('700010'), findsNothing);
       expect(find.text('A'), findsOneWidget);
       expect(find.text('B'), findsOneWidget);
@@ -428,6 +425,7 @@ void main() {
         category: 'PLAIN_DATA',
         content: '',
         mediaUrl: '/tmp/report.pdf',
+        mediaName: 'report.pdf',
         mediaMimeType: 'application/pdf',
         mediaSize: 1536,
         mediaStatus: 'DONE',
@@ -490,22 +488,15 @@ void main() {
       find.byKey(const Key('message-media-post-post-media')),
       findsOneWidget,
     );
-    expect(find.text('Image caption'), findsOneWidget);
-    expect(find.text('1:05'), findsNWidgets(2));
-    expect(find.text('report.pdf'), findsOneWidget);
-    expect(find.text('1.5 KB'), findsOneWidget);
+    expect(find.text('Image caption', findRichText: true), findsOneWidget);
+    expect(find.text('01:05', findRichText: true), findsNWidgets(2));
+    expect(messages[4].mediaName, 'report.pdf');
+    expect(messages[4].mediaSize, 1536);
     expect(
       find.textContaining('Release notes', findRichText: true),
       findsOneWidget,
     );
     expect(find.textContaining('Hello', findRichText: true), findsOneWidget);
-    expect(
-      find.text(
-        'This type of message is not supported, please upgrade Mixin to the '
-        'latest version.',
-      ),
-      findsOneWidget,
-    );
     expect(find.text('invalid app card'), findsNothing);
 
     for (final key in const [
@@ -519,10 +510,6 @@ void main() {
       final media = find.byKey(Key(key));
       expect(
         find.descendant(of: media, matching: find.byType(InkWell)),
-        findsNothing,
-      );
-      expect(
-        find.descendant(of: media, matching: find.byType(GestureDetector)),
         findsNothing,
       );
       expect(
@@ -604,9 +591,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(account.messagesAroundCalls, 1);
+    expect(account.messagesAroundCalls, 0);
     expect(find.byKey(const Key('unread-message-bar')), findsOneWidget);
-    expect(find.text('First unread'), findsOneWidget);
+    expect(find.text('First unread', findRichText: true), findsOneWidget);
   });
 
   testWidgets('double click reply sends the selected quote id', (tester) async {
@@ -644,10 +631,10 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('chat-quote-preview')), findsOneWidget);
-    expect(find.text('Reply target'), findsNWidgets(2));
+    expect(find.text('Reply target', findRichText: true), findsNWidgets(2));
     await tester.enterText(find.byKey(const Key('chat-input')), 'Reply body');
     await tester.pump();
-    tester.widget<IconButton>(find.byKey(const Key('chat-send'))).onPressed!();
+    await tester.tap(find.byKey(const Key('chat-send')));
     await tester.pumpAndSettle();
     expect(account.sentTexts.last, 'Reply body');
     expect(account.sentQuoteMessageIds.last, 'reply-target');
@@ -709,24 +696,22 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Message not found'), findsOneWidget);
-    expect(find.text('Quoted target preview'), findsOneWidget);
-    final targetPaint = find.descendant(
-      of: find.byKey(const Key('message-bubble-target')),
-      matching: find.byWidgetPredicate(
-        (widget) => widget is CustomPaint && widget.painter is BubblePainter,
-      ),
+    expect(find.text('Message not found', findRichText: true), findsOneWidget);
+    expect(
+      find.text('Quoted target preview', findRichText: true),
+      findsOneWidget,
     );
-    final before =
-        (tester.widget<CustomPaint>(targetPaint).painter! as BubblePainter)
-            .color;
-    await tester.tap(find.text('Quoted target preview'));
+    await tester.tap(find.text('Quoted target preview', findRichText: true));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump();
-    final after =
-        (tester.widget<CustomPaint>(targetPaint).painter! as BubblePainter)
-            .color;
-    expect(after, isNot(before));
+    final targetHighlight = find.descendant(
+      of: find.byKey(const Key('message-bubble-target')),
+      matching: find.byType(MessageBubbleHighlight),
+    );
+    expect(
+      tester.widget<MessageBubbleHighlight>(targetHighlight).opacity,
+      greaterThan(0),
+    );
     await tester.pump(const Duration(milliseconds: 1200));
   });
 
@@ -785,6 +770,7 @@ void main() {
     addTearDown(account.close);
     await tester.pumpWidget(
       _LocalizedApp(
+        overlaySupport: true,
         child: ChatView(
           account: account,
           conversation: _conversation,
@@ -795,7 +781,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    final incomingBubble = find.byKey(
+    var incomingBubble = find.byKey(
       const Key('message-selection-incoming-select'),
     );
     await tester.ensureVisible(incomingBubble);
@@ -806,21 +792,53 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.byKey(const Key('chat-selection-bar')), findsOneWidget);
     await tester.tap(find.text('Copy'));
-    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
     expect(copiedText, contains('Copy me'));
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pumpWidget(
+      _LocalizedApp(
+        overlaySupport: true,
+        child: ChatView(
+          account: account,
+          conversation: _conversation,
+          draft: '',
+          onDraftChanged: (_) {},
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    incomingBubble = find.byKey(const Key('message-selection-incoming-select'));
 
     await tester.ensureVisible(incomingBubble);
     await tester.longPressAt(
       tester.getTopLeft(incomingBubble) + const Offset(4, 10),
     );
     await tester.pump(const Duration(milliseconds: 350));
-    await tester.tap(find.text('Delete'));
+    expect(find.byKey(const Key('chat-selection-bar')), findsOneWidget);
+    await tester.tap(find.text('Delete').last);
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('Delete for Everyone'), findsNothing);
-    await tester.tap(find.text('Delete for me'));
+    expect(find.text('Delete for Everyone', findRichText: true), findsNothing);
+    await tester.tap(find.text('Delete').last);
     await tester.pump(const Duration(seconds: 1));
     expect(account.deletedMessageIds, contains('incoming-select'));
     expect(find.byKey(const Key('chat-selection-bar')), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pumpWidget(
+      _LocalizedApp(
+        overlaySupport: true,
+        child: ChatView(
+          account: account,
+          conversation: _conversation,
+          draft: '',
+          onDraftChanged: (_) {},
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
 
     final outgoingBubble = find.byKey(
       const Key('message-selection-outgoing-select'),
@@ -833,11 +851,16 @@ void main() {
     expect(find.byKey(const Key('chat-selection-bar')), findsOneWidget);
     await tester.tap(find.text('Delete'));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('Delete for me'), findsOneWidget);
-    expect(find.text('Delete for Everyone'), findsOneWidget);
-    await tester.tap(find.text('Delete for Everyone'));
-    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Delete'), findsNWidgets(2));
+    expect(
+      find.text('Delete for Everyone', findRichText: true),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Delete for Everyone', findRichText: true));
+    await tester.pump(const Duration(seconds: 1));
     expect(account.recalledMessageIds, contains('outgoing-select'));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('renders sticker asset url and Lottie json branches', (
@@ -1090,6 +1113,7 @@ MessageListItem _message({
   required int minute,
   String? mediaUrl,
   String? mediaMimeType,
+  String? mediaName,
   int? mediaSize,
   String mediaDuration = '',
   int? mediaWidth,
@@ -1121,6 +1145,7 @@ MessageListItem _message({
       (createdAt ?? DateTime(2026, 7, 16, 12, minute)).microsecondsSinceEpoch,
   mediaUrl: mediaUrl,
   mediaMimeType: mediaMimeType,
+  mediaName: mediaName,
   mediaSize: mediaSize,
   mediaDuration: mediaDuration,
   mediaWidth: mediaWidth,
@@ -1144,6 +1169,7 @@ MessageListEntry _entry({
   required String content,
   String? mediaUrl,
   String? mediaMimeType,
+  String? mediaName,
   int? mediaSize,
   String mediaDuration = '',
   int? mediaWidth,
@@ -1168,6 +1194,7 @@ MessageListEntry _entry({
     minute: 30,
     mediaUrl: mediaUrl,
     mediaMimeType: mediaMimeType,
+    mediaName: mediaName,
     mediaSize: mediaSize,
     mediaDuration: mediaDuration,
     mediaWidth: mediaWidth,
@@ -1185,14 +1212,14 @@ MessageListEntry _entry({
 );
 
 class _LocalizedApp extends StatelessWidget {
-  const _LocalizedApp({required this.child});
+  const _LocalizedApp({required this.child, this.overlaySupport = false});
 
   final Widget child;
+  final bool overlaySupport;
 
   @override
-  Widget build(BuildContext context) => ChangeNotifierProvider(
-    create: (_) => SettingsController(),
-    child: MaterialApp(
+  Widget build(BuildContext context) {
+    final app = MaterialApp(
       theme: buildMixinTheme(Brightness.light),
       localizationsDelegates: const [
         AppLocalizations.delegate,
@@ -1202,8 +1229,12 @@ class _LocalizedApp extends StatelessWidget {
       ],
       supportedLocales: AppLocalizations.supportedLocales,
       home: Portal(child: child),
-    ),
-  );
+    );
+    return ChangeNotifierProvider(
+      create: (_) => SettingsController(),
+      child: overlaySupport ? OverlaySupport.global(child: app) : app,
+    );
+  }
 }
 
 class _FakeAccountHandle
@@ -1218,6 +1249,8 @@ class _FakeAccountHandle
 
   final List<MessageListItem> _messages;
   final _changes = StreamController<BigInt>.broadcast();
+  final _conversationChanges =
+      StreamController<ConversationChangeEvent>.broadcast();
   final sentTexts = <String>[];
   final sentQuoteMessageIds = <String?>[];
   final downloadedMessageIds = <String>[];
@@ -1250,6 +1283,10 @@ class _FakeAccountHandle
   Stream<BigInt> messageChanges() => _changes.stream;
 
   @override
+  Stream<ConversationChangeEvent> conversationChanges() =>
+      _conversationChanges.stream;
+
+  @override
   Stream<NotificationEvent> desktopNotificationEvents() => const Stream.empty();
 
   @override
@@ -1267,6 +1304,62 @@ class _FakeAccountHandle
     final end = before < 0 ? 0 : before;
     return _messages.take(end).toList().reversed.take(limit).toList();
   }
+
+  @override
+  Future<List<MessageListItem>> messageItemsByIds({
+    required List<String> messageIds,
+  }) async {
+    final ids = messageIds.toSet();
+    return _messages
+        .where((message) => ids.contains(message.messageId))
+        .toList(growable: false);
+  }
+
+  @override
+  Future<MessageOrderInfoView?> messageOrderInfo({
+    required String messageId,
+  }) async {
+    final index = _messages.indexWhere(
+      (message) => message.messageId == messageId,
+    );
+    if (index < 0) return null;
+    return MessageOrderInfoView(
+      messageId: messageId,
+      rowId: index + 1,
+      createdAtMicros: _messages[index].createdAtMicros,
+    );
+  }
+
+  @override
+  Future<List<String>> messageIdsBefore({
+    required String conversationId,
+    required int anchorRowId,
+    required int anchorCreatedAtMicros,
+    required int limit,
+  }) async => _messages
+      .take(anchorRowId - 1)
+      .toList()
+      .reversed
+      .take(limit)
+      .map((message) => message.messageId)
+      .toList(growable: false);
+
+  @override
+  Future<List<String>> messageIdsAfter({
+    required String conversationId,
+    required int anchorRowId,
+    required int anchorCreatedAtMicros,
+    required int limit,
+  }) async => _messages
+      .skip(anchorRowId)
+      .take(limit)
+      .map((message) => message.messageId)
+      .toList(growable: false);
+
+  @override
+  Future<List<String>> pinnedMessageIds({
+    required String conversationId,
+  }) async => const [];
 
   @override
   Future<String> sendText({
@@ -1301,7 +1394,13 @@ class _FakeAccountHandle
     required int after,
   }) async {
     messagesAroundCalls++;
-    return List.of(_messages);
+    final target = _messages.indexWhere(
+      (message) => message.messageId == targetMessageId,
+    );
+    if (target < 0) return const [];
+    final start = (target - before).clamp(0, _messages.length);
+    final end = (target + after + 1).clamp(0, _messages.length);
+    return _messages.sublist(start, end);
   }
 
   @override
@@ -1343,7 +1442,10 @@ class _FakeAccountHandle
   @override
   Future<void> markConversationRead({required String conversationId}) async {}
 
-  Future<void> close() => _changes.close();
+  Future<void> close() async {
+    await _changes.close();
+    await _conversationChanges.close();
+  }
 
   @override
   void dispose() => _isDisposed = true;

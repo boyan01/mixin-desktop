@@ -398,6 +398,12 @@ pub struct MessageListView {
     pub expire_in: Option<i64>,
 }
 
+pub struct MessageOrderInfoView {
+    pub message_id: String,
+    pub row_id: i64,
+    pub created_at_micros: i64,
+}
+
 pub struct NotificationEvent {
     pub message_id: String,
     pub conversation_id: String,

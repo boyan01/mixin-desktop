@@ -185,6 +185,26 @@ abstract class MessageAccess implements RustOpaqueInterface {
     required String messageId,
   });
 
+  Future<List<String>> messageIdsAfter({
+    required String conversationId,
+    required PlatformInt64 anchorRowId,
+    required PlatformInt64 anchorCreatedAtMicros,
+    required PlatformInt64 limit,
+  });
+
+  Future<List<String>> messageIdsBefore({
+    required String conversationId,
+    required PlatformInt64 anchorRowId,
+    required PlatformInt64 anchorCreatedAtMicros,
+    required PlatformInt64 limit,
+  });
+
+  Future<List<MessageListView>> messageItemsByIds({
+    required List<String> messageIds,
+  });
+
+  Future<MessageOrderInfoView?> messageOrderInfo({required String messageId});
+
   Future<List<MessageListView>> messages({
     required String conversationId,
     PlatformInt64? beforeCreatedAtMicros,
@@ -202,6 +222,8 @@ abstract class MessageAccess implements RustOpaqueInterface {
   Future<PinMessagePreviewItem?> pinMessagePreview({
     required String conversationId,
   });
+
+  Future<List<String>> pinnedMessageIds({required String conversationId});
 
   Future<List<MessageListView>> pinnedMessages({
     required String conversationId,

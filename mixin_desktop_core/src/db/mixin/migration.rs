@@ -508,7 +508,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn upgrades_flutter_v1_database_to_v28() {
+    async fn upgrades_flutter_v1_database_to_current_version() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("mixin.db");
         let pool = SqlitePoolOptions::new()
@@ -556,7 +556,6 @@ mod tests {
         .fetch_one(&database.user_dao.0)
         .await
         .unwrap();
-
         assert_eq!(version, SCHEMA_VERSION);
         assert_eq!(membership, None);
         assert_eq!(migration_job, 1);
