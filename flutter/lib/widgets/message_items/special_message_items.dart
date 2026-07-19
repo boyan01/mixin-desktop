@@ -272,107 +272,99 @@ class _QuoteMessageBase extends StatelessWidget {
           key: const Key('quote-message-preview'),
           constraints: const BoxConstraints(minHeight: 50),
           color: const Color.fromRGBO(0, 0, 0, 0.04),
-          child: IntrinsicHeight(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Flexible(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        key: const Key('quote-message-accent'),
-                        width: 6,
-                        color: color,
-                      ),
-                      Flexible(
-                        child: Padding(
-                          padding: const EdgeInsets.only(
-                            top: 6,
-                            left: 6,
-                            bottom: 6,
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              if (sender != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 4),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      CustomText(
-                                        sender!,
-                                        maxLines: 1,
-                                        style: TextStyle(
-                                          color: color,
-                                          fontSize: context
-                                              .messageStyle
-                                              .secondaryFontSize,
-                                          height: 1,
-                                        ),
-                                      ),
-                                      BadgesWidget(
-                                        verified: false,
-                                        isBot: false,
-                                        membership: membership,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (icon != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(right: 4),
-                                      child: icon,
-                                    ),
-                                  Flexible(
-                                    child: CustomText(
-                                      preview,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      key: const Key('quote-message-accent'),
+                      width: 6,
+                      color: color,
+                    ),
+                    Flexible(
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          top: 6,
+                          left: 6,
+                          bottom: 6,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            if (sender != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CustomText(
+                                      sender!,
                                       maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        color: context.theme.secondaryText,
+                                        color: color,
                                         fontSize: context
                                             .messageStyle
-                                            .tertiaryFontSize,
+                                            .secondaryFontSize,
+                                        height: 1,
                                       ),
                                     ),
-                                  ),
-                                ],
+                                    BadgesWidget(
+                                      verified: false,
+                                      isBot: false,
+                                      membership: membership,
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (image != null)
-                  Align(
-                    alignment: Alignment.center,
-                    child: SizedBox.square(
-                      key: const Key('quote-message-image'),
-                      dimension: 48,
-                      child: RepaintBoundary(
-                        child: ClipRRect(
-                          borderRadius: const BorderRadius.all(
-                            Radius.circular(6),
-                          ),
-                          child: image,
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (icon != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 4),
+                                    child: icon,
+                                  ),
+                                Flexible(
+                                  child: CustomText(
+                                    preview,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: context.theme.secondaryText,
+                                      fontSize:
+                                          context.messageStyle.tertiaryFontSize,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (image != null)
+                SizedBox(
+                  key: const Key('quote-message-image'),
+                  width: 48,
+                  height: 48,
+                  child: RepaintBoundary(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.all(Radius.circular(6)),
+                      child: image,
+                    ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
@@ -2152,7 +2144,7 @@ class _QuoteData {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       return _QuoteData(
         senderId: _nonEmpty(json['user_id']),
-        sender: _nonEmpty(json['user_full_name']),
+        sender: json['user_full_name']?.toString(),
         category: json['type']?.toString() ?? '',
         content: json['content']?.toString() ?? '',
         mediaName: _nonEmpty(json['media_name']),

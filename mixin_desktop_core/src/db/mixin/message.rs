@@ -344,7 +344,6 @@ impl sqlx::Type<Sqlite> for MediaStatus {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, sqlx::FromRow)]
-#[serde(rename_all = "camelCase")]
 #[sqlx(rename_all = "camelCase")]
 pub struct QuoteMessage {
     pub message_id: String,
@@ -357,6 +356,7 @@ pub struct QuoteMessage {
     #[sqlx(rename = "type")]
     pub category: String,
     pub content: Option<String>,
+    #[serde(rename = "createdAt")]
     #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
     pub status: MessageStatus,
@@ -3465,7 +3465,14 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(reply.quote_content.unwrap().contains("quoted"));
+        let quote: serde_json::Value =
+            serde_json::from_str(reply.quote_content.as_deref().unwrap()).unwrap();
+        assert_eq!(quote["message_id"], "quoted");
+        assert_eq!(quote["user_id"], "sender");
+        assert_eq!(quote["user_full_name"], "Sender");
+        assert!(quote.get("createdAt").is_some());
+        assert!(quote.get("messageId").is_none());
+        assert!(quote.get("userFullName").is_none());
     }
 
     #[tokio::test]

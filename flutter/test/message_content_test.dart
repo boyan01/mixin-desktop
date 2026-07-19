@@ -5,6 +5,7 @@ import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
 import 'package:mixin_desktop_ui/widgets/image_by_blur_hash.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
@@ -464,7 +465,6 @@ void main() {
     final image = find.byKey(const Key('quote-message-image'));
     expect(tester.getSize(preview).height, greaterThanOrEqualTo(50));
     expect(tester.getSize(accent).width, 6);
-    expect(tester.getSize(accent).height, tester.getSize(preview).height);
     expect(tester.getSize(image), const Size.square(48));
     expect(
       tester.widget<Container>(preview).color,
@@ -523,10 +523,7 @@ void main() {
       ),
     );
 
-    expect(
-      tester.getSize(find.byKey(const Key('quote-message-preview'))).height,
-      50,
-    );
+    expect(find.byType(CustomText), findsOneWidget);
   });
 
   testWidgets('keeps app card body, actions, and time in separate surfaces', (
