@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::Utc;
+use mixin_desktop_core::runtime::desktop::DesktopRuntime;
 use mixin_desktop_core::runtime::model::{
     AccountProfile, ConversationChangeEvent, ConversationStorageUsage, NotificationEvent,
     SnapshotDetailItem, StorageCategoryUsage,
@@ -15,13 +16,12 @@ use crate::frb_generated::StreamSink;
 #[flutter_rust_bridge::frb(opaque)]
 pub struct AccountHandle {
     runtime: Arc<AccountRuntime>,
+    desktop: Arc<DesktopRuntime>,
 }
 
 impl AccountHandle {
-    pub(super) fn new(runtime: AccountRuntime) -> Self {
-        Self {
-            runtime: Arc::new(runtime),
-        }
+    pub(super) fn new(runtime: Arc<AccountRuntime>, desktop: Arc<DesktopRuntime>) -> Self {
+        Self { runtime, desktop }
     }
 
     #[flutter_rust_bridge::frb(sync)]
@@ -279,11 +279,11 @@ impl AccountHandle {
     }
 
     pub async fn shutdown(&self) {
-        self.runtime.shutdown().await;
+        self.desktop.shutdown_account(&self.runtime).await;
     }
 
     pub async fn sign_out(&self) -> Result<()> {
-        self.runtime.sign_out().await
+        self.desktop.sign_out_account(&self.runtime).await
     }
 }
 

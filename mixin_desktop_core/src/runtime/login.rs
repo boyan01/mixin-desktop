@@ -5,10 +5,9 @@ use anyhow::Result;
 use tokio::sync::{watch, Mutex};
 
 use crate::core::model::auth::{AuthService, AuthorizationSession};
-use crate::db::app::PropertyDao;
+use crate::db::app::{Auth, PropertyDao};
 
 use super::desktop::record_current_device;
-use super::AccountRuntime;
 
 pub struct LoginRuntime {
     auth_service: Arc<AuthService>,
@@ -43,7 +42,7 @@ impl LoginRuntime {
         self.cancelled.send_replace(true);
     }
 
-    pub async fn wait(&self) -> Result<AccountRuntime> {
+    pub(super) async fn wait_authorization(&self) -> Result<Auth> {
         let mut session = self.session.lock().await;
         let active_session = session
             .take()
@@ -63,9 +62,7 @@ impl LoginRuntime {
         };
         let auth = self.auth_service.complete_authorization(result).await?;
         record_current_device(&self.property_dao).await?;
-        AccountRuntime::start(auth, self.auth_service.clone())
-            .await
-            .map_err(|error| anyhow::anyhow!("login_provisioning_error:{error}"))
+        Ok(auth)
     }
 }
 

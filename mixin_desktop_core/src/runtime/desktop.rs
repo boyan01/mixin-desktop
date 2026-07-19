@@ -5,8 +5,9 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use chrono::Local;
-use log::warn;
+use log::{info, warn};
 use sdk::Client;
+use tokio::sync::Mutex;
 
 use crate::core::model::auth::AuthService;
 use crate::db::app::{AppDatabase, PropertyDao};
@@ -24,6 +25,7 @@ pub struct DesktopRuntime {
     auth_service: Arc<AuthService>,
     network_service: SharedNetworkService,
     property_dao: PropertyDao,
+    account: Mutex<Option<Arc<AccountRuntime>>>,
 }
 
 impl DesktopRuntime {
@@ -36,6 +38,7 @@ impl DesktopRuntime {
             auth_service,
             network_service,
             property_dao: database.property_dao.clone(),
+            account: Mutex::new(None),
         })
     }
 
@@ -68,7 +71,19 @@ impl DesktopRuntime {
             .await
     }
 
-    pub async fn restore_account(&self) -> Result<Option<AccountRuntime>> {
+    pub async fn restore_account(&self) -> Result<Option<Arc<AccountRuntime>>> {
+        let mut active = self.account.lock().await;
+        if let Some(runtime) = active.as_ref() {
+            if runtime.is_running() {
+                info!(
+                    "reusing active account runtime for {}",
+                    runtime.account_id()
+                );
+                return Ok(Some(runtime.clone()));
+            }
+            let runtime = active.take().unwrap();
+            runtime.shutdown().await;
+        }
         let Some(auth) = self.auth_service.get_auth() else {
             return Ok(None);
         };
@@ -96,7 +111,12 @@ impl DesktopRuntime {
         }
         let user_id = auth.account.user_id.clone();
         match AccountRuntime::start(auth, self.auth_service.clone()).await {
-            Ok(runtime) => Ok(Some(runtime)),
+            Ok(runtime) => {
+                let runtime = Arc::new(runtime);
+                info!("started account runtime for {}", runtime.account_id());
+                *active = Some(runtime.clone());
+                Ok(Some(runtime))
+            }
             Err(error) if error.downcast_ref::<SessionUnauthorized>().is_some() => {
                 warn!("saved session is unauthorized; requiring login");
                 self.auth_service.clear_auth(&user_id).await?;
@@ -107,6 +127,7 @@ impl DesktopRuntime {
     }
 
     pub async fn recreate_account_database(&self) -> Result<()> {
+        self.shutdown_active_account().await;
         let auth = self
             .auth_service
             .get_auth()
@@ -142,7 +163,63 @@ impl DesktopRuntime {
     }
 
     pub async fn begin_login(&self) -> Result<LoginRuntime> {
+        if self.account.lock().await.is_some() {
+            return Err(anyhow!("account runtime already active"));
+        }
         LoginRuntime::start(self.auth_service.clone(), self.property_dao.clone()).await
+    }
+
+    pub async fn wait_login(&self, login: &LoginRuntime) -> Result<Arc<AccountRuntime>> {
+        let auth = login.wait_authorization().await?;
+        let mut active = self.account.lock().await;
+        if let Some(runtime) = active.as_ref() {
+            if runtime.is_running() && runtime.account_id() == auth.account.user_id {
+                return Ok(runtime.clone());
+            }
+            let runtime = active.take().unwrap();
+            runtime.shutdown().await;
+        }
+        let runtime = Arc::new(
+            AccountRuntime::start(auth, self.auth_service.clone())
+                .await
+                .map_err(|error| anyhow!("login_provisioning_error:{error}"))?,
+        );
+        *active = Some(runtime.clone());
+        Ok(runtime)
+    }
+
+    pub async fn shutdown_account(&self, runtime: &Arc<AccountRuntime>) {
+        let mut active = self.account.lock().await;
+        if active
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, runtime))
+        {
+            active.take();
+        }
+        runtime.shutdown().await;
+    }
+
+    pub async fn sign_out_account(&self, runtime: &Arc<AccountRuntime>) -> Result<()> {
+        let mut active = self.account.lock().await;
+        if !active
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, runtime))
+        {
+            return Err(anyhow!("account runtime is no longer active"));
+        }
+        let result = runtime.sign_out().await;
+        active.take();
+        if result.is_err() {
+            runtime.shutdown().await;
+        }
+        result
+    }
+
+    async fn shutdown_active_account(&self) {
+        let mut active = self.account.lock().await;
+        if let Some(runtime) = active.take() {
+            runtime.shutdown().await;
+        }
     }
 }
 

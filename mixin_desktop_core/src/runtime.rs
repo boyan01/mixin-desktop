@@ -172,6 +172,16 @@ pub struct StickerDetail {
 }
 
 impl AccountRuntime {
+    pub fn is_running(&self) -> bool {
+        self.active.load(Ordering::Acquire)
+            && self
+                .thread
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .as_ref()
+                .is_some_and(|thread| !thread.is_finished())
+    }
+
     pub fn attachment_progress(&self, message_id: &str) -> f64 {
         self.attachment_progresses
             .lock()

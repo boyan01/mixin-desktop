@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use mixin_desktop_core::network::{ProxyConfig, ProxySettings, ProxyType};
 use mixin_desktop_core::runtime::desktop::DesktopRuntime;
+use tokio::sync::OnceCell;
 
 use super::account::AccountHandle;
 use super::login::LoginHandle;
@@ -12,6 +13,8 @@ use super::login::LoginHandle;
 pub struct DesktopHandle {
     runtime: Arc<DesktopRuntime>,
 }
+
+static DESKTOP_RUNTIME: OnceCell<Arc<DesktopRuntime>> = OnceCell::const_new();
 
 pub struct ProxyItem {
     pub id: String,
@@ -97,8 +100,13 @@ impl TryFrom<ProxySettingsItem> for ProxySettings {
 }
 
 pub async fn open_desktop() -> Result<DesktopHandle> {
+    let runtime = DESKTOP_RUNTIME
+        .get_or_try_init(|| async {
+            Ok::<_, anyhow::Error>(Arc::new(DesktopRuntime::open().await?))
+        })
+        .await?;
     Ok(DesktopHandle {
-        runtime: Arc::new(DesktopRuntime::open().await?),
+        runtime: runtime.clone(),
     })
 }
 
@@ -143,7 +151,7 @@ impl DesktopHandle {
             .runtime
             .restore_account()
             .await?
-            .map(AccountHandle::new))
+            .map(|account| AccountHandle::new(account, self.runtime.clone())))
     }
 
     pub async fn recreate_account_database(&self) -> Result<()> {
@@ -155,6 +163,9 @@ impl DesktopHandle {
     }
 
     pub async fn begin_login(&self) -> Result<LoginHandle> {
-        Ok(LoginHandle::new(self.runtime.begin_login().await?))
+        Ok(LoginHandle::new(
+            self.runtime.begin_login().await?,
+            self.runtime.clone(),
+        ))
     }
 }
