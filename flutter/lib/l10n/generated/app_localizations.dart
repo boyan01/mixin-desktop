@@ -105,9 +105,9 @@ abstract class AppLocalizations {
     Locale('ja'),
     Locale('ms'),
     Locale('ru'),
+    Locale('zh'),
     Locale('zh', 'HK'),
     Locale('zh', 'TW'),
-    Locale('zh'),
   ];
 
   /// No description provided for @aMessage.

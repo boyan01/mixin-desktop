@@ -36,8 +36,6 @@ class MixinDesktopApp extends StatelessWidget {
 
   final String? initialProtocolUrl;
 
-  static const supportedLocales = AppLocalizations.supportedLocales;
-
   @override
   Widget build(BuildContext context) {
     precacheImage(const AssetImage(MixinAssets.chatBackground), context);
@@ -58,7 +56,7 @@ class MixinDesktopApp extends StatelessWidget {
               GlobalWidgetsLocalizations.delegate,
               GlobalCupertinoLocalizations.delegate,
             ],
-            supportedLocales: supportedLocales,
+            supportedLocales: AppLocalizations.supportedLocales,
             builder: (context, child) {
               Intl.defaultLocale = Intl.canonicalizedLocale(
                 Localizations.localeOf(context).toString(),

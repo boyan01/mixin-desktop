@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mixin_desktop_ui/app.dart';
+import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 
 void main() {
   test('uses simplified Chinese for a zh-Hans system locale', () {
@@ -10,7 +10,7 @@ void main() {
         scriptCode: 'Hans',
         countryCode: 'CN',
       ),
-    ], MixinDesktopApp.supportedLocales);
+    ], AppLocalizations.supportedLocales);
 
     expect(locale, const Locale('zh'));
   });
