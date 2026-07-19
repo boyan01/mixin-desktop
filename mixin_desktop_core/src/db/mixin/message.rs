@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use anyhow::Context;
+use base64ct::{Base64, Encoding};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{Executor, QueryBuilder, Sqlite};
@@ -53,6 +54,24 @@ pub struct Message {
     pub quote_content: Option<String>,
     pub thumb_url: Option<String>,
     pub caption: Option<String>,
+}
+
+fn encode_attachment_material(value: &Option<Vec<u8>>) -> Option<String> {
+    value.as_deref().map(Base64::encode_string)
+}
+
+fn decode_attachment_material(value: Option<Vec<u8>>) -> Option<Vec<u8>> {
+    let value = value?;
+    let Ok(encoded) = std::str::from_utf8(&value) else {
+        return Some(value);
+    };
+    Base64::decode_vec(encoded).ok().or(Some(value))
+}
+
+fn decode_message_attachment_material(mut message: Message) -> Message {
+    message.media_key = decode_attachment_material(message.media_key);
+    message.media_digest = decode_attachment_material(message.media_digest);
+    message
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -1206,7 +1225,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
             .bind(message_id)
             .fetch_optional(&self.0)
             .await?;
-        Ok(result)
+        Ok(result.map(decode_message_attachment_material))
     }
 
     pub async fn conversation_id_by_message_id(
@@ -1235,7 +1254,9 @@ ORDER BY message.created_at ASC, message.message_id ASC
                 sqlx::query_as::<_, Message>(sqlx::AssertSqlSafe(query))
                     .bind_list(chunk)
                     .fetch_all(&self.0)
-                    .await?,
+                    .await?
+                    .into_iter()
+                    .map(decode_message_attachment_material),
             );
         }
         Ok(messages)
@@ -1438,8 +1459,8 @@ ORDER BY message.created_at ASC, message.message_id ASC
         .bind(&update.media_status)
         .bind(update.media_width)
         .bind(update.media_height)
-        .bind(&update.media_digest)
-        .bind(&update.media_key)
+        .bind(encode_attachment_material(&update.media_digest))
+        .bind(encode_attachment_material(&update.media_key))
         .bind(&update.media_waveform)
         .bind(&update.caption)
         .bind(&update.name)
@@ -1474,8 +1495,8 @@ ORDER BY message.created_at ASC, message.message_id ASC
         .bind(&update.media_status)
         .bind(update.media_width)
         .bind(update.media_height)
-        .bind(&update.media_digest)
-        .bind(&update.media_key)
+        .bind(encode_attachment_material(&update.media_digest))
+        .bind(encode_attachment_material(&update.media_key))
         .bind(&update.media_waveform)
         .bind(&update.caption)
         .bind(&update.name)
@@ -1513,8 +1534,8 @@ ORDER BY message.created_at ASC, message.message_id ASC
         .bind(&update.media_status)
         .bind(update.media_width)
         .bind(update.media_height)
-        .bind(&update.media_digest)
-        .bind(&update.media_key)
+        .bind(encode_attachment_material(&update.media_digest))
+        .bind(encode_attachment_material(&update.media_key))
         .bind(&update.media_waveform)
         .bind(&update.caption)
         .bind(&update.name)
@@ -1725,7 +1746,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
         .bind(MessageStatus::Sending)
         .fetch_optional(&self.0)
         .await?;
-        Ok(message)
+        Ok(message.map(decode_message_attachment_material))
     }
 
     pub async fn update_message_category(
@@ -2218,8 +2239,8 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
     .bind(message.media_height)
     .bind(&message.media_hash)
     .bind(&message.thumb_image)
-    .bind(&message.media_key)
-    .bind(&message.media_digest)
+    .bind(encode_attachment_material(&message.media_key))
+    .bind(encode_attachment_material(&message.media_digest))
     .bind(&message.media_status)
     .bind(message.status)
     .bind(message.created_at.and_utc().timestamp_millis())
@@ -2280,6 +2301,41 @@ mod tests {
             created_at: Utc::now().naive_utc(),
             ..Message::default()
         }
+    }
+
+    #[tokio::test]
+    async fn stores_attachment_material_as_base64_and_decodes_on_read() {
+        let (_directory, database) = test_database().await;
+        let message = Message {
+            media_key: Some((0_u8..64).collect()),
+            media_digest: Some((0_u8..32).collect()),
+            ..message("attachment")
+        };
+        database.message_dao.insert_message(&message).await.unwrap();
+
+        let stored: (String, String) = sqlx::query_as(
+            "SELECT media_key, media_digest FROM messages WHERE message_id = 'attachment'",
+        )
+        .fetch_one(&database.message_dao.0)
+        .await
+        .unwrap();
+        assert_eq!(
+            stored.0,
+            Base64::encode_string(message.media_key.as_deref().unwrap())
+        );
+        assert_eq!(
+            stored.1,
+            Base64::encode_string(message.media_digest.as_deref().unwrap())
+        );
+
+        let loaded = database
+            .message_dao
+            .find_message_by_id(&message.message_id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded.media_key, message.media_key);
+        assert_eq!(loaded.media_digest, message.media_digest);
     }
 
     #[tokio::test]
