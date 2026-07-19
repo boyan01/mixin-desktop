@@ -1128,7 +1128,11 @@ class _ChatHeader extends StatelessWidget {
               child: Text(context.l10n.cancel),
             )
           else ...[
-            _HeaderAction(asset: MixinAssets.chatSearch, onPressed: onSearch),
+            _HeaderAction(
+              key: const Key('chat-search'),
+              asset: MixinAssets.chatSearch,
+              onPressed: onSearch,
+            ),
             AnimatedSize(
               duration: const Duration(milliseconds: 200),
               alignment: Alignment.centerLeft,

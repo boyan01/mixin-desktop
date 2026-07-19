@@ -8,6 +8,7 @@ import 'package:mixin_desktop_ui/controllers/app_controller.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/pages/home_page.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/chat_info_page.dart';
+import 'package:mixin_desktop_ui/pages/chat_side/search_message_page.dart';
 import 'package:mixin_desktop_ui/pages/settings_page.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 import 'package:mixin_desktop_ui/theme.dart';
@@ -143,6 +144,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ChatInfoPage), findsNothing);
     expect(find.byType(ChatView), findsOneWidget);
+  });
+
+  testWidgets('opens chat history search from the chat header', (tester) async {
+    await _pumpHome(tester, size: const Size(1300, 700));
+
+    await tester.tap(find.text('Mixin Team'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('chat-search')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SearchMessagePage), findsOneWidget);
   });
 
   testWidgets('shows cached shared apps while the refresh is pending', (

@@ -1653,6 +1653,9 @@ class _ChatWithSide extends StatelessWidget {
                   );
                 },
                 onBack: onBack,
+                onSearch: () => notifier.toggleDestination(
+                  ConversationInfoDestination.searchMessageHistory,
+                ),
                 onInfo: notifier.toggleInfoPage,
                 onOpenPinnedMessages: () => notifier.toggleDestination(
                   ConversationInfoDestination.pinMessages,
