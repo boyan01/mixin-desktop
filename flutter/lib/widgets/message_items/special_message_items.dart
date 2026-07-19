@@ -2420,7 +2420,7 @@ class _PinData {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       return _PinData(
         _nonEmpty(json['message_id']),
-        json['type']?.toString() ?? '',
+        json['category']?.toString() ?? '',
         json['content']?.toString() ?? '',
       );
     } on Object {

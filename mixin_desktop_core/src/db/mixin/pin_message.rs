@@ -17,10 +17,28 @@ pub struct PinMessage {
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PinMessageMinimal {
-    #[serde(rename = "type")]
+    #[serde(rename = "category")]
     pub category: String,
     pub message_id: String,
     pub content: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PinMessageMinimal;
+
+    #[test]
+    fn pin_message_minimal_uses_flutter_category_key() {
+        let message = PinMessageMinimal {
+            category: "PLAIN_TEXT".to_string(),
+            message_id: "message-id".to_string(),
+            content: Some("hello".to_string()),
+        };
+
+        let json = serde_json::to_value(message).unwrap();
+        assert_eq!(json["category"], "PLAIN_TEXT");
+        assert!(json.get("type").is_none());
+    }
 }
 
 #[derive(Debug, sqlx::FromRow)]
