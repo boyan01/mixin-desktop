@@ -8,7 +8,7 @@ class MessageLayout extends MultiChildRenderObjectWidget {
     required Widget content,
     required Widget dateAndStatus,
     super.key,
-    this.spacing = 0,
+    this.spacing = 0.0,
   }) : super(children: [content, dateAndStatus]);
 
   final double spacing;
@@ -31,7 +31,8 @@ class _RenderMessageLayout extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, MultiChildLayoutParentData>,
         RenderBoxContainerDefaultsMixin<RenderBox, MultiChildLayoutParentData> {
-  _RenderMessageLayout({List<RenderBox>? children, this._spacing = 0}) {
+  _RenderMessageLayout({List<RenderBox>? children, double spacing = 0.0})
+    : _spacing = spacing {
     addAll(children);
   }
 
@@ -98,11 +99,14 @@ class _RenderMessageLayout extends RenderBox
     ChildLayouter layoutChild = ChildLayoutHelper.dryLayoutChild,
   ]) {
     final childConstraints = BoxConstraints(maxWidth: constraints.maxWidth);
+    final widthLimit = constraints.maxWidth;
+
     final contentSize = layoutChild(contentChild, childConstraints);
     final statusSize = layoutChild(statusChild, childConstraints);
-    return constraints.constrain(
-      _calculateSize(constraints.maxWidth, contentSize, statusSize),
-    );
+
+    final size = _calculateSize(widthLimit, contentSize, statusSize);
+
+    return constraints.constrain(size);
   }
 
   Size _calculateSize(
@@ -116,17 +120,17 @@ class _RenderMessageLayout extends RenderBox
         contentSize.width + spacing + statusSize.width,
         contentSize.height + statusSize.height,
       );
-    }
-    if (contentSize.width + spacing + statusSize.width <= widthLimit) {
+    } else if ((contentSize.width + spacing + statusSize.width) <= widthLimit) {
       return Size(
         contentSize.width + spacing + statusSize.width,
         contentSize.height,
       );
+    } else {
+      return Size(
+        contentSize.width,
+        contentSize.height + (lastLineHasSpace ? 0 : statusSize.height),
+      );
     }
-    return Size(
-      contentSize.width,
-      contentSize.height + (lastLineHasSpace ? 0 : statusSize.height),
-    );
   }
 
   double _calculateWidth(
@@ -136,16 +140,19 @@ class _RenderMessageLayout extends RenderBox
   ) {
     if (widthLimit.isInfinite) {
       return contentWidth + spacing + statusWidth;
-    }
-    if (contentWidth + spacing + statusWidth <= widthLimit) {
+    } else if ((contentWidth + spacing + statusWidth) <= widthLimit) {
       return contentWidth + spacing + statusWidth;
+    } else {
+      return contentWidth;
     }
-    return contentWidth;
   }
 
   @override
   void performLayout() {
+    final constraints = this.constraints;
+
     final widthLimit = constraints.maxWidth;
+
     final childConstraints = BoxConstraints(maxWidth: widthLimit);
 
     contentChild.layout(childConstraints, parentUsesSize: true);
@@ -190,9 +197,12 @@ class _RenderMessageLayout extends RenderBox
     if (renderParagraph == null) return false;
 
     final statusX = widthLimit - statusChild.size.width - spacing;
+
+    // Get the last text position.
     final positionForOffset = renderParagraph.getPositionForOffset(
       contentChild.paintBounds.bottomRight,
     );
+
     final boxesForSelection = renderParagraph.getBoxesForSelection(
       TextSelection(
         baseOffset: positionForOffset.offset == 0
@@ -211,12 +221,15 @@ class _RenderMessageLayout extends RenderBox
     if (renderEditable == null) return false;
 
     final statusX = widthLimit - statusChild.size.width - spacing;
+
     final length =
         renderEditable.textSelectionDelegate.textEditingValue.text.length;
+
     final endpointsForSelection = renderEditable.getEndpointsForSelection(
       TextSelection.collapsed(offset: length),
     );
 
+    // RenderEditable._kCaretGap = 1;
     return endpointsForSelection.isNotEmpty &&
         endpointsForSelection.first.point.dx.ceil() +
                 renderEditable.cursorWidth +
@@ -227,17 +240,24 @@ class _RenderMessageLayout extends RenderBox
 
 extension _Finder on RenderObject {
   T? findRenderObject<T>() {
-    if (this is T) return this as T;
+    if (this is T) return this as T?;
     if (this is! RenderObjectWithChildMixin<RenderBox>) return null;
     T? result;
     visitChildren((child) {
       if (result != null) return;
+
       if (child is T) {
-        result = child as T;
+        result = child as T?;
         return;
       }
-      result = child.findRenderObject<T>();
+
+      final findRenderObject = child.findRenderObject<T>();
+      if (findRenderObject != null) {
+        result = findRenderObject;
+        return;
+      }
     });
+
     return result;
   }
 }
