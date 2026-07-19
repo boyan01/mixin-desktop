@@ -8,7 +8,7 @@
 PRODUCT_NAME = Mixin
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.mixinDesktopUi
+PRODUCT_BUNDLE_IDENTIFIER = one.mixin.messenger.desktop
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 Mixin Ltd. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2021 Mixin. All rights reserved.

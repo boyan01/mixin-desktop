@@ -1,11 +1,33 @@
 #include "my_application.h"
 
+#include <limits.h>
+#include <unistd.h>
+
+#include <string>
+
 #include <flutter_linux/flutter_linux.h>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
 #endif
 
 #include "flutter/generated_plugin_registrant.h"
+
+namespace {
+
+constexpr char kIconRelativePath[] =
+    "/data/flutter_assets/assets/images/app_icon.png";
+
+std::string GetIconPath() {
+  char executable_path[PATH_MAX] = {};
+  if (readlink("/proc/self/exe", executable_path, PATH_MAX - 1) == -1) {
+    return "";
+  }
+  std::string icon_path(g_path_get_dirname(executable_path));
+  icon_path.append(kIconRelativePath);
+  return icon_path;
+}
+
+}  // namespace
 
 struct _MyApplication {
   GtkApplication parent_instance;
@@ -24,6 +46,11 @@ static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
+
+  const auto icon_path = GetIconPath();
+  if (!icon_path.empty()) {
+    gtk_window_set_icon_from_file(window, icon_path.c_str(), nullptr);
+  }
 
   // Use a header bar when running in GNOME as this is the common style used
   // by applications and is the setup most users will be using (e.g. Ubuntu
@@ -45,11 +72,11 @@ static void my_application_activate(GApplication* application) {
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "Mixin");
+    gtk_header_bar_set_title(header_bar, "Mixin Messenger");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
-    gtk_window_set_title(window, "Mixin");
+    gtk_window_set_title(window, "Mixin Messenger");
   }
 
   gtk_window_set_default_size(window, 1280, 720);
