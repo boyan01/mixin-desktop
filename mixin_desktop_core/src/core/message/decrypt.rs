@@ -34,6 +34,7 @@ use crate::db::mixin::conversation::ConversationStatus;
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::{AttachmentMessageUpdate, MediaStatus, Message};
+use crate::db::mixin::message_fts::message_fts_content;
 use crate::db::mixin::participant::Participant;
 use crate::db::mixin::pin_message::{PinMessage, PinMessageMinimal};
 use crate::db::mixin::transcript_message::TranscriptMessage;
@@ -66,26 +67,6 @@ struct PreparedTranscript {
 
 const FLOOD_MESSAGE_RETRY_DELAY: Duration = Duration::from_secs(1);
 const FLOOD_MESSAGE_IDLE_CHECK_INTERVAL: Duration = Duration::from_secs(42);
-
-fn message_fts_content(message: &Message) -> Option<String> {
-    if matches!(
-        message.status,
-        MessageStatus::Unknown | MessageStatus::Failed
-    ) {
-        return None;
-    }
-    if message.category.is_text() || message.category.is_post() {
-        return message.content.clone();
-    }
-    if message.category.is_data() || message.category.is_contact() {
-        return message.name.clone();
-    }
-    if message.category.is_app_card() {
-        let card = serde_json::from_str::<sdk::AppCard>(message.content.as_deref()?).ok()?;
-        return Some(format!("{} {}", card.title, card.description));
-    }
-    None
-}
 
 impl ServiceDecryptMessage {
     pub fn new(

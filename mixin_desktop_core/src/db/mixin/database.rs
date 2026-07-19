@@ -67,7 +67,20 @@ impl MixinDatabase {
     pub async fn connect_at(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         let path = path.as_ref();
         crate::db::path::create_parent_directory(path).await?;
+        let fts_path = path.with_file_name("fts.db");
+        crate::db::fts::migrate(&fts_path).await?;
+        let attached_fts_path = fts_path.to_string_lossy().into_owned();
         let pool = SqlitePoolOptions::new()
+            .after_connect(move |connection, _| {
+                let attached_fts_path = attached_fts_path.clone();
+                Box::pin(async move {
+                    sqlx::query("ATTACH DATABASE ? AS fts")
+                        .bind(attached_fts_path)
+                        .execute(connection)
+                        .await?;
+                    Ok(())
+                })
+            })
             .connect_with(
                 SqliteConnectOptions::new()
                     .filename(path)
@@ -77,8 +90,7 @@ impl MixinDatabase {
                     .create_if_missing(true),
             )
             .await?;
-        let migrator = sqlx::migrate!("./src/db/mixin/migrations");
-        migrator.run(&pool).await?;
+        super::migration::migrate(&pool).await?;
         Ok(MixinDatabase {
             user_dao: UserDao(pool.clone()),
             message_dao: MessageDao(pool.clone()),

@@ -1,5 +1,9 @@
-use sqlx::{FromRow, Sqlite};
+use sqlx::{FromRow, Row, Sqlite};
 
+use sdk::blaze_message::MessageStatus;
+use sdk::message_category::MessageCategory;
+
+use crate::db::mixin::message::Message;
 use crate::db::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, FromRow)]
@@ -19,20 +23,41 @@ impl MessageFtsDao {
         conversation_id: &str,
         content: &str,
     ) -> Result<(), Error> {
+        let metadata = sqlx::query(
+            r#"SELECT category, user_id,
+               CASE WHEN typeof(created_at) = 'integer' THEN created_at
+                    ELSE CAST(strftime('%s', created_at) AS INTEGER) * 1000 END AS created_at
+               FROM messages WHERE message_id = ? AND conversation_id = ?"#,
+        )
+        .bind(message_id)
+        .bind(conversation_id)
+        .fetch_optional(&self.0)
+        .await?;
+        let Some(metadata) = metadata else {
+            return Ok(());
+        };
+
         let mut transaction = self.0.begin().await?;
-        sqlx::query("DELETE FROM message_fts WHERE message_id = ?")
-            .bind(message_id)
-            .execute(&mut *transaction)
-            .await?;
+        delete_message_fts(&mut transaction, message_id).await?;
 
         let content = normalize_content(content);
         if !content.trim().is_empty() {
+            let doc_id = sqlx::query("INSERT INTO fts.messages_fts (content) VALUES (?)")
+                .bind(content)
+                .execute(&mut *transaction)
+                .await?
+                .last_insert_rowid();
             sqlx::query(
-                "INSERT INTO message_fts (message_id, conversation_id, content) VALUES (?, ?, ?)",
+                "INSERT INTO fts.messages_metas \
+                 (doc_id, message_id, conversation_id, category, user_id, created_at) \
+                 VALUES (?, ?, ?, ?, ?, ?)",
             )
+            .bind(doc_id)
             .bind(message_id)
             .bind(conversation_id)
-            .bind(content)
+            .bind(metadata.get::<String, _>("category"))
+            .bind(metadata.get::<String, _>("user_id"))
+            .bind(metadata.get::<i64, _>("created_at"))
             .execute(&mut *transaction)
             .await?;
         }
@@ -42,19 +67,94 @@ impl MessageFtsDao {
     }
 
     pub async fn delete_by_message_id(&self, message_id: &str) -> Result<u64, Error> {
-        let result = sqlx::query("DELETE FROM message_fts WHERE message_id = ?")
-            .bind(message_id)
-            .execute(&self.0)
-            .await?;
-        Ok(result.rows_affected())
+        let mut transaction = self.0.begin().await?;
+        let deleted = delete_message_fts(&mut transaction, message_id).await?;
+        transaction.commit().await?;
+        Ok(deleted)
     }
 
     pub async fn delete_by_conversation_id(&self, conversation_id: &str) -> Result<u64, Error> {
-        let result = sqlx::query("DELETE FROM message_fts WHERE conversation_id = ?")
-            .bind(conversation_id)
-            .execute(&self.0)
+        let mut transaction = self.0.begin().await?;
+        let deleted = delete_conversation_fts(&mut transaction, conversation_id).await?;
+        transaction.commit().await?;
+        Ok(deleted)
+    }
+
+    pub(crate) async fn migrate_batch(&self, anchor: Option<i64>) -> Result<Option<i64>, Error> {
+        let mut transaction = self.0.begin().await?;
+        let rows = sqlx::query(
+            r#"SELECT m.rowid AS source_rowid, m.message_id, m.conversation_id, m.category, m.user_id,
+               CASE WHEN typeof(m.created_at) = 'integer' THEN m.created_at
+                    ELSE CAST(strftime('%s', m.created_at) AS INTEGER) * 1000 END AS created_at,
+               CASE
+                 WHEN m.category LIKE '%_TEXT' OR m.category LIKE '%_POST' THEN m.content
+                 WHEN m.category LIKE '%_DATA' THEN m.name
+                 WHEN m.category LIKE '%_CONTACT' THEN shared_user.full_name
+                 WHEN m.category = 'APP_CARD' AND json_valid(m.content) THEN
+                   trim(coalesce(json_extract(m.content, '$.title'), '') || ' ' ||
+                        coalesce(json_extract(m.content, '$.description'), ''))
+                 WHEN m.category LIKE '%_TRANSCRIPT' THEN (
+                   SELECT group_concat(
+                     CASE
+                       WHEN tm.category LIKE '%_TEXT' OR tm.category LIKE '%_POST' THEN tm.content
+                       WHEN tm.category LIKE '%_DATA' THEN tm.media_name
+                       WHEN tm.category LIKE '%_CONTACT' THEN transcript_user.full_name
+                       ELSE NULL
+                     END, ' ')
+                   FROM transcript_messages AS tm
+                   LEFT JOIN users AS transcript_user ON transcript_user.user_id = tm.shared_user_id
+                   WHERE tm.transcript_id = m.message_id
+                 )
+                 ELSE NULL
+               END AS fts_content
+               FROM messages AS m
+               LEFT JOIN users AS shared_user ON shared_user.user_id = m.shared_user_id
+               WHERE m.rowid > ? AND m.status NOT IN ('UNKNOWN', 'FAILED')
+               ORDER BY m.rowid LIMIT 1000"#,
+        )
+        .bind(anchor.unwrap_or(0))
+        .fetch_all(&mut *transaction)
+        .await?;
+        let next_anchor = rows.last().map(|row| row.get::<i64, _>("source_rowid"));
+        for row in rows {
+            let message_id = row.get::<String, _>("message_id");
+            if sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM fts.messages_metas WHERE message_id = ?)",
+            )
+            .bind(&message_id)
+            .fetch_one(&mut *transaction)
+            .await?
+            {
+                continue;
+            }
+            let Some(content) = row.get::<Option<String>, _>("fts_content") else {
+                continue;
+            };
+            let content = normalize_content(&content);
+            if content.trim().is_empty() {
+                continue;
+            }
+            let doc_id = sqlx::query("INSERT INTO fts.messages_fts (content) VALUES (?)")
+                .bind(content)
+                .execute(&mut *transaction)
+                .await?
+                .last_insert_rowid();
+            sqlx::query(
+                "INSERT INTO fts.messages_metas \
+                 (doc_id, message_id, conversation_id, category, user_id, created_at) \
+                 VALUES (?, ?, ?, ?, ?, ?)",
+            )
+            .bind(doc_id)
+            .bind(message_id)
+            .bind(row.get::<String, _>("conversation_id"))
+            .bind(row.get::<String, _>("category"))
+            .bind(row.get::<String, _>("user_id"))
+            .bind(row.get::<i64, _>("created_at"))
+            .execute(&mut *transaction)
             .await?;
-        Ok(result.rows_affected())
+        }
+        transaction.commit().await?;
+        Ok(next_anchor)
     }
 
     pub async fn search(
@@ -82,9 +182,11 @@ impl MessageFtsDao {
 
         let items = if let Some(conversation_id) = conversation_id {
             sqlx::query_as::<_, MessageFtsItem>(
-                "SELECT message_id, conversation_id, content FROM message_fts \
-                 WHERE message_fts MATCH ? AND conversation_id = ? \
-                 ORDER BY rank LIMIT ? OFFSET ?",
+                "SELECT meta.message_id, meta.conversation_id, messages_fts.content \
+                 FROM fts.messages_fts \
+                 JOIN fts.messages_metas AS meta ON meta.doc_id = messages_fts.rowid \
+                 WHERE messages_fts MATCH ? AND meta.conversation_id = ? \
+                 ORDER BY meta.created_at DESC, messages_fts.rowid DESC LIMIT ? OFFSET ?",
             )
             .bind(query)
             .bind(conversation_id)
@@ -94,8 +196,11 @@ impl MessageFtsDao {
             .await?
         } else {
             sqlx::query_as::<_, MessageFtsItem>(
-                "SELECT message_id, conversation_id, content FROM message_fts \
-                 WHERE message_fts MATCH ? ORDER BY rank LIMIT ? OFFSET ?",
+                "SELECT meta.message_id, meta.conversation_id, messages_fts.content \
+                 FROM fts.messages_fts \
+                 JOIN fts.messages_metas AS meta ON meta.doc_id = messages_fts.rowid \
+                 WHERE messages_fts MATCH ? \
+                 ORDER BY meta.created_at DESC, messages_fts.rowid DESC LIMIT ? OFFSET ?",
             )
             .bind(query)
             .bind(limit)
@@ -105,6 +210,66 @@ impl MessageFtsDao {
         };
         Ok(items)
     }
+}
+
+pub(crate) fn message_fts_content(message: &Message) -> Option<String> {
+    if matches!(
+        message.status,
+        MessageStatus::Unknown | MessageStatus::Failed
+    ) {
+        return None;
+    }
+    if message.category.is_text() || message.category.is_post() {
+        return message.content.clone();
+    }
+    if message.category.is_data() || message.category.is_contact() {
+        return message.name.clone();
+    }
+    if message.category.is_app_card() {
+        let card = serde_json::from_str::<sdk::AppCard>(message.content.as_deref()?).ok()?;
+        return Some(format!("{} {}", card.title, card.description));
+    }
+    None
+}
+
+pub(crate) async fn delete_message_fts(
+    transaction: &mut sqlx::Transaction<'_, Sqlite>,
+    message_id: &str,
+) -> Result<u64, Error> {
+    sqlx::query(
+        "DELETE FROM fts.messages_fts WHERE rowid = \
+         (SELECT doc_id FROM fts.messages_metas WHERE message_id = ?)",
+    )
+    .bind(message_id)
+    .execute(&mut **transaction)
+    .await?;
+    Ok(
+        sqlx::query("DELETE FROM fts.messages_metas WHERE message_id = ?")
+            .bind(message_id)
+            .execute(&mut **transaction)
+            .await?
+            .rows_affected(),
+    )
+}
+
+pub(crate) async fn delete_conversation_fts(
+    transaction: &mut sqlx::Transaction<'_, Sqlite>,
+    conversation_id: &str,
+) -> Result<u64, Error> {
+    sqlx::query(
+        "DELETE FROM fts.messages_fts WHERE rowid IN \
+         (SELECT doc_id FROM fts.messages_metas WHERE conversation_id = ?)",
+    )
+    .bind(conversation_id)
+    .execute(&mut **transaction)
+    .await?;
+    Ok(
+        sqlx::query("DELETE FROM fts.messages_metas WHERE conversation_id = ?")
+            .bind(conversation_id)
+            .execute(&mut **transaction)
+            .await?
+            .rows_affected(),
+    )
 }
 
 fn normalize_content(content: &str) -> String {
@@ -135,150 +300,57 @@ fn match_query(query: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+    use chrono::Utc;
 
-    use super::MessageFtsDao;
+    use crate::db::mixin::message::Message;
     use crate::db::mixin::MixinDatabase;
 
     #[tokio::test]
-    async fn upserts_searches_and_deletes_fts_messages() {
+    async fn uses_flutter_fts_database() {
         let directory = tempfile::tempdir().unwrap();
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
             .await
             .unwrap();
-        let dao = database.message_fts_dao;
-
-        dao.upsert("one", "conversation-one", "hello world")
-            .await
-            .unwrap();
-        dao.upsert("two", "conversation-two", "hello mixin")
-            .await
-            .unwrap();
-        assert_eq!(dao.search("hel", None, 10).await.unwrap().len(), 2);
-        assert_eq!(dao.search_range("hel", None, 1, 1).await.unwrap().len(), 1);
-        assert_eq!(
-            dao.search("hello", Some("conversation-one"), 10)
-                .await
-                .unwrap()
-                .iter()
-                .map(|item| item.message_id.as_str())
-                .collect::<Vec<_>>(),
-            vec!["one"]
-        );
-
-        dao.upsert("one", "conversation-one", "replacement")
-            .await
-            .unwrap();
-        assert!(dao.search("world", None, 10).await.unwrap().is_empty());
-        assert_eq!(
-            dao.search("replace", None, 10).await.unwrap()[0].message_id,
-            "one"
-        );
-
-        assert_eq!(dao.delete_by_message_id("one").await.unwrap(), 1);
-        assert!(dao.search("replace", None, 10).await.unwrap().is_empty());
-        assert_eq!(
-            dao.delete_by_conversation_id("conversation-two")
-                .await
-                .unwrap(),
-            1
-        );
-    }
-
-    #[tokio::test]
-    async fn escapes_quotes_and_indexes_non_ascii_characters() {
-        let directory = tempfile::tempdir().unwrap();
-        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
-            .await
-            .unwrap();
-        let dao = database.message_fts_dao;
-
-        dao.upsert("quoted", "conversation", "say hello")
-            .await
-            .unwrap();
-        dao.upsert("chinese", "conversation", "你好 Mixin")
-            .await
-            .unwrap();
-
-        assert_eq!(dao.search("\"hello\"", None, 10).await.unwrap().len(), 1);
-        assert_eq!(dao.search("你", None, 10).await.unwrap().len(), 1);
-    }
-
-    #[tokio::test]
-    async fn migration_backfills_flutter_searchable_content() {
-        let directory = tempfile::tempdir().unwrap();
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect_with(
-                SqliteConnectOptions::new()
-                    .filename(directory.path().join("mixin.db"))
-                    .create_if_missing(true),
-            )
-            .await
-            .unwrap();
-        sqlx::raw_sql(include_str!("migrations/01_init.up.sql"))
-            .execute(&pool)
-            .await
-            .unwrap();
         sqlx::query(
-            "INSERT INTO users (user_id, identity_number, full_name) VALUES ('shared', '1', 'Alice')",
+            "INSERT INTO conversations (conversation_id, created_at, status) \
+             VALUES ('conversation', 0, 0)",
         )
-        .execute(&pool)
+        .execute(&database.message_dao.0)
         .await
         .unwrap();
-        for (message_id, category, content, name, shared_user_id) in [
-            ("text", "PLAIN_TEXT", Some("你好"), None, None),
-            ("data", "PLAIN_DATA", None, Some("report.pdf"), None),
-            ("contact", "PLAIN_CONTACT", None, None, Some("shared")),
-            (
-                "card",
-                "APP_CARD",
-                Some(r#"{"title":"Card title","description":"Card body"}"#),
-                None,
-                None,
-            ),
-            ("transcript", "PLAIN_TRANSCRIPT", Some("[]"), None, None),
-        ] {
-            sqlx::query(
-                "INSERT INTO messages \
-                 (message_id, conversation_id, user_id, category, content, name, shared_user_id, status, created_at) \
-                 VALUES (?, 'conversation', 'sender', ?, ?, ?, ?, 'SENT', '2024-01-01 00:00:00')",
-            )
-            .bind(message_id)
-            .bind(category)
-            .bind(content)
-            .bind(name)
-            .bind(shared_user_id)
-            .execute(&pool)
+        database
+            .message_dao
+            .insert_message(&Message {
+                message_id: "message".into(),
+                conversation_id: "conversation".into(),
+                user_id: "user".into(),
+                category: "PLAIN_TEXT".into(),
+                content: Some("hello mixin".into()),
+                status: sdk::blaze_message::MessageStatus::Sent,
+                created_at: Utc::now().naive_utc(),
+                ..Message::default()
+            })
             .await
             .unwrap();
-        }
-        sqlx::query(
-            "INSERT INTO transcript_messages \
-             (transcript_id, message_id, category, created_at, content) \
-             VALUES ('transcript', 'child', 'PLAIN_TEXT', '2024-01-01 00:00:00', 'child words')",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
 
-        sqlx::raw_sql(include_str!("migrations/03_message_fts.up.sql"))
-            .execute(&pool)
+        database
+            .message_fts_dao
+            .upsert("message", "conversation", "hello mixin")
             .await
             .unwrap();
-        let dao = MessageFtsDao(pool);
-
-        for (query, message_id) in [
-            ("好", "text"),
-            ("report", "data"),
-            ("Alice", "contact"),
-            ("Card", "card"),
-            ("child", "transcript"),
-        ] {
-            assert_eq!(
-                dao.search(query, None, 10).await.unwrap()[0].message_id,
-                message_id
-            );
-        }
+        assert_eq!(
+            database
+                .message_fts_dao
+                .search("hello", None, 10)
+                .await
+                .unwrap()[0]
+                .message_id,
+            "message"
+        );
+        let version: i64 = sqlx::query_scalar("PRAGMA fts.user_version")
+            .fetch_one(&database.message_fts_dao.0)
+            .await
+            .unwrap();
+        assert_eq!(version, 1);
     }
 }

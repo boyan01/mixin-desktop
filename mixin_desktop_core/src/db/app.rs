@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{bail, Context};
 use std::path::Path;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
@@ -35,11 +35,9 @@ impl AppDatabase {
                     .create_if_missing(true),
             )
             .await?;
-        let migrator = sqlx::migrate!("./src/db/app/migrations");
-        migrator
-            .run(&pool)
+        migrate(&pool)
             .await
-            .with_context(|| "migrations failed")?;
+            .with_context(|| "app database migration failed")?;
         Ok(AppDatabase {
             auth_dao: AuthDao(pool.clone()),
             property_dao: PropertyDao(pool.clone()),
@@ -47,28 +45,54 @@ impl AppDatabase {
     }
 }
 
+const SCHEMA_VERSION: i64 = 1;
+
+async fn migrate(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
+    let version = crate::db::migration::user_version(pool).await?;
+    if version > SCHEMA_VERSION {
+        bail!("app database version {version} is newer than supported {SCHEMA_VERSION}");
+    }
+    if version == SCHEMA_VERSION {
+        return Ok(());
+    }
+    if crate::db::migration::has_application_tables(pool).await? {
+        bail!("app database has no Drift user_version");
+    }
+
+    let mut transaction = pool.begin().await?;
+    sqlx::raw_sql(include_str!("app/schema.sql"))
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::query("PRAGMA user_version = 1")
+        .execute(&mut *transaction)
+        .await?;
+    transaction.commit().await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use sqlx::Row;
-
     use super::*;
 
     #[tokio::test]
-    async fn auth_schema_persists_primary_session_id() {
+    async fn schema_matches_flutter_app() {
         let path =
             std::env::temp_dir().join(format!("mixin-desktop-app-{}.db", uuid::Uuid::new_v4()));
         let database = AppDatabase::connect_at(&path).await.unwrap();
 
-        let columns = sqlx::query("PRAGMA table_info(auths)")
-            .fetch_all(&database.auth_dao.0)
+        let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+            .fetch_one(&database.auth_dao.0)
             .await
             .unwrap();
-        let names = columns
-            .iter()
-            .map(|row| row.get::<String, _>("name"))
-            .collect::<Vec<_>>();
+        let tables: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+        )
+        .fetch_all(&database.auth_dao.0)
+        .await
+        .unwrap();
 
-        assert!(names.iter().any(|name| name == "primary_session_id"));
+        assert_eq!(version, 1);
+        assert_eq!(tables, vec!["properties"]);
 
         drop(database);
         let _ = tokio::fs::remove_file(&path).await;

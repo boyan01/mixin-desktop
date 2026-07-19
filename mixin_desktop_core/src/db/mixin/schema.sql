@@ -1,3 +1,5 @@
+-- Current mixin.db schema (v28).
+
 CREATE TABLE IF NOT EXISTS addresses
 (
     address_id  TEXT      NOT NULL,
@@ -167,7 +169,8 @@ CREATE TABLE IF NOT EXISTS messages
     quote_content    TEXT,
     thumb_url        TEXT,
     caption          TEXT,
-    PRIMARY KEY (message_id)
+    PRIMARY KEY (message_id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations (conversation_id) ON UPDATE NO ACTION ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS messages_history
@@ -301,6 +304,7 @@ CREATE TABLE IF NOT EXISTS users
     code_url        TEXT,
     code_id         TEXT,
     is_deactivated  BOOLEAN,
+    membership      TEXT,
     PRIMARY KEY (user_id)
 );
 
@@ -422,6 +426,7 @@ CREATE TABLE IF NOT EXISTS tokens
     asset_key       TEXT    NOT NULL,
     dust            TEXT    NOT NULL,
     collection_hash TEXT,
+    precision       INTEGER NOT NULL DEFAULT -1,
     PRIMARY KEY (asset_id)
 );
 

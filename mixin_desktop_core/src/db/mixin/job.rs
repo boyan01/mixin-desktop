@@ -32,6 +32,7 @@ pub const UPDATE_STICKER: &str = "LOCAL_UPDATE_STICKER";
 pub const UPDATE_ASSET: &str = "LOCAL_UPDATE_ASSET";
 pub const UPDATE_TOKEN: &str = "LOCAL_UPDATE_TOKEN";
 pub const SYNC_INSCRIPTION_MESSAGE: &str = "LOCAL_SYNC_INSCRIPTION_MESSAGE";
+pub const MIGRATE_FTS: &str = "LOCAL_MIGRATE_FTS";
 
 fn is_deduplicated_resource_action(action: &str) -> bool {
     matches!(

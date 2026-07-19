@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::path::Path;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use libsignal_protocol::{IdentityKeyPair, PrivateKey};
 use rand_core::OsRng;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
@@ -29,10 +29,28 @@ pub struct SignalDatabase {
 impl SignalDatabase {
     pub async fn connect(identity_number: String) -> Result<Self, Box<dyn Error>> {
         let path = crate::db::path::account_database_path(&identity_number, "signal.db")?;
-        Self::connect_at(path).await
+        let app_database = crate::db::app::AppDatabase::connect().await?;
+        let key_value = KeyValue(app_database.property_dao.0.clone());
+        Self::connect_with_key_value(path, key_value, identity_number).await
     }
 
     pub async fn connect_at(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+        let path = path.as_ref();
+        let app_database = crate::db::app::AppDatabase::connect_at(
+            path.parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("app.db"),
+        )
+        .await?;
+        let key_value = KeyValue(app_database.property_dao.0.clone());
+        Self::connect_with_key_value(path, key_value, "test".to_string()).await
+    }
+
+    async fn connect_with_key_value(
+        path: impl AsRef<Path>,
+        key_value: KeyValue,
+        identity_number: String,
+    ) -> Result<Self, Box<dyn Error>> {
         let path = path.as_ref();
         crate::db::path::create_parent_directory(path).await?;
         let pool = SqlitePoolOptions::new()
@@ -45,10 +63,7 @@ impl SignalDatabase {
                     .create_if_missing(true),
             )
             .await?;
-        let migrator = sqlx::migrate!("./src/db/signal/migrations");
-        migrator.run(&pool).await?;
-
-        let key_value = KeyValue(pool.clone());
+        migrate(&pool).await?;
 
         let database = SignalDatabase {
             pre_key_dao: PreKeyDao(pool.clone()),
@@ -56,7 +71,7 @@ impl SignalDatabase {
             session_dao: SessionDao(pool.clone()),
             sender_key_dao: SenderKeyDao(pool.clone()),
             identity_dao: IdentityDao(pool.clone()),
-            crypto_key_value: CryptoKeyValue::new(key_value),
+            crypto_key_value: CryptoKeyValue::new(key_value, identity_number),
             ratchet_sender_key_dao: RatchetSenderKeyDao(pool.clone()),
         };
         database.crypto_key_value.init().await;
@@ -95,19 +110,44 @@ impl SignalDatabase {
             "signed_prekeys",
             "sessions",
             "ratchet_sender_keys",
-            "properties",
         ] {
             sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM {table}")))
                 .execute(&mut *transaction)
                 .await?;
         }
         transaction.commit().await?;
+        self.crypto_key_value.clear().await;
         Ok(())
     }
 
     pub async fn close(&self) {
         self.pre_key_dao.0.close().await;
     }
+}
+
+const SCHEMA_VERSION: i64 = 1;
+
+async fn migrate(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
+    let version = crate::db::migration::user_version(pool).await?;
+    if version > SCHEMA_VERSION {
+        bail!("signal database version {version} is newer than supported {SCHEMA_VERSION}");
+    }
+    if version == SCHEMA_VERSION {
+        return Ok(());
+    }
+    if crate::db::migration::has_application_tables(pool).await? {
+        bail!("signal database has no Drift user_version");
+    }
+
+    let mut transaction = pool.begin().await?;
+    sqlx::raw_sql(include_str!("schema.sql"))
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::query("PRAGMA user_version = 1")
+        .execute(&mut *transaction)
+        .await?;
+    transaction.commit().await?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -146,12 +186,11 @@ mod tests {
         let pool = &db.pre_key_dao.0;
         for statement in [
             "INSERT INTO sender_keys VALUES ('group', 'sender', X'01')",
-            "INSERT INTO identities VALUES ('address', 1, X'01', X'02', NULL, 1)",
-            "INSERT INTO prekeys VALUES (1, X'01')",
-            "INSERT INTO signed_prekeys VALUES (1, X'01', 1)",
-            "INSERT INTO sessions VALUES ('address', 1, X'01', 1)",
+            "INSERT INTO identities (address, registration_id, public_key, private_key, next_prekey_id, timestamp) VALUES ('address', 1, X'01', X'02', NULL, 1)",
+            "INSERT INTO prekeys (prekey_id, record) VALUES (1, X'01')",
+            "INSERT INTO signed_prekeys (prekey_id, record, timestamp) VALUES (1, X'01', 1)",
+            "INSERT INTO sessions (address, device, record, timestamp) VALUES ('address', 1, X'01', 1)",
             "INSERT INTO ratchet_sender_keys VALUES ('group', 'sender', 'SENT', 'message', '2026-07-16T00:00:00Z')",
-            "INSERT INTO properties VALUES ('key', 'group', 'value')",
         ] {
             sqlx::query(statement).execute(pool).await?;
         }
@@ -165,7 +204,6 @@ mod tests {
             "signed_prekeys",
             "sessions",
             "ratchet_sender_keys",
-            "properties",
         ] {
             let count: i64 =
                 sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT COUNT(*) FROM {table}")))

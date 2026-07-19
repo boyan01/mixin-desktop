@@ -23,6 +23,7 @@ use sdk::message_category::MessageCategory;
 use crate::core::attachment::{attachment_path, transcript_attachment_path};
 use crate::core::message::sender::MessageSender;
 use crate::db::mixin::message::{MediaStatus, Message};
+use crate::db::mixin::message_fts::message_fts_content;
 use crate::db::MixinDatabase;
 
 pub const DEVICE_TRANSFER_ACTION: &str = "DEVICE_TRANSFER";
@@ -556,7 +557,6 @@ impl DeviceTransferService {
                         &TransferCommand::simple(&self.device_id, "finish"),
                     )
                     .await?;
-                    self.rebuild_fts().await?;
                     self.conversation_changes
                         .send_modify(|revision| *revision = revision.wrapping_add(1));
                     self.emit(DeviceTransferEvent::simple("restore_succeed"));
@@ -1319,7 +1319,23 @@ impl DeviceTransferService {
             }
         }
         builder.push(")");
-        builder.build().execute(self.pool()).await?;
+        let result = builder.build().execute(self.pool()).await?;
+        if kind == "message" && result.rows_affected() > 0 {
+            let message_id = normalized
+                .get("message_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow!("transferred message has no message_id"))?;
+            let conversation_id = normalized
+                .get("conversation_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow!("transferred message has no conversation_id"))?;
+            if let Some(content) = transferred_message_fts_content(&normalized) {
+                self.database
+                    .message_fts_dao
+                    .upsert(message_id, conversation_id, &content)
+                    .await?;
+            }
+        }
         Ok(())
     }
 
@@ -1404,23 +1420,22 @@ impl DeviceTransferService {
         })
         .transpose()
     }
+}
 
-    async fn rebuild_fts(&self) -> Result<()> {
-        sqlx::query("DELETE FROM message_fts")
-            .execute(self.pool())
-            .await?;
-        sqlx::query(
-            r#"INSERT INTO message_fts (message_id, conversation_id, content)
-               SELECT message_id, conversation_id,
-                      CASE WHEN category LIKE '%_TEXT' OR category LIKE '%_POST' THEN content
-                           WHEN category LIKE '%_DATA' THEN name ELSE NULL END
-                 FROM messages
-                WHERE status NOT IN ('UNKNOWN', 'FAILED')"#,
-        )
-        .execute(self.pool())
-        .await?;
-        Ok(())
-    }
+fn transferred_message_fts_content(record: &Map<String, Value>) -> Option<String> {
+    message_fts_content(&Message {
+        category: record.get("category")?.as_str()?.to_string(),
+        content: record
+            .get("content")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        name: record
+            .get("name")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        status: sdk::blaze_message::MessageStatus::Read,
+        ..Message::default()
+    })
 }
 
 fn normalize_outgoing_record(kind: &str, data: &mut Map<String, Value>) {

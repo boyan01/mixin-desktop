@@ -5,6 +5,7 @@ use crate::db::key_value::KeyValue;
 
 pub struct CryptoKeyValue {
     key_value: KeyValue,
+    group: String,
     inner: Arc<Mutex<CryptoKeyValueInner>>,
 }
 
@@ -14,15 +15,15 @@ struct CryptoKeyValueInner {
     has_push_signal_keys: bool,
 }
 
-const GROUP: &str = "crypto";
 const KEY_NEXT_PRE_KEY_ID: &str = "next_pre_key_id";
 const KEY_NEXT_SIGNED_PRE_KEY_ID: &str = "next_signed_pre_key_id";
 const KEY_HAS_PUSH_SIGNAL_KEYS: &str = "has_push_signal_keys";
 
 impl CryptoKeyValue {
-    pub fn new(key_value: KeyValue) -> Self {
+    pub fn new(key_value: KeyValue, identity_number: String) -> Self {
         CryptoKeyValue {
             key_value,
+            group: format!("crypto:{identity_number}"),
             inner: Arc::new(Mutex::new(CryptoKeyValueInner {
                 next_pre_key_id: 0,
                 next_signed_pre_key_id: 0,
@@ -34,17 +35,17 @@ impl CryptoKeyValue {
     pub async fn init(&self) {
         let next_pre_key_id: u32 = self
             .key_value
-            .get_value(KEY_NEXT_PRE_KEY_ID, GROUP)
+            .get_value(KEY_NEXT_PRE_KEY_ID, &self.group)
             .await
             .unwrap_or_else(|| rand::random_range(0..MAX_VALUE));
         let next_signed_pre_key_id: u32 = self
             .key_value
-            .get_value(KEY_NEXT_SIGNED_PRE_KEY_ID, GROUP)
+            .get_value(KEY_NEXT_SIGNED_PRE_KEY_ID, &self.group)
             .await
             .unwrap_or_else(|| rand::random_range(0..MAX_VALUE));
         let has_push_signal_keys: bool = self
             .key_value
-            .get_value(KEY_HAS_PUSH_SIGNAL_KEYS, GROUP)
+            .get_value(KEY_HAS_PUSH_SIGNAL_KEYS, &self.group)
             .await
             .unwrap_or(false);
 
@@ -69,21 +70,31 @@ impl CryptoKeyValue {
     pub async fn set_next_pre_key_id(&self, next_pre_key_id: u32) {
         self.inner.lock().unwrap().next_pre_key_id = next_pre_key_id;
         self.key_value
-            .set_value(KEY_NEXT_PRE_KEY_ID, GROUP, &next_pre_key_id)
+            .set_value(KEY_NEXT_PRE_KEY_ID, &self.group, &next_pre_key_id)
             .await;
     }
 
     pub async fn set_next_signed_pre_key_id(&self, next_signed_pre_key_id: u32) {
         self.inner.lock().unwrap().next_signed_pre_key_id = next_signed_pre_key_id;
         self.key_value
-            .set_value(KEY_NEXT_SIGNED_PRE_KEY_ID, GROUP, &next_signed_pre_key_id)
+            .set_value(
+                KEY_NEXT_SIGNED_PRE_KEY_ID,
+                &self.group,
+                &next_signed_pre_key_id,
+            )
             .await;
     }
 
     pub async fn set_has_push_signal_keys(&self, has_push_signal_keys: bool) {
         self.inner.lock().unwrap().has_push_signal_keys = has_push_signal_keys;
         self.key_value
-            .set_value(KEY_HAS_PUSH_SIGNAL_KEYS, GROUP, &has_push_signal_keys)
+            .set_value(KEY_HAS_PUSH_SIGNAL_KEYS, &self.group, &has_push_signal_keys)
             .await;
+    }
+
+    pub async fn clear(&self) {
+        if let Err(error) = self.key_value.clear_by_group(&self.group).await {
+            log::error!("failed to clear signal properties: {error}");
+        }
     }
 }

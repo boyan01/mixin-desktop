@@ -1601,12 +1601,8 @@ ORDER BY message.created_at ASC, message.message_id ASC
             .bind(message_id)
             .execute(&mut *transaction)
             .await?;
-            for table in [
-                "pin_messages",
-                "expired_messages",
-                "message_mentions",
-                "message_fts",
-            ] {
+            crate::db::mixin::message_fts::delete_message_fts(&mut transaction, message_id).await?;
+            for table in ["pin_messages", "expired_messages", "message_mentions"] {
                 let query = format!("DELETE FROM {table} WHERE message_id = ?");
                 sqlx::query(sqlx::AssertSqlSafe(query))
                     .bind(message_id)
@@ -1632,6 +1628,8 @@ ORDER BY message.created_at ASC, message.message_id ASC
 
     pub async fn clear_conversation(&self, conversation_id: &str) -> Result<(), Error> {
         let mut transaction = self.0.begin().await?;
+        crate::db::mixin::message_fts::delete_conversation_fts(&mut transaction, conversation_id)
+            .await?;
         sqlx::query(
             "DELETE FROM transcript_messages WHERE transcript_id IN (\
              SELECT message_id FROM messages WHERE conversation_id = ?)",
@@ -1646,12 +1644,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
         .bind(conversation_id)
         .execute(&mut *transaction)
         .await?;
-        for table in [
-            "pin_messages",
-            "message_mentions",
-            "message_fts",
-            "messages",
-        ] {
+        for table in ["pin_messages", "message_mentions", "messages"] {
             let query = format!("DELETE FROM {table} WHERE conversation_id = ?");
             sqlx::query(sqlx::AssertSqlSafe(query))
                 .bind(conversation_id)
@@ -1712,7 +1705,8 @@ ORDER BY message.created_at ASC, message.message_id ASC
             .bind(message_id)
             .execute(&mut *transaction)
             .await?;
-            for table in ["pin_messages", "message_fts", "message_mentions"] {
+            crate::db::mixin::message_fts::delete_message_fts(&mut transaction, message_id).await?;
+            for table in ["pin_messages", "message_mentions"] {
                 let query = format!("DELETE FROM {table} WHERE message_id = ?");
                 sqlx::query(sqlx::AssertSqlSafe(query))
                     .bind(message_id)
@@ -1868,10 +1862,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
             .bind(message_id)
             .execute(&mut *transaction)
             .await?;
-        sqlx::query("DELETE FROM message_fts WHERE message_id = ?")
-            .bind(message_id)
-            .execute(&mut *transaction)
-            .await?;
+        crate::db::mixin::message_fts::delete_message_fts(&mut transaction, message_id).await?;
         sqlx::query("DELETE FROM message_mentions WHERE message_id = ?")
             .bind(message_id)
             .execute(&mut *transaction)
@@ -1915,10 +1906,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
             .bind(message_id)
             .execute(&mut *transaction)
             .await?;
-        sqlx::query("DELETE FROM message_fts WHERE message_id = ?")
-            .bind(message_id)
-            .execute(&mut *transaction)
-            .await?;
+        crate::db::mixin::message_fts::delete_message_fts(&mut transaction, message_id).await?;
         sqlx::query("DELETE FROM transcript_messages WHERE transcript_id = ?")
             .bind(message_id)
             .execute(&mut *transaction)
@@ -2045,6 +2033,13 @@ mod tests {
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
             .await
             .unwrap();
+        sqlx::query(
+            "INSERT INTO conversations (conversation_id, created_at, status) \
+             VALUES ('conversation', 0, 0)",
+        )
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
         (directory, database)
     }
 
@@ -2205,7 +2200,7 @@ mod tests {
         .await
         .unwrap();
         let fts: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM message_fts WHERE message_id IN ('first', 'second')",
+            "SELECT COUNT(*) FROM fts.messages_metas WHERE message_id IN ('first', 'second')",
         )
         .fetch_one(&database.message_dao.0)
         .await
@@ -2216,6 +2211,13 @@ mod tests {
     #[tokio::test]
     async fn clears_only_the_selected_conversation_and_related_indexes() {
         let (_directory, database) = test_database().await;
+        sqlx::query(
+            "INSERT INTO conversations (conversation_id, created_at, status) \
+             VALUES ('other-conversation', 0, 0)",
+        )
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
         for (message_id, conversation_id) in [
             ("first", "conversation"),
             ("second", "conversation"),
@@ -2264,7 +2266,7 @@ mod tests {
         .await
         .unwrap();
         let selected_fts: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM message_fts WHERE conversation_id = 'conversation'",
+            "SELECT COUNT(*) FROM fts.messages_metas WHERE conversation_id = 'conversation'",
         )
         .fetch_one(&database.message_dao.0)
         .await
@@ -2621,6 +2623,13 @@ mod tests {
     async fn lists_image_messages_around_cursor_in_stable_order() {
         let (_directory, database) = test_database().await;
         let dao = database.message_dao;
+        sqlx::query(
+            "INSERT INTO conversations (conversation_id, created_at, status) \
+             VALUES ('other', 0, 0)",
+        )
+        .execute(&dao.0)
+        .await
+        .unwrap();
         let created_at = Utc::now().naive_utc();
         for id in ["alpha", "beta", "gamma"] {
             dao.insert_message(&Message {

@@ -1,4 +1,5 @@
 mod ack;
+mod migrate_fts;
 mod sending;
 mod session_ack;
 mod sync_inscription;
@@ -7,6 +8,7 @@ mod update_sticker;
 mod update_token;
 
 use ack::AckJobRunner;
+use migrate_fts::MigrateFtsJobRunner;
 use sending::SendingJobRunner;
 use session_ack::SessionAckJobRunner;
 use sync_inscription::SyncInscriptionJobRunner;
@@ -50,6 +52,7 @@ pub struct JobService {
     update_token_job_signer: Sender<()>,
     update_sticker_job_signer: Sender<()>,
     sync_inscription_job_signer: Sender<()>,
+    migrate_fts_job_signer: Sender<()>,
     params: Mutex<Option<JobParams>>,
 }
 
@@ -69,6 +72,7 @@ impl JobService {
         let (update_token_sender, update_token_receiver) = channel(1);
         let (update_sticker_sender, update_sticker_receiver) = channel(1);
         let (sync_inscription_sender, sync_inscription_receiver) = channel(1);
+        let (migrate_fts_sender, migrate_fts_receiver) = channel(1);
 
         let params = JobParams {
             database: database.clone(),
@@ -81,6 +85,7 @@ impl JobService {
                 (JobCategory::UpdateToken, update_token_receiver),
                 (JobCategory::UpdateSticker, update_sticker_receiver),
                 (JobCategory::SyncInscription, sync_inscription_receiver),
+                (JobCategory::MigrateFts, migrate_fts_receiver),
             ]),
             user_id: auth.account.user_id.clone(),
             primary_session_id: auth.primary_session_id.clone(),
@@ -99,6 +104,7 @@ impl JobService {
             update_token_job_signer: update_token_sender,
             update_sticker_job_signer: update_sticker_sender,
             sync_inscription_job_signer: sync_inscription_sender,
+            migrate_fts_job_signer: migrate_fts_sender,
             params: Mutex::new(Some(params)),
         }
     }
@@ -148,6 +154,7 @@ impl JobService {
             UPDATE_TOKEN => &self.update_token_job_signer,
             UPDATE_STICKER => &self.update_sticker_job_signer,
             SYNC_INSCRIPTION_MESSAGE => &self.sync_inscription_job_signer,
+            crate::db::mixin::job::MIGRATE_FTS => &self.migrate_fts_job_signer,
             _ => bail!("unknown job action: {action}"),
         };
         Ok(signaler)
@@ -163,6 +170,7 @@ enum JobCategory {
     UpdateToken,
     UpdateSticker,
     SyncInscription,
+    MigrateFts,
 }
 
 struct JobParams {
@@ -234,8 +242,14 @@ async fn start_all_jobs(mut params: JobParams) {
         run_job(
             params.receiver.remove(&JobCategory::SyncInscription),
             SyncInscriptionJobRunner {
-                database: params.database,
+                database: params.database.clone(),
                 client: params.client,
+            },
+        ),
+        run_job(
+            params.receiver.remove(&JobCategory::MigrateFts),
+            MigrateFtsJobRunner {
+                database: params.database,
             },
         )
     );

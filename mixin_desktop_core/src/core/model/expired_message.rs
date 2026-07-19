@@ -139,6 +139,13 @@ mod tests {
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
             .await
             .unwrap();
+        sqlx::query(
+            "INSERT INTO conversations (conversation_id, created_at, status) \
+             VALUES ('conversation', 0, 0)",
+        )
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
         database
             .message_dao
             .insert_message(&Message {
@@ -181,6 +188,13 @@ mod tests {
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
             .await
             .unwrap();
+        sqlx::query(
+            "INSERT INTO conversations (conversation_id, created_at, status) \
+             VALUES ('conversation', 0, 0)",
+        )
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
         let parent_path = directory.path().join("parent-attachment");
         let child_path = directory.path().join("transcript-attachment");
         tokio::fs::write(&parent_path, b"parent").await.unwrap();

@@ -293,10 +293,11 @@ LIMIT ?5 OFFSET ?6
 
     pub async fn delete_local(&self, conversation_id: &str) -> Result<(), Error> {
         let mut transaction = self.0.begin().await?;
+        crate::db::mixin::message_fts::delete_conversation_fts(&mut transaction, conversation_id)
+            .await?;
         for query in [
             "DELETE FROM message_mentions WHERE conversation_id = ?",
             "DELETE FROM pin_messages WHERE conversation_id = ?",
-            "DELETE FROM message_fts WHERE conversation_id = ?",
             "DELETE FROM messages WHERE conversation_id = ?",
             "DELETE FROM conversations WHERE conversation_id = ?",
         ] {
@@ -781,7 +782,7 @@ mod tests {
         let remaining: i64 = sqlx::query_scalar(
             "SELECT (SELECT COUNT(*) FROM conversations) + \
              (SELECT COUNT(*) FROM messages) + \
-             (SELECT COUNT(*) FROM message_fts)",
+             (SELECT COUNT(*) FROM fts.messages_metas)",
         )
         .fetch_one(&database.conversation_dao.0)
         .await

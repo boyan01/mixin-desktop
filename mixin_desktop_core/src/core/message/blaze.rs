@@ -674,6 +674,13 @@ mod tests {
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
             .await
             .unwrap();
+        sqlx::query(
+            "INSERT INTO conversations (conversation_id, created_at, status) \
+             VALUES ('conversation-id', 0, 0)",
+        )
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
         let pending = PendingMessageStatusStore::default();
 
         pending

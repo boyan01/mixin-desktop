@@ -2,7 +2,17 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
+#[cfg(target_os = "linux")]
+use directories::BaseDirs;
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 use directories::ProjectDirs;
+#[cfg(target_os = "windows")]
+use directories::UserDirs;
+
+#[cfg(target_os = "macos")]
+use objc2::rc::autoreleasepool;
+#[cfg(target_os = "macos")]
+use objc2_foundation::{NSFileManager, NSSearchPathDirectory, NSSearchPathDomainMask};
 
 const DATA_DIRECTORY_ENV: &str = "MIXIN_DESKTOP_DATA_DIR";
 
@@ -56,10 +66,40 @@ fn data_directory() -> anyhow::Result<PathBuf> {
     if let Some(path) = env::var_os(DATA_DIRECTORY_ENV).filter(|value| !value.is_empty()) {
         return Ok(PathBuf::from(path));
     }
+    platform_data_directory().ok_or_else(|| anyhow!("failed to resolve application data directory"))
+}
 
+#[cfg(target_os = "macos")]
+fn platform_data_directory() -> Option<PathBuf> {
+    autoreleasepool(|_| {
+        // This is the same native API used by path_provider_foundation. In a
+        // sandboxed app it resolves inside the app container automatically.
+        let file_manager = unsafe { NSFileManager::defaultManager() };
+        let urls = unsafe {
+            file_manager.URLsForDirectory_inDomains(
+                NSSearchPathDirectory::NSDocumentDirectory,
+                NSSearchPathDomainMask::NSUserDomainMask,
+            )
+        };
+        let path = unsafe { urls.first()?.path()? };
+        Some(PathBuf::from(path.to_string()))
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn platform_data_directory() -> Option<PathBuf> {
+    Some(UserDirs::new()?.document_dir()?.join("Mixin"))
+}
+
+#[cfg(target_os = "linux")]
+fn platform_data_directory() -> Option<PathBuf> {
+    Some(BaseDirs::new()?.home_dir().join(".mixin"))
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+fn platform_data_directory() -> Option<PathBuf> {
     ProjectDirs::from("dev", "Mixin", "Mixin Desktop")
         .map(|directories| directories.data_local_dir().to_path_buf())
-        .ok_or_else(|| anyhow!("failed to resolve application data directory"))
 }
 
 #[cfg(test)]
@@ -81,5 +121,27 @@ mod tests {
         assert_eq!(first.file_name().unwrap(), "mixin.db");
         assert_eq!(first.parent().unwrap().file_name().unwrap(), "7000");
         assert_eq!(second.parent().unwrap().file_name().unwrap(), "7001");
+    }
+
+    #[test]
+    fn default_directory_matches_flutter_app() {
+        let directory = platform_data_directory().unwrap();
+
+        #[cfg(target_os = "macos")]
+        assert!(directory.ends_with("Documents"));
+        #[cfg(target_os = "windows")]
+        assert_eq!(
+            directory,
+            UserDirs::new()
+                .unwrap()
+                .document_dir()
+                .unwrap()
+                .join("Mixin")
+        );
+        #[cfg(target_os = "linux")]
+        assert_eq!(
+            directory,
+            BaseDirs::new().unwrap().home_dir().join(".mixin")
+        );
     }
 }
