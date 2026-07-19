@@ -149,8 +149,7 @@ class _AppLifecycleScopeState extends State<_AppLifecycleScope>
   }
 
   @override
-  Widget build(BuildContext context) =>
-      TickerMode(enabled: active, child: widget.child);
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _WindowShortcuts extends StatelessWidget {
