@@ -512,7 +512,7 @@ LIMIT ?4
     ) -> Result<Vec<String>, Error> {
         let result = sqlx::query_scalar::<_, String>(
             "SELECT message_id FROM messages WHERE conversation_id = ? AND user_id != ? \
-             AND status IN ('SENT', 'DELIVERED') ORDER BY created_at ASC, rowid ASC",
+             AND status IN ('SENT', 'DELIVERED')",
         )
         .bind(conversation_id)
         .bind(current_user_id)
@@ -526,27 +526,70 @@ LIMIT ?4
         conversation_id: &str,
         current_user_id: &str,
     ) -> Result<(bool, bool), Error> {
+        let has_unread = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM messages WHERE conversation_id = ? AND user_id != ? \
+             AND status IN ('SENT', 'DELIVERED'))",
+        )
+        .bind(conversation_id)
+        .bind(current_user_id)
+        .fetch_one(&self.0)
+        .await?;
+
+        if !has_unread {
+            let last_read_message_id = sqlx::query_scalar::<_, String>(
+                "SELECT message_id FROM messages WHERE conversation_id = ? AND status = 'READ' \
+                 ORDER BY created_at DESC, rowid DESC LIMIT 1",
+            )
+            .bind(conversation_id)
+            .fetch_optional(&self.0)
+            .await?;
+            let unseen: i64 = sqlx::query_scalar(
+                "SELECT COUNT(1) FROM messages WHERE conversation_id = ? \
+                 AND status IN ('SENT', 'DELIVERED') AND user_id != ?",
+            )
+            .bind(conversation_id)
+            .bind(current_user_id)
+            .fetch_one(&self.0)
+            .await?;
+            let already_current = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM conversations WHERE conversation_id = ? \
+                 AND last_read_message_id IS ? AND unseen_message_count IS ?)",
+            )
+            .bind(conversation_id)
+            .bind(&last_read_message_id)
+            .bind(unseen)
+            .fetch_one(&self.0)
+            .await?;
+            if already_current {
+                return Ok((false, false));
+            }
+            let conversation_changed = sqlx::query(
+                "UPDATE conversations SET last_read_message_id = ?, unseen_message_count = ? \
+                 WHERE conversation_id = ? AND \
+                 (last_read_message_id IS NOT ? OR unseen_message_count IS NOT ?)",
+            )
+            .bind(&last_read_message_id)
+            .bind(unseen)
+            .bind(conversation_id)
+            .bind(&last_read_message_id)
+            .bind(unseen)
+            .execute(&self.0)
+            .await?
+            .rows_affected()
+                > 0;
+            return Ok((false, conversation_changed));
+        }
+
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         let message_ids = sqlx::query_scalar::<_, String>(
-            "SELECT message_id FROM messages WHERE conversation_id = ? AND user_id != ? \
-             AND status IN ('SENT', 'DELIVERED') ORDER BY created_at ASC, rowid ASC",
+            "UPDATE messages SET status = 'READ' WHERE conversation_id = ? AND user_id != ? \
+             AND status IN ('SENT', 'DELIVERED') RETURNING message_id",
         )
         .bind(conversation_id)
         .bind(current_user_id)
         .fetch_all(&mut *transaction)
         .await?;
         let messages_changed = !message_ids.is_empty();
-
-        for chunk in message_ids.chunks(MARK_LIMIT) {
-            let sql = format!(
-                "UPDATE messages SET status = 'READ' WHERE message_id IN ({})",
-                expand_var(chunk.len())
-            );
-            sqlx::query(sqlx::AssertSqlSafe(sql))
-                .bind_list(chunk)
-                .execute(&mut *transaction)
-                .await?;
-        }
 
         let now = Utc::now().timestamp();
         for chunk in message_ids.chunks(MARK_LIMIT - 1) {
@@ -3089,7 +3132,10 @@ mod tests {
         }
 
         let unread = dao.unread_message_ids("conversation", "me").await.unwrap();
-        assert_eq!(unread, ["sent", "delivered"]);
+        assert_eq!(
+            unread.into_iter().collect::<HashSet<_>>(),
+            HashSet::from(["sent".to_string(), "delivered".to_string(),])
+        );
     }
 
     #[tokio::test]
@@ -3237,6 +3283,60 @@ mod tests {
                 .unwrap(),
             (true, true)
         );
+    }
+
+    #[tokio::test]
+    async fn mark_read_noop_does_not_wait_for_a_concurrent_writer() {
+        let (_directory, database) = test_database().await;
+        let now = Utc::now();
+        database
+            .conversation_dao
+            .insert(&Conversation {
+                conversation_id: "conversation".into(),
+                owner_id: Some("other".into()),
+                category: Some(ConversationCategory::Contact),
+                name: String::new(),
+                icon_url: String::new(),
+                announcement: String::new(),
+                code_url: String::new(),
+                created_at: now,
+                status: ConversationStatus::SUCCESS,
+                mute_until: now,
+                expire_in: 0,
+            })
+            .await
+            .unwrap();
+        sqlx::query("UPDATE conversations SET unseen_message_count = 0 WHERE conversation_id = ?")
+            .bind("conversation")
+            .execute(&database.message_dao.0)
+            .await
+            .unwrap();
+
+        let mut writer = database
+            .message_dao
+            .0
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .unwrap();
+        sqlx::query("UPDATE conversations SET name = 'writer' WHERE conversation_id = ?")
+            .bind("conversation")
+            .execute(&mut *writer)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            tokio::time::timeout(
+                Duration::from_secs(1),
+                database
+                    .message_dao
+                    .mark_conversation_read("conversation", "me"),
+            )
+            .await
+            .unwrap()
+            .unwrap(),
+            (false, false)
+        );
+        writer.rollback().await.unwrap();
     }
 
     #[tokio::test]

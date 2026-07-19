@@ -275,6 +275,8 @@ class MessageController extends ValueNotifier<MessageState>
   var _reloadInFlight = false;
   var _reloadPending = false;
   var _reloadRecentPending = false;
+  var _markReadInFlight = false;
+  var _markReadPending = false;
   var _disposed = false;
   late final MessageWindowLoader _messageWindowLoader =
       MessageWindowLoader.fromAccount(account, conversation.id);
@@ -686,18 +688,32 @@ class MessageController extends ValueNotifier<MessageState>
   }
 
   void _markConversationRead() {
-    unawaited(
-      account
-          .message()
-          .markConversationRead(conversationId: conversation.id)
-          .catchError((Object exception, StackTrace stackTrace) {
-            e(
-              'Mark conversation read failed: conversation_id=${conversation.id}',
-              exception,
-              stackTrace,
-            );
-          }),
-    );
+    if (_disposed) return;
+    _markReadPending = true;
+    if (_markReadInFlight) return;
+    _markReadInFlight = true;
+    unawaited(_drainMarkConversationRead());
+  }
+
+  Future<void> _drainMarkConversationRead() async {
+    try {
+      while (_markReadPending && !_disposed) {
+        _markReadPending = false;
+        try {
+          await account.message().markConversationRead(
+            conversationId: conversation.id,
+          );
+        } catch (exception, stackTrace) {
+          e(
+            'Mark conversation read failed: conversation_id=${conversation.id}',
+            exception,
+            stackTrace,
+          );
+        }
+      }
+    } finally {
+      _markReadInFlight = false;
+    }
   }
 
   String _formatWindow(MessageState state) =>

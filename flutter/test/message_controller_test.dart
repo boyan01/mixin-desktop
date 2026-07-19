@@ -47,6 +47,37 @@ void main() {
     expect(account.markReadCalls, 1);
   });
 
+  testWidgets('coalesces concurrent mark read requests with a trailing run', (
+    tester,
+  ) async {
+    final account = _FakeAccountHandle([_message('first')]);
+    final firstMarkRead = Completer<void>();
+    account.markReadCompleter = firstMarkRead;
+    final messages = MessageController(
+      account: account,
+      conversation: _conversation,
+      limit: 60,
+    );
+    addTearDown(() {
+      messages.dispose();
+      account.close();
+    });
+
+    await tester.pump();
+    expect(account.markReadCalls, 1);
+
+    account.notifyMessageRevision();
+    account.notifyMessageRevision();
+    await tester.pump();
+    await tester.pump();
+    expect(account.markReadCalls, 1);
+
+    account.markReadCompleter = null;
+    firstMarkRead.complete();
+    await tester.pumpAndSettle();
+    expect(account.markReadCalls, 2);
+  });
+
   testWidgets('refresh replaces messages deleted by Rust core', (tester) async {
     final account = _FakeAccountHandle([
       _message('first'),
@@ -334,6 +365,7 @@ class _FakeAccountHandle
   final _conversationChanges =
       StreamController<ConversationChangeEvent>.broadcast();
   var markReadCalls = 0;
+  Completer<void>? markReadCompleter;
   var messagesAroundCalls = 0;
   String? aroundTarget;
   int? aroundBefore;
@@ -466,6 +498,7 @@ class _FakeAccountHandle
   @override
   Future<void> markConversationRead({required String conversationId}) async {
     markReadCalls++;
+    await markReadCompleter?.future;
   }
 
   @override
