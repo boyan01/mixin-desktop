@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::api::user_api::{Membership, UserRelationship};
 use crate::client::ClientRef;
-use crate::{ApiError, Sticker};
+use crate::{ApiError, SignalKeyCount, SignalKeyRequest, Sticker};
 
 pub struct AccountApi {
     client: Arc<ClientRef>,
@@ -78,7 +78,7 @@ pub struct Account {
     pub pin_token: String,
     pub pin_token_base64: String,
     #[serde(default)]
-    pub relationship: UserRelationship,
+    pub relationship: Option<UserRelationship>,
     pub salt_base64: String,
     pub session_id: String,
     pub spend_public_key: String,
@@ -94,6 +94,15 @@ impl AccountApi {
     pub async fn get_me(&self) -> Result<Account, ApiError> {
         let account: Account = self.client.get("me").await?;
         Ok(account)
+    }
+
+    pub async fn get_signal_key_count(&self) -> Result<SignalKeyCount, ApiError> {
+        self.client.get("signal/keys/count").await
+    }
+
+    pub async fn push_signal_keys(&self, request: &SignalKeyRequest) -> Result<(), ApiError> {
+        let _: Value = self.client.post("signal/keys", request).await?;
+        Ok(())
     }
 
     pub async fn update(&self, request: &AccountUpdateRequest<'_>) -> Result<Account, ApiError> {

@@ -9,6 +9,7 @@ pub struct Identity {
     pub registration_id: Option<u32>,
     pub public_key: Vec<u8>,
     pub private_key: Option<Vec<u8>>,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub timestamp: DateTime<Utc>,
 }
 
@@ -41,7 +42,7 @@ impl IdentityDao {
         .bind(identity.registration_id)
         .bind(&identity.public_key)
         .bind(&identity.private_key)
-        .bind(identity.timestamp)
+        .bind(identity.timestamp.timestamp_millis())
         .execute(&self.0)
         .await?;
         Ok(())

@@ -251,17 +251,17 @@ impl MessageAccess {
                 "message cursor requires both timestamp and message id"
             ));
         }
-        let before_created_at = before_created_at_micros
-            .map(|value| {
-                chrono::DateTime::from_timestamp_micros(value)
-                    .map(|date_time| date_time.naive_utc())
-                    .ok_or_else(|| anyhow!("invalid message cursor timestamp: {value}"))
-            })
-            .transpose()?;
+        let before_created_at_millis =
+            before_created_at_micros.map(|value| value.div_euclid(1_000));
         Ok(self
             .database
             .message_dao
-            .list_items(conversation_id, before_created_at, before_message_id, limit)
+            .list_items(
+                conversation_id,
+                before_created_at_millis,
+                before_message_id,
+                limit,
+            )
             .await?
             .into_iter()
             .map(Into::into)

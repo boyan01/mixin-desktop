@@ -1934,6 +1934,7 @@ dependencies = [
  "base64ct",
  "cbc",
  "chrono",
+ "crc32fast",
  "curve25519-dalek 5.0.0",
  "directories",
  "flate2",

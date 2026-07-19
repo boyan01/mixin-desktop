@@ -33,6 +33,7 @@ pub struct TranscriptMessage {
         deserialize_with = "deserialize_datetime",
         serialize_with = "serialize_datetime"
     )]
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
     #[serde(default)]
     pub content: Option<String>,
@@ -103,6 +104,7 @@ pub struct TranscriptMessageListItem {
     pub category: String,
     pub content: Option<String>,
     pub status: MessageStatus,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
     pub media_url: Option<String>,
     pub media_mime_type: Option<String>,
@@ -162,7 +164,7 @@ impl TranscriptMessageDao {
             .bind(&transcript.user_id)
             .bind(&transcript.user_full_name)
             .bind(&transcript.category)
-            .bind(transcript.created_at)
+            .bind(transcript.created_at.timestamp_millis())
             .bind(&transcript.content)
             .bind(&transcript.media_url)
             .bind(&transcript.media_name)

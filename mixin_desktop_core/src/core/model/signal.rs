@@ -7,7 +7,7 @@ use libsignal_protocol::{
 };
 use rand_core::OsRng;
 
-use sdk::{OneTimePreKey, SignalKeyRequest, SignedPreKey};
+use sdk::{Client, OneTimePreKey, SignalKeyRequest, SignedPreKey};
 
 use crate::core::crypto::signal_protocol::{SignalProtocol, MAX_VALUE, PRE_KEY_BATCH_SIZE};
 use crate::db::signal::pre_key::PreKey;
@@ -17,14 +17,42 @@ use crate::db::SignalDatabase;
 pub struct SignalService {
     pub(crate) signal_protocol: Arc<SignalProtocol>,
     pub(crate) signal_database: Arc<SignalDatabase>,
+    client: Arc<Client>,
 }
 
 impl SignalService {
-    pub fn new(protocol: Arc<SignalProtocol>, database: Arc<SignalDatabase>) -> Self {
+    pub fn new(
+        protocol: Arc<SignalProtocol>,
+        database: Arc<SignalDatabase>,
+        client: Arc<Client>,
+    ) -> Self {
         Self {
             signal_protocol: protocol,
             signal_database: database,
+            client,
         }
+    }
+
+    pub(crate) async fn key_count(&self) -> Result<u32> {
+        Ok(self
+            .client
+            .account_api
+            .get_signal_key_count()
+            .await?
+            .one_time_pre_keys_count)
+    }
+
+    pub(crate) async fn push_keys(&self) -> Result<()> {
+        let keys = self
+            .generate_keys()
+            .await
+            .map_err(|error| anyhow!("failed to generate signal keys: {error}"))?;
+        self.client.account_api.push_signal_keys(&keys).await?;
+        self.signal_database
+            .crypto_key_value
+            .set_has_push_signal_keys(true)
+            .await;
+        Ok(())
     }
 
     pub async fn generate_pre_keys(&self) -> Result<Vec<PreKeyRecord>> {
@@ -143,7 +171,11 @@ mod tests {
         );
         database.init(7, None).await?;
         let protocol = Arc::new(SignalProtocol::new(database.clone(), "account-id".into()));
-        let service = SignalService::new(protocol.clone(), database.clone());
+        let service = SignalService::new(
+            protocol.clone(),
+            database.clone(),
+            Arc::new(Client::new(sdk::Credential::None)),
+        );
         let identity = protocol
             .protocol_store
             .identity_store

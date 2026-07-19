@@ -9,6 +9,7 @@ use sdk::blaze_message::{MessageStatus, CREATE_MESSAGE};
 use sdk::message_category::{MESSAGE_PIN, MESSAGE_RECALL};
 use sdk::ACKNOWLEDGE_MESSAGE_RECEIPTS;
 
+use crate::db::datetime::DatabaseDateTime;
 use crate::db::mixin::database::MARK_LIMIT;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::transcript_message::{TranscriptMessage, TranscriptMessageDao};
@@ -37,6 +38,7 @@ pub struct Message {
     pub media_digest: Option<Vec<u8>>,
     pub media_status: MediaStatus,
     pub status: MessageStatus,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: NaiveDateTime,
     pub action: Option<String>,
     pub participant_id: Option<String>,
@@ -70,6 +72,7 @@ pub struct MessageListItem {
     pub category: String,
     pub content: Option<String>,
     pub status: MessageStatus,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: NaiveDateTime,
     pub media_url: Option<String>,
     pub media_mime_type: Option<String>,
@@ -132,6 +135,7 @@ pub struct MessageListItem {
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct ImageMessageItem {
     pub message_id: String,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: NaiveDateTime,
     pub media_url: String,
     pub media_name: Option<String>,
@@ -227,6 +231,7 @@ pub struct QuoteMessage {
     #[sqlx(rename = "type")]
     pub category: String,
     pub content: Option<String>,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
     pub status: MessageStatus,
     pub media_status: Option<MediaStatus>,
@@ -316,6 +321,7 @@ pub struct NotificationMessageItem {
     pub category: String,
     pub content: Option<String>,
     pub quote_content: Option<String>,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: NaiveDateTime,
     pub conversation_name: String,
     pub conversation_category: String,
@@ -326,7 +332,6 @@ impl MessageDao {
     pub async fn notification_items_after(
         &self,
         current_user_id: &str,
-        after_created_at: NaiveDateTime,
         after_row_id: i64,
         limit: i64,
     ) -> Result<Vec<NotificationMessageItem>, Error> {
@@ -345,27 +350,33 @@ SELECT message.rowid AS row_id,
             THEN conversation.name ELSE COALESCE(owner.full_name, '') END AS conversation_name,
        COALESCE(conversation.category, '') AS conversation_category,
        CASE WHEN conversation.category = 'GROUP'
-            THEN conversation.mute_until >= ?4
-            ELSE owner.mute_until >= ?4 END AS is_muted
+            THEN conversation.mute_until >= ?3
+            ELSE owner.mute_until >= ?3 END AS is_muted
 FROM messages message
 INNER JOIN conversations conversation
         ON conversation.conversation_id = message.conversation_id
 INNER JOIN users owner ON owner.user_id = conversation.owner_id
 LEFT JOIN users sender ON sender.user_id = message.user_id
 WHERE message.user_id != ?1
-  AND (message.created_at > ?2
-       OR (message.created_at = ?2 AND message.rowid > ?3))
-ORDER BY message.created_at ASC, message.rowid ASC
-LIMIT ?
+  AND message.rowid > ?2
+ORDER BY message.rowid ASC
+LIMIT ?4
             "#,
         )
         .bind(current_user_id)
-        .bind(after_created_at)
         .bind(after_row_id)
-        .bind(Utc::now().naive_utc())
+        .bind(Utc::now().timestamp_millis())
         .bind(limit.clamp(1, 200))
         .fetch_all(&self.0)
         .await?)
+    }
+
+    pub async fn latest_row_id(&self) -> Result<i64, Error> {
+        Ok(
+            sqlx::query_scalar("SELECT COALESCE(MAX(rowid), 0) FROM messages")
+                .fetch_one(&self.0)
+                .await?,
+        )
     }
 
     pub async fn unread_message_ids(
@@ -494,7 +505,7 @@ LIMIT ?
                 builder
                     .push_bind(&job.job_id)
                     .push_bind(&job.action)
-                    .push_bind(job.created_at)
+                    .push_bind(job.created_at.and_utc().timestamp_millis())
                     .push_bind(job.order_id)
                     .push_bind(job.priority)
                     .push_bind(job.user_id.as_ref())
@@ -513,7 +524,7 @@ LIMIT ?
     pub async fn list_items(
         &self,
         conversation_id: &str,
-        before_created_at: Option<NaiveDateTime>,
+        before_created_at_millis: Option<i64>,
         before_message_id: Option<&str>,
         limit: i64,
     ) -> Result<Vec<MessageListItem>, Error> {
@@ -617,18 +628,22 @@ LEFT JOIN expired_messages expired ON expired.message_id = message.message_id
 WHERE message.conversation_id = ?1
   AND (
       ?2 IS NULL
-      OR message.created_at < ?2
+      OR CASE WHEN typeof(message.created_at) = 'integer' THEN message.created_at
+              ELSE CAST(unixepoch(message.created_at, 'subsec') * 1000 AS INTEGER) END < ?2
       OR (
-          message.created_at = ?2
+          CASE WHEN typeof(message.created_at) = 'integer' THEN message.created_at
+               ELSE CAST(unixepoch(message.created_at, 'subsec') * 1000 AS INTEGER) END = ?2
           AND message.message_id < ?3
       )
   )
-ORDER BY message.created_at DESC, message.message_id DESC
+ORDER BY CASE WHEN typeof(message.created_at) = 'integer' THEN message.created_at
+              ELSE CAST(unixepoch(message.created_at, 'subsec') * 1000 AS INTEGER) END DESC,
+         message.message_id DESC
 LIMIT ?4
             "#,
         )
         .bind(conversation_id)
-        .bind(before_created_at)
+        .bind(before_created_at_millis)
         .bind(before_message_id.unwrap_or_default())
         .bind(limit.clamp(1, 200))
         .fetch_all(&self.0)
@@ -1102,7 +1117,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
         )
         .bind(&job.job_id)
         .bind(&job.action)
-        .bind(job.created_at)
+        .bind(job.created_at.and_utc().timestamp_millis())
         .bind(job.order_id)
         .bind(job.priority)
         .bind(job.user_id.as_ref())
@@ -1751,7 +1766,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
             )
             .bind(message_id)
             .bind(conversation_id)
-            .bind(created_at)
+            .bind(created_at.timestamp_millis())
             .execute(&mut *transaction)
             .await?;
         } else {
@@ -1797,9 +1812,11 @@ ORDER BY message.created_at ASC, message.message_id ASC
         transaction: &mut sqlx::Transaction<'_, Sqlite>,
         conversation_id: &str,
     ) -> Result<(), Error> {
-        let latest = sqlx::query_as::<_, (String, NaiveDateTime)>(
+        let latest = sqlx::query_as::<_, (String, DatabaseDateTime)>(
             "SELECT message_id, created_at FROM messages WHERE conversation_id = ? \
-             ORDER BY created_at DESC, rowid DESC LIMIT 1",
+             ORDER BY CASE WHEN typeof(created_at) = 'integer' THEN created_at \
+                           ELSE CAST(unixepoch(created_at, 'subsec') * 1000 AS INTEGER) END DESC, \
+                      rowid DESC LIMIT 1",
         )
         .bind(conversation_id)
         .fetch_optional(&mut **transaction)
@@ -1808,7 +1825,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
             .map(|(message_id, created_at)| {
                 (
                     Some(message_id),
-                    Some(created_at.and_utc().timestamp_millis()),
+                    Some(DateTime::<Utc>::from(created_at).timestamp_millis()),
                 )
             })
             .unwrap_or_default();
@@ -1919,9 +1936,11 @@ ORDER BY message.created_at ASC, message.message_id ASC
                 .execute(&mut *transaction)
                 .await?;
 
-        let latest = sqlx::query_as::<_, (String, NaiveDateTime)>(
+        let latest = sqlx::query_as::<_, (String, DatabaseDateTime)>(
             "SELECT message_id, created_at FROM messages WHERE conversation_id = ? \
-             ORDER BY created_at DESC, rowid DESC LIMIT 1",
+             ORDER BY CASE WHEN typeof(created_at) = 'integer' THEN created_at \
+                           ELSE CAST(unixepoch(created_at, 'subsec') * 1000 AS INTEGER) END DESC, \
+                      rowid DESC LIMIT 1",
         )
         .bind(conversation_id)
         .fetch_optional(&mut *transaction)
@@ -1930,7 +1949,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
             .map(|(message_id, created_at)| {
                 (
                     Some(message_id),
-                    Some(created_at.and_utc().timestamp_millis()),
+                    Some(DateTime::<Utc>::from(created_at).timestamp_millis()),
                 )
             })
             .unwrap_or_default();
@@ -1998,7 +2017,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
     .bind(&message.media_digest)
     .bind(&message.media_status)
     .bind(message.status)
-    .bind(message.created_at)
+    .bind(message.created_at.and_utc().timestamp_millis())
     .bind(&message.action)
     .bind(&message.participant_id)
     .bind(&message.snapshot_id)
@@ -2485,7 +2504,7 @@ mod tests {
         );
 
         let cursor = latest.last().unwrap();
-        let cursor_created_at = cursor.created_at;
+        let cursor_created_at = cursor.created_at.and_utc().timestamp_millis();
         let cursor_message_id = cursor.message_id.clone();
         sqlx::query("DELETE FROM messages WHERE message_id = ?")
             .bind(&cursor_message_id)

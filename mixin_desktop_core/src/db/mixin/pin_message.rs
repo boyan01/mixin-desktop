@@ -11,6 +11,7 @@ pub struct PinMessageDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 pub struct PinMessage {
     pub message_id: String,
     pub conversation_id: String,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
 }
 
@@ -77,7 +78,7 @@ LIMIT 1
         )
         .bind(&pin_message.message_id)
         .bind(&pin_message.conversation_id)
-        .bind(pin_message.created_at)
+        .bind(pin_message.created_at.timestamp_millis())
         .execute(&self.0)
         .await?;
         Ok(())

@@ -108,24 +108,43 @@ pub enum ProcessSignalKeyAction<'a> {
 
 impl MessageSender {
     pub async fn maintain_signal_keys(&self) {
-        loop {
-            match self.refresh_signal_key("startup").await {
-                Ok(()) => break,
-                Err(err) => {
-                    warn!("failed to refresh signal keys at startup: {err}");
-                    sleep(Duration::from_secs(5)).await;
-                }
-            }
+        let has_push_signal_keys = self
+            .signal_protocol
+            .signal_database
+            .crypto_key_value
+            .has_push_signal_keys();
+        let startup = if has_push_signal_keys {
+            self.check_signal_keys().await
+        } else {
+            self.push_signal_keys().await
+        };
+        if let Err(err) = startup {
+            warn!("failed to maintain signal keys at startup: {err}");
         }
 
         let period = Duration::from_secs(24 * 60 * 60);
         let mut interval = interval_at(Instant::now() + period, period);
         loop {
             interval.tick().await;
-            if let Err(err) = self.refresh_signal_key("periodic").await {
-                warn!("failed to refresh signal keys periodically: {err}");
+            if let Err(err) = self.check_signal_keys().await {
+                warn!("failed to maintain signal keys periodically: {err}");
             }
         }
+    }
+
+    async fn check_signal_keys(&self) -> Result<()> {
+        let key_count = self.signal_service.key_count().await?;
+        info!("signal keys count: {key_count}");
+        if key_count > 500 {
+            return Ok(());
+        }
+        self.push_signal_keys().await
+    }
+
+    async fn push_signal_keys(&self) -> Result<()> {
+        self.signal_service.push_keys().await?;
+        info!("registered new pre keys");
+        Ok(())
     }
 
     pub async fn send_process_signal_key<'a>(
@@ -192,13 +211,7 @@ impl MessageSender {
         let key_count: SignalKeyCount = serde_json::from_value(data)?;
         info!("signal keys count: {}", key_count.one_time_pre_keys_count);
 
-        let has_push_signal_keys = self
-            .signal_protocol
-            .signal_database
-            .crypto_key_value
-            .has_push_signal_keys();
-
-        if has_push_signal_keys && key_count.one_time_pre_keys_count >= 500 {
+        if key_count.one_time_pre_keys_count >= 500 {
             *self.last_signal_key_refresh.lock().unwrap() = Some(now);
             return Ok(());
         }

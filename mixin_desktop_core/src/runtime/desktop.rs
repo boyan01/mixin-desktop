@@ -15,7 +15,7 @@ use crate::db::SignalDatabase;
 use crate::network::{HttpResponse, NetworkService, ProxySettings, SharedNetworkService};
 
 use super::login::LoginRuntime;
-use super::{credential, AccountRuntime};
+use super::{credential, AccountRuntime, SessionUnauthorized};
 
 const DEVICE_PROPERTY_GROUP: &str = "account";
 const DEVICE_PROPERTY_KEY: &str = "device_id";
@@ -94,9 +94,16 @@ impl DesktopRuntime {
             self.auth_service.clear_auth(&auth.account.user_id).await?;
             return Ok(None);
         }
-        Ok(Some(
-            AccountRuntime::start(auth, self.auth_service.clone()).await?,
-        ))
+        let user_id = auth.account.user_id.clone();
+        match AccountRuntime::start(auth, self.auth_service.clone()).await {
+            Ok(runtime) => Ok(Some(runtime)),
+            Err(error) if error.downcast_ref::<SessionUnauthorized>().is_some() => {
+                warn!("saved session is unauthorized; requiring login");
+                self.auth_service.clear_auth(&user_id).await?;
+                Ok(None)
+            }
+            Err(error) => Err(error),
+        }
     }
 
     pub async fn recreate_account_database(&self) -> Result<()> {

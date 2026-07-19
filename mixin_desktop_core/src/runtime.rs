@@ -53,6 +53,10 @@ pub use message::MessageAccess;
 pub use sticker::StickerAccess;
 pub use user::UserAccess;
 
+#[derive(Debug, thiserror::Error)]
+#[error("session unauthorized")]
+pub(crate) struct SessionUnauthorized;
+
 type AccountStartupResult = std::result::Result<
     (
         Arc<MixinDatabase>,
@@ -170,18 +174,18 @@ impl AccountRuntime {
     }
 
     pub async fn start(auth: Auth, auth_service: Arc<AuthService>) -> Result<Self> {
-        if auth
-            .primary_session_id
-            .as_deref()
-            .filter(|value| !value.trim().is_empty())
-            .is_none()
-        {
-            return Err(anyhow!("authorization has no primary session"));
-        }
         let account_id = auth.account.user_id.clone();
         let account = auth.account.clone();
         let (profile, _) = watch::channel(account);
         let client = Arc::new(Client::new(credential(&auth)));
+        let initial_account_health = match client.account_api.get_me().await {
+            Err(sdk::ApiError::Server(error))
+                if error.code == sdk::err::error_code::AUTHENTICATION =>
+            {
+                return Err(SessionUnauthorized.into());
+            }
+            result => account_health(result)?,
+        };
         let (shutdown, shutdown_receiver) = watch::channel(false);
         let (conversation_changes, _) = watch::channel(0);
         let (notification_changes, _) = watch::channel(0);
@@ -206,6 +210,7 @@ impl AccountRuntime {
                             account_conversation_changes,
                             account_notification_changes,
                             account_health_updates,
+                            initial_account_health,
                             ready_sender,
                         )),
                         Err(error) => {
@@ -307,14 +312,11 @@ impl AccountRuntime {
         after_row_id: i64,
         limit: i64,
     ) -> Result<model::NotificationEventBatch> {
-        let after_created_at = chrono::DateTime::from_timestamp_micros(after_created_at_micros)
-            .map(|value| value.naive_utc())
-            .ok_or_else(|| anyhow!("invalid notification timestamp: {after_created_at_micros}"))?;
         let limit = limit.clamp(1, 200);
         let messages = self
             .database
             .message_dao
-            .notification_items_after(&self.account_id, after_created_at, after_row_id, limit)
+            .notification_items_after(&self.account_id, after_row_id, limit)
             .await?;
         let (next_created_at_micros, next_row_id) = messages
             .last()
@@ -339,6 +341,10 @@ impl AccountRuntime {
             next_row_id,
             has_more,
         })
+    }
+
+    pub async fn latest_notification_row_id(&self) -> Result<i64> {
+        Ok(self.database.message_dao.latest_row_id().await?)
     }
 
     pub fn subscribe_shutdown(&self) -> watch::Receiver<bool> {
@@ -818,6 +824,7 @@ async fn run_account(
     conversation_changes: watch::Sender<u64>,
     notification_changes: watch::Sender<u64>,
     account_health_updates: watch::Sender<String>,
+    initial_account_health: String,
     ready_sender: oneshot::Sender<AccountStartupResult>,
 ) {
     let result = prepare_account(
@@ -825,6 +832,7 @@ async fn run_account(
         client.clone(),
         conversation_changes,
         notification_changes,
+        initial_account_health,
     )
     .await;
     let (
@@ -921,11 +929,11 @@ async fn prepare_account(
     client: Arc<Client>,
     conversation_changes: watch::Sender<u64>,
     notification_changes: watch::Sender<u64>,
+    account_health: String,
 ) -> Result<AccountServices> {
     let account = &auth.account;
     let account_id = account.user_id.clone();
     let credential = credential(auth);
-    let account_health = account_health(client.account_api.get_me().await)?;
 
     let database = Arc::new(
         MixinDatabase::new(account.identity_number.clone())
@@ -950,7 +958,11 @@ async fn prepare_account(
     ));
     let conversation =
         ConversationService::new(database.clone(), client.clone(), account_id.clone());
-    let signal_service = SignalService::new(signal_protocol.clone(), signal_database.clone());
+    let signal_service = SignalService::new(
+        signal_protocol.clone(),
+        signal_database.clone(),
+        client.clone(),
+    );
     let sender = Arc::new(MessageSender::new(
         blaze.clone(),
         conversation,

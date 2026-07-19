@@ -163,7 +163,7 @@ impl AccountHandle {
         let mut changes = self.runtime.subscribe_notification_changes();
         let mut shutdown = self.runtime.subscribe_shutdown();
         let mut created_at_micros = Utc::now().timestamp_micros();
-        let mut row_id = 0;
+        let mut row_id = self.runtime.latest_notification_row_id().await?;
         loop {
             loop {
                 let batch = self

@@ -6,6 +6,7 @@ import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/command_palette_item.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
+import 'package:mixin_desktop_ui/utils/app_logger.dart';
 import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -474,8 +475,8 @@ class ConversationListController extends ChangeNotifier {
       );
       error = null;
       return result.toInt();
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      _setError(exception, stackTrace);
       return 0;
     }
   }
@@ -499,8 +500,8 @@ class ConversationListController extends ChangeNotifier {
       );
       error = null;
       return result.map(ConversationListEntry.fromRust).toList(growable: false);
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      _setError(exception, stackTrace);
       return const [];
     }
   }
@@ -539,8 +540,8 @@ class ConversationListController extends ChangeNotifier {
         ..addAll(_categoryCounts(conversations, muted: true));
       error = null;
       notifyListeners();
-    } catch (exception) {
-      _setError(exception);
+    } catch (exception, stackTrace) {
+      _setError(exception, stackTrace);
     }
   }
 
@@ -572,8 +573,9 @@ class ConversationListController extends ChangeNotifier {
     return result;
   }
 
-  void _setError(Object exception) {
+  void _setError(Object exception, [StackTrace? stackTrace]) {
     if (_disposed) return;
+    e('Conversation list failed', exception, stackTrace);
     loading = false;
     error = exception.toString();
     notifyListeners();

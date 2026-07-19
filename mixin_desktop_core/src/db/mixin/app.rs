@@ -21,6 +21,7 @@ pub struct App {
     pub capabilities: Option<String>,
     pub creator_id: String,
     pub resource_patterns: Option<String>,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub updated_at: DateTime<Utc>,
 }
 
@@ -58,7 +59,7 @@ impl AppDao {
                 .push_bind(format!("[{}]", app.capabilities.join(", ")))
                 .push_bind(&app.creator_id)
                 .push_bind(format!("[{}]", app.resource_patterns.join(", ")))
-                .push_bind(app.updated_at);
+                .push_bind(app.updated_at.timestamp_millis());
         });
         query_builder.build().execute(&self.0).await?;
         Ok(())

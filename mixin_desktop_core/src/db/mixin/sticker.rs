@@ -15,7 +15,9 @@ pub struct Sticker {
     pub asset_width: i32,
     pub asset_height: i32,
     pub asset_type: String,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
+    #[sqlx(try_from = "crate::db::datetime::OptionalDatabaseDateTime")]
     pub last_use_at: Option<DateTime<Utc>>,
 }
 
@@ -24,7 +26,9 @@ pub struct StickerAlbum {
     pub album_id: String,
     pub name: String,
     pub icon_url: String,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub update_at: DateTime<Utc>,
     pub ordered_at: i64,
     pub user_id: String,
@@ -58,8 +62,8 @@ impl StickerDao {
         .bind(&sticker.asset_type)
         .bind(sticker.asset_width)
         .bind(sticker.asset_height)
-        .bind(sticker.created_at)
-        .bind(sticker.last_use_at)
+        .bind(sticker.created_at.timestamp_millis())
+        .bind(sticker.last_use_at.map(|value| value.timestamp_millis()))
         .execute(&self.0)
         .await?;
         Ok(())
@@ -97,8 +101,8 @@ impl StickerDao {
         .bind(&album.album_id)
         .bind(&album.name)
         .bind(&album.icon_url)
-        .bind(album.created_at)
-        .bind(album.update_at)
+        .bind(album.created_at.timestamp_millis())
+        .bind(album.update_at.timestamp_millis())
         .bind(ordered_at)
         .bind(&album.user_id)
         .bind(&album.category)
@@ -196,7 +200,7 @@ impl StickerDao {
 
     pub async fn update_last_used(&self, sticker_id: &str) -> Result<(), Error> {
         sqlx::query("UPDATE stickers SET last_use_at = ? WHERE sticker_id = ?")
-            .bind(Utc::now())
+            .bind(Utc::now().timestamp_millis())
             .bind(sticker_id)
             .execute(&self.0)
             .await?;

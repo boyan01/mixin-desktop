@@ -228,6 +228,9 @@ impl DeviceTransferService {
     }
 
     pub async fn command(self: &Arc<Self>, command: &str) -> Result<()> {
+        if self.primary_session_id.is_none() {
+            bail!("device transfer is unavailable without a primary session");
+        }
         match command {
             "pull_to_remote" => {
                 self.state.lock().await.waiting_for_remote_push = true;
@@ -284,6 +287,9 @@ impl DeviceTransferService {
     }
 
     async fn handle_remote_content(self: &Arc<Self>, content: &str) -> Result<()> {
+        if self.primary_session_id.is_none() {
+            return Ok(());
+        }
         let command: TransferCommand = serde_json::from_str(content)?;
         if command.device_id == self.device_id {
             return Ok(());

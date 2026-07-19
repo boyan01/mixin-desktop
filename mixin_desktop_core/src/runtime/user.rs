@@ -71,12 +71,12 @@ impl UserAccess {
             .into_iter()
             .filter(|user| match category.as_str() {
                 "contacts" => {
-                    matches!(user.relationship, sdk::UserRelationship::Friend)
+                    matches!(user.relationship, Some(sdk::UserRelationship::Friend))
                         && user.app_id.is_none()
                 }
                 "bots" => user.app_id.is_some(),
                 "strangers" => {
-                    matches!(user.relationship, sdk::UserRelationship::Stranger)
+                    matches!(user.relationship, Some(sdk::UserRelationship::Stranger))
                         && user.app_id.is_none()
                 }
                 "groups" => false,

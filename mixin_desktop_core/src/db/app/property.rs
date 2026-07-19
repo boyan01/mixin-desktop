@@ -24,4 +24,29 @@ impl PropertyDao {
         .await?;
         Ok(())
     }
+
+    pub async fn update(&self, values: &[(&str, &str, Option<&str>)]) -> Result<(), Error> {
+        let mut transaction = self.0.begin().await?;
+        for (group, key, value) in values {
+            if let Some(value) = value {
+                sqlx::query(
+                    r#"INSERT INTO properties ("group", "key", value) VALUES (?, ?, ?)
+                       ON CONFLICT("key", "group") DO UPDATE SET value = excluded.value"#,
+                )
+                .bind(group)
+                .bind(key)
+                .bind(value)
+                .execute(&mut *transaction)
+                .await?;
+            } else {
+                sqlx::query("DELETE FROM properties WHERE \"group\" = ? AND \"key\" = ?")
+                    .bind(group)
+                    .bind(key)
+                    .execute(&mut *transaction)
+                    .await?;
+            }
+        }
+        transaction.commit().await?;
+        Ok(())
+    }
 }

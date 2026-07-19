@@ -12,6 +12,7 @@ pub struct ParticipantSession {
     pub user_id: String,
     pub session_id: String,
     pub sent_to_server: Option<i32>,
+    #[sqlx(try_from = "crate::db::datetime::OptionalDatabaseDateTime")]
     pub created_at: Option<DateTime<Utc>>,
     pub public_key: Option<String>,
 }
@@ -55,7 +56,7 @@ impl ParticipantSessionDao {
                 .push_bind(&session.user_id)
                 .push_bind(&session.session_id)
                 .push_bind(session.sent_to_server)
-                .push_bind(session.created_at)
+                .push_bind(session.created_at.map(|value| value.timestamp_millis()))
                 .push_bind(&session.public_key);
         });
         qb.build().execute(&mut *tx).await?;

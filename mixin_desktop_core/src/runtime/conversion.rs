@@ -110,7 +110,10 @@ impl From<crate::db::mixin::user::User> for ConversationParticipantItem {
             biography: user.biography,
             is_verified: user.is_verified,
             is_bot: user.app_id.is_some_and(|app_id| !app_id.is_empty()),
-            relationship: format!("{:?}", user.relationship).to_uppercase(),
+            relationship: user
+                .relationship
+                .map(|relationship| format!("{relationship:?}").to_uppercase())
+                .unwrap_or_default(),
             membership: user.membership,
         }
     }
@@ -126,7 +129,10 @@ impl From<crate::db::mixin::user::User> for UserProfileItem {
             biography: user.biography,
             is_verified: user.is_verified,
             is_bot: user.app_id.is_some_and(|app_id| !app_id.is_empty()),
-            relationship: format!("{:?}", user.relationship).to_uppercase(),
+            relationship: user
+                .relationship
+                .map(|relationship| format!("{relationship:?}").to_uppercase())
+                .unwrap_or_default(),
             code_url: user.code_url,
             membership: user.membership,
         }

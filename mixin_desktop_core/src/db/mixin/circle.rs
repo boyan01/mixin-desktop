@@ -11,7 +11,9 @@ pub struct CircleDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
 pub struct Circle {
     pub circle_id: String,
     pub name: String,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
+    #[sqlx(try_from = "crate::db::datetime::OptionalDatabaseDateTime")]
     pub ordered_at: Option<DateTime<Utc>>,
 }
 
@@ -54,7 +56,7 @@ impl CircleDao {
         query_builder.push_values(circles.iter(), |mut b, circle| {
             b.push_bind(&circle.circle_id)
                 .push_bind(&circle.name)
-                .push_bind(circle.created_at);
+                .push_bind(circle.created_at.timestamp_millis());
         });
         let query = query_builder.build();
         query.execute(&self.0).await?;
@@ -85,7 +87,7 @@ impl CircleDao {
         let mut transaction = self.0.begin().await?;
         for (index, id) in ids.iter().enumerate() {
             sqlx::query("UPDATE circles SET ordered_at = ? WHERE circle_id = ?")
-                .bind(now + Duration::milliseconds(index as i64))
+                .bind((now + Duration::milliseconds(index as i64)).timestamp_millis())
                 .bind(id)
                 .execute(&mut *transaction)
                 .await?;

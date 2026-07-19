@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use tokio::sync::Mutex;
 
 use crate::db::Error;
@@ -22,12 +22,24 @@ impl OffsetDao {
     }
 
     pub async fn message_status_offset(&self) -> Result<Option<DateTime<Utc>>, Error> {
-        Ok(sqlx::query_scalar::<_, DateTime<Utc>>(
-            "SELECT timestamp FROM offsets WHERE \"key\" = ?",
-        )
-        .bind(MESSAGE_STATUS_OFFSET)
-        .fetch_optional(&self.pool)
-        .await?)
+        sqlx::query_scalar::<_, String>("SELECT timestamp FROM offsets WHERE \"key\" = ?")
+            .bind(MESSAGE_STATUS_OFFSET)
+            .fetch_optional(&self.pool)
+            .await?
+            .map(|value| {
+                if let Ok(millis) = value.parse::<i64>() {
+                    return DateTime::from_timestamp_millis(millis).ok_or_else(|| {
+                        anyhow::anyhow!("invalid message status offset: {value}").into()
+                    });
+                }
+
+                DateTime::parse_from_rfc3339(&value)
+                    .map(|value| value.with_timezone(&Utc))
+                    .map_err(|error| {
+                        anyhow::anyhow!("invalid message status offset {value}: {error}").into()
+                    })
+            })
+            .transpose()
     }
 
     pub async fn save_message_status_offset(&self, updated_at: DateTime<Utc>) -> Result<(), Error> {
@@ -35,7 +47,7 @@ impl OffsetDao {
         if self
             .message_status_offset()
             .await?
-            .is_some_and(|current| current >= updated_at)
+            .is_some_and(|current| current > updated_at)
         {
             return Ok(());
         }
@@ -45,7 +57,7 @@ impl OffsetDao {
              ON CONFLICT(\"key\") DO UPDATE SET timestamp = excluded.timestamp",
         )
         .bind(MESSAGE_STATUS_OFFSET)
-        .bind(updated_at)
+        .bind(updated_at.to_rfc3339_opts(SecondsFormat::AutoSi, true))
         .execute(&self.pool)
         .await?;
         Ok(())

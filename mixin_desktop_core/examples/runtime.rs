@@ -68,15 +68,6 @@ async fn load_authenticated_runtime(
             Some(auth) => auth,
             None => authorize_and_return(auth_service).await?,
         };
-        if auth
-            .primary_session_id
-            .as_deref()
-            .is_none_or(|session_id| session_id.trim().is_empty())
-        {
-            warn!("stored authorization has no primary session, requesting a new authorization");
-            auth_service.clear_auth(&auth.user_id).await?;
-            continue;
-        }
         let credential = Credential::KeyStore(KeyStore {
             app_id: auth.user_id.clone(),
             session_id: auth.account.session_id.clone(),
@@ -128,7 +119,11 @@ async fn run_authenticated_services(
     ));
     let conversation =
         ConversationService::new(database.clone(), runtime.client.clone(), account_id.clone());
-    let signal_service = SignalService::new(signal_protocol.clone(), signal_database.clone());
+    let signal_service = SignalService::new(
+        signal_protocol.clone(),
+        signal_database.clone(),
+        runtime.client.clone(),
+    );
     let sender = Arc::new(MessageSender::new(
         blaze.clone(),
         conversation,

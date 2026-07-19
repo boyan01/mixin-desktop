@@ -184,8 +184,8 @@ impl IdentityKeyStore for MixinIdentityKeyStore {
     ) -> error::Result<bool> {
         let their_address = address.name();
         if self.account_id == their_address {
-            let local = self.get_identity_key_pair(ctx).await?;
-            return Ok(identity == local.identity_key());
+            // Linked self sessions can legitimately use a different identity key.
+            return Ok(true);
         }
         match direction {
             Direction::Sending => {

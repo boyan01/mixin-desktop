@@ -14,12 +14,14 @@ pub struct UserDao(pub(crate) Pool<Sqlite>);
 pub struct User {
     pub user_id: String,
     pub identity_number: String,
-    pub relationship: sdk::UserRelationship,
+    pub relationship: Option<sdk::UserRelationship>,
     pub full_name: String,
     pub avatar_url: String,
     pub phone: String,
     pub is_verified: bool,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub mute_until: DateTime<Utc>,
     pub has_pin: bool,
     pub app_id: Option<String>,
@@ -133,7 +135,7 @@ impl UserDao {
                         u.identity_number = ? COLLATE NOCASE DESC"#,
         )
         .bind(conversation_id)
-        .bind(created_at)
+        .bind(created_at.timestamp_millis())
         .bind(current_user_id)
         .bind(keyword)
         .bind(keyword)
@@ -248,8 +250,8 @@ impl UserDao {
                 .push_bind(&user.avatar_url)
                 .push_bind(&user.phone)
                 .push_bind(user.is_verified)
-                .push_bind(user.created_at)
-                .push_bind(user.mute_until)
+                .push_bind(user.created_at.timestamp_millis())
+                .push_bind(user.mute_until.timestamp_millis())
                 .push_bind(user.has_pin)
                 .push_bind(&user.app_id)
                 .push_bind(&user.biography)

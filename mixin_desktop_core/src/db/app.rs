@@ -9,6 +9,7 @@ pub use property::*;
 use crate::db::Error;
 
 pub mod auth;
+mod legacy_hive;
 pub mod property;
 pub struct AppDatabase {
     pub auth_dao: AuthDao,
@@ -38,9 +39,10 @@ impl AppDatabase {
         migrate(&pool)
             .await
             .with_context(|| "app database migration failed")?;
+        let property_dao = PropertyDao(pool);
         Ok(AppDatabase {
-            auth_dao: AuthDao(pool.clone()),
-            property_dao: PropertyDao(pool.clone()),
+            auth_dao: AuthDao(property_dao.clone()),
+            property_dao,
         })
     }
 }
@@ -81,13 +83,13 @@ mod tests {
         let database = AppDatabase::connect_at(&path).await.unwrap();
 
         let version: i64 = sqlx::query_scalar("PRAGMA user_version")
-            .fetch_one(&database.auth_dao.0)
+            .fetch_one(&database.property_dao.0)
             .await
             .unwrap();
         let tables: Vec<String> = sqlx::query_scalar(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
         )
-        .fetch_all(&database.auth_dao.0)
+        .fetch_all(&database.property_dao.0)
         .await
         .unwrap();
 

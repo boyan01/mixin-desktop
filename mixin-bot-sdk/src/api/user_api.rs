@@ -26,7 +26,7 @@ pub enum UserRelationship {
     Me,
     #[default]
     Stranger,
-    Blocked,
+    Blocking,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -40,7 +40,7 @@ pub struct User {
     pub user_id: String,
     pub identity_number: String,
     #[serde(default)]
-    pub relationship: UserRelationship,
+    pub relationship: Option<UserRelationship>,
     pub biography: String,
     #[serde(default)]
     pub full_name: String,

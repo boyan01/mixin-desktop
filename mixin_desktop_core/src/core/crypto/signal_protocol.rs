@@ -117,6 +117,13 @@ impl SignalProtocol {
             "decrypt message, category: {}, type: {}",
             category, key_type
         );
+        if let CiphertextMessage::PreKeySignalMessage(pre_key_message) = &message {
+            info!(
+                "decrypt pre-key message, signed_pre_key_id: {}, one_time_pre_key_id: {:?}",
+                pre_key_message.signed_pre_key_id(),
+                pre_key_message.pre_key_id()
+            );
+        }
         if category == message_category::SIGNAL_KEY {
             let plain_text = message_decrypt(
                 &message,

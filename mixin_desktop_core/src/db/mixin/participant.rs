@@ -11,6 +11,7 @@ pub struct Participant {
     pub conversation_id: String,
     pub user_id: String,
     pub role: Option<String>,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
 }
 
@@ -18,6 +19,7 @@ pub struct Participant {
 pub struct ParticipantListItem {
     pub user_id: String,
     pub role: Option<String>,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
     pub identity_number: String,
     pub full_name: String,
@@ -78,7 +80,7 @@ impl ParticipantDao {
             b.push_bind(&participant.conversation_id)
                 .push_bind(&participant.user_id)
                 .push_bind(&participant.role)
-                .push_bind(participant.created_at);
+                .push_bind(participant.created_at.timestamp_millis());
         });
         qb.build().execute(&mut *tx).await?;
 
@@ -108,7 +110,7 @@ impl ParticipantDao {
         .bind(&participant.conversation_id)
         .bind(&participant.user_id)
         .bind(&participant.role)
-        .bind(participant.created_at)
+        .bind(participant.created_at.timestamp_millis())
         .execute(&self.0)
         .await?;
         Ok(())
@@ -186,7 +188,7 @@ mod tests {
             "INSERT INTO conversations (conversation_id, created_at, status) VALUES (?, ?, ?)",
         )
         .bind("conversation")
-        .bind(Utc::now())
+        .bind(Utc::now().timestamp_millis())
         .bind(2)
         .execute(&database.participant_dao.0)
         .await

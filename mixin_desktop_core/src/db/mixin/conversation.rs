@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use sdk::ConversationCategory;
@@ -30,8 +30,10 @@ pub struct Conversation {
     pub icon_url: String,
     pub announcement: String,
     pub code_url: String,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
     pub status: ConversationStatus,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub mute_until: DateTime<Utc>,
     pub expire_in: i64,
 }
@@ -55,6 +57,7 @@ pub struct ConversationListItem {
     pub last_message_participant_id: Option<String>,
     pub last_message_participant_name: Option<String>,
     pub last_message_created_at: Option<i64>,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
     pub unseen_count: i64,
     pub mention_count: i64,
@@ -171,8 +174,8 @@ SELECT conversation.conversation_id,
        ) AS mention_count,
        CASE
            WHEN conversation.category = 'GROUP'
-               THEN COALESCE(conversation.mute_until > CURRENT_TIMESTAMP, FALSE)
-           ELSE COALESCE(owner.mute_until > CURRENT_TIMESTAMP, FALSE)
+               THEN COALESCE(conversation.mute_until > CAST(unixepoch('subsec') * 1000 AS INTEGER), FALSE)
+           ELSE COALESCE(owner.mute_until > CAST(unixepoch('subsec') * 1000 AS INTEGER), FALSE)
        END AS is_muted,
        COALESCE(owner.is_verified, FALSE) AS is_verified,
        COALESCE(owner.is_scam, FALSE) AS is_scam,
@@ -261,7 +264,7 @@ LIMIT ?5 OFFSET ?6
 
     pub async fn set_pinned(&self, conversation_id: &str, pinned: bool) -> Result<(), Error> {
         sqlx::query("UPDATE conversations SET pin_time = ? WHERE conversation_id = ?")
-            .bind(pinned.then(Utc::now))
+            .bind(pinned.then(|| Utc::now().timestamp_millis()))
             .bind(conversation_id)
             .execute(&self.0)
             .await?;
@@ -277,13 +280,13 @@ LIMIT ?5 OFFSET ?6
     ) -> Result<(), Error> {
         if category == "GROUP" {
             sqlx::query("UPDATE conversations SET mute_until = ? WHERE conversation_id = ?")
-                .bind(mute_until)
+                .bind(mute_until.timestamp_millis())
                 .bind(conversation_id)
                 .execute(&self.0)
                 .await?;
         } else {
             sqlx::query("UPDATE users SET mute_until = ? WHERE user_id = ?")
-                .bind(mute_until)
+                .bind(mute_until.timestamp_millis())
                 .bind(owner_id)
                 .execute(&self.0)
                 .await?;
@@ -349,9 +352,9 @@ LIMIT ?5 OFFSET ?6
         .bind(&conversation.icon_url)
         .bind(&conversation.announcement)
         .bind(&conversation.code_url)
-        .bind(conversation.created_at)
+        .bind(conversation.created_at.timestamp_millis())
         .bind(&conversation.status)
-        .bind(conversation.mute_until)
+        .bind(conversation.mute_until.timestamp_millis())
         .bind(conversation.expire_in)
         .execute(&self.0)
         .await?;
@@ -394,13 +397,6 @@ LIMIT ?5 OFFSET ?6
             return Ok(());
         }
 
-        let latest = sqlx::query_as::<_, (String, NaiveDateTime)>(
-            "SELECT message_id, created_at FROM messages WHERE conversation_id = ? \
-             ORDER BY created_at DESC, rowid DESC LIMIT 1",
-        )
-        .bind(&message.conversation_id)
-        .fetch_optional(&self.0)
-        .await?;
         let unseen: i64 = sqlx::query_scalar(
             "SELECT COUNT(1) FROM messages WHERE conversation_id = ? \
              AND status IN ('SENT', 'DELIVERED') AND user_id != ?",
@@ -409,21 +405,22 @@ LIMIT ?5 OFFSET ?6
         .bind(current_user_id)
         .fetch_one(&self.0)
         .await?;
-        let (last_message_id, last_message_created_at) = latest
-            .map(|(message_id, created_at)| {
-                (
-                    Some(message_id),
-                    Some(created_at.and_utc().timestamp_millis()),
-                )
-            })
-            .unwrap_or((None, None));
+        let created_at = message.created_at.and_utc().timestamp_millis();
         sqlx::query(
-            "UPDATE conversations SET unseen_message_count = ?, last_message_id = ?, \
-             last_message_created_at = ? WHERE conversation_id = ?",
+            "UPDATE conversations SET unseen_message_count = ?, \
+             last_message_id = CASE \
+                 WHEN last_message_created_at IS NULL OR last_message_created_at <= ? \
+                 THEN ? ELSE last_message_id END, \
+             last_message_created_at = CASE \
+                 WHEN last_message_created_at IS NULL OR last_message_created_at <= ? \
+                 THEN ? ELSE last_message_created_at END \
+             WHERE conversation_id = ?",
         )
         .bind(unseen)
-        .bind(last_message_id)
-        .bind(last_message_created_at)
+        .bind(created_at)
+        .bind(&message.message_id)
+        .bind(created_at)
+        .bind(created_at)
         .bind(&message.conversation_id)
         .execute(&self.0)
         .await?;
@@ -501,7 +498,7 @@ mod tests {
              last_message_created_at = ?, last_read_message_id = ?, \
              unseen_message_count = ?, draft = ? WHERE conversation_id = ?",
         )
-        .bind(now)
+        .bind(now.timestamp_millis())
         .bind("last-message")
         .bind(now.timestamp_millis())
         .bind("last-read-message")
@@ -532,7 +529,7 @@ mod tests {
                 Option<String>,
                 Option<i64>,
                 Option<String>,
-                Option<DateTime<Utc>>,
+                Option<i64>,
             ),
         >(
             "SELECT name, status, expire_in, last_message_id, last_message_created_at, \
@@ -554,7 +551,7 @@ mod tests {
                 Some("last-read-message".into()),
                 Some(3),
                 Some("draft".into()),
-                Some(now),
+                Some(now.timestamp_millis()),
             )
         );
     }

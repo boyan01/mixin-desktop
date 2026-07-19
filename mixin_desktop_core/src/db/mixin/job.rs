@@ -18,6 +18,7 @@ pub struct JobDao(pub(crate) sqlx::Pool<Sqlite>);
 pub struct Job {
     pub job_id: String,
     pub action: String,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: NaiveDateTime,
     pub order_id: Option<i32>,
     pub priority: i32,
@@ -206,7 +207,7 @@ impl JobDao {
         sqlx::query(statement)
             .bind(&job.job_id)
             .bind(&job.action)
-            .bind(job.created_at)
+            .bind(job.created_at.and_utc().timestamp_millis())
             .bind(job.order_id)
             .bind(job.priority)
             .bind(job.user_id.as_ref())
@@ -239,7 +240,7 @@ impl JobDao {
                     builder
                         .push_bind(&job.job_id)
                         .push_bind(&job.action)
-                        .push_bind(job.created_at)
+                        .push_bind(job.created_at.and_utc().timestamp_millis())
                         .push_bind(job.order_id)
                         .push_bind(job.priority)
                         .push_bind(job.user_id.as_ref())
@@ -278,7 +279,7 @@ impl JobDao {
         run_count: i32,
     ) -> Result<u64, Error> {
         let result = sqlx::query("UPDATE jobs SET created_at = ?, run_count = ? WHERE job_id = ?")
-            .bind(created_at)
+            .bind(created_at.and_utc().timestamp_millis())
             .bind(run_count)
             .bind(job_id)
             .execute(&self.0)
@@ -366,7 +367,7 @@ impl JobDao {
              AND created_at <= ? ORDER BY created_at ASC LIMIT 100",
         )
         .bind(UPDATE_STICKER)
-        .bind(Utc::now().naive_utc())
+        .bind(Utc::now().timestamp_millis())
         .fetch_all(&self.0)
         .await?;
         Ok(result)
@@ -446,13 +447,13 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(count, 4);
-        let (created_at, run_count): (NaiveDateTime, i32) =
+        let (created_at, run_count): (i64, i32) =
             sqlx::query_as("SELECT created_at, run_count FROM jobs WHERE job_id = ?")
                 .bind(asset_job_id)
                 .fetch_one(&database.job_dao.0)
                 .await
                 .unwrap();
-        assert_eq!(created_at, original_created_at);
+        assert_eq!(created_at, original_created_at.and_utc().timestamp_millis());
         assert_eq!(run_count, 3);
     }
 

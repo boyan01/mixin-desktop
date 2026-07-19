@@ -3,6 +3,7 @@ use std::sync::Arc;
 use chrono::NaiveDateTime;
 use tokio::sync::Notify;
 
+use crate::db::datetime::DatabaseDateTime;
 use crate::db::Error;
 
 #[derive(Clone)]
@@ -15,6 +16,7 @@ pub struct FloodMessageDao {
 pub struct FloodMessage {
     pub message_id: String,
     pub data: String,
+    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: NaiveDateTime,
 }
 
@@ -32,7 +34,7 @@ impl FloodMessageDao {
         )
         .bind(message.message_id)
         .bind(message.data)
-        .bind(message.created_at)
+        .bind(message.created_at.and_utc().timestamp_millis())
         .execute(&self.pool)
         .await?;
         self.notify.notify_one();
@@ -61,12 +63,12 @@ impl FloodMessageDao {
     }
 
     pub async fn latest_flood_message_created_at(&self) -> Result<Option<NaiveDateTime>, Error> {
-        let latest = sqlx::query_scalar::<_, NaiveDateTime>(
+        let latest = sqlx::query_scalar::<_, DatabaseDateTime>(
             "SELECT created_at FROM flood_messages ORDER BY created_at DESC LIMIT 1",
         )
         .fetch_optional(&self.pool)
         .await?;
-        Ok(latest)
+        Ok(latest.map(Into::into))
     }
 }
 
