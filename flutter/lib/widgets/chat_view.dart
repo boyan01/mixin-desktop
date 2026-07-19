@@ -1928,7 +1928,9 @@ class _ChatMessageState extends State<_ChatMessage> {
     );
 
     Widget child;
-    if (presentation.showSender && presentation.showAvatar) {
+    if (bypassActions) {
+      child = interactiveMessage;
+    } else if (presentation.showSender && presentation.showAvatar) {
       child = Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
