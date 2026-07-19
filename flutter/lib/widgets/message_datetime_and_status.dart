@@ -156,14 +156,39 @@ class _VisibilityAwareSendingIcon extends StatefulWidget {
 
 class _VisibilityAwareSendingIconState
     extends State<_VisibilityAwareSendingIcon>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 2400),
   );
+  bool _visible = false;
+  late bool _active;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _active = lifecycle == null || lifecycle == AppLifecycleState.resumed;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _active = state == AppLifecycleState.resumed;
+    _updateAnimation();
+  }
+
+  void _updateAnimation() {
+    if (_visible && _active) {
+      if (!_controller.isAnimating) unawaited(_controller.repeat());
+    } else {
+      _controller.stop();
+    }
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }
@@ -173,11 +198,8 @@ class _VisibilityAwareSendingIconState
     key: ValueKey(widget.key),
     onVisibilityChanged: (info) {
       if (!mounted) return;
-      if (info.visibleFraction > 0) {
-        if (!_controller.isAnimating) unawaited(_controller.repeat());
-      } else {
-        _controller.stop();
-      }
+      _visible = info.visibleFraction > 0;
+      _updateAnimation();
     },
     child: AnimatedBuilder(
       animation: _controller,
