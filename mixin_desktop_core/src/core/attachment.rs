@@ -498,6 +498,12 @@ pub(crate) fn attachment_path(account_data_dir: &Path, message: &Message) -> Res
         .join(format!("{}{}", message.message_id, suffix)))
 }
 
+pub(crate) fn attachment_file_name(path: &Path) -> Result<&str> {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| anyhow!("attachment path has no valid UTF-8 file name"))
+}
+
 pub(crate) fn transcript_attachment_path(
     account_data_dir: &Path,
     message: &Message,

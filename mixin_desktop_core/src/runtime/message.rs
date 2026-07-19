@@ -17,11 +17,13 @@ use sdk::{
     PinMessagePayload, StickerMessage,
 };
 
+use crate::core::attachment::{attachment_file_name, attachment_path, transcript_attachment_path};
 use crate::core::model::job::sanitize_transcript_app_card;
 use crate::core::model::AttachmentExtra;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::{AttachmentMessageUpdate, MediaStatus, Message};
 use crate::db::mixin::transcript_message::TranscriptMessage;
+use crate::db::path::account_data_directory;
 
 use super::{
     combine_transcript_category, forward_category, forward_transcript_category, model,
@@ -34,6 +36,92 @@ pub struct MessageAccess {
 }
 
 impl MessageAccess {
+    fn message_list_view(
+        &self,
+        item: crate::db::mixin::message::MessageListItem,
+    ) -> Result<model::MessageListView> {
+        let mut view: model::MessageListView = item.into();
+        self.normalize_local_media_url(&mut view, false)?;
+        Ok(view)
+    }
+
+    fn transcript_message_list_view(
+        &self,
+        item: crate::db::mixin::transcript_message::TranscriptMessageListItem,
+    ) -> Result<model::MessageListView> {
+        let mut view: model::MessageListView = item.into();
+        self.normalize_local_media_url(&mut view, true)?;
+        Ok(view)
+    }
+
+    fn image_message_view(
+        &self,
+        item: crate::db::mixin::message::ImageMessageItem,
+        conversation_id: &str,
+    ) -> Result<model::ImageMessageView> {
+        let media_url = if std::path::Path::new(&item.media_url).is_absolute() {
+            item.media_url.clone()
+        } else {
+            attachment_path(
+                &account_data_directory(&self.profile.borrow().identity_number)?,
+                &Message {
+                    message_id: item.message_id.clone(),
+                    conversation_id: conversation_id.to_string(),
+                    category: "PLAIN_IMAGE".to_string(),
+                    media_mime_type: item.media_mime_type.clone(),
+                    name: item.media_name.clone(),
+                    ..Message::default()
+                },
+            )?
+            .to_string_lossy()
+            .into_owned()
+        };
+        Ok(model::ImageMessageView {
+            message_id: item.message_id,
+            created_at_micros: item.created_at.and_utc().timestamp_micros(),
+            media_url,
+            media_name: item.media_name,
+            thumb_image: item.thumb_image,
+            can_forward: item.can_forward,
+            user_id: item.user_id,
+            user_full_name: item.user_full_name,
+            user_identity_number: item.user_identity_number,
+            avatar_url: item.avatar_url,
+        })
+    }
+
+    fn normalize_local_media_url(
+        &self,
+        view: &mut model::MessageListView,
+        is_transcript: bool,
+    ) -> Result<()> {
+        let Some(media_url) = view.media_url.as_deref() else {
+            return Ok(());
+        };
+        if media_url.trim().is_empty()
+            || std::path::Path::new(media_url).is_absolute()
+            || !view.category.is_attachment()
+        {
+            return Ok(());
+        }
+        let message = Message {
+            message_id: view.message_id.clone(),
+            conversation_id: view.conversation_id.clone(),
+            category: view.category.clone(),
+            media_mime_type: view.media_mime_type.clone(),
+            name: view.media_name.clone(),
+            ..Message::default()
+        };
+        let account_data_dir = account_data_directory(&self.profile.borrow().identity_number)?;
+        let path = if is_transcript {
+            transcript_attachment_path(&account_data_dir, &message)?
+        } else {
+            attachment_path(&account_data_dir, &message)?
+        };
+        view.media_url = Some(path.to_string_lossy().into_owned());
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn send_remote_image(
         &self,
@@ -195,7 +283,7 @@ impl MessageAccess {
             .message_dao
             .complete_pending_attachment(
                 &message.message_id,
-                &local_path.to_string_lossy(),
+                attachment_file_name(&local_path)?,
                 &AttachmentMessageUpdate {
                     status: MessageStatus::Sending,
                     content,
@@ -264,8 +352,8 @@ impl MessageAccess {
             )
             .await?
             .into_iter()
-            .map(Into::into)
-            .collect())
+            .map(|item| self.message_list_view(item))
+            .collect::<Result<Vec<_>>>()?)
     }
 
     pub async fn message_items_by_ids(
@@ -279,8 +367,8 @@ impl MessageAccess {
             .list_items_by_ids(&message_ids)
             .await?
             .into_iter()
-            .map(Into::into)
-            .collect())
+            .map(|item| self.message_list_view(item))
+            .collect::<Result<Vec<_>>>()?)
     }
 
     pub async fn message_order_info(
@@ -424,7 +512,7 @@ impl MessageAccess {
                         matched_offset += 1;
                         continue;
                     }
-                    result.push(item.into());
+                    result.push(self.message_list_view(item)?);
                     if result.len() >= limit as usize {
                         break;
                     }
@@ -505,8 +593,8 @@ impl MessageAccess {
             .list_items_around(conversation_id, target_message_id, before, after)
             .await?
             .into_iter()
-            .map(Into::into)
-            .collect())
+            .map(|item| self.message_list_view(item))
+            .collect::<Result<Vec<_>>>()?)
     }
 
     pub async fn image_messages_around(
@@ -525,8 +613,8 @@ impl MessageAccess {
             .list_image_items_around(conversation_id, target_message_id, before, after)
             .await?
             .into_iter()
-            .map(Into::into)
-            .collect())
+            .map(|item| self.image_message_view(item, conversation_id))
+            .collect::<Result<Vec<_>>>()?)
     }
 
     pub async fn pinned_messages(
@@ -541,8 +629,8 @@ impl MessageAccess {
             .list_pinned_items(conversation_id)
             .await?
             .into_iter()
-            .map(Into::into)
-            .collect())
+            .map(|item| self.message_list_view(item))
+            .collect::<Result<Vec<_>>>()?)
     }
 
     pub async fn pinned_message_ids(&self, conversation_id: String) -> Result<Vec<String>> {
@@ -584,8 +672,8 @@ impl MessageAccess {
             .list_items(transcript_id)
             .await?
             .into_iter()
-            .map(Into::into)
-            .collect())
+            .map(|item| self.transcript_message_list_view(item))
+            .collect::<Result<Vec<_>>>()?)
     }
 
     pub async fn send_text(
@@ -992,7 +1080,7 @@ impl MessageAccess {
             user_id: self.account_id.clone(),
             category,
             content: Some(String::new()),
-            media_url: Some(local_path.to_string_lossy().into_owned()),
+            media_url: Some(attachment_file_name(&local_path)?.to_string()),
             media_mime_type: Some("audio/ogg".to_string()),
             media_size: Some(actual_size),
             media_duration: duration_millis.to_string(),
@@ -1198,7 +1286,7 @@ impl MessageAccess {
             user_id: self.account_id.clone(),
             category,
             content: Some(String::new()),
-            media_url: Some(local_path.to_string_lossy().into_owned()),
+            media_url: Some(attachment_file_name(&local_path)?.to_string()),
             media_mime_type: Some(mime_type.to_string()),
             media_size: Some(actual_size),
             media_width: width,
@@ -1416,7 +1504,15 @@ impl MessageAccess {
                 let extra = serde_json::from_str::<AttachmentExtra>(
                     source.content.as_deref().unwrap_or_default(),
                 )?;
-                let source_path = Path::new(source.media_url.as_deref().unwrap_or_default());
+                let stored_path = source.media_url.as_deref().unwrap_or_default();
+                let source_path = if Path::new(stored_path).is_absolute() {
+                    Path::new(stored_path).to_path_buf()
+                } else {
+                    attachment_path(
+                        &account_data_directory(&self.profile.borrow().identity_number)?,
+                        &source,
+                    )?
+                };
                 let target_file_message = Message {
                     message_id: message_id.clone(),
                     conversation_id: target_conversation_id.to_string(),
@@ -1428,7 +1524,7 @@ impl MessageAccess {
                 let (target_path, actual_size) = self
                     .app_service
                     .attachment
-                    .copy_for_forward(source_path, &target_file_message)
+                    .copy_for_forward(&source_path, &target_file_message)
                     .await?;
                 copied_attachment_path = Some(target_path.clone());
 
@@ -1492,7 +1588,7 @@ impl MessageAccess {
                     shareable: Some(true),
                 };
                 content = Base64::encode_string(serde_json::to_string(&attachment)?.as_bytes());
-                media_url = Some(target_path.to_string_lossy().into_owned());
+                media_url = Some(attachment_file_name(&target_path)?.to_string());
                 media_mime_type = source.media_mime_type.clone();
                 media_size = Some(actual_size);
                 media_duration = source.media_duration.clone();

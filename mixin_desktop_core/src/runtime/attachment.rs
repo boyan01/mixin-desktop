@@ -7,11 +7,13 @@ use sdk::message_category::MessageCategory as _;
 use sdk::{AttachmentMessage, MessageStatus};
 use tokio_util::sync::CancellationToken;
 
+use crate::core::attachment::{attachment_file_name, attachment_path, transcript_attachment_path};
 use crate::core::message::decrypt::{transcript_attachment_id, transcript_attachment_message};
 use crate::core::model::AttachmentExtra;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::AttachmentMessageUpdate;
 use crate::db::mixin::message::MediaStatus;
+use crate::db::path::account_data_directory;
 
 use super::{transcript_download_key, AccountState, MessageAccess};
 
@@ -78,11 +80,21 @@ impl AttachmentAccess {
             }
             return Ok(());
         }
-        let path = message
+        let stored_path = message
             .media_url
             .as_deref()
             .filter(|path| !path.trim().is_empty())
             .ok_or_else(|| anyhow!("attachment has no local file: {message_id}"))?;
+        let path = if std::path::Path::new(stored_path).is_absolute() {
+            stored_path.to_string()
+        } else {
+            attachment_path(
+                &account_data_directory(&self.profile.borrow().identity_number)?,
+                &message,
+            )?
+            .to_string_lossy()
+            .into_owned()
+        };
 
         let cancellation = CancellationToken::new();
         {
@@ -118,7 +130,7 @@ impl AttachmentAccess {
                 None => {
                     let upload = tokio::select! {
                         result = self.app_service.attachment.upload(
-                            std::path::Path::new(path),
+                            std::path::Path::new(&path),
                             !message.category.starts_with("PLAIN_"),
                         ) => result?,
                         _ = cancellation.cancelled() => {
@@ -292,10 +304,7 @@ impl AttachmentAccess {
                 return Err(anyhow!("transcript attachment download canceled"));
             }
             let content = serde_json::to_string(&downloaded.attachment)?;
-            let path = downloaded
-                .path
-                .to_str()
-                .ok_or_else(|| anyhow!("attachment path is not valid UTF-8"))?;
+            let path = attachment_file_name(&downloaded.path)?;
             let completed = self
                 .database
                 .transcript_message_dao
@@ -382,7 +391,7 @@ impl AttachmentAccess {
                 if transcript.media_status == Some(MediaStatus::Done) {
                     continue;
                 }
-                let path = transcript
+                let stored_path = transcript
                     .media_url
                     .as_deref()
                     .filter(|path| !path.trim().is_empty())
@@ -392,6 +401,16 @@ impl AttachmentAccess {
                             transcript.message_id
                         )
                     })?;
+                let path = if std::path::Path::new(stored_path).is_absolute() {
+                    stored_path.to_string()
+                } else {
+                    transcript_attachment_path(
+                        &account_data_directory(&self.profile.borrow().identity_number)?,
+                        &transcript_attachment_message(&parent.conversation_id, transcript)?,
+                    )?
+                    .to_string_lossy()
+                    .into_owned()
+                };
                 let encrypted = !transcript.category.starts_with("PLAIN_");
                 let credentials_valid = if encrypted {
                     transcript.media_key.is_some() && transcript.media_digest.is_some()
@@ -426,7 +445,7 @@ impl AttachmentAccess {
                     let upload = self
                         .app_service
                         .attachment
-                        .upload(std::path::Path::new(path), encrypted)
+                        .upload(std::path::Path::new(&path), encrypted)
                         .await?;
                     (
                         upload.attachment_id,
@@ -589,10 +608,7 @@ impl AttachmentAccess {
                 return Err(anyhow!("attachment download canceled"));
             }
             let content = serde_json::to_string(&downloaded.attachment)?;
-            let path = downloaded
-                .path
-                .to_str()
-                .ok_or_else(|| anyhow!("attachment path is not valid UTF-8"))?;
+            let path = attachment_file_name(&downloaded.path)?;
             let completed = self
                 .database
                 .message_dao

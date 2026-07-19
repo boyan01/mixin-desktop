@@ -244,6 +244,7 @@ pub struct ImageMessageItem {
     #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: NaiveDateTime,
     pub media_url: String,
+    pub media_mime_type: Option<String>,
     pub media_name: Option<String>,
     pub thumb_image: Option<String>,
     pub can_forward: bool,
@@ -1157,6 +1158,7 @@ WITH target AS (
 SELECT message.message_id,
        message.created_at,
        message.media_url,
+       message.media_mime_type,
        message.name AS media_name,
        message.thumb_image,
        CASE

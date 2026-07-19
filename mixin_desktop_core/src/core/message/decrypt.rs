@@ -21,6 +21,7 @@ use sdk::{
     SystemCircleAction, SYSTEM_USER,
 };
 
+use crate::core::attachment::attachment_file_name;
 use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::crypto::compose_message::ComposeMessageData;
 use crate::core::crypto::encrypted_protocol;
@@ -365,10 +366,7 @@ impl ServiceDecryptMessage {
                 .message_dao
                 .complete_attachment_download(
                     &message.message_id,
-                    downloaded
-                        .path
-                        .to_str()
-                        .ok_or_else(|| anyhow!("attachment path is not valid UTF-8"))?,
+                    attachment_file_name(&downloaded.path)?,
                     downloaded.size,
                     downloaded.status,
                     &content,
@@ -562,10 +560,7 @@ impl ServiceDecryptMessage {
                     .complete_attachment_download(
                         transcript_id,
                         &transcript.message_id,
-                        downloaded
-                            .path
-                            .to_str()
-                            .ok_or_else(|| anyhow!("attachment path is not valid UTF-8"))?,
+                        attachment_file_name(&downloaded.path)?,
                         downloaded.size,
                         downloaded.attachment.created_at,
                         &content,
