@@ -43,6 +43,7 @@ impl MessageAccess {
     ) -> Result<model::MessageListView> {
         let mut view: model::MessageListView = item.into();
         self.normalize_local_media_url(&mut view, false)?;
+        self.normalize_quote_local_media_url(&mut view, false)?;
         Ok(view)
     }
 
@@ -52,6 +53,7 @@ impl MessageAccess {
     ) -> Result<model::MessageListView> {
         let mut view: model::MessageListView = item.into();
         self.normalize_local_media_url(&mut view, true)?;
+        self.normalize_quote_local_media_url(&mut view, true)?;
         Ok(view)
     }
 
@@ -120,6 +122,22 @@ impl MessageAccess {
             attachment_path(&account_data_dir, &message)?
         };
         view.media_url = Some(path.to_string_lossy().into_owned());
+        Ok(())
+    }
+
+    fn normalize_quote_local_media_url(
+        &self,
+        view: &mut model::MessageListView,
+        is_transcript: bool,
+    ) -> Result<()> {
+        let Some(content) = view.quote_content.as_deref() else {
+            return Ok(());
+        };
+        if let Some(content) = normalized_quote_content(content, is_transcript, || {
+            account_data_directory(&self.profile.borrow().identity_number)
+        })? {
+            view.quote_content = Some(content);
+        }
         Ok(())
     }
 
@@ -2214,4 +2232,89 @@ fn is_shareable_app_card_action(action: &str) -> bool {
     matches!(uri.scheme(), "http" | "https")
         && !(matches!(uri.host_str(), Some("mixin.one" | "www.mixin.one"))
             && uri.path().trim_matches('/').starts_with("send"))
+}
+
+fn normalized_quote_content(
+    content: &str,
+    is_transcript: bool,
+    account_data_dir: impl FnOnce() -> Result<std::path::PathBuf>,
+) -> Result<Option<String>> {
+    let Ok(mut quote) = serde_json::from_str::<serde_json::Value>(content) else {
+        return Ok(None);
+    };
+    let Some(quote) = quote.as_object_mut() else {
+        return Ok(None);
+    };
+    let string = |key| quote.get(key).and_then(serde_json::Value::as_str);
+    let Some(category) = string("type").map(str::to_string) else {
+        return Ok(None);
+    };
+    let media_url = string("media_url");
+    if media_url.is_some_and(|value| Path::new(value).is_absolute()) || !category.is_attachment() {
+        return Ok(None);
+    }
+    let (Some(message_id), Some(conversation_id)) =
+        (string("message_id"), string("conversation_id"))
+    else {
+        return Ok(None);
+    };
+    let message = Message {
+        message_id: message_id.to_string(),
+        conversation_id: conversation_id.to_string(),
+        category,
+        media_mime_type: string("media_mime_type").map(str::to_string),
+        name: string("media_name").map(str::to_string),
+        ..Message::default()
+    };
+    let account_data_dir = account_data_dir()?;
+    let path = if is_transcript {
+        transcript_attachment_path(&account_data_dir, &message)?
+    } else {
+        attachment_path(&account_data_dir, &message)?
+    };
+    quote.insert(
+        "media_url".to_string(),
+        serde_json::Value::String(path.to_string_lossy().into_owned()),
+    );
+    Ok(Some(serde_json::to_string(quote)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalized_quote_content;
+    use std::path::PathBuf;
+
+    #[test]
+    fn normalizes_quote_media_path_without_changing_stored_content() {
+        let stored = r#"{"message_id":"quoted","conversation_id":"conversation","type":"PLAIN_IMAGE","media_url":"quoted.png","media_mime_type":"image/png"}"#;
+
+        let normalized = normalized_quote_content(stored, false, || Ok(PathBuf::from("/account")))
+            .unwrap()
+            .unwrap();
+        let normalized: serde_json::Value = serde_json::from_str(&normalized).unwrap();
+
+        assert_eq!(
+            normalized["media_url"],
+            "/account/Media/Images/conversation/quoted.png"
+        );
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(stored).unwrap()["media_url"],
+            "quoted.png"
+        );
+    }
+
+    #[test]
+    fn restores_quote_media_path_when_stored_content_predates_download() {
+        let stored = r#"{"message_id":"quoted","conversation_id":"conversation","type":"PLAIN_IMAGE","media_mime_type":"image/png"}"#;
+
+        let normalized = normalized_quote_content(stored, false, || Ok(PathBuf::from("/account")))
+            .unwrap()
+            .unwrap();
+        let normalized: serde_json::Value = serde_json::from_str(&normalized).unwrap();
+
+        assert_eq!(
+            normalized["media_url"],
+            "/account/Media/Images/conversation/quoted.png"
+        );
+    }
 }

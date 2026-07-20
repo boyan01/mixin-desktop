@@ -624,6 +624,10 @@ impl AttachmentAccess {
                 let _ = tokio::fs::remove_file(&downloaded.path).await;
                 return Err(anyhow!("attachment download canceled"));
             }
+            self.database
+                .message_dao
+                .update_message_quote_if_need(&message.conversation_id, message_id)
+                .await?;
             Ok(())
         }
         .await;

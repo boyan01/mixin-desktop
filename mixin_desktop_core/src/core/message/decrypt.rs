@@ -372,6 +372,10 @@ impl ServiceDecryptMessage {
                     &content,
                 )
                 .await?;
+            self.database
+                .message_dao
+                .update_message_quote_if_need(&message.conversation_id, &message.message_id)
+                .await?;
             Ok(())
         }
         .await;

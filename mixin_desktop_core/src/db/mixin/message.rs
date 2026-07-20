@@ -3571,6 +3571,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn keeps_refreshed_quote_media_url_relative() {
+        let (_directory, database) = test_database().await;
+        let dao = database.message_dao;
+        sqlx::query("INSERT INTO users (user_id, identity_number, full_name) VALUES (?, ?, ?)")
+            .bind("sender")
+            .bind("7000")
+            .bind("Sender")
+            .execute(&dao.0)
+            .await
+            .unwrap();
+
+        let mut quoted = message("quoted");
+        quoted.category = "PLAIN_IMAGE".to_string();
+        quoted.media_url = Some("quoted.png".to_string());
+        quoted.media_mime_type = Some("image/png".to_string());
+        dao.insert_message(&quoted).await.unwrap();
+        let mut reply = message("reply");
+        reply.quote_message_id = Some("quoted".to_string());
+        dao.insert_message(&reply).await.unwrap();
+
+        dao.update_message_quote_if_need("conversation", "quoted")
+            .await
+            .unwrap();
+
+        let reply = dao
+            .find_message_by_id(&"reply".to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        let quote: serde_json::Value =
+            serde_json::from_str(reply.quote_content.as_deref().unwrap()).unwrap();
+        assert_eq!(quote["media_url"], "quoted.png");
+    }
+
+    #[tokio::test]
     async fn reads_and_updates_sending_message() {
         let (_directory, database) = test_database().await;
         let dao = database.message_dao;
