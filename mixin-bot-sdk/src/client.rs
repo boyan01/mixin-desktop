@@ -32,7 +32,11 @@ pub struct Client {
 
 impl Client {
     pub fn new(credential: Credential) -> Self {
-        let inner = Arc::new(ClientRef::new(credential));
+        Self::new_with_user_agent(credential, None)
+    }
+
+    pub fn new_with_user_agent(credential: Credential, user_agent: Option<String>) -> Self {
+        let inner = Arc::new(ClientRef::new(credential, user_agent));
         Client {
             inner: inner.clone(),
             user_api: UserApi::new(inner.clone()),
@@ -87,15 +91,17 @@ pub(crate) enum MixinResponse {
 }
 
 impl ClientRef {
-    pub fn new(credential: Credential) -> Self {
+    pub fn new(credential: Credential, user_agent: Option<String>) -> Self {
+        let mut builder = reqwest::Client::builder()
+            .connect_timeout(API_TIMEOUT)
+            .read_timeout(API_TIMEOUT);
+        if let Some(user_agent) = user_agent.filter(|value| !value.is_empty()) {
+            builder = builder.user_agent(user_agent);
+        }
         ClientRef {
             credential,
             base_url: MIXIN_BASE_URL.to_string(),
-            client: reqwest::Client::builder()
-                .connect_timeout(API_TIMEOUT)
-                .read_timeout(API_TIMEOUT)
-                .build()
-                .expect("failed to build Mixin HTTP client"),
+            client: builder.build().expect("failed to build Mixin HTTP client"),
             authentication_failed: watch::channel(false).0,
             server_error_code: watch::channel(None).0,
         }

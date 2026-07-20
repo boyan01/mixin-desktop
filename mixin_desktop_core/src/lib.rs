@@ -21,7 +21,10 @@ pub mod tests {
             .await
             .expect("no keystore file");
         let keystore: KeyStore = serde_json::from_slice(&file).expect("failed to read keystore");
-        Arc::new(Client::new(Credential::KeyStore(keystore)))
+        Arc::new(Client::new_with_user_agent(
+            Credential::KeyStore(keystore),
+            Some(crate::core::user_agent::generate_user_agent()),
+        ))
     }
 
     pub async fn new_test_mixin_db() -> Arc<MixinDatabase> {

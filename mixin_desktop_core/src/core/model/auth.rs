@@ -14,6 +14,7 @@ use sdk::{Client, Credential, ProvisioningRequest};
 
 use crate::core::crypto::key_help::generate_registration_id;
 use crate::core::crypto::provisioning_cipher::decrypt;
+use crate::core::user_agent::{provisioning_app_version, provisioning_platform_version};
 use crate::db::app::{AppDatabase, Auth, AuthDao};
 
 pub struct AuthService {
@@ -55,7 +56,10 @@ impl AuthService {
         &self,
         platform: &str,
     ) -> anyhow::Result<AuthorizationSession> {
-        let client = sdk::Client::new(Credential::None);
+        let client = sdk::Client::new_with_user_agent(
+            Credential::None,
+            Some(crate::core::user_agent::generate_user_agent()),
+        );
         let response = client
             .provisioning_api
             .get_provisioning_id(platform)
@@ -82,7 +86,10 @@ impl AuthService {
         &self,
         session: &AuthorizationSession,
     ) -> anyhow::Result<Option<AuthResult>> {
-        let client = Arc::new(sdk::Client::new(Credential::None));
+        let client = Arc::new(sdk::Client::new_with_user_agent(
+            Credential::None,
+            Some(crate::core::user_agent::generate_user_agent()),
+        ));
         check_auth(client, &session.device_id, &session.key_pair).await
     }
 
@@ -220,8 +227,8 @@ async fn verify_auth(
             session_id: verification.session_id,
             session_secret: Base64::encode_string(pair.public_key().as_ref()),
             platform: "Desktop".to_string(),
-            platform_version: "MacOS 14.5".to_string(),
-            app_version: "1.9.1(200)".to_string(),
+            platform_version: provisioning_platform_version(),
+            app_version: provisioning_app_version(),
             purpose: "SESSION".to_string(),
             registration_id,
         })

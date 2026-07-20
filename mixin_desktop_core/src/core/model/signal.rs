@@ -160,6 +160,7 @@ mod tests {
     use libsignal_protocol::{IdentityKeyStore, SignedPreKeyRecord};
 
     use super::*;
+    use crate::core::user_agent::generate_user_agent;
 
     #[tokio::test]
     async fn signed_pre_key_advances_persisted_counter() -> Result<()> {
@@ -174,7 +175,10 @@ mod tests {
         let service = SignalService::new(
             protocol.clone(),
             database.clone(),
-            Arc::new(Client::new(sdk::Credential::None)),
+            Arc::new(Client::new_with_user_agent(
+                sdk::Credential::None,
+                Some(generate_user_agent()),
+            )),
         );
         let identity = protocol
             .protocol_store

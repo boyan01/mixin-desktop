@@ -10,6 +10,7 @@ use sdk::Client;
 use tokio::sync::Mutex;
 
 use crate::core::model::auth::AuthService;
+use crate::core::user_agent::generate_user_agent;
 use crate::db::app::{AppDatabase, PropertyDao};
 use crate::db::path::account_data_directory;
 use crate::db::SignalDatabase;
@@ -143,7 +144,7 @@ impl DesktopRuntime {
         let Some(auth) = self.auth_service.get_auth() else {
             return Ok(());
         };
-        let client = Client::new(credential(&auth));
+        let client = Client::new_with_user_agent(credential(&auth), Some(generate_user_agent()));
         if let Err(error) = client.account_api.logout(&auth.account.session_id).await {
             warn!("failed to revoke session after login startup failure: {error}");
         }

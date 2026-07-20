@@ -29,6 +29,7 @@ use crate::core::message::sender::MessageSender;
 use crate::core::model::auth::AuthService;
 use crate::core::model::signal::SignalService;
 use crate::core::model::{AppService, AttachmentExtra, ConversationService};
+use crate::core::user_agent::generate_user_agent;
 use crate::db::app::Auth;
 use crate::db::mixin::message::{MediaStatus, Message};
 use crate::db::mixin::sticker::{Sticker, StickerAlbum};
@@ -195,7 +196,10 @@ impl AccountRuntime {
         let account_id = auth.account.user_id.clone();
         let account = auth.account.clone();
         let (profile, _) = watch::channel(account);
-        let client = Arc::new(Client::new(credential(&auth)));
+        let client = Arc::new(Client::new_with_user_agent(
+            credential(&auth),
+            Some(generate_user_agent()),
+        ));
         let initial_account_health = match client.account_api.get_me().await {
             Err(sdk::ApiError::Server(error))
                 if error.code == sdk::err::error_code::AUTHENTICATION =>

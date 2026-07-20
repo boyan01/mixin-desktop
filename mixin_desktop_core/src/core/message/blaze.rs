@@ -29,6 +29,7 @@ use sdk::{
 
 use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::message::completer::Completer;
+use crate::core::user_agent::generate_user_agent;
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::Message as StoredMessage;
@@ -318,6 +319,9 @@ impl Blaze {
             "Authorization",
             HeaderValue::try_from(format!("Bearer {}", token))?,
         );
+        request
+            .headers_mut()
+            .insert("User-Agent", HeaderValue::try_from(generate_user_agent())?);
 
         let connection = tokio::time::timeout(CONNECT_TIMEOUT, connect_async(request))
             .await
