@@ -135,7 +135,7 @@ class _SearchMessagePageState extends State<SearchMessagePage> {
         query: query,
         senderId: selectedUser?.userId,
         categories: selectedCategories ?? const [],
-        offset: append ? messages.length : 0,
+        anchorMessageId: append ? messages.last.id : null,
         limit: 60,
       );
       if (!mounted || requestGeneration != searchGeneration) return;

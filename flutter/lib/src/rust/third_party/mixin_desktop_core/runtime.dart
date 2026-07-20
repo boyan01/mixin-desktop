@@ -236,7 +236,7 @@ abstract class MessageAccess implements RustOpaqueInterface {
 
   Future<List<MessageListView>> searchGlobalMessages({
     required String query,
-    required int offset,
+    String? anchorMessageId,
     required int limit,
   });
 
@@ -245,7 +245,7 @@ abstract class MessageAccess implements RustOpaqueInterface {
     required String query,
     String? senderId,
     required List<String> categories,
-    required int offset,
+    String? anchorMessageId,
     required int limit,
   });
 

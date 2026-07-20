@@ -465,7 +465,7 @@ impl MessageAccess {
         query: String,
         sender_id: Option<String>,
         categories: Vec<String>,
-        offset: u32,
+        anchor_message_id: Option<String>,
         limit: u32,
     ) -> Result<Vec<model::MessageListView>> {
         let sender_id = sender_id.as_deref();
@@ -474,7 +474,7 @@ impl MessageAccess {
             query.as_str(),
             sender_id,
             categories.as_slice(),
-            offset,
+            anchor_message_id.as_deref(),
             limit,
         )
         .await
@@ -483,11 +483,18 @@ impl MessageAccess {
     pub async fn search_global_messages(
         &self,
         query: String,
-        offset: u32,
+        anchor_message_id: Option<String>,
         limit: u32,
     ) -> Result<Vec<model::MessageListView>> {
-        self.search_message_items(None, query.as_str(), None, &[], offset, limit)
-            .await
+        self.search_message_items(
+            None,
+            query.as_str(),
+            None,
+            &[],
+            anchor_message_id.as_deref(),
+            limit,
+        )
+        .await
     }
 
     async fn search_message_items(
@@ -496,49 +503,38 @@ impl MessageAccess {
         query: &str,
         sender_id: Option<&str>,
         categories: &[String],
-        offset: u32,
+        anchor_message_id: Option<&str>,
         limit: u32,
     ) -> Result<Vec<model::MessageListView>> {
         self.ensure_active()?;
-        let mut result = Vec::with_capacity(limit as usize);
-        let mut matched_offset = 0_u32;
-        let mut fts_offset = 0_u32;
-        const BATCH_SIZE: u32 = 200;
-        while result.len() < limit as usize {
-            let matches = self
-                .database
-                .message_fts_dao
-                .search_range(query, conversation_id, BATCH_SIZE, fts_offset)
-                .await?;
-            let exhausted = matches.len() < BATCH_SIZE as usize;
-            fts_offset = fts_offset.saturating_add(matches.len() as u32);
-            for matched in matches {
-                if let Some(item) = self
-                    .database
-                    .message_dao
-                    .list_items_around(matched.conversation_id.as_str(), &matched.message_id, 0, 0)
-                    .await?
-                    .into_iter()
-                    .find(|item| item.message_id == matched.message_id)
-                {
-                    if sender_id.is_some_and(|sender_id| item.user_id != sender_id) {
-                        continue;
-                    }
-                    if !categories.is_empty() && !categories.contains(&item.category) {
-                        continue;
-                    }
-                    if matched_offset < offset {
-                        matched_offset += 1;
-                        continue;
-                    }
-                    result.push(self.message_list_view(item)?);
-                    if result.len() >= limit as usize {
-                        break;
-                    }
-                }
-            }
-            if exhausted {
-                break;
+        let matches = self
+            .database
+            .message_fts_dao
+            .search(
+                query,
+                conversation_id,
+                sender_id,
+                categories,
+                anchor_message_id,
+                limit,
+            )
+            .await?;
+        let message_ids = matches
+            .iter()
+            .map(|item| item.message_id.clone())
+            .collect::<Vec<_>>();
+        let mut items_by_id = self
+            .database
+            .message_dao
+            .list_items_by_ids(&message_ids)
+            .await?
+            .into_iter()
+            .map(|item| (item.message_id.clone(), item))
+            .collect::<HashMap<_, _>>();
+        let mut result = Vec::with_capacity(matches.len());
+        for matched in matches {
+            if let Some(item) = items_by_id.remove(&matched.message_id) {
+                result.push(self.message_list_view(item)?);
             }
         }
         Ok(result)

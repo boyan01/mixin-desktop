@@ -21,6 +21,7 @@ import 'package:mixin_desktop_ui/widgets/chat_view.dart';
 import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
+import 'package:mixin_desktop_ui/widgets/message_media_preview_pages.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_page.dart';
 import 'package:overlay_support/overlay_support.dart';
 import 'package:provider/provider.dart';
@@ -29,6 +30,62 @@ import 'package:visibility_detector/visibility_detector.dart';
 void main() {
   setUpAll(() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
+  });
+
+  testWidgets('opens image preview before neighboring images finish loading', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final tempDirectory = Directory.systemTemp.createTempSync(
+      'mixin-image-preview-test-',
+    );
+    addTearDown(() => tempDirectory.deleteSync(recursive: true));
+    final imageFile = File('${tempDirectory.path}/preview.png');
+    imageFile.writeAsBytesSync(base64Decode(_onePixelPng));
+    final account = _FakeAccountHandle([
+      _message(
+        id: 'image',
+        senderId: 'alice',
+        senderName: 'Alice',
+        category: 'PLAIN_IMAGE',
+        content: '{}',
+        status: 'READ',
+        minute: 30,
+        mediaUrl: imageFile.path,
+        mediaWidth: 640,
+        mediaHeight: 480,
+        mediaStatus: 'DONE',
+      ),
+    ]);
+    addTearDown(account.close);
+    final neighbors = Completer<List<ImageMessageView>>();
+    account.imageMessagesAroundCompleter = neighbors;
+
+    await tester.pumpWidget(
+      _LocalizedApp(
+        child: ChatView(
+          account: account,
+          conversation: _conversation,
+          draft: '',
+          onDraftChanged: (_) {},
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.byKey(const Key('message-media-image-image')));
+    await tester.pump();
+
+    expect(find.byType(ImagePreviewPage), findsOneWidget);
+    expect(neighbors.isCompleted, isFalse);
+    await tester.pump();
+    expect(account.imageMessagesAroundCalls, [
+      (targetMessageId: 'image', before: 1, after: 0),
+      (targetMessageId: 'image', before: 0, after: 1),
+    ]);
+
+    neighbors.complete(const []);
+    await tester.pump();
   });
 
   testWidgets('matches the Flutter composer layout and mic-send states', (
@@ -1260,6 +1317,9 @@ class _FakeAccountHandle
   Object? sendError;
   var _isDisposed = false;
   var messagesAroundCalls = 0;
+  final imageMessagesAroundCalls =
+      <({String targetMessageId, int before, int after})>[];
+  Completer<List<ImageMessageView>>? imageMessagesAroundCompleter;
 
   @override
   AttachmentAccess attachment() => this;
@@ -1401,6 +1461,21 @@ class _FakeAccountHandle
     final start = (target - before).clamp(0, _messages.length);
     final end = (target + after + 1).clamp(0, _messages.length);
     return _messages.sublist(start, end);
+  }
+
+  @override
+  Future<List<ImageMessageView>> imageMessagesAround({
+    required String conversationId,
+    required String targetMessageId,
+    required int before,
+    required int after,
+  }) {
+    imageMessagesAroundCalls.add((
+      targetMessageId: targetMessageId,
+      before: before,
+      after: after,
+    ));
+    return imageMessagesAroundCompleter?.future ?? Future.value(const []);
   }
 
   @override

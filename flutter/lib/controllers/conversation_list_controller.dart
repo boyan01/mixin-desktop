@@ -214,7 +214,7 @@ class ConversationListController extends ChangeNotifier {
         final results = await Future.wait<dynamic>([
           account.message().searchGlobalMessages(
             query: normalized,
-            offset: 0,
+            anchorMessageId: null,
             limit: 32,
           ),
           account.user().searchLocalUsers(

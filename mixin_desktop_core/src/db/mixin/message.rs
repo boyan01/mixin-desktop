@@ -1022,43 +1022,44 @@ ORDER BY message.created_at DESC, message.message_id DESC
         before: i64,
         after: i64,
     ) -> Result<Vec<MessageListItem>, Error> {
+        let Some(anchor) = sqlx::query_as::<_, MessageOrderInfo>(
+            "SELECT message_id, rowid AS row_id, created_at FROM messages \
+             WHERE conversation_id = ? AND message_id = ? LIMIT 1",
+        )
+        .bind(conversation_id)
+        .bind(target_message_id)
+        .fetch_optional(&self.0)
+        .await?
+        else {
+            return Ok(Vec::new());
+        };
         let result = sqlx::query_as::<_, MessageListItem>(
             r#"
-WITH target AS (
-    SELECT created_at, message_id
-    FROM messages
-    WHERE conversation_id = ?1 AND message_id = ?2
-), message_window AS (
+WITH message_window AS (
     SELECT message_id FROM (
         SELECT candidate.message_id
-        FROM messages candidate, target
+        FROM messages candidate
         WHERE candidate.conversation_id = ?1
           AND (
-              candidate.created_at < target.created_at
-              OR (
-                  candidate.created_at = target.created_at
-                  AND candidate.message_id < target.message_id
-              )
+              candidate.created_at < ?3
+              OR (candidate.created_at = ?3 AND candidate.rowid < ?4)
           )
-        ORDER BY candidate.created_at DESC, candidate.message_id DESC
-        LIMIT ?3
+        ORDER BY candidate.created_at DESC, candidate.rowid DESC
+        LIMIT ?5
     )
     UNION ALL
-    SELECT message_id FROM target
+    SELECT ?2 AS message_id
     UNION ALL
     SELECT message_id FROM (
         SELECT candidate.message_id
-        FROM messages candidate, target
+        FROM messages candidate
         WHERE candidate.conversation_id = ?1
           AND (
-              candidate.created_at > target.created_at
-              OR (
-                  candidate.created_at = target.created_at
-                  AND candidate.message_id > target.message_id
-              )
+              candidate.created_at > ?3
+              OR (candidate.created_at = ?3 AND candidate.rowid > ?4)
           )
-        ORDER BY candidate.created_at ASC, candidate.message_id ASC
-        LIMIT ?4
+        ORDER BY candidate.created_at ASC, candidate.rowid ASC
+        LIMIT ?6
     )
 )
 SELECT message.message_id,
@@ -1157,11 +1158,13 @@ LEFT JOIN inscription_collections inscription_collection
 LEFT JOIN message_mentions mention ON mention.message_id = message.message_id
 LEFT JOIN pin_messages pin ON pin.message_id = message.message_id
 LEFT JOIN expired_messages expired ON expired.message_id = message.message_id
-ORDER BY message.created_at ASC, message.message_id ASC
+ORDER BY message.created_at ASC, message.rowid ASC
             "#,
         )
         .bind(conversation_id)
         .bind(target_message_id)
+        .bind(anchor.created_at.and_utc().timestamp_millis())
+        .bind(anchor.row_id)
         .bind(before.clamp(0, 100))
         .bind(after.clamp(0, 100))
         .fetch_all(&self.0)
@@ -1176,44 +1179,50 @@ ORDER BY message.created_at ASC, message.message_id ASC
         before: i64,
         after: i64,
     ) -> Result<Vec<ImageMessageItem>, Error> {
+        let Some(anchor) = sqlx::query_as::<_, MessageOrderInfo>(
+            "SELECT message_id, rowid AS row_id, created_at FROM messages \
+             WHERE conversation_id = ? AND message_id = ? \
+             AND category IN ('SIGNAL_IMAGE', 'PLAIN_IMAGE', 'ENCRYPTED_IMAGE') \
+             AND COALESCE(media_url, '') != '' LIMIT 1",
+        )
+        .bind(conversation_id)
+        .bind(target_message_id)
+        .fetch_optional(&self.0)
+        .await?
+        else {
+            return Ok(Vec::new());
+        };
         Ok(sqlx::query_as::<_, ImageMessageItem>(
             r#"
-WITH target AS (
-    SELECT created_at, message_id
-    FROM messages
-    WHERE conversation_id = ?1
-      AND message_id = ?2
-      AND substr(category, -6) = '_IMAGE'
-      AND COALESCE(media_url, '') != ''
-), image_window AS (
+WITH image_window AS (
     SELECT message_id FROM (
         SELECT candidate.message_id
-        FROM messages candidate, target
+        FROM messages candidate
         WHERE candidate.conversation_id = ?1
-          AND substr(candidate.category, -6) = '_IMAGE'
+          AND candidate.category IN ('SIGNAL_IMAGE', 'PLAIN_IMAGE', 'ENCRYPTED_IMAGE')
           AND COALESCE(candidate.media_url, '') != ''
           AND (
-              candidate.created_at < target.created_at
-              OR (candidate.created_at = target.created_at AND candidate.message_id < target.message_id)
+              candidate.created_at < ?3
+              OR (candidate.created_at = ?3 AND candidate.rowid < ?4)
           )
-        ORDER BY candidate.created_at DESC, candidate.message_id DESC
-        LIMIT ?3
+        ORDER BY candidate.created_at DESC, candidate.rowid DESC
+        LIMIT ?5
     )
     UNION ALL
-    SELECT message_id FROM target
+    SELECT ?2 AS message_id
     UNION ALL
     SELECT message_id FROM (
         SELECT candidate.message_id
-        FROM messages candidate, target
+        FROM messages candidate
         WHERE candidate.conversation_id = ?1
-          AND substr(candidate.category, -6) = '_IMAGE'
+          AND candidate.category IN ('SIGNAL_IMAGE', 'PLAIN_IMAGE', 'ENCRYPTED_IMAGE')
           AND COALESCE(candidate.media_url, '') != ''
           AND (
-              candidate.created_at > target.created_at
-              OR (candidate.created_at = target.created_at AND candidate.message_id > target.message_id)
+              candidate.created_at > ?3
+              OR (candidate.created_at = ?3 AND candidate.rowid > ?4)
           )
-        ORDER BY candidate.created_at ASC, candidate.message_id ASC
-        LIMIT ?4
+        ORDER BY candidate.created_at ASC, candidate.rowid ASC
+        LIMIT ?6
     )
 )
 SELECT message.message_id,
@@ -1236,11 +1245,13 @@ SELECT message.message_id,
 FROM image_window
 INNER JOIN messages message ON message.message_id = image_window.message_id
 LEFT JOIN users user ON user.user_id = message.user_id
-ORDER BY message.created_at ASC, message.message_id ASC
+ORDER BY message.created_at ASC, message.rowid ASC
             "#,
         )
         .bind(conversation_id)
         .bind(target_message_id)
+        .bind(anchor.created_at.and_utc().timestamp_millis())
+        .bind(anchor.row_id)
         .bind(before.clamp(0, 100))
         .bind(after.clamp(0, 100))
         .fetch_all(&self.0)
@@ -2089,9 +2100,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
     ) -> Result<(), Error> {
         let latest = sqlx::query_as::<_, (String, DatabaseDateTime)>(
             "SELECT message_id, created_at FROM messages WHERE conversation_id = ? \
-             ORDER BY CASE WHEN typeof(created_at) = 'integer' THEN created_at \
-                           ELSE CAST(unixepoch(created_at, 'subsec') * 1000 AS INTEGER) END DESC, \
-                      rowid DESC LIMIT 1",
+             ORDER BY created_at DESC, rowid DESC LIMIT 1",
         )
         .bind(conversation_id)
         .fetch_optional(&mut **transaction)
@@ -2213,9 +2222,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
 
         let latest = sqlx::query_as::<_, (String, DatabaseDateTime)>(
             "SELECT message_id, created_at FROM messages WHERE conversation_id = ? \
-             ORDER BY CASE WHEN typeof(created_at) = 'integer' THEN created_at \
-                           ELSE CAST(unixepoch(created_at, 'subsec') * 1000 AS INTEGER) END DESC, \
-                      rowid DESC LIMIT 1",
+             ORDER BY created_at DESC, rowid DESC LIMIT 1",
         )
         .bind(conversation_id)
         .fetch_optional(&mut *transaction)
@@ -2249,8 +2256,9 @@ ORDER BY message.created_at ASC, message.message_id ASC
         user_id: &str,
     ) -> Result<Vec<String>, Error> {
         let result = sqlx::query_scalar::<_, String>(
-            "SELECT message_id FROM messages WHERE conversation_id = ? AND user_id = ? AND status = ? \
-            ORDER BY created_at DESC LIMIT 1000",
+            "SELECT message_id FROM messages INDEXED BY index_message_conversation_id_status_user_id \
+             WHERE conversation_id = ? AND user_id = ? AND status = ? \
+             ORDER BY created_at DESC LIMIT 1000",
         )
         .bind(conversation_id)
         .bind(user_id)
@@ -2958,6 +2966,22 @@ mod tests {
                 .unwrap(),
             ["last"]
         );
+        let around = dao
+            .list_items_around("conversation", "center", 1, 1)
+            .await
+            .unwrap();
+        assert_eq!(
+            around
+                .iter()
+                .map(|message| message.message_id.as_str())
+                .collect::<Vec<_>>(),
+            ["first", "center", "last"]
+        );
+        assert!(dao
+            .list_items_around("conversation", "missing", 1, 1)
+            .await
+            .unwrap()
+            .is_empty());
         let items = dao
             .list_items_by_ids(&["last".to_string(), "first".to_string()])
             .await
@@ -2974,6 +2998,51 @@ mod tests {
         .unwrap();
         assert!(plan.iter().any(|(_, _, _, detail)| {
             detail.contains("index_messages_conversation_id_created_at")
+        }));
+    }
+
+    #[tokio::test]
+    async fn finds_failed_messages_with_the_filtering_index() {
+        let (_directory, database) = test_database().await;
+        let dao = database.message_dao;
+        let base = Utc::now().naive_utc();
+        for (message_id, user_id, status, offset) in [
+            ("old-failed", "sender", MessageStatus::Failed, 0),
+            ("sent", "sender", MessageStatus::Sent, 1),
+            ("other-user", "other", MessageStatus::Failed, 2),
+            ("new-failed", "sender", MessageStatus::Failed, 3),
+        ] {
+            dao.insert_message(&Message {
+                message_id: message_id.to_string(),
+                user_id: user_id.to_string(),
+                status,
+                created_at: base + chrono::Duration::seconds(offset),
+                ..message(message_id)
+            })
+            .await
+            .unwrap();
+        }
+
+        assert_eq!(
+            dao.find_failed_message("conversation", "sender")
+                .await
+                .unwrap(),
+            ["new-failed", "old-failed"]
+        );
+        let plan = sqlx::query_as::<_, (i64, i64, i64, String)>(
+            "EXPLAIN QUERY PLAN SELECT message_id FROM messages \
+             INDEXED BY index_message_conversation_id_status_user_id \
+             WHERE conversation_id = ? AND user_id = ? AND status = ? \
+             ORDER BY created_at DESC LIMIT 1000",
+        )
+        .bind("conversation")
+        .bind("sender")
+        .bind(MessageStatus::Failed)
+        .fetch_all(&dao.0)
+        .await
+        .unwrap();
+        assert!(plan.iter().any(|(_, _, _, detail)| {
+            detail.contains("index_message_conversation_id_status_user_id")
         }));
     }
 
@@ -3703,7 +3772,7 @@ mod tests {
         assert_eq!(pin_count, 0);
         assert!(database
             .message_fts_dao
-            .search("secret", None, 10)
+            .search("secret", None, None, &[], None, 10)
             .await
             .unwrap()
             .is_empty());

@@ -1,4 +1,4 @@
-use sqlx::{FromRow, Row, Sqlite};
+use sqlx::{FromRow, QueryBuilder, Row, Sqlite};
 
 use sdk::blaze_message::MessageStatus;
 use sdk::message_category::MessageCategory;
@@ -9,8 +9,6 @@ use crate::db::Error;
 #[derive(Debug, Clone, PartialEq, Eq, FromRow)]
 pub struct MessageFtsItem {
     pub message_id: String,
-    pub conversation_id: String,
-    pub content: String,
 }
 
 #[derive(Clone)]
@@ -161,17 +159,10 @@ impl MessageFtsDao {
         &self,
         query: &str,
         conversation_id: Option<&str>,
+        sender_id: Option<&str>,
+        categories: &[String],
+        anchor_message_id: Option<&str>,
         limit: u32,
-    ) -> Result<Vec<MessageFtsItem>, Error> {
-        self.search_range(query, conversation_id, limit, 0).await
-    }
-
-    pub async fn search_range(
-        &self,
-        query: &str,
-        conversation_id: Option<&str>,
-        limit: u32,
-        offset: u32,
     ) -> Result<Vec<MessageFtsItem>, Error> {
         let Some(query) = match_query(query) else {
             return Ok(Vec::new());
@@ -180,35 +171,60 @@ impl MessageFtsDao {
             return Ok(Vec::new());
         }
 
-        let items = if let Some(conversation_id) = conversation_id {
-            sqlx::query_as::<_, MessageFtsItem>(
-                "SELECT meta.message_id, meta.conversation_id, messages_fts.content \
-                 FROM fts.messages_fts \
-                 JOIN fts.messages_metas AS meta ON meta.doc_id = messages_fts.rowid \
-                 WHERE messages_fts MATCH ? AND meta.conversation_id = ? \
-                 ORDER BY meta.created_at DESC, messages_fts.rowid DESC LIMIT ? OFFSET ?",
+        let anchor = if let Some(message_id) = anchor_message_id {
+            let Some(anchor) = sqlx::query_as::<_, (i64, i64)>(
+                "SELECT created_at, rowid FROM fts.messages_metas WHERE message_id = ? LIMIT 1",
             )
-            .bind(query)
-            .bind(conversation_id)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.0)
+            .bind(message_id)
+            .fetch_optional(&self.0)
             .await?
+            else {
+                return Ok(Vec::new());
+            };
+            Some(anchor)
         } else {
-            sqlx::query_as::<_, MessageFtsItem>(
-                "SELECT meta.message_id, meta.conversation_id, messages_fts.content \
-                 FROM fts.messages_fts \
-                 JOIN fts.messages_metas AS meta ON meta.doc_id = messages_fts.rowid \
-                 WHERE messages_fts MATCH ? \
-                 ORDER BY meta.created_at DESC, messages_fts.rowid DESC LIMIT ? OFFSET ?",
-            )
-            .bind(query)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.0)
-            .await?
+            None
         };
-        Ok(items)
+
+        let mut builder = QueryBuilder::<Sqlite>::new(
+            "SELECT meta.message_id FROM fts.messages_metas meta \
+             WHERE meta.doc_id IN (SELECT rowid FROM fts.messages_fts \
+             WHERE messages_fts MATCH ",
+        );
+        builder.push_bind(query).push(")");
+        if let Some(conversation_id) = conversation_id {
+            builder
+                .push(" AND meta.conversation_id = ")
+                .push_bind(conversation_id);
+        }
+        if let Some(sender_id) = sender_id {
+            builder.push(" AND meta.user_id = ").push_bind(sender_id);
+        }
+        if !categories.is_empty() {
+            builder.push(" AND meta.category IN (");
+            let mut separated = builder.separated(", ");
+            for category in categories {
+                separated.push_bind(category);
+            }
+            separated.push_unseparated(")");
+        }
+        if let Some((created_at, row_id)) = anchor {
+            builder
+                .push(" AND (meta.created_at < ")
+                .push_bind(created_at)
+                .push(" OR (meta.created_at = ")
+                .push_bind(created_at)
+                .push(" AND meta.rowid < ")
+                .push_bind(row_id)
+                .push("))");
+        }
+        builder
+            .push(" ORDER BY meta.created_at DESC, meta.rowid DESC LIMIT ")
+            .push_bind(limit.clamp(1, 200));
+        Ok(builder
+            .build_query_as::<MessageFtsItem>()
+            .fetch_all(&self.0)
+            .await?)
     }
 }
 
@@ -318,34 +334,60 @@ mod tests {
         .execute(&database.message_dao.0)
         .await
         .unwrap();
-        database
-            .message_dao
-            .insert_message(&Message {
-                message_id: "message".into(),
-                conversation_id: "conversation".into(),
-                user_id: "user".into(),
-                category: "PLAIN_TEXT".into(),
-                content: Some("hello mixin".into()),
-                status: sdk::blaze_message::MessageStatus::Sent,
-                created_at: Utc::now().naive_utc(),
-                ..Message::default()
-            })
-            .await
-            .unwrap();
-
-        database
-            .message_fts_dao
-            .upsert("message", "conversation", "hello mixin")
-            .await
-            .unwrap();
+        let now = Utc::now().naive_utc();
+        for (message_id, user_id, category, offset) in [
+            ("old", "alice", "PLAIN_TEXT", 0),
+            ("middle", "bob", "PLAIN_IMAGE", 1),
+            ("new", "alice", "PLAIN_TEXT", 2),
+        ] {
+            database
+                .message_dao
+                .insert_message(&Message {
+                    message_id: message_id.into(),
+                    conversation_id: "conversation".into(),
+                    user_id: user_id.into(),
+                    category: category.into(),
+                    content: Some("hello mixin".into()),
+                    status: sdk::blaze_message::MessageStatus::Sent,
+                    created_at: now + chrono::Duration::seconds(offset),
+                    ..Message::default()
+                })
+                .await
+                .unwrap();
+            database
+                .message_fts_dao
+                .upsert(message_id, "conversation", "hello mixin")
+                .await
+                .unwrap();
+        }
         assert_eq!(
             database
                 .message_fts_dao
-                .search("hello", None, 10)
+                .search("hello", None, None, &[], None, 2)
                 .await
-                .unwrap()[0]
-                .message_id,
-            "message"
+                .unwrap()
+                .into_iter()
+                .map(|item| item.message_id)
+                .collect::<Vec<_>>(),
+            ["new", "middle"]
+        );
+        assert_eq!(
+            database
+                .message_fts_dao
+                .search(
+                    "hello",
+                    Some("conversation"),
+                    Some("alice"),
+                    &["PLAIN_TEXT".into()],
+                    Some("new"),
+                    10,
+                )
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|item| item.message_id)
+                .collect::<Vec<_>>(),
+            ["old"]
         );
         let version: i64 = sqlx::query_scalar("PRAGMA fts.user_version")
             .fetch_one(&database.message_fts_dao.0)

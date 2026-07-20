@@ -2066,40 +2066,25 @@ class _ChatMessageState extends State<_ChatMessage> {
   }
 
   void _openImage(MessageListEntry message) {
-    unawaited(_openConversationImage(message));
-  }
-
-  Future<void> _openConversationImage(MessageListEntry message) async {
-    List<ImagePreviewEntry> images;
-    try {
-      images = await _loadConversationImages(message.id, before: 30, after: 30);
-    } on Object {
-      final source = _messageMediaSource(message);
-      images = source.isEmpty
-          ? const []
-          : [
-              ImagePreviewEntry(
-                id: message.id,
-                source: source,
-                name: message.mediaName,
-                thumbImage: message.thumbImage,
-                canForward: _canForwardPreview(message),
-                userId: message.senderId,
-                userFullName: message.senderName,
-                userIdentityNumber: message.senderIdentityNumber,
-                avatarUrl: message.senderAvatarUrl,
-              ),
-            ];
-    }
-    if (!mounted) return;
-    final index = images.indexWhere((item) => item.id == message.id);
-    if (index < 0) return;
+    final source = _messageMediaSource(message);
+    if (source.isEmpty) return;
     unawaited(
       ImagePreviewPage.show(
         context,
         ImagePreviewPage(
-          images: images,
-          initialIndex: index,
+          images: [
+            ImagePreviewEntry(
+              id: message.id,
+              source: source,
+              name: message.mediaName,
+              thumbImage: message.thumbImage,
+              canForward: _canForwardPreview(message),
+              userId: message.senderId,
+              userFullName: message.senderName,
+              userIdentityNumber: message.senderIdentityNumber,
+              avatarUrl: message.senderAvatarUrl,
+            ),
+          ],
           onCopy: (image) {
             final file = existingLocalFile(image.source);
             if (file != null) return _copyImage(file);
@@ -2107,9 +2092,9 @@ class _ChatMessageState extends State<_ChatMessage> {
           onSave: (image) => _saveSource(image.source, image.name),
           onForward: (image) => _forwardPreviewImage(image.id),
           loadOlder: (boundaryId) =>
-              _loadConversationImages(boundaryId, before: 40, after: 0),
+              _loadConversationImages(boundaryId, before: 1, after: 0),
           loadNewer: (boundaryId) =>
-              _loadConversationImages(boundaryId, before: 0, after: 40),
+              _loadConversationImages(boundaryId, before: 0, after: 1),
         ),
       ),
     );

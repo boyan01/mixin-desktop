@@ -600,7 +600,7 @@ abstract class RustLibApi extends BaseApi {
   mixinDesktopCoreRuntimeMessageAccessSearchGlobalMessages({
     required MessageAccess that,
     required String query,
-    required int offset,
+    String? anchorMessageId,
     required int limit,
   });
 
@@ -611,7 +611,7 @@ abstract class RustLibApi extends BaseApi {
     required String query,
     String? senderId,
     required List<String> categories,
-    required int offset,
+    String? anchorMessageId,
     required int limit,
   });
 
@@ -4820,7 +4820,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   mixinDesktopCoreRuntimeMessageAccessSearchGlobalMessages({
     required MessageAccess that,
     required String query,
-    required int offset,
+    String? anchorMessageId,
     required int limit,
   }) {
     return handler.executeNormal(
@@ -4832,7 +4832,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_String(query, serializer);
-          sse_encode_u_32(offset, serializer);
+          sse_encode_opt_String(anchorMessageId, serializer);
           sse_encode_u_32(limit, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -4847,7 +4847,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kMixinDesktopCoreRuntimeMessageAccessSearchGlobalMessagesConstMeta,
-        argValues: [that, query, offset, limit],
+        argValues: [that, query, anchorMessageId, limit],
         apiImpl: this,
       ),
     );
@@ -4857,7 +4857,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kMixinDesktopCoreRuntimeMessageAccessSearchGlobalMessagesConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_search_global_messages",
-        argNames: ["that", "query", "offset", "limit"],
+        argNames: ["that", "query", "anchorMessageId", "limit"],
       );
 
   @override
@@ -4868,7 +4868,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String query,
     String? senderId,
     required List<String> categories,
-    required int offset,
+    String? anchorMessageId,
     required int limit,
   }) {
     return handler.executeNormal(
@@ -4883,7 +4883,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(query, serializer);
           sse_encode_opt_String(senderId, serializer);
           sse_encode_list_String(categories, serializer);
-          sse_encode_u_32(offset, serializer);
+          sse_encode_opt_String(anchorMessageId, serializer);
           sse_encode_u_32(limit, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -4903,7 +4903,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           query,
           senderId,
           categories,
-          offset,
+          anchorMessageId,
           limit,
         ],
         apiImpl: this,
@@ -4921,7 +4921,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "query",
           "senderId",
           "categories",
-          "offset",
+          "anchorMessageId",
           "limit",
         ],
       );
@@ -11989,13 +11989,13 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
 
   Future<List<MessageListView>> searchGlobalMessages({
     required String query,
-    required int offset,
+    String? anchorMessageId,
     required int limit,
   }) => RustLib.instance.api
       .mixinDesktopCoreRuntimeMessageAccessSearchGlobalMessages(
         that: this,
         query: query,
-        offset: offset,
+        anchorMessageId: anchorMessageId,
         limit: limit,
       );
 
@@ -12004,7 +12004,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     required String query,
     String? senderId,
     required List<String> categories,
-    required int offset,
+    String? anchorMessageId,
     required int limit,
   }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSearchMessages(
     that: this,
@@ -12012,7 +12012,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     query: query,
     senderId: senderId,
     categories: categories,
-    offset: offset,
+    anchorMessageId: anchorMessageId,
     limit: limit,
   );
 

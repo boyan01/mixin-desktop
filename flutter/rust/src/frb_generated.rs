@@ -5348,7 +5348,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_search_global_messages_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageAccess>,
             >>::sse_decode(&mut deserializer);
             let api_query = <String>::sse_decode(&mut deserializer);
-            let api_offset = <u32>::sse_decode(&mut deserializer);
+            let api_anchor_message_id = <Option<String>>::sse_decode(&mut deserializer);
             let api_limit = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
@@ -5375,7 +5375,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_search_global_messages_impl(
                             mixin_desktop_core::runtime::MessageAccess::search_global_messages(
                                 &*api_that_guard,
                                 api_query,
-                                api_offset,
+                                api_anchor_message_id,
                                 api_limit,
                             )
                             .await?;
@@ -5416,7 +5416,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_search_messages_impl(
             let api_query = <String>::sse_decode(&mut deserializer);
             let api_sender_id = <Option<String>>::sse_decode(&mut deserializer);
             let api_categories = <Vec<String>>::sse_decode(&mut deserializer);
-            let api_offset = <u32>::sse_decode(&mut deserializer);
+            let api_anchor_message_id = <Option<String>>::sse_decode(&mut deserializer);
             let api_limit = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
@@ -5446,7 +5446,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_search_messages_impl(
                                 api_query,
                                 api_sender_id,
                                 api_categories,
-                                api_offset,
+                                api_anchor_message_id,
                                 api_limit,
                             )
                             .await?;

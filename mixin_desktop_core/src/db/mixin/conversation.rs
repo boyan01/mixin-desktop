@@ -372,12 +372,23 @@ SELECT EXISTS (
     INNER JOIN users owner ON owner.user_id = conversation.owner_id
     WHERE conversation.conversation_id = ?
       AND conversation.category = 'CONTACT'
-      AND owner.app_id IS NOT NULL
-      AND EXISTS (
-          SELECT 1
-          FROM messages message
-          WHERE message.conversation_id = conversation.conversation_id
-            AND message.user_id != conversation.owner_id
+      AND COALESCE(owner.app_id, '') != ''
+      AND 2 = (
+          SELECT COUNT(1)
+          FROM (
+              SELECT message.user_id
+              FROM messages message INDEXED BY index_message_conversation_id_status_user_id
+              WHERE message.conversation_id = conversation.conversation_id
+                AND message.status IN ('FAILED', 'UNKNOWN', 'SENDING', 'SENT', 'DELIVERED', 'READ')
+                AND message.user_id < conversation.owner_id
+              UNION
+              SELECT message.user_id
+              FROM messages message INDEXED BY index_message_conversation_id_status_user_id
+              WHERE message.conversation_id = conversation.conversation_id
+                AND message.status IN ('FAILED', 'UNKNOWN', 'SENDING', 'SENT', 'DELIVERED', 'READ')
+                AND message.user_id > conversation.owner_id
+              LIMIT 2
+          ) participants
       )
 )
             "#,
@@ -849,6 +860,25 @@ mod tests {
         assert_eq!(items.len(), 1);
         assert!(items[0].is_bot);
         assert!(!items[0].is_bot_group);
+        assert!(!database
+            .conversation_dao
+            .is_bot_group("conversation")
+            .await
+            .unwrap());
+
+        sqlx::query(
+            "INSERT INTO messages (message_id, conversation_id, user_id, category, status, \
+             created_at) VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind("another-message")
+        .bind("conversation")
+        .bind("another-participant")
+        .bind("PLAIN_TEXT")
+        .bind("READ")
+        .bind(now.timestamp_millis())
+        .execute(&database.conversation_dao.0)
+        .await
+        .unwrap();
         assert!(database
             .conversation_dao
             .is_bot_group("conversation")
