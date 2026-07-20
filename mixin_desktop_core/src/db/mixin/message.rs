@@ -1007,7 +1007,6 @@ LEFT JOIN inscription_collections inscription_collection
 LEFT JOIN message_mentions mention ON mention.message_id = message.message_id
 LEFT JOIN expired_messages expired ON expired.message_id = message.message_id
 WHERE selected_pin.conversation_id = ?1
-  AND message.conversation_id = ?1
 ORDER BY message.created_at DESC, message.message_id DESC
             "#,
         )
