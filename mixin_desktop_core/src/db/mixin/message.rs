@@ -2012,6 +2012,7 @@ ORDER BY message.created_at ASC, message.message_id ASC
         message_id: &str,
         pinned: bool,
         created_at: DateTime<Utc>,
+        pin_event: Option<&Message>,
         job: &Job,
     ) -> Result<(), Error> {
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
@@ -2026,6 +2027,9 @@ ORDER BY message.created_at ASC, message.message_id ASC
         if !exists {
             return Err(anyhow::anyhow!("message not found in conversation: {message_id}").into());
         }
+        if pinned != pin_event.is_some() {
+            return Err(anyhow::anyhow!("pin event does not match pin state").into());
+        }
         Self::insert_job_with(&mut transaction, job).await?;
         if pinned {
             sqlx::query(
@@ -2037,6 +2041,9 @@ ORDER BY message.created_at ASC, message.message_id ASC
             .bind(created_at.timestamp_millis())
             .execute(&mut *transaction)
             .await?;
+            let pin_event = pin_event.expect("pin event checked above");
+            insert_message_with(&mut *transaction, pin_event).await?;
+            Self::update_conversation_last_message_with(&mut transaction, conversation_id).await?;
         } else {
             sqlx::query("DELETE FROM pin_messages WHERE message_id = ?")
                 .bind(message_id)
@@ -2341,6 +2348,22 @@ mod tests {
             content: Some("hello".to_string()),
             status: MessageStatus::Sending,
             created_at: Utc::now().naive_utc(),
+            ..Message::default()
+        }
+    }
+
+    fn pin_event(message_id: &str, pinned_message_id: &str) -> Message {
+        Message {
+            message_id: message_id.to_string(),
+            conversation_id: "conversation".to_string(),
+            user_id: "sender".to_string(),
+            category: MESSAGE_PIN.to_string(),
+            content: Some(format!(
+                r#"{{"category":"PLAIN_TEXT","message_id":"{pinned_message_id}","content":"hello"}}"#
+            )),
+            status: MessageStatus::Read,
+            created_at: Utc::now().naive_utc(),
+            quote_message_id: Some(pinned_message_id.to_string()),
             ..Message::default()
         }
     }
@@ -2672,17 +2695,90 @@ mod tests {
         .await
         .unwrap();
         let job = Job::create_send_pin_job("conversation", "payload");
+        let pin_event = pin_event("pin-event", "message");
 
         assert!(database
             .message_dao
-            .set_message_pinned_with_job("conversation", "message", true, Utc::now(), &job,)
+            .set_message_pinned_with_job(
+                "conversation",
+                "message",
+                true,
+                Utc::now(),
+                Some(&pin_event),
+                &job,
+            )
             .await
             .is_err());
         let jobs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM jobs")
             .fetch_one(&database.message_dao.0)
             .await
             .unwrap();
+        let pinned: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM pin_messages")
+            .fetch_one(&database.message_dao.0)
+            .await
+            .unwrap();
+        let pin_events: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM messages WHERE category = 'MESSAGE_PIN'")
+                .fetch_one(&database.message_dao.0)
+                .await
+                .unwrap();
         assert_eq!(jobs, 0);
+        assert_eq!(pinned, 0);
+        assert_eq!(pin_events, 0);
+    }
+
+    #[tokio::test]
+    async fn pins_message_with_local_event_and_job_atomically() {
+        let (_directory, database) = test_database().await;
+        database
+            .message_dao
+            .insert_message(&message("message"))
+            .await
+            .unwrap();
+        let job = Job::create_send_pin_job("conversation", "payload");
+        let pin_event = pin_event("pin-event", "message");
+        let created_at = Utc::now();
+
+        database
+            .message_dao
+            .set_message_pinned_with_job(
+                "conversation",
+                "message",
+                true,
+                created_at,
+                Some(&pin_event),
+                &job,
+            )
+            .await
+            .unwrap();
+
+        let pinned: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM pin_messages WHERE message_id = 'message'")
+                .fetch_one(&database.message_dao.0)
+                .await
+                .unwrap();
+        let stored_event = database
+            .message_dao
+            .find_message_by_id(&"pin-event".to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        let last_message_id: Option<String> = sqlx::query_scalar(
+            "SELECT last_message_id FROM conversations WHERE conversation_id = 'conversation'",
+        )
+        .fetch_one(&database.message_dao.0)
+        .await
+        .unwrap();
+        let jobs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM jobs")
+            .fetch_one(&database.message_dao.0)
+            .await
+            .unwrap();
+
+        assert_eq!(pinned, 1);
+        assert_eq!(stored_event.category, MESSAGE_PIN);
+        assert_eq!(stored_event.quote_message_id.as_deref(), Some("message"));
+        assert_eq!(last_message_id.as_deref(), Some("pin-event"));
+        assert_eq!(jobs, 1);
     }
 
     #[tokio::test]

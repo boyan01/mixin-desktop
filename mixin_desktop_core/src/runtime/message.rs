@@ -11,7 +11,7 @@ use log::warn;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use sdk::message_category::MessageCategory as _;
+use sdk::message_category::{MessageCategory as _, MESSAGE_PIN};
 use sdk::{
     AttachmentMessage, ContactMessage, ConversationCategory, LiveMessage, MessageStatus,
     PinMessagePayload, StickerMessage,
@@ -22,6 +22,7 @@ use crate::core::model::job::sanitize_transcript_app_card;
 use crate::core::model::AttachmentExtra;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::{AttachmentMessageUpdate, MediaStatus, Message};
+use crate::db::mixin::pin_message::PinMessageMinimal;
 use crate::db::mixin::transcript_message::TranscriptMessage;
 use crate::db::path::account_data_directory;
 
@@ -2048,9 +2049,40 @@ impl MessageAccess {
         };
         let encoded = serde_json::to_string(&payload)?;
         let job = Job::create_send_pin_job(conversation_id, &encoded);
+        let now = Utc::now();
+        let pin_event = pinned
+            .then(|| {
+                Ok::<_, serde_json::Error>(Message {
+                    message_id: Uuid::new_v4().to_string(),
+                    conversation_id: conversation_id.to_string(),
+                    user_id: self.account_id.clone(),
+                    category: MESSAGE_PIN.to_string(),
+                    content: Some(serde_json::to_string(&PinMessageMinimal {
+                        category: message.category.clone(),
+                        message_id: message.message_id.clone(),
+                        content: if message.category.is_text() {
+                            message.content.clone()
+                        } else {
+                            None
+                        },
+                    })?),
+                    status: MessageStatus::Read,
+                    created_at: now.naive_utc(),
+                    quote_message_id: Some(message.message_id.clone()),
+                    ..Message::default()
+                })
+            })
+            .transpose()?;
         self.database
             .message_dao
-            .set_message_pinned_with_job(conversation_id, message_id, pinned, Utc::now(), &job)
+            .set_message_pinned_with_job(
+                conversation_id,
+                message_id,
+                pinned,
+                now,
+                pin_event.as_ref(),
+                &job,
+            )
             .await?;
         self.app_service.job.wake(sdk::PIN_MESSAGE)?;
         self.notify_conversation_changed(conversation_id);
