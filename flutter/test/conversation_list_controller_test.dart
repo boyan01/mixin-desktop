@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mixin_desktop_ui/controllers/conversation_list_controller.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
-import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
 
 void main() {
   test('loads once and batches exact conversation id updates', () async {
@@ -40,25 +39,6 @@ void main() {
       'first',
     ]);
   });
-
-  test('caches mention names and shares an in-flight lookup', () async {
-    final account = _FakeAccount();
-    final controller = ConversationListController(account);
-    addTearDown(controller.dispose);
-    addTearDown(account.dispose);
-
-    await _waitUntil(() => controller.initialized);
-    final first = controller.cacheMentionNames(['hello @7001']);
-    final second = controller.cacheMentionNames(['again @7001']);
-    await Future.wait([first, second]);
-
-    expect(account.mentionLookups, 1);
-    expect(controller.mentionNames, {'7001': 'Alice'});
-    expect(
-      replaceMessageMentions('hello @7001', controller.mentionNames),
-      'hello @Alice',
-    );
-  });
 }
 
 Future<void> _waitUntil(bool Function() predicate) async {
@@ -77,7 +57,6 @@ class _FakeAccount implements AccountHandle, ConversationAccess, UserAccess {
   final requestedIds = <Set<String>>[];
   var fullLoads = 0;
   var incrementalLoads = 0;
-  var mentionLookups = 0;
 
   @override
   ConversationAccess conversation() => this;
@@ -132,25 +111,17 @@ class _FakeAccount implements AccountHandle, ConversationAccess, UserAccess {
   @override
   Future<List<UserProfileItem>> usersByIdentityNumbers({
     required List<String> identityNumbers,
-  }) async {
-    mentionLookups++;
-    await Future<void>.delayed(Duration.zero);
-    return identityNumbers.contains('7001')
-        ? const [
-            UserProfileItem(
-              userId: 'alice',
-              fullName: 'Alice',
-              avatarUrl: '',
-              identityNumber: '7001',
-              biography: '',
-              isVerified: false,
-              relationship: 'STRANGER',
-              isBot: false,
-              codeUrl: '',
-            ),
-          ]
-        : const [];
-  }
+  }) async => const [];
+
+  @override
+  Future<List<String>> replaceMentions({
+    required List<String> contents,
+  }) async => contents;
+
+  @override
+  Future<Map<String, String>> mentionNames({
+    required List<String> contents,
+  }) async => const {};
 
   @override
   void dispose() => changes.close();

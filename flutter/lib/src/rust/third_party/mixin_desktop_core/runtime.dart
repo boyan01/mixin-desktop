@@ -379,9 +379,13 @@ abstract class UserAccess implements RustOpaqueInterface {
 
   Future<List<SharedAppItem>> localSharedApps({required String userId});
 
+  Future<Map<String, String>> mentionNames({required List<String> contents});
+
   Future<UserProfileItem?> refreshUserProfile({required String userId});
 
   Future<void> removeContact({required String userId});
+
+  Future<List<String>> replaceMentions({required List<String> contents});
 
   Future<void> reportUser({required String userId});
 

@@ -1,6 +1,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' show AccountHandle;
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/utils/app_logger.dart';
 import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
 
 typedef OpenMessageUri = void Function(Uri uri);
@@ -17,6 +20,53 @@ String replaceMessageMentions(String text, Map<String, String> mentionNames) =>
       final identityNumber = match.group(1)!;
       return '@${mentionNames[identityNumber] ?? identityNumber}';
     });
+
+String useResolvedMessageMentions(
+  AccountHandle? account,
+  String content, {
+  Object? revision,
+}) {
+  final resolved = useFuture(
+    useMemoized(() async {
+      if (account == null || !RegExp(r'@\d{4,}').hasMatch(content)) {
+        return content;
+      }
+      try {
+        final contents = await account.user().replaceMentions(
+          contents: [content],
+        );
+        return contents.singleOrNull ?? content;
+      } catch (exception, stackTrace) {
+        e('Resolve message mentions failed', exception, stackTrace);
+        return content;
+      }
+    }, [account, content, revision]),
+  );
+  return resolved.data ?? content;
+}
+
+Map<String, String> useMessageMentionNames(
+  AccountHandle? account,
+  Iterable<String?> contents, {
+  Object? revision,
+}) {
+  final values = contents.whereType<String>().toList(growable: false);
+  final cacheKey = values.join('\u0000');
+  final resolved = useFuture(
+    useMemoized(() async {
+      if (account == null || !RegExp(r'@\d{4,}').hasMatch(cacheKey)) {
+        return const <String, String>{};
+      }
+      try {
+        return await account.user().mentionNames(contents: values);
+      } catch (exception, stackTrace) {
+        e('Resolve message mention names failed', exception, stackTrace);
+        return const <String, String>{};
+      }
+    }, [account, cacheKey, revision]),
+  );
+  return resolved.data ?? const {};
+}
 
 class SelectableMessageText extends StatefulWidget {
   const SelectableMessageText({

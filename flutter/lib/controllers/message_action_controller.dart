@@ -9,7 +9,6 @@ import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/utils/app_logger.dart';
 import 'package:mixin_desktop_ui/widgets/toast.dart';
 
-final _mentionIdentityNumberPattern = RegExp(r'@(\d+)');
 final _botGroupCache = <String, ({bool value, DateTime expiresAt})>{};
 final _botGroupLoads = <String, Future<bool>>{};
 
@@ -25,12 +24,12 @@ class MessageActionController extends ChangeNotifier {
     );
     messageController.addListener(_onMessagesChanged);
     unawaited(_loadMetadata());
-    unawaited(_syncMentionNames(messages));
     unawaited(_loadBotGroup());
     _changeSubscription = account.conversationChanges().listen(
       (event) {
         if (event.reloadAll ||
             event.conversationIds.contains(conversation.id)) {
+          changeRevision++;
           _scheduleMetadataRefresh();
         }
       },
@@ -52,11 +51,11 @@ class MessageActionController extends ChangeNotifier {
   List<String> pinnedMessageIds = const [];
   rust.PinMessagePreviewItem? pinMessagePreview;
   List<String> unreadMentionMessageIds = const [];
-  Map<String, String> mentionNames = const {};
   bool sending = false;
   bool forwarding = false;
   String? currentUserRole;
   bool isBotGroup;
+  int changeRevision = 0;
 
   StreamSubscription<rust.ConversationChangeEvent>? _changeSubscription;
   bool _refreshingMetadata = false;
@@ -68,7 +67,6 @@ class MessageActionController extends ChangeNotifier {
   final Map<String, Timer> _recalledTextTimers = {};
 
   String? recalledText(String messageId) => _recalledText[messageId];
-  final Set<String> _queriedMentionIdentityNumbers = {};
 
   Future<void> _loadBotGroup() async {
     if (!conversation.isBot) return;
@@ -102,7 +100,6 @@ class MessageActionController extends ChangeNotifier {
   }
 
   void _onMessagesChanged() {
-    unawaited(_syncMentionNames(messages));
     notifyListeners();
   }
 
@@ -626,44 +623,6 @@ class MessageActionController extends ChangeNotifier {
       }
     } while (_metadataRefreshPending && !_disposed);
     _refreshingMetadata = false;
-  }
-
-  Future<void> _syncMentionNames(Iterable<MessageListEntry> entries) async {
-    final identityNumbers = <String>{};
-    for (final message in entries) {
-      for (final text in [message.content, message.caption ?? '']) {
-        for (final match in _mentionIdentityNumberPattern.allMatches(text)) {
-          identityNumbers.add(match.group(1)!);
-        }
-      }
-    }
-    identityNumbers.removeAll(_queriedMentionIdentityNumbers);
-    if (identityNumbers.isEmpty) return;
-
-    _queriedMentionIdentityNumbers.addAll(identityNumbers);
-    try {
-      final users = await account.user().usersByIdentityNumbers(
-        identityNumbers: identityNumbers.toList(growable: false),
-      );
-      if (_disposed) return;
-      final resolved = <String, String>{};
-      for (final user in users) {
-        final fullName = user.fullName.trim();
-        if (fullName.isNotEmpty) {
-          resolved[user.identityNumber] = fullName;
-        }
-      }
-      if (resolved.isNotEmpty) {
-        mentionNames = Map.unmodifiable({...mentionNames, ...resolved});
-      }
-    } catch (exception, stackTrace) {
-      _queriedMentionIdentityNumbers.removeAll(identityNumbers);
-      e(
-        'Resolve mention names failed: conversation_id=${conversation.id}',
-        exception,
-        stackTrace,
-      );
-    }
   }
 
   @override

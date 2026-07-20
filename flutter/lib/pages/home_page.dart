@@ -34,7 +34,6 @@ import 'package:mixin_desktop_ui/widgets/device_transfer_widget.dart';
 import 'package:mixin_desktop_ui/widgets/home_sidebar.dart';
 import 'package:mixin_desktop_ui/widgets/network_status.dart';
 import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
 import 'package:mixin_desktop_ui/widgets/mute_dialog.dart';
 import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
 import 'package:mixin_desktop_ui/widgets/show_conversation_code_dialog.dart';
@@ -207,15 +206,8 @@ class _HomeBodyState extends State<_HomeBody> {
     if (appActive && selectedConversation?.id == message.conversationId) return;
 
     final showPreview = context.read<SettingsController>().messagePreview;
-    var mentionNames = const <String, String>{};
-    if (showPreview && message.category.contains('TEXT')) {
-      final conversationController = context.read<ConversationListController>();
-      await conversationController.cacheMentionNames([message.content]);
-      if (!mounted) return;
-      mentionNames = conversationController.mentionNames;
-    }
     final preview = showPreview
-        ? _notificationPreview(context, message, mentionNames)
+        ? _notificationPreview(context, message)
         : context.l10n.aMessage;
     await showMessageNotification(
       title: message.conversationName,
@@ -964,7 +956,7 @@ class _HomeBodyState extends State<_HomeBody> {
       itemScrollController: controller.itemScrollController,
       loading: controller.loading,
       currentUserId: controller.profile.userId,
-      mentionNames: controller.mentionNames,
+      account: context.read<AccountHandle>(),
       circles: {
         for (final circle in controller.circles) circle.circleId: circle.name,
       },
@@ -1561,15 +1553,11 @@ class _SetupNameOverlayState extends State<_SetupNameOverlay> {
   );
 }
 
-String _notificationPreview(
-  BuildContext context,
-  NotificationEvent message,
-  Map<String, String> mentionNames,
-) {
+String _notificationPreview(BuildContext context, NotificationEvent message) {
   final category = message.category;
   String text;
   if (category.contains('TEXT')) {
-    text = replaceMessageMentions(message.content, mentionNames).trim();
+    text = message.content.trim();
   } else if (category.contains('SNAPSHOT')) {
     text = '[${context.l10n.transfer}]';
   } else if (category.contains('STICKER')) {

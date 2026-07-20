@@ -1,14 +1,16 @@
 use chrono::{DateTime, Utc};
 use sqlx::{Pool, QueryBuilder, Sqlite};
+use std::collections::HashMap;
 
 use sdk::SYSTEM_USER;
 
 use crate::db::mixin::database::MARK_LIMIT;
+use crate::db::mixin::mention_cache::MentionCache;
 use crate::db::mixin::util::{expand_var, BindList};
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct UserDao(pub(crate) Pool<Sqlite>);
+pub struct UserDao(pub(crate) Pool<Sqlite>, MentionCache);
 
 #[derive(sqlx::FromRow, Debug)]
 pub struct User {
@@ -60,6 +62,10 @@ impl From<sdk::User> for User {
 }
 
 impl UserDao {
+    pub(crate) fn new(pool: Pool<Sqlite>) -> Self {
+        Self(pool, MentionCache::default())
+    }
+
     pub async fn selectable_users(&self, current_user_id: &str) -> Result<Vec<User>, Error> {
         Ok(sqlx::query_as::<_, User>(
             r#"SELECT * FROM users
@@ -264,8 +270,34 @@ impl UserDao {
 
         let query = query_builder.build();
         query.execute(&self.0).await?;
+        self.1.cache_users(&db_users);
 
         Ok(db_users)
+    }
+
+    pub async fn replace_mentions(&self, contents: &[String]) -> Result<Vec<String>, Error> {
+        self.load_mention_users(contents).await?;
+        Ok(contents
+            .iter()
+            .map(|content| self.1.replace_mentions(content))
+            .collect())
+    }
+
+    pub async fn mention_names(
+        &self,
+        contents: &[String],
+    ) -> Result<HashMap<String, String>, Error> {
+        self.load_mention_users(contents).await?;
+        Ok(self.1.mention_names(contents))
+    }
+
+    async fn load_mention_users(&self, contents: &[String]) -> Result<(), Error> {
+        let missing = self.1.missing_identity_numbers(contents);
+        if !missing.is_empty() {
+            let users = self.find_users_by_identity_numbers(&missing).await?;
+            self.1.cache_users(&users);
+        }
+        Ok(())
     }
 
     pub async fn has_user(&self, user_id: &str) -> Result<bool, sqlx::Error> {
@@ -292,6 +324,8 @@ impl UserDao {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use crate::db::MixinDatabase;
 
     #[tokio::test]
@@ -356,6 +390,45 @@ mod tests {
                 ("7001".to_string(), "Alice".to_string()),
                 ("7003".to_string(), "Carol".to_string()),
             ]
+        );
+
+        assert_eq!(
+            database
+                .user_dao
+                .replace_mentions(&[
+                    "hello @7001 and @7003".to_string(),
+                    "unknown @9999".to_string(),
+                ])
+                .await
+                .unwrap(),
+            ["hello @Alice and @Carol", "unknown @9999"]
+        );
+        assert_eq!(
+            database
+                .user_dao
+                .mention_names(&["hello @7001 and @7003".to_string()])
+                .await
+                .unwrap(),
+            HashMap::from([
+                ("7001".to_string(), "Alice".to_string()),
+                ("7003".to_string(), "Carol".to_string()),
+            ])
+        );
+
+        let mut updated_users = database
+            .user_dao
+            .find_users_by_identity_numbers(&["7001".to_string()])
+            .await
+            .unwrap();
+        updated_users[0].full_name = "Alicia".to_string();
+        database.user_dao.1.cache_users(&updated_users);
+        assert_eq!(
+            database
+                .user_dao
+                .replace_mentions(&["hello @7001".to_string()])
+                .await
+                .unwrap(),
+            ["hello @Alicia"]
         );
     }
 

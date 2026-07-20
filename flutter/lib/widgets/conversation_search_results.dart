@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
@@ -8,7 +9,7 @@ import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart'
-    show UserProfileItem;
+    show AccountHandle, UserProfileItem;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
@@ -30,7 +31,7 @@ class ConversationSearchResults extends StatefulWidget {
     required this.messages,
     required this.messageConversations,
     required this.loadingMessages,
-    required this.mentionNames,
+    required this.account,
     required this.onConversationSelected,
     required this.onMessageSelected,
     required this.onSearchUser,
@@ -49,7 +50,7 @@ class ConversationSearchResults extends StatefulWidget {
   final List<MessageListEntry> messages;
   final Map<String, ConversationListEntry> messageConversations;
   final bool loadingMessages;
-  final Map<String, String> mentionNames;
+  final AccountHandle? account;
   final ValueChanged<ConversationListEntry> onConversationSelected;
   final ValueChanged<MessageListEntry> onMessageSelected;
   final ValueChanged<String> onSearchUser;
@@ -305,10 +306,9 @@ class _ConversationSearchResultsState extends State<ConversationSearchResults> {
                 size: 50,
               ),
               name: conversation.name,
-              description: replaceMessageMentions(
-                _conversationDescription(context, conversation),
-                widget.mentionNames,
-              ),
+              description: _conversationDescription(context, conversation),
+              account: widget.account,
+              mentionRevision: conversation,
               trailing: BadgesWidget(
                 verified: conversation.isVerified,
                 isBot: conversation.isBot,
@@ -342,10 +342,9 @@ class _ConversationSearchResultsState extends State<ConversationSearchResults> {
       keyword: widget.keyword,
       nameHighlight: false,
       descriptionIcon: MixinAssets.messageIcon(message.category),
-      description: replaceMessageMentions(
-        _messageDescription(message),
-        widget.mentionNames,
-      ),
+      description: _messageDescription(message),
+      account: widget.account,
+      mentionRevision: message,
       date: message.createdAt,
       onTap: () => widget.onMessageSelected(message),
     );
@@ -388,7 +387,7 @@ class _SearchHeader extends StatelessWidget {
   );
 }
 
-class _SearchItem extends StatelessWidget {
+class _SearchItem extends HookWidget {
   const _SearchItem({
     required this.name,
     required this.keyword,
@@ -402,6 +401,8 @@ class _SearchItem extends StatelessWidget {
     this.trailing,
     this.contentTrailing,
     this.maxLines = false,
+    this.account,
+    this.mentionRevision,
   });
 
   final Widget? avatar;
@@ -416,9 +417,16 @@ class _SearchItem extends StatelessWidget {
   final Widget? descriptionIconWidget;
   final DateTime? date;
   final bool maxLines;
+  final AccountHandle? account;
+  final Object? mentionRevision;
 
   @override
   Widget build(BuildContext context) {
+    final resolvedDescription = useResolvedMessageMentions(
+      account,
+      description ?? '',
+      revision: mentionRevision,
+    );
     final selectedDecoration = BoxDecoration(
       borderRadius: const BorderRadius.all(Radius.circular(8)),
       color: context.mixinTheme.listSelected,
@@ -493,7 +501,7 @@ class _SearchItem extends StatelessWidget {
                                 fontSize: 14,
                               ),
                               child: _HighlightedText(
-                                text: description!,
+                                text: resolvedDescription,
                                 query: keyword,
                                 maxLines: 1,
                               ),

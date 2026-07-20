@@ -358,12 +358,29 @@ impl AccountRuntime {
             .unwrap_or((after_created_at_micros, after_row_id));
         let has_more = messages.len() == limit as usize;
         let identity_number = self.account().identity_number;
-        let events = messages
+        let mut events = messages
             .into_iter()
             .filter_map(|message| {
                 model::NotificationEvent::from_message(message, &self.account_id, &identity_number)
             })
-            .collect();
+            .collect::<Vec<_>>();
+        let text_event_indices = events
+            .iter()
+            .enumerate()
+            .filter_map(|(index, event)| event.category.contains("TEXT").then_some(index))
+            .collect::<Vec<_>>();
+        let text_contents = text_event_indices
+            .iter()
+            .map(|index| events[*index].content.clone())
+            .collect::<Vec<_>>();
+        for (index, content) in text_event_indices.into_iter().zip(
+            self.database
+                .user_dao
+                .replace_mentions(&text_contents)
+                .await?,
+        ) {
+            events[index].content = content;
+        }
         Ok(model::NotificationEventBatch {
             events,
             next_created_at_micros,

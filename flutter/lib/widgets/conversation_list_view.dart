@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
@@ -10,7 +11,7 @@ import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart'
-    show UserProfileItem;
+    show AccountHandle, UserProfileItem;
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 import 'package:mixin_desktop_ui/widgets/action_button.dart';
@@ -55,7 +56,7 @@ class ConversationListView extends StatefulWidget {
     required this.onCircleChanged,
     super.key,
     this.query = '',
-    this.mentionNames = const {},
+    this.account,
     this.searchMessages = const [],
     this.searchUsers = const [],
     this.searchMaoUser,
@@ -77,7 +78,7 @@ class ConversationListView extends StatefulWidget {
   final ItemScrollController itemScrollController;
   final bool loading;
   final String currentUserId;
-  final Map<String, String> mentionNames;
+  final AccountHandle? account;
   final Map<String, String> circles;
   final String? currentCircleId;
   final String query;
@@ -147,7 +148,7 @@ class _ConversationListViewState extends State<ConversationListView> {
             itemPositionsListener: widget.itemPositionsListener,
             itemScrollController: widget.itemScrollController,
             currentUserId: widget.currentUserId,
-            mentionNames: widget.mentionNames,
+            account: widget.account,
             circles: widget.circles,
             currentCircleId: widget.currentCircleId,
             selectedConversationId: widget.selectedConversationId,
@@ -166,7 +167,7 @@ class _ConversationListViewState extends State<ConversationListView> {
             messages: widget.searchMessages,
             messageConversations: widget.searchMessageConversations,
             loadingMessages: widget.searchMessagesLoading,
-            mentionNames: widget.mentionNames,
+            account: widget.account,
             onConversationSelected: widget.onSelected,
             onMessageSelected: widget.onSearchMessageSelected ?? (_) {},
             onSearchUser: widget.onSearchUser ?? (_) {},
@@ -212,7 +213,7 @@ class _ConversationListBody extends StatelessWidget {
     required this.itemPositionsListener,
     required this.itemScrollController,
     required this.currentUserId,
-    required this.mentionNames,
+    required this.account,
     required this.circles,
     required this.currentCircleId,
     required this.selectedConversationId,
@@ -230,7 +231,7 @@ class _ConversationListBody extends StatelessWidget {
   final ItemPositionsListener itemPositionsListener;
   final ItemScrollController itemScrollController;
   final String currentUserId;
-  final Map<String, String> mentionNames;
+  final AccountHandle? account;
   final Map<String, String> circles;
   final String? currentCircleId;
   final String? selectedConversationId;
@@ -272,7 +273,7 @@ class _ConversationListBody extends StatelessWidget {
           child: ConversationItem(
             conversation: conversation,
             currentUserId: currentUserId,
-            mentionNames: mentionNames,
+            account: account,
             selected: conversation.id == selectedConversationId,
             onTap: () => onSelected(conversation),
           ),
@@ -411,12 +412,12 @@ class ConversationItem extends StatelessWidget {
     required this.selected,
     required this.onTap,
     super.key,
-    this.mentionNames = const {},
+    this.account,
   });
 
   final ConversationListEntry conversation;
   final String currentUserId;
-  final Map<String, String> mentionNames;
+  final AccountHandle? account;
   final bool selected;
   final VoidCallback onTap;
 
@@ -485,7 +486,7 @@ class ConversationItem extends StatelessWidget {
                           _Subtitle(
                             conversation: conversation,
                             currentUserId: currentUserId,
-                            mentionNames: mentionNames,
+                            account: account,
                           ),
                         ],
                       ),
@@ -521,12 +522,12 @@ class _Subtitle extends StatelessWidget {
   const _Subtitle({
     required this.conversation,
     required this.currentUserId,
-    required this.mentionNames,
+    required this.account,
   });
 
   final ConversationListEntry conversation;
   final String currentUserId;
-  final Map<String, String> mentionNames;
+  final AccountHandle? account;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -537,7 +538,7 @@ class _Subtitle extends StatelessWidget {
           child: _MessagePreview(
             conversation: conversation,
             currentUserId: currentUserId,
-            mentionNames: mentionNames,
+            account: account,
           ),
         ),
         _ConversationIndicators(conversation: conversation),
@@ -550,12 +551,12 @@ class _MessagePreview extends StatelessWidget {
   const _MessagePreview({
     required this.conversation,
     required this.currentUserId,
-    required this.mentionNames,
+    required this.account,
   });
 
   final ConversationListEntry conversation;
   final String currentUserId;
-  final Map<String, String> mentionNames;
+  final AccountHandle? account;
 
   @override
   Widget build(BuildContext context) {
@@ -574,7 +575,7 @@ class _MessagePreview extends StatelessWidget {
             conversation: conversation,
             currentUserId: currentUserId,
             hasDraft: hasDraft,
-            mentionNames: mentionNames,
+            account: account,
           ),
         ),
       ],
@@ -582,32 +583,37 @@ class _MessagePreview extends StatelessWidget {
   }
 }
 
-class _MessageContent extends StatelessWidget {
+class _MessageContent extends HookWidget {
   const _MessageContent({
     required this.conversation,
     required this.currentUserId,
     required this.hasDraft,
-    required this.mentionNames,
+    required this.account,
   });
 
   final ConversationListEntry conversation;
   final String currentUserId;
   final bool hasDraft;
-  final Map<String, String> mentionNames;
+  final AccountHandle? account;
 
   @override
   Widget build(BuildContext context) {
+    final preview = hasDraft
+        ? conversation.draft
+        : conversation.contentType == null
+        ? ''
+        : _messagePreview(context, conversation, currentUserId);
+    final resolvedPreview = useResolvedMessageMentions(
+      hasDraft ? null : account,
+      preview,
+      revision: conversation,
+    );
     if (conversation.contentType == null && !hasDraft) {
       return const SizedBox();
     }
     final colors = context.mixinTheme;
     final icon = hasDraft ? null : _messagePreviewIcon(conversation);
-    final preview = hasDraft
-        ? conversation.draft
-        : _messagePreview(context, conversation, currentUserId);
-    final text = hasDraft
-        ? preview
-        : replaceMessageMentions(preview, mentionNames);
+    final text = hasDraft ? preview : resolvedPreview;
     return Row(
       children: [
         if (icon != null) ...[

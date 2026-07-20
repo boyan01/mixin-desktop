@@ -22,6 +22,7 @@ import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
 import 'package:mixin_desktop_ui/widgets/message_media_preview_pages.dart';
+import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_page.dart';
 import 'package:overlay_support/overlay_support.dart';
 import 'package:provider/provider.dart';
@@ -249,7 +250,7 @@ void main() {
         senderId: 'alice',
         senderName: 'Alice',
         category: 'PLAIN_TEXT',
-        content: 'Hello from Rust',
+        content: 'Hello @7001 from Rust',
         status: 'READ',
         minute: 30,
       ),
@@ -300,12 +301,21 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
 
     expect(find.text('Alice', findRichText: true), findsOneWidget);
     expect(find.text('700010', findRichText: true), findsOneWidget);
     expect(tester.getSize(find.byKey(const Key('chat-header'))).height, 64);
     expect(tester.getSize(find.byKey(const Key('chat-input-bar'))).height, 56);
-    expect(find.text('Hello from Rust', findRichText: true), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is SelectableMessageText &&
+            widget.content == 'Hello @7001 from Rust' &&
+            widget.mentionNames['7001'] == 'Alice',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Hello Alice', findRichText: true), findsOneWidget);
     expect(
       find.text('This message was deleted', findRichText: true),
@@ -1335,6 +1345,11 @@ class _FakeAccountHandle
 
   @override
   UserAccess user() => this;
+
+  @override
+  Future<Map<String, String>> mentionNames({
+    required List<String> contents,
+  }) async => {'7001': 'Alice'};
 
   @override
   String accountId() => 'me';

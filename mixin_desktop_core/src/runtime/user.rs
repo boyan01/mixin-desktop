@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -262,6 +263,16 @@ impl UserAccess {
             .into_iter()
             .map(Into::into)
             .collect())
+    }
+
+    pub async fn replace_mentions(&self, contents: Vec<String>) -> Result<Vec<String>> {
+        self.ensure_active()?;
+        Ok(self.database.user_dao.replace_mentions(&contents).await?)
+    }
+
+    pub async fn mention_names(&self, contents: Vec<String>) -> Result<HashMap<String, String>> {
+        self.ensure_active()?;
+        Ok(self.database.user_dao.mention_names(&contents).await?)
     }
 
     pub async fn add_contact(&self, user_id: String, full_name: String) -> Result<()> {

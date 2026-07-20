@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:intl/intl.dart';
@@ -41,6 +42,7 @@ import 'package:mixin_desktop_ui/widgets/chat/chat_scroll_coordinator.dart';
 import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
 import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
+import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
 import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
 import 'package:mixin_desktop_ui/widgets/message_actions_menu.dart';
 import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
@@ -1544,7 +1546,7 @@ class _MessageList extends StatelessWidget {
         conversationOwnerId: conversation.ownerId,
         currentUserRole: actions.currentUserRole,
         messages: messageController.state.list,
-        mentionNames: actions.mentionNames,
+        changeRevision: actions.changeRevision,
         selected: selectedMessageIds.contains(message.id),
         highlightOpacity: highlightedMessageId == message.id
             ? highlightOpacity
@@ -1600,7 +1602,7 @@ class _UnreadMessageBar extends StatelessWidget {
   );
 }
 
-class _ChatMessage extends StatefulWidget {
+class _ChatMessage extends StatefulHookWidget {
   const _ChatMessage({
     required this.dayTimeKey,
     required this.account,
@@ -1614,7 +1616,7 @@ class _ChatMessage extends StatefulWidget {
     required this.conversationOwnerId,
     required this.currentUserRole,
     required this.messages,
-    required this.mentionNames,
+    required this.changeRevision,
     required this.selected,
     required this.highlightOpacity,
     required this.inSelectionMode,
@@ -1653,7 +1655,7 @@ class _ChatMessage extends StatefulWidget {
   final String conversationOwnerId;
   final String? currentUserRole;
   final List<MessageListEntry> messages;
-  final Map<String, String> mentionNames;
+  final int changeRevision;
   final bool selected;
   final double highlightOpacity;
   final bool inSelectionMode;
@@ -1689,6 +1691,15 @@ class _ChatMessageState extends State<_ChatMessage> {
 
   @override
   Widget build(BuildContext context) {
+    final mentionNames = useMessageMentionNames(
+      widget.account,
+      [
+        widget.message.content,
+        widget.message.caption,
+        widget.message.quoteContent,
+      ],
+      revision: (widget.message, widget.changeRevision),
+    );
     if (_strangerResolved && widget.message.category == 'STRANGER') {
       return const SizedBox.shrink();
     }
@@ -1742,7 +1753,7 @@ class _ChatMessageState extends State<_ChatMessage> {
       onOpenUser: (userId) => _showUser(userId: userId),
       onOpenIdentityNumber: (identityNumber) =>
           _showUser(identityNumber: identityNumber),
-      mentionNames: widget.mentionNames,
+      mentionNames: mentionNames,
       keyword: messageKeyword,
       audioPlaylist: widget.messages,
       showNip: presentation.showNip,
@@ -1784,7 +1795,7 @@ class _ChatMessageState extends State<_ChatMessage> {
     final quote = buildMessageQuotePreview(
       widget.message,
       onOpenMessage: widget.onOpenMessage,
-      mentionNames: widget.mentionNames,
+      mentionNames: mentionNames,
     );
     final renderedMessage = bypassActions
         ? messageContent

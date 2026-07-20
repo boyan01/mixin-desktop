@@ -14,6 +14,7 @@ pub mod fiat;
 pub mod flood_message;
 pub mod inscription;
 pub mod job;
+pub(crate) mod mention_cache;
 pub mod message;
 pub mod message_fts;
 pub mod message_history;

@@ -7,12 +7,10 @@ import 'package:mixin_desktop_ui/models/command_palette_item.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/utils/app_logger.dart';
-import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 const _unseenCountThrottle = Duration(milliseconds: 333);
 const _changeMergeWindow = Duration(milliseconds: 16);
-const _initialMentionPrewarmCount = 15;
 const _retryDelays = [
   Duration(seconds: 1),
   Duration(seconds: 2),
@@ -45,7 +43,6 @@ String? _completeMao(String value) {
 
 class ConversationListController extends ChangeNotifier {
   ConversationListController(this.account) : profile = account.profile() {
-    _itemPositionsListener.itemPositions.addListener(_warmVisibleMentions);
     _profileSubscription = account.profileChanges().listen(
       (value) {
         if (_disposed || profile == value) return;
@@ -86,7 +83,6 @@ class ConversationListController extends ChangeNotifier {
   String? searchMao;
   List<MessageListEntry> searchMessages = const [];
   Map<String, ConversationListEntry> searchMessageConversations = const {};
-  Map<String, String> mentionNames = const {};
 
   StreamSubscription<rust.ConversationChangeEvent>? _changeSubscription;
   StreamSubscription<rust.AccountProfile>? _profileSubscription;
@@ -99,7 +95,6 @@ class ConversationListController extends ChangeNotifier {
   int _changeRetryAttempt = 0;
   int _reloadRetryAttempt = 0;
   final Set<String> _pendingConversationIds = {};
-  final Map<String, Future<void>> _pendingMentionResolutions = {};
   bool _reloadAllPending = false;
   bool _flushingChanges = false;
   bool _unseenCountRefreshPending = false;
@@ -227,9 +222,6 @@ class ConversationListController extends ChangeNotifier {
         final messages = (results[0] as List<rust.MessageListItem>)
             .map(MessageListEntry.fromRust)
             .toList(growable: false);
-        await cacheMentionNames(
-          messages.expand((message) => [message.content, message.caption]),
-        );
         if (_disposed || revision != _searchRevision) return;
         searchMessages = messages;
         searchUsers = results[1] as List<rust.UserProfileItem>;
@@ -393,71 +385,8 @@ class ConversationListController extends ChangeNotifier {
 
   void _rebuildView() {
     _visibleConversations = _store.filtered(_filter);
-    _warmVisibleMentions();
     loading = !_initialized;
     if (!_disposed) notifyListeners();
-  }
-
-  Future<void> cacheMentionNames(Iterable<String?> texts) async {
-    final identityNumbers = messageMentionIdentityNumbers(texts)
-        .where((identityNumber) => !mentionNames.containsKey(identityNumber))
-        .toSet();
-    if (identityNumbers.isEmpty) return;
-
-    final pending = identityNumbers
-        .map((identityNumber) => _pendingMentionResolutions[identityNumber])
-        .whereType<Future<void>>()
-        .toList(growable: false);
-    final unresolved = identityNumbers
-        .where(
-          (identityNumber) =>
-              !_pendingMentionResolutions.containsKey(identityNumber),
-        )
-        .toList(growable: false);
-    if (unresolved.isEmpty) {
-      await Future.wait(pending);
-      return;
-    }
-
-    final resolution = Completer<void>();
-    for (final identityNumber in unresolved) {
-      _pendingMentionResolutions[identityNumber] = resolution.future;
-    }
-    try {
-      final users = await account.user().usersByIdentityNumbers(
-        identityNumbers: unresolved,
-      );
-      if (_disposed) return;
-      mentionNames = Map.unmodifiable({
-        ...mentionNames,
-        for (final user in users)
-          if (user.fullName.trim().isNotEmpty)
-            user.identityNumber: user.fullName.trim(),
-      });
-      notifyListeners();
-    } catch (exception, stackTrace) {
-      if (!_disposed) {
-        e('Load conversation mention names failed', exception, stackTrace);
-      }
-    } finally {
-      resolution.complete();
-      for (final identityNumber in unresolved) {
-        _pendingMentionResolutions.remove(identityNumber);
-      }
-    }
-    await Future.wait(pending);
-  }
-
-  void _warmVisibleMentions() {
-    if (_disposed) return;
-    final texts = <String?>[];
-    for (final position in _itemPositionsListener.itemPositions.value) {
-      if (position.index >= 0 &&
-          position.index < _visibleConversations.length) {
-        texts.add(_visibleConversations[position.index].content);
-      }
-    }
-    if (texts.isNotEmpty) unawaited(cacheMentionNames(texts));
   }
 
   Future<void> _start() async {
@@ -486,13 +415,6 @@ class ConversationListController extends ChangeNotifier {
       _changeRetryAttempt = 0;
       i('Loaded conversation list: count=${conversations.length}');
       _rebuildView();
-      unawaited(
-        cacheMentionNames(
-          conversations
-              .take(_initialMentionPrewarmCount)
-              .map((item) => item.content),
-        ),
-      );
       _scheduleUnseenCountRefresh(immediate: true);
     } catch (exception, stackTrace) {
       if (_disposed) return;
@@ -548,7 +470,6 @@ class ConversationListController extends ChangeNotifier {
             .toList(growable: false);
         _store.applyChanges(ids, entries);
         _rebuildView();
-        unawaited(cacheMentionNames(entries.map((item) => item.content)));
         _scheduleUnseenCountRefresh();
         _changeRetryAttempt = 0;
       }
@@ -629,7 +550,6 @@ class ConversationListController extends ChangeNotifier {
     _changeTimer?.cancel();
     _reloadRetryTimer?.cancel();
     _unseenCountTimer?.cancel();
-    _itemPositionsListener.itemPositions.removeListener(_warmVisibleMentions);
     unawaited(_changeSubscription?.cancel());
     unawaited(_profileSubscription?.cancel());
     super.dispose();

@@ -42,7 +42,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1941143263;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1329984205;
 
 // Section: executor
 
@@ -7397,6 +7397,66 @@ fn wire__mixin_desktop_core__runtime__UserAccess_local_shared_apps_impl(
         },
     )
 }
+fn wire__mixin_desktop_core__runtime__UserAccess_mention_names_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "UserAccess_mention_names",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserAccess>,
+            >>::sse_decode(&mut deserializer);
+            let api_contents = <Vec<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = mixin_desktop_core::runtime::UserAccess::mention_names(
+                            &*api_that_guard,
+                            api_contents,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__mixin_desktop_core__runtime__UserAccess_refresh_user_profile_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -7508,6 +7568,66 @@ fn wire__mixin_desktop_core__runtime__UserAccess_remove_contact_impl(
                         let output_ok = mixin_desktop_core::runtime::UserAccess::remove_contact(
                             &*api_that_guard,
                             api_user_id,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__mixin_desktop_core__runtime__UserAccess_replace_mentions_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "UserAccess_replace_mentions",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserAccess>,
+            >>::sse_decode(&mut deserializer);
+            let api_contents = <Vec<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = mixin_desktop_core::runtime::UserAccess::replace_mentions(
+                            &*api_that_guard,
+                            api_contents,
                         )
                         .await?;
                         Ok(output_ok)
@@ -10810,83 +10930,95 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        129 => wire__mixin_desktop_core__runtime__UserAccess_refresh_user_profile_impl(
+        129 => wire__mixin_desktop_core__runtime__UserAccess_mention_names_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        130 => wire__mixin_desktop_core__runtime__UserAccess_remove_contact_impl(
+        130 => wire__mixin_desktop_core__runtime__UserAccess_refresh_user_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        131 => wire__mixin_desktop_core__runtime__UserAccess_report_user_impl(
+        131 => wire__mixin_desktop_core__runtime__UserAccess_remove_contact_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        132 => wire__mixin_desktop_core__runtime__UserAccess_search_local_users_impl(
+        132 => wire__mixin_desktop_core__runtime__UserAccess_replace_mentions_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        133 => wire__mixin_desktop_core__runtime__UserAccess_search_mao_user_impl(
+        133 => wire__mixin_desktop_core__runtime__UserAccess_report_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        134 => wire__mixin_desktop_core__runtime__UserAccess_search_user_impl(
+        134 => wire__mixin_desktop_core__runtime__UserAccess_search_local_users_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        135 => wire__mixin_desktop_core__runtime__UserAccess_selectable_users_impl(
+        135 => wire__mixin_desktop_core__runtime__UserAccess_search_mao_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        136 => wire__mixin_desktop_core__runtime__UserAccess_shared_apps_impl(
+        136 => wire__mixin_desktop_core__runtime__UserAccess_search_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        137 => wire__mixin_desktop_core__runtime__UserAccess_unblock_user_impl(
+        137 => wire__mixin_desktop_core__runtime__UserAccess_selectable_users_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        138 => wire__mixin_desktop_core__runtime__UserAccess_user_profile_impl(
+        138 => wire__mixin_desktop_core__runtime__UserAccess_shared_apps_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        139 => wire__mixin_desktop_core__runtime__UserAccess_users_by_identity_numbers_impl(
+        139 => wire__mixin_desktop_core__runtime__UserAccess_unblock_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        140 => wire__mixin_desktop_core__runtime__logging__directory_impl(
+        140 => wire__mixin_desktop_core__runtime__UserAccess_user_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        141 => {
+        141 => wire__mixin_desktop_core__runtime__UserAccess_users_by_identity_numbers_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        142 => wire__mixin_desktop_core__runtime__logging__directory_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        143 => {
             wire__mixin_desktop_core__runtime__logging__init_impl(port, ptr, rust_vec_len, data_len)
         }
-        142 => wire__crate__api__logging__init_app_impl(port, ptr, rust_vec_len, data_len),
-        144 => wire__crate__api__desktop__open_desktop_impl(port, ptr, rust_vec_len, data_len),
+        144 => wire__crate__api__logging__init_app_impl(port, ptr, rust_vec_len, data_len),
+        146 => wire__crate__api__desktop__open_desktop_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -10925,7 +11057,7 @@ fn pde_ffi_dispatcher_sync_impl(
         29 => wire__crate__api__account__AccountHandle_user_impl(ptr, rust_vec_len, data_len),
         76 => wire__crate__api__login__LoginHandle_auth_url_impl(ptr, rust_vec_len, data_len),
         77 => wire__crate__api__login__LoginHandle_cancel_impl(ptr, rust_vec_len, data_len),
-        143 => wire__crate__api__logging__log_flutter_impl(ptr, rust_vec_len, data_len),
+        145 => wire__crate__api__logging__log_flutter_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
