@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
@@ -172,22 +173,19 @@ class MessageBubble extends StatelessWidget {
     content = Padding(padding: padding, child: content);
 
     if (quote != null) {
-      content = IntrinsicWidth(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: constrainQuoteWidth ? 0 : null,
-              child: MessageBubbleNipPadding(
-                currentUser: isCurrentUser,
-                child: quote!,
-              ),
-            ),
-            content,
-          ],
-        ),
+      final quoteContent = MessageBubbleNipPadding(
+        currentUser: isCurrentUser,
+        child: quote!,
       );
+      content = constrainQuoteWidth
+          ? _ConstrainedQuoteLayout(quote: quoteContent, content: content)
+          : IntrinsicWidth(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [quoteContent, content],
+              ),
+            );
     }
 
     if (clip) {
@@ -271,6 +269,58 @@ class MessageBubble extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ConstrainedQuoteLayout extends MultiChildRenderObjectWidget {
+  _ConstrainedQuoteLayout({required Widget quote, required Widget content})
+    : super(children: [quote, content]);
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderConstrainedQuoteLayout();
+}
+
+class _RenderConstrainedQuoteLayout extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, MultiChildLayoutParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, MultiChildLayoutParentData> {
+  RenderBox get quoteChild => firstChild!;
+
+  RenderBox get contentChild => lastChild!;
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! MultiChildLayoutParentData) {
+      child.parentData = MultiChildLayoutParentData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    final childConstraints = constraints.loosen();
+    contentChild.layout(childConstraints, parentUsesSize: true);
+    final width = constraints.constrainWidth(contentChild.size.width);
+    quoteChild.layout(
+      BoxConstraints.tightFor(width: width),
+      parentUsesSize: true,
+    );
+    size = constraints.constrain(
+      Size(width, quoteChild.size.height + contentChild.size.height),
+    );
+    (quoteChild.parentData! as MultiChildLayoutParentData).offset = Offset.zero;
+    (contentChild.parentData! as MultiChildLayoutParentData).offset = Offset(
+      0,
+      quoteChild.size.height,
+    );
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
 }
 
 class MessageBubbleHighlight extends StatelessWidget {

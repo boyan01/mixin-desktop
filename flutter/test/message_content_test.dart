@@ -508,6 +508,50 @@ void main() {
     expect(find.byType(ImageByBlurHashOrBase64), findsOneWidget);
   });
 
+  testWidgets('lays out an image message with a quote', (tester) async {
+    final opened = <String>[];
+    final message = _message(
+      id: 'reply-image',
+      category: 'PLAIN_IMAGE',
+      content: 'raw image payload',
+      mediaWidth: 800,
+      mediaHeight: 600,
+      quoteMessageId: 'quoted-message',
+      quoteContent:
+          '{"user_full_name":"Quoted Alice","type":"PLAIN_TEXT",'
+          '"content":"Quoted text"}',
+    );
+
+    await tester.pumpWidget(
+      _TestApp(
+        child: MessageBubble(
+          isCurrentUser: false,
+          showNip: true,
+          quote: buildMessageQuotePreview(message, onOpenMessage: opened.add),
+          constrainQuoteWidth: true,
+          child: MessageContent(
+            message: message,
+            isCurrentUser: false,
+            dateAndStatus: const Text('time'),
+            overlayDateAndStatus: const Text('overlay'),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    final image = find.byKey(const Key('message-media-image-reply-image'));
+    final imageSize = tester.getSize(image);
+    expect(imageSize.width, inExclusiveRange(0, 301));
+    expect(imageSize.height, closeTo(imageSize.width * 3 / 4, 0.01));
+    expect(
+      tester.getBottomLeft(find.byKey(const Key('quote-message-preview'))).dy,
+      lessThanOrEqualTo(tester.getTopLeft(image).dy),
+    );
+    await tester.tap(find.byKey(const Key('quote-message-preview')));
+    expect(opened, ['quoted-message']);
+  });
+
   testWidgets('does not create a blank sender row for a nameless quote', (
     tester,
   ) async {
