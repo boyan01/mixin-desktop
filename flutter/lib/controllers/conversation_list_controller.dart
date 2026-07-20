@@ -99,7 +99,7 @@ class ConversationListController extends ChangeNotifier {
   int _changeRetryAttempt = 0;
   int _reloadRetryAttempt = 0;
   final Set<String> _pendingConversationIds = {};
-  final Set<String> _pendingMentionIdentityNumbers = {};
+  final Map<String, Future<void>> _pendingMentionResolutions = {};
   bool _reloadAllPending = false;
   bool _flushingChanges = false;
   bool _unseenCountRefreshPending = false;
@@ -227,7 +227,7 @@ class ConversationListController extends ChangeNotifier {
         final messages = (results[0] as List<rust.MessageListItem>)
             .map(MessageListEntry.fromRust)
             .toList(growable: false);
-        await _cacheMentionNames(
+        await cacheMentionNames(
           messages.expand((message) => [message.content, message.caption]),
         );
         if (_disposed || revision != _searchRevision) return;
@@ -398,19 +398,34 @@ class ConversationListController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
-  Future<void> _cacheMentionNames(Iterable<String?> texts) async {
+  Future<void> cacheMentionNames(Iterable<String?> texts) async {
     final identityNumbers = messageMentionIdentityNumbers(texts)
+        .where((identityNumber) => !mentionNames.containsKey(identityNumber))
+        .toSet();
+    if (identityNumbers.isEmpty) return;
+
+    final pending = identityNumbers
+        .map((identityNumber) => _pendingMentionResolutions[identityNumber])
+        .whereType<Future<void>>()
+        .toList(growable: false);
+    final unresolved = identityNumbers
         .where(
           (identityNumber) =>
-              !mentionNames.containsKey(identityNumber) &&
-              !_pendingMentionIdentityNumbers.contains(identityNumber),
+              !_pendingMentionResolutions.containsKey(identityNumber),
         )
         .toList(growable: false);
-    if (identityNumbers.isEmpty) return;
-    _pendingMentionIdentityNumbers.addAll(identityNumbers);
+    if (unresolved.isEmpty) {
+      await Future.wait(pending);
+      return;
+    }
+
+    final resolution = Completer<void>();
+    for (final identityNumber in unresolved) {
+      _pendingMentionResolutions[identityNumber] = resolution.future;
+    }
     try {
       final users = await account.user().usersByIdentityNumbers(
-        identityNumbers: identityNumbers,
+        identityNumbers: unresolved,
       );
       if (_disposed) return;
       mentionNames = Map.unmodifiable({
@@ -425,8 +440,12 @@ class ConversationListController extends ChangeNotifier {
         e('Load conversation mention names failed', exception, stackTrace);
       }
     } finally {
-      _pendingMentionIdentityNumbers.removeAll(identityNumbers);
+      resolution.complete();
+      for (final identityNumber in unresolved) {
+        _pendingMentionResolutions.remove(identityNumber);
+      }
     }
+    await Future.wait(pending);
   }
 
   void _warmVisibleMentions() {
@@ -438,7 +457,7 @@ class ConversationListController extends ChangeNotifier {
         texts.add(_visibleConversations[position.index].content);
       }
     }
-    if (texts.isNotEmpty) unawaited(_cacheMentionNames(texts));
+    if (texts.isNotEmpty) unawaited(cacheMentionNames(texts));
   }
 
   Future<void> _start() async {
@@ -468,7 +487,7 @@ class ConversationListController extends ChangeNotifier {
       i('Loaded conversation list: count=${conversations.length}');
       _rebuildView();
       unawaited(
-        _cacheMentionNames(
+        cacheMentionNames(
           conversations
               .take(_initialMentionPrewarmCount)
               .map((item) => item.content),
@@ -529,7 +548,7 @@ class ConversationListController extends ChangeNotifier {
             .toList(growable: false);
         _store.applyChanges(ids, entries);
         _rebuildView();
-        unawaited(_cacheMentionNames(entries.map((item) => item.content)));
+        unawaited(cacheMentionNames(entries.map((item) => item.content)));
         _scheduleUnseenCountRefresh();
         _changeRetryAttempt = 0;
       }
