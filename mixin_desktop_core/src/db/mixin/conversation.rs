@@ -265,7 +265,7 @@ SELECT conversation.conversation_id,
                FROM participants participant
                INNER JOIN users user ON user.user_id = participant.user_id
                WHERE participant.conversation_id = conversation.conversation_id
-               ORDER BY participant.created_at DESC
+               ORDER BY participant.created_at ASC
                LIMIT 4
            ) avatar_user
        ), '') ELSE '' END AS group_avatar_data
