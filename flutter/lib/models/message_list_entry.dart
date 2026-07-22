@@ -237,4 +237,45 @@ class MessageListEntry {
   bool get isSticker => category.endsWith('_STICKER');
   bool get isPost => category.endsWith('_POST');
   bool get isRecall => category == 'MESSAGE_RECALL';
+
+  @override
+  String toString() {
+    return (StringBuffer('MessageListEntry(')
+          ..write('id: $id, ')
+          ..write('conversationId: $conversationId, ')
+          ..write('senderId: $senderId, ')
+          ..write('senderName: $senderName, ')
+          ..write('senderIdentityNumber: $senderIdentityNumber, ')
+          ..write('category: $category, ')
+          ..write('content: $content, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('mediaUrl: $mediaUrl, ')
+          ..write('mediaMimeType: $mediaMimeType, ')
+          ..write('mediaSize: $mediaSize, ')
+          ..write('mediaDuration: $mediaDuration, ')
+          ..write('mediaWidth: $mediaWidth, ')
+          ..write('mediaHeight: $mediaHeight, ')
+          ..write('mediaStatus: $mediaStatus, ')
+          ..write('quoteMessageId: $quoteMessageId, ')
+          ..write('quoteContent: $quoteContent, ')
+          ..write('caption: $caption, ')
+          ..write('action: $action, ')
+          ..write('participantId: $participantId, ')
+          ..write('participantFullName: $participantFullName, ')
+          ..write('snapshotId: $snapshotId, ')
+          ..write('snapshotType: $snapshotType, ')
+          ..write('snapshotAmount: $snapshotAmount, ')
+          ..write('snapshotMemo: $snapshotMemo, ')
+          ..write('snapshotAssetId: $snapshotAssetId, ')
+          ..write('snapshotAssetSymbol: $snapshotAssetSymbol, ')
+          ..write('hyperlink: $hyperlink, ')
+          ..write('mediaName: $mediaName, ')
+          ..write('albumId: $albumId, ')
+          ..write('stickerId: $stickerId, ')
+          ..write('sharedUserId: $sharedUserId, ')
+          ..write('pinned: $pinned, ')
+          ..write('expireIn: $expireIn)'))
+        .toString();
+  }
 }
