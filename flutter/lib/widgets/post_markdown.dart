@@ -1,53 +1,384 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:markdown_widget/markdown_widget.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:mixin_markdown_widget/mixin_markdown_widget.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../controllers/settings_controller.dart';
 import '../theme.dart';
 import 'app_protocol_handler.dart';
+import 'message_style.dart';
+import 'mixin_image.dart';
 
-MarkdownConfig postMarkdownConfig(
-  BuildContext context, {
-  required double fontSize,
+const _kMarkdownControllerCacheLimit = 120;
+
+String buildMarkdownCacheKey({
+  required String namespace,
+  required String id,
+}) => '$namespace:$id';
+
+final markdownControllerCache = MarkdownControllerCache();
+
+class MarkdownControllerCache {
+  final _entries = <String, _MarkdownCacheEntry>{};
+
+  MarkdownController acquire(
+    String key,
+    String data, {
+    bool streaming = false,
+  }) {
+    var entry = _entries[key];
+    if (entry == null) {
+      entry = _MarkdownCacheEntry(
+        data: data,
+        controller: MarkdownController(data: data),
+      );
+      _entries[key] = entry;
+    }
+    if (entry.data != data) {
+      _updateEntryData(entry, data, streaming: streaming);
+    } else if (!streaming) {
+      entry.controller.commitStream();
+    }
+    _touch(key, entry);
+    entry.retainCount += 1;
+    _evictIfNeeded();
+    return entry.controller;
+  }
+
+  void release(String key, MarkdownController controller) {
+    final entry = _entries[key];
+    if (entry == null || !identical(entry.controller, controller)) return;
+    if (entry.retainCount > 0) entry.retainCount -= 1;
+  }
+
+  void _touch(String key, _MarkdownCacheEntry entry) {
+    _entries.remove(key);
+    _entries[key] = entry;
+  }
+
+  void _evictIfNeeded() {
+    while (_entries.length > _kMarkdownControllerCacheLimit) {
+      final removable = _entries.entries.where(
+        (entry) => entry.value.retainCount == 0,
+      );
+      if (removable.isEmpty) return;
+      final entry = removable.first;
+      _entries.remove(entry.key);
+      entry.value.controller.dispose();
+    }
+  }
+
+  void _updateEntryData(
+    _MarkdownCacheEntry entry,
+    String data, {
+    required bool streaming,
+  }) {
+    final previousData = entry.data;
+    entry.data = data;
+    if (streaming && data.startsWith(previousData)) {
+      entry.controller.appendChunk(data.substring(previousData.length));
+      return;
+    }
+    entry.controller.setData(data);
+    if (!streaming) entry.controller.commitStream();
+  }
+}
+
+class _MarkdownCacheEntry {
+  _MarkdownCacheEntry({required this.data, required this.controller});
+
+  String data;
+  final MarkdownController controller;
+  int retainCount = 0;
+}
+
+class MarkdownColumn extends HookWidget {
+  const MarkdownColumn({
+    required this.data,
+    super.key,
+    this.selectable = false,
+    this.cacheKey,
+    this.streaming = false,
+  });
+
+  final String data;
+  final bool selectable;
+  final String? cacheKey;
+  final bool streaming;
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
+    child: _MarkdownView(
+      data: data,
+      cacheKey: cacheKey,
+      streaming: streaming,
+      useColumn: true,
+      selectable: selectable,
+      contextMenuBuilder: (_, _, _, _) => const SizedBox.shrink(),
+      padding: EdgeInsets.zero,
+      theme: _createMarkdownTheme(
+        context,
+        context.watch<SettingsController>().chatFontSizeDelta,
+      ),
+      imageBuilder: _buildMarkdownImage,
+      onTapLink: (destination, _, _) => _openLink(context, destination),
+    ),
+  );
+}
+
+class Markdown extends HookWidget {
+  const Markdown({
+    required this.data,
+    super.key,
+    this.padding = EdgeInsets.zero,
+    this.physics,
+    this.cacheKey,
+    this.streaming = false,
+  });
+
+  final String data;
+  final EdgeInsetsGeometry? padding;
+  final ScrollPhysics? physics;
+  final String? cacheKey;
+  final bool streaming;
+
+  @override
+  Widget build(BuildContext context) => _MarkdownView(
+    data: data,
+    cacheKey: cacheKey,
+    streaming: streaming,
+    padding: padding,
+    physics: physics,
+    theme: _createMarkdownTheme(
+      context,
+      context.watch<SettingsController>().chatFontSizeDelta,
+    ),
+    imageBuilder: _buildMarkdownImage,
+    onTapLink: (destination, _, _) => _openLink(context, destination),
+  );
+}
+
+class _MarkdownView extends HookWidget {
+  const _MarkdownView({
+    required this.data,
+    required this.theme,
+    required this.imageBuilder,
+    required this.onTapLink,
+    this.cacheKey,
+    this.padding,
+    this.physics,
+    this.streaming = false,
+    this.useColumn = false,
+    this.selectable = true,
+    this.contextMenuBuilder,
+  });
+
+  final String data;
+  final String? cacheKey;
+  final bool streaming;
+  final MarkdownThemeData theme;
+  final EdgeInsetsGeometry? padding;
+  final ScrollPhysics? physics;
+  final bool useColumn;
+  final bool selectable;
+  final MarkdownImageBuilder imageBuilder;
+  final MarkdownTapLinkCallback onTapLink;
+  final MarkdownContextMenuBuilder? contextMenuBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    if (cacheKey == null) return _buildMarkdownWidget(data: data);
+
+    final key = cacheKey!;
+    final controller = useMemoized(
+      () => markdownControllerCache.acquire(key, data, streaming: streaming),
+      [key, data, streaming],
+    );
+    useEffect(
+      () =>
+          () => markdownControllerCache.release(key, controller),
+      [key, controller],
+    );
+    return _buildMarkdownWidget(controller: controller);
+  }
+
+  Widget _buildMarkdownWidget({String? data, MarkdownController? controller}) =>
+      MarkdownWidget(
+        data: data,
+        controller: controller,
+        padding: padding,
+        physics: physics,
+        useColumn: useColumn,
+        selectable: selectable,
+        contextMenuBuilder: contextMenuBuilder,
+        theme: theme,
+        imageBuilder: imageBuilder,
+        onTapLink: onTapLink,
+      );
+}
+
+void _openLink(BuildContext context, String destination) {
+  if (destination.isEmpty) return;
+  final uri = Uri.tryParse(destination);
+  if (uri != null && !AppProtocolHandler.maybeOpen(context, uri)) {
+    unawaited(launchUrl(uri));
+  }
+}
+
+Widget _buildMarkdownImage(
+  BuildContext context,
+  ImageBlock block,
+  MarkdownThemeData theme,
+) {
+  final uri = Uri.tryParse(block.url);
+  final width = _imageDimension(uri, 'w', 'width');
+  final height = _imageDimension(uri, 'h', 'height');
+
+  Widget errorBuilder(BuildContext context, Object error, StackTrace? stack) {
+    final iconColor = theme.bodyStyle.color?.withValues(alpha: 0.72);
+    if (width != null && height != null) {
+      return Container(
+        width: width,
+        height: height,
+        color: theme.imagePlaceholderBackgroundColor,
+        alignment: Alignment.center,
+        child: Icon(Icons.broken_image_outlined, color: theme.dividerColor),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.imagePlaceholderBackgroundColor,
+        borderRadius: theme.imageBorderRadius,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.broken_image_outlined, size: 18, color: iconColor),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              block.alt?.isNotEmpty == true ? block.alt! : 'Image',
+              style: theme.bodyStyle.copyWith(color: iconColor),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  final image = _buildMixinImageForUrl(
+    block.url,
+    width: width,
+    height: height,
+    errorBuilder: errorBuilder,
+  );
+  return ClipRRect(borderRadius: theme.imageBorderRadius, child: image);
+}
+
+double? _imageDimension(Uri? uri, String shortKey, String fullKey) {
+  final value = uri?.queryParameters[shortKey] ?? uri?.queryParameters[fullKey];
+  return value == null ? null : double.tryParse(value);
+}
+
+Widget _buildMixinImageForUrl(
+  String url, {
+  double? width,
+  double? height,
+  ImageErrorWidgetBuilder? errorBuilder,
 }) {
-  final colors = context.theme;
-  final scale = fontSize / 16;
-  TextStyle heading(double size) => TextStyle(
-    color: colors.text,
-    fontSize: size * scale,
-    fontWeight: FontWeight.bold,
+  final uri = Uri.tryParse(url);
+  if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) {
+    return MixinImage.network(
+      url,
+      width: width,
+      height: height,
+      errorBuilder: errorBuilder,
+    );
+  }
+  if (uri?.scheme == 'file') {
+    return MixinImage.file(
+      File.fromUri(uri!),
+      width: width,
+      height: height,
+      errorBuilder: errorBuilder,
+    );
+  }
+  final file = File(url);
+  if (file.isAbsolute) {
+    return MixinImage.file(
+      file,
+      width: width,
+      height: height,
+      errorBuilder: errorBuilder,
+    );
+  }
+  return MixinImage.asset(
+    url,
+    width: width,
+    height: height,
+    errorBuilder: errorBuilder,
+  );
+}
+
+MarkdownThemeData _createMarkdownTheme(
+  BuildContext context,
+  double chatFontSizeDelta,
+) {
+  final foreground = Theme.of(context).brightness == Brightness.dark
+      ? MarkdownThemeForeground.dark
+      : MarkdownThemeForeground.light;
+  final base = MarkdownThemeData.themed(context, foreground: foreground);
+  final textColor = context.theme.text;
+  final accentColor = context.theme.accent;
+  final chatBodyFontSize =
+      MessageStyle.defaultStyle.primaryFontSize + chatFontSizeDelta;
+  final baseBodyFontSize = base.bodyStyle.fontSize ?? chatBodyFontSize;
+  final fontSizeScale = baseBodyFontSize == 0
+      ? 1.0
+      : chatBodyFontSize / baseBodyFontSize;
+
+  TextStyle applyTextStyle(TextStyle style) => style.copyWith(
+    color: textColor,
+    fontSize: style.fontSize == null ? null : style.fontSize! * fontSizeScale,
   );
 
-  return MarkdownConfig(
-    configs: [
-      if (Theme.of(context).brightness == Brightness.dark) ...[
-        HrConfig.darkConfig,
-        PreConfig.darkConfig,
-        CodeConfig.darkConfig,
-        BlockquoteConfig.darkConfig,
-      ],
-      PConfig(
-        textStyle: TextStyle(color: colors.text, fontSize: fontSize),
-      ),
-      H1Config(style: heading(32)),
-      H2Config(style: heading(24)),
-      H3Config(style: heading(20)),
-      H4Config(style: heading(16)),
-      H5Config(style: heading(16)),
-      H6Config(style: heading(16)),
-      LinkConfig(
-        style: TextStyle(
-          color: colors.accent,
-          decoration: TextDecoration.underline,
-        ),
-        onTap: (href) {
-          final uri = Uri.tryParse(href);
-          if (uri != null && !AppProtocolHandler.maybeOpen(context, uri)) {
-            unawaited(launchUrl(uri));
-          }
-        },
-      ),
-    ],
+  return base.copyWith(
+    bodyStyle: applyTextStyle(base.bodyStyle),
+    quoteStyle: applyTextStyle(base.quoteStyle).copyWith(
+      color: base.quoteStyle.color ?? textColor.withValues(alpha: 0.82),
+    ),
+    linkStyle: base.linkStyle.copyWith(
+      color: accentColor,
+      decorationColor: accentColor,
+      fontSize:
+          (base.linkStyle.fontSize ??
+              base.bodyStyle.fontSize ??
+              chatBodyFontSize) *
+          fontSizeScale,
+      decoration: TextDecoration.none,
+    ),
+    inlineCodeStyle: applyTextStyle(base.inlineCodeStyle),
+    codeBlockStyle: applyTextStyle(base.codeBlockStyle),
+    tableHeaderStyle: applyTextStyle(base.tableHeaderStyle),
+    heading1Style: applyTextStyle(base.heading1Style).copyWith(
+      height: 40 / 32,
+      fontWeight: FontWeight.bold,
+    ),
+    heading2Style: applyTextStyle(base.heading2Style),
+    heading3Style: applyTextStyle(base.heading3Style),
+    heading4Style: applyTextStyle(base.heading4Style),
+    heading5Style: applyTextStyle(base.heading5Style),
+    heading6Style: applyTextStyle(base.heading6Style),
+    quoteBorderColor: accentColor.withValues(alpha: 0.4),
+    selectionColor: accentColor.withValues(alpha: 0.24),
+    showHeading1Divider: false,
+    quoteBackgroundColor: Colors.transparent,
   );
 }

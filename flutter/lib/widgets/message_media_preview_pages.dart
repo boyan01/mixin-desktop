@@ -8,7 +8,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:markdown_widget/markdown_widget.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path/path.dart' as path;
 import 'package:provider/provider.dart';
@@ -1069,13 +1068,12 @@ class PostPreviewPage extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 600),
               child: DefaultTextStyle.merge(
                 style: TextStyle(fontSize: fontSize, color: context.theme.text),
-                child: MarkdownWidget(
+                child: Markdown(
                   data: content,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,
                     vertical: 8,
                   ),
-                  config: postMarkdownConfig(context, fontSize: fontSize),
                 ),
               ),
             ),

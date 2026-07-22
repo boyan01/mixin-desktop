@@ -7,7 +7,6 @@ import 'package:filesize/filesize.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:markdown_widget/markdown_widget.dart';
 import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
@@ -918,16 +917,11 @@ class MessagePost extends StatelessWidget {
                     ).copyWith(scrollbars: false),
                     child: SingleChildScrollView(
                       physics: const NeverScrollableScrollPhysics(),
-                      child: SelectionArea(
-                        contextMenuBuilder: (context, selectableState) =>
-                            const SizedBox.shrink(),
-                        child: MarkdownBlock(
-                          data: preview,
-                          selectable: false,
-                          config: postMarkdownConfig(
-                            context,
-                            fontSize: fontSize,
-                          ),
+                      child: MarkdownColumn(
+                        data: preview,
+                        cacheKey: buildMarkdownCacheKey(
+                          namespace: 'post',
+                          id: message.id,
                         ),
                       ),
                     ),

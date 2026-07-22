@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image/image.dart' as image;
-import 'package:markdown_widget/markdown_widget.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -508,14 +507,8 @@ class _PostPreview extends StatelessWidget {
           children: [
             ConstrainedBox(
               constraints: const BoxConstraints(minWidth: 128, maxHeight: 400),
-              child: MarkdownWidget(
+              child: MarkdownColumn(
                 data: content,
-                config: postMarkdownConfig(
-                  context,
-                  fontSize: context.messageStyle.primaryFontSize,
-                ),
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
               ),
             ),
             Positioned(
