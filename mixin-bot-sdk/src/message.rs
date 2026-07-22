@@ -124,7 +124,7 @@ pub struct AppCard {
     pub description: String,
     #[serde(default)]
     pub action: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "null_to_default")]
     pub actions: Vec<AppButton>,
 
     #[serde(default)]
@@ -132,6 +132,14 @@ pub struct AppCard {
 
     #[serde(default)]
     pub shareable: bool,
+}
+
+fn null_to_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -178,5 +186,15 @@ mod tests {
         assert_eq!(message.sticker_id, "sticker");
         assert_eq!(message.album_id, None);
         assert_eq!(message.name, None);
+    }
+
+    #[test]
+    fn app_card_accepts_nullable_actions() {
+        let card: AppCard = serde_json::from_str(
+            r#"{"app_id":"app","title":"Card","description":"Description","actions":null}"#,
+        )
+        .unwrap();
+
+        assert!(card.actions.is_empty());
     }
 }
