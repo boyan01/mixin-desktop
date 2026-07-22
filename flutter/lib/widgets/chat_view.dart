@@ -17,6 +17,7 @@ import 'package:mixin_desktop_ui/constants/assets.dart';
 import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
 import 'package:mixin_desktop_ui/controllers/chat_side_notifier.dart';
 import 'package:mixin_desktop_ui/controllers/message_controller.dart';
+import 'package:mixin_desktop_ui/controllers/mention_controller.dart';
 import 'package:mixin_desktop_ui/controllers/message_action_controller.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/controllers/sticker_controller.dart';
@@ -131,11 +132,6 @@ class _ChatViewState extends State<ChatView>
   double _highlightOpacity = 0;
   late final AnimationController _highlightController;
   final Set<String> _selectedMessageIds = {};
-  Timer? _mentionTimer;
-  int _mentionRevision = 0;
-  List<rust.ConversationParticipantItem> _mentionUsers = const [];
-  String _mentionKeyword = '';
-  int _mentionIndex = 0;
   bool _isEncryptConversation = true;
   bool _showPinnedMessage = false;
   bool _showScamWarning = false;
@@ -181,7 +177,6 @@ class _ChatViewState extends State<ChatView>
       _highlightOpacity = 0;
       _highlightController.reset();
       _selectedMessageIds.clear();
-      _clearMentions();
       unawaited(_voiceRecorderController.cancel());
       if (!identical(oldWidget.account, widget.account)) {
         _stickerController.dispose();
@@ -298,85 +293,6 @@ class _ChatViewState extends State<ChatView>
   }
 
   void _onInputChanged() {
-    _scheduleMentionSearch();
-    setState(() {});
-  }
-
-  void _scheduleMentionSearch() {
-    _mentionTimer?.cancel();
-    if (!widget.conversation.isGroup && !widget.conversation.isBot) {
-      _clearMentions();
-      return;
-    }
-    final selection = _inputController.selection.baseOffset;
-    if (selection < 0 || selection > _inputController.text.length) {
-      _clearMentions();
-      return;
-    }
-    final match = RegExp(
-      r'(?:^|\s)@([^@\s]*)$',
-    ).firstMatch(_inputController.text.substring(0, selection));
-    if (match == null) {
-      _clearMentions();
-      return;
-    }
-    final keyword = match.group(1) ?? '';
-    final revision = ++_mentionRevision;
-    _mentionKeyword = keyword;
-    _mentionTimer = Timer(const Duration(milliseconds: 150), () async {
-      try {
-        final result = await widget.account.conversation().searchBotGroupUsers(
-          conversationId: widget.conversation.id,
-          keyword: keyword,
-        );
-        if (!mounted || revision != _mentionRevision) return;
-        setState(() {
-          _mentionUsers = result;
-          _mentionIndex = 0;
-        });
-      } on Object {
-        if (mounted && revision == _mentionRevision) _clearMentions();
-      }
-    });
-  }
-
-  void _clearMentions() {
-    _mentionTimer?.cancel();
-    _mentionRevision++;
-    _mentionUsers = const [];
-    _mentionKeyword = '';
-    _mentionIndex = 0;
-  }
-
-  void _moveMention(int delta) {
-    if (_mentionUsers.isEmpty) return;
-    setState(() {
-      _mentionIndex = (_mentionIndex + delta).clamp(
-        0,
-        _mentionUsers.length - 1,
-      );
-    });
-  }
-
-  void _selectMention([int? index]) {
-    if (_mentionUsers.isEmpty) return;
-    final user = _mentionUsers[index ?? _mentionIndex];
-    final selection = _inputController.selection.baseOffset.clamp(
-      0,
-      _inputController.text.length,
-    );
-    final before = _inputController.text.substring(0, selection);
-    final replaced = before.replaceFirst(
-      RegExp(r'@[^@\s]*$'),
-      '@${user.identityNumber} ',
-    );
-    final value = replaced + _inputController.text.substring(selection);
-    _inputController.value = TextEditingValue(
-      text: value,
-      selection: TextSelection.collapsed(offset: replaced.length),
-    );
-    widget.onDraftChanged(value);
-    _clearMentions();
     setState(() {});
   }
 
@@ -675,7 +591,6 @@ class _ChatViewState extends State<ChatView>
     _messageController.dispose();
     _messageActions.dispose();
     _scrollCoordinator.dispose();
-    _mentionTimer?.cancel();
     _inputController
       ..removeListener(_onInputChanged)
       ..dispose();
@@ -864,6 +779,8 @@ class _ChatViewState extends State<ChatView>
                       child: ChatInputBar(
                         controller: _inputController,
                         focusNode: _inputFocusNode,
+                        mentionAccount: widget.account,
+                        mentionConversation: widget.conversation,
                         isEncryptConversation: _isEncryptConversation,
                         quoteMessage: _quoteMessage,
                         onChanged: widget.onDraftChanged,
@@ -872,11 +789,6 @@ class _ChatViewState extends State<ChatView>
                         onSend: _sendText,
                         onSendSilent: () => _sendText(silent: true),
                         onSendPost: _sendPost,
-                        mentionUsers: _mentionUsers,
-                        mentionKeyword: _mentionKeyword,
-                        mentionIndex: _mentionIndex,
-                        onMentionMove: _moveMention,
-                        onMentionSelected: _selectMention,
                         onPasteFiles: _showAttachments,
                         onContactPressed: () => unawaited(_sendContact()),
                         onFilesPressed: () => unawaited(_pickAttachments()),
@@ -2816,11 +2728,8 @@ class ChatInputBar extends StatefulWidget {
     this.onSendSilent,
     this.onPasteFiles,
     this.onSendPost,
-    this.mentionUsers = const [],
-    this.mentionKeyword = '',
-    this.mentionIndex = 0,
-    this.onMentionMove,
-    this.onMentionSelected,
+    this.mentionAccount,
+    this.mentionConversation,
     this.onContactPressed,
     this.onFilesPressed,
     this.onPicturesPressed,
@@ -2841,11 +2750,8 @@ class ChatInputBar extends StatefulWidget {
   final Future<void> Function()? onSendSilent;
   final Future<void> Function()? onSendPost;
   final Future<void> Function(List<XFile> files)? onPasteFiles;
-  final List<rust.ConversationParticipantItem> mentionUsers;
-  final String mentionKeyword;
-  final int mentionIndex;
-  final ValueChanged<int>? onMentionMove;
-  final ValueChanged<int?>? onMentionSelected;
+  final rust.AccountHandle? mentionAccount;
+  final ConversationListEntry? mentionConversation;
   final VoidCallback? onContactPressed;
   final VoidCallback? onFilesPressed;
   final VoidCallback? onPicturesPressed;
@@ -2861,18 +2767,26 @@ class ChatInputBar extends StatefulWidget {
 
 class _ChatInputBarState extends State<ChatInputBar> {
   MessageListEntry? lastQuoteMessage;
+  MentionController? _mentionController;
 
   @override
   void initState() {
     super.initState();
     lastQuoteMessage = widget.quoteMessage;
     widget.controller.addListener(_handleTextChanged);
+    _createMentionController();
   }
 
   @override
   void didUpdateWidget(covariant ChatInputBar oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.quoteMessage != null) lastQuoteMessage = widget.quoteMessage;
+    if (!identical(oldWidget.mentionAccount, widget.mentionAccount) ||
+        oldWidget.mentionConversation != widget.mentionConversation ||
+        oldWidget.controller != widget.controller) {
+      _mentionController?.dispose();
+      _createMentionController();
+    }
     if (oldWidget.controller == widget.controller) return;
     oldWidget.controller.removeListener(_handleTextChanged);
     widget.controller.addListener(_handleTextChanged);
@@ -2881,10 +2795,24 @@ class _ChatInputBarState extends State<ChatInputBar> {
   @override
   void dispose() {
     widget.controller.removeListener(_handleTextChanged);
+    _mentionController?.dispose();
     super.dispose();
   }
 
   void _handleTextChanged() => setState(() {});
+
+  void _createMentionController() {
+    _mentionController = null;
+    final account = widget.mentionAccount;
+    final conversation = widget.mentionConversation;
+    if (account == null || conversation == null) return;
+    _mentionController = MentionController(
+      account: account,
+      conversation: conversation,
+      inputController: widget.controller,
+      onTextChanged: widget.onChanged,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2892,266 +2820,320 @@ class _ChatInputBarState extends State<ChatInputBar> {
     final sendable =
         widget.controller.text.trim().isNotEmpty &&
         widget.controller.value.composing.isCollapsed;
-    return Container(
-      key: const Key('chat-input-bar'),
-      color: context.theme.primary,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: widget.quoteMessage == null ? 0 : 1),
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            builder: (context, progress, child) => ClipRect(
-              child: Align(
-                alignment: AlignmentDirectional.topCenter,
-                heightFactor: progress,
-                child: child,
+    final mentions = _mentionController;
+    if (mentions == null) {
+      return _MentionPanelPortal(
+        textEditingController: widget.controller,
+        child: _build(context, l10n, sendable),
+      );
+    }
+    return ChangeNotifierProvider.value(
+      value: mentions,
+      child: Consumer<MentionController>(
+        builder: (context, mentions, _) => _MentionPanelPortal(
+          textEditingController: widget.controller,
+          mentions: mentions,
+          child: _build(context, l10n, sendable),
+        ),
+      ),
+    );
+  }
+
+  Widget _build(
+    BuildContext context,
+    AppLocalizations? l10n,
+    bool sendable,
+  ) => Container(
+    key: const Key('chat-input-bar'),
+    color: context.theme.primary,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0, end: widget.quoteMessage == null ? 0 : 1),
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          builder: (context, progress, child) => ClipRect(
+            child: Align(
+              alignment: AlignmentDirectional.topCenter,
+              heightFactor: progress,
+              child: child,
+            ),
+          ),
+          child: lastQuoteMessage == null
+              ? const SizedBox()
+              : _QuoteInputPreview(
+                  message: lastQuoteMessage!,
+                  onCancel: widget.onCancelQuote,
+                ),
+        ),
+        Container(
+          constraints: const BoxConstraints(minHeight: 56),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _SendActionTypeButton(
+                onContact: widget.onContactPressed,
+                onFiles: widget.onFilesPressed,
+                onPictures: widget.onPicturesPressed,
+              ),
+              const SizedBox(width: 6),
+              widget.stickerAction ??
+                  _ChatInputAction(
+                    actionKey: const Key('chat-sticker'),
+                    asset: MixinAssets.sticker,
+                    onPressed: widget.onStickerPressed,
+                  ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Container(
+                  key: const Key('chat-input-surface'),
+                  constraints: const BoxConstraints(minHeight: 40),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color.fromRGBO(255, 255, 255, 0.08)
+                        : const Color.fromRGBO(245, 247, 250, 1),
+                    borderRadius: const BorderRadius.all(Radius.circular(4)),
+                  ),
+                  alignment: Alignment.center,
+                  child: Shortcuts(
+                    shortcuts: {
+                      if (sendable)
+                        const SingleActivator(LogicalKeyboardKey.enter):
+                            const _SendInputIntent(),
+                      if (widget.onSendPost != null)
+                        SingleActivator(
+                          LogicalKeyboardKey.enter,
+                          meta: defaultTargetPlatform == TargetPlatform.macOS,
+                          shift: true,
+                          alt: defaultTargetPlatform != TargetPlatform.macOS,
+                        ): const _SendPostInputIntent(),
+                      const SingleActivator(LogicalKeyboardKey.escape):
+                          const _CancelQuoteInputIntent(),
+                    },
+                    child: Actions(
+                      actions: {
+                        if (widget.onPasteFiles != null)
+                          PasteTextIntent: _PasteFilesAction(
+                            context,
+                            widget.onPasteFiles!,
+                          ),
+                        _SendInputIntent: CallbackAction<_SendInputIntent>(
+                          onInvoke: (_) {
+                            unawaited(widget.onSend());
+                            return null;
+                          },
+                        ),
+                        _SendPostInputIntent:
+                            CallbackAction<_SendPostInputIntent>(
+                              onInvoke: (_) {
+                                unawaited(widget.onSendPost?.call());
+                                return null;
+                              },
+                            ),
+                        _CancelQuoteInputIntent:
+                            CallbackAction<_CancelQuoteInputIntent>(
+                              onInvoke: (_) {
+                                widget.onCancelQuote();
+                                return null;
+                              },
+                            ),
+                      },
+                      child: Stack(
+                        children: [
+                          TextField(
+                            key: const Key('chat-input'),
+                            controller: widget.controller,
+                            focusNode: widget.focusNode,
+                            onChanged: widget.onChanged,
+                            minLines: 1,
+                            maxLines: 7,
+                            textInputAction: TextInputAction.newline,
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(_maxTextLength),
+                            ],
+                            textAlignVertical: TextAlignVertical.center,
+                            selectionHeightStyle:
+                                ui.BoxHeightStyle.includeLineSpacingMiddle,
+                            contextMenuBuilder: (context, state) =>
+                                MixinAdaptiveSelectionToolbar(
+                                  editableTextState: state,
+                                ),
+                            cursorColor: context.theme.accent,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: context.theme.text,
+                            ),
+                            decoration: InputDecoration(
+                              isDense: true,
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              contentPadding: const EdgeInsets.only(
+                                left: 8,
+                                top: 8,
+                                bottom: 8,
+                              ),
+                            ),
+                          ),
+                          if (widget.controller.text.isEmpty)
+                            Positioned.fill(
+                              left: 8,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: IgnorePointer(
+                                  child: Text(
+                                    widget.isEncryptConversation
+                                        ? l10n?.chatHintE2e ??
+                                              'End-to-end encrypted'
+                                        : l10n?.typeMessage ?? 'Type message',
+                                    style: TextStyle(
+                                      color: context.theme.secondaryText,
+                                      fontSize: 14,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Stack(
+                fit: StackFit.passthrough,
+                children: [
+                  if (sendable)
+                    Transform.scale(
+                      scale: 1,
+                      child: ContextMenuWidget(
+                        desktopMenuWidgetBuilder:
+                            CustomDesktopMenuWidgetBuilder(),
+                        menuProvider: (_) => Menu(
+                          children: [
+                            MenuAction(
+                              image: MenuImage.icon(IconFonts.mute),
+                              title: context.l10n.sendWithoutSound,
+                              callback: widget.onSendSilent ?? widget.onSend,
+                            ),
+                          ],
+                        ),
+                        child: _ChatInputAction(
+                          actionKey: const Key('chat-send'),
+                          asset: MixinAssets.send,
+                          onPressed: widget.onSend,
+                        ),
+                      ),
+                    )
+                  else
+                    Transform.scale(
+                      scale: 1,
+                      child: _ChatInputAction(
+                        actionKey: const Key('chat-voice'),
+                        asset: MixinAssets.microphone,
+                        active: widget.voiceButtonActive,
+                        onPressed: widget.onVoicePressed,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _MentionPanelPortal extends HookWidget {
+  const _MentionPanelPortal({
+    required this.textEditingController,
+    required this.child,
+    this.mentions,
+  });
+
+  final TextEditingController textEditingController;
+  final MentionController? mentions;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = mentions?.users.isNotEmpty ?? false;
+    final selectable =
+        useValueListenable(textEditingController).composing.isCollapsed &&
+        visible;
+    return LayoutBuilder(
+      builder: (context, constraints) => FocusableActionDetector(
+        enabled: selectable,
+        shortcuts: {
+          const SingleActivator(LogicalKeyboardKey.arrowDown):
+              const _MoveMentionIntent(1),
+          const SingleActivator(LogicalKeyboardKey.arrowUp):
+              const _MoveMentionIntent(-1),
+          const SingleActivator(LogicalKeyboardKey.tab):
+              const _MoveMentionIntent(1),
+          const SingleActivator(LogicalKeyboardKey.enter):
+              const _SelectMentionIntent(),
+          if (defaultTargetPlatform == TargetPlatform.macOS) ...{
+            const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+                const _MoveMentionIntent(1),
+            const SingleActivator(LogicalKeyboardKey.keyP, control: true):
+                const _MoveMentionIntent(-1),
+          },
+        },
+        actions: {
+          _MoveMentionIntent: CallbackAction<_MoveMentionIntent>(
+            onInvoke: (intent) {
+              mentions?.move(intent.delta);
+              return null;
+            },
+          ),
+          _SelectMentionIntent: CallbackAction<_SelectMentionIntent>(
+            onInvoke: (_) {
+              mentions?.select();
+              return null;
+            },
+          ),
+        },
+        child: PortalTarget(
+          visible: visible,
+          anchor: const Aligned(
+            follower: Alignment.bottomCenter,
+            target: Alignment.topCenter,
+          ),
+          closeDuration: const Duration(milliseconds: 150),
+          portalFollower: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: constraints.maxWidth,
+              maxWidth: constraints.maxWidth,
+              maxHeight: 200,
+            ),
+            child: ClipRRect(
+              child: TweenAnimationBuilder<double>(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
+                tween: Tween(begin: 0, end: visible ? 1 : 0),
+                builder: (context, progress, child) => FractionalTranslation(
+                  translation: Offset(0, 1 - progress),
+                  child: child,
+                ),
+                child: _MentionPanel(
+                  users: mentions?.users ?? const [],
+                  keyword: mentions?.keyword ?? '',
+                  selectedIndex: mentions?.index ?? 0,
+                  scrollController: mentions?.scrollController,
+                  onSelected: mentions?.select,
+                ),
               ),
             ),
-            child: lastQuoteMessage == null
-                ? const SizedBox()
-                : _QuoteInputPreview(
-                    message: lastQuoteMessage!,
-                    onCancel: widget.onCancelQuote,
-                  ),
           ),
-          Container(
-            constraints: const BoxConstraints(minHeight: 56),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _SendActionTypeButton(
-                  onContact: widget.onContactPressed,
-                  onFiles: widget.onFilesPressed,
-                  onPictures: widget.onPicturesPressed,
-                ),
-                const SizedBox(width: 6),
-                widget.stickerAction ??
-                    _ChatInputAction(
-                      actionKey: const Key('chat-sticker'),
-                      asset: MixinAssets.sticker,
-                      onPressed: widget.onStickerPressed,
-                    ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Container(
-                    key: const Key('chat-input-surface'),
-                    constraints: const BoxConstraints(minHeight: 40),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? const Color.fromRGBO(255, 255, 255, 0.08)
-                          : const Color.fromRGBO(245, 247, 250, 1),
-                      borderRadius: const BorderRadius.all(Radius.circular(4)),
-                    ),
-                    alignment: Alignment.center,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) => PortalTarget(
-                        visible: widget.mentionUsers.isNotEmpty,
-                        anchor: const Aligned(
-                          follower: Alignment.bottomCenter,
-                          target: Alignment.topCenter,
-                        ),
-                        closeDuration: const Duration(milliseconds: 150),
-                        portalFollower: SizedBox(
-                          width: constraints.maxWidth,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxHeight: 200),
-                            child: _MentionPanel(
-                              users: widget.mentionUsers,
-                              keyword: widget.mentionKeyword,
-                              selectedIndex: widget.mentionIndex,
-                              onSelected: widget.onMentionSelected,
-                            ),
-                          ),
-                        ),
-                        child: Shortcuts(
-                          shortcuts: {
-                            if (widget.mentionUsers.isNotEmpty) ...{
-                              const SingleActivator(
-                                LogicalKeyboardKey.arrowDown,
-                              ): const _MoveMentionIntent(
-                                1,
-                              ),
-                              const SingleActivator(LogicalKeyboardKey.arrowUp):
-                                  const _MoveMentionIntent(-1),
-                              const SingleActivator(LogicalKeyboardKey.tab):
-                                  const _MoveMentionIntent(1),
-                              const SingleActivator(LogicalKeyboardKey.enter):
-                                  const _SelectMentionIntent(),
-                            } else if (sendable)
-                              const SingleActivator(LogicalKeyboardKey.enter):
-                                  const _SendInputIntent(),
-                            if (widget.onSendPost != null)
-                              SingleActivator(
-                                LogicalKeyboardKey.enter,
-                                meta:
-                                    defaultTargetPlatform ==
-                                    TargetPlatform.macOS,
-                                shift: true,
-                                alt:
-                                    defaultTargetPlatform !=
-                                    TargetPlatform.macOS,
-                              ): const _SendPostInputIntent(),
-                            const SingleActivator(LogicalKeyboardKey.escape):
-                                const _CancelQuoteInputIntent(),
-                          },
-                          child: Actions(
-                            actions: {
-                              if (widget.onPasteFiles != null)
-                                PasteTextIntent: _PasteFilesAction(
-                                  context,
-                                  widget.onPasteFiles!,
-                                ),
-                              _MoveMentionIntent:
-                                  CallbackAction<_MoveMentionIntent>(
-                                    onInvoke: (intent) {
-                                      widget.onMentionMove?.call(intent.delta);
-                                      return null;
-                                    },
-                                  ),
-                              _SelectMentionIntent:
-                                  CallbackAction<_SelectMentionIntent>(
-                                    onInvoke: (_) {
-                                      widget.onMentionSelected?.call(null);
-                                      return null;
-                                    },
-                                  ),
-                              _SendInputIntent:
-                                  CallbackAction<_SendInputIntent>(
-                                    onInvoke: (_) {
-                                      unawaited(widget.onSend());
-                                      return null;
-                                    },
-                                  ),
-                              _SendPostInputIntent:
-                                  CallbackAction<_SendPostInputIntent>(
-                                    onInvoke: (_) {
-                                      unawaited(widget.onSendPost?.call());
-                                      return null;
-                                    },
-                                  ),
-                              _CancelQuoteInputIntent:
-                                  CallbackAction<_CancelQuoteInputIntent>(
-                                    onInvoke: (_) {
-                                      widget.onCancelQuote();
-                                      return null;
-                                    },
-                                  ),
-                            },
-                            child: Stack(
-                              children: [
-                                TextField(
-                                  key: const Key('chat-input'),
-                                  controller: widget.controller,
-                                  focusNode: widget.focusNode,
-                                  onChanged: widget.onChanged,
-                                  minLines: 1,
-                                  maxLines: 7,
-                                  textInputAction: TextInputAction.newline,
-                                  inputFormatters: [
-                                    LengthLimitingTextInputFormatter(
-                                      _maxTextLength,
-                                    ),
-                                  ],
-                                  textAlignVertical: TextAlignVertical.center,
-                                  selectionHeightStyle: ui
-                                      .BoxHeightStyle
-                                      .includeLineSpacingMiddle,
-                                  contextMenuBuilder: (context, state) =>
-                                      MixinAdaptiveSelectionToolbar(
-                                        editableTextState: state,
-                                      ),
-                                  cursorColor: context.theme.accent,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: context.theme.text,
-                                  ),
-                                  decoration: InputDecoration(
-                                    isDense: true,
-                                    border: InputBorder.none,
-                                    enabledBorder: InputBorder.none,
-                                    focusedBorder: InputBorder.none,
-                                    contentPadding: const EdgeInsets.only(
-                                      left: 8,
-                                      top: 8,
-                                      bottom: 8,
-                                    ),
-                                  ),
-                                ),
-                                if (widget.controller.text.isEmpty)
-                                  Positioned.fill(
-                                    left: 8,
-                                    child: Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: IgnorePointer(
-                                        child: Text(
-                                          widget.isEncryptConversation
-                                              ? l10n?.chatHintE2e ??
-                                                    'End-to-end encrypted'
-                                              : l10n?.typeMessage ??
-                                                    'Type message',
-                                          style: TextStyle(
-                                            color: context.theme.secondaryText,
-                                            fontSize: 14,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Stack(
-                  fit: StackFit.passthrough,
-                  children: [
-                    if (sendable)
-                      Transform.scale(
-                        scale: 1,
-                        child: ContextMenuWidget(
-                          desktopMenuWidgetBuilder:
-                              CustomDesktopMenuWidgetBuilder(),
-                          menuProvider: (_) => Menu(
-                            children: [
-                              MenuAction(
-                                image: MenuImage.icon(IconFonts.mute),
-                                title: context.l10n.sendWithoutSound,
-                                callback: widget.onSendSilent ?? widget.onSend,
-                              ),
-                            ],
-                          ),
-                          child: _ChatInputAction(
-                            actionKey: const Key('chat-send'),
-                            asset: MixinAssets.send,
-                            onPressed: widget.onSend,
-                          ),
-                        ),
-                      )
-                    else
-                      Transform.scale(
-                        scale: 1,
-                        child: _ChatInputAction(
-                          actionKey: const Key('chat-voice'),
-                          asset: MixinAssets.microphone,
-                          active: widget.voiceButtonActive,
-                          onPressed: widget.onVoicePressed,
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+          child: child,
+        ),
       ),
     );
   }
@@ -3162,18 +3144,21 @@ class _MentionPanel extends StatelessWidget {
     required this.users,
     required this.keyword,
     required this.selectedIndex,
+    this.scrollController,
     required this.onSelected,
   });
 
   final List<rust.ConversationParticipantItem> users;
   final String keyword;
   final int selectedIndex;
+  final ScrollController? scrollController;
   final ValueChanged<int?>? onSelected;
 
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(color: context.theme.popUp),
     child: ListView.builder(
+      controller: scrollController,
       itemCount: users.length,
       shrinkWrap: true,
       itemBuilder: (context, index) {

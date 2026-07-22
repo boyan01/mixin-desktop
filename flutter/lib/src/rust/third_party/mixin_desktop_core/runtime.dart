@@ -123,6 +123,11 @@ abstract class ConversationAccess implements RustOpaqueInterface {
     required String keyword,
   });
 
+  Future<List<ConversationParticipantItem>> searchGroupUsers({
+    required String conversationId,
+    required String keyword,
+  });
+
   Future<void> setDisappearingMessages({
     required String conversationId,
     required PlatformInt64 duration,

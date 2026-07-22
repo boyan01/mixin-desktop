@@ -151,6 +151,32 @@ impl UserDao {
         .await?)
     }
 
+    pub async fn search_group_users(
+        &self,
+        current_user_id: &str,
+        conversation_id: &str,
+        keyword: &str,
+    ) -> Result<Vec<User>, Error> {
+        Ok(sqlx::query_as::<_, User>(
+            r#"SELECT u.* FROM participants AS p, users AS u
+               WHERE u.user_id != ?
+                 AND p.conversation_id = ?
+                 AND p.user_id = u.user_id
+                 AND (u.full_name LIKE '%' || ? || '%' ESCAPE '\'
+                      OR u.identity_number LIKE '%' || ? || '%' ESCAPE '\')
+               ORDER BY u.full_name = ? COLLATE NOCASE
+                        OR u.identity_number = ? COLLATE NOCASE DESC"#,
+        )
+        .bind(current_user_id)
+        .bind(conversation_id)
+        .bind(keyword)
+        .bind(keyword)
+        .bind(keyword)
+        .bind(keyword)
+        .fetch_all(&self.0)
+        .await?)
+    }
+
     pub async fn find_user_by_id(&self, user_id: &str) -> Result<Option<User>, Error> {
         Ok(
             sqlx::query_as::<_, User>("SELECT * FROM users WHERE user_id = ?")
@@ -474,5 +500,33 @@ mod tests {
             .unwrap();
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].user_id, "friend");
+
+        sqlx::query(
+            "INSERT INTO conversations (conversation_id, created_at, status) VALUES ('group', 0, 0)",
+        )
+        .execute(&database.user_dao.0)
+        .await
+        .unwrap();
+        for user_id in ["current", "friend", "stranger"] {
+            sqlx::query(
+                "INSERT INTO participants (conversation_id, user_id, role, created_at) VALUES ('group', ?, NULL, 0)",
+            )
+            .bind(user_id)
+            .execute(&database.user_dao.0)
+            .await
+            .unwrap();
+        }
+        let group_matches = database
+            .user_dao
+            .search_group_users("current", "group", "Alice")
+            .await
+            .unwrap();
+        assert_eq!(
+            group_matches
+                .iter()
+                .map(|user| user.user_id.as_str())
+                .collect::<Vec<_>>(),
+            ["friend", "stranger"]
+        );
     }
 }

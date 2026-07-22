@@ -412,6 +412,24 @@ impl ConversationAccess {
             .collect())
     }
 
+    pub async fn search_group_users(
+        &self,
+        conversation_id: String,
+        keyword: String,
+    ) -> Result<Vec<model::ConversationParticipantItem>> {
+        let conversation_id = conversation_id.as_str();
+        let keyword = keyword.as_str();
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .user_dao
+            .search_group_users(&self.account_id, conversation_id, keyword)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
     pub async fn conversation_detail(
         &self,
         conversation_id: String,
