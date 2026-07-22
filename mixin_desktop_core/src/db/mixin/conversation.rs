@@ -506,6 +506,15 @@ SELECT EXISTS (
         Ok(())
     }
 
+    pub async fn update_draft(&self, conversation_id: &str, draft: &str) -> Result<(), Error> {
+        sqlx::query("UPDATE conversations SET draft = ? WHERE conversation_id = ?")
+            .bind(draft)
+            .bind(conversation_id)
+            .execute(&self.0)
+            .await?;
+        Ok(())
+    }
+
     pub async fn update_expire_in(&self, cid: &str, expire_in: i64) -> Result<(), Error> {
         let _ = sqlx::query("UPDATE conversations SET expire_in = ? WHERE conversation_id = ?")
             .bind(expire_in)

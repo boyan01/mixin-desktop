@@ -50,6 +50,9 @@ hex = "0.4.3"
 directories = "6.0.0"
 hmac = "0.13.0"
 image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
+axum = "0.8.9"
+subtle = "2.6.1"
+rmcp = { version = "2.2.0", features = ["transport-streamable-http-server"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.5.2"

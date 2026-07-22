@@ -17,16 +17,29 @@ use crate::db::SignalDatabase;
 use crate::network::{HttpResponse, NetworkService, ProxySettings, SharedNetworkService};
 
 use super::login::LoginRuntime;
+use super::mcp::{generate_access_token, McpServer, McpServerStatus, McpSettings};
 use super::{credential, AccountRuntime, SessionUnauthorized};
 
 const DEVICE_PROPERTY_GROUP: &str = "account";
 const DEVICE_PROPERTY_KEY: &str = "device_id";
+const MCP_PROPERTY_GROUP: &str = "mcp";
+const MCP_ENABLED_KEY: &str = "enabled";
+const MCP_TOKEN_KEY: &str = "token";
+const MCP_DRAFT_TOOLS_KEY: &str = "draft_tools_enabled";
+const MCP_CIRCLE_TOOLS_KEY: &str = "circle_management_enabled";
 
 pub struct DesktopRuntime {
     auth_service: Arc<AuthService>,
     network_service: SharedNetworkService,
     property_dao: PropertyDao,
     account: Mutex<Option<Arc<AccountRuntime>>>,
+    mcp: Mutex<McpState>,
+}
+
+#[derive(Default)]
+struct McpState {
+    server: Option<McpServer>,
+    last_error: Option<String>,
 }
 
 impl DesktopRuntime {
@@ -40,6 +53,7 @@ impl DesktopRuntime {
             network_service,
             property_dao: database.property_dao.clone(),
             account: Mutex::new(None),
+            mcp: Mutex::new(McpState::default()),
         })
     }
 
@@ -49,6 +63,70 @@ impl DesktopRuntime {
 
     pub async fn set_proxy_settings(&self, settings: ProxySettings) -> Result<()> {
         self.network_service.set_proxy_settings(settings).await
+    }
+
+    pub async fn mcp_settings(&self) -> Result<McpSettings> {
+        let token = match self
+            .property_dao
+            .get(MCP_PROPERTY_GROUP, MCP_TOKEN_KEY)
+            .await?
+        {
+            Some(token) if !token.is_empty() => token,
+            _ => {
+                let token = generate_access_token();
+                self.property_dao
+                    .set(MCP_PROPERTY_GROUP, MCP_TOKEN_KEY, &token)
+                    .await?;
+                token
+            }
+        };
+        Ok(McpSettings {
+            enabled: property_bool(&self.property_dao, MCP_ENABLED_KEY).await?,
+            token,
+            draft_tools_enabled: property_bool(&self.property_dao, MCP_DRAFT_TOOLS_KEY).await?,
+            circle_management_enabled: property_bool(&self.property_dao, MCP_CIRCLE_TOOLS_KEY)
+                .await?,
+        })
+    }
+
+    pub async fn update_mcp_settings(&self, settings: McpSettings) -> Result<McpServerStatus> {
+        self.property_dao
+            .update(&[
+                (
+                    MCP_PROPERTY_GROUP,
+                    MCP_ENABLED_KEY,
+                    Some(bool_property(settings.enabled).as_str()),
+                ),
+                (
+                    MCP_PROPERTY_GROUP,
+                    MCP_TOKEN_KEY,
+                    Some(settings.token.as_str()),
+                ),
+                (
+                    MCP_PROPERTY_GROUP,
+                    MCP_DRAFT_TOOLS_KEY,
+                    Some(bool_property(settings.draft_tools_enabled).as_str()),
+                ),
+                (
+                    MCP_PROPERTY_GROUP,
+                    MCP_CIRCLE_TOOLS_KEY,
+                    Some(bool_property(settings.circle_management_enabled).as_str()),
+                ),
+            ])
+            .await?;
+        self.sync_mcp_server().await
+    }
+
+    pub async fn mcp_server_status(&self) -> McpServerStatus {
+        let state = self.mcp.lock().await;
+        McpServerStatus {
+            running: state.server.is_some(),
+            endpoint: state
+                .server
+                .as_ref()
+                .map(|server| server.endpoint().to_owned()),
+            last_error: state.last_error.clone(),
+        }
     }
 
     pub async fn http_request(
@@ -116,6 +194,8 @@ impl DesktopRuntime {
                 let runtime = Arc::new(runtime);
                 info!("started account runtime for {}", runtime.account_id());
                 *active = Some(runtime.clone());
+                drop(active);
+                self.sync_mcp_server().await?;
                 Ok(Some(runtime))
             }
             Err(error) if error.downcast_ref::<SessionUnauthorized>().is_some() => {
@@ -186,16 +266,19 @@ impl DesktopRuntime {
                 .map_err(|error| anyhow!("login_provisioning_error:{error}"))?,
         );
         *active = Some(runtime.clone());
+        drop(active);
+        self.sync_mcp_server().await?;
         Ok(runtime)
     }
 
     pub async fn shutdown_account(&self, runtime: &Arc<AccountRuntime>) {
         let mut active = self.account.lock().await;
-        if active
+        let was_active = active
             .as_ref()
-            .is_some_and(|current| Arc::ptr_eq(current, runtime))
-        {
+            .is_some_and(|current| Arc::ptr_eq(current, runtime));
+        if was_active {
             active.take();
+            self.stop_mcp_server().await;
         }
         runtime.shutdown().await;
     }
@@ -208,6 +291,7 @@ impl DesktopRuntime {
         {
             return Err(anyhow!("account runtime is no longer active"));
         }
+        self.stop_mcp_server().await;
         let result = runtime.sign_out().await;
         active.take();
         if result.is_err() {
@@ -218,10 +302,60 @@ impl DesktopRuntime {
 
     async fn shutdown_active_account(&self) {
         let mut active = self.account.lock().await;
-        if let Some(runtime) = active.take() {
+        let runtime = active.take();
+        self.stop_mcp_server().await;
+        if let Some(runtime) = runtime {
             runtime.shutdown().await;
         }
+        drop(active);
     }
+
+    async fn sync_mcp_server(&self) -> Result<McpServerStatus> {
+        let settings = self.mcp_settings().await?;
+        let runtime = self.account.lock().await.clone();
+        let mut state = self.mcp.lock().await;
+        if let Some(server) = state.server.take() {
+            server.stop().await;
+        }
+        state.last_error = None;
+        if settings.enabled {
+            let runtime = runtime.ok_or_else(|| anyhow!("MCP requires a signed-in account"))?;
+            match McpServer::start(runtime, settings).await {
+                Ok(server) => state.server = Some(server),
+                Err(error) => {
+                    state.last_error = Some(error.to_string());
+                    return Ok(McpServerStatus {
+                        running: false,
+                        endpoint: None,
+                        last_error: state.last_error.clone(),
+                    });
+                }
+            }
+        }
+        Ok(McpServerStatus {
+            running: state.server.is_some(),
+            endpoint: state
+                .server
+                .as_ref()
+                .map(|server| server.endpoint().to_owned()),
+            last_error: state.last_error.clone(),
+        })
+    }
+
+    async fn stop_mcp_server(&self) {
+        let mut state = self.mcp.lock().await;
+        if let Some(server) = state.server.take() {
+            server.stop().await;
+        }
+    }
+}
+
+async fn property_bool(properties: &PropertyDao, key: &str) -> Result<bool> {
+    Ok(properties.get(MCP_PROPERTY_GROUP, key).await?.as_deref() == Some("true"))
+}
+
+fn bool_property(value: bool) -> String {
+    value.to_string()
 }
 
 async fn rename_with_timestamp_if_exists(path: &Path) -> Result<()> {

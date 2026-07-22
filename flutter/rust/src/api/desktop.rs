@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use mixin_desktop_core::network::{ProxyConfig, ProxySettings, ProxyType};
 use mixin_desktop_core::runtime::desktop::DesktopRuntime;
+use mixin_desktop_core::runtime::mcp::{McpServerStatus, McpSettings};
 use tokio::sync::OnceCell;
 
 use super::account::AccountHandle;
@@ -35,6 +36,51 @@ pub struct HttpResponseItem {
     pub status_code: u16,
     pub headers: HashMap<String, String>,
     pub body: Vec<u8>,
+}
+
+pub struct McpSettingsItem {
+    pub enabled: bool,
+    pub token: String,
+    pub draft_tools_enabled: bool,
+    pub circle_management_enabled: bool,
+}
+
+pub struct McpServerStatusItem {
+    pub running: bool,
+    pub endpoint: Option<String>,
+    pub last_error: Option<String>,
+}
+
+impl From<McpSettings> for McpSettingsItem {
+    fn from(settings: McpSettings) -> Self {
+        Self {
+            enabled: settings.enabled,
+            token: settings.token,
+            draft_tools_enabled: settings.draft_tools_enabled,
+            circle_management_enabled: settings.circle_management_enabled,
+        }
+    }
+}
+
+impl From<McpServerStatus> for McpServerStatusItem {
+    fn from(status: McpServerStatus) -> Self {
+        Self {
+            running: status.running,
+            endpoint: status.endpoint,
+            last_error: status.last_error,
+        }
+    }
+}
+
+impl From<McpSettingsItem> for McpSettings {
+    fn from(settings: McpSettingsItem) -> Self {
+        Self {
+            enabled: settings.enabled,
+            token: settings.token,
+            draft_tools_enabled: settings.draft_tools_enabled,
+            circle_management_enabled: settings.circle_management_enabled,
+        }
+    }
 }
 
 impl From<ProxyConfig> for ProxyItem {
@@ -111,6 +157,25 @@ pub async fn open_desktop() -> Result<DesktopHandle> {
 }
 
 impl DesktopHandle {
+    pub async fn mcp_settings(&self) -> Result<McpSettingsItem> {
+        Ok(self.runtime.mcp_settings().await?.into())
+    }
+
+    pub async fn update_mcp_settings(
+        &self,
+        settings: McpSettingsItem,
+    ) -> Result<McpServerStatusItem> {
+        Ok(self
+            .runtime
+            .update_mcp_settings(settings.into())
+            .await?
+            .into())
+    }
+
+    pub async fn mcp_server_status(&self) -> Result<McpServerStatusItem> {
+        Ok(self.runtime.mcp_server_status().await.into())
+    }
+
     pub async fn proxy_settings(&self) -> Result<ProxySettingsItem> {
         Ok(self.runtime.proxy_settings().await.into())
     }

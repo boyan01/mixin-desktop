@@ -44,6 +44,7 @@ mod conversion;
 pub mod desktop;
 pub mod logging;
 pub mod login;
+pub mod mcp;
 mod message;
 pub mod model;
 mod sticker;

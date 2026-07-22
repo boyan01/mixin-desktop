@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../constants/assets.dart';
+import '../controllers/app_controller.dart';
 import '../controllers/network_controller.dart';
 import '../controllers/security_controller.dart';
 import '../controllers/settings_controller.dart';
@@ -21,6 +22,7 @@ import '../widgets/badges_widget.dart';
 import '../widgets/high_light_text.dart';
 import '../widgets/settings_widgets.dart';
 import '../widgets/toast.dart';
+import 'mcp_settings_page.dart';
 import 'settings_account_pages.dart';
 import 'settings_preference_pages.dart';
 import 'settings_storage_about_pages.dart';
@@ -53,6 +55,7 @@ enum _SettingsDestination {
   security,
   proxy,
   appearance,
+  mcp,
   about,
 }
 
@@ -240,6 +243,11 @@ class _SettingsPageState extends State<SettingsPage>
         onChatFontSizeDeltaChanged: settings.setChatFontSizeDelta,
       ),
     );
+  }
+
+  void _openMcp() {
+    setState(() => _activeDestination = _SettingsDestination.mcp);
+    _push(McpSettingsPage(desktop: context.read<AppController>().desktop));
   }
 
   Future<void> _openAbout() async {
@@ -446,6 +454,19 @@ class _SettingsHome extends StatelessWidget {
                               state._activeDestination ==
                                   _SettingsDestination.appearance,
                           onTap: state._openAppearance,
+                        ),
+                        CellItem(
+                          key: const ValueKey('settings-mcp'),
+                          leading: const Icon(Icons.hub_outlined),
+                          title: const AutoSizeText(
+                            'Local MCP Server',
+                            maxLines: 1,
+                          ),
+                          selected:
+                              state._wideMode &&
+                              state._activeDestination ==
+                                  _SettingsDestination.mcp,
+                          onTap: state._openMcp,
                         ),
                         CellItem(
                           key: const ValueKey('settings-about'),

@@ -256,6 +256,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
 
   @protected
+  McpSettingsItem dco_decode_box_autoadd_mcp_settings_item(dynamic raw);
+
+  @protected
   MessageOrderInfoView dco_decode_box_autoadd_message_order_info_view(
     dynamic raw,
   );
@@ -391,6 +394,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<UserProfileItem> dco_decode_list_user_profile_item(dynamic raw);
+
+  @protected
+  McpServerStatusItem dco_decode_mcp_server_status_item(dynamic raw);
+
+  @protected
+  McpSettingsItem dco_decode_mcp_settings_item(dynamic raw);
 
   @protected
   MessageListView dco_decode_message_list_view(dynamic raw);
@@ -705,6 +714,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  McpSettingsItem sse_decode_box_autoadd_mcp_settings_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MessageOrderInfoView sse_decode_box_autoadd_message_order_info_view(
     SseDeserializer deserializer,
   );
@@ -870,6 +884,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UserProfileItem> sse_decode_list_user_profile_item(
     SseDeserializer deserializer,
   );
+
+  @protected
+  McpServerStatusItem sse_decode_mcp_server_status_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  McpSettingsItem sse_decode_mcp_settings_item(SseDeserializer deserializer);
 
   @protected
   MessageListView sse_decode_message_list_view(SseDeserializer deserializer);
@@ -1243,6 +1265,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_mcp_settings_item(
+    McpSettingsItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_message_order_info_view(
     MessageOrderInfoView self,
     SseSerializer serializer,
@@ -1452,6 +1480,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_user_profile_item(
     List<UserProfileItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_mcp_server_status_item(
+    McpServerStatusItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_mcp_settings_item(
+    McpSettingsItem self,
     SseSerializer serializer,
   );
 
