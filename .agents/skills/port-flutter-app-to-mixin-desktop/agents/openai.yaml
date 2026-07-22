@@ -1,0 +1,4 @@
+interface:
+  display_name: "Port Flutter App to Mixin Desktop"
+  short_description: "Port flutter-app behavior into the Rust-backed desktop UI"
+  default_prompt: "Use $port-flutter-app-to-mixin-desktop to port this flutter-app feature into mixin-desktop with source parity."
