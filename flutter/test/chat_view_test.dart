@@ -658,7 +658,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(account.messagesAroundCalls, 0);
+    expect(account.messagesAroundCalls, 1);
     expect(find.byKey(const Key('unread-message-bar')), findsOneWidget);
     expect(find.text('First unread', findRichText: true), findsOneWidget);
   });

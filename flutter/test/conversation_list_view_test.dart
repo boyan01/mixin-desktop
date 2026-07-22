@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_portal/flutter_portal.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
@@ -57,7 +58,7 @@ void main() {
     expect(_svgAsset('assets/images/verified.svg'), findsOneWidget);
     expect(_svgAsset('assets/images/bot_fill.svg'), findsNothing);
 
-    await tester.tap(find.text('Mixin Team'));
+    await tester.tap(find.text('Mixin Team', findRichText: true));
     expect(tapped, isTrue);
   });
 
@@ -123,27 +124,29 @@ void main() {
         locale: const Locale('en'),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          drawer: const Drawer(child: Text('Navigation')),
-          body: ConversationListView(
-            conversations: const [],
-            initialized: true,
-            itemPositionsListener: ItemPositionsListener.create(),
-            itemScrollController: ItemScrollController(),
-            loading: false,
-            currentUserId: 'current-user',
-            circles: const {},
-            currentCircleId: null,
-            filterUnseen: false,
-            selectedConversationId: null,
-            onQueryChanged: (_) {},
-            onToggleUnseen: () {},
-            onCreateActionSelected: (_) {},
-            onSelected: (_) {},
-            onPinned: (_) {},
-            onMuted: (_, _) {},
-            onDeleted: (_) {},
-            onCircleChanged: (_, _, _) {},
+        home: Portal(
+          child: Scaffold(
+            drawer: const Drawer(child: Text('Navigation')),
+            body: ConversationListView(
+              conversations: const [],
+              initialized: true,
+              itemPositionsListener: ItemPositionsListener.create(),
+              itemScrollController: ItemScrollController(),
+              loading: false,
+              currentUserId: 'current-user',
+              circles: const {},
+              currentCircleId: null,
+              filterUnseen: false,
+              selectedConversationId: null,
+              onQueryChanged: (_) {},
+              onToggleUnseen: () {},
+              onCreateActionSelected: (_) {},
+              onSelected: (_) {},
+              onPinned: (_) {},
+              onMuted: (_, _) {},
+              onDeleted: (_) {},
+              onCircleChanged: (_, _, _) {},
+            ),
           ),
         ),
       ),
@@ -215,10 +218,12 @@ class _TestApp extends StatelessWidget {
     locale: const Locale('en'),
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
-    home: Scaffold(
-      body: Align(
-        alignment: Alignment.topLeft,
-        child: SizedBox(width: 320, child: child),
+    home: Portal(
+      child: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(width: 320, child: child),
+        ),
       ),
     ),
   );

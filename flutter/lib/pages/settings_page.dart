@@ -84,8 +84,12 @@ class _SettingsPageState extends State<SettingsPage>
   }
 
   Future<void> _refreshNotificationPermission() async {
-    final value = await requestNotificationPermission();
-    if (mounted) setState(() => _hasNotificationPermission = value);
+    try {
+      final value = await requestNotificationPermission();
+      if (mounted) setState(() => _hasNotificationPermission = value);
+    } catch (exception, stackTrace) {
+      e('Refresh notification permission failed', exception, stackTrace);
+    }
   }
 
   @override

@@ -160,22 +160,25 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_connect() -> Result<(), Box<dyn Error>> {
+    async fn persists_and_reads_pre_keys_after_connect() -> Result<(), Box<dyn Error>> {
         let _ = TestLogger::init(LevelFilter::Info, Config::default());
         let directory = tempfile::tempdir()?;
         let db = SignalDatabase::connect_at(directory.path().join("signal.db")).await?;
         let mut csprng = OsRng;
         let key_pair = KeyPair::generate(&mut csprng);
+        let serialized = PreKeyRecord::new(0, &key_pair).serialize().unwrap();
         db.pre_key_dao
-            .save_pre_key(0, PreKeyRecord::new(0, &key_pair).serialize().unwrap())
+            .save_pre_key(0, serialized.clone())
             .await
             .expect("save prekey error");
-        let a = db
+        let stored = db
             .pre_key_dao
             .find_pre_key(0)
             .await
-            .expect("get prekey error");
-        println!("{:x?}", a.unwrap());
+            .expect("get prekey error")
+            .expect("missing prekey");
+
+        assert_eq!(stored, serialized);
         Ok(())
     }
 

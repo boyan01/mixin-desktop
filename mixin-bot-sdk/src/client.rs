@@ -240,22 +240,7 @@ impl ClientRef {
 
 #[cfg(test)]
 pub mod tests {
-    use log::LevelFilter;
-    use simplelog::{Config, TestLogger};
-    use tokio::fs;
-
-    use crate::KeyStore;
-
     use super::*;
-
-    pub async fn new_test_client() -> Client {
-        let _ = TestLogger::init(LevelFilter::Trace, Config::default());
-        let file = fs::read("../keystore.json")
-            .await
-            .expect("no keystore file");
-        let keystore: KeyStore = serde_json::from_slice(&file).expect("failed to read keystore");
-        Client::new(Credential::KeyStore(keystore))
-    }
 
     #[tokio::test]
     async fn authentication_envelope_notifies_subscribers() {

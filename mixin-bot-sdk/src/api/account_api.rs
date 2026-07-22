@@ -205,7 +205,6 @@ struct AddStickerRequest<'a> {
 #[cfg(test)]
 mod test {
     use super::{AccountUpdateRequest, AddStickerRequest};
-    use crate::client::tests::new_test_client;
 
     #[test]
     fn serializes_sticker_id_or_data() {
@@ -237,13 +236,5 @@ mod test {
             .unwrap(),
             serde_json::json!({"full_name": "Mixin", "biography": "Messenger"})
         );
-    }
-
-    #[tokio::test]
-    #[ignore = "requires ../keystore.json and the live Mixin API"]
-    async fn test() {
-        let client = new_test_client().await;
-        let result = client.account_api.get_me().await;
-        println!("account: {:?}", result);
     }
 }

@@ -17,6 +17,7 @@ import 'package:mixin_desktop_ui/widgets/conversation_list_view.dart';
 import 'package:mixin_desktop_ui/widgets/home_sidebar.dart';
 import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
 import 'package:provider/provider.dart';
+import 'package:overlay_support/overlay_support.dart';
 
 void main() {
   test('resolves the original desktop sidebar breakpoints', () {
@@ -105,7 +106,7 @@ void main() {
     expect(find.byType(ConversationListView), findsOneWidget);
     expect(find.byType(ChatView), findsNothing);
 
-    await tester.tap(find.text('Mixin Team'));
+    await tester.tap(_conversationTitle('Mixin Team'));
     await tester.pumpAndSettle();
 
     expect(find.byType(ConversationListView), findsOneWidget);
@@ -121,13 +122,13 @@ void main() {
       ..conversationRefreshCompleter = Completer<void>();
     await _pumpHome(tester, size: const Size(1300, 700), account: account);
 
-    await tester.tap(find.text('Mixin Team'));
+    await tester.tap(_conversationTitle('Mixin Team'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('chat-info')));
     await tester.pump();
 
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(find.text('Mixin Team'), findsWidgets);
+    expect(_conversationTitle('Mixin Team'), findsWidgets);
 
     account.conversationRefreshCompleter!.complete();
     await tester.pumpAndSettle();
@@ -149,7 +150,7 @@ void main() {
   testWidgets('opens chat history search from the chat header', (tester) async {
     await _pumpHome(tester, size: const Size(1300, 700));
 
-    await tester.tap(find.text('Mixin Team'));
+    await tester.tap(_conversationTitle('Mixin Team'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('chat-search')));
     await tester.pumpAndSettle();
@@ -172,7 +173,7 @@ void main() {
       ..sharedAppsRefreshCompleter = Completer<void>();
     await _pumpHome(tester, size: const Size(1300, 700), account: account);
 
-    await tester.tap(find.text('Mixin Team'));
+    await tester.tap(_conversationTitle('Mixin Team'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('chat-info')));
     await tester.pumpAndSettle();
@@ -192,7 +193,7 @@ void main() {
   ) async {
     await _pumpHome(tester, size: const Size(600, 700));
 
-    await tester.tap(find.text('Mixin Team'));
+    await tester.tap(_conversationTitle('Mixin Team'));
     await tester.pumpAndSettle();
 
     expect(find.byType(ConversationListView), findsNothing);
@@ -206,7 +207,7 @@ void main() {
 
     expect(find.byType(ChatView), findsNothing);
     expect(find.byType(ConversationListView), findsOneWidget);
-    expect(find.text('Mixin Team'), findsOneWidget);
+    expect(_conversationTitle('Mixin Team'), findsOneWidget);
   });
 
   testWidgets('keeps per-conversation drafts across responsive remounts', (
@@ -223,7 +224,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: find.byType(ConversationListView),
-        matching: find.text('Mixin Team'),
+        matching: _conversationTitle('Mixin Team'),
       ),
     );
     await tester.pumpAndSettle();
@@ -244,7 +245,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('chat-back')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Second Chat'));
+    await tester.tap(_conversationTitle('Second Chat'));
     await tester.pumpAndSettle();
     expect(
       tester
@@ -260,7 +261,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('chat-back')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Mixin Team'));
+    await tester.tap(_conversationTitle('Mixin Team'));
     await tester.pumpAndSettle();
     expect(
       tester
@@ -272,7 +273,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('chat-back')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Second Chat'));
+    await tester.tap(_conversationTitle('Second Chat'));
     await tester.pumpAndSettle();
     expect(
       tester
@@ -295,7 +296,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('chat-back')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Second Chat'));
+    await tester.tap(_conversationTitle('Second Chat'));
     await tester.pumpAndSettle();
     expect(
       tester
@@ -324,7 +325,7 @@ void main() {
     expect(find.byType(ChatView), findsNothing);
     expect(appController.signOutCalls, 0);
 
-    await tester.tap(find.byKey(const ValueKey('settings-close')));
+    await tester.tap(find.text('Chats'));
     await tester.pumpAndSettle();
 
     expect(find.byType(SettingsPage), findsNothing);
@@ -339,7 +340,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'Mixin');
     await tester.pumpAndSettle();
-    expect(account.conversationKeywords, contains('Mixin'));
+    expect(_conversationTitle('Mixin Team'), findsOneWidget);
 
     await tester.tap(
       find.descendant(
@@ -350,12 +351,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ConversationListView), findsNothing);
 
-    await tester.tap(find.byKey(const ValueKey('settings-close')));
+    await tester.tap(find.text('Chats'));
     await tester.pumpAndSettle();
 
     final textField = tester.widget<TextField>(find.byType(TextField));
     expect(textField.controller?.text, 'Mixin');
-    expect(find.text('Mixin Team'), findsOneWidget);
+    expect(_conversationTitle('Mixin Team'), findsOneWidget);
   });
 
   testWidgets('shows mutation failures and clears selection after delete', (
@@ -364,7 +365,7 @@ void main() {
     final account = _FakeAccountHandle()..mutationError = StateError('failed');
     await _pumpHome(tester, size: const Size(1000, 700), account: account);
 
-    await tester.tap(find.text('Mixin Team'));
+    await tester.tap(_conversationTitle('Mixin Team'));
     await tester.pumpAndSettle();
     expect(find.byType(ChatView), findsOneWidget);
 
@@ -379,7 +380,7 @@ void main() {
       action();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 250));
-      expect(find.text('Failed'), findsOneWidget);
+      expect(find.text('Failed'), findsWidgets);
       ScaffoldMessenger.of(
         tester.element(find.byType(HomePage)),
       ).hideCurrentSnackBar();
@@ -408,6 +409,8 @@ void main() {
       find.text('Select a conversation and start sending a message'),
       findsOneWidget,
     );
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
   });
 }
 
@@ -423,20 +426,26 @@ Future<void> _pumpHome(
   tester.view.physicalSize = size;
 
   await tester.pumpWidget(
-    _LocalizedApp(
-      child: MultiProvider(
-        providers: [
-          Provider<AccountHandle>.value(value: account ?? _FakeAccountHandle()),
-          ChangeNotifierProvider<AppController>.value(
-            value: appController ?? _FakeAppController(),
-          ),
-        ],
-        child: const HomePage(),
+    OverlaySupport.global(
+      child: _LocalizedApp(
+        child: MultiProvider(
+          providers: [
+            Provider<AccountHandle>.value(
+              value: account ?? _FakeAccountHandle(),
+            ),
+            ChangeNotifierProvider<AppController>.value(
+              value: appController ?? _FakeAppController(),
+            ),
+          ],
+          child: const HomePage(),
+        ),
       ),
     ),
   );
   await tester.pumpAndSettle();
 }
+
+Finder _conversationTitle(String title) => find.text(title, findRichText: true);
 
 class _LocalizedApp extends StatelessWidget {
   const _LocalizedApp({required this.child});

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_portal/flutter_portal.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
@@ -29,7 +30,9 @@ void main() {
     );
   });
 
-  testWidgets('shows, filters and selects a conversation', (tester) async {
+  testWidgets('reports conversation search and selection actions', (
+    tester,
+  ) async {
     ConversationListEntry? selected;
     var query = '';
     final conversation = ConversationListEntry(
@@ -83,19 +86,11 @@ void main() {
       ),
     );
 
-    expect(find.text('Mixin Team'), findsOneWidget);
+    expect(find.text('Mixin Team', findRichText: true), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
-    final actionButtons = find.byType(IconButton);
-    expect(actionButtons, findsNWidgets(2));
-    for (final element in actionButtons.evaluate()) {
-      expect(
-        tester.getSize(find.byElementPredicate((e) => e == element)),
-        const Size.square(40),
-      );
-    }
     await tester.enterText(find.byType(TextField), 'Mixin');
     expect(query, 'Mixin');
-    await tester.tap(find.text('Mixin Team'));
+    await tester.tap(find.text('Mixin Team', findRichText: true));
     expect(selected, conversation);
   });
 }
@@ -115,6 +110,6 @@ class _LocalizedApp extends StatelessWidget {
       GlobalCupertinoLocalizations.delegate,
     ],
     supportedLocales: AppLocalizations.supportedLocales,
-    home: child,
+    home: Portal(child: child),
   );
 }

@@ -29,8 +29,22 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byKey(const Key('message-media-audio-download')));
-    await tester.tap(find.byKey(const Key('message-media-audio-pending')));
+    await tester.tap(
+      find
+          .ancestor(
+            of: find.byKey(const Key('message-media-audio-download')),
+            matching: find.byType(GestureDetector),
+          )
+          .first,
+    );
+    await tester.tap(
+      find
+          .ancestor(
+            of: find.byKey(const Key('message-media-audio-pending')),
+            matching: find.byType(GestureDetector),
+          )
+          .first,
+    );
     await tester.pump();
     expect(downloaded, isTrue);
     expect(canceled, isTrue);

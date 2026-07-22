@@ -57,6 +57,7 @@ void main() {
 
     expect(sent, isFalse);
     expect(controller.value.status, VoiceRecorderStatus.recorded);
+    expect(controller.value.recording?.path, path);
     expect(controller.value.error, isA<Exception>());
     expect(await File(path).exists(), isTrue);
   });

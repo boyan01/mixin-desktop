@@ -7,6 +7,7 @@ import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_data.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_detail_page.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_page.dart';
+import 'package:provider/provider.dart';
 
 void main() {
   testWidgets('keeps upstream emoji insertion and sticker send behavior', (
@@ -142,17 +143,31 @@ void main() {
   });
 }
 
-Widget _testApp(Widget child) => MaterialApp(
-  theme: buildMixinTheme(Brightness.light),
-  localizationsDelegates: const [
-    AppLocalizations.delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-  ],
-  supportedLocales: AppLocalizations.supportedLocales,
-  home: Scaffold(body: Center(child: child)),
+Widget _testApp(Widget child) => Provider<rust.AccountHandle>.value(
+  value: _FakeAccount(),
+  child: MaterialApp(
+    theme: buildMixinTheme(Brightness.light),
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    supportedLocales: AppLocalizations.supportedLocales,
+    home: Scaffold(body: Center(child: child)),
+  ),
 );
+
+class _FakeAccount implements rust.AccountHandle, rust.StickerAccess {
+  @override
+  rust.StickerAccess sticker() => this;
+
+  @override
+  Future<void> refreshSticker({required String stickerId}) async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 const _sticker = StickerData(
   stickerId: 'one',

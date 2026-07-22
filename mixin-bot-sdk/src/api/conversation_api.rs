@@ -147,7 +147,6 @@ impl ConversationApi {
 #[cfg(test)]
 mod tests {
     use super::{ConversationCategory, ConversationRequest, ParticipantRequest};
-    use crate::client::tests::new_test_client;
 
     #[test]
     fn serializes_create_participant_without_response_fields() {
@@ -170,27 +169,5 @@ mod tests {
             serde_json::json!({"user_id": "recipient"})
         );
         assert!(value.get("random_id").is_none());
-    }
-
-    #[tokio::test]
-    #[ignore = "requires ../keystore.json and the live Mixin API"]
-    async fn test_get_conversation() {
-        let client = new_test_client().await;
-        let result = client
-            .conversation_api
-            .get_conversation("131d9290-0298-4dd5-b0f7-9ded04753ef9")
-            .await;
-        println!("result: {:?}", result);
-    }
-
-    #[tokio::test]
-    #[ignore = "requires ../keystore.json and the live Mixin API"]
-    async fn test_quit_conversation() {
-        let client = new_test_client().await;
-        let result = client
-            .conversation_api
-            .exit("131d9290-0298-4dd5-b0f7-9ded04753ef9")
-            .await;
-        println!("result: {:?}", result);
     }
 }

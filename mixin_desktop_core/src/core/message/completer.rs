@@ -61,26 +61,19 @@ impl<T, E> Future for Completer<T, E> {
 
 #[cfg(test)]
 mod test {
-    use std::time::Duration;
-
     use super::*;
 
     #[tokio::test]
-    async fn test_transaction() {
-        let t = Completer::<String>::default();
+    async fn waits_for_completion_and_returns_the_first_result() {
+        let completer = Completer::<String>::default();
+        let task = tokio::spawn(completer.clone());
 
-        let t_clone = t.clone();
-        tokio::spawn(async move {
-            println!("start spawn");
-            let result = t_clone.await;
-            println!("completed: {:?}", result);
-        });
+        tokio::task::yield_now().await;
+        assert!(!task.is_finished());
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        println!("run after 100ms");
-        t.complete(Ok("haha".to_string()));
-        println!("run after complete");
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        println!("run after 200ms");
+        completer.complete(Ok("first".to_string()));
+        completer.complete(Ok("second".to_string()));
+
+        assert_eq!(task.await.unwrap().unwrap(), "first");
     }
 }

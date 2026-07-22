@@ -176,7 +176,12 @@ class VoiceRecorderController extends ValueNotifier<VoiceRecorderState> {
       return true;
     } catch (error) {
       _setState(
-        VoiceRecorderState(status: VoiceRecorderStatus.idle, error: error),
+        VoiceRecorderState(
+          status: VoiceRecorderStatus.recorded,
+          elapsed: recording.duration,
+          recording: recording,
+          error: error,
+        ),
       );
       return false;
     } finally {

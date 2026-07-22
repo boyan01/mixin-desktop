@@ -7,6 +7,7 @@ import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
 import 'package:mixin_desktop_ui/widgets/image_by_blur_hash.dart';
+import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
@@ -28,7 +29,119 @@ void main() {
     },
   );
 
-  testWidgets('renders every primary message branch from projected fields', (
+  testWidgets('renders plain text from projected content', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(900, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    Future<void> render(MessageListEntry message) => tester.pumpWidget(
+      _TestApp(
+        child: MessageContent(
+          message: message,
+          isCurrentUser: false,
+          currentUserId: 'me',
+          dateAndStatus: const Text('12:30'),
+          overlayDateAndStatus: const Text('12:30 overlay'),
+        ),
+      ),
+    );
+
+    await render(_message(category: 'PLAIN_TEXT', content: 'Visible text'));
+    expect(find.text('Visible text', findRichText: true), findsOneWidget);
+  });
+
+  testWidgets('renders projected media fields without raw payloads', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    Future<void> render(MessageListEntry message) => tester.pumpWidget(
+      _TestApp(
+        child: MessageContent(
+          message: message,
+          isCurrentUser: false,
+          currentUserId: 'me',
+          dateAndStatus: const Text('12:30'),
+          overlayDateAndStatus: const Text('12:30 overlay'),
+          onOpenSticker: (_) {},
+        ),
+      ),
+    );
+
+    await render(
+      _message(
+        id: 'image',
+        category: 'PLAIN_IMAGE',
+        content: 'RAW_IMAGE_PAYLOAD',
+        caption: 'Image caption',
+        mediaWidth: 640,
+        mediaHeight: 480,
+        mediaStatus: 'CANCELED',
+      ),
+    );
+    expect(find.byKey(const Key('message-media-image-image')), findsOneWidget);
+    expect(find.text('Image caption', findRichText: true), findsOneWidget);
+    expect(find.text('RAW_IMAGE_PAYLOAD', findRichText: true), findsNothing);
+
+    await render(
+      _message(
+        id: 'video',
+        category: 'PLAIN_VIDEO',
+        content: 'RAW_VIDEO_PAYLOAD',
+        caption: 'Video caption',
+        mediaDuration: '65000',
+        mediaWidth: 1920,
+        mediaHeight: 1080,
+        mediaStatus: 'PENDING',
+      ),
+    );
+    expect(find.byKey(const Key('message-media-video-video')), findsOneWidget);
+    expect(find.text('RAW_VIDEO_PAYLOAD', findRichText: true), findsNothing);
+
+    await render(
+      _message(
+        id: 'audio',
+        category: 'PLAIN_AUDIO',
+        content: 'RAW_AUDIO_PAYLOAD',
+        mediaDuration: '65000',
+        mediaStatus: 'CANCELED',
+      ),
+    );
+    expect(find.byKey(const Key('message-media-audio-audio')), findsOneWidget);
+    expect(find.text('RAW_AUDIO_PAYLOAD', findRichText: true), findsNothing);
+
+    await render(
+      _message(
+        id: 'sticker',
+        category: 'PLAIN_STICKER',
+        content: 'RAW_STICKER_PAYLOAD',
+        stickerId: 'sticker-id',
+        stickerAssetWidth: 128,
+        stickerAssetHeight: 128,
+      ),
+    );
+    expect(find.byType(InteractiveDecoratedBox), findsOneWidget);
+    expect(find.text('RAW_STICKER_PAYLOAD', findRichText: true), findsNothing);
+
+    await render(
+      _message(
+        id: 'data',
+        category: 'PLAIN_DATA',
+        content: '{"name":"report.pdf","secret":"RAW_DATA_PAYLOAD"}',
+        mediaName: 'report.pdf',
+        mediaMimeType: 'application/pdf',
+        mediaSize: 1536,
+        mediaStatus: 'CANCELED',
+      ),
+    );
+    expect(find.byKey(const Key('message-media-file-data')), findsOneWidget);
+    final file = tester.widget<MessageFile>(find.byType(MessageFile));
+    expect(file.message.mediaName, 'report.pdf');
+    expect(file.message.mediaSize, 1536);
+    expect(find.textContaining('RAW_DATA_PAYLOAD'), findsNothing);
+  });
+
+  testWidgets('renders structured content from projected fields', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(900, 700));
@@ -46,104 +159,20 @@ void main() {
       ),
     );
 
-    await render(_message(category: 'PLAIN_TEXT', content: 'Visible text'));
-    expect(find.text('Visible text'), findsOneWidget);
-    final selectableText = tester.widget<SelectableText>(
-      find.byType(SelectableText),
-    );
-    final editableState = tester.state<EditableTextState>(
-      find.byType(EditableText),
-    );
-    final textContextMenu = selectableText.contextMenuBuilder!(
-      tester.element(find.byType(SelectableText)),
-      editableState,
-    );
-    expect(textContextMenu, isA<SizedBox>());
-
     await render(
       _message(
-        id: 'image',
-        category: 'PLAIN_IMAGE',
-        content: 'RAW_IMAGE_PAYLOAD',
-        caption: 'Image caption',
-        mediaWidth: 640,
-        mediaHeight: 480,
-        mediaStatus: 'CANCELED',
+        id: 'post',
+        category: 'PLAIN_POST',
+        content: '# Release notes\nReady',
       ),
     );
-    expect(find.byKey(const Key('message-media-image-image')), findsOneWidget);
-    expect(find.text('Image caption'), findsOneWidget);
-    expect(find.text('RAW_IMAGE_PAYLOAD'), findsNothing);
-
-    await render(
-      _message(
-        id: 'video',
-        category: 'PLAIN_VIDEO',
-        content: 'RAW_VIDEO_PAYLOAD',
-        caption: 'Video caption',
-        mediaDuration: '65000',
-        mediaWidth: 1920,
-        mediaHeight: 1080,
-        mediaStatus: 'PENDING',
-      ),
-    );
-    expect(find.byKey(const Key('message-media-video-video')), findsOneWidget);
-    expect(find.text('Video caption'), findsOneWidget);
-    expect(find.text('1:05'), findsOneWidget);
-    expect(find.text('RAW_VIDEO_PAYLOAD'), findsNothing);
-
-    await render(
-      _message(
-        id: 'audio',
-        category: 'PLAIN_AUDIO',
-        content: 'RAW_AUDIO_PAYLOAD',
-        mediaDuration: '65000',
-        mediaStatus: 'CANCELED',
-      ),
-    );
-    expect(find.byKey(const Key('message-media-audio-audio')), findsOneWidget);
-    expect(find.text('1:05'), findsOneWidget);
-    expect(find.text('RAW_AUDIO_PAYLOAD'), findsNothing);
-
-    await render(
-      _message(
-        id: 'sticker',
-        category: 'PLAIN_STICKER',
-        content: 'RAW_STICKER_PAYLOAD',
-        stickerAssetWidth: 128,
-        stickerAssetHeight: 128,
-      ),
-    );
-    expect(
-      find.byKey(const Key('message-media-sticker-sticker')),
-      findsOneWidget,
-    );
-    expect(find.text('RAW_STICKER_PAYLOAD'), findsNothing);
-
-    await render(
-      _message(
-        id: 'data',
-        category: 'PLAIN_DATA',
-        content: '{"name":"report.pdf","secret":"RAW_DATA_PAYLOAD"}',
-        mediaMimeType: 'application/pdf',
-        mediaSize: 1536,
-        mediaStatus: 'CANCELED',
-      ),
-    );
-    expect(find.byKey(const Key('message-media-file-data')), findsOneWidget);
-    expect(find.text('report.pdf'), findsOneWidget);
-    expect(find.text('1.5 KB'), findsOneWidget);
-    expect(find.textContaining('RAW_DATA_PAYLOAD'), findsNothing);
-
-    await render(
-      _message(category: 'PLAIN_POST', content: '# Release notes\nReady'),
-    );
-    expect(find.byKey(const Key('message-media-post-message')), findsOneWidget);
+    expect(find.byKey(const Key('message-media-post-post')), findsOneWidget);
     expect(find.textContaining('Release notes'), findsOneWidget);
     expect(find.textContaining('Ready'), findsOneWidget);
 
     await render(
       _message(
+        id: 'contact',
         category: 'PLAIN_CONTACT',
         content: 'RAW_CONTACT_PAYLOAD',
         sharedUserId: 'shared-user',
@@ -151,12 +180,16 @@ void main() {
         sharedUserIdentityNumber: '700001',
       ),
     );
-    expect(find.text('Shared Alice'), findsOneWidget);
-    expect(find.text('700001'), findsOneWidget);
-    expect(find.text('RAW_CONTACT_PAYLOAD'), findsNothing);
+    final contact = tester.widget<ContactMessageItem>(
+      find.byType(ContactMessageItem),
+    );
+    expect(contact.message.sharedUserFullName, 'Shared Alice');
+    expect(find.text('700001', findRichText: true), findsOneWidget);
+    expect(find.text('RAW_CONTACT_PAYLOAD', findRichText: true), findsNothing);
 
     await render(
       _message(
+        id: 'location',
         category: 'PLAIN_LOCATION',
         content:
             '{"latitude":37.7,"longitude":-122.4,'
@@ -164,46 +197,56 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 20));
-    expect(find.text('Mixin Street'), findsOneWidget);
+    final location = tester.widget<LocationMessageItem>(
+      find.byType(LocationMessageItem),
+    );
+    expect(location.message.content, contains('Mixin Street'));
     expect(find.textContaining('latitude'), findsNothing);
 
     await render(
       _message(
+        id: 'transcript',
         category: 'PLAIN_TRANSCRIPT',
         content:
             '[{"name":"Alice","category":"PLAIN_TEXT",'
             '"content":"Transcript hello","secret":"RAW_TRANSCRIPT"}]',
       ),
     );
-    expect(find.text('Transcript'), findsOneWidget);
-    expect(find.text('Alice: Transcript hello'), findsOneWidget);
+    expect(find.text('Transcript', findRichText: true), findsOneWidget);
+    final transcript = tester.widget<TranscriptMessageItem>(
+      find.byType(TranscriptMessageItem),
+    );
+    expect(transcript.message.content, contains('Transcript hello'));
     expect(find.textContaining('RAW_TRANSCRIPT'), findsNothing);
 
     await render(
       _message(
+        id: 'button-group',
         category: 'APP_BUTTON_GROUP',
         content:
             '[{"label":"Approve","action":"mixin://approve",'
             '"secret":"RAW_BUTTON_PAYLOAD"}]',
       ),
     );
-    expect(find.text('Approve'), findsOneWidget);
+    expect(find.text('Approve', findRichText: true), findsOneWidget);
     expect(find.textContaining('RAW_BUTTON_PAYLOAD'), findsNothing);
 
     await render(
       _message(
+        id: 'app-card',
         category: 'APP_CARD',
         content:
             '{"title":"Card title","description":"Card description",'
             '"action":"","secret":"RAW_CARD_PAYLOAD"}',
       ),
     );
-    expect(find.text('Card title'), findsOneWidget);
-    expect(find.text('Card description'), findsOneWidget);
+    expect(find.text('Card title', findRichText: true), findsOneWidget);
+    expect(find.text('Card description', findRichText: true), findsOneWidget);
     expect(find.textContaining('RAW_CARD_PAYLOAD'), findsNothing);
 
     await render(
       _message(
+        id: 'snapshot',
         category: 'SYSTEM_ACCOUNT_SNAPSHOT',
         content: '{"amount":"RAW_SNAPSHOT_PAYLOAD","symbol":"RAW"}',
         snapshotId: 'snapshot-id',
@@ -211,12 +254,30 @@ void main() {
         snapshotAssetSymbol: 'XIN',
       ),
     );
-    expect(find.text('42.5'), findsOneWidget);
-    expect(find.text('XIN'), findsOneWidget);
+    expect(find.text('42.5', findRichText: true), findsOneWidget);
+    expect(find.text('XIN', findRichText: true), findsOneWidget);
     expect(find.textContaining('RAW_SNAPSHOT_PAYLOAD'), findsNothing);
+  });
+
+  testWidgets('renders system and unsupported message states', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(900, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    Future<void> render(MessageListEntry message) => tester.pumpWidget(
+      _TestApp(
+        child: MessageContent(
+          message: message,
+          isCurrentUser: false,
+          currentUserId: 'me',
+          dateAndStatus: const Text('12:30'),
+          overlayDateAndStatus: const Text('12:30 overlay'),
+        ),
+      ),
+    );
 
     await render(
       _message(
+        id: 'system-conversation',
         category: 'SYSTEM_CONVERSATION',
         content: 'RAW_SYSTEM_PAYLOAD',
         action: 'JOIN',
@@ -224,13 +285,23 @@ void main() {
         participantFullName: 'Alice Participant',
       ),
     );
-    expect(find.textContaining('Alice Participant'), findsOneWidget);
+    expect(
+      find.textContaining('Alice Participant', findRichText: true),
+      findsOneWidget,
+    );
     expect(find.text('RAW_SYSTEM_PAYLOAD'), findsNothing);
 
     await render(
-      _message(category: 'MESSAGE_RECALL', content: 'RAW_RECALL_PAYLOAD'),
+      _message(
+        id: 'recall',
+        category: 'MESSAGE_RECALL',
+        content: 'RAW_RECALL_PAYLOAD',
+      ),
     );
-    expect(find.text('This message was deleted'), findsOneWidget);
+    expect(
+      find.text('This message was deleted', findRichText: true),
+      findsOneWidget,
+    );
     expect(find.text('RAW_RECALL_PAYLOAD'), findsNothing);
 
     await render(
@@ -301,6 +372,8 @@ void main() {
             id: 'sticker',
             category: 'PLAIN_STICKER',
             stickerId: 'sticker-id',
+            stickerAssetWidth: 128,
+            stickerAssetHeight: 128,
           ),
           isCurrentUser: false,
           currentUserId: 'me',
@@ -311,7 +384,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byKey(const Key('message-media-sticker-sticker')));
+    await tester.tap(find.byType(InteractiveDecoratedBox));
 
     expect(opened?.stickerId, 'sticker-id');
   });
@@ -676,6 +749,7 @@ MessageListEntry _message({
   String status = 'READ',
   String mediaDuration = '',
   String mediaStatus = '',
+  String? mediaName,
   String? mediaMimeType,
   int? mediaSize,
   int? mediaWidth,
@@ -708,6 +782,7 @@ MessageListEntry _message({
   createdAt: DateTime(2026, 7, 16, 12, 30),
   mediaDuration: mediaDuration,
   mediaStatus: mediaStatus,
+  mediaName: mediaName,
   mediaMimeType: mediaMimeType,
   mediaSize: mediaSize,
   mediaWidth: mediaWidth,

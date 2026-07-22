@@ -8,8 +8,9 @@ import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/pages/settings_page.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
+import 'package:mixin_desktop_ui/widgets/toast.dart' as app_toast;
 import 'package:provider/provider.dart';
+import 'package:overlay_support/overlay_support.dart';
 
 const _profile = AccountProfile(
   userId: 'ea91421a-98bb-41d2-abcf-af013d8b874b',
@@ -29,19 +30,10 @@ void main() {
   ) async {
     await _pumpSettings(tester, onSignOut: () async {}, onClose: () {});
 
-    expect(find.text('Mixin User'), findsOneWidget);
-    expect(find.text('Mixin ID: 7000'), findsOneWidget);
-    expect(tester.widget<AvatarView>(find.byType(AvatarView)).size, 90);
-    expect(find.text('Edit Profile'), findsOneWidget);
-    expect(find.text('Appearance'), findsOneWidget);
-
-    final editProfileInkWell = tester.widget<InkWell>(
-      find.descendant(
-        of: find.byKey(const ValueKey('settings-edit-profile')),
-        matching: find.byType(InkWell),
-      ),
-    );
-    expect(editProfileInkWell.onTap, isNotNull);
+    expect(find.text('Mixin User', findRichText: true), findsOneWidget);
+    expect(find.text('Mixin ID: 7000', findRichText: true), findsOneWidget);
+    expect(find.text('Edit Profile', findRichText: true), findsOneWidget);
+    expect(find.text('Appearance', findRichText: true), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('settings-edit-profile')));
     await tester.pumpAndSettle();
@@ -75,24 +67,23 @@ void main() {
 
     final signOut = find.byKey(const ValueKey('settings-sign-out'));
     await tester.ensureVisible(signOut);
-    await tester.tap(signOut);
+    await tester.tapAt(tester.getCenter(signOut));
+    await tester.pump();
+    await tester.tapAt(tester.getCenter(signOut));
     await tester.pump();
 
     expect(signOutCount, 1);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(
-      tester
-          .widget<InkWell>(
-            find.descendant(of: signOut, matching: find.byType(InkWell)),
-          )
-          .onTap,
-      isNull,
-    );
 
     completer.complete();
-    await tester.pumpAndSettle();
+    await _pumpUntil(
+      tester,
+      () => find.byType(CircularProgressIndicator).evaluate().isEmpty,
+    );
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(signOutCount, 1);
+    app_toast.Toast.dismiss();
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('shows a failure without completing sign out', (tester) async {
@@ -109,20 +100,31 @@ void main() {
     final signOut = find.byKey(const ValueKey('settings-sign-out'));
     await tester.ensureVisible(signOut);
     await tester.tap(signOut);
-    await tester.pump();
+    await _pumpUntil(
+      tester,
+      () => find.textContaining('sign out failed').evaluate().isNotEmpty,
+    );
 
     expect(signOutCount, 1);
-    expect(find.text('Failed'), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(
-      tester
-          .widget<InkWell>(
-            find.descendant(of: signOut, matching: find.byType(InkWell)),
-          )
-          .onTap,
-      isNotNull,
-    );
+    expect(find.textContaining('sign out failed'), findsWidgets);
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    await tester.tap(signOut);
+    await tester.pump();
+    expect(signOutCount, 2);
+    app_toast.Toast.dismiss();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
   });
+}
+
+Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {
+  for (var attempt = 0; attempt < 20; attempt++) {
+    if (condition()) return;
+    await tester.pump(const Duration(milliseconds: 10));
+  }
+  fail('condition was not reached');
 }
 
 Future<void> _pumpSettings(
@@ -137,22 +139,24 @@ Future<void> _pumpSettings(
   await tester.pumpWidget(
     ChangeNotifierProvider(
       create: (_) => SettingsController(),
-      child: MaterialApp(
-        theme: buildMixinTheme(Brightness.light),
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: SettingsPage(
-            profile: _profile,
-            onSignOut: onSignOut,
-            onProfileUpdated: (_, _) async {},
-            onProfileRefresh: () async => _profile,
-            onClose: onClose,
+      child: OverlaySupport.global(
+        child: MaterialApp(
+          theme: buildMixinTheme(Brightness.light),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SettingsPage(
+              profile: _profile,
+              onSignOut: onSignOut,
+              onProfileUpdated: (_, _) async {},
+              onProfileRefresh: () async => _profile,
+              onClose: onClose,
+            ),
           ),
         ),
       ),

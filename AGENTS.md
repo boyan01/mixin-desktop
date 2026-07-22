@@ -46,6 +46,23 @@
 - Run `git diff --check` and inspect the final diff for generated noise and unrelated changes.
 - Distinguish repository failures from local toolchain failures such as a stale CocoaPods shim or unwritable Flutter cache.
 
+## Testing discipline
+
+- Write tests against an observable contract, not an implementation detail. A test name must state the precondition, action, and expected outcome; avoid names such as `test`, `works`, or `renders everything`.
+- Each test should prove one behavior or one table of cases with the same invariant. Split unrelated branches and state transitions so a failure identifies the broken contract.
+- Every regression fix must include a test that fails for the original bug. Prefer the lowest layer that owns the behavior, then add a higher-layer test only when wiring or user interaction is part of the risk.
+- Rust unit tests should cover pure rules, serialization compatibility, state transitions, and error classification. Database tests should execute real SQLite queries and assert persisted rows, ordering, transaction rollback, and emitted events rather than only checking that setup succeeds.
+- Rust async tests must use deterministic synchronization such as channels, barriers, paused Tokio time, or bounded timeouts. Do not use arbitrary sleeps to make races pass.
+- Do not add `#[ignore]` tests that require personal credentials, hard-coded live accounts, or mutation of a real service. Put intentional live verification in an explicit operator workflow outside the default suite. Ignored tests must still be hermetic, assert a contract, and document why CI cannot run them.
+- Tests must not use `println!`, `debugPrint`, screenshots, or successful construction as their only oracle. Assert returned values, durable state, calls with meaningful arguments, emitted events, and important negative behavior.
+- Flutter controller tests should drive public methods and assert visible state plus Rust-handle commands. Cover loading, success, failure, retry/supersession, disposal, and stale-result guards where applicable.
+- Flutter widget tests should render the smallest production-like tree, including required providers, localization, `Portal`, overlay support, and navigation shell. Interact through taps, text entry, keyboard, focus, or scrolling and assert user-visible results; do not call private state or assert incidental widget nesting.
+- Use keys for semantic actions and `find.text(..., findRichText: true)` when production intentionally renders rich text. Do not weaken interaction tests with `warnIfMissed: false`; a missed hit target is a failure.
+- Fakes must fail on unexpected calls and record meaningful arguments. Do not return broad default values through permissive mocks that can make an unimplemented path pass. Complete and close streams, completers, timers, temporary files, platform handlers, view sizes, and global overrides in teardown.
+- Keep tests hermetic and order-independent. No test may depend on another test's database, filesystem path, clock, global singleton, platform channel, or process state.
+- For UI geometry, assert only deliberate product contracts such as breakpoints, hit targets, overflow absence, and stable component sizes. Do not snapshot incidental pixels or duplicate implementation constants without a source-parity reason.
+- Before handoff, run the narrow touched tests, then the layer baseline. A failing existing test is not noise: classify it as a product regression, a stale/invalid test, or an environment failure and either fix it in scope or report it explicitly.
+
 ## Communication and commits
 
 - Reply in Chinese and lead with a short TL;DR or conclusion; keep code, comments, commit messages, and PR text in English.
