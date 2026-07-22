@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/network/core_http_scope.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
-import 'package:mixin_desktop_ui/widgets/search_text_field.dart';
+import '../../l10n/l10n.dart';
+import '../../network/core_http_scope.dart';
+import '../../theme.dart';
+import '../interactive_decorated_box.dart';
+import '../mixin_image.dart';
+import '../search_text_field.dart';
 
 const giphyApiKey = String.fromEnvironment('MIXIN_GIPHY_KEY');
 const _giphyUrl = 'https://api.giphy.com/v1/';
@@ -220,9 +220,6 @@ class _GifItem extends StatelessWidget {
 class _GiphyGif {
   const _GiphyGif({required this.preview, required this.send});
 
-  final _GiphyImage preview;
-  final _GiphyImage send;
-
   factory _GiphyGif.fromJson(Map<String, dynamic> json) {
     final images = json['images'] as Map<String, dynamic>;
     return _GiphyGif(
@@ -232,18 +229,21 @@ class _GiphyGif {
       send: _GiphyImage.fromJson(images['fixed_width'] as Map<String, dynamic>),
     );
   }
+
+  final _GiphyImage preview;
+  final _GiphyImage send;
 }
 
 class _GiphyImage {
   const _GiphyImage({required this.url, this.width, this.height});
-
-  final String url;
-  final int? width;
-  final int? height;
 
   factory _GiphyImage.fromJson(Map<String, dynamic> json) => _GiphyImage(
     url: json['url']?.toString() ?? '',
     width: int.tryParse(json['width']?.toString() ?? ''),
     height: int.tryParse(json['height']?.toString() ?? ''),
   );
+
+  final String url;
+  final int? width;
+  final int? height;
 }

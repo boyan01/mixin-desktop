@@ -120,8 +120,8 @@ class _FakeDesktopHandle implements DesktopHandle {
 class _FakeLoginHandle implements LoginHandle {
   final _account = Completer<AccountHandle>();
   var _isDisposed = false;
-  var isCancelled = false;
-  var waitCalls = 0;
+  bool isCancelled = false;
+  int waitCalls = 0;
 
   @override
   String authUrl() => 'mixin://device/auth?id=test&pub_key=test';

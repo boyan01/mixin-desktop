@@ -5,19 +5,20 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
-import 'package:mixin_desktop_ui/controllers/conversation_list_controller.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:super_context_menu/super_context_menu.dart';
+
+import '../constants/assets.dart';
+import '../constants/icon_fonts.dart';
+import '../controllers/conversation_list_controller.dart';
+import '../l10n/l10n.dart';
+import '../models/conversation_list_entry.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../theme.dart';
+import 'avatar_view.dart';
+import 'custom_context_menu.dart';
+import 'mixin_dialog.dart';
+import 'show_forward_conversation_selector.dart';
+import 'toast.dart';
 
 class HomeSidebar extends StatelessWidget {
   const HomeSidebar({

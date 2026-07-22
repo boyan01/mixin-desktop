@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/utils/system_fonts.dart';
+import 'utils/system_fonts.dart';
 
 const mixinAccent = Color.fromRGBO(61, 117, 227, 1);
 const mixinSecondaryText = Color.fromRGBO(184, 189, 199, 1);

@@ -2,10 +2,10 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
+import '../l10n/l10n.dart';
+import '../theme.dart';
+import 'adaptive_selection_toolbar.dart';
+import 'interactive_decorated_box.dart';
 
 Future<T?> showMixinDialog<T>({
   required BuildContext context,
@@ -19,7 +19,6 @@ Future<T?> showMixinDialog<T>({
   context: context,
   barrierDismissible: barrierDismissible,
   barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-  barrierColor: const Color(0x80000000),
   transitionDuration: const Duration(milliseconds: 80),
   routeSettings: routeSettings,
   pageBuilder: (buildContext, animation, secondaryAnimation) =>

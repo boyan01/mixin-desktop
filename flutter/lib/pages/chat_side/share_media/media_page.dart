@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
-import 'package:mixin_desktop_ui/widgets/message_media_preview_pages.dart';
-import 'package:mixin_desktop_ui/widgets/message_content.dart';
 
+import '../../../constants/assets.dart';
+import '../../../l10n/l10n.dart';
+import '../../../models/message_list_entry.dart';
+import '../../../utils/app_logger.dart';
+import '../../../widgets/message_content.dart';
+import '../../../widgets/message_media_preview_pages.dart';
+import '../chat_side_scope.dart';
 import '../shared_media_page.dart';
 import 'shared_media_list.dart';
 

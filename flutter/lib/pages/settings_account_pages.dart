@@ -5,17 +5,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' show AccountProfile;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
+
+import '../constants/assets.dart';
+import '../l10n/l10n.dart';
+import '../src/rust/desktop_api.dart' show AccountProfile;
+import '../theme.dart';
+import '../widgets/adaptive_selection_toolbar.dart';
+import '../widgets/avatar_view.dart';
+import '../widgets/buttons.dart';
+import '../widgets/mixin_dialog.dart';
+import '../widgets/settings_widgets.dart';
+import '../widgets/toast.dart';
 
 typedef SaveProfileCallback =
     Future<void> Function(String fullName, String biography);
@@ -698,8 +699,9 @@ class _SetPasscodeDialogState extends State<_SetPasscodeDialog> {
   @override
   void dispose() {
     _controller.dispose();
-    _focusNode.removeListener(_keepFocus);
-    _focusNode.dispose();
+    _focusNode
+      ..removeListener(_keepFocus)
+      ..dispose();
     super.dispose();
   }
 
@@ -729,11 +731,11 @@ class _SetPasscodeDialogState extends State<_SetPasscodeDialog> {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
+        const Row(
           children: [
-            const Spacer(),
+            Spacer(),
             Padding(
-              padding: const EdgeInsets.only(right: 12, top: 12),
+              padding: EdgeInsets.only(right: 12, top: 12),
               child: MixinCloseButton(),
             ),
           ],
@@ -801,10 +803,12 @@ class _DynamicHorizontalPadding extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final padding = math.min(
-        90.0,
-        math.max(20.0, (constraints.maxWidth - 500) / 2),
-      );
+      final padding = math
+          .min(
+            90,
+            math.max(20, (constraints.maxWidth - 500.0) / 2),
+          )
+          .toDouble();
       return Padding(
         padding: EdgeInsets.symmetric(horizontal: padding),
         child: child,

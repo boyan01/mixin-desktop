@@ -1,17 +1,18 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/command_palette_item.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
+
+import '../constants/assets.dart';
+import '../l10n/l10n.dart';
+import '../models/command_palette_item.dart';
+import '../theme.dart';
+import 'adaptive_selection_toolbar.dart';
+import 'avatar_view.dart';
+import 'buttons.dart';
+import 'interactive_decorated_box.dart';
 
 const _itemHeight = 72.0;
 const _bottomPadding = 22.0;
@@ -24,7 +25,6 @@ Future<void> showCommandPalette({
   context: context,
   barrierDismissible: true,
   barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-  barrierColor: const Color(0x80000000),
   transitionDuration: const Duration(milliseconds: 80),
   pageBuilder: (dialogContext, _, _) => Center(
     child: Padding(
@@ -153,10 +153,10 @@ class _CommandPalettePageState extends State<_CommandPalettePage> {
   @override
   Widget build(BuildContext context) => Shortcuts(
     shortcuts: {
-      SingleActivator(LogicalKeyboardKey.arrowDown): _MoveIntent(1),
-      SingleActivator(LogicalKeyboardKey.arrowUp): _MoveIntent(-1),
-      SingleActivator(LogicalKeyboardKey.tab): _MoveIntent(1),
-      SingleActivator(LogicalKeyboardKey.enter): _SelectIntent(),
+      const SingleActivator(LogicalKeyboardKey.arrowDown): const _MoveIntent(1),
+      const SingleActivator(LogicalKeyboardKey.arrowUp): const _MoveIntent(-1),
+      const SingleActivator(LogicalKeyboardKey.tab): const _MoveIntent(1),
+      const SingleActivator(LogicalKeyboardKey.enter): const _SelectIntent(),
       if (defaultTargetPlatform == TargetPlatform.macOS) ...{
         const SingleActivator(LogicalKeyboardKey.keyN, control: true):
             const _MoveIntent(1),
@@ -357,17 +357,18 @@ class _PaletteItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Row(
           children: [
-            item.conversation != null
-                ? ConversationAvatarView(
-                    conversation: item.conversation!,
-                    size: 40,
-                  )
-                : AvatarView(
-                    userId: item.id,
-                    name: item.name,
-                    avatarUrl: item.avatarUrl,
-                    size: 40,
-                  ),
+            if (item.conversation != null)
+              ConversationAvatarView(
+                conversation: item.conversation!,
+                size: 40,
+              )
+            else
+              AvatarView(
+                userId: item.id,
+                name: item.name,
+                avatarUrl: item.avatarUrl,
+                size: 40,
+              ),
             const SizedBox(width: 12),
             Expanded(
               child: _PaletteHighlightedText(text: item.name, keyword: keyword),

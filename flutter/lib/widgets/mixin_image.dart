@@ -2,8 +2,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
-import 'package:mixin_desktop_ui/network/core_http_scope.dart';
-import 'package:mixin_desktop_ui/widgets/media_image_pipeline.dart';
+import '../network/core_http_scope.dart';
+import 'media_image_pipeline.dart';
 
 class MixinImage extends StatelessWidget {
   const MixinImage({

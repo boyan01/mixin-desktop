@@ -1,8 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:mixin_desktop_ui/controllers/sticker_controller.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
+
+import '../src/rust/desktop_api.dart';
+import 'sticker_controller.dart';
 
 enum AppStage { starting, signedOut, signedIn, failed }
 

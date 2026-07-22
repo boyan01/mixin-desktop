@@ -1,20 +1,21 @@
 import 'dart:convert';
 import 'dart:ui' as ui;
 
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:decimal/decimal.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/src/rust/third_party/mixin_desktop_core/runtime/model.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
-import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
 import 'package:provider/provider.dart';
+
+import '../l10n/l10n.dart';
+import '../models/message_list_entry.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../src/rust/third_party/mixin_desktop_core/runtime/model.dart';
+import '../theme.dart';
+import 'buttons.dart';
+import 'high_light_text.dart';
+import 'message_items/special_message_items.dart';
+import 'mixin_dialog.dart';
+import 'mixin_image.dart';
 
 Future<void> showSnapshotDetailDialog(
   BuildContext context, {
@@ -87,9 +88,10 @@ class _SnapshotDetailPage extends StatelessWidget {
                         _SnapshotValuesDescription(snapshot: snapshot),
                       const SizedBox(height: 24),
                       Container(color: context.theme.divider, height: 10),
-                      snapshot.isSafe
-                          ? _SafeTransactionDetailInfo(snapshot: snapshot)
-                          : _TransactionDetailInfo(snapshot: snapshot),
+                      if (snapshot.isSafe)
+                        _SafeTransactionDetailInfo(snapshot: snapshot)
+                      else
+                        _TransactionDetailInfo(snapshot: snapshot),
                     ],
                   ),
                 ),
@@ -524,27 +526,28 @@ class _SafeTransactionDetailInfo extends StatelessWidget {
         ),
       );
     } else if (snapshot.type == 'withdrawal') {
-      rows.add(
-        _TransactionInfoTile(
-          row: (context.l10n.to, snapshot.withdrawalReceiver),
-        ),
-      );
-      rows.add(
-        snapshot.withdrawalHash.isEmpty
-            ? _TransactionWidgetInfoTile(
-                title: context.l10n.withdrawalHash,
-                subtitle: SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: context.theme.secondaryText,
+      rows
+        ..add(
+          _TransactionInfoTile(
+            row: (context.l10n.to, snapshot.withdrawalReceiver),
+          ),
+        )
+        ..add(
+          snapshot.withdrawalHash.isEmpty
+              ? _TransactionWidgetInfoTile(
+                  title: context.l10n.withdrawalHash,
+                  subtitle: SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: context.theme.secondaryText,
+                    ),
                   ),
+                )
+              : _TransactionInfoTile(
+                  row: (context.l10n.withdrawalHash, snapshot.withdrawalHash),
                 ),
-              )
-            : _TransactionInfoTile(
-                row: (context.l10n.withdrawalHash, snapshot.withdrawalHash),
-              ),
-      );
+        );
     }
     if (snapshot.createdAt != null) {
       rows.add(
@@ -754,13 +757,13 @@ class _SnapshotView {
     receiver: item.receiver ?? '',
     memo: item.memo ?? '',
     confirmations: item.confirmations ?? 0,
-    assetConfirmations: item.assetConfirmations.toInt(),
+    assetConfirmations: item.assetConfirmations,
     assetTag: item.assetTag ?? '',
     snapshotHash: item.snapshotHash ?? '',
     openingBalance: item.openingBalance ?? '',
     closingBalance: item.closingBalance ?? '',
     createdAt: DateTime.fromMillisecondsSinceEpoch(
-      item.createdAtMillis.toInt(),
+      item.createdAtMillis,
     ).toLocal(),
     inscription: false,
     inscriptionHash: '',

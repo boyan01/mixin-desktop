@@ -1,3 +1,4 @@
+// ignore: avoid_classes_with_only_static_members
 abstract final class MixinAssets {
   static const chat = 'assets/images/chat.svg';
   static const contacts = 'assets/images/slide_contacts.svg';

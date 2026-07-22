@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_data.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_page.dart';
+import '../theme.dart';
+import '../widgets/sticker_page/sticker_data.dart';
+import '../widgets/sticker_page/sticker_page.dart';
 
 @Preview(name: 'Sticker Page', group: 'Chat', size: Size(480, 430))
 Widget stickerPagePreview() => MaterialApp(

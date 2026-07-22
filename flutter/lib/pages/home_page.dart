@@ -6,47 +6,48 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_portal/flutter_portal.dart';
-import 'package:mixin_desktop_ui/controllers/app_controller.dart';
-import 'package:mixin_desktop_ui/controllers/chat_side_notifier.dart';
-import 'package:mixin_desktop_ui/controllers/conversation_list_controller.dart';
-import 'package:mixin_desktop_ui/controllers/device_transfer_controller.dart';
-import 'package:mixin_desktop_ui/controllers/security_controller.dart';
-import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/chat_side_router.dart';
-import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
-import 'package:mixin_desktop_ui/pages/settings_page.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/utils/mixin_uri.dart';
-import 'package:mixin_desktop_ui/utils/local_notification_center.dart';
-import 'package:mixin_desktop_ui/utils/web_view.dart';
-import 'package:mixin_desktop_ui/widgets/chat_view.dart';
-import 'package:mixin_desktop_ui/widgets/audio_player_bar.dart';
-import 'package:mixin_desktop_ui/widgets/app_protocol_handler.dart';
-import 'package:mixin_desktop_ui/widgets/account_health_overlays.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/command_palette.dart';
-import 'package:mixin_desktop_ui/widgets/conversation_list_view.dart';
-import 'package:mixin_desktop_ui/widgets/device_transfer_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/device_transfer_widget.dart';
-import 'package:mixin_desktop_ui/widgets/home_sidebar.dart';
-import 'package:mixin_desktop_ui/widgets/network_status.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/mute_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
-import 'package:mixin_desktop_ui/widgets/show_conversation_code_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/show_message_user_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/show_multisigs_payment_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/show_send_message_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/show_snapshot_detail_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/unknown_mixin_url_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
+
+import '../controllers/app_controller.dart';
+import '../controllers/chat_side_notifier.dart';
+import '../controllers/conversation_list_controller.dart';
+import '../controllers/device_transfer_controller.dart';
+import '../controllers/security_controller.dart';
+import '../controllers/settings_controller.dart';
+import '../l10n/l10n.dart';
+import '../models/conversation_list_entry.dart';
+import '../models/message_list_entry.dart';
+import '../src/rust/desktop_api.dart';
+import '../theme.dart';
+import '../utils/local_notification_center.dart';
+import '../utils/mixin_uri.dart';
+import '../utils/web_view.dart';
+import '../widgets/account_health_overlays.dart';
+import '../widgets/app_protocol_handler.dart';
+import '../widgets/audio_player_bar.dart';
+import '../widgets/avatar_view.dart';
+import '../widgets/chat_view.dart';
+import '../widgets/command_palette.dart';
+import '../widgets/conversation_list_view.dart';
+import '../widgets/device_transfer_dialog.dart';
+import '../widgets/device_transfer_widget.dart';
+import '../widgets/home_sidebar.dart';
+import '../widgets/mixin_dialog.dart';
+import '../widgets/mute_dialog.dart';
+import '../widgets/network_status.dart';
+import '../widgets/show_conversation_code_dialog.dart';
+import '../widgets/show_forward_conversation_selector.dart';
+import '../widgets/show_message_user_dialog.dart';
+import '../widgets/show_multisigs_payment_dialog.dart';
+import '../widgets/show_send_message_dialog.dart';
+import '../widgets/show_snapshot_detail_dialog.dart';
+import '../widgets/toast.dart';
+import '../widgets/unknown_mixin_url_dialog.dart';
+import 'chat_side/chat_side_router.dart';
+import 'conversation_info_destination.dart';
+import 'settings_page.dart';
 
 enum DesktopShellLayoutMode { drawer, compactRail, fullRail }
 
@@ -194,7 +195,7 @@ class _HomeBodyState extends State<_HomeBody> {
       return;
     }
     final createdAt = DateTime.fromMicrosecondsSinceEpoch(
-      message.createdAtMicros.toInt(),
+      message.createdAtMicros,
     );
     if (createdAt.isBefore(
       DateTime.now().subtract(const Duration(minutes: 2)),
@@ -329,7 +330,6 @@ class _HomeBodyState extends State<_HomeBody> {
           await context.read<AccountHandle>().message().sendText(
             conversationId: conversationId,
             content: startText!,
-            quoteMessageId: null,
             silent: false,
           );
         } catch (_) {
@@ -1284,7 +1284,7 @@ class _SearchUserDialog extends StatefulWidget {
 class _SearchUserDialogState extends State<_SearchUserDialog> {
   final controller = TextEditingController();
   UserProfileItem? profile;
-  var loading = false;
+  bool loading = false;
 
   bool get searchable => controller.text.trim().length > 3;
 

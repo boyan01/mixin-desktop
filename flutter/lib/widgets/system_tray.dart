@@ -2,10 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
 import 'package:path/path.dart' as p;
 import 'package:system_tray/system_tray.dart';
 import 'package:window_manager/window_manager.dart';
+
+import '../l10n/l10n.dart';
 
 class SystemTrayWidget extends StatefulWidget {
   const SystemTrayWidget({required this.child, super.key});

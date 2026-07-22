@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
+import '../models/conversation_list_entry.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../utils/app_logger.dart';
 
 class MentionController extends ChangeNotifier {
   MentionController({

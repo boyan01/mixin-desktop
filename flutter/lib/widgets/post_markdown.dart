@@ -2,9 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/markdown_widget.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/app_protocol_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../theme.dart';
+import 'app_protocol_handler.dart';
 
 MarkdownConfig postMarkdownConfig(
   BuildContext context, {

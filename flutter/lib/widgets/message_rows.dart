@@ -1,4 +1,4 @@
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
+import '../models/message_list_entry.dart';
 
 class MessageRowModel {
   MessageRowModel({required this.message, this.previous, this.next})
@@ -27,12 +27,12 @@ class MessageRowModel {
 }
 
 class MessageRows {
-  const MessageRows({required this.top, this.center, required this.bottom});
+  const MessageRows({required this.top, required this.bottom, this.center});
 
   factory MessageRows.from({
     required List<MessageListEntry> top,
-    MessageListEntry? center,
     required List<MessageListEntry> bottom,
+    MessageListEntry? center,
   }) {
     final messages = [...top, ?center, ...bottom];
     final rows = <MessageRowModel>[

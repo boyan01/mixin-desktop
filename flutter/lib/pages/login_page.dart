@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_portal/flutter_portal.dart';
-import 'package:mixin_desktop_ui/controllers/login_controller.dart';
-import 'package:mixin_desktop_ui/pages/settings_storage_about_pages.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/qr_login_card.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+
+import '../controllers/login_controller.dart';
+import '../src/rust/desktop_api.dart';
+import '../theme.dart';
+import '../utils/app_logger.dart';
+import '../widgets/buttons.dart';
+import '../widgets/qr_login_card.dart';
+import 'settings_storage_about_pages.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({
@@ -130,7 +131,7 @@ class _VersionInfoWidgetState extends State<_VersionInfoWidget> {
             from: context,
             to: Navigator.of(context, rootNavigator: true).context,
           ).wrap(
-            SettingsLogPage(
+            const SettingsLogPage(
               onOpenDirectory: openAppLogDirectory,
               onLoadLogs: readAppLogLines,
             ),

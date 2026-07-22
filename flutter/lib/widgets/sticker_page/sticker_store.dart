@@ -2,17 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/controllers/sticker_controller.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_item.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
+
+import '../../constants/assets.dart';
+import '../../controllers/sticker_controller.dart';
+import '../../l10n/l10n.dart';
+import '../../src/rust/desktop_api.dart' as rust;
+import '../../theme.dart';
+import '../action_button.dart';
+import '../buttons.dart';
+import '../interactive_decorated_box.dart';
+import '../mixin_dialog.dart';
+import '../settings_widgets.dart';
+import 'sticker_item.dart';
 
 final _navigatorKey = GlobalKey<NavigatorState>();
 
@@ -62,22 +63,20 @@ class _StickerStorePage extends StatelessWidget {
       Expanded(
         child: AnimatedBuilder(
           animation: controller,
-          builder: (context, _) {
-            return ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              itemCount: controller.storeAlbums.length,
-              itemBuilder: (context, index) {
-                final album = controller.storeAlbums[index];
-                return _StoreAlbumItem(
-                  album: album,
-                  stickers:
-                      controller.storeAlbumStickers[album.albumId] ?? const [],
-                  onToggle: (added) =>
-                      controller.setAlbumAdded(album.albumId, added),
-                );
-              },
-            );
-          },
+          builder: (context, _) => ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            itemCount: controller.storeAlbums.length,
+            itemBuilder: (context, index) {
+              final album = controller.storeAlbums[index];
+              return _StoreAlbumItem(
+                album: album,
+                stickers:
+                    controller.storeAlbumStickers[album.albumId] ?? const [],
+                onToggle: (added) =>
+                    controller.setAlbumAdded(album.albumId, added),
+              );
+            },
+          ),
         ),
       ),
     ],

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
+
+import '../l10n/l10n.dart';
+import 'mixin_dialog.dart';
 
 Future<void> showMessageQrDialog(
   BuildContext context, {

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
+import 'app_logger.dart';
 
 bool _fallbackFontsLoaded = false;
 String? loadedFallbackFonts;

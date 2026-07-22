@@ -1,13 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
-import 'package:mixin_desktop_ui/widgets/show_message_user_dialog.dart';
 
+import '../../l10n/l10n.dart';
+import '../../src/rust/desktop_api.dart' as rust;
+import '../../theme.dart';
+import '../../widgets/mixin_image.dart';
+import '../../widgets/show_message_user_dialog.dart';
+import '../conversation_info_destination.dart';
 import 'chat_side_scope.dart';
 
 class SharedAppsPage extends StatefulWidget {

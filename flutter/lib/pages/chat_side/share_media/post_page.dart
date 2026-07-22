@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/message_content.dart';
-import 'package:mixin_desktop_ui/widgets/message_media_preview_pages.dart';
+import '../../../constants/assets.dart';
+import '../../../l10n/l10n.dart';
+import '../../../models/message_list_entry.dart';
+import '../../../theme.dart';
+import '../../../widgets/message_content.dart';
+import '../../../widgets/message_media_preview_pages.dart';
 
 import '../shared_media_page.dart';
 import 'shared_media_list.dart';

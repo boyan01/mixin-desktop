@@ -1,23 +1,23 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
-import 'package:mixin_desktop_ui/widgets/custom_popup_menu.dart';
-import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/search_text_field.dart';
-import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
-import 'package:mixin_desktop_ui/widgets/show_message_user_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:super_context_menu/super_context_menu.dart';
 
+import '../../constants/assets.dart';
+import '../../constants/icon_fonts.dart';
+import '../../l10n/l10n.dart';
+import '../../src/rust/desktop_api.dart' as rust;
+import '../../theme.dart';
+import '../../widgets/avatar_view.dart';
+import '../../widgets/badges_widget.dart';
+import '../../widgets/custom_context_menu.dart';
+import '../../widgets/custom_popup_menu.dart';
+import '../../widgets/high_light_text.dart';
+import '../../widgets/search_text_field.dart';
+import '../../widgets/show_forward_conversation_selector.dart';
+import '../../widgets/show_message_user_dialog.dart';
+import '../../widgets/toast.dart';
+import '../conversation_info_destination.dart';
 import 'chat_side_scope.dart';
 import 'group_invite/group_invite_dialog.dart';
 

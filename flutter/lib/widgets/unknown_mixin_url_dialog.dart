@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/theme.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
+
+import '../l10n/l10n.dart';
+import '../theme.dart';
+import 'mixin_dialog.dart';
 
 Future<void> showUnknownMixinUrlDialog(BuildContext context, Uri uri) =>
     showMixinDialog<void>(

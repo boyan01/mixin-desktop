@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:lottie/lottie.dart';
-import 'package:mixin_desktop_ui/app.dart';
-import 'package:mixin_desktop_ui/network/core_http_scope.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/utils/cache_client.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
 import 'package:provider/provider.dart';
+
+import '../../app.dart';
+import '../../network/core_http_scope.dart';
+import '../../src/rust/desktop_api.dart' as rust;
+import '../../utils/cache_client.dart';
+import '../mixin_image.dart';
 
 const _cacheLottieFolderName = 'cache_lottie';
 

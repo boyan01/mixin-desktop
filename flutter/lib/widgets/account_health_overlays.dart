@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../l10n/l10n.dart';
+import '../src/rust/desktop_api.dart';
+import '../theme.dart';
+import 'mixin_dialog.dart';
 
 class AccountHealthOverlays extends HookWidget {
   const AccountHealthOverlays({

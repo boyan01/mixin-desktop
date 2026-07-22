@@ -1,4 +1,4 @@
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
+import '../src/rust/desktop_api.dart' as rust;
 
 class ConversationListEntry {
   const ConversationListEntry({
@@ -9,32 +9,80 @@ class ConversationListEntry {
     required this.category,
     required this.draft,
     required this.status,
-    this.lastReadMessageId,
     required this.content,
     required this.contentType,
     required this.messageStatus,
     required this.senderId,
     required this.senderName,
-    this.lastMessageAction,
-    this.lastMessageParticipantId,
-    this.lastMessageParticipantName,
     required this.updatedAt,
     required this.unseenCount,
     required this.mentionCount,
     required this.isMuted,
     required this.isVerified,
-    this.isScam = false,
     required this.isBot,
-    this.isBotGroup = false,
-    this.membership,
     required this.isPinned,
-    this.pinTime,
     required this.relationship,
     required this.identityNumber,
     required this.circleIds,
     required this.groupAvatars,
+    this.lastReadMessageId,
+    this.lastMessageAction,
+    this.lastMessageParticipantId,
+    this.lastMessageParticipantName,
+    this.isScam = false,
+    this.isBotGroup = false,
+    this.membership,
+    this.pinTime,
     this.participantCount = 0,
   });
+
+  factory ConversationListEntry.fromRust(rust.ConversationListItem item) =>
+      ConversationListEntry(
+        id: item.conversationId,
+        ownerId: item.ownerId,
+        name: item.name,
+        avatarUrl: item.avatarUrl,
+        category: item.category,
+        draft: item.draft,
+        status: item.status,
+        lastReadMessageId: item.lastReadMessageId,
+        content: item.lastMessage,
+        contentType: item.lastMessageCategory,
+        messageStatus: item.lastMessageStatus,
+        senderId: item.lastMessageSenderId,
+        senderName: item.lastMessageSenderName,
+        lastMessageAction: item.lastMessageAction,
+        lastMessageParticipantId: item.lastMessageParticipantId,
+        lastMessageParticipantName: item.lastMessageParticipantName,
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(
+          item.updatedAtMillis,
+        ),
+        unseenCount: item.unseenCount,
+        mentionCount: item.mentionCount,
+        isMuted: item.isMuted,
+        isVerified: item.isVerified,
+        isScam: item.isScam,
+        isBot: item.isBot,
+        isBotGroup: item.isBotGroup,
+        membership: item.membership,
+        isPinned: item.isPinned,
+        pinTime: item.pinTimeMillis == 0
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(item.pinTimeMillis),
+        relationship: item.relationship,
+        identityNumber: item.identityNumber,
+        circleIds: item.circleIds,
+        participantCount: item.participantCount,
+        groupAvatars: item.groupAvatars
+            .map(
+              (avatar) => ConversationAvatarEntry(
+                userId: avatar.userId,
+                name: avatar.name,
+                avatarUrl: avatar.avatarUrl,
+              ),
+            )
+            .toList(growable: false),
+      );
 
   final String id;
   final String ownerId;
@@ -70,54 +118,6 @@ class ConversationListEntry {
   final int participantCount;
 
   bool get isGroup => category == 'GROUP';
-
-  factory ConversationListEntry.fromRust(rust.ConversationListItem item) =>
-      ConversationListEntry(
-        id: item.conversationId,
-        ownerId: item.ownerId,
-        name: item.name,
-        avatarUrl: item.avatarUrl,
-        category: item.category,
-        draft: item.draft,
-        status: item.status,
-        lastReadMessageId: item.lastReadMessageId,
-        content: item.lastMessage,
-        contentType: item.lastMessageCategory,
-        messageStatus: item.lastMessageStatus,
-        senderId: item.lastMessageSenderId,
-        senderName: item.lastMessageSenderName,
-        lastMessageAction: item.lastMessageAction,
-        lastMessageParticipantId: item.lastMessageParticipantId,
-        lastMessageParticipantName: item.lastMessageParticipantName,
-        updatedAt: DateTime.fromMillisecondsSinceEpoch(
-          item.updatedAtMillis.toInt(),
-        ),
-        unseenCount: item.unseenCount.toInt(),
-        mentionCount: item.mentionCount.toInt(),
-        isMuted: item.isMuted,
-        isVerified: item.isVerified,
-        isScam: item.isScam,
-        isBot: item.isBot,
-        isBotGroup: item.isBotGroup,
-        membership: item.membership,
-        isPinned: item.isPinned,
-        pinTime: item.pinTimeMillis.toInt() == 0
-            ? null
-            : DateTime.fromMillisecondsSinceEpoch(item.pinTimeMillis.toInt()),
-        relationship: item.relationship,
-        identityNumber: item.identityNumber,
-        circleIds: item.circleIds,
-        participantCount: item.participantCount.toInt(),
-        groupAvatars: item.groupAvatars
-            .map(
-              (avatar) => ConversationAvatarEntry(
-                userId: avatar.userId,
-                name: avatar.name,
-                avatarUrl: avatar.avatarUrl,
-              ),
-            )
-            .toList(growable: false),
-      );
 }
 
 class ConversationAvatarEntry {

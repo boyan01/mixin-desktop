@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
+import '../models/conversation_list_entry.dart';
 
 class ConversationAvatarView extends StatelessWidget {
   const ConversationAvatarView({

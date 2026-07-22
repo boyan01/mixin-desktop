@@ -57,7 +57,7 @@ void main() {
         event(
           category: 'MESSAGE_PIN',
           content:
-              '{"category":"APP_CARD","content":"{\\"title\\":\\"PIN Updated\\"}"}',
+              r'{"category":"APP_CARD","content":"{\"title\":\"PIN Updated\"}"}',
         ),
       ),
       'Alice pinned [PIN Updated]',

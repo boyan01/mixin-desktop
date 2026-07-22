@@ -6,28 +6,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
-import 'package:mixin_desktop_ui/controllers/app_controller.dart';
-import 'package:mixin_desktop_ui/controllers/network_controller.dart';
-import 'package:mixin_desktop_ui/controllers/security_controller.dart';
-import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/network/core_http_scope.dart';
-import 'package:mixin_desktop_ui/pages/home_page.dart';
-import 'package:mixin_desktop_ui/pages/login_page.dart';
-import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/utils/text_input_action_handler.dart';
-import 'package:mixin_desktop_ui/widgets/auth_guard.dart';
-import 'package:mixin_desktop_ui/widgets/move_window.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/qr_login_card.dart';
-import 'package:mixin_desktop_ui/widgets/system_tray.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
+
+import 'constants/assets.dart';
+import 'controllers/app_controller.dart';
+import 'controllers/network_controller.dart';
+import 'controllers/security_controller.dart';
+import 'controllers/settings_controller.dart';
+import 'l10n/generated/app_localizations.dart';
+import 'l10n/l10n.dart';
+import 'network/core_http_scope.dart';
+import 'pages/home_page.dart';
+import 'pages/login_page.dart';
+import 'src/rust/desktop_api.dart';
+import 'theme.dart';
+import 'utils/text_input_action_handler.dart';
+import 'widgets/auth_guard.dart';
+import 'widgets/mixin_dialog.dart';
+import 'widgets/move_window.dart';
+import 'widgets/qr_login_card.dart';
+import 'widgets/system_tray.dart';
+import 'widgets/toast.dart';
 
 final rootRouteObserver = RouteObserver<ModalRoute<dynamic>>();
 
@@ -359,9 +360,9 @@ class _SignedOutMacMenuBar extends StatelessWidget {
                 ),
               ),
               if (kDebugMode)
-                PlatformMenuItemGroup(
+                const PlatformMenuItemGroup(
                   members: [
-                    const PlatformMenuItem(label: 'chat backup and restore'),
+                    PlatformMenuItem(label: 'chat backup and restore'),
                   ],
                 ),
               PlatformMenuItem(label: context.l10n.createCircle),

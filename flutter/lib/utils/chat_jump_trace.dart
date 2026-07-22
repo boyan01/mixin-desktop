@@ -1,5 +1,5 @@
 import 'package:flutter/widgets.dart';
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
+import 'app_logger.dart';
 
 const chatJumpTraceEnabled = bool.fromEnvironment('MIXIN_CHAT_JUMP_TRACE');
 const chatScrollTraceEnabled =

@@ -42,7 +42,6 @@ class MessageWindowLoader {
 
   factory MessageWindowLoader.fromAccount(
     rust.AccountHandle account,
-    String conversationId,
   ) {
     Future<List<MessageListEntry>> messagesByIds(List<String> ids) async {
       if (ids.isEmpty) return const [];
@@ -82,8 +81,6 @@ class MessageWindowLoader {
       recentMessages: (conversationId, limit) async =>
           (await account.message().messages(
             conversationId: conversationId,
-            beforeCreatedAtMicros: null,
-            beforeMessageId: null,
             limit: limit,
           )).map(MessageListEntry.fromRust).toList(growable: false),
       messageOrderInfo: (messageId) async {
@@ -94,9 +91,9 @@ class MessageWindowLoader {
             ? null
             : MessageOrderInfo(
                 messageId: info.messageId,
-                rowId: info.rowId.toInt(),
+                rowId: info.rowId,
                 createdAt: DateTime.fromMicrosecondsSinceEpoch(
-                  info.createdAtMicros.toInt(),
+                  info.createdAtMicros,
                 ),
               );
       },
@@ -246,7 +243,7 @@ class MessageWindowLoader {
     final isLatest = bottomList.length < halfLimit;
     final isOldest = topList.length < halfLimit;
 
-    if (bottomList.isEmpty && center != null) {
+    if (bottomList.isEmpty) {
       topList = [...topList, center];
       center = null;
     }

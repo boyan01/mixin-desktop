@@ -3,30 +3,31 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:filesize/filesize.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:filesize/filesize.dart';
 import 'package:markdown_widget/markdown_widget.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
-import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/attachment_status.dart';
-import 'package:mixin_desktop_ui/widgets/image_by_blur_hash.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/message_audio.dart';
-import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
-import 'package:mixin_desktop_ui/widgets/message_layout.dart';
-import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
-import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
-import 'package:mixin_desktop_ui/widgets/post_markdown.dart';
-import 'package:provider/provider.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_item.dart';
 import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p;
+import 'package:provider/provider.dart';
+
+import '../constants/assets.dart';
+import '../controllers/settings_controller.dart';
+import '../l10n/generated/app_localizations.dart';
+import '../models/message_list_entry.dart';
+import '../theme.dart';
+import 'attachment_status.dart';
+import 'image_by_blur_hash.dart';
+import 'interactive_decorated_box.dart';
+import 'message_audio.dart';
+import 'message_bubble.dart';
+import 'message_items/special_message_items.dart';
+import 'message_layout.dart';
+import 'message_selectable_text.dart';
+import 'mixin_image.dart';
+import 'post_markdown.dart';
+import 'sticker_page/sticker_item.dart';
 
 typedef MessageEntryCallback = void Function(MessageListEntry message);
 
@@ -1054,7 +1055,7 @@ class _MediaImage extends StatelessWidget {
     final isUndownloadedGiphy =
         message.mediaMimeType == 'image/gif' &&
         (message.mediaSize == null || message.mediaSize == 0);
-    final Widget thumbnail = isUndownloadedGiphy
+    final thumbnail = isUndownloadedGiphy
         ? _imageForSource(
                 thumbImage,
                 fit: fit,
@@ -1195,10 +1196,10 @@ Size _imageMessageSize(
   required int? mediaWidth,
   required int? mediaHeight,
 }) {
-  final sourceWidth = math.max(1, mediaWidth ?? 1);
-  final sourceHeight = math.max(1, mediaHeight ?? 1);
-  final maxWidth = math.min(constraints.maxWidth * 0.6, 300.0);
-  final minWidth = math.max(constraints.maxWidth * 0.2, 200.0);
+  final sourceWidth = math.max(1, (mediaWidth ?? 1).toDouble());
+  final sourceHeight = math.max(1, (mediaHeight ?? 1).toDouble());
+  final maxWidth = math.min(constraints.maxWidth * 0.6, 300);
+  final minWidth = math.max(constraints.maxWidth * 0.2, 200);
   final width = math.max(
     math.min(sourceWidth / MediaQuery.devicePixelRatioOf(context), maxWidth),
     minWidth,
@@ -1207,7 +1208,7 @@ Size _imageMessageSize(
     width / (sourceWidth / sourceHeight),
     MediaQuery.sizeOf(context).height * 2 / 3,
   );
-  return Size(width, height);
+  return Size(width.toDouble(), height);
 }
 
 Size _videoMessageSize(
@@ -1216,7 +1217,7 @@ Size _videoMessageSize(
   required int? mediaHeight,
 }) {
   const fallback = 200;
-  final maxWidth = math.min(constraints.maxWidth * 0.6, 200.0);
+  final maxWidth = math.min(constraints.maxWidth * 0.6, 200);
   final width = math.min(mediaWidth ?? fallback, maxWidth).toDouble();
   final scale = (mediaWidth ?? fallback) / (mediaHeight ?? fallback);
   return Size(width, width / scale);

@@ -4,18 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart'
-    show AccountHandle, UserProfileItem;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
+import '../constants/assets.dart';
+import '../l10n/l10n.dart';
+import '../models/conversation_list_entry.dart';
+import '../models/message_list_entry.dart';
+import '../src/rust/desktop_api.dart' show AccountHandle, UserProfileItem;
+import '../theme.dart';
+import 'avatar_view.dart';
+import 'badges_widget.dart';
+import 'high_light_text.dart';
+import 'interactive_decorated_box.dart';
+import 'message_selectable_text.dart';
 
 const _defaultLimit = 3;
 

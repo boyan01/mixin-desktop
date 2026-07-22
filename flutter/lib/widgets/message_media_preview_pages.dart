@@ -9,26 +9,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:markdown_widget/markdown_widget.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/theme.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path/path.dart' as path;
-import 'package:mixin_desktop_ui/utils/system_clipboard.dart';
-import 'package:mixin_desktop_ui/widgets/post_markdown.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/custom_popup_menu.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/image_by_blur_hash.dart';
-import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
-import 'package:mixin_desktop_ui/widgets/unbounded_slider.dart';
-import 'package:mixin_desktop_ui/widgets/video_progress_bar.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
+
+import '../constants/assets.dart';
+import '../controllers/settings_controller.dart';
+import '../l10n/l10n.dart';
+import '../theme.dart';
+import '../utils/system_clipboard.dart';
+import 'action_button.dart';
+import 'avatar_view.dart';
+import 'buttons.dart';
+import 'custom_popup_menu.dart';
+import 'image_by_blur_hash.dart';
+import 'interactive_decorated_box.dart';
+import 'post_markdown.dart';
+import 'settings_widgets.dart';
+import 'toast.dart';
+import 'unbounded_slider.dart';
+import 'video_progress_bar.dart';
 
 typedef ImagePreviewAction = FutureOr<void> Function(ImagePreviewEntry image);
 typedef ImagePreviewForward = Future<bool> Function(ImagePreviewEntry image);
@@ -1070,7 +1071,6 @@ class PostPreviewPage extends StatelessWidget {
                 style: TextStyle(fontSize: fontSize, color: context.theme.text),
                 child: MarkdownWidget(
                   data: content,
-                  selectable: true,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,
                     vertical: 8,

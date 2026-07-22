@@ -9,8 +9,8 @@ import 'package:mixin_desktop_ui/pages/settings_page.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/toast.dart' as app_toast;
-import 'package:provider/provider.dart';
 import 'package:overlay_support/overlay_support.dart';
+import 'package:provider/provider.dart';
 
 const _profile = AccountProfile(
   userId: 'ea91421a-98bb-41d2-abcf-af013d8b874b',

@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
 import 'package:overlay_support/overlay_support.dart';
+
+import '../constants/assets.dart';
+import '../l10n/l10n.dart';
+import '../utils/app_logger.dart';
 
 class Toast {
   Toast._();

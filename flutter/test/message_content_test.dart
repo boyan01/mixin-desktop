@@ -8,8 +8,8 @@ import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
 import 'package:mixin_desktop_ui/widgets/image_by_blur_hash.dart';
 import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/message_content.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
+import 'package:mixin_desktop_ui/widgets/message_content.dart';
 import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
 import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
 import 'package:provider/provider.dart';
@@ -45,7 +45,7 @@ void main() {
       ),
     );
 
-    await render(_message(category: 'PLAIN_TEXT', content: 'Visible text'));
+    await render(_message(content: 'Visible text'));
     expect(find.text('Visible text', findRichText: true), findsOneWidget);
   });
 
@@ -307,7 +307,6 @@ void main() {
     await render(
       _message(
         id: 'unknown-status',
-        category: 'PLAIN_TEXT',
         content: 'RAW_UNKNOWN_STATUS',
         status: 'UNKNOWN',
       ),
@@ -331,7 +330,6 @@ void main() {
 
     await render(
       _message(
-        category: 'PLAIN_TEXT',
         content: 'RAW_FAILED_PAYLOAD',
         status: 'FAILED',
       ),
@@ -553,7 +551,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _TestApp(
+      const _TestApp(
         child: Column(
           children: [
             QuoteMessagePreview(
@@ -562,14 +560,14 @@ void main() {
                   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlF9ScAAAAASUVORK5CYII="}',
               messageId: 'image',
               membership: null,
-              mentionNames: const {},
+              mentionNames: {},
               onOpenMessage: null,
             ),
             QuoteMessagePreview(
               raw: '{"type":"PLAIN_VIDEO","thumb_image":"invalid"}',
               messageId: 'video',
               membership: null,
-              mentionNames: const {},
+              mentionNames: {},
               onOpenMessage: null,
             ),
           ],
@@ -629,12 +627,12 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      _TestApp(
+      const _TestApp(
         child: QuoteMessagePreview(
           raw: '{"user_id":"me","type":"PLAIN_TEXT","content":"Quoted"}',
           messageId: 'quoted',
           membership: null,
-          mentionNames: const {},
+          mentionNames: {},
           onOpenMessage: null,
         ),
       ),

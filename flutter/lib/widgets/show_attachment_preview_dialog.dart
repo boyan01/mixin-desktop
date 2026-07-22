@@ -9,33 +9,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image/image.dart' as image;
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
-import 'package:mixin_desktop_ui/widgets/image_editor.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
-import 'package:video_player/video_player.dart';
 import 'package:super_context_menu/super_context_menu.dart';
+import 'package:video_player/video_player.dart';
+
+import '../constants/assets.dart';
+import '../constants/icon_fonts.dart';
+import '../l10n/l10n.dart';
+import '../theme.dart';
+import 'adaptive_selection_toolbar.dart';
+import 'buttons.dart';
+import 'custom_context_menu.dart';
+import 'image_editor.dart';
+import 'interactive_decorated_box.dart';
+import 'mixin_dialog.dart';
 
 typedef SendAttachmentCallback =
     Future<bool> Function({
       required String path,
       required String kind,
       required String mimeType,
+      required bool silent,
       String? name,
       int? width,
       int? height,
       int? durationMillis,
       String? thumbnail,
       String? caption,
-      required bool silent,
     });
 
 Future<bool> showAttachmentPreviewDialog({
@@ -740,7 +741,7 @@ class _FileIcon extends StatelessWidget {
     ),
     child: Text(
       extension,
-      style: TextStyle(color: mixinSecondaryText, fontSize: 16),
+      style: const TextStyle(color: mixinSecondaryText, fontSize: 16),
     ),
   );
 }

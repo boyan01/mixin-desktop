@@ -35,6 +35,7 @@ class _FakeAccountHandle
         MessageAccess,
         StickerAccess,
         UserAccess {
+  _FakeAccountHandle({this.error});
   @override
   AttachmentAccess attachment() => _attachment;
 
@@ -52,17 +53,17 @@ class _FakeAccountHandle
   @override
   UserAccess user() => this;
 
-  _FakeAccountHandle({this.error});
-
   final Object? error;
-  var signOutCalls = 0;
-  var disposed = false;
+  int signOutCalls = 0;
+  bool disposed = false;
 
   @override
   Future<void> signOut() async {
     signOutCalls++;
     final exception = error;
-    if (exception != null) throw exception;
+    if (exception is Error) throw exception;
+    if (exception is Exception) throw exception;
+    if (exception != null) throw StateError(exception.toString());
   }
 
   @override

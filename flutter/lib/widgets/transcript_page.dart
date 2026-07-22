@@ -2,38 +2,39 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/utils/system_clipboard.dart';
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
-import 'package:mixin_desktop_ui/utils/web_view.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
-import 'package:mixin_desktop_ui/widgets/message_actions_menu.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
-import 'package:mixin_desktop_ui/widgets/message_content.dart';
-import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
-import 'package:mixin_desktop_ui/widgets/message_datetime_and_status.dart';
-import 'package:mixin_desktop_ui/widgets/message_day_time.dart';
-import 'package:mixin_desktop_ui/widgets/message_media_preview_pages.dart';
-import 'package:mixin_desktop_ui/widgets/message_name.dart';
-import 'package:mixin_desktop_ui/widgets/message_presentation.dart';
-import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
-import 'package:mixin_desktop_ui/widgets/message_qr_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/message_rows.dart';
-import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/show_message_user_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:super_context_menu/super_context_menu.dart';
+
+import '../constants/assets.dart';
+import '../controllers/settings_controller.dart';
+import '../l10n/l10n.dart';
+import '../models/conversation_list_entry.dart';
+import '../models/message_list_entry.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../theme.dart';
+import '../utils/app_logger.dart';
+import '../utils/system_clipboard.dart';
+import '../utils/web_view.dart';
+import 'action_button.dart';
+import 'avatar_view.dart';
+import 'custom_context_menu.dart';
+import 'interactive_decorated_box.dart';
+import 'message_action_policy.dart';
+import 'message_actions_menu.dart';
+import 'message_bubble.dart';
+import 'message_content.dart';
+import 'message_datetime_and_status.dart';
+import 'message_day_time.dart';
+import 'message_items/special_message_items.dart';
+import 'message_media_preview_pages.dart';
+import 'message_name.dart';
+import 'message_presentation.dart';
+import 'message_qr_dialog.dart';
+import 'message_rows.dart';
+import 'message_selectable_text.dart';
+import 'mixin_dialog.dart';
+import 'show_message_user_dialog.dart';
 
 Future<void> showTranscriptDialog(
   BuildContext context, {
@@ -230,9 +231,8 @@ class _TranscriptPageState extends State<TranscriptPage>
       _highlightedMessageId = messageId;
       _highlightOpacity = 1;
     });
-    _highlightController
-      ..reset()
-      ..forward();
+    _highlightController.reset();
+    unawaited(_highlightController.forward());
   }
 
   void _onHighlightAnimation() {
@@ -441,7 +441,6 @@ class _TranscriptMessage extends StatelessWidget {
     );
     final presentation = MessagePresentation.fromRow(
       row: row,
-      currentUserId: currentUserId,
       isGroupOrBotGroupConversation: true,
       enableShowAvatar: context.watch<SettingsController>().messageShowAvatar,
     );

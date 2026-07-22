@@ -3,18 +3,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
+import '../../../constants/assets.dart';
+import '../../../l10n/l10n.dart';
+import '../../../models/conversation_list_entry.dart';
+import '../../../src/rust/desktop_api.dart' as rust;
+import '../../../theme.dart';
+import '../../../widgets/avatar_view.dart';
+import '../../../widgets/buttons.dart';
+import '../../../widgets/high_light_text.dart';
+import '../../../widgets/interactive_decorated_box.dart';
+import '../../../widgets/mixin_dialog.dart';
+import '../../../widgets/show_forward_conversation_selector.dart';
+import '../../../widgets/toast.dart';
 
 Future<void> showGroupInviteByLinkDialog(
   BuildContext context, {
@@ -74,7 +74,6 @@ class _GroupInviteByLinkDialogState extends State<_GroupInviteByLinkDialog> {
           .sendText(
             conversationId: target.id,
             content: codeUrl,
-            quoteMessageId: null,
             silent: false,
           )
           .then((_) {}),

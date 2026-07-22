@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/show_snapshot_detail_dialog.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
+
+import '../constants/assets.dart';
+import '../l10n/l10n.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../theme.dart';
+import 'avatar_view.dart';
+import 'buttons.dart';
+import 'mixin_dialog.dart';
+import 'show_snapshot_detail_dialog.dart';
 
 Future<void> showMultisigsPaymentDialog(
   BuildContext context, {

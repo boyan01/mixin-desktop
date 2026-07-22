@@ -5,28 +5,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image/image.dart' as image;
 import 'package:markdown_widget/markdown_widget.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/controllers/conversation_list_controller.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/network/core_http_scope.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
-import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
-import 'package:mixin_desktop_ui/widgets/message_style.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
-import 'package:mixin_desktop_ui/widgets/post_markdown.dart';
-import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
-import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_item.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+
+import '../constants/assets.dart';
+import '../controllers/conversation_list_controller.dart';
+import '../l10n/l10n.dart';
+import '../models/conversation_list_entry.dart';
+import '../models/message_list_entry.dart';
+import '../network/core_http_scope.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../theme.dart';
+import 'avatar_view.dart';
+import 'buttons.dart';
+import 'message_bubble.dart';
+import 'message_items/special_message_items.dart';
+import 'message_style.dart';
+import 'mixin_dialog.dart';
+import 'mixin_image.dart';
+import 'post_markdown.dart';
+import 'settings_widgets.dart';
+import 'show_forward_conversation_selector.dart';
+import 'sticker_page/sticker_item.dart';
 
 enum _SendCategory { text, image, sticker, contact, post, appCard }
 
@@ -249,7 +250,6 @@ Future<void> _sendPayload(
       await account.message().sendText(
         conversationId: conversationId,
         content: payload.data as String,
-        quoteMessageId: null,
         silent: false,
       );
     case _SendCategory.post:
@@ -261,7 +261,6 @@ Future<void> _sendPayload(
       await account.message().sendContact(
         conversationId: conversationId,
         sharedUserId: payload.data as String,
-        quoteMessageId: null,
         silent: false,
       );
     case _SendCategory.sticker:

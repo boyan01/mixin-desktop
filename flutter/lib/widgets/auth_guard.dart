@@ -4,12 +4,13 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/controllers/security_controller.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/theme.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:provider/provider.dart';
+
+import '../constants/assets.dart';
+import '../controllers/security_controller.dart';
+import '../l10n/l10n.dart';
+import '../theme.dart';
 
 class AuthGuard extends StatefulWidget {
   const AuthGuard({required this.child, super.key});

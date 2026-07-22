@@ -3,8 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/utils/chat_jump_trace.dart';
+import '../../models/message_list_entry.dart';
+import '../../utils/chat_jump_trace.dart';
 
 enum ChatScrollRestoreDirection { towardOlder, towardNewer }
 
@@ -415,9 +415,10 @@ class ChatScrollCoordinator {
     final delta = top - snapshot.top;
     if (delta.abs() <= _jumpToTolerance) return;
     final position = scrollController.position;
-    final target = (position.pixels + delta)
-        .clamp(position.minScrollExtent, position.maxScrollExtent)
-        .toDouble();
+    final target = (position.pixels + delta).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
     if ((target - position.pixels).abs() <= _jumpToTolerance) return;
     traceChatJump(
       'viewport-anchor correction anchor=${shortMessageId(snapshot.messageId)} '

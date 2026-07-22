@@ -55,8 +55,8 @@ class _FakeAccount implements AccountHandle, ConversationAccess, UserAccess {
     'first': _item('first', name: 'First', time: 1),
   };
   final requestedIds = <Set<String>>[];
-  var fullLoads = 0;
-  var incrementalLoads = 0;
+  int fullLoads = 0;
+  int incrementalLoads = 0;
 
   @override
   ConversationAccess conversation() => this;

@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
+import '../src/rust/desktop_api.dart';
 
 enum DeviceTransferCommand {
   pullToRemote('pull_to_remote'),

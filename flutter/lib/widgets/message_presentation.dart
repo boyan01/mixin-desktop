@@ -1,5 +1,5 @@
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/widgets/message_rows.dart';
+import '../models/message_list_entry.dart';
+import 'message_rows.dart';
 
 class MessagePresentation {
   const MessagePresentation({
@@ -12,7 +12,6 @@ class MessagePresentation {
 
   factory MessagePresentation.fromRow({
     required MessageRowModel row,
-    required String currentUserId,
     required bool isGroupOrBotGroupConversation,
     required bool enableShowAvatar,
   }) {

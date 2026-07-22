@@ -2,19 +2,20 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/gestures.dart';
 import 'package:desktop_webview_window/desktop_webview_window.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/utils/mixin_uri.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../l10n/l10n.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../theme.dart';
+import '../widgets/high_light_text.dart';
+import '../widgets/mixin_dialog.dart';
+import 'mixin_uri.dart';
 
 void openMessageAction({
   required BuildContext context,
@@ -32,7 +33,6 @@ void openMessageAction({
         account.message().sendText(
           conversationId: conversationId,
           content: content,
-          quoteMessageId: null,
           silent: false,
         ),
       );

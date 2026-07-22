@@ -1,10 +1,10 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' show AccountHandle;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
+import '../src/rust/desktop_api.dart' show AccountHandle;
+import '../theme.dart';
+import '../utils/app_logger.dart';
+import 'high_light_text.dart';
 
 typedef OpenMessageUri = void Function(Uri uri);
 typedef OpenIdentityNumber = void Function(String identityNumber);
@@ -161,18 +161,23 @@ class _SelectableMessageTextState extends State<SelectableMessageText> {
         if (uri != null && widget.onOpenUri != null) {
           onTap = () => widget.onOpenUri!(uri);
         }
-        break;
       case _SegmentType.email:
         final uri = Uri(scheme: 'mailto', path: text);
         if (widget.onOpenUri != null) onTap = () => widget.onOpenUri!(uri);
-        break;
       case _SegmentType.identity:
         final identityNumber = text.substring(1);
         if (widget.onOpenIdentityNumber != null) {
           onTap = () => widget.onOpenIdentityNumber!(identityNumber);
         }
-        text = '@${widget.mentionNames[identityNumber] ?? identityNumber}';
-        break;
+        final displayText =
+            '@${widget.mentionNames[identityNumber] ?? identityNumber}';
+        return _TextSegment(
+          displayText,
+          interactive: true,
+          recognizer: onTap == null
+              ? null
+              : (TapGestureRecognizer()..onTap = onTap),
+        );
     }
     final recognizer = onTap == null
         ? null

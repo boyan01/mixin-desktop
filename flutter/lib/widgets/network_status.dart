@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
-import 'package:mixin_desktop_ui/theme.dart';
+import '../l10n/l10n.dart';
+import '../src/rust/desktop_api.dart';
+import '../theme.dart';
 
 class NetworkStatus extends StatefulWidget {
   const NetworkStatus({required this.account, super.key});

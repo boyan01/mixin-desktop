@@ -1,8 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
+import '../l10n/l10n.dart';
+import '../theme.dart';
+import 'high_light_text.dart';
 
 class MoreExtendedText extends StatefulWidget {
   const MoreExtendedText(this.text, {this.style, super.key});

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
+import '../l10n/l10n.dart';
+import '../models/conversation_list_entry.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../theme.dart';
+import 'avatar_view.dart';
+import 'buttons.dart';
+import 'high_light_text.dart';
+import 'mixin_dialog.dart';
+import 'toast.dart';
 
 Future<String?> showConversationCodeDialog(
   BuildContext context, {
@@ -97,7 +97,7 @@ class _ConversationCodeDialogState extends State<_ConversationCodeDialog> {
               const SizedBox(height: 4),
               CustomSelectableText(
                 context.l10n.participantsCount(
-                  widget.result.participantCount.toInt(),
+                  widget.result.participantCount,
                 ),
                 style: TextStyle(
                   color: context.theme.secondaryText,

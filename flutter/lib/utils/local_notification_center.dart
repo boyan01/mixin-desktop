@@ -13,10 +13,10 @@ Stream<Uri> get notificationSelections => _selectionController.stream;
 Future<void> initNotificationListener() async {
   if (!Platform.isMacOS && !Platform.isLinux && !Platform.isWindows) return;
   await _plugin.initialize(
-    settings: InitializationSettings(
-      macOS: const DarwinInitializationSettings(),
-      linux: const LinuxInitializationSettings(defaultActionName: 'default'),
-      windows: const WindowsInitializationSettings(
+    settings: const InitializationSettings(
+      macOS: DarwinInitializationSettings(),
+      linux: LinuxInitializationSettings(defaultActionName: 'default'),
+      windows: WindowsInitializationSettings(
         appName: 'Mixin Messenger',
         appUserModelId: '14801MixinLtd.MixinDesktop',
         guid: '94B64592-528D-48B4-B37B-C82D634F1BE7',

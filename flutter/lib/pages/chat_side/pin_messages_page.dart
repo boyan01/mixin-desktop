@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
-import 'package:mixin_desktop_ui/widgets/pinned_messages_page.dart';
+
+import '../../l10n/l10n.dart';
+import '../../widgets/pinned_messages_page.dart';
+import '../conversation_info_destination.dart';
+import 'chat_side_scope.dart';
 
 class PinMessagesPage extends StatefulWidget {
   const PinMessagesPage({super.key});

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../src/rust/desktop_api.dart' as rust;
 
 class StickerController extends ChangeNotifier {
   StickerController({required this.account});

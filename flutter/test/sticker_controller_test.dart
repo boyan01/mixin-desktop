@@ -62,7 +62,7 @@ class _FakeAccount implements AccountHandle, StickerAccess {
 
   final String id;
   final Completer<void>? remoteRefresh;
-  var refreshCalls = 0;
+  int refreshCalls = 0;
 
   @override
   String accountId() => id;

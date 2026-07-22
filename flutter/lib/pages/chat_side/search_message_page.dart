@@ -6,20 +6,21 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:markdown/markdown.dart' as markdown;
-import 'package:mixin_desktop_ui/controllers/chat_side_notifier.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/search_text_field.dart';
 import 'package:provider/provider.dart';
+
+import '../../constants/assets.dart';
+import '../../controllers/chat_side_notifier.dart';
+import '../../l10n/l10n.dart';
+import '../../models/message_list_entry.dart';
+import '../../src/rust/desktop_api.dart' as rust;
+import '../../theme.dart';
+import '../../widgets/action_button.dart';
+import '../../widgets/avatar_view.dart';
+import '../../widgets/badges_widget.dart';
+import '../../widgets/high_light_text.dart';
+import '../../widgets/interactive_decorated_box.dart';
+import '../../widgets/search_text_field.dart';
+import 'chat_side_scope.dart';
 
 class SearchMessagePage extends StatefulWidget {
   const SearchMessagePage({super.key});

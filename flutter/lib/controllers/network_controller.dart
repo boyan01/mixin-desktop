@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:mixin_desktop_ui/network/core_http_client.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
+import '../network/core_http_client.dart';
+import '../src/rust/desktop_api.dart';
 
 class NetworkController extends ChangeNotifier {
   NetworkController(this._desktop) : httpClient = CoreHttpClient(_desktop);
@@ -13,8 +13,8 @@ class NetworkController extends ChangeNotifier {
     proxies: [],
   );
   Object? error;
-  var loading = true;
-  var revision = 0;
+  bool loading = true;
+  int revision = 0;
   Future<void> _pendingMutation = Future.value();
 
   bool get enabled => _settings.enabled;

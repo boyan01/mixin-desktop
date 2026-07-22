@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/message_style.dart';
+import '../theme.dart';
+import 'badges_widget.dart';
+import 'high_light_text.dart';
+import 'interactive_decorated_box.dart';
+import 'message_style.dart';
 
 class MessageName extends StatelessWidget {
   const MessageName({

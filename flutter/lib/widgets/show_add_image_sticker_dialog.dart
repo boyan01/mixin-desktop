@@ -1,13 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/dash_path_border.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
+import '../l10n/l10n.dart';
+import '../theme.dart';
+import 'buttons.dart';
+import 'dash_path_border.dart';
+import 'mixin_dialog.dart';
+import 'settings_widgets.dart';
+import 'toast.dart';
 
 Future<void> showAddImageStickerDialog(
   BuildContext context, {

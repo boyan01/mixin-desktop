@@ -10,7 +10,7 @@ void main() {
     final coordinator = ChatScrollCoordinator();
     addTearDown(coordinator.dispose);
     final viewportKey = GlobalKey();
-    final messageKey = const MessageGlobalKey('message');
+    const messageKey = MessageGlobalKey('message');
     coordinator
       ..viewportKey = viewportKey
       ..registerRenderedMessageId('message');
@@ -28,7 +28,7 @@ void main() {
               SliverList.list(
                 children: [
                   SizedBox(height: spacerHeight),
-                  SizedBox(key: messageKey, height: 40),
+                  const SizedBox(key: messageKey, height: 40),
                   const SizedBox(height: 800),
                 ],
               ),

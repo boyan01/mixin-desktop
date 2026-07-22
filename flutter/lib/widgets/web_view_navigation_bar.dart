@@ -1,8 +1,8 @@
 import 'package:desktop_webview_window/desktop_webview_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/theme.dart';
+import '../constants/assets.dart';
+import '../theme.dart';
 
 class WebViewNavigationBar extends StatelessWidget {
   const WebViewNavigationBar({super.key});

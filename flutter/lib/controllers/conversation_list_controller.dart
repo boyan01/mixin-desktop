@@ -1,13 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:mixin_desktop_ui/controllers/conversation_list_store.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/models/command_palette_item.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+
+import '../models/command_palette_item.dart';
+import '../models/conversation_list_entry.dart';
+import '../models/message_list_entry.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../utils/app_logger.dart';
+import 'conversation_list_store.dart';
 
 const _unseenCountThrottle = Duration(milliseconds: 333);
 const _changeMergeWindow = Duration(milliseconds: 16);
@@ -175,14 +176,12 @@ class ConversationListController extends ChangeNotifier {
       category: ConversationCategoryFilter.chats.name,
       limit: 100,
     );
-    final items = <CommandPaletteItem>[
+    return <CommandPaletteItem>[
       ...conversations.map(
         (item) => CommandPaletteItem.conversation(item, normalized),
       ),
       ...users.map((item) => CommandPaletteItem.user(item, normalized)),
-    ];
-    items.sort((left, right) => right.matchScore.compareTo(left.matchScore));
-    return items;
+    ]..sort((left, right) => right.matchScore.compareTo(left.matchScore));
   }
 
   void _scheduleMessageSearch() {
@@ -209,7 +208,6 @@ class ConversationListController extends ChangeNotifier {
         final results = await Future.wait<dynamic>([
           account.message().searchGlobalMessages(
             query: normalized,
-            anchorMessageId: null,
             limit: 32,
           ),
           account.user().searchLocalUsers(
@@ -529,8 +527,8 @@ class ConversationListController extends ChangeNotifier {
         final key = item.category == ConversationCategoryFilter.circle.name
             ? 'circle:${item.circleId}'
             : item.category;
-        _unseenCounts[key] = item.count.toInt();
-        _mutedUnseenCounts[key] = item.mutedCount.toInt();
+        _unseenCounts[key] = item.count;
+        _mutedUnseenCounts[key] = item.mutedCount;
       }
       notifyListeners();
     } catch (exception, stackTrace) {

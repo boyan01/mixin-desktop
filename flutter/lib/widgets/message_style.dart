@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
-import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:provider/provider.dart';
+
+import '../controllers/settings_controller.dart';
 
 extension MessageStyleExtension on BuildContext {
   MessageStyle get messageStyle =>

@@ -15,26 +15,27 @@ import 'package:intl/intl.dart' as intl;
 import 'package:latlng/latlng.dart';
 import 'package:map/map.dart' as map;
 import 'package:markdown/markdown.dart' as markdown;
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/utils/name_color.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/image_by_blur_hash.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
-import 'package:mixin_desktop_ui/widgets/message_layout.dart';
-import 'package:mixin_desktop_ui/widgets/message_media_preview_pages.dart';
-import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
-import 'package:mixin_desktop_ui/widgets/message_style.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_item.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:pointycastle/digests/sha3.dart';
+
+import '../../constants/assets.dart';
+import '../../l10n/generated/app_localizations.dart';
+import '../../l10n/l10n.dart';
+import '../../models/message_list_entry.dart';
+import '../../theme.dart';
+import '../../utils/name_color.dart';
+import '../avatar_view.dart';
+import '../badges_widget.dart';
+import '../high_light_text.dart';
+import '../image_by_blur_hash.dart';
+import '../interactive_decorated_box.dart';
+import '../message_bubble.dart';
+import '../message_layout.dart';
+import '../message_media_preview_pages.dart';
+import '../message_selectable_text.dart';
+import '../message_style.dart';
+import '../mixin_image.dart';
+import '../sticker_page/sticker_item.dart';
+import '../toast.dart';
 
 typedef MessageStringCallback = void Function(String value);
 typedef MessageUriCallback = void Function(Uri uri);
@@ -534,7 +535,6 @@ class AppButtonGroupMessageItem extends StatelessWidget {
       isCurrentUser: isCurrentUser,
       showNip: showNip,
       showBubble: false,
-      highlighted: false,
       padding: EdgeInsets.zero,
       quote: quote,
       isPinnedPage: isPinnedPage,
@@ -566,8 +566,8 @@ class AppCardMessageItem extends StatelessWidget {
     required this.isCurrentUser,
     required this.showNip,
     required this.highlighted,
-    this.highlightOpacity = 0,
     required this.dateAndStatus,
+    this.highlightOpacity = 0,
     super.key,
     this.quote,
     this.onOpenUri,
@@ -705,7 +705,6 @@ class _ActionsCardMessage extends StatelessWidget {
         showBubble: false,
         padding: EdgeInsets.zero,
         includeNip: true,
-        highlighted: false,
         quote: quote,
         isPinnedPage: isPinnedPage,
         onPinnedMessageTap: onPinnedMessageTap,
@@ -721,7 +720,6 @@ class _ActionsCardMessage extends StatelessWidget {
               highlightOpacity: highlightOpacity,
               padding: EdgeInsets.zero,
               clip: true,
-              includeNip: false,
               shrinkWrap: true,
               child: ConstrainedBox(
                 key: Key('app-card-body-$messageId'),
@@ -1647,7 +1645,7 @@ class _InscriptionCard extends StatelessWidget {
 }
 
 class _AssetIcon extends StatelessWidget {
-  const _AssetIcon({this.iconUrl, this.chainIconUrl, required this.size});
+  const _AssetIcon({required this.size, this.iconUrl, this.chainIconUrl});
 
   final String? iconUrl;
   final String? chainIconUrl;
@@ -1899,7 +1897,7 @@ class _TextInscriptionContentState extends State<_TextInscriptionContent> {
       LayoutBuilder(
         builder: (context, constraints) {
           final textStyle = TextStyle(
-            color: Color.fromRGBO(255, 167, 36, 1),
+            color: const Color.fromRGBO(255, 167, 36, 1),
             fontSize: widget.mode.fontSize,
             fontWeight: FontWeight.bold,
           );
@@ -2207,6 +2205,12 @@ class _LocationData {
 
 class _ActionData {
   const _ActionData(this.label, this.action, this.color);
+
+  factory _ActionData.fromJson(Map<String, dynamic> json) => _ActionData(
+    json['label']?.toString() ?? '',
+    json['action']?.toString() ?? '',
+    _parseColor(json['color']?.toString()),
+  );
   final String label;
   final String action;
   final Color color;
@@ -2264,12 +2268,6 @@ class _ActionData {
       return null;
     }
   }
-
-  factory _ActionData.fromJson(Map<String, dynamic> json) => _ActionData(
-    json['label']?.toString() ?? '',
-    json['action']?.toString() ?? '',
-    _parseColor(json['color']?.toString()),
-  );
 }
 
 class _AppCardData {
@@ -2306,7 +2304,7 @@ class _AppCardData {
         json['description']?.toString() ?? '',
         json['action']?.toString() ?? '',
         actions,
-        json['shareable'] is bool ? json['shareable'] as bool : true,
+        json['shareable'] is! bool || json['shareable'] as bool,
       );
     } on Object {
       return null;

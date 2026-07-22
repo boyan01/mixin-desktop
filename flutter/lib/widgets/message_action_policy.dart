@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
+import '../models/message_list_entry.dart';
 
 class MessageActionPolicy {
   const MessageActionPolicy({

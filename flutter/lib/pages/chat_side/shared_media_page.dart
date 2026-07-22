@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
 import 'package:super_context_menu/super_context_menu.dart';
 
+import '../../constants/icon_fonts.dart';
+import '../../l10n/l10n.dart';
+import '../../theme.dart';
+import '../../widgets/custom_context_menu.dart';
+import 'chat_side_scope.dart';
 import 'share_media/file_page.dart';
 import 'share_media/media_page.dart';
 import 'share_media/post_page.dart';
@@ -18,7 +18,7 @@ class SharedMediaPage extends StatefulWidget {
 }
 
 class _SharedMediaPageState extends State<SharedMediaPage> {
-  var selectedIndex = 0;
+  int selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) => ChatSidePageScaffold(

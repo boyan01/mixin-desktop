@@ -3,79 +3,80 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui show BoxHeightStyle;
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_portal/flutter_portal.dart';
-import 'package:file_selector/file_selector.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
-import 'package:mixin_desktop_ui/controllers/chat_side_notifier.dart';
-import 'package:mixin_desktop_ui/controllers/message_controller.dart';
-import 'package:mixin_desktop_ui/controllers/mention_controller.dart';
-import 'package:mixin_desktop_ui/controllers/message_action_controller.dart';
-import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
-import 'package:mixin_desktop_ui/controllers/sticker_controller.dart';
-import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
-import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
-import 'package:mixin_desktop_ui/utils/system_clipboard.dart';
-import 'package:mixin_desktop_ui/utils/name_color.dart';
-import 'package:mixin_desktop_ui/utils/web_view.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
-import 'package:mixin_desktop_ui/widgets/animated_visibility.dart';
-import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
-import 'package:mixin_desktop_ui/widgets/chat_drop_overlay.dart';
-import 'package:mixin_desktop_ui/widgets/chat/chat_history_viewport.dart';
-import 'package:mixin_desktop_ui/widgets/chat/chat_scroll_coordinator.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
-import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
-import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
-import 'package:mixin_desktop_ui/widgets/message_actions_menu.dart';
-import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
-import 'package:mixin_desktop_ui/widgets/custom_popup_menu.dart';
-import 'package:mixin_desktop_ui/widgets/message_audio.dart';
-import 'package:mixin_desktop_ui/widgets/message_content.dart';
-import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
-import 'package:mixin_desktop_ui/widgets/message_day_time.dart';
-import 'package:mixin_desktop_ui/widgets/message_datetime_and_status.dart';
-import 'package:mixin_desktop_ui/widgets/message_media_preview_pages.dart';
-import 'package:mixin_desktop_ui/widgets/message_name.dart';
-import 'package:mixin_desktop_ui/widgets/message_presentation.dart';
-import 'package:mixin_desktop_ui/widgets/message_qr_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/message_rows.dart';
-import 'package:mixin_desktop_ui/widgets/message_style.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/pin_message_bubble.dart';
-import 'package:mixin_desktop_ui/widgets/show_message_user_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/show_snapshot_detail_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/show_attachment_preview_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
-import 'package:mixin_desktop_ui/widgets/show_add_image_sticker_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/transcript_page.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
-import 'package:mixin_desktop_ui/widgets/waveform_widget.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_button.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_detail_page.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:super_context_menu/super_context_menu.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:visibility_detector/visibility_detector.dart';
+
+import '../constants/assets.dart';
+import '../constants/icon_fonts.dart';
+import '../controllers/chat_side_notifier.dart';
+import '../controllers/mention_controller.dart';
+import '../controllers/message_action_controller.dart';
+import '../controllers/message_controller.dart';
+import '../controllers/settings_controller.dart';
+import '../controllers/sticker_controller.dart';
+import '../controllers/voice_recorder_controller.dart';
+import '../l10n/generated/app_localizations.dart';
+import '../l10n/l10n.dart';
+import '../models/conversation_list_entry.dart';
+import '../models/message_list_entry.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../theme.dart';
+import '../utils/app_logger.dart';
+import '../utils/name_color.dart';
+import '../utils/system_clipboard.dart';
+import '../utils/web_view.dart';
+import 'action_button.dart';
+import 'adaptive_selection_toolbar.dart';
+import 'animated_visibility.dart';
+import 'avatar_view.dart';
+import 'badges_widget.dart';
+import 'chat/chat_history_viewport.dart';
+import 'chat/chat_scroll_coordinator.dart';
+import 'chat_drop_overlay.dart';
+import 'custom_context_menu.dart';
+import 'custom_popup_menu.dart';
+import 'high_light_text.dart';
+import 'interactive_decorated_box.dart';
+import 'message_action_policy.dart';
+import 'message_actions_menu.dart';
+import 'message_audio.dart';
+import 'message_bubble.dart';
+import 'message_content.dart';
+import 'message_datetime_and_status.dart';
+import 'message_day_time.dart';
+import 'message_items/special_message_items.dart';
+import 'message_media_preview_pages.dart';
+import 'message_name.dart';
+import 'message_presentation.dart';
+import 'message_qr_dialog.dart';
+import 'message_rows.dart';
+import 'message_selectable_text.dart';
+import 'message_style.dart';
+import 'mixin_dialog.dart';
+import 'pin_message_bubble.dart';
+import 'show_add_image_sticker_dialog.dart';
+import 'show_attachment_preview_dialog.dart';
+import 'show_forward_conversation_selector.dart';
+import 'show_message_user_dialog.dart';
+import 'show_snapshot_detail_dialog.dart';
+import 'sticker_page/sticker_button.dart';
+import 'sticker_page/sticker_detail_page.dart';
+import 'toast.dart';
+import 'transcript_page.dart';
+import 'waveform_widget.dart';
 
 const _maxTextLength = 64 * 1024;
 
@@ -367,13 +368,13 @@ class _ChatViewState extends State<ChatView>
             required path,
             required kind,
             required mimeType,
+            required silent,
             name,
             width,
             height,
             durationMillis,
             thumbnail,
             caption,
-            required silent,
           }) => _messageActions.sendAttachment(
             path: path,
             kind: kind,
@@ -1623,7 +1624,6 @@ class _ChatMessageState extends State<_ChatMessage> {
     );
     final presentation = MessagePresentation.fromRow(
       row: row,
-      currentUserId: widget.currentUserId,
       isGroupOrBotGroupConversation: resolveGroupOrBotGroupConversation(
         message: widget.message,
         isGroup: widget.isGroup,
@@ -2843,7 +2843,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
     BuildContext context,
     AppLocalizations? l10n,
     bool sendable,
-  ) => Container(
+  ) => ColoredBox(
     key: const Key('chat-input-bar'),
     color: context.theme.primary,
     child: Column(
@@ -2965,12 +2965,12 @@ class _ChatInputBarState extends State<ChatInputBar> {
                               fontSize: 14,
                               color: context.theme.text,
                             ),
-                            decoration: InputDecoration(
+                            decoration: const InputDecoration(
                               isDense: true,
                               border: InputBorder.none,
                               enabledBorder: InputBorder.none,
                               focusedBorder: InputBorder.none,
-                              contentPadding: const EdgeInsets.only(
+                              contentPadding: EdgeInsets.only(
                                 left: 8,
                                 top: 8,
                                 bottom: 8,
@@ -3144,8 +3144,8 @@ class _MentionPanel extends StatelessWidget {
     required this.users,
     required this.keyword,
     required this.selectedIndex,
-    this.scrollController,
     required this.onSelected,
+    this.scrollController,
   });
 
   final List<rust.ConversationParticipantItem> users;

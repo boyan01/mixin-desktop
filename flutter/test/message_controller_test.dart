@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mixin_desktop_ui/controllers/message_controller.dart';
 import 'package:mixin_desktop_ui/controllers/message_action_controller.dart';
+import 'package:mixin_desktop_ui/controllers/message_controller.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 
@@ -66,8 +66,9 @@ void main() {
     await tester.pump();
     expect(account.markReadCalls, 1);
 
-    account.notifyMessageRevision();
-    account.notifyMessageRevision();
+    account
+      ..notifyMessageRevision()
+      ..notifyMessageRevision();
     await tester.pump();
     await tester.pump();
     expect(account.markReadCalls, 1);
@@ -367,9 +368,9 @@ class _FakeAccountHandle
   final _changes = StreamController<BigInt>.broadcast();
   final _conversationChanges =
       StreamController<ConversationChangeEvent>.broadcast();
-  var markReadCalls = 0;
+  int markReadCalls = 0;
   Completer<void>? markReadCompleter;
-  var messagesAroundCalls = 0;
+  int messagesAroundCalls = 0;
   String? aroundTarget;
   int? aroundBefore;
   int? aroundAfter;
@@ -425,9 +426,9 @@ class _FakeAccountHandle
   @override
   Future<List<MessageListItem>> messages({
     required String conversationId,
+    required int limit,
     int? beforeCreatedAtMicros,
     String? beforeMessageId,
-    required int limit,
   }) async {
     final before = beforeMessageId == null
         ? messagesInDatabase.length

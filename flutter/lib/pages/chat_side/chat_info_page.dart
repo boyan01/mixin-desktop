@@ -3,23 +3,24 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/shared_apps_page.dart';
-import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
-import 'package:mixin_desktop_ui/widgets/custom_popup_menu.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/mute_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/more_extended_text.dart';
-import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
-import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
-import 'package:mixin_desktop_ui/widgets/show_message_user_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
+
+import '../../constants/assets.dart';
+import '../../l10n/l10n.dart';
+import '../../src/rust/desktop_api.dart' as rust;
+import '../../theme.dart';
+import '../../widgets/avatar_view.dart';
+import '../../widgets/badges_widget.dart';
+import '../../widgets/custom_popup_menu.dart';
+import '../../widgets/mixin_dialog.dart';
+import '../../widgets/more_extended_text.dart';
+import '../../widgets/mute_dialog.dart';
+import '../../widgets/settings_widgets.dart';
+import '../../widgets/show_forward_conversation_selector.dart';
+import '../../widgets/show_message_user_dialog.dart';
+import '../../widgets/toast.dart';
+import '../conversation_info_destination.dart';
+import 'chat_side_scope.dart';
+import 'shared_apps_page.dart';
 
 class ChatInfoPage extends StatefulWidget {
   const ChatInfoPage({super.key});
@@ -110,7 +111,6 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
       } else {
         loadedUser = await scope.account.user().userProfile(
           userId: scope.conversation.ownerId,
-          identityNumber: null,
         );
         loadedDeveloperId = await scope.account.user().botCreatorId(
           userId: scope.conversation.ownerId,
@@ -194,7 +194,6 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
           .sendContact(
             conversationId: conversation.id,
             sharedUserId: scope.conversation.ownerId,
-            quoteMessageId: null,
             silent: false,
           )
           .then((_) {}),
@@ -205,8 +204,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
     final scope = ChatSideScope.of(context);
     final muted = detail == null
         ? scope.conversation.isMuted
-        : detail!.muteUntilMillis.toInt() >
-              DateTime.now().millisecondsSinceEpoch;
+        : detail!.muteUntilMillis > DateTime.now().millisecondsSinceEpoch;
     var seconds = 0;
     if (!muted) {
       final selected = await showMuteDialog(context);
@@ -240,9 +238,8 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
         isGroup && participantsLoaded && currentParticipant == null;
     final muted = detail == null
         ? conversation.isMuted
-        : detail!.muteUntilMillis.toInt() >
-              DateTime.now().millisecondsSinceEpoch;
-    final expireIn = detail?.expireIn.toInt() ?? 0;
+        : detail!.muteUntilMillis > DateTime.now().millisecondsSinceEpoch;
+    final expireIn = detail?.expireIn ?? 0;
     final canModifyExpire = !isGroup || isOwnerOrAdmin;
     return ChatSidePageScaffold(
       title: '',
@@ -452,7 +449,6 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                     await _run(
                       () => scope.account.conversation().editConversation(
                         conversationId: conversation.id,
-                        name: null,
                         announcement: value,
                       ),
                     );
@@ -472,7 +468,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                           ? Text(
                               DateFormat('yyyy/MM/dd, hh:mm a').format(
                                 DateTime.fromMillisecondsSinceEpoch(
-                                  detail!.muteUntilMillis.toInt(),
+                                  detail!.muteUntilMillis,
                                 ).toLocal(),
                               ),
                             )
@@ -497,7 +493,6 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                                     .editConversation(
                                       conversationId: conversation.id,
                                       name: value,
-                                      announcement: null,
                                     )
                               : () => scope.account.user().addContact(
                                   userId: conversation.ownerId,
@@ -682,7 +677,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                   context.l10n.createdAt(
                     DateFormat.yMMMd().format(
                       DateTime.fromMillisecondsSinceEpoch(
-                        detail!.createdAtMillis.toInt(),
+                        detail!.createdAtMillis,
                       ).toLocal(),
                     ),
                   ),

@@ -6,9 +6,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mixin_desktop_ui/controllers/app_controller.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
-import 'package:mixin_desktop_ui/pages/home_page.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/chat_info_page.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/search_message_page.dart';
+import 'package:mixin_desktop_ui/pages/home_page.dart';
 import 'package:mixin_desktop_ui/pages/settings_page.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 import 'package:mixin_desktop_ui/theme.dart';
@@ -16,8 +16,8 @@ import 'package:mixin_desktop_ui/widgets/chat_view.dart';
 import 'package:mixin_desktop_ui/widgets/conversation_list_view.dart';
 import 'package:mixin_desktop_ui/widgets/home_sidebar.dart';
 import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
-import 'package:provider/provider.dart';
 import 'package:overlay_support/overlay_support.dart';
+import 'package:provider/provider.dart';
 
 void main() {
   test('resolves the original desktop sidebar breakpoints', () {
@@ -599,9 +599,9 @@ class _FakeAccountHandle
   @override
   Future<PlatformInt64> conversationCount({
     required String category,
-    String? circleId,
     required String keyword,
     required bool unseenOnly,
+    String? circleId,
   }) async {
     conversationKeywords.add(keyword);
     return category == 'chats' && !unseenOnly ? _conversationItems.length : 0;
@@ -610,11 +610,11 @@ class _FakeAccountHandle
   @override
   Future<List<ConversationListItem>> conversations({
     required String category,
-    String? circleId,
     required String keyword,
     required bool unseenOnly,
     required PlatformInt64 limit,
     required PlatformInt64 offset,
+    String? circleId,
   }) async {
     conversationKeywords.add(keyword);
     return category == 'chats' && !unseenOnly ? _conversationItems : const [];
@@ -622,7 +622,7 @@ class _FakeAccountHandle
 
   @override
   Future<void> deleteConversation({required String conversationId}) async {
-    if (mutationError case final error?) throw error;
+    if (mutationError case final error?) _throwMutationError(error);
     await deleteCompleter?.future;
   }
 
@@ -634,7 +634,7 @@ class _FakeAccountHandle
     required bool isGroup,
     required bool add,
   }) async {
-    if (mutationError case final error?) throw error;
+    if (mutationError case final error?) _throwMutationError(error);
   }
 
   @override
@@ -652,9 +652,9 @@ class _FakeAccountHandle
   @override
   Future<List<MessageListItem>> messages({
     required String conversationId,
+    required PlatformInt64 limit,
     int? beforeCreatedAtMicros,
     String? beforeMessageId,
-    required PlatformInt64 limit,
   }) async => const [];
 
   @override
@@ -734,8 +734,8 @@ class _FakeAccountHandle
   Future<String> sendText({
     required String conversationId,
     required String content,
-    String? quoteMessageId,
     required bool silent,
+    String? quoteMessageId,
   }) async {
     sentTexts.add(content);
     return 'message';
@@ -748,7 +748,7 @@ class _FakeAccountHandle
     required String category,
     required PlatformInt64 durationSeconds,
   }) async {
-    if (mutationError case final error?) throw error;
+    if (mutationError case final error?) _throwMutationError(error);
   }
 
   @override
@@ -756,7 +756,7 @@ class _FakeAccountHandle
     required String conversationId,
     required bool pinned,
   }) async {
-    if (mutationError case final error?) throw error;
+    if (mutationError case final error?) _throwMutationError(error);
   }
 
   @override
@@ -770,10 +770,16 @@ class _FakeAccountHandle
 
   @override
   bool get isDisposed => false;
+
+  Never _throwMutationError(Object error) {
+    if (error is Error) throw error;
+    if (error is Exception) throw error;
+    throw StateError(error.toString());
+  }
 }
 
 class _FakeAppController extends AppController {
-  var signOutCalls = 0;
+  int signOutCalls = 0;
 
   @override
   Future<void> signOut() async {

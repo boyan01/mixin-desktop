@@ -6,10 +6,13 @@ void main() {
   test('keeps the original chat side destination stack semantics', () {
     final notifier = ChatSideNotifier();
 
+    // Keep the intermediate assertion explicit instead of combining calls.
+    // ignore: cascade_invocations
     notifier.toggleInfoPage();
     expect(notifier.state.destinations, [ConversationInfoDestination.infoPage]);
 
     notifier.openDestination(ConversationInfoDestination.sharedMedia);
+    // ignore: cascade_invocations
     notifier.openDestination(ConversationInfoDestination.searchMessageHistory);
     expect(notifier.state.destinations, [
       ConversationInfoDestination.infoPage,

@@ -31,8 +31,7 @@ class _RenderMessageLayout extends RenderBox
     with
         ContainerRenderObjectMixin<RenderBox, MultiChildLayoutParentData>,
         RenderBoxContainerDefaultsMixin<RenderBox, MultiChildLayoutParentData> {
-  _RenderMessageLayout({List<RenderBox>? children, double spacing = 0.0})
-    : _spacing = spacing {
+  _RenderMessageLayout({List<RenderBox>? children, this._spacing = 0.0}) {
     addAll(children);
   }
 

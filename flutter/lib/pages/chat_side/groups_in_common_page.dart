@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
+
+import '../../constants/assets.dart';
+import '../../l10n/l10n.dart';
+import '../../models/conversation_list_entry.dart';
+import '../../src/rust/desktop_api.dart' as rust;
+import '../../theme.dart';
+import '../../widgets/avatar_view.dart';
+import '../../widgets/interactive_decorated_box.dart';
+import 'chat_side_scope.dart';
 
 class GroupsInCommonPage extends StatefulWidget {
   const GroupsInCommonPage({super.key});
@@ -35,15 +36,13 @@ class _GroupsInCommonPageState extends State<GroupsInCommonPage> {
     final scope = ChatSideScope.of(context);
     final count = await scope.account.conversation().conversationCount(
       category: 'groups',
-      circleId: null,
       keyword: '',
       unseenOnly: false,
     );
     var offset = 0;
-    while (offset < count.toInt()) {
+    while (offset < count) {
       final conversations = await scope.account.conversation().conversations(
         category: 'groups',
-        circleId: null,
         keyword: '',
         unseenOnly: false,
         limit: 200,
@@ -141,7 +140,7 @@ class _GroupsInCommonPageState extends State<GroupsInCommonPage> {
                                   height: 20,
                                   child: Text(
                                     context.l10n.participantsCount(
-                                      group.participantCount.toInt(),
+                                      group.participantCount,
                                     ),
                                     style: TextStyle(
                                       color: context.theme.secondaryText,

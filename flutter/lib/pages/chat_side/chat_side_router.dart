@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/controllers/chat_side_notifier.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/chat_info_page.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/circle_manager_page.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/disappear_message_page.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/group_participants_page.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/groups_in_common_page.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/pin_messages_page.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/search_message_page.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/shared_apps_page.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/shared_media_page.dart';
-import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
+
+import '../../controllers/chat_side_notifier.dart';
+import '../../models/conversation_list_entry.dart';
+import '../../src/rust/desktop_api.dart' as rust;
+import '../conversation_info_destination.dart';
+import 'chat_info_page.dart';
+import 'chat_side_scope.dart';
+import 'circle_manager_page.dart';
+import 'disappear_message_page.dart';
+import 'group_participants_page.dart';
+import 'groups_in_common_page.dart';
+import 'pin_messages_page.dart';
+import 'search_message_page.dart';
+import 'shared_apps_page.dart';
+import 'shared_media_page.dart';
 
 const kChatSidePageWidth = 300.0;
 

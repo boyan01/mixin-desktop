@@ -2,8 +2,8 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
+import '../theme.dart';
+import 'interactive_decorated_box.dart';
 
 class MixinAdaptiveSelectionToolbar extends StatelessWidget {
   const MixinAdaptiveSelectionToolbar({

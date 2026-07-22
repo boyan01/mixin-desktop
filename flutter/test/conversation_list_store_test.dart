@@ -45,12 +45,11 @@ void main() {
       ..replaceAll([
         _conversation(id: 'older', name: 'Older', updatedAt: 1),
         _conversation(id: 'newer', name: 'Newer', updatedAt: 2),
-      ]);
-
-    store.applyChanges(
-      ['older', 'newer'],
-      [_conversation(id: 'older', name: 'Updated', updatedAt: 3)],
-    );
+      ])
+      ..applyChanges(
+        ['older', 'newer'],
+        [_conversation(id: 'older', name: 'Updated', updatedAt: 3)],
+      );
 
     expect(store.items.map((item) => item.id), ['older']);
     expect(store.item('older')?.name, 'Updated');

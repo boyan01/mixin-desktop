@@ -4,11 +4,12 @@ import 'package:emojis/emoji.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/utils/emoji.dart';
-import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
-import 'package:mixin_desktop_ui/widgets/app_protocol_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../theme.dart';
+import '../utils/emoji.dart';
+import 'adaptive_selection_toolbar.dart';
+import 'app_protocol_handler.dart';
 
 class CustomText extends StatelessWidget {
   const CustomText(

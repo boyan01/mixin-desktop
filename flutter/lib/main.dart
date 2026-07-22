@@ -5,20 +5,21 @@ import 'dart:ui';
 import 'package:desktop_webview_window/desktop_webview_window.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/app.dart';
-import 'package:mixin_desktop_ui/controllers/app_controller.dart';
-import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
-import 'package:mixin_desktop_ui/src/rust/frb_generated.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/utils/local_notification_center.dart';
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
-import 'package:mixin_desktop_ui/utils/system_fonts.dart';
-import 'package:mixin_desktop_ui/widgets/web_view_navigation_bar.dart';
 import 'package:overlay_support/overlay_support.dart';
-import 'package:provider/provider.dart';
 import 'package:protocol_handler/protocol_handler.dart';
+import 'package:provider/provider.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
+
+import 'app.dart';
+import 'controllers/app_controller.dart';
+import 'controllers/settings_controller.dart';
+import 'src/rust/frb_generated.dart';
+import 'theme.dart';
+import 'utils/app_logger.dart';
+import 'utils/local_notification_center.dart';
+import 'utils/system_fonts.dart';
+import 'widgets/web_view_navigation_bar.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,7 +59,8 @@ Future<void> main(List<String> args) async {
   final initialProtocolUrl = defaultTargetPlatform == TargetPlatform.linux
       ? args.firstOrNull
       : await protocolHandler.getInitialUrl();
-  final controller = AppController()..initialize();
+  final controller = AppController();
+  unawaited(controller.initialize());
   final settingsController = SettingsController();
   await settingsController.initialize();
   runApp(

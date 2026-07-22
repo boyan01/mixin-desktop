@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
+import '../constants/assets.dart';
+import '../theme.dart';
+import 'adaptive_selection_toolbar.dart';
+import 'interactive_decorated_box.dart';
 
 class SearchTextField extends StatefulWidget {
   const SearchTextField({

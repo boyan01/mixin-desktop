@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
+import '../src/rust/desktop_api.dart' as rust;
 
 @immutable
 class MessageListEntry {
@@ -8,16 +8,16 @@ class MessageListEntry {
     required this.conversationId,
     required this.senderId,
     required this.senderName,
-    this.senderIdentityNumber = '',
     required this.senderAvatarUrl,
     required this.senderIsVerified,
-    this.senderMembership,
     required this.category,
     required this.content,
     required this.status,
     required this.createdAt,
     required this.mediaDuration,
     required this.mediaStatus,
+    this.senderIdentityNumber = '',
+    this.senderMembership,
     this.mediaUrl,
     this.mediaMimeType,
     this.mediaSize,
@@ -92,11 +92,11 @@ class MessageListEntry {
         content: item.content,
         status: item.status,
         createdAt: DateTime.fromMicrosecondsSinceEpoch(
-          item.createdAtMicros.toInt(),
+          item.createdAtMicros,
         ),
         mediaUrl: item.mediaUrl,
         mediaMimeType: item.mediaMimeType,
-        mediaSize: item.mediaSize?.toInt(),
+        mediaSize: item.mediaSize,
         mediaDuration: item.mediaDuration,
         mediaWidth: item.mediaWidth,
         mediaHeight: item.mediaHeight,
@@ -122,7 +122,7 @@ class MessageListEntry {
         snapshotCreatedAt: item.snapshotCreatedAt,
         inscriptionHash: item.inscriptionHash,
         inscriptionCollectionHash: item.inscriptionCollectionHash,
-        inscriptionSequence: item.inscriptionSequence?.toInt(),
+        inscriptionSequence: item.inscriptionSequence,
         inscriptionContentType: item.inscriptionContentType,
         inscriptionContentUrl: item.inscriptionContentUrl,
         inscriptionName: item.inscriptionName,
@@ -153,7 +153,7 @@ class MessageListEntry {
         stickerAssetType: item.stickerAssetType,
         mentionRead: item.mentionRead,
         pinned: item.pinned,
-        expireIn: item.expireIn?.toInt(),
+        expireIn: item.expireIn,
       );
 
   final String id;
@@ -239,43 +239,42 @@ class MessageListEntry {
   bool get isRecall => category == 'MESSAGE_RECALL';
 
   @override
-  String toString() {
-    return (StringBuffer('MessageListEntry(')
-          ..write('id: $id, ')
-          ..write('conversationId: $conversationId, ')
-          ..write('senderId: $senderId, ')
-          ..write('senderName: $senderName, ')
-          ..write('senderIdentityNumber: $senderIdentityNumber, ')
-          ..write('category: $category, ')
-          ..write('content: $content, ')
-          ..write('status: $status, ')
-          ..write('createdAt: $createdAt, ')
-          ..write('mediaUrl: $mediaUrl, ')
-          ..write('mediaMimeType: $mediaMimeType, ')
-          ..write('mediaSize: $mediaSize, ')
-          ..write('mediaDuration: $mediaDuration, ')
-          ..write('mediaWidth: $mediaWidth, ')
-          ..write('mediaHeight: $mediaHeight, ')
-          ..write('mediaStatus: $mediaStatus, ')
-          ..write('quoteMessageId: $quoteMessageId, ')
-          ..write('quoteContent: $quoteContent, ')
-          ..write('caption: $caption, ')
-          ..write('action: $action, ')
-          ..write('participantId: $participantId, ')
-          ..write('participantFullName: $participantFullName, ')
-          ..write('snapshotId: $snapshotId, ')
-          ..write('snapshotType: $snapshotType, ')
-          ..write('snapshotAmount: $snapshotAmount, ')
-          ..write('snapshotMemo: $snapshotMemo, ')
-          ..write('snapshotAssetId: $snapshotAssetId, ')
-          ..write('snapshotAssetSymbol: $snapshotAssetSymbol, ')
-          ..write('hyperlink: $hyperlink, ')
-          ..write('mediaName: $mediaName, ')
-          ..write('albumId: $albumId, ')
-          ..write('stickerId: $stickerId, ')
-          ..write('sharedUserId: $sharedUserId, ')
-          ..write('pinned: $pinned, ')
-          ..write('expireIn: $expireIn)'))
-        .toString();
-  }
+  String toString() =>
+      (StringBuffer('MessageListEntry(')
+            ..write('id: $id, ')
+            ..write('conversationId: $conversationId, ')
+            ..write('senderId: $senderId, ')
+            ..write('senderName: $senderName, ')
+            ..write('senderIdentityNumber: $senderIdentityNumber, ')
+            ..write('category: $category, ')
+            ..write('content: $content, ')
+            ..write('status: $status, ')
+            ..write('createdAt: $createdAt, ')
+            ..write('mediaUrl: $mediaUrl, ')
+            ..write('mediaMimeType: $mediaMimeType, ')
+            ..write('mediaSize: $mediaSize, ')
+            ..write('mediaDuration: $mediaDuration, ')
+            ..write('mediaWidth: $mediaWidth, ')
+            ..write('mediaHeight: $mediaHeight, ')
+            ..write('mediaStatus: $mediaStatus, ')
+            ..write('quoteMessageId: $quoteMessageId, ')
+            ..write('quoteContent: $quoteContent, ')
+            ..write('caption: $caption, ')
+            ..write('action: $action, ')
+            ..write('participantId: $participantId, ')
+            ..write('participantFullName: $participantFullName, ')
+            ..write('snapshotId: $snapshotId, ')
+            ..write('snapshotType: $snapshotType, ')
+            ..write('snapshotAmount: $snapshotAmount, ')
+            ..write('snapshotMemo: $snapshotMemo, ')
+            ..write('snapshotAssetId: $snapshotAssetId, ')
+            ..write('snapshotAssetSymbol: $snapshotAssetSymbol, ')
+            ..write('hyperlink: $hyperlink, ')
+            ..write('mediaName: $mediaName, ')
+            ..write('albumId: $albumId, ')
+            ..write('stickerId: $stickerId, ')
+            ..write('sharedUserId: $sharedUserId, ')
+            ..write('pinned: $pinned, ')
+            ..write('expireIn: $expireIn)'))
+          .toString();
 }

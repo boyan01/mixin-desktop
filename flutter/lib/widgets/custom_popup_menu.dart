@@ -1,12 +1,13 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
+
+import '../theme.dart';
+import 'action_button.dart';
+import 'interactive_decorated_box.dart';
 
 typedef CustomPopupMenuItemBuilder<T> =
     List<CustomPopupMenuItem<T>> Function(BuildContext context);

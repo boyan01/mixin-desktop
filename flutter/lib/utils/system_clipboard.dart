@@ -7,7 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import 'package:uuid/uuid.dart';
 
-import 'package:mixin_desktop_ui/widgets/toast.dart';
+import '../widgets/toast.dart';
 
 File? existingLocalFile(String? source) {
   final value = source?.trim();

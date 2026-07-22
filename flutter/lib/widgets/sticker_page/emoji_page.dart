@@ -71,7 +71,7 @@ class _EmojiPageBody extends HookWidget {
       'assets/images/emoji_flags.svg',
     ];
 
-    final offset = useState(0.0);
+    final offset = useState<double>(0);
 
     final emojiLineStride = useRef(8);
 
@@ -106,7 +106,7 @@ class _EmojiPageBody extends HookWidget {
         final emojiLineCount =
             (groupedEmojis[i - 1].length / emojiLineStride.value).ceil();
         final emojiItemSize = (layoutWidth - 14 * 2) / emojiLineStride.value;
-        final headerHeight = i == 1 ? 0 : 40;
+        final headerHeight = i == 1 ? 0.0 : 40.0;
         array[i] = array[i - 1] + emojiLineCount * emojiItemSize + headerHeight;
       }
       return array;

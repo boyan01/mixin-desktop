@@ -1,23 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/controllers/conversation_list_controller.dart';
-import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/custom_popup_menu.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/more_extended_text.dart';
-import 'package:mixin_desktop_ui/widgets/show_forward_conversation_selector.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:provider/provider.dart';
+
+import '../constants/assets.dart';
+import '../controllers/conversation_list_controller.dart';
+import '../l10n/generated/app_localizations.dart';
+import '../l10n/l10n.dart';
+import '../models/conversation_list_entry.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../theme.dart';
+import 'action_button.dart';
+import 'avatar_view.dart';
+import 'badges_widget.dart';
+import 'buttons.dart';
+import 'custom_popup_menu.dart';
+import 'high_light_text.dart';
+import 'mixin_dialog.dart';
+import 'more_extended_text.dart';
+import 'show_forward_conversation_selector.dart';
+import 'toast.dart';
 
 enum MessageUserAction { chat, information }
 
@@ -103,12 +104,12 @@ class MessageUserDialog extends StatelessWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Align(
+        const Align(
           alignment: Alignment.centerRight,
           child: Padding(
-            padding: const EdgeInsets.only(right: 8, top: 8),
+            padding: EdgeInsets.only(right: 8, top: 8),
             child: MixinCloseButton(
-              key: const Key('message-user-dialog-close'),
+              key: Key('message-user-dialog-close'),
             ),
           ),
         ),
@@ -315,7 +316,6 @@ class _UserProfileButtonBar extends StatelessWidget {
       account.message().sendContact(
         conversationId: conversation.id,
         sharedUserId: profile.userId,
-        quoteMessageId: null,
         silent: false,
       ),
     );

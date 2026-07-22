@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
+import '../constants/assets.dart';
+import 'mixin_image.dart';
 
 class BadgesWidget extends StatelessWidget {
   const BadgesWidget({
@@ -62,6 +62,8 @@ String? _validMembershipPlan(String? raw) {
         : null;
   } on FormatException {
     return null;
+    // A malformed JSON payload can have a value with an unexpected runtime type.
+    // ignore: avoid_catching_errors
   } on TypeError {
     return null;
   }

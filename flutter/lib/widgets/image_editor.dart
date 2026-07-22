@@ -4,14 +4,15 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/custom_popup_menu.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+
+import '../constants/assets.dart';
+import '../l10n/l10n.dart';
+import '../theme.dart';
+import 'action_button.dart';
+import 'custom_popup_menu.dart';
+import 'mixin_dialog.dart';
 
 Future<String?> showImageEditor(
   BuildContext context, {
@@ -220,9 +221,10 @@ class _ImageEditorDialogState extends State<_ImageEditorDialog> {
                 onSelected: (color) => setState(() => drawColor = color),
               ),
             const SizedBox(height: 8),
-            drawMode == _DrawMode.none
-                ? _normalOperationBar()
-                : _drawOperationBar(),
+            if (drawMode == _DrawMode.none)
+              _normalOperationBar()
+            else
+              _drawOperationBar(),
             const SizedBox(height: 56),
           ],
         ),

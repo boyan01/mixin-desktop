@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/dash_path_border.dart';
+import '../l10n/l10n.dart';
+import '../theme.dart';
+import 'dash_path_border.dart';
 
 class ChatDropOverlay extends StatefulWidget {
   const ChatDropOverlay({

@@ -5,23 +5,24 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/utils/local_notification_center.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
-import 'package:mixin_desktop_ui/widgets/animated_visibility.dart';
-import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
-import 'package:mixin_desktop_ui/widgets/message_content.dart';
-import 'package:mixin_desktop_ui/widgets/message_day_time.dart';
-import 'package:mixin_desktop_ui/widgets/message_datetime_and_status.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' show ProxyItem;
-import 'package:uuid/uuid.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:uuid/uuid.dart';
+
+import '../constants/assets.dart';
+import '../l10n/l10n.dart';
+import '../models/message_list_entry.dart';
+import '../src/rust/desktop_api.dart' show ProxyItem;
+import '../theme.dart';
+import '../utils/local_notification_center.dart';
+import '../widgets/action_button.dart';
+import '../widgets/adaptive_selection_toolbar.dart';
+import '../widgets/animated_visibility.dart';
+import '../widgets/message_bubble.dart';
+import '../widgets/message_content.dart';
+import '../widgets/message_datetime_and_status.dart';
+import '../widgets/message_day_time.dart';
+import '../widgets/mixin_dialog.dart';
+import '../widgets/settings_widgets.dart';
 
 class AppearanceSettingsPage extends StatefulWidget {
   const AppearanceSettingsPage({
@@ -468,8 +469,6 @@ class _AddProxyDialogState extends State<_AddProxyDialog> {
         kind: 'http',
         host: host,
         port: port,
-        username: null,
-        password: null,
       ),
     );
   }

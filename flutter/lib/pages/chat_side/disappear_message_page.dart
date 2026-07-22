@@ -1,20 +1,20 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/custom_popup_menu.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../constants/assets.dart';
+import '../../l10n/l10n.dart';
+import '../../theme.dart';
+import '../../widgets/adaptive_selection_toolbar.dart';
+import '../../widgets/buttons.dart';
+import '../../widgets/custom_popup_menu.dart';
+import '../../widgets/mixin_dialog.dart';
+import '../../widgets/settings_widgets.dart';
+import '../../widgets/toast.dart';
 import 'chat_side_scope.dart';
 
 class DisappearMessagePage extends StatefulWidget {
@@ -72,7 +72,7 @@ class _DisappearMessagePageState extends State<DisappearMessagePage> {
       final detail = await scope.account.conversation().conversationDetail(
         conversationId: scope.conversation.id,
       );
-      if (mounted) setState(() => selected = detail.expireIn.toInt());
+      if (mounted) setState(() => selected = detail.expireIn);
     } on Object catch (exception) {
       if (mounted) setState(() => error = exception);
     }
@@ -251,7 +251,7 @@ class _CustomExpireTimeDialog extends StatefulWidget {
 
 class _CustomExpireTimeDialogState extends State<_CustomExpireTimeDialog> {
   final controller = TextEditingController();
-  var unit = _CustomExpireTimeUnit.second;
+  _CustomExpireTimeUnit unit = _CustomExpireTimeUnit.second;
 
   @override
   void dispose() {

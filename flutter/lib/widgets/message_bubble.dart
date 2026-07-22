@@ -3,10 +3,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
+import '../constants/assets.dart';
+import '../models/message_list_entry.dart';
+import '../theme.dart';
+import 'action_button.dart';
 
 const _nipWidth = 9.0;
 const _lightCurrentBubble = Color.fromRGBO(197, 237, 253, 1);
@@ -163,7 +163,7 @@ class MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clipper = BubbleClipper(currentUser: isCurrentUser, showNip: showNip);
-    Widget content = child;
+    var content = child;
     if (!includeNip) {
       content = MessageBubbleNipPadding(
         currentUser: isCurrentUser,

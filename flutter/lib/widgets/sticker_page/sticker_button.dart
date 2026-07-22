@@ -2,14 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:mixin_desktop_ui/controllers/sticker_controller.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/widgets/hover_overlay.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/add_sticker_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_page.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_store.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_data.dart';
-import 'package:mixin_desktop_ui/widgets/sticker_page/giphy_page.dart';
+
+import '../../controllers/sticker_controller.dart';
+import '../../src/rust/desktop_api.dart' as rust;
+import '../hover_overlay.dart';
+import 'add_sticker_dialog.dart';
+import 'giphy_page.dart';
+import 'sticker_data.dart';
+import 'sticker_page.dart';
+import 'sticker_store.dart';
 
 class StickerButton extends HookWidget {
   const StickerButton({

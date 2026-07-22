@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:mixin_desktop_ui/pages/conversation_info_destination.dart';
 import 'package:provider/provider.dart';
 
+import '../pages/conversation_info_destination.dart';
+
+@immutable
 class ChatSideState {
   const ChatSideState({this.destinations = const []});
 

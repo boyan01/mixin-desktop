@@ -2,13 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/message_audio.dart';
+
+import '../models/conversation_list_entry.dart';
+import '../models/message_list_entry.dart';
+import '../theme.dart';
+import 'action_button.dart';
+import 'avatar_view.dart';
+import 'interactive_decorated_box.dart';
+import 'message_audio.dart';
 
 class AudioPlayerBar extends StatefulWidget {
   const AudioPlayerBar({

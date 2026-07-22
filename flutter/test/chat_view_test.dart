@@ -6,13 +6,13 @@ import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_portal/flutter_portal.dart';
 import 'package:lottie/lottie.dart';
-import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
+import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
@@ -42,8 +42,8 @@ void main() {
       'mixin-image-preview-test-',
     );
     addTearDown(() => tempDirectory.deleteSync(recursive: true));
-    final imageFile = File('${tempDirectory.path}/preview.png');
-    imageFile.writeAsBytesSync(base64Decode(_onePixelPng));
+    final imageFile = File('${tempDirectory.path}/preview.png')
+      ..writeAsBytesSync(base64Decode(_onePixelPng));
     final account = _FakeAccountHandle([
       _message(
         id: 'image',
@@ -447,8 +447,8 @@ void main() {
       'mixin-media-test-',
     );
     addTearDown(() => tempDirectory.deleteSync(recursive: true));
-    final imageFile = File('${tempDirectory.path}/preview.png');
-    imageFile.writeAsBytesSync(base64Decode(_onePixelPng));
+    final imageFile = File('${tempDirectory.path}/preview.png')
+      ..writeAsBytesSync(base64Decode(_onePixelPng));
 
     final messages = [
       _entry(
@@ -1326,7 +1326,7 @@ class _FakeAccountHandle
   final recalledMessageIds = <String>[];
   Object? sendError;
   var _isDisposed = false;
-  var messagesAroundCalls = 0;
+  int messagesAroundCalls = 0;
   final imageMessagesAroundCalls =
       <({String targetMessageId, int before, int after})>[];
   Completer<List<ImageMessageView>>? imageMessagesAroundCompleter;
@@ -1367,9 +1367,9 @@ class _FakeAccountHandle
   @override
   Future<List<MessageListItem>> messages({
     required String conversationId,
+    required int limit,
     int? beforeCreatedAtMicros,
     String? beforeMessageId,
-    required int limit,
   }) async {
     final before = beforeMessageId == null
         ? _messages.length
@@ -1440,10 +1440,10 @@ class _FakeAccountHandle
   Future<String> sendText({
     required String conversationId,
     required String content,
-    String? quoteMessageId,
     required bool silent,
+    String? quoteMessageId,
   }) async {
-    if (sendError case final error?) throw error;
+    if (sendError case final error?) _throwSendError(error);
     sentTexts.add(content);
     sentQuoteMessageIds.add(quoteMessageId);
     final id = 'sent-${sentTexts.length}';
@@ -1542,6 +1542,12 @@ class _FakeAccountHandle
 
   @override
   bool get isDisposed => _isDisposed;
+
+  Never _throwSendError(Object error) {
+    if (error is Error) throw error;
+    if (error is Exception) throw error;
+    throw StateError(error.toString());
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

@@ -1,6 +1,6 @@
-import 'package:mixin_desktop_ui/controllers/message_controller.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/widgets/message_rows.dart';
+import '../../controllers/message_controller.dart';
+import '../../models/message_list_entry.dart';
+import '../message_rows.dart';
 
 import 'chat_scroll_coordinator.dart';
 

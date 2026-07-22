@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
+import '../constants/assets.dart';
+import '../l10n/l10n.dart';
+import '../theme.dart';
+import 'mixin_dialog.dart';
 
 Future<int?> showMuteDialog(BuildContext context) =>
     showMixinDialog<int>(context: context, child: const MuteDialog());

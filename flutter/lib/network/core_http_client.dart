@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
+import '../src/rust/desktop_api.dart';
 
 class CoreHttpClient extends http.BaseClient {
   CoreHttpClient(this._desktop);
@@ -14,9 +14,7 @@ class CoreHttpClient extends http.BaseClient {
     if (_closed) throw StateError('HTTP client is closed');
 
     final bytes = BytesBuilder(copy: false);
-    await for (final chunk in request.finalize()) {
-      bytes.add(chunk);
-    }
+    await request.finalize().forEach(bytes.add);
     final body = bytes.takeBytes();
     final response = await _desktop.httpRequest(
       method: request.method,

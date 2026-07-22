@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
+import '../theme.dart';
+import 'message_bubble.dart';
 
 const _nipWidth = 7.0;
 
@@ -44,8 +44,9 @@ class _PinBubblePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final path = clipper.getClip(size);
-    canvas.drawShadow(path, Colors.black, 0.6, false);
-    canvas.drawPath(path, Paint()..color = color);
+    canvas
+      ..drawShadow(path, Colors.black, 0.6, false)
+      ..drawPath(path, Paint()..color = color);
   }
 
   @override

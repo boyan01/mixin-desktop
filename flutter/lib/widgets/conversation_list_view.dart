@@ -1,36 +1,36 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart'
-    show AccountHandle, UserProfileItem;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
-import 'package:mixin_desktop_ui/widgets/conversation_search_results.dart';
-import 'package:mixin_desktop_ui/widgets/custom_popup_menu.dart';
-import 'package:mixin_desktop_ui/widgets/custom_context_menu.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/mute_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/move_window.dart';
-import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
-import 'package:mixin_desktop_ui/widgets/message_datetime_and_status.dart';
-import 'package:mixin_desktop_ui/widgets/message_selectable_text.dart';
-import 'package:mixin_desktop_ui/widgets/search_text_field.dart';
-import 'package:super_context_menu/super_context_menu.dart';
 import 'package:intl/intl.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:super_context_menu/super_context_menu.dart';
+
+import '../constants/assets.dart';
+import '../constants/icon_fonts.dart';
+import '../l10n/l10n.dart';
+import '../models/conversation_list_entry.dart';
+import '../models/message_list_entry.dart';
+import '../src/rust/desktop_api.dart' show AccountHandle, UserProfileItem;
+import '../theme.dart';
+import 'action_button.dart';
+import 'avatar_view.dart';
+import 'badges_widget.dart';
+import 'conversation_search_results.dart';
+import 'custom_context_menu.dart';
+import 'custom_popup_menu.dart';
+import 'high_light_text.dart';
+import 'interactive_decorated_box.dart';
+import 'message_datetime_and_status.dart';
+import 'message_items/special_message_items.dart';
+import 'message_selectable_text.dart';
+import 'mixin_dialog.dart';
+import 'move_window.dart';
+import 'mute_dialog.dart';
+import 'search_text_field.dart';
 
 enum ConversationCreateAction { searchContact, conversation, group, circle }
 

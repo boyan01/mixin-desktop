@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/widgets.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
-import 'package:mixin_desktop_ui/utils/chat_jump_trace.dart';
+import '../models/conversation_list_entry.dart';
+import '../models/message_list_entry.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../utils/app_logger.dart';
+import '../utils/chat_jump_trace.dart';
 
 part 'message_window_loader.dart';
 
@@ -279,7 +279,7 @@ class MessageController extends ValueNotifier<MessageState>
   var _markReadPending = false;
   var _disposed = false;
   late final MessageWindowLoader _messageWindowLoader =
-      MessageWindowLoader.fromAccount(account, conversation.id);
+      MessageWindowLoader.fromAccount(account);
 
   MessageState get state => value;
 

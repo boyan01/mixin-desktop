@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
+import '../constants/assets.dart';
+import '../theme.dart';
+import 'action_button.dart';
 
 class MixinBackButton extends StatelessWidget {
   const MixinBackButton({super.key, this.color, this.onTap});

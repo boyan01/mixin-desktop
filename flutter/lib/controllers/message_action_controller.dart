@@ -1,13 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:mixin_desktop_ui/controllers/message_controller.dart';
-import 'package:mixin_desktop_ui/controllers/voice_recorder_controller.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
+
+import '../models/conversation_list_entry.dart';
+import '../models/message_list_entry.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../utils/app_logger.dart';
+import '../widgets/toast.dart';
+import 'message_controller.dart';
+import 'voice_recorder_controller.dart';
 
 final _botGroupCache = <String, ({bool value, DateTime expiresAt})>{};
 final _botGroupLoads = <String, Future<bool>>{};
@@ -95,7 +96,7 @@ class MessageActionController extends ChangeNotifier {
         stackTrace,
       );
     } finally {
-      _botGroupLoads.remove(conversation.id);
+      unawaited(_botGroupLoads.remove(conversation.id));
     }
   }
 
@@ -520,23 +521,19 @@ class MessageActionController extends ChangeNotifier {
         case 'block':
           await account.user().blockUser(userId: message.senderId);
           await _refreshLatest();
-          break;
         case 'add_contact':
           await account.user().addContact(
             userId: message.senderId,
             fullName: message.senderName,
           );
           await _refreshLatest();
-          break;
         case 'say_hi':
           final messageId = await account.message().sendText(
             conversationId: conversation.id,
             content: 'Hi',
-            quoteMessageId: null,
             silent: false,
           );
           await messageController.refreshMessages([messageId]);
-          break;
         case 'open_home':
           final appId = message.senderAppId?.trim();
           if (appId == null || appId.isEmpty) return null;

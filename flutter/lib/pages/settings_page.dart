@@ -3,27 +3,27 @@ import 'dart:async';
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
-import 'package:mixin_desktop_ui/controllers/network_controller.dart';
-import 'package:mixin_desktop_ui/controllers/security_controller.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/pages/settings_account_pages.dart';
-import 'package:mixin_desktop_ui/pages/settings_preference_pages.dart';
-import 'package:mixin_desktop_ui/pages/settings_storage_about_pages.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart'
-    show AccountHandle, AccountProfile;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/utils/app_logger.dart';
-import 'package:mixin_desktop_ui/utils/local_notification_center.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../constants/assets.dart';
+import '../controllers/network_controller.dart';
+import '../controllers/security_controller.dart';
+import '../controllers/settings_controller.dart';
+import '../l10n/l10n.dart';
+import '../src/rust/desktop_api.dart' show AccountHandle, AccountProfile;
+import '../theme.dart';
+import '../utils/app_logger.dart';
+import '../utils/local_notification_center.dart';
+import '../widgets/avatar_view.dart';
+import '../widgets/badges_widget.dart';
+import '../widgets/high_light_text.dart';
+import '../widgets/settings_widgets.dart';
+import '../widgets/toast.dart';
+import 'settings_account_pages.dart';
+import 'settings_preference_pages.dart';
+import 'settings_storage_about_pages.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({

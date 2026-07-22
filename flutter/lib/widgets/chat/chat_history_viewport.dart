@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:mixin_desktop_ui/controllers/message_controller.dart';
-import 'package:mixin_desktop_ui/utils/chat_jump_trace.dart';
-import 'package:mixin_desktop_ui/widgets/clamping_custom_scroll_view/clamping_custom_scroll_view.dart';
-import 'package:mixin_desktop_ui/widgets/message_day_time.dart';
-import 'package:mixin_desktop_ui/widgets/message_rows.dart';
+import '../../controllers/message_controller.dart';
+import '../../utils/chat_jump_trace.dart';
+import '../clamping_custom_scroll_view/clamping_custom_scroll_view.dart';
+import '../message_day_time.dart';
+import '../message_rows.dart';
 
 import 'chat_scroll_coordinator.dart';
 import 'chat_timeline_window.dart';

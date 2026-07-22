@@ -5,13 +5,14 @@ import 'dart:math' as math;
 
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/attachment_status.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/message_style.dart';
-import 'package:mixin_desktop_ui/widgets/waveform_widget.dart';
 import 'package:ogg_opus_player/ogg_opus_player.dart';
+
+import '../models/message_list_entry.dart';
+import '../theme.dart';
+import 'attachment_status.dart';
+import 'interactive_decorated_box.dart';
+import 'message_style.dart';
+import 'waveform_widget.dart';
 
 typedef AudioMessageCallback = void Function(MessageListEntry message);
 
@@ -273,8 +274,9 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
       _currentMessageId = messageId;
       currentMessage = message;
       player.state.addListener(_handlePlayerState);
-      player.setPlaybackRate(speed);
-      player.play();
+      player
+        ..setPlaybackRate(speed)
+        ..play();
       isPlaying = true;
       _positionTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
         final current = _player;

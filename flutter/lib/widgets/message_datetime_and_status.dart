@@ -4,11 +4,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/message_style.dart';
 import 'package:visibility_detector/visibility_detector.dart';
+
+import '../constants/assets.dart';
+import '../models/message_list_entry.dart';
+import '../theme.dart';
+import 'message_style.dart';
 
 class MessageDatetimeAndStatus extends StatelessWidget {
   const MessageDatetimeAndStatus({

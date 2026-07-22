@@ -1,6 +1,5 @@
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart'
-    show UserProfileItem;
+import '../src/rust/desktop_api.dart' show UserProfileItem;
+import 'conversation_list_entry.dart';
 
 class CommandPaletteItem {
   const CommandPaletteItem({

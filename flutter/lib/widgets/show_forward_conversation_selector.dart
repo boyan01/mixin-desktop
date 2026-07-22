@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/adaptive_selection_toolbar.dart';
-import 'package:mixin_desktop_ui/widgets/badges_widget.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
+
+import '../constants/assets.dart';
+import '../l10n/l10n.dart';
+import '../models/conversation_list_entry.dart';
+import '../src/rust/desktop_api.dart' as rust;
+import '../theme.dart';
+import 'adaptive_selection_toolbar.dart';
+import 'avatar_view.dart';
+import 'badges_widget.dart';
+import 'buttons.dart';
+import 'high_light_text.dart';
+import 'interactive_decorated_box.dart';
+import 'mixin_dialog.dart';
 
 Future<ConversationListEntry?> showConversationSelector(
   BuildContext context, {
@@ -152,7 +153,7 @@ class _ConversationSelectorState extends State<_ConversationSelector> {
         unseenOnly: false,
       );
       var offset = 0;
-      while (offset < count.toInt()) {
+      while (offset < count) {
         final page = await widget.account.conversation().conversations(
           category: category.name,
           circleId: category == ConversationCategoryFilter.circle

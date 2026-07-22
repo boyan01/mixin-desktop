@@ -1,10 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
-import 'package:mixin_desktop_ui/src/rust/api/logging.dart';
-import 'package:mixin_desktop_ui/src/rust/third_party/mixin_desktop_core/runtime/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../src/rust/api/logging.dart';
+import '../src/rust/third_party/mixin_desktop_core/runtime/logging.dart';
 
 String? _logDirectoryPath;
 var _isLogReady = false;

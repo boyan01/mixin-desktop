@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_portal/flutter_portal.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';

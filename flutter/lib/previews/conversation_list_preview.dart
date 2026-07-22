@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/conversation_list_view.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+
+import '../l10n/generated/app_localizations.dart';
+import '../models/conversation_list_entry.dart';
+import '../theme.dart';
+import '../widgets/conversation_list_view.dart';
 
 @Preview(name: 'Conversation List', group: 'Home', size: Size(300, 720))
 Widget conversationListPreview() => MaterialApp(

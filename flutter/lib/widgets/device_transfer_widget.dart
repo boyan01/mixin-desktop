@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:desktop_keep_screen_on/desktop_keep_screen_on.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/controllers/device_transfer_controller.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
 import 'package:provider/provider.dart';
+
+import '../constants/assets.dart';
+import '../controllers/device_transfer_controller.dart';
+import '../l10n/l10n.dart';
+import '../theme.dart';
+import 'mixin_dialog.dart';
 
 class DeviceTransferHandlerWidget extends StatefulWidget {
   const DeviceTransferHandlerWidget({
@@ -241,14 +242,14 @@ class _TransferProcessDialogState extends State<_TransferProcessDialog> {
       ..add(
         widget.controller.on(widget.progressType).listen((event) {
           if (mounted) {
-            setState(() => progress = (event.payload as num).toDouble());
+            setState(() => progress = (event.payload! as num).toDouble());
           }
         }),
       )
       ..add(
         widget.controller.on(widget.networkSpeedType).listen((event) {
           if (mounted) {
-            setState(() => networkSpeed = (event.payload as num).toDouble());
+            setState(() => networkSpeed = (event.payload! as num).toDouble());
           }
         }),
       );

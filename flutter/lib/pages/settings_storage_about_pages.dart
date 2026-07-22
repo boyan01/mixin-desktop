@@ -5,20 +5,21 @@ import 'package:filesize/filesize.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/buttons.dart';
-import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
-import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
-import 'package:mixin_desktop_ui/widgets/toast.dart';
 import 'package:provider/provider.dart';
+
+import '../constants/assets.dart';
+import '../controllers/settings_controller.dart';
+import '../l10n/l10n.dart';
+import '../models/conversation_list_entry.dart';
+import '../src/rust/desktop_api.dart';
+import '../theme.dart';
+import '../widgets/action_button.dart';
+import '../widgets/avatar_view.dart';
+import '../widgets/buttons.dart';
+import '../widgets/high_light_text.dart';
+import '../widgets/mixin_dialog.dart';
+import '../widgets/settings_widgets.dart';
+import '../widgets/toast.dart';
 
 class StoragePage extends StatelessWidget {
   const StoragePage({required this.onOpenStorageUsage, super.key});
@@ -150,7 +151,7 @@ class _StorageUsageListPageState extends State<StorageUsageListPage> {
           .map(
             (item) => ConversationStorageUsageEntry(
               conversation: ConversationListEntry.fromRust(item.conversation),
-              sizeBytes: item.sizeBytes.toInt(),
+              sizeBytes: item.sizeBytes,
             ),
           )
           .toList(growable: false);
@@ -271,7 +272,7 @@ class _StorageUsageDetailPageState extends State<StorageUsageDetailPage> {
             return StorageCategoryUsageEntry(
               category: item.category,
               label: label,
-              sizeBytes: item.sizeBytes.toInt(),
+              sizeBytes: item.sizeBytes,
             );
           })
           .toList(growable: false);

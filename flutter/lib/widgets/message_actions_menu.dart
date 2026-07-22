@@ -1,11 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mixin_desktop_ui/constants/icon_fonts.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
 import 'package:super_context_menu/super_context_menu.dart';
+
+import '../constants/icon_fonts.dart';
+import '../l10n/l10n.dart';
+import '../models/message_list_entry.dart';
+import 'message_action_policy.dart';
 
 class MessageActionCallbacks {
   const MessageActionCallbacks({

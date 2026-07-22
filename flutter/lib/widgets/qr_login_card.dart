@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
-import 'package:mixin_desktop_ui/theme.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
+
+import '../constants/assets.dart';
+import '../l10n/generated/app_localizations.dart';
+import '../theme.dart';
 
 class QrLoginCard extends StatelessWidget {
   const QrLoginCard({
@@ -105,21 +106,22 @@ class _QrContent extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              authUrl == null
-                  ? const SizedBox()
-                  : Container(
-                      color: Colors.white,
-                      padding: const EdgeInsets.all(8),
-                      child: PrettyQrView.data(
-                        data: authUrl!,
-                        errorCorrectLevel: QrErrorCorrectLevel.Q,
-                        decoration: const PrettyQrDecoration(
-                          image: PrettyQrDecorationImage(
-                            image: AssetImage(MixinAssets.logo),
-                          ),
-                        ),
+              if (authUrl == null)
+                const SizedBox()
+              else
+                Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(8),
+                  child: PrettyQrView.data(
+                    data: authUrl!,
+                    errorCorrectLevel: QrErrorCorrectLevel.Q,
+                    decoration: const PrettyQrDecoration(
+                      image: PrettyQrDecorationImage(
+                        image: AssetImage(MixinAssets.logo),
                       ),
                     ),
+                  ),
+                ),
               Visibility(
                 visible: error != null,
                 child: DecoratedBox(

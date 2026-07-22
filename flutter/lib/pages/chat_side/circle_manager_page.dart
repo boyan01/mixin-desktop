@@ -2,12 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:mixin_desktop_ui/constants/assets.dart';
-import 'package:mixin_desktop_ui/l10n/l10n.dart';
-import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
-import 'package:mixin_desktop_ui/theme.dart';
-import 'package:mixin_desktop_ui/widgets/action_button.dart';
-import 'package:mixin_desktop_ui/widgets/mixin_dialog.dart';
+import '../../constants/assets.dart';
+import '../../l10n/l10n.dart';
+import '../../src/rust/desktop_api.dart' as rust;
+import '../../theme.dart';
+import '../../widgets/action_button.dart';
+import '../../widgets/mixin_dialog.dart';
 
 import 'chat_side_scope.dart';
 
@@ -157,71 +157,69 @@ class _CircleManagerItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 80,
-      color: context.theme.primary,
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: onTap,
-            child: Container(
-              height: 80,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SvgPicture.asset(
-                selected ? MixinAssets.circleRemove : MixinAssets.circleAdd,
-                width: 16,
-                height: 16,
+  Widget build(BuildContext context) => Container(
+    height: 80,
+    color: context.theme.primary,
+    child: Row(
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            height: 80,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SvgPicture.asset(
+              selected ? MixinAssets.circleRemove : MixinAssets.circleAdd,
+              width: 16,
+              height: 16,
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        ClipOval(
+          child: Container(
+            color: context.dynamicColor(
+              const Color.fromRGBO(246, 247, 250, 1),
+              darkColor: const Color.fromRGBO(245, 247, 250, 1),
+            ),
+            width: 50,
+            height: 50,
+            alignment: Alignment.center,
+            child: SvgPicture.asset(
+              MixinAssets.circle,
+              width: 24,
+              height: 24,
+              colorFilter: ColorFilter.mode(
+                _circleColor(circle.circleId),
+                BlendMode.srcIn,
               ),
             ),
           ),
-          const SizedBox(width: 4),
-          ClipOval(
-            child: Container(
-              color: context.dynamicColor(
-                const Color.fromRGBO(246, 247, 250, 1),
-                darkColor: const Color.fromRGBO(245, 247, 250, 1),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              circle.name,
+              style: TextStyle(color: context.theme.text, fontSize: 16),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              context.l10n.circleSubtitle(
+                circle.conversationCount,
+                circle.conversationCount,
               ),
-              width: 50,
-              height: 50,
-              alignment: Alignment.center,
-              child: SvgPicture.asset(
-                MixinAssets.circle,
-                width: 24,
-                height: 24,
-                colorFilter: ColorFilter.mode(
-                  _circleColor(circle.circleId),
-                  BlendMode.srcIn,
-                ),
+              style: TextStyle(
+                color: context.theme.secondaryText,
+                fontSize: 14,
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                circle.name,
-                style: TextStyle(color: context.theme.text, fontSize: 16),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                context.l10n.circleSubtitle(
-                  circle.conversationCount,
-                  circle.conversationCount,
-                ),
-                style: TextStyle(
-                  color: context.theme.secondaryText,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      ],
+    ),
+  );
 }
 
 Color _circleColor(String id) {

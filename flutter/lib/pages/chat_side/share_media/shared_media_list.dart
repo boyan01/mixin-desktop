@@ -3,9 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:intl/intl.dart';
-import 'package:mixin_desktop_ui/models/message_list_entry.dart';
-import 'package:mixin_desktop_ui/pages/chat_side/chat_side_scope.dart';
-import 'package:mixin_desktop_ui/theme.dart';
+
+import '../../../models/message_list_entry.dart';
+import '../../../theme.dart';
+import '../chat_side_scope.dart';
 
 typedef SharedMediaItemBuilder =
     Widget Function(

@@ -5,7 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
-import 'package:mixin_desktop_ui/utils/image.dart';
+import '../utils/image.dart';
 
 typedef PlaceholderWidgetBuilder = Widget Function();
 
