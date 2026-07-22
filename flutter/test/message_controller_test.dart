@@ -193,7 +193,10 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(account.messagesAroundCalls, 0);
+    expect(account.messagesAroundCalls, 1);
+    expect(account.aroundTarget, 'last-read');
+    expect(account.aroundBefore, 30);
+    expect(account.aroundAfter, 30);
     expect(messages.state.center?.id, 'last-read');
     expect(messages.state.lastReadMessageId, 'last-read');
     expect(controller.messages.map((message) => message.id), [

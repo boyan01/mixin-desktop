@@ -18,6 +18,13 @@ typedef AroundMessagesQuery =
     );
 typedef MessagesByIdsQuery =
     Future<List<MessageListEntry>> Function(List<String> messageIds);
+typedef CenteredMessagesQuery =
+    Future<List<MessageListEntry>> Function(
+      String conversationId,
+      String targetMessageId,
+      int before,
+      int after,
+    );
 
 enum MessageWindowDirection { older, newer }
 
@@ -30,6 +37,7 @@ class MessageWindowLoader {
     required this.beforeMessageIds,
     required this.afterMessageIds,
     required this.messagesByIds,
+    required this.centeredMessages,
   });
 
   factory MessageWindowLoader.fromAccount(
@@ -103,6 +111,14 @@ class MessageWindowLoader {
       beforeMessageIds: messageIdsBefore,
       afterMessageIds: messageIdsAfter,
       messagesByIds: messagesByIds,
+      centeredMessages:
+          (conversationId, targetMessageId, before, after) async =>
+              (await account.message().messagesAround(
+                conversationId: conversationId,
+                targetMessageId: targetMessageId,
+                before: before,
+                after: after,
+              )).map(MessageListEntry.fromRust).toList(growable: false),
     );
   }
 
@@ -113,6 +129,7 @@ class MessageWindowLoader {
   final AroundMessageIdsQuery beforeMessageIds;
   final AroundMessageIdsQuery afterMessageIds;
   final MessagesByIdsQuery messagesByIds;
+  final CenteredMessagesQuery centeredMessages;
 
   Future<MessageState> loadBefore(
     MessageState state,
@@ -204,55 +221,30 @@ class MessageWindowLoader {
 
     if (resolvedCenterMessageId == null) return recent();
 
-    final info = await messageOrderInfo(resolvedCenterMessageId);
-    if (info == null) {
+    final halfLimit = limit ~/ 2;
+    final messages = await centeredMessages(
+      conversationId,
+      resolvedCenterMessageId,
+      halfLimit,
+      halfLimit,
+    );
+    final centerIndex = messages.indexWhere(
+      (message) => message.id == resolvedCenterMessageId,
+    );
+    if (centerIndex < 0) {
       trace?.call(
-        'query center missing-order '
+        'query center missing '
         'target=${shortMessageId(resolvedCenterMessageId)}',
       );
       return recent();
     }
 
-    final halfLimit = limit ~/ 2;
-    trace?.call(
-      'query center order target=${shortMessageId(resolvedCenterMessageId)} '
-      'createdAt=${info.createdAt} messageId=${info.messageId} half=$halfLimit',
-    );
-    final results = await Future.wait([
-      beforeMessageIds(info, conversationId, halfLimit),
-      afterMessageIds(info, conversationId, halfLimit),
-    ]);
-    final topIds = results[0];
-    final bottomIds = results[1];
-    trace?.call(
-      'query center ids target=${shortMessageId(resolvedCenterMessageId)} '
-      'top=${topIds.length} '
-      'topFirst=${shortMessageId(topIds.firstOrNull)} '
-      'topLast=${shortMessageId(topIds.lastOrNull)} '
-      'bottom=${bottomIds.length} '
-      'bottomFirst=${shortMessageId(bottomIds.firstOrNull)} '
-      'bottomLast=${shortMessageId(bottomIds.lastOrNull)}',
-    );
-    final messageIds = [
-      ...topIds.reversed,
-      resolvedCenterMessageId,
-      ...bottomIds,
-    ];
-    final messages = await messagesByIds(messageIds);
-    final messagesById = {for (final message in messages) message.id: message};
+    var topList = messages.take(centerIndex).toList(growable: false);
+    MessageListEntry? center = messages[centerIndex];
+    final bottomList = messages.skip(centerIndex + 1).toList(growable: false);
 
-    final bottomList = bottomIds
-        .map((id) => messagesById[id])
-        .nonNulls
-        .toList();
-    var topList = topIds.reversed
-        .map((id) => messagesById[id])
-        .nonNulls
-        .toList();
-    var center = messagesById[resolvedCenterMessageId];
-
-    final isLatest = bottomIds.length < halfLimit;
-    final isOldest = topIds.length < halfLimit;
+    final isLatest = bottomList.length < halfLimit;
+    final isOldest = topList.length < halfLimit;
 
     if (bottomList.isEmpty && center != null) {
       topList = [...topList, center];
