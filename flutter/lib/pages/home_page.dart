@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -207,7 +208,7 @@ class _HomeBodyState extends State<_HomeBody> {
 
     final showPreview = context.read<SettingsController>().messagePreview;
     final preview = showPreview
-        ? _notificationPreview(context, message)
+        ? notificationPreview(context, message)
         : context.l10n.aMessage;
     await showMessageNotification(
       title: message.conversationName,
@@ -1553,11 +1554,46 @@ class _SetupNameOverlayState extends State<_SetupNameOverlay> {
   );
 }
 
-String _notificationPreview(BuildContext context, NotificationEvent message) {
+String notificationPreview(BuildContext context, NotificationEvent message) {
   final category = message.category;
+  if (category == 'MESSAGE_PIN') {
+    return _pinNotificationPreview(context, message);
+  }
+  final text = _notificationContentPreview(context, category, message.content);
+  return message.conversationCategory == 'GROUP'
+      ? '${message.senderName}: $text'
+      : text;
+}
+
+String _pinNotificationPreview(
+  BuildContext context,
+  NotificationEvent message,
+) {
+  try {
+    final value = jsonDecode(message.content) as Map<String, dynamic>;
+    final category = value['category']?.toString();
+    if (category == null) throw const FormatException('missing pin category');
+    final content = value['content']?.toString() ?? '';
+    return context.l10n.chatPinMessage(
+      message.senderName,
+      _notificationContentPreview(context, category, content),
+    );
+  } on Object {
+    return context.l10n.chatPinMessage(
+      message.senderName,
+      context.l10n.aMessage,
+    );
+  }
+}
+
+String _notificationContentPreview(
+  BuildContext context,
+  String category,
+  String content,
+) {
   String text;
   if (category.contains('TEXT')) {
-    text = message.content.trim();
+    text = content.trim();
   } else if (category.contains('SNAPSHOT')) {
     text = '[${context.l10n.transfer}]';
   } else if (category.contains('STICKER')) {
@@ -1571,9 +1607,7 @@ String _notificationPreview(BuildContext context, NotificationEvent message) {
   } else if (category.contains('DATA')) {
     text = '[${context.l10n.file}]';
   } else if (category.contains('POST')) {
-    text = message.content.trim().isEmpty
-        ? context.l10n.post
-        : message.content.trim();
+    text = content.trim().isEmpty ? context.l10n.post : content.trim();
   } else if (category.contains('LOCATION')) {
     text = '[${context.l10n.location}]';
   } else if (category.contains('AUDIO')) {
@@ -1584,14 +1618,33 @@ String _notificationPreview(BuildContext context, NotificationEvent message) {
     text = '[${context.l10n.transcript}]';
   } else if (category.contains('INSCRIPTION')) {
     text = '[${context.l10n.collectible}]';
+  } else if (category == 'APP_BUTTON_GROUP') {
+    text = _appButtonGroupPreview(content);
+  } else if (category == 'APP_CARD') {
+    text = _appCardPreview(context, content);
   } else {
-    text = message.content.trim().isEmpty
-        ? context.l10n.messageNotSupport
-        : message.content.trim();
+    text = context.l10n.messageNotSupport;
   }
-  return message.conversationCategory == 'GROUP'
-      ? '${message.senderName}: $text'
-      : text;
+  return text;
+}
+
+String _appButtonGroupPreview(String content) {
+  try {
+    return (jsonDecode(content) as List<dynamic>)
+        .map((item) => '[${(item as Map<String, dynamic>)['label'] ?? ''}]')
+        .join();
+  } on Object {
+    return '';
+  }
+}
+
+String _appCardPreview(BuildContext context, String content) {
+  try {
+    final value = jsonDecode(content) as Map<String, dynamic>;
+    return '[${value['title']?.toString() ?? context.l10n.card}]';
+  } on Object {
+    return '[${context.l10n.card}]';
+  }
 }
 
 class _ChatWithSide extends StatelessWidget {
