@@ -5,6 +5,8 @@ import 'package:mixin_desktop_ui/controllers/conversation_list_controller.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('loads once and batches exact conversation id updates', () async {
     final account = _FakeAccount();
     final controller = ConversationListController(account);
@@ -105,10 +107,6 @@ class _FakeAccount implements AccountHandle, ConversationAccess, UserAccess {
   Future<List<CircleItem>> circles() async => const [];
 
   @override
-  Future<List<ConversationUnseenCount>> unseenConversationCounts() async =>
-      const [];
-
-  @override
   Future<List<UserProfileItem>> usersByIdentityNumbers({
     required List<String> identityNumbers,
   }) async => const [];
@@ -124,7 +122,9 @@ class _FakeAccount implements AccountHandle, ConversationAccess, UserAccess {
   }) async => const {};
 
   @override
-  void dispose() => changes.close();
+  void dispose() {
+    unawaited(changes.close());
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

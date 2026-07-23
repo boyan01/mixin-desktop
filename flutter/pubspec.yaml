@@ -54,6 +54,7 @@ dependencies:
   desktop_keep_screen_on: ^0.0.3
   dbus: ^0.7.12
   emojis: ^3.2.0
+  flutter_app_icon_badge: ^2.0.0
   mixin_desktop_flutter:
     path: rust_builder
   flutter_rust_bridge: 2.12.0

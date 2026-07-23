@@ -11,6 +11,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 uuid = { version = "1.23.5", features = ["v4"] }
 base16ct = { version = "1.0.0", features = ["alloc"] }
 lazy_static = "1.5.0"
+md5 = "0.8.1"
 anyhow = "1.0.103"
 thiserror = "2.0.18"
 log = "0.4.33"

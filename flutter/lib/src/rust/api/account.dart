@@ -71,6 +71,10 @@ abstract class AccountHandle implements RustOpaqueInterface {
 
   Future<List<ConversationStorageUsage>> storageUsage();
 
+  Stream<List<ConversationUnseenCount>> unseenCountChanges();
+
+  Stream<PlatformInt64> unseenMessageCountChanges();
+
   Future<AccountProfile> updateProfile({
     required String fullName,
     required String biography,

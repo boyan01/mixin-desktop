@@ -16,7 +16,7 @@ use sdk::{
 };
 
 use crate::core::constants::TEAM_MIXIN_USER_ID;
-use crate::core::util::generate_conversation_id;
+use sdk::generate_conversation_id;
 
 use crate::core::crypto::signal_protocol::SignalProtocol;
 use crate::core::message::blaze::Blaze;

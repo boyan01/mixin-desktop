@@ -145,8 +145,6 @@ abstract class ConversationAccess implements RustOpaqueInterface {
     required bool pinned,
   });
 
-  Future<List<ConversationUnseenCount>> unseenConversationCounts();
-
   Future<void> updateCircle({required String circleId, required String name});
 
   Future<void> updateParticipants({

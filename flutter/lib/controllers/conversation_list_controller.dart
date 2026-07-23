@@ -10,7 +10,6 @@ import '../src/rust/desktop_api.dart' as rust;
 import '../utils/app_logger.dart';
 import 'conversation_list_store.dart';
 
-const _unseenCountThrottle = Duration(milliseconds: 333);
 const _changeMergeWindow = Duration(milliseconds: 16);
 const _retryDelays = [
   Duration(seconds: 1),
@@ -66,8 +65,6 @@ class ConversationListController extends ChangeNotifier {
   final rust.AccountHandle account;
   rust.AccountProfile profile;
   final ConversationListStore _store = ConversationListStore();
-  final Map<String, int> _unseenCounts = {};
-  final Map<String, int> _mutedUnseenCounts = {};
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
   final ItemScrollController _itemScrollController = ItemScrollController();
@@ -91,15 +88,12 @@ class ConversationListController extends ChangeNotifier {
   Timer? _searchTimer;
   Timer? _changeTimer;
   Timer? _reloadRetryTimer;
-  Timer? _unseenCountTimer;
   int _searchRevision = 0;
   int _changeRetryAttempt = 0;
   int _reloadRetryAttempt = 0;
   final Set<String> _pendingConversationIds = {};
   bool _reloadAllPending = false;
   bool _flushingChanges = false;
-  bool _unseenCountRefreshPending = false;
-  bool _refreshingUnseenCounts = false;
   bool _initialized = false;
   final List<String> _recentConversationIds = [];
   var _disposed = false;
@@ -109,18 +103,6 @@ class ConversationListController extends ChangeNotifier {
   ItemScrollController get itemScrollController => _itemScrollController;
 
   List<ConversationListEntry> get visibleConversations => _visibleConversations;
-
-  int countFor(ConversationCategoryFilter filter, {String? circle}) =>
-      _unseenCounts[filter == ConversationCategoryFilter.circle
-          ? 'circle:$circle'
-          : filter.name] ??
-      0;
-
-  int mutedCountFor(ConversationCategoryFilter filter, {String? circle}) =>
-      _mutedUnseenCounts[filter == ConversationCategoryFilter.circle
-          ? 'circle:$circle'
-          : filter.name] ??
-      0;
 
   void selectCategory(ConversationCategoryFilter value, {String? circle}) {
     category = value;
@@ -413,7 +395,6 @@ class ConversationListController extends ChangeNotifier {
       _changeRetryAttempt = 0;
       i('Loaded conversation list: count=${conversations.length}');
       _rebuildView();
-      _scheduleUnseenCountRefresh(immediate: true);
     } catch (exception, stackTrace) {
       if (_disposed) return;
       e('Load conversation list failed', exception, stackTrace);
@@ -468,7 +449,6 @@ class ConversationListController extends ChangeNotifier {
             .toList(growable: false);
         _store.applyChanges(ids, entries);
         _rebuildView();
-        _scheduleUnseenCountRefresh();
         _changeRetryAttempt = 0;
       }
     } catch (exception, stackTrace) {
@@ -502,52 +482,12 @@ class ConversationListController extends ChangeNotifier {
     }
   }
 
-  void _scheduleUnseenCountRefresh({bool immediate = false}) {
-    if (_disposed) return;
-    _unseenCountRefreshPending = true;
-    if (_refreshingUnseenCounts || _unseenCountTimer != null) return;
-    _unseenCountTimer = Timer(
-      immediate ? Duration.zero : _unseenCountThrottle,
-      () {
-        _unseenCountTimer = null;
-        unawaited(_refreshUnseenCounts());
-      },
-    );
-  }
-
-  Future<void> _refreshUnseenCounts() async {
-    _refreshingUnseenCounts = true;
-    _unseenCountRefreshPending = false;
-    try {
-      final counts = await account.conversation().unseenConversationCounts();
-      if (_disposed) return;
-      _unseenCounts.clear();
-      _mutedUnseenCounts.clear();
-      for (final item in counts) {
-        final key = item.category == ConversationCategoryFilter.circle.name
-            ? 'circle:${item.circleId}'
-            : item.category;
-        _unseenCounts[key] = item.count;
-        _mutedUnseenCounts[key] = item.mutedCount;
-      }
-      notifyListeners();
-    } catch (exception, stackTrace) {
-      if (!_disposed) {
-        e('Refresh unseen conversation counts failed', exception, stackTrace);
-      }
-    } finally {
-      _refreshingUnseenCounts = false;
-      if (_unseenCountRefreshPending) _scheduleUnseenCountRefresh();
-    }
-  }
-
   @override
   void dispose() {
     _disposed = true;
     _searchTimer?.cancel();
     _changeTimer?.cancel();
     _reloadRetryTimer?.cancel();
-    _unseenCountTimer?.cancel();
     unawaited(_changeSubscription?.cancel());
     unawaited(_profileSubscription?.cancel());
     super.dispose();

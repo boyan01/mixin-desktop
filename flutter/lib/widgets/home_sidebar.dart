@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:super_context_menu/super_context_menu.dart';
@@ -20,7 +21,7 @@ import 'mixin_dialog.dart';
 import 'show_forward_conversation_selector.dart';
 import 'toast.dart';
 
-class HomeSidebar extends StatelessWidget {
+class HomeSidebar extends HookWidget {
   const HomeSidebar({
     required this.controller,
     required this.collapsed,
@@ -43,6 +44,10 @@ class HomeSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.mixinTheme;
+    final unseenCounts = useStream(
+      useMemoized(controller.account.unseenCountChanges, [controller.account]),
+      initialData: const <rust.ConversationUnseenCount>[],
+    ).data!;
     return RepaintBoundary(
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -71,6 +76,7 @@ class HomeSidebar extends StatelessWidget {
                 title: context.l10n.allChats,
                 filter: ConversationCategoryFilter.chats,
                 controller: controller,
+                unseenCounts: unseenCounts,
                 collapsed: collapsed,
                 onSelected: onCategorySelected,
               ),
@@ -82,6 +88,7 @@ class HomeSidebar extends StatelessWidget {
                 title: context.l10n.contactTitle,
                 filter: ConversationCategoryFilter.contacts,
                 controller: controller,
+                unseenCounts: unseenCounts,
                 collapsed: collapsed,
                 onSelected: onCategorySelected,
               ),
@@ -91,6 +98,7 @@ class HomeSidebar extends StatelessWidget {
                 title: context.l10n.groups,
                 filter: ConversationCategoryFilter.groups,
                 controller: controller,
+                unseenCounts: unseenCounts,
                 collapsed: collapsed,
                 onSelected: onCategorySelected,
               ),
@@ -100,6 +108,7 @@ class HomeSidebar extends StatelessWidget {
                 title: context.l10n.botsTitle,
                 filter: ConversationCategoryFilter.bots,
                 controller: controller,
+                unseenCounts: unseenCounts,
                 collapsed: collapsed,
                 onSelected: onCategorySelected,
               ),
@@ -109,6 +118,7 @@ class HomeSidebar extends StatelessWidget {
                 title: context.l10n.strangers,
                 filter: ConversationCategoryFilter.strangers,
                 controller: controller,
+                unseenCounts: unseenCounts,
                 collapsed: collapsed,
                 onSelected: onCategorySelected,
               ),
@@ -160,6 +170,7 @@ class HomeSidebar extends StatelessWidget {
                               filter: ConversationCategoryFilter.circle,
                               circleId: circle.circleId,
                               controller: controller,
+                              unseenCounts: unseenCounts,
                               collapsed: collapsed,
                               onSelected: onCategorySelected,
                             ),
@@ -381,6 +392,7 @@ class _CategoryItem extends StatelessWidget {
     required this.title,
     required this.filter,
     required this.controller,
+    required this.unseenCounts,
     required this.collapsed,
     required this.onSelected,
     this.circleId,
@@ -391,6 +403,7 @@ class _CategoryItem extends StatelessWidget {
   final String title;
   final ConversationCategoryFilter filter;
   final ConversationListController controller;
+  final List<rust.ConversationUnseenCount> unseenCounts;
   final bool collapsed;
   final VoidCallback onSelected;
   final String? circleId;
@@ -404,8 +417,8 @@ class _CategoryItem extends StatelessWidget {
         controller.category == filter &&
         (filter != ConversationCategoryFilter.circle ||
             controller.circleId == circleId),
-    count: controller.countFor(filter, circle: circleId),
-    mutedCount: controller.mutedCountFor(filter, circle: circleId),
+    count: _unseenCountFor(unseenCounts, filter, circleId),
+    mutedCount: _mutedUnseenCountFor(unseenCounts, filter, circleId),
     collapsed: collapsed,
     iconColor: iconColor,
     onTap: () {
@@ -415,6 +428,36 @@ class _CategoryItem extends StatelessWidget {
       if (scaffold?.isDrawerOpen ?? false) Navigator.pop(context);
     },
   );
+}
+
+int _unseenCountFor(
+  List<rust.ConversationUnseenCount> counts,
+  ConversationCategoryFilter filter,
+  String? circleId,
+) {
+  for (final item in counts) {
+    if (item.category == filter.name &&
+        (filter != ConversationCategoryFilter.circle ||
+            item.circleId == circleId)) {
+      return item.count;
+    }
+  }
+  return 0;
+}
+
+int _mutedUnseenCountFor(
+  List<rust.ConversationUnseenCount> counts,
+  ConversationCategoryFilter filter,
+  String? circleId,
+) {
+  for (final item in counts) {
+    if (item.category == filter.name &&
+        (filter != ConversationCategoryFilter.circle ||
+            item.circleId == circleId)) {
+      return item.mutedCount;
+    }
+  }
+  return 0;
 }
 
 class _SidebarItem extends StatefulWidget {

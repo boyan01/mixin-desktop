@@ -25,6 +25,7 @@ import '../utils/local_notification_center.dart';
 import '../utils/mixin_uri.dart';
 import '../utils/web_view.dart';
 import '../widgets/account_health_overlays.dart';
+import '../widgets/app_icon_badge.dart';
 import '../widgets/app_protocol_handler.dart';
 import '../widgets/audio_player_bar.dart';
 import '../widgets/avatar_view.dart';
@@ -1252,12 +1253,15 @@ class _HomeBodyState extends State<_HomeBody> {
     final account = context.read<AccountHandle>();
     return DeviceTransferHandlerWidget(
       controller: deviceTransferController!,
-      child: AccountHealthOverlays(
+      child: AppIconBadge(
         account: account,
-        child: AppProtocolHandler(
-          initialUrl: widget.initialProtocolUrl,
-          onUri: (uri) => unawaited(_openProtocolUri(uri)),
-          child: content,
+        child: AccountHealthOverlays(
+          account: account,
+          child: AppProtocolHandler(
+            initialUrl: widget.initialProtocolUrl,
+            onUri: (uri) => unawaited(_openProtocolUri(uri)),
+            child: content,
+          ),
         ),
       ),
     );

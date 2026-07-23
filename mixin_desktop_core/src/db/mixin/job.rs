@@ -6,10 +6,10 @@ use sdk::blaze_message::{CREATE_MESSAGE, PIN_MESSAGE, RECALL_MESSAGE};
 use sdk::message::{BlazeAckMessage, RecallMessage};
 use sdk::{ACKNOWLEDGE_MESSAGE_RECEIPTS, SENDING_MESSAGE};
 
-use crate::core::util::unique_object_id;
 use crate::db::mixin::database::MARK_LIMIT;
 use crate::db::mixin::util::{expand_var, BindListForQuery};
 use crate::db::Error;
+use sdk::unique_object_id;
 
 #[derive(Clone)]
 pub struct JobDao(pub(crate) sqlx::Pool<Sqlite>);

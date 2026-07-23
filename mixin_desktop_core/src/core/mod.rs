@@ -6,4 +6,3 @@ pub mod device_transfer;
 pub mod message;
 pub mod model;
 pub mod user_agent;
-pub(crate) mod util;

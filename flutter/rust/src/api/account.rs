@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::Utc;
+use futures::StreamExt;
 use mixin_desktop_core::runtime::desktop::DesktopRuntime;
 use mixin_desktop_core::runtime::model::{
-    AccountProfile, ConversationChangeEvent, ConversationStorageUsage, NotificationEvent,
-    SnapshotDetailItem, StorageCategoryUsage,
+    AccountProfile, ConversationChangeEvent, ConversationStorageUsage, ConversationUnseenCount,
+    NotificationEvent, SnapshotDetailItem, StorageCategoryUsage,
 };
 use mixin_desktop_core::runtime::{
     AccountRuntime, AttachmentAccess, ConversationAccess, MessageAccess, StickerAccess, UserAccess,
@@ -153,6 +154,37 @@ impl AccountHandle {
         sink: StreamSink<ConversationChangeEvent>,
     ) -> Result<()> {
         forward_conversation_changes(&self.runtime, sink).await
+    }
+
+    pub async fn unseen_count_changes(
+        &self,
+        sink: StreamSink<Vec<ConversationUnseenCount>>,
+    ) -> Result<()> {
+        let mut changes = Box::pin(
+            self.runtime
+                .conversation_access()
+                .subscribe_unseen_count_changes(),
+        );
+        while let Some(summary) = changes.next().await {
+            if sink.add(summary).is_err() {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn unseen_message_count_changes(&self, sink: StreamSink<i64>) -> Result<()> {
+        let mut changes = Box::pin(
+            self.runtime
+                .conversation_access()
+                .subscribe_unseen_message_count_changes(),
+        );
+        while let Some(count) = changes.next().await {
+            if sink.add(count).is_err() {
+                break;
+            }
+        }
+        Ok(())
     }
 
     pub async fn message_changes(&self, sink: StreamSink<u64>) -> Result<()> {

@@ -1,22 +1,109 @@
 use std::collections::HashSet;
+use std::future::Future;
 use std::ops::Deref;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use chrono::Utc;
+use futures::stream;
+use futures::{Stream, StreamExt};
+use log::warn;
 use sdk::{
-    CircleConversationRequest, ConversationCategory, ConversationRequest, ParticipantRequest,
+    generate_conversation_id, group_conversation_id, CircleConversationRequest,
+    ConversationCategory, ConversationRequest, ParticipantRequest,
 };
 use uuid::Uuid;
 
 use super::{model, AccountState};
-use crate::core::util::generate_conversation_id;
+
+const DEFAULT_UPDATE_SUBSCRIPTION_THROTTLE: Duration = Duration::from_millis(333);
+
+pub(crate) type UpdateStream = Pin<Box<dyn Stream<Item = ()> + Send>>;
+
+pub(crate) struct UpdateSubscriptionOptions {
+    pub throttle: Duration,
+    pub name: Option<&'static str>,
+}
+
+impl Default for UpdateSubscriptionOptions {
+    fn default() -> Self {
+        Self {
+            throttle: DEFAULT_UPDATE_SUBSCRIPTION_THROTTLE,
+            name: None,
+        }
+    }
+}
 
 pub struct ConversationAccess {
     state: Arc<AccountState>,
 }
 
 impl ConversationAccess {
+    pub fn subscribe_unseen_count_changes(
+        &self,
+    ) -> impl Stream<Item = Vec<model::ConversationUnseenCount>> + Send + 'static {
+        let database = self.database.clone();
+        subscribe_on_updates(
+            move || {
+                let database = database.clone();
+                async move {
+                    Ok(database
+                        .conversation_dao
+                        .unseen_counts()
+                        .await?
+                        .into_iter()
+                        .map(Into::into)
+                        .collect())
+                }
+            },
+            vec![self.conversation_updates()],
+            self.shutdown.clone(),
+            UpdateSubscriptionOptions {
+                name: Some("unseen conversation counts"),
+                ..Default::default()
+            },
+        )
+    }
+
+    pub fn subscribe_unseen_message_count_changes(
+        &self,
+    ) -> impl Stream<Item = i64> + Send + 'static {
+        let database = self.database.clone();
+        subscribe_on_updates(
+            move || {
+                let database = database.clone();
+                async move {
+                    Ok(database
+                        .conversation_dao
+                        .unseen_unmuted_message_count()
+                        .await?)
+                }
+            },
+            vec![self.conversation_updates()],
+            self.shutdown.clone(),
+            UpdateSubscriptionOptions {
+                name: Some("unseen message count"),
+                ..Default::default()
+            },
+        )
+    }
+
+    pub(crate) fn conversation_updates(&self) -> UpdateStream {
+        Box::pin(stream::unfold(
+            self.conversation_changes.subscribe_events(),
+            |mut events| async move {
+                match events.recv().await {
+                    Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
+                        Some(((), events))
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => None,
+                }
+            },
+        ))
+    }
+
     pub async fn resolve_code(&self, code: String) -> Result<model::CodeResult> {
         let code = code.trim();
         if code.is_empty() {
@@ -267,6 +354,73 @@ impl ConversationAccess {
     }
 }
 
+pub(crate) fn subscribe_on_updates<T, Query, QueryFuture>(
+    query: Query,
+    updates: Vec<UpdateStream>,
+    mut shutdown: tokio::sync::watch::Receiver<bool>,
+    options: UpdateSubscriptionOptions,
+) -> impl Stream<Item = T> + Send + 'static
+where
+    T: Clone + PartialEq + Send + 'static,
+    Query: Fn() -> QueryFuture + Send + Sync + 'static,
+    QueryFuture: Future<Output = Result<T>> + Send + 'static,
+{
+    let mut updates = stream::select_all(updates);
+    let throttle = options.throttle;
+    let name = options.name.unwrap_or("subscription query");
+    async_stream::stream! {
+        let mut previous = None;
+        match query().await {
+            Ok(summary) => {
+                previous = Some(summary.clone());
+                yield summary;
+            }
+            Err(error) => warn!("load {name} failed: {error:?}"),
+        }
+
+        'updates: loop {
+            tokio::select! {
+                update = updates.next() => match update {
+                    Some(()) => {},
+                    None => break 'updates,
+                },
+                changed = shutdown.changed() => {
+                    if changed.is_err() || *shutdown.borrow() {
+                        break 'updates;
+                    }
+                    continue;
+                }
+            }
+
+            let delay = tokio::time::sleep(throttle);
+            tokio::pin!(delay);
+            loop {
+                tokio::select! {
+                    _ = &mut delay => break,
+                    update = updates.next() => match update {
+                        Some(()) => {},
+                        None => break 'updates,
+                    },
+                    changed = shutdown.changed() => {
+                        if changed.is_err() || *shutdown.borrow() {
+                            break 'updates;
+                        }
+                    }
+                }
+            }
+
+            match query().await {
+                Ok(summary) if previous.as_ref() != Some(&summary) => {
+                    previous = Some(summary.clone());
+                    yield summary;
+                }
+                Ok(_) => {}
+                Err(error) => warn!("refresh {name} failed: {error:?}"),
+            }
+        }
+    }
+}
+
 impl Deref for ConversationAccess {
     type Target = AccountState;
 
@@ -295,17 +449,6 @@ impl ConversationAccess {
             .database
             .conversation_dao
             .list_items_by_ids(&conversation_ids)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
-    }
-
-    pub async fn unseen_conversation_counts(&self) -> Result<Vec<model::ConversationUnseenCount>> {
-        Ok(self
-            .database
-            .conversation_dao
-            .unseen_counts()
             .await?
             .into_iter()
             .map(Into::into)
@@ -885,45 +1028,50 @@ impl ConversationAccess {
     }
 }
 
-fn group_conversation_id(
-    owner_id: &str,
-    name: &str,
-    user_ids: &[String],
-    random_id: &str,
-) -> String {
-    let mut conversation_id = generate_conversation_id(owner_id, name).to_string();
-    conversation_id = generate_conversation_id(&conversation_id, random_id).to_string();
-    let mut sorted_user_ids = user_ids.to_vec();
-    sorted_user_ids.sort();
-    for user_id in sorted_user_ids {
-        conversation_id = generate_conversation_id(&conversation_id, &user_id).to_string();
-    }
-    conversation_id
-}
-
 #[cfg(test)]
 mod tests {
-    use super::group_conversation_id;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
 
-    #[test]
-    fn group_id_matches_flutter() {
-        let user_ids = [
-            "f937ca18-d1ff-46f5-99e8-e23fbd6fd5f2",
-            "0e0a20c8-31b8-4093-81b8-9cebd9bc8afc",
-            "8391e472-cdbe-4704-be1f-7d184635b885",
-            "831fdb67-13ed-4dc5-ac64-dda89aeda2bb",
-            "f7ff9dde-18c2-4375-8097-b364068b120e",
-            "088c1e3e-1f07-4065-85b5-6b49b4370d32",
-        ]
-        .map(str::to_string);
-        assert_eq!(
-            group_conversation_id(
-                "c8cb0ac7-d456-4341-be66-0b143aa09922",
-                "Mixin Rocks",
-                &user_ids,
-                "01d21e2c-76f5-4940-8ea0-9b7f21728674",
-            ),
-            "5dac944e-2037-31b4-bbd9-e5fd3ffe571e"
-        );
+    use futures::stream;
+    use futures::StreamExt;
+    use tokio::sync::watch;
+
+    use super::{subscribe_on_updates, UpdateStream, UpdateSubscriptionOptions};
+
+    #[tokio::test(start_paused = true)]
+    async fn subscribe_on_updates_emits_initial_value_and_coalesces_updates() {
+        let (shutdown_sender, shutdown) = watch::channel(false);
+        let query_count = Arc::new(AtomicUsize::new(0));
+        let query_count_for_query = query_count.clone();
+        let query = move || {
+            let query_count = query_count_for_query.clone();
+            async move { Ok::<_, anyhow::Error>(query_count.fetch_add(1, Ordering::SeqCst)) }
+        };
+        let update_stream: UpdateStream =
+            Box::pin(stream::iter([(), ()]).chain(stream::pending::<()>()));
+        let mut subscription = Box::pin(subscribe_on_updates(
+            query,
+            vec![update_stream],
+            shutdown,
+            UpdateSubscriptionOptions {
+                throttle: Duration::from_millis(333),
+                name: None,
+            },
+        ));
+
+        assert_eq!(subscription.next().await, Some(0));
+
+        let next = subscription.next();
+        tokio::pin!(next);
+        tokio::select! {
+            value = &mut next => panic!("subscription emitted too early: {value:?}"),
+            _ = tokio::task::yield_now() => {}
+        }
+        tokio::time::advance(Duration::from_millis(333)).await;
+        assert_eq!(next.await, Some(1));
+        assert_eq!(query_count.load(Ordering::SeqCst), 2);
+        drop(shutdown_sender);
     }
 }

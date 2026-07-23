@@ -7,8 +7,8 @@ use sdk::{BlazeAckMessage, BlazeMessage, PlainJsonMessage, ACKNOWLEDGE_MESSAGE_R
 
 use crate::core::constants::TEAM_MIXIN_USER_ID;
 use crate::core::message::sender::MessageSender;
-use crate::core::util::generate_conversation_id;
 use crate::db::MixinDatabase;
+use sdk::generate_conversation_id;
 
 use super::{is_terminal_result, JobCategory, JobTrigger};
 

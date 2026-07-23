@@ -38,6 +38,7 @@ pub struct ConversationChangeEvent {
     pub reload_all: bool,
 }
 
+#[derive(Clone, PartialEq, Eq)]
 pub struct ConversationUnseenCount {
     pub category: String,
     pub circle_id: Option<String>,

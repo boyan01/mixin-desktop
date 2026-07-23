@@ -7,6 +7,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   desktop_keep_screen_on
   desktop_webview_window
   file_selector_windows
+  flutter_app_icon_badge
   irondash_engine_context
   local_auth_windows
   protocol_handler_windows

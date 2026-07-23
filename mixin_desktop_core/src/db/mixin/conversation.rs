@@ -357,9 +357,29 @@ FROM base
 INNER JOIN circle_conversations circle_conversation
         ON circle_conversation.conversation_id = base.conversation_id
 GROUP BY circle_conversation.circle_id
+ORDER BY category, circle_id
             "#,
         )
         .fetch_all(&self.0)
+        .await?)
+    }
+
+    pub async fn unseen_unmuted_message_count(&self) -> Result<i64, Error> {
+        Ok(sqlx::query_scalar(
+            r#"
+SELECT COALESCE(SUM(conversation.unseen_message_count), 0)
+FROM conversations conversation
+INNER JOIN users owner ON owner.user_id = conversation.owner_id
+WHERE conversation.category IN ('CONTACT', 'GROUP')
+  AND COALESCE(conversation.unseen_message_count, 0) > 0
+  AND CASE
+          WHEN conversation.category = 'GROUP'
+              THEN conversation.mute_until <= CAST(unixepoch('subsec') * 1000 AS INTEGER)
+          ELSE owner.mute_until <= CAST(unixepoch('subsec') * 1000 AS INTEGER)
+      END
+            "#,
+        )
+        .fetch_one(&self.0)
         .await?)
     }
 
@@ -809,6 +829,98 @@ mod tests {
                 Some((now + TimeDelta::seconds(1)).timestamp_millis()),
                 Some(String::new()),
             )
+        );
+    }
+
+    #[tokio::test]
+    async fn sums_only_unmuted_unseen_messages_for_app_icon_badge() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        let now = Utc::now();
+        for (user_id, mute_until) in [
+            ("unmuted-owner", now),
+            ("muted-owner", now + TimeDelta::hours(1)),
+        ] {
+            sqlx::query(
+                "INSERT INTO users (user_id, identity_number, full_name, avatar_url, \
+                 created_at, mute_until) VALUES (?, ?, ?, ?, ?, ?)",
+            )
+            .bind(user_id)
+            .bind(user_id)
+            .bind(user_id)
+            .bind("")
+            .bind(now.timestamp_millis())
+            .bind(mute_until.timestamp_millis())
+            .execute(&database.conversation_dao.0)
+            .await
+            .unwrap();
+        }
+        for (conversation_id, owner_id, category, mute_until, unseen_count) in [
+            (
+                "contact-unmuted",
+                "unmuted-owner",
+                ConversationCategory::Contact,
+                now,
+                2,
+            ),
+            (
+                "contact-muted",
+                "muted-owner",
+                ConversationCategory::Contact,
+                now,
+                3,
+            ),
+            (
+                "group-unmuted",
+                "unmuted-owner",
+                ConversationCategory::Group,
+                now,
+                3,
+            ),
+            (
+                "group-muted",
+                "unmuted-owner",
+                ConversationCategory::Group,
+                now + TimeDelta::hours(1),
+                4,
+            ),
+        ] {
+            database
+                .conversation_dao
+                .insert(&Conversation {
+                    conversation_id: conversation_id.into(),
+                    owner_id: Some(owner_id.into()),
+                    category: Some(category),
+                    name: String::new(),
+                    icon_url: String::new(),
+                    announcement: String::new(),
+                    code_url: String::new(),
+                    created_at: now,
+                    status: ConversationStatus::SUCCESS,
+                    mute_until,
+                    expire_in: 0,
+                })
+                .await
+                .unwrap();
+            sqlx::query(
+                "UPDATE conversations SET unseen_message_count = ? WHERE conversation_id = ?",
+            )
+            .bind(unseen_count)
+            .bind(conversation_id)
+            .execute(&database.conversation_dao.0)
+            .await
+            .unwrap();
+        }
+
+        assert_eq!(
+            database
+                .conversation_dao
+                .unseen_unmuted_message_count()
+                .await
+                .unwrap(),
+            5
         );
     }
 

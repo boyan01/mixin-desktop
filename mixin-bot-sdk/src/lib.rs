@@ -13,6 +13,7 @@ pub use client::Client;
 pub use credential::{Credential, KeyStore};
 pub use err::{ApiError, Error};
 pub use message::*;
+pub use util::{generate_conversation_id, group_conversation_id, unique_object_id};
 
 pub mod api;
 pub mod blaze_message;
@@ -21,3 +22,4 @@ pub mod credential;
 pub mod err;
 pub mod message;
 pub mod message_category;
+pub mod util;

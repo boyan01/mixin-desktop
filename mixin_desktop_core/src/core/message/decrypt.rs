@@ -30,7 +30,6 @@ use crate::core::device_transfer::{DeviceTransferControlEvent, DEVICE_TRANSFER_A
 use crate::core::message::blaze::PendingMessageStatusStore;
 use crate::core::message::sender::{MessageSender, ProcessSignalKeyAction};
 use crate::core::model::{AppService, AttachmentExtra};
-use crate::core::util::generate_conversation_id;
 use crate::db::app::Auth;
 use crate::db::mixin::conversation::ConversationStatus;
 use crate::db::mixin::flood_message::FloodMessage;
@@ -42,6 +41,7 @@ use crate::db::mixin::pin_message::{PinMessage, PinMessageMinimal};
 use crate::db::mixin::transcript_message::TranscriptMessage;
 use crate::db::mixin::MixinDatabase;
 use crate::db::signal::ratchet_sender_key::ratchet_sender_key_status;
+use sdk::generate_conversation_id;
 
 #[derive(Clone)]
 pub struct ServiceDecryptMessage {

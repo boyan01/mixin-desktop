@@ -115,6 +115,32 @@ void main() {
     expect(find.byKey(const Key('chat-header')), findsOneWidget);
   });
 
+  testWidgets('updates sidebar category badges from unseen count changes', (
+    tester,
+  ) async {
+    final unseenCounts =
+        StreamController<List<ConversationUnseenCount>>.broadcast();
+    addTearDown(unseenCounts.close);
+    await _pumpHome(
+      tester,
+      size: const Size(1000, 700),
+      account: _FakeAccountHandle(unseenCountValues: unseenCounts.stream),
+    );
+    await tester.pump();
+
+    unseenCounts.add(const [
+      ConversationUnseenCount(
+        category: 'contacts',
+        count: 2,
+        mutedCount: 0,
+      ),
+    ]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Contacts'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+  });
+
   testWidgets('opens and closes the original chat side info route', (
     tester,
   ) async {
@@ -477,7 +503,9 @@ class _FakeAccountHandle
   _FakeAccountHandle({
     List<ConversationListItem>? conversations,
     this.sharedAppsValues = const [],
-  }) : _conversationItems = conversations ?? const [_conversation];
+    Stream<List<ConversationUnseenCount>>? unseenCountValues,
+  }) : unseenCountValues = unseenCountValues ?? const Stream.empty(),
+       _conversationItems = conversations ?? const [_conversation];
 
   static const _conversation = ConversationListItem(
     conversationId: 'conversation',
@@ -541,6 +569,7 @@ class _FakeAccountHandle
 
   final List<ConversationListItem> _conversationItems;
   final List<SharedAppItem> sharedAppsValues;
+  final Stream<List<ConversationUnseenCount>> unseenCountValues;
   final conversationKeywords = <String>[];
   final sentTexts = <String>[];
   Object? mutationError;
@@ -587,8 +616,11 @@ class _FakeAccountHandle
       .toList(growable: false);
 
   @override
-  Future<List<ConversationUnseenCount>> unseenConversationCounts() async =>
-      const [];
+  Stream<List<ConversationUnseenCount>> unseenCountChanges() =>
+      unseenCountValues;
+
+  @override
+  Stream<PlatformInt64> unseenMessageCountChanges() => Stream.value(0);
 
   @override
   Stream<String> accountHealth() => Stream.value('ready');
