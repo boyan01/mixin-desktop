@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -21,6 +23,21 @@ import 'show_forward_conversation_selector.dart';
 import 'toast.dart';
 
 enum MessageUserAction { chat, information }
+
+void openMessageUserDialog(
+  BuildContext context, {
+  String? userId,
+  String? identityNumber,
+}) {
+  unawaited(
+    showMessageUserDialog(
+      context,
+      account: context.read<rust.AccountHandle>(),
+      userId: userId,
+      identityNumber: identityNumber,
+    ),
+  );
+}
 
 class MessageUserDialogResult {
   const MessageUserDialogResult({required this.profile, required this.action});

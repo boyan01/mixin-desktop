@@ -10,6 +10,8 @@ class MentionController extends ChangeNotifier {
     required this.conversation,
     required this.inputController,
     required this.onTextChanged,
+    required this.onMentionSelected,
+    required this.onMentionNamesChanged,
   }) {
     inputController.addListener(_onInputChanged);
     _onInputChanged();
@@ -19,15 +21,19 @@ class MentionController extends ChangeNotifier {
   final ConversationListEntry conversation;
   final TextEditingController inputController;
   final ValueChanged<String> onTextChanged;
+  final ValueChanged<String> onMentionSelected;
+  final ValueChanged<Map<String, String>> onMentionNamesChanged;
 
   List<rust.ConversationParticipantItem> users = const [];
   String keyword = '';
   int index = 0;
   final ScrollController scrollController = ScrollController();
   int _revision = 0;
+  int _mentionNamesRevision = 0;
   bool _disposed = false;
 
   void _onInputChanged() {
+    _resolveMentionNames(inputController.text);
     if (!conversation.isGroup && !conversation.isBot) return _clear();
     final selection = inputController.selection.baseOffset;
     if (selection < 0 || selection > inputController.text.length) {
@@ -45,6 +51,17 @@ class MentionController extends ChangeNotifier {
     keyword = nextKeyword;
     final revision = ++_revision;
     unawaited(_load(revision, keyword));
+  }
+
+  Future<void> _resolveMentionNames(String text) async {
+    final revision = ++_mentionNamesRevision;
+    try {
+      final names = await account.user().mentionNames(contents: [text]);
+      if (_disposed || revision != _mentionNamesRevision) return;
+      onMentionNamesChanged(names);
+    } on Object catch (error, stackTrace) {
+      e('resolve input mention names failed', error, stackTrace);
+    }
   }
 
   Future<void> _load(int revision, String searchKeyword) async {
@@ -125,6 +142,7 @@ class MentionController extends ChangeNotifier {
       text: before + inputController.text.substring(selection),
       selection: TextSelection.collapsed(offset: before.length),
     );
+    onMentionSelected(user.identityNumber);
     onTextChanged(inputController.text);
     _clear();
   }

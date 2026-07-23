@@ -266,8 +266,6 @@ class MessageContent extends StatelessWidget {
         highlightOpacity: highlightOpacity,
         dateAndStatus: dateAndStatus,
         quote: quote,
-        onOpenUri: onOpenUri,
-        onOpenIdentityNumber: onOpenIdentityNumber,
         mentionNames: mentionNames,
         keyword: keyword,
         isPinnedPage: isPinnedPage,
@@ -308,8 +306,6 @@ class MessageContent extends StatelessWidget {
         onOpen: onOpenImage,
         onDownloadAttachment: onDownloadAttachment,
         onCancelAttachment: onCancelAttachment,
-        onOpenUri: onOpenUri,
-        onOpenIdentityNumber: onOpenIdentityNumber,
         mentionNames: mentionNames,
         keyword: keyword,
       );
@@ -359,8 +355,6 @@ class MessageContent extends StatelessWidget {
       return _TextMessage(
         message: message,
         dateAndStatus: dateAndStatus,
-        onOpenUri: onOpenUri,
-        onOpenIdentityNumber: onOpenIdentityNumber,
         mentionNames: mentionNames,
         keyword: keyword,
       );
@@ -384,16 +378,12 @@ class _TextMessage extends StatelessWidget {
   const _TextMessage({
     required this.message,
     required this.dateAndStatus,
-    this.onOpenUri,
-    this.onOpenIdentityNumber,
     this.mentionNames = const {},
     this.keyword = '',
   });
 
   final MessageListEntry message;
   final Widget dateAndStatus;
-  final MessageUriCallback? onOpenUri;
-  final MessageStringCallback? onOpenIdentityNumber;
   final Map<String, String> mentionNames;
   final String keyword;
 
@@ -402,8 +392,6 @@ class _TextMessage extends StatelessWidget {
     spacing: 6,
     content: SelectableMessageText(
       content: message.content,
-      onOpenUri: onOpenUri,
-      onOpenIdentityNumber: onOpenIdentityNumber,
       mentionNames: mentionNames,
       keyword: keyword,
       style: TextStyle(
@@ -424,8 +412,6 @@ class _ImageMessage extends StatelessWidget {
     this.onOpen,
     this.onDownloadAttachment,
     this.onCancelAttachment,
-    this.onOpenUri,
-    this.onOpenIdentityNumber,
     this.mentionNames = const {},
     this.keyword = '',
   });
@@ -437,8 +423,6 @@ class _ImageMessage extends StatelessWidget {
   final MessageEntryCallback? onOpen;
   final MessageEntryCallback? onDownloadAttachment;
   final MessageEntryCallback? onCancelAttachment;
-  final MessageUriCallback? onOpenUri;
-  final MessageStringCallback? onOpenIdentityNumber;
   final Map<String, String> mentionNames;
   final String keyword;
 
@@ -480,8 +464,6 @@ class _ImageMessage extends StatelessWidget {
                     ),
                     child: SelectableMessageText(
                       content: caption,
-                      onOpenUri: onOpenUri,
-                      onOpenIdentityNumber: onOpenIdentityNumber,
                       mentionNames: mentionNames,
                       keyword: keyword,
                       style: TextStyle(

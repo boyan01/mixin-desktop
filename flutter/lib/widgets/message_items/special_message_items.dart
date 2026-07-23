@@ -503,8 +503,6 @@ class AppButtonGroupMessageItem extends StatelessWidget {
     this.highlightOpacity = 0,
     super.key,
     this.quote,
-    this.onOpenUri,
-    this.onOpenIdentityNumber,
     this.mentionNames = const {},
     this.keyword = '',
     this.isPinnedPage = false,
@@ -518,8 +516,6 @@ class AppButtonGroupMessageItem extends StatelessWidget {
   final bool highlighted;
   final double highlightOpacity;
   final Widget? quote;
-  final MessageUriCallback? onOpenUri;
-  final MessageStringCallback? onOpenIdentityNumber;
   final Map<String, String> mentionNames;
   final String keyword;
   final bool isPinnedPage;
@@ -624,8 +620,6 @@ class AppCardMessageItem extends StatelessWidget {
         highlightOpacity: highlightOpacity,
         dateAndStatus: dateAndStatus,
         quote: quote,
-        onOpenUri: onOpenUri,
-        onOpenIdentityNumber: onOpenIdentityNumber,
         mentionNames: mentionNames,
         keyword: keyword,
         isPinnedPage: isPinnedPage,
@@ -669,8 +663,6 @@ class _ActionsCardMessage extends StatelessWidget {
     required this.highlightOpacity,
     required this.dateAndStatus,
     this.quote,
-    this.onOpenUri,
-    this.onOpenIdentityNumber,
     this.mentionNames = const {},
     this.keyword = '',
     this.isPinnedPage = false,
@@ -687,8 +679,6 @@ class _ActionsCardMessage extends StatelessWidget {
   final double highlightOpacity;
   final Widget dateAndStatus;
   final Widget? quote;
-  final MessageUriCallback? onOpenUri;
-  final MessageStringCallback? onOpenIdentityNumber;
   final Map<String, String> mentionNames;
   final String keyword;
   final bool isPinnedPage;
@@ -729,8 +719,6 @@ class _ActionsCardMessage extends StatelessWidget {
                       const SizedBox.shrink(),
                   child: _ActionsCardBody(
                     card: card,
-                    onOpenUri: onOpenUri,
-                    onOpenIdentityNumber: onOpenIdentityNumber,
                     mentionNames: mentionNames,
                     keyword: keyword,
                   ),
@@ -1413,15 +1401,11 @@ class _RenderActionButtonLayout extends RenderBox
 class _ActionsCardBody extends StatelessWidget {
   const _ActionsCardBody({
     required this.card,
-    required this.onOpenUri,
-    required this.onOpenIdentityNumber,
     required this.mentionNames,
     required this.keyword,
   });
 
   final _AppCardData card;
-  final MessageUriCallback? onOpenUri;
-  final MessageStringCallback? onOpenIdentityNumber;
   final Map<String, String> mentionNames;
   final String keyword;
 
@@ -1457,8 +1441,6 @@ class _ActionsCardBody extends StatelessWidget {
         child: SelectableMessageText(
           content: card.description,
           enableSelection: false,
-          onOpenUri: onOpenUri,
-          onOpenIdentityNumber: onOpenIdentityNumber,
           mentionNames: mentionNames,
           keyword: keyword,
           style: TextStyle(

@@ -5,9 +5,7 @@ import '../src/rust/desktop_api.dart' show AccountHandle;
 import '../theme.dart';
 import '../utils/app_logger.dart';
 import 'high_light_text.dart';
-
-typedef OpenMessageUri = void Function(Uri uri);
-typedef OpenIdentityNumber = void Function(String identityNumber);
+import 'show_message_user_dialog.dart';
 
 Set<String> messageMentionIdentityNumbers(Iterable<String?> texts) => {
   for (final text in texts)
@@ -68,13 +66,11 @@ Map<String, String> useMessageMentionNames(
   return resolved.data ?? const {};
 }
 
-class SelectableMessageText extends StatefulWidget {
+class SelectableMessageText extends StatelessWidget {
   const SelectableMessageText({
     required this.content,
     required this.style,
     super.key,
-    this.onOpenUri,
-    this.onOpenIdentityNumber,
     this.mentionNames = const {},
     this.keyword = '',
     this.enableSelection = true,
@@ -82,133 +78,24 @@ class SelectableMessageText extends StatefulWidget {
 
   final String content;
   final TextStyle style;
-  final OpenMessageUri? onOpenUri;
-  final OpenIdentityNumber? onOpenIdentityNumber;
   final Map<String, String> mentionNames;
   final String keyword;
   final bool enableSelection;
 
   @override
-  State<SelectableMessageText> createState() => _SelectableMessageTextState();
-}
-
-class _SelectableMessageTextState extends State<SelectableMessageText> {
-  late List<_TextSegment> _segments;
-
-  @override
-  void initState() {
-    super.initState();
-    _segments = _parseSegments();
-  }
-
-  @override
-  void didUpdateWidget(covariant SelectableMessageText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.content == widget.content &&
-        oldWidget.onOpenUri == widget.onOpenUri &&
-        oldWidget.onOpenIdentityNumber == widget.onOpenIdentityNumber &&
-        oldWidget.keyword == widget.keyword &&
-        oldWidget.enableSelection == widget.enableSelection &&
-        identical(oldWidget.mentionNames, widget.mentionNames)) {
-      return;
-    }
-    _disposeSegments();
-    _segments = _parseSegments();
-  }
-
-  @override
-  void dispose() {
-    _disposeSegments();
-    super.dispose();
-  }
-
-  void _disposeSegments() {
-    for (final segment in _segments) {
-      segment.recognizer?.dispose();
-    }
-  }
-
-  List<_TextSegment> _parseSegments() {
-    final segments = <_TextSegment>[];
-    var offset = 0;
-    for (final match in _interactivePattern.allMatches(widget.content)) {
-      if (match.start > offset) {
-        segments.add(
-          _TextSegment(widget.content.substring(offset, match.start)),
-        );
-      }
-      final raw = match.group(0)!;
-      final type = _segmentType(raw);
-      final interactiveText = type == _SegmentType.identity
-          ? raw
-          : raw.replaceFirst(_trailingPunctuation, '');
-      final trailing = raw.substring(interactiveText.length);
-      segments.add(_interactiveSegment(interactiveText, type));
-      if (trailing.isNotEmpty) segments.add(_TextSegment(trailing));
-      offset = match.end;
-    }
-    if (offset < widget.content.length) {
-      segments.add(_TextSegment(widget.content.substring(offset)));
-    }
-    return segments;
-  }
-
-  _TextSegment _interactiveSegment(String text, _SegmentType type) {
-    VoidCallback? onTap;
-    switch (type) {
-      case _SegmentType.uri:
-        final uri = Uri.tryParse(text);
-        if (uri != null && widget.onOpenUri != null) {
-          onTap = () => widget.onOpenUri!(uri);
-        }
-      case _SegmentType.email:
-        final uri = Uri(scheme: 'mailto', path: text);
-        if (widget.onOpenUri != null) onTap = () => widget.onOpenUri!(uri);
-      case _SegmentType.identity:
-        final identityNumber = text.substring(1);
-        if (widget.onOpenIdentityNumber != null) {
-          onTap = () => widget.onOpenIdentityNumber!(identityNumber);
-        }
-        final displayText =
-            '@${widget.mentionNames[identityNumber] ?? identityNumber}';
-        return _TextSegment(
-          displayText,
-          interactive: true,
-          recognizer: onTap == null
-              ? null
-              : (TapGestureRecognizer()..onTap = onTap),
-        );
-    }
-    final recognizer = onTap == null
-        ? null
-        : (TapGestureRecognizer()..onTap = onTap);
-    return _TextSegment(text, interactive: true, recognizer: recognizer);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final child = CustomText.rich(
-      TextSpan(
-        style: widget.style,
-        children: [
-          for (final segment in _segments)
-            TextSpan(
-              text: segment.text,
-              recognizer: segment.recognizer,
-              mouseCursor: segment.recognizer == null
-                  ? MouseCursor.defer
-                  : SystemMouseCursors.click,
-              style: segment.interactive
-                  ? widget.style.copyWith(color: context.theme.accent)
-                  : widget.style,
-            ),
-        ],
-      ),
+    final child = CustomText(
+      content,
+      style: style,
       textMatchers: [
+        UrlTextMatcher(context),
+        MailTextMatcher(context),
+        MentionTextMatcher(context, mentionNames),
+        BotNumberTextMatcher(context),
         EmojiTextMatcher(),
-        if (widget.keyword.isNotEmpty)
+        if (keyword.isNotEmpty)
           KeyWordTextMatcher(
-            widget.keyword,
+            keyword,
             style: TextStyle(
               backgroundColor: context.theme.highlight,
               color: context.theme.text,
@@ -216,7 +103,7 @@ class _SelectableMessageTextState extends State<SelectableMessageText> {
           ),
       ],
     );
-    if (!widget.enableSelection) return child;
+    if (!enableSelection) return child;
     return SelectionArea(
       contextMenuBuilder: (context, selectableState) => const SizedBox.shrink(),
       child: child,
@@ -224,29 +111,41 @@ class _SelectableMessageTextState extends State<SelectableMessageText> {
   }
 }
 
-class _TextSegment {
-  const _TextSegment(this.text, {this.interactive = false, this.recognizer});
-
-  final String text;
-  final bool interactive;
-  final TapGestureRecognizer? recognizer;
+class MentionTextMatcher extends TextMatcher {
+  MentionTextMatcher(BuildContext context, Map<String, String> mentionNames)
+    : super.regExp(
+        regExp: RegExp(r'@(\d{4,})'),
+        matchBuilder: (_, displayString, linkString) {
+          final identityNumber = linkString.substring(1);
+          final name = mentionNames[identityNumber];
+          if (name == null) return TextSpan(text: linkString);
+          return TextSpan(
+            text: '@$name',
+            style: TextStyle(color: context.theme.accent),
+            mouseCursor: SystemMouseCursors.click,
+            recognizer: TapGestureRecognizer()
+              ..onTap = () => openMessageUserDialog(
+                context,
+                identityNumber: identityNumber,
+              ),
+          );
+        },
+      );
 }
 
-enum _SegmentType { uri, email, identity }
-
-final _interactivePattern = RegExp(
-  r'https?://[^\s<]+|mixin:(?://)?[^\s<]+|'
-  r'[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|@\d+',
-  caseSensitive: false,
-);
-
-final _trailingPunctuation = RegExp(r'[.,!?;:)\]\}]+$');
-
-_SegmentType _segmentType(String value) {
-  if (value.startsWith('@')) return _SegmentType.identity;
-  if (value.toLowerCase().startsWith('http') ||
-      value.toLowerCase().startsWith('mixin:')) {
-    return _SegmentType.uri;
-  }
-  return _SegmentType.email;
+class BotNumberTextMatcher extends TextMatcher {
+  BotNumberTextMatcher(BuildContext context)
+    : super.regExp(
+        regExp: RegExp(r'(?<!\d)7000\d{6}(?!\d)'),
+        matchBuilder: (_, displayString, linkString) => TextSpan(
+          text: displayString,
+          style: TextStyle(color: context.theme.accent),
+          mouseCursor: SystemMouseCursors.click,
+          recognizer: TapGestureRecognizer()
+            ..onTap = () => openMessageUserDialog(
+              context,
+              identityNumber: linkString,
+            ),
+        ),
+      );
 }

@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:data_detector/data_detector.dart';
 import 'package:emojis/emoji.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -152,9 +155,16 @@ typedef InlineMatchBuilder =
     );
 
 class TextMatcher {
-  TextMatcher.regExp({required this.regExp, required this.matchBuilder});
+  TextMatcher.regExp({required this.regExp, required this.matchBuilder})
+    : textRangesFromText = null;
 
-  final RegExp regExp;
+  TextMatcher.textRangesFromText({
+    required this.textRangesFromText,
+    required this.matchBuilder,
+  }) : regExp = null;
+
+  final RegExp? regExp;
+  final Iterable<TextRange> Function(String text)? textRangesFromText;
   final InlineMatchBuilder matchBuilder;
 
   static Iterable<InlineSpan> applyTextMatchers(
@@ -173,16 +183,23 @@ class TextMatcher {
     final value = span.text;
     if (value != null && value.isNotEmpty) {
       var offset = 0;
-      for (final match in matcher.regExp.allMatches(value)) {
-        if (match.start == match.end) continue;
-        if (match.start > offset) {
+      final ranges =
+          matcher.textRangesFromText?.call(value) ??
+          matcher.regExp!
+              .allMatches(value)
+              .map(
+                (match) => TextRange(start: match.start, end: match.end),
+              );
+      for (final range in ranges) {
+        if (range.start == range.end) continue;
+        if (range.start > offset) {
           children.add(
-            _copyTextSpan(span, value.substring(offset, match.start)),
+            _copyTextSpan(span, value.substring(offset, range.start)),
           );
         }
-        final matched = value.substring(match.start, match.end);
+        final matched = value.substring(range.start, range.end);
         children.add(matcher.matchBuilder(span, matched, matched));
-        offset = match.end;
+        offset = range.end;
       }
       if (offset < value.length) {
         children.add(_copyTextSpan(span, value.substring(offset)));
@@ -208,6 +225,7 @@ class TextMatcher {
 
   static TextSpan _copyTextSpan(TextSpan source, String text) => TextSpan(
     text: text,
+    style: source.style,
     recognizer: source.recognizer,
     mouseCursor: source.mouseCursor,
     onEnter: source.onEnter,
@@ -238,21 +256,54 @@ class EmojiTextMatcher extends TextMatcher {
 
 class UrlTextMatcher extends TextMatcher {
   UrlTextMatcher(BuildContext context)
+    : super.textRangesFromText(
+        textRangesFromText: (text) {
+          if (defaultTargetPlatform == TargetPlatform.macOS) {
+            return DataDetector(
+              NSTextCheckingType.NSTextCheckingTypeLink,
+            ).matchesInString(text).map((match) => match.range);
+          }
+          return _textRangesFromRegExp(text, _uriRegExp);
+        },
+        matchBuilder: (span, displayString, linkString) => TextSpan(
+          text: displayString,
+          style: TextStyle(color: context.theme.accent),
+          mouseCursor: SystemMouseCursors.click,
+          recognizer: TapGestureRecognizer()
+            ..onTap = () => openUrl(context, linkString),
+        ),
+      );
+}
+
+final _uriRegExp = RegExp(
+  r'\b[a-zA-z+]+:(?://)?[\w-]+(?:\.[\w-]+)*(?:[\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?\b/?',
+);
+
+Iterable<TextRange> _textRangesFromRegExp(String text, RegExp regExp) => regExp
+    .allMatches(text)
+    .map(
+      (match) => TextRange(start: match.start, end: match.end),
+    );
+
+void openUrl(BuildContext context, String value) {
+  final uri = Uri.tryParse(value);
+  if (uri == null || uri.scheme.isEmpty) return;
+  if (!AppProtocolHandler.maybeOpen(context, uri)) unawaited(launchUrl(uri));
+}
+
+class MailTextMatcher extends TextMatcher {
+  MailTextMatcher(BuildContext context)
     : super.regExp(
         regExp: RegExp(
-          r'\b[a-zA-Z+]+:(?://)?[\w-]+(?:\.[\w-]+)*(?:[\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?\b/?',
+          r'\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b',
         ),
         matchBuilder: (span, displayString, linkString) => TextSpan(
           text: displayString,
           style: TextStyle(color: context.theme.accent),
           mouseCursor: SystemMouseCursors.click,
           recognizer: TapGestureRecognizer()
-            ..onTap = () {
-              final uri = Uri.tryParse(linkString);
-              if (uri != null && !AppProtocolHandler.maybeOpen(context, uri)) {
-                launchUrl(uri);
-              }
-            },
+            ..onTap = () =>
+                unawaited(launchUrl(Uri(scheme: 'mailto', path: linkString))),
         ),
       );
 }

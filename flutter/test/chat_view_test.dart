@@ -18,6 +18,7 @@ import 'package:mixin_desktop_ui/models/message_list_entry.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/chat_view.dart';
+import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
 import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
@@ -139,6 +140,71 @@ void main() {
     await tester.pump(const Duration(milliseconds: 120));
     expect(find.byKey(const Key('chat-send')), findsOneWidget);
     expect(find.byKey(const Key('chat-voice')), findsNothing);
+  });
+
+  testWidgets(
+    'selecting a visible group mention with Enter replaces and highlights input without sending',
+    (tester) async {
+      final account = _FakeAccountHandle([])
+        ..mentionUsers = const [
+          ConversationParticipantItem(
+            userId: 'alice',
+            createdAtMillis: 0,
+            identityNumber: '12412',
+            fullName: 'Alice',
+            avatarUrl: '',
+            biography: '',
+            isVerified: false,
+            isBot: false,
+            relationship: 'FRIEND',
+          ),
+        ];
+      addTearDown(account.close);
+      await tester.pumpWidget(
+        _LocalizedApp(
+          child: ChatView(
+            account: account,
+            conversation: _groupConversation,
+            draft: '',
+            onDraftChanged: (_) {},
+          ),
+        ),
+      );
+      await tester.enterText(find.byKey(const Key('chat-input')), '@12412');
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+
+      final input = tester.widget<TextField>(
+        find.byKey(const Key('chat-input')),
+      );
+      expect(input.controller!.text, '@12412 ');
+      expect(account.sentTexts, isEmpty);
+      final span = input.controller!.buildTextSpan(
+        context: tester.element(find.byKey(const Key('chat-input'))),
+        withComposing: true,
+      );
+      final mentionSpan = _findTextSpan(span, '@12412');
+      expect(
+        mentionSpan?.style?.color,
+        tester.element(find.byKey(const Key('chat-input'))).theme.accent,
+      );
+    },
+  );
+
+  testWidgets('renders a standalone bot number as a clickable message link', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const _LocalizedApp(child: Scaffold()));
+
+    final context = tester.element(find.byType(Scaffold));
+    final span = TextMatcher.applyTextMatchers(
+      const [TextSpan(text: '7000123456')],
+      [BotNumberTextMatcher(context)],
+    ).single;
+
+    expect(_findTextSpan(span, '7000123456')?.recognizer, isNotNull);
   });
 
   testWidgets('anchors the sticker portal in window coordinates', (
@@ -1084,6 +1150,16 @@ void main() {
   });
 }
 
+TextSpan? _findTextSpan(InlineSpan span, String text) {
+  if (span is TextSpan && span.text == text) return span;
+  TextSpan? result;
+  span.visitChildren((child) {
+    result ??= _findTextSpan(child, text);
+    return result == null;
+  });
+  return result;
+}
+
 const _onePixelPng =
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 
@@ -1324,6 +1400,7 @@ class _FakeAccountHandle
   final canceledMessageIds = <String>[];
   final deletedMessageIds = <String>[];
   final recalledMessageIds = <String>[];
+  List<ConversationParticipantItem> mentionUsers = const [];
   Object? sendError;
   var _isDisposed = false;
   int messagesAroundCalls = 0;
@@ -1353,6 +1430,23 @@ class _FakeAccountHandle
 
   @override
   String accountId() => 'me';
+
+  @override
+  Future<List<ConversationParticipantItem>> conversationParticipants({
+    required String conversationId,
+  }) async => mentionUsers;
+
+  @override
+  Future<List<ConversationParticipantItem>> searchGroupUsers({
+    required String conversationId,
+    required String keyword,
+  }) async => mentionUsers
+      .where(
+        (user) =>
+            user.fullName.toLowerCase().contains(keyword.toLowerCase()) ||
+            user.identityNumber.contains(keyword),
+      )
+      .toList(growable: false);
 
   @override
   Stream<BigInt> messageChanges() => _changes.stream;

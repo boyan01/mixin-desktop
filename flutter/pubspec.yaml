@@ -53,6 +53,11 @@ dependencies:
       path: packages/desktop_drop
   desktop_keep_screen_on: ^0.0.3
   dbus: ^0.7.12
+  data_detector:
+    git:
+      url: https://github.com/MixinNetwork/flutter-plugins.git
+      ref: 821be771429135163704ede47acf95be5ba82095
+      path: packages/data_detector
   emojis: ^3.2.0
   flutter_app_icon_badge: ^2.0.0
   mixin_desktop_flutter:

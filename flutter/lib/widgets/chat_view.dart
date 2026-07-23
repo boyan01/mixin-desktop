@@ -124,7 +124,7 @@ class _ChatViewState extends State<ChatView>
   late MessageController _messageController;
   late final ChatScrollCoordinator _scrollCoordinator;
   late String _currentUserId;
-  late final TextEditingController _inputController;
+  late final _MentionTextEditingController _inputController;
   late final FocusNode _inputFocusNode;
   late final VoiceRecorderController _voiceRecorderController;
   late StickerController _stickerController;
@@ -150,7 +150,7 @@ class _ChatViewState extends State<ChatView>
     _scrollCoordinator = ChatScrollCoordinator();
     _createMessageController();
     unawaited(_loadOverlayPreferences());
-    _inputController = TextEditingController(text: widget.draft);
+    _inputController = _MentionTextEditingController(text: widget.draft);
     _inputController.addListener(_onInputChanged);
     _inputFocusNode = FocusNode(debugLabel: 'chat_input');
     _voiceRecorderController = VoiceRecorderController()
@@ -782,6 +782,9 @@ class _ChatViewState extends State<ChatView>
                         focusNode: _inputFocusNode,
                         mentionAccount: widget.account,
                         mentionConversation: widget.conversation,
+                        onMentionSelected: _inputController.markMention,
+                        onMentionNamesChanged:
+                            _inputController.cacheMentionNames,
                         isEncryptConversation: _isEncryptConversation,
                         quoteMessage: _quoteMessage,
                         onChanged: widget.onDraftChanged,
@@ -2730,6 +2733,8 @@ class ChatInputBar extends StatefulWidget {
     this.onSendPost,
     this.mentionAccount,
     this.mentionConversation,
+    this.onMentionSelected,
+    this.onMentionNamesChanged,
     this.onContactPressed,
     this.onFilesPressed,
     this.onPicturesPressed,
@@ -2752,6 +2757,8 @@ class ChatInputBar extends StatefulWidget {
   final Future<void> Function(List<XFile> files)? onPasteFiles;
   final rust.AccountHandle? mentionAccount;
   final ConversationListEntry? mentionConversation;
+  final ValueChanged<String>? onMentionSelected;
+  final ValueChanged<Map<String, String>>? onMentionNamesChanged;
   final VoidCallback? onContactPressed;
   final VoidCallback? onFilesPressed;
   final VoidCallback? onPicturesPressed;
@@ -2811,6 +2818,8 @@ class _ChatInputBarState extends State<ChatInputBar> {
       conversation: conversation,
       inputController: widget.controller,
       onTextChanged: widget.onChanged,
+      onMentionSelected: widget.onMentionSelected ?? (_) {},
+      onMentionNamesChanged: widget.onMentionNamesChanged ?? (_) {},
     );
   }
 
@@ -2824,7 +2833,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
     if (mentions == null) {
       return _MentionPanelPortal(
         textEditingController: widget.controller,
-        child: _build(context, l10n, sendable),
+        child: _build(context, l10n, sendable, false),
       );
     }
     return ChangeNotifierProvider.value(
@@ -2833,7 +2842,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
         builder: (context, mentions, _) => _MentionPanelPortal(
           textEditingController: widget.controller,
           mentions: mentions,
-          child: _build(context, l10n, sendable),
+          child: _build(context, l10n, sendable, mentions.users.isNotEmpty),
         ),
       ),
     );
@@ -2843,6 +2852,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
     BuildContext context,
     AppLocalizations? l10n,
     bool sendable,
+    bool mentionVisible,
   ) => ColoredBox(
     key: const Key('chat-input-bar'),
     color: context.theme.primary,
@@ -2899,7 +2909,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
                   alignment: Alignment.center,
                   child: Shortcuts(
                     shortcuts: {
-                      if (sendable)
+                      if (sendable && !mentionVisible)
                         const SingleActivator(LogicalKeyboardKey.enter):
                             const _SendInputIntent(),
                       if (widget.onSendPost != null)
@@ -3048,6 +3058,71 @@ class _ChatInputBarState extends State<ChatInputBar> {
       ],
     ),
   );
+}
+
+class _MentionTextEditingController extends TextEditingController {
+  _MentionTextEditingController({super.text});
+
+  final Set<String> _identityNumbers = {};
+
+  void markMention(String identityNumber) {
+    _identityNumbers.add(identityNumber);
+    notifyListeners();
+  }
+
+  void cacheMentionNames(Map<String, String> names) {
+    final previousLength = _identityNumbers.length;
+    _identityNumbers.addAll(names.keys);
+    if (_identityNumbers.length != previousLength) notifyListeners();
+  }
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    required bool withComposing,
+    TextStyle? style,
+  }) {
+    TextSpan build(String text, TextStyle? textStyle) => TextSpan(
+      style: textStyle,
+      children: TextMatcher.applyTextMatchers(
+        [
+          TextSpan(text: text, style: textStyle),
+        ],
+        [
+          EmojiTextMatcher(),
+          TextMatcher.regExp(
+            regExp: RegExp(r'@(\d{4,})'),
+            matchBuilder: (span, displayString, linkString) {
+              final identityNumber = linkString.substring(1);
+              return TextSpan(
+                text: displayString,
+                style: _identityNumbers.contains(identityNumber)
+                    ? (span.style ?? const TextStyle()).merge(
+                        TextStyle(color: context.theme.accent),
+                      )
+                    : span.style,
+              );
+            },
+          ),
+        ],
+      ).toList(),
+    );
+
+    if (!value.isComposingRangeValid || !withComposing) {
+      return build(text, style);
+    }
+    return TextSpan(
+      style: style,
+      children: [
+        build(value.composing.textBefore(value.text), style),
+        build(
+          value.composing.textInside(value.text),
+          style?.merge(const TextStyle(decoration: TextDecoration.underline)),
+        ),
+        build(value.composing.textAfter(value.text), style),
+      ],
+    );
+  }
 }
 
 class _MentionPanelPortal extends HookWidget {
