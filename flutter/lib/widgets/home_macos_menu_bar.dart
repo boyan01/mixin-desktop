@@ -9,7 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../controllers/conversation_list_controller.dart';
-import '../controllers/device_transfer_controller.dart';
 import '../controllers/home_navigation_controller.dart';
 import '../controllers/security_controller.dart';
 import '../l10n/l10n.dart';
@@ -157,10 +156,7 @@ class _MacosMenuBarState extends State<MacosMenuBar> {
                   members: [
                     PlatformMenuItem(
                       label: 'chat backup and restore',
-                      onSelected: () => showDeviceTransferDialog(
-                        context,
-                        context.read<DeviceTransferController>(),
-                      ),
+                      onSelected: () => showDeviceTransferDialog(context),
                     ),
                   ],
                 ),

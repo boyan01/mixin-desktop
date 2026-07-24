@@ -4,6 +4,7 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import '../third_party/mixin_desktop_core/core/device_transfer.dart';
 import '../third_party/mixin_desktop_core/runtime.dart';
 import '../third_party/mixin_desktop_core/runtime/model.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
@@ -35,9 +36,9 @@ abstract class AccountHandle implements RustOpaqueInterface {
 
   Stream<NotificationEvent> desktopNotificationEvents();
 
-  Future<void> deviceTransferCommand({required String command});
+  Future<void> deviceTransferCommand({required DeviceTransferCommand command});
 
-  Stream<String> deviceTransferEvents();
+  Stream<DeviceTransferEvent> deviceTransferEvents();
 
   double downloadProgress({required String messageId});
 

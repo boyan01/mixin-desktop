@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use chrono::Utc;
 use futures::StreamExt;
+use mixin_desktop_core::core::device_transfer::{DeviceTransferCommand, DeviceTransferEvent};
 use mixin_desktop_core::runtime::desktop::DesktopRuntime;
 use mixin_desktop_core::runtime::model::{
     AccountProfile, ConversationChangeEvent, ConversationStorageUsage, ConversationUnseenCount,
@@ -230,15 +231,16 @@ impl AccountHandle {
         }
     }
 
-    pub async fn device_transfer_events(&self, sink: StreamSink<String>) -> Result<()> {
+    pub async fn device_transfer_events(
+        &self,
+        sink: StreamSink<DeviceTransferEvent>,
+    ) -> Result<()> {
         let mut events = self.runtime.device_transfer().subscribe();
         let mut shutdown = self.runtime.subscribe_shutdown();
         loop {
             tokio::select! {
                 event = events.recv() => match event {
-                    Ok(event) => sink
-                        .add(serde_json::to_string(&event)?)
-                        .map_err(|error| anyhow::anyhow!("{error:?}"))?,
+                    Ok(event) => sink.add(event).map_err(|error| anyhow::anyhow!("{error:?}"))?,
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => return Ok(()),
                 },
@@ -251,8 +253,8 @@ impl AccountHandle {
         }
     }
 
-    pub async fn device_transfer_command(&self, command: String) -> Result<()> {
-        self.runtime.device_transfer().command(&command).await
+    pub async fn device_transfer_command(&self, command: DeviceTransferCommand) -> Result<()> {
+        self.runtime.device_transfer().command(command).await
     }
 
     pub async fn connection_status(&self, sink: StreamSink<bool>) -> Result<()> {

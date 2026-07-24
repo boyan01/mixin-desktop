@@ -10,7 +10,6 @@ import 'package:window_manager/window_manager.dart';
 import '../controllers/app_controller.dart';
 import '../controllers/chat_side_notifier.dart';
 import '../controllers/conversation_list_controller.dart';
-import '../controllers/device_transfer_controller.dart';
 import '../controllers/home_navigation_controller.dart';
 import '../controllers/security_controller.dart';
 import '../l10n/l10n.dart';
@@ -154,7 +153,6 @@ class _HomeBodyState extends State<_HomeBody> {
   bool userCollapsed = false;
   bool commandPaletteShowing = false;
   late final HomeNavigationController navigationController;
-  DeviceTransferController? deviceTransferController;
 
   ConversationListEntry? get selectedConversation =>
       navigationController.selectedConversation;
@@ -169,14 +167,6 @@ class _HomeBodyState extends State<_HomeBody> {
     navigationController = HomeNavigationController(
       onConversationSelected: _onConversationSelected,
     )..addListener(_onSelectedConversationChanged);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    deviceTransferController ??= DeviceTransferController(
-      context.read<AccountHandle>(),
-    );
   }
 
   void _onSelectedConversationChanged() {
@@ -418,7 +408,6 @@ class _HomeBodyState extends State<_HomeBody> {
     navigationController
       ..removeListener(_onSelectedConversationChanged)
       ..dispose();
-    unawaited(deviceTransferController?.dispose());
     super.dispose();
   }
 
@@ -723,20 +712,16 @@ class _HomeBodyState extends State<_HomeBody> {
     final account = context.read<AccountHandle>();
     return ChangeNotifierProvider.value(
       value: navigationController,
-      child: Provider<DeviceTransferController>.value(
-        value: deviceTransferController!,
-        child: DeviceTransferHandlerWidget(
-          controller: deviceTransferController!,
-          child: AppIconBadge(
+      child: DeviceTransferHandlerWidget(
+        child: AppIconBadge(
+          account: account,
+          child: AccountHealthOverlays(
             account: account,
-            child: AccountHealthOverlays(
-              account: account,
-              child: AppProtocolHandler(
-                initialUrl: widget.initialProtocolUrl,
-                child: HomeNotificationBridge(
-                  account: account,
-                  child: content,
-                ),
+            child: AppProtocolHandler(
+              initialUrl: widget.initialProtocolUrl,
+              child: HomeNotificationBridge(
+                account: account,
+                child: content,
               ),
             ),
           ),

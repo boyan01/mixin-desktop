@@ -14,6 +14,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
+import 'third_party/mixin_desktop_core/core/device_transfer.dart';
 import 'third_party/mixin_desktop_core/runtime.dart';
 import 'third_party/mixin_desktop_core/runtime/logging.dart';
 import 'third_party/mixin_desktop_core/runtime/model.dart';
@@ -224,6 +225,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_StreamSink_conversation_change_event_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<DeviceTransferEvent>
+  dco_decode_StreamSink_device_transfer_event_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<PlatformInt64> dco_decode_StreamSink_i_64_Sse(dynamic raw);
 
   @protected
@@ -296,6 +301,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CodeResult dco_decode_code_result(dynamic raw);
 
   @protected
+  ConnectionFailedReason dco_decode_connection_failed_reason(dynamic raw);
+
+  @protected
   ConversationChangeEvent dco_decode_conversation_change_event(dynamic raw);
 
   @protected
@@ -314,6 +322,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ConversationUnseenCount dco_decode_conversation_unseen_count(dynamic raw);
+
+  @protected
+  DeviceTransferCommand dco_decode_device_transfer_command(dynamic raw);
+
+  @protected
+  DeviceTransferEvent dco_decode_device_transfer_event(dynamic raw);
 
   @protected
   double dco_decode_f_64(dynamic raw);
@@ -687,6 +701,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<DeviceTransferEvent>
+  sse_decode_StreamSink_device_transfer_event_Sse(SseDeserializer deserializer);
+
+  @protected
   RustStreamSink<PlatformInt64> sse_decode_StreamSink_i_64_Sse(
     SseDeserializer deserializer,
   );
@@ -773,6 +791,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CodeResult sse_decode_code_result(SseDeserializer deserializer);
 
   @protected
+  ConnectionFailedReason sse_decode_connection_failed_reason(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ConversationChangeEvent sse_decode_conversation_change_event(
     SseDeserializer deserializer,
   );
@@ -799,6 +822,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ConversationUnseenCount sse_decode_conversation_unseen_count(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DeviceTransferCommand sse_decode_device_transfer_command(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DeviceTransferEvent sse_decode_device_transfer_event(
     SseDeserializer deserializer,
   );
 
@@ -1239,6 +1272,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_device_transfer_event_Sse(
+    RustStreamSink<DeviceTransferEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_i_64_Sse(
     RustStreamSink<PlatformInt64> self,
     SseSerializer serializer,
@@ -1342,6 +1381,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_code_result(CodeResult self, SseSerializer serializer);
 
   @protected
+  void sse_encode_connection_failed_reason(
+    ConnectionFailedReason self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_conversation_change_event(
     ConversationChangeEvent self,
     SseSerializer serializer,
@@ -1374,6 +1419,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_conversation_unseen_count(
     ConversationUnseenCount self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_device_transfer_command(
+    DeviceTransferCommand self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_device_transfer_event(
+    DeviceTransferEvent self,
     SseSerializer serializer,
   );
 

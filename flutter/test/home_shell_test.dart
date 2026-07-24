@@ -679,7 +679,7 @@ class _FakeAccountHandle
   Stream<NotificationEvent> desktopNotificationEvents() => const Stream.empty();
 
   @override
-  Stream<String> deviceTransferEvents() => const Stream.empty();
+  Stream<DeviceTransferEvent> deviceTransferEvents() => const Stream.empty();
 
   @override
   Future<List<MessageListItem>> messages({

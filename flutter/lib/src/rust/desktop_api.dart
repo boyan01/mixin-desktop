@@ -4,6 +4,7 @@ export 'api/account.dart';
 export 'api/desktop.dart';
 export 'api/logging.dart';
 export 'api/login.dart';
+export 'third_party/mixin_desktop_core/core/device_transfer.dart';
 export 'third_party/mixin_desktop_core/runtime.dart';
 export 'third_party/mixin_desktop_core/runtime/model.dart';
 

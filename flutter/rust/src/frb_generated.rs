@@ -596,7 +596,10 @@ fn wire__crate__api__account__AccountHandle_device_transfer_command_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
-            let api_command = <String>::sse_decode(&mut deserializer);
+            let api_command =
+                <mixin_desktop_core::core::device_transfer::DeviceTransferCommand>::sse_decode(
+                    &mut deserializer,
+                );
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -657,10 +660,10 @@ fn wire__crate__api__account__AccountHandle_device_transfer_events_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
-            let api_sink =
-                <StreamSink<String, flutter_rust_bridge::for_generated::SseCodec>>::sse_decode(
-                    &mut deserializer,
-                );
+            let api_sink = <StreamSink<
+                mixin_desktop_core::core::device_transfer::DeviceTransferEvent,
+                flutter_rust_bridge::for_generated::SseCodec,
+            >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -8831,6 +8834,39 @@ const _: fn() = || {
         let _: i64 = ConversationUnseenCount.count;
         let _: i64 = ConversationUnseenCount.muted_count;
     }
+    match None::<mixin_desktop_core::core::device_transfer::DeviceTransferEvent>.unwrap() {
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreConnected => {}
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreStart => {}
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreSucceed => {}
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreFailed => {}
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupServerCreated => {}
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupStart => {}
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupSucceed => {}
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupFailed => {}
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreProgress(field0) => {
+            let _: f64 = field0;
+        }
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupProgress(field0) => {
+            let _: f64 = field0;
+        }
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreNetworkSpeed(
+            field0,
+        ) => {
+            let _: f64 = field0;
+        }
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupNetworkSpeed(
+            field0,
+        ) => {
+            let _: f64 = field0;
+        }
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupRequestReceived => {}
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreRequestReceived => {}
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::ConnectionFailed(
+            field0,
+        ) => {
+            let _: mixin_desktop_core::core::device_transfer::ConnectionFailedReason = field0;
+        }
+    }
     {
         let GroupAvatar = None::<mixin_desktop_core::runtime::model::GroupAvatar>.unwrap();
         let _: String = GroupAvatar.user_id;
@@ -9305,6 +9341,19 @@ impl SseDecode
     }
 }
 
+impl SseDecode
+    for StreamSink<
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent,
+        flutter_rust_bridge::for_generated::SseCodec,
+    >
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <String>::sse_decode(deserializer);
+        return StreamSink::deserialize(inner);
+    }
+}
+
 impl SseDecode for StreamSink<i64, flutter_rust_bridge::for_generated::SseCodec> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9443,6 +9492,20 @@ impl SseDecode for mixin_desktop_core::runtime::model::CodeResult {
             threshold: var_threshold,
             state: var_state,
             action: var_action,
+        };
+    }
+}
+
+impl SseDecode for mixin_desktop_core::core::device_transfer::ConnectionFailedReason {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => {
+                mixin_desktop_core::core::device_transfer::ConnectionFailedReason::VersionNotMatched
+            }
+            1 => mixin_desktop_core::core::device_transfer::ConnectionFailedReason::Unknown,
+            _ => unreachable!("Invalid variant for ConnectionFailedReason: {}", inner),
         };
     }
 }
@@ -9610,6 +9673,89 @@ impl SseDecode for mixin_desktop_core::runtime::model::ConversationUnseenCount {
             count: var_count,
             muted_count: var_mutedCount,
         };
+    }
+}
+
+impl SseDecode for mixin_desktop_core::core::device_transfer::DeviceTransferCommand {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::PullToRemote,
+1 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::PushToRemote,
+2 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelRestore,
+3 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelBackup,
+4 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelBackupRequest,
+5 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelRestoreRequest,
+6 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::ConfirmRestore,
+7 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::ConfirmBackup,
+            _ => unreachable!("Invalid variant for DeviceTransferCommand: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for mixin_desktop_core::core::device_transfer::DeviceTransferEvent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreConnected;
+            }
+            1 => {
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreStart;
+            }
+            2 => {
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreSucceed;
+            }
+            3 => {
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreFailed;
+            }
+            4 => {
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupServerCreated;
+            }
+            5 => {
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupStart;
+            }
+            6 => {
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupSucceed;
+            }
+            7 => {
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupFailed;
+            }
+            8 => {
+                let mut var_field0 = <f64>::sse_decode(deserializer);
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreProgress(var_field0);
+            }
+            9 => {
+                let mut var_field0 = <f64>::sse_decode(deserializer);
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupProgress(var_field0);
+            }
+            10 => {
+                let mut var_field0 = <f64>::sse_decode(deserializer);
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreNetworkSpeed(var_field0);
+            }
+            11 => {
+                let mut var_field0 = <f64>::sse_decode(deserializer);
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupNetworkSpeed(var_field0);
+            }
+            12 => {
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupRequestReceived;
+            }
+            13 => {
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreRequestReceived;
+            }
+            14 => {
+                let mut var_field0 =
+                    <mixin_desktop_core::core::device_transfer::ConnectionFailedReason>::sse_decode(
+                        deserializer,
+                    );
+                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::ConnectionFailed(var_field0);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -11700,6 +11846,33 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_core::runtime::m
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::core::device_transfer::ConnectionFailedReason>
+{
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+                    mixin_desktop_core::core::device_transfer::ConnectionFailedReason::VersionNotMatched => 0.into_dart(),
+mixin_desktop_core::core::device_transfer::ConnectionFailedReason::Unknown => 1.into_dart(),
+                    _ => unreachable!(),
+                }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<mixin_desktop_core::core::device_transfer::ConnectionFailedReason>
+{
+}
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::core::device_transfer::ConnectionFailedReason>,
+    > for mixin_desktop_core::core::device_transfer::ConnectionFailedReason
+{
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<mixin_desktop_core::core::device_transfer::ConnectionFailedReason> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart
     for FrbWrapper<mixin_desktop_core::runtime::model::ConversationChangeEvent>
 {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
@@ -11909,6 +12082,82 @@ impl
     fn into_into_dart(
         self,
     ) -> FrbWrapper<mixin_desktop_core::runtime::model::ConversationUnseenCount> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferCommand>
+{
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+                    mixin_desktop_core::core::device_transfer::DeviceTransferCommand::PullToRemote => 0.into_dart(),
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::PushToRemote => 1.into_dart(),
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelRestore => 2.into_dart(),
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelBackup => 3.into_dart(),
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelBackupRequest => 4.into_dart(),
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelRestoreRequest => 5.into_dart(),
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::ConfirmRestore => 6.into_dart(),
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::ConfirmBackup => 7.into_dart(),
+                    _ => unreachable!(),
+                }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferCommand>
+{
+}
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferCommand>,
+    > for mixin_desktop_core::core::device_transfer::DeviceTransferCommand
+{
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferCommand> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferEvent>
+{
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreConnected => { [0.into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreStart => { [1.into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreSucceed => { [2.into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreFailed => { [3.into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupServerCreated => { [4.into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupStart => { [5.into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupSucceed => { [6.into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupFailed => { [7.into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreProgress(field0) => { [8.into_dart(),
+field0.into_into_dart().into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupProgress(field0) => { [9.into_dart(),
+field0.into_into_dart().into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreNetworkSpeed(field0) => { [10.into_dart(),
+field0.into_into_dart().into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupNetworkSpeed(field0) => { [11.into_dart(),
+field0.into_into_dart().into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupRequestReceived => { [12.into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreRequestReceived => { [13.into_dart()].into_dart() }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::ConnectionFailed(field0) => { [14.into_dart(),
+field0.into_into_dart().into_dart()].into_dart() }
+ _ => { unimplemented!(""); }}
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferEvent>
+{
+}
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferEvent>,
+    > for mixin_desktop_core::core::device_transfer::DeviceTransferEvent
+{
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferEvent> {
         self.into()
     }
 }
@@ -12725,6 +12974,18 @@ impl SseEncode
     }
 }
 
+impl SseEncode
+    for StreamSink<
+        mixin_desktop_core::core::device_transfer::DeviceTransferEvent,
+        flutter_rust_bridge::for_generated::SseCodec,
+    >
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        unimplemented!("")
+    }
+}
+
 impl SseEncode for StreamSink<i64, flutter_rust_bridge::for_generated::SseCodec> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -12828,6 +13089,15 @@ impl SseEncode for mixin_desktop_core::runtime::model::CodeResult {
     }
 }
 
+impl SseEncode for mixin_desktop_core::core::device_transfer::ConnectionFailedReason {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(match self {mixin_desktop_core::core::device_transfer::ConnectionFailedReason::VersionNotMatched => { 0 }
+mixin_desktop_core::core::device_transfer::ConnectionFailedReason::Unknown => { 1 }
+ _ => { unimplemented!(""); }}, serializer);
+    }
+}
+
 impl SseEncode for mixin_desktop_core::runtime::model::ConversationChangeEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -12925,6 +13195,48 @@ impl SseEncode for mixin_desktop_core::runtime::model::ConversationUnseenCount {
         <Option<String>>::sse_encode(self.circle_id, serializer);
         <i64>::sse_encode(self.count, serializer);
         <i64>::sse_encode(self.muted_count, serializer);
+    }
+}
+
+impl SseEncode for mixin_desktop_core::core::device_transfer::DeviceTransferCommand {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(match self {mixin_desktop_core::core::device_transfer::DeviceTransferCommand::PullToRemote => { 0 }
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::PushToRemote => { 1 }
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelRestore => { 2 }
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelBackup => { 3 }
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelBackupRequest => { 4 }
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelRestoreRequest => { 5 }
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::ConfirmRestore => { 6 }
+mixin_desktop_core::core::device_transfer::DeviceTransferCommand::ConfirmBackup => { 7 }
+ _ => { unimplemented!(""); }}, serializer);
+    }
+}
+
+impl SseEncode for mixin_desktop_core::core::device_transfer::DeviceTransferEvent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreConnected => { <i32>::sse_encode(0, serializer);  }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreStart => { <i32>::sse_encode(1, serializer);  }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreSucceed => { <i32>::sse_encode(2, serializer);  }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreFailed => { <i32>::sse_encode(3, serializer);  }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupServerCreated => { <i32>::sse_encode(4, serializer);  }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupStart => { <i32>::sse_encode(5, serializer);  }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupSucceed => { <i32>::sse_encode(6, serializer);  }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupFailed => { <i32>::sse_encode(7, serializer);  }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreProgress(field0) => { <i32>::sse_encode(8, serializer); <f64>::sse_encode(field0, serializer);
+ }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupProgress(field0) => { <i32>::sse_encode(9, serializer); <f64>::sse_encode(field0, serializer);
+ }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreNetworkSpeed(field0) => { <i32>::sse_encode(10, serializer); <f64>::sse_encode(field0, serializer);
+ }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupNetworkSpeed(field0) => { <i32>::sse_encode(11, serializer); <f64>::sse_encode(field0, serializer);
+ }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupRequestReceived => { <i32>::sse_encode(12, serializer);  }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreRequestReceived => { <i32>::sse_encode(13, serializer);  }
+mixin_desktop_core::core::device_transfer::DeviceTransferEvent::ConnectionFailed(field0) => { <i32>::sse_encode(14, serializer); <mixin_desktop_core::core::device_transfer::ConnectionFailedReason>::sse_encode(field0, serializer);
+ }
+ _ => { unimplemented!(""); }}
     }
 }
 

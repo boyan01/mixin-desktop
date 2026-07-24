@@ -5,29 +5,24 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
 import '../constants/assets.dart';
-import '../controllers/device_transfer_controller.dart';
 import '../l10n/l10n.dart';
+import '../src/rust/desktop_api.dart';
 import '../theme.dart';
 import 'buttons.dart';
 import 'mixin_dialog.dart';
 import 'settings_widgets.dart';
 
-Future<void> showDeviceTransferDialog(
-  BuildContext context,
-  DeviceTransferController controller,
-) async => showMixinDialog<void>(
-  context: context,
-  child: Provider<DeviceTransferController>.value(
-    value: controller,
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 400),
-      child: const Material(
-        color: Colors.transparent,
-        child: _DeviceTransferNavigatorWidget(),
+Future<void> showDeviceTransferDialog(BuildContext context) async =>
+    showMixinDialog<void>(
+      context: context,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: const Material(
+          color: Colors.transparent,
+          child: _DeviceTransferNavigatorWidget(),
+        ),
       ),
-    ),
-  ),
-);
+    );
 
 enum _DeviceTransferPageType {
   deviceTransfer,
@@ -207,8 +202,8 @@ class _RestorePage extends StatelessWidget {
           trailing: null,
           onTap: () {
             unawaited(
-              context.read<DeviceTransferController>().command(
-                DeviceTransferCommand.pullToRemote,
+              context.read<AccountHandle>().deviceTransferCommand(
+                command: DeviceTransferCommand.pullToRemote,
               ),
             );
             context.read<_DeviceTransferNavigator>().push(
@@ -232,17 +227,19 @@ class _RestoreWaitingConnectPage extends StatefulWidget {
 
 class _RestoreWaitingConnectPageState
     extends State<_RestoreWaitingConnectPage> {
-  StreamSubscription<DeviceTransferCallbackEvent>? subscription;
+  StreamSubscription<DeviceTransferEvent>? subscription;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     subscription ??= context
-        .read<DeviceTransferController>()
-        .on(DeviceTransferCallbackType.onRestoreStart)
-        .listen((_) {
-          if (mounted) {
-            Navigator.maybeOf(context, rootNavigator: true)?.pop();
+        .read<AccountHandle>()
+        .deviceTransferEvents()
+        .listen((event) {
+          if (event case DeviceTransferEvent_RestoreStart()) {
+            if (mounted) {
+              Navigator.maybeOf(context, rootNavigator: true)?.pop();
+            }
           }
         });
   }
@@ -255,8 +252,8 @@ class _RestoreWaitingConnectPageState
 
   void _cancel() {
     unawaited(
-      context.read<DeviceTransferController>().command(
-        DeviceTransferCommand.cancelRestore,
+      context.read<AccountHandle>().deviceTransferCommand(
+        command: DeviceTransferCommand.cancelRestore,
       ),
     );
   }
@@ -351,8 +348,8 @@ class _BackupPage extends StatelessWidget {
           trailing: null,
           onTap: () {
             unawaited(
-              context.read<DeviceTransferController>().command(
-                DeviceTransferCommand.pushToRemote,
+              context.read<AccountHandle>().deviceTransferCommand(
+                command: DeviceTransferCommand.pushToRemote,
               ),
             );
             context.read<_DeviceTransferNavigator>().push(
@@ -375,17 +372,19 @@ class _BackupWaitingConnectPage extends StatefulWidget {
 }
 
 class _BackupWaitingConnectPageState extends State<_BackupWaitingConnectPage> {
-  StreamSubscription<DeviceTransferCallbackEvent>? subscription;
+  StreamSubscription<DeviceTransferEvent>? subscription;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     subscription ??= context
-        .read<DeviceTransferController>()
-        .on(DeviceTransferCallbackType.onBackupStart)
-        .listen((_) {
-          if (mounted) {
-            Navigator.maybeOf(context, rootNavigator: true)?.pop();
+        .read<AccountHandle>()
+        .deviceTransferEvents()
+        .listen((event) {
+          if (event case DeviceTransferEvent_BackupStart()) {
+            if (mounted) {
+              Navigator.maybeOf(context, rootNavigator: true)?.pop();
+            }
           }
         });
   }
@@ -398,8 +397,8 @@ class _BackupWaitingConnectPageState extends State<_BackupWaitingConnectPage> {
 
   void _cancel() {
     unawaited(
-      context.read<DeviceTransferController>().command(
-        DeviceTransferCommand.cancelBackup,
+      context.read<AccountHandle>().deviceTransferCommand(
+        command: DeviceTransferCommand.cancelBackup,
       ),
     );
   }

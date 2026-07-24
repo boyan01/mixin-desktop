@@ -2,129 +2,110 @@ import 'dart:async';
 
 import 'package:desktop_keep_screen_on/desktop_keep_screen_on.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
 import '../constants/assets.dart';
-import '../controllers/device_transfer_controller.dart';
 import '../l10n/l10n.dart';
+import '../src/rust/desktop_api.dart';
 import '../theme.dart';
 import 'mixin_dialog.dart';
 
-class DeviceTransferHandlerWidget extends StatefulWidget {
-  const DeviceTransferHandlerWidget({
-    required this.controller,
-    required this.child,
-    super.key,
-  });
+class DeviceTransferHandlerWidget extends HookWidget {
+  const DeviceTransferHandlerWidget({required this.child, super.key});
 
-  final DeviceTransferController controller;
   final Widget child;
 
   @override
-  State<DeviceTransferHandlerWidget> createState() =>
-      _DeviceTransferHandlerWidgetState();
-}
+  Widget build(BuildContext context) {
+    final account = context.read<AccountHandle>();
+    final progressShowing = useRef(false);
 
-class _DeviceTransferHandlerWidgetState
-    extends State<DeviceTransferHandlerWidget> {
-  StreamSubscription<DeviceTransferCallbackEvent>? subscription;
-  bool progressShowing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    subscription = widget.controller.events.listen(_handleEvent);
-  }
-
-  Future<void> _handleEvent(DeviceTransferCallbackEvent event) async {
-    if (!mounted) return;
-    switch (event.action) {
-      case DeviceTransferCallbackType.onRestoreConnected:
-        await _showProgress(restore: true);
-      case DeviceTransferCallbackType.onBackupServerCreated:
-        await _showProgress(restore: false);
-      case DeviceTransferCallbackType.onRestoreSucceed:
-      case DeviceTransferCallbackType.onBackupSucceed:
-        await _finishProgress(context.l10n.transferCompleted);
-      case DeviceTransferCallbackType.onRestoreFailed:
-      case DeviceTransferCallbackType.onBackupFailed:
-        await _finishProgress(context.l10n.deviceTransferFailed);
-      case DeviceTransferCallbackType.onBackupRequestReceived:
-        final approved = await showMixinDialog<bool>(
-          context: context,
-          child: _ApproveDialog(
-            message: context.l10n.confirmSyncChatsFromPhone,
-          ),
-        );
-        await widget.controller.command(
-          approved == true
-              ? DeviceTransferCommand.confirmRestore
-              : DeviceTransferCommand.cancelRestoreRequest,
-        );
-      case DeviceTransferCallbackType.onRestoreRequestReceived:
-        final approved = await showMixinDialog<bool>(
-          context: context,
-          child: _ApproveDialog(message: context.l10n.confirmSyncChatsToPhone),
-        );
-        await widget.controller.command(
-          approved == true
-              ? DeviceTransferCommand.confirmBackup
-              : DeviceTransferCommand.cancelBackupRequest,
-        );
-      case DeviceTransferCallbackType.onConnectionFailed:
-        final reason = event.payload as ConnectionFailedReason?;
-        await showMixinDialog<void>(
-          context: context,
-          child: _ConfirmDialog(
-            message: reason == ConnectionFailedReason.versionNotMatched
-                ? context.l10n.transferProtocolVersionNotMatched
-                : context.l10n.deviceTransferFailed,
-          ),
-        );
-      case DeviceTransferCallbackType.onRestoreStart:
-      case DeviceTransferCallbackType.onBackupStart:
-      case DeviceTransferCallbackType.onRestoreProgress:
-      case DeviceTransferCallbackType.onBackupProgress:
-      case DeviceTransferCallbackType.onRestoreNetworkSpeed:
-      case DeviceTransferCallbackType.onBackupNetworkSpeed:
-        break;
+    Future<void> showProgress({required bool restore}) async {
+      if (progressShowing.value || !context.mounted) return;
+      progressShowing.value = true;
+      await showMixinDialog<void>(
+        context: context,
+        child: restore
+            ? const _RestoreProcessingDialog()
+            : const _BackupProcessingDialog(),
+        barrierDismissible: false,
+      );
+      progressShowing.value = false;
     }
-  }
 
-  Future<void> _showProgress({required bool restore}) async {
-    if (progressShowing || !mounted) return;
-    progressShowing = true;
-    await showMixinDialog<void>(
-      context: context,
-      child: restore
-          ? _RestoreProcessingDialog(controller: widget.controller)
-          : _BackupProcessingDialog(controller: widget.controller),
-      barrierDismissible: false,
-    );
-    progressShowing = false;
-  }
+    Future<void> finishProgress(String message) async {
+      if (!context.mounted || !progressShowing.value) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      progressShowing.value = false;
+      await showMixinDialog<void>(
+        context: context,
+        child: _ConfirmDialog(message: message),
+        barrierDismissible: false,
+      );
+    }
 
-  Future<void> _finishProgress(String message) async {
-    if (!mounted || !progressShowing) return;
-    Navigator.of(context, rootNavigator: true).pop();
-    progressShowing = false;
-    await showMixinDialog<void>(
-      context: context,
-      child: _ConfirmDialog(message: message),
-      barrierDismissible: false,
-    );
-  }
+    useEffect(() {
+      final subscription = account.deviceTransferEvents().listen((event) async {
+        switch (event) {
+          case DeviceTransferEvent_RestoreConnected():
+            await showProgress(restore: true);
+          case DeviceTransferEvent_BackupServerCreated():
+            await showProgress(restore: false);
+          case DeviceTransferEvent_RestoreSucceed():
+          case DeviceTransferEvent_BackupSucceed():
+            await finishProgress(context.l10n.transferCompleted);
+          case DeviceTransferEvent_RestoreFailed():
+          case DeviceTransferEvent_BackupFailed():
+            await finishProgress(context.l10n.deviceTransferFailed);
+          case DeviceTransferEvent_BackupRequestReceived():
+            final approved = await showMixinDialog<bool>(
+              context: context,
+              child: _ApproveDialog(
+                message: context.l10n.confirmSyncChatsFromPhone,
+              ),
+            );
+            await account.deviceTransferCommand(
+              command: approved == true
+                  ? DeviceTransferCommand.confirmRestore
+                  : DeviceTransferCommand.cancelRestoreRequest,
+            );
+          case DeviceTransferEvent_RestoreRequestReceived():
+            final approved = await showMixinDialog<bool>(
+              context: context,
+              child: _ApproveDialog(
+                message: context.l10n.confirmSyncChatsToPhone,
+              ),
+            );
+            await account.deviceTransferCommand(
+              command: approved == true
+                  ? DeviceTransferCommand.confirmBackup
+                  : DeviceTransferCommand.cancelBackupRequest,
+            );
+          case DeviceTransferEvent_ConnectionFailed(field0: final version):
+            await showMixinDialog<void>(
+              context: context,
+              child: _ConfirmDialog(
+                message: version == ConnectionFailedReason.versionNotMatched
+                    ? context.l10n.transferProtocolVersionNotMatched
+                    : context.l10n.deviceTransferFailed,
+              ),
+            );
+          case DeviceTransferEvent_RestoreStart():
+          case DeviceTransferEvent_BackupStart():
+          case DeviceTransferEvent_RestoreProgress():
+          case DeviceTransferEvent_BackupProgress():
+          case DeviceTransferEvent_RestoreNetworkSpeed():
+          case DeviceTransferEvent_BackupNetworkSpeed():
+            break;
+        }
+      });
+      return subscription.cancel;
+    }, [account]);
 
-  @override
-  void dispose() {
-    unawaited(subscription?.cancel());
-    super.dispose();
+    return child;
   }
-
-  @override
-  Widget build(BuildContext context) =>
-      Provider.value(value: widget.controller, child: widget.child);
 }
 
 class _ConfirmDialog extends StatelessWidget {
@@ -175,55 +156,67 @@ class _ApproveDialog extends StatelessWidget {
 }
 
 class _RestoreProcessingDialog extends StatelessWidget {
-  const _RestoreProcessingDialog({required this.controller});
-
-  final DeviceTransferController controller;
+  const _RestoreProcessingDialog();
 
   @override
   Widget build(BuildContext context) => _TransferProcessDialog(
-    controller: controller,
     onCancelTapped: () {
-      unawaited(controller.command(DeviceTransferCommand.cancelRestore));
+      unawaited(
+        context.read<AccountHandle>().deviceTransferCommand(
+          command: DeviceTransferCommand.cancelRestore,
+        ),
+      );
       Navigator.pop(context);
     },
     iconAssetName: MixinAssets.transferFromPhone,
-    progressType: DeviceTransferCallbackType.onRestoreProgress,
-    networkSpeedType: DeviceTransferCallbackType.onRestoreNetworkSpeed,
+    progressValue: (event) => switch (event) {
+      DeviceTransferEvent_RestoreProgress(:final field0) => field0,
+      _ => null,
+    },
+    networkSpeedValue: (event) => switch (event) {
+      DeviceTransferEvent_RestoreNetworkSpeed(:final field0) => field0,
+      _ => null,
+    },
   );
 }
 
 class _BackupProcessingDialog extends StatelessWidget {
-  const _BackupProcessingDialog({required this.controller});
-
-  final DeviceTransferController controller;
+  const _BackupProcessingDialog();
 
   @override
   Widget build(BuildContext context) => _TransferProcessDialog(
-    controller: controller,
     onCancelTapped: () {
-      unawaited(controller.command(DeviceTransferCommand.cancelBackup));
+      unawaited(
+        context.read<AccountHandle>().deviceTransferCommand(
+          command: DeviceTransferCommand.cancelBackup,
+        ),
+      );
       Navigator.pop(context);
     },
     iconAssetName: MixinAssets.transferToPhone,
-    progressType: DeviceTransferCallbackType.onBackupProgress,
-    networkSpeedType: DeviceTransferCallbackType.onBackupNetworkSpeed,
+    progressValue: (event) => switch (event) {
+      DeviceTransferEvent_BackupProgress(:final field0) => field0,
+      _ => null,
+    },
+    networkSpeedValue: (event) => switch (event) {
+      DeviceTransferEvent_BackupNetworkSpeed(:final field0) => field0,
+      _ => null,
+    },
   );
 }
 
 class _TransferProcessDialog extends StatefulWidget {
   const _TransferProcessDialog({
-    required this.controller,
     required this.onCancelTapped,
-    required this.progressType,
+    required this.progressValue,
     required this.iconAssetName,
-    required this.networkSpeedType,
+    required this.networkSpeedValue,
   });
 
-  final DeviceTransferController controller;
   final VoidCallback onCancelTapped;
-  final DeviceTransferCallbackType progressType;
+  final double? Function(DeviceTransferEvent event) progressValue;
   final String iconAssetName;
-  final DeviceTransferCallbackType networkSpeedType;
+  final double? Function(DeviceTransferEvent event) networkSpeedValue;
 
   @override
   State<_TransferProcessDialog> createState() => _TransferProcessDialogState();
@@ -232,35 +225,31 @@ class _TransferProcessDialog extends StatefulWidget {
 class _TransferProcessDialogState extends State<_TransferProcessDialog> {
   double progress = 0;
   double networkSpeed = 0;
-  final subscriptions = <StreamSubscription<DeviceTransferCallbackEvent>>[];
+  late final StreamSubscription<DeviceTransferEvent> subscription;
 
   @override
   void initState() {
     super.initState();
     DesktopKeepScreenOn.setPreventSleep(true);
-    subscriptions
-      ..add(
-        widget.controller.on(widget.progressType).listen((event) {
-          if (mounted) {
-            setState(() => progress = (event.payload! as num).toDouble());
-          }
-        }),
-      )
-      ..add(
-        widget.controller.on(widget.networkSpeedType).listen((event) {
-          if (mounted) {
-            setState(() => networkSpeed = (event.payload! as num).toDouble());
-          }
-        }),
-      );
+    subscription = context.read<AccountHandle>().deviceTransferEvents().listen((
+      event,
+    ) {
+      final progressValue = widget.progressValue(event);
+      if (progressValue != null && mounted) {
+        setState(() => progress = progressValue);
+      }
+
+      final networkSpeedValue = widget.networkSpeedValue(event);
+      if (networkSpeedValue != null && mounted) {
+        setState(() => networkSpeed = networkSpeedValue);
+      }
+    });
   }
 
   @override
   void dispose() {
     DesktopKeepScreenOn.setPreventSleep(false);
-    for (final subscription in subscriptions) {
-      unawaited(subscription.cancel());
-    }
+    unawaited(subscription.cancel());
     super.dispose();
   }
 

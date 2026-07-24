@@ -13,6 +13,7 @@ import 'frb_generated.dart';
 import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'third_party/mixin_desktop_core/core/device_transfer.dart';
 import 'third_party/mixin_desktop_core/runtime.dart';
 import 'third_party/mixin_desktop_core/runtime/logging.dart';
 import 'third_party/mixin_desktop_core/runtime/model.dart';
@@ -130,10 +131,10 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiAccountAccountHandleDeviceTransferCommand({
     required AccountHandle that,
-    required String command,
+    required DeviceTransferCommand command,
   });
 
-  Stream<String> crateApiAccountAccountHandleDeviceTransferEvents({
+  Stream<DeviceTransferEvent> crateApiAccountAccountHandleDeviceTransferEvents({
     required AccountHandle that,
   });
 
@@ -1348,7 +1349,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<void> crateApiAccountAccountHandleDeviceTransferCommand({
     required AccountHandle that,
-    required String command,
+    required DeviceTransferCommand command,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1358,7 +1359,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_String(command, serializer);
+          sse_encode_device_transfer_command(command, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1385,10 +1386,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Stream<String> crateApiAccountAccountHandleDeviceTransferEvents({
+  Stream<DeviceTransferEvent> crateApiAccountAccountHandleDeviceTransferEvents({
     required AccountHandle that,
   }) {
-    final sink = RustStreamSink<String>();
+    final sink = RustStreamSink<DeviceTransferEvent>();
     unawaited(
       handler.executeNormal(
         NormalTask(
@@ -1398,7 +1399,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
               that,
               serializer,
             );
-            sse_encode_StreamSink_String_Sse(sink, serializer);
+            sse_encode_StreamSink_device_transfer_event_Sse(sink, serializer);
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
@@ -7513,6 +7514,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RustStreamSink<DeviceTransferEvent>
+  dco_decode_StreamSink_device_transfer_event_Sse(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
   RustStreamSink<PlatformInt64> dco_decode_StreamSink_i_64_Sse(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     throw UnimplementedError();
@@ -7692,6 +7700,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ConnectionFailedReason dco_decode_connection_failed_reason(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ConnectionFailedReason.values[raw as int];
+  }
+
+  @protected
   ConversationChangeEvent dco_decode_conversation_change_event(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -7809,6 +7823,61 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       count: dco_decode_i_64(arr[2]),
       mutedCount: dco_decode_i_64(arr[3]),
     );
+  }
+
+  @protected
+  DeviceTransferCommand dco_decode_device_transfer_command(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return DeviceTransferCommand.values[raw as int];
+  }
+
+  @protected
+  DeviceTransferEvent dco_decode_device_transfer_event(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return DeviceTransferEvent_RestoreConnected();
+      case 1:
+        return DeviceTransferEvent_RestoreStart();
+      case 2:
+        return DeviceTransferEvent_RestoreSucceed();
+      case 3:
+        return DeviceTransferEvent_RestoreFailed();
+      case 4:
+        return DeviceTransferEvent_BackupServerCreated();
+      case 5:
+        return DeviceTransferEvent_BackupStart();
+      case 6:
+        return DeviceTransferEvent_BackupSucceed();
+      case 7:
+        return DeviceTransferEvent_BackupFailed();
+      case 8:
+        return DeviceTransferEvent_RestoreProgress(
+          dco_decode_f_64(raw[1]),
+        );
+      case 9:
+        return DeviceTransferEvent_BackupProgress(
+          dco_decode_f_64(raw[1]),
+        );
+      case 10:
+        return DeviceTransferEvent_RestoreNetworkSpeed(
+          dco_decode_f_64(raw[1]),
+        );
+      case 11:
+        return DeviceTransferEvent_BackupNetworkSpeed(
+          dco_decode_f_64(raw[1]),
+        );
+      case 12:
+        return DeviceTransferEvent_BackupRequestReceived();
+      case 13:
+        return DeviceTransferEvent_RestoreRequestReceived();
+      case 14:
+        return DeviceTransferEvent_ConnectionFailed(
+          dco_decode_connection_failed_reason(raw[1]),
+        );
+      default:
+        throw Exception("unreachable");
+    }
   }
 
   @protected
@@ -8821,6 +8890,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RustStreamSink<DeviceTransferEvent>
+  sse_decode_StreamSink_device_transfer_event_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
   RustStreamSink<PlatformInt64> sse_decode_StreamSink_i_64_Sse(
     SseDeserializer deserializer,
   ) {
@@ -9036,6 +9114,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ConnectionFailedReason sse_decode_connection_failed_reason(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return ConnectionFailedReason.values[inner];
+  }
+
+  @protected
   ConversationChangeEvent sse_decode_conversation_change_event(
     SseDeserializer deserializer,
   ) {
@@ -9203,6 +9290,63 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       count: var_count,
       mutedCount: var_mutedCount,
     );
+  }
+
+  @protected
+  DeviceTransferCommand sse_decode_device_transfer_command(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return DeviceTransferCommand.values[inner];
+  }
+
+  @protected
+  DeviceTransferEvent sse_decode_device_transfer_event(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        return DeviceTransferEvent_RestoreConnected();
+      case 1:
+        return DeviceTransferEvent_RestoreStart();
+      case 2:
+        return DeviceTransferEvent_RestoreSucceed();
+      case 3:
+        return DeviceTransferEvent_RestoreFailed();
+      case 4:
+        return DeviceTransferEvent_BackupServerCreated();
+      case 5:
+        return DeviceTransferEvent_BackupStart();
+      case 6:
+        return DeviceTransferEvent_BackupSucceed();
+      case 7:
+        return DeviceTransferEvent_BackupFailed();
+      case 8:
+        var var_field0 = sse_decode_f_64(deserializer);
+        return DeviceTransferEvent_RestoreProgress(var_field0);
+      case 9:
+        var var_field0 = sse_decode_f_64(deserializer);
+        return DeviceTransferEvent_BackupProgress(var_field0);
+      case 10:
+        var var_field0 = sse_decode_f_64(deserializer);
+        return DeviceTransferEvent_RestoreNetworkSpeed(var_field0);
+      case 11:
+        var var_field0 = sse_decode_f_64(deserializer);
+        return DeviceTransferEvent_BackupNetworkSpeed(var_field0);
+      case 12:
+        return DeviceTransferEvent_BackupRequestReceived();
+      case 13:
+        return DeviceTransferEvent_RestoreRequestReceived();
+      case 14:
+        var var_field0 = sse_decode_connection_failed_reason(deserializer);
+        return DeviceTransferEvent_ConnectionFailed(var_field0);
+      default:
+        throw UnimplementedError('');
+    }
   }
 
   @protected
@@ -10589,6 +10733,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_StreamSink_device_transfer_event_Sse(
+    RustStreamSink<DeviceTransferEvent> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_device_transfer_event,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_StreamSink_i_64_Sse(
     RustStreamSink<PlatformInt64> self,
     SseSerializer serializer,
@@ -10817,6 +10978,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_connection_failed_reason(
+    ConnectionFailedReason self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_conversation_change_event(
     ConversationChangeEvent self,
     SseSerializer serializer,
@@ -10920,6 +11090,60 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.circleId, serializer);
     sse_encode_i_64(self.count, serializer);
     sse_encode_i_64(self.mutedCount, serializer);
+  }
+
+  @protected
+  void sse_encode_device_transfer_command(
+    DeviceTransferCommand self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_device_transfer_event(
+    DeviceTransferEvent self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case DeviceTransferEvent_RestoreConnected():
+        sse_encode_i_32(0, serializer);
+      case DeviceTransferEvent_RestoreStart():
+        sse_encode_i_32(1, serializer);
+      case DeviceTransferEvent_RestoreSucceed():
+        sse_encode_i_32(2, serializer);
+      case DeviceTransferEvent_RestoreFailed():
+        sse_encode_i_32(3, serializer);
+      case DeviceTransferEvent_BackupServerCreated():
+        sse_encode_i_32(4, serializer);
+      case DeviceTransferEvent_BackupStart():
+        sse_encode_i_32(5, serializer);
+      case DeviceTransferEvent_BackupSucceed():
+        sse_encode_i_32(6, serializer);
+      case DeviceTransferEvent_BackupFailed():
+        sse_encode_i_32(7, serializer);
+      case DeviceTransferEvent_RestoreProgress(field0: final field0):
+        sse_encode_i_32(8, serializer);
+        sse_encode_f_64(field0, serializer);
+      case DeviceTransferEvent_BackupProgress(field0: final field0):
+        sse_encode_i_32(9, serializer);
+        sse_encode_f_64(field0, serializer);
+      case DeviceTransferEvent_RestoreNetworkSpeed(field0: final field0):
+        sse_encode_i_32(10, serializer);
+        sse_encode_f_64(field0, serializer);
+      case DeviceTransferEvent_BackupNetworkSpeed(field0: final field0):
+        sse_encode_i_32(11, serializer);
+        sse_encode_f_64(field0, serializer);
+      case DeviceTransferEvent_BackupRequestReceived():
+        sse_encode_i_32(12, serializer);
+      case DeviceTransferEvent_RestoreRequestReceived():
+        sse_encode_i_32(13, serializer);
+      case DeviceTransferEvent_ConnectionFailed(field0: final field0):
+        sse_encode_i_32(14, serializer);
+        sse_encode_connection_failed_reason(field0, serializer);
+    }
   }
 
   @protected
@@ -11760,13 +11984,14 @@ class AccountHandleImpl extends RustOpaque implements AccountHandle {
         that: this,
       );
 
-  Future<void> deviceTransferCommand({required String command}) =>
-      RustLib.instance.api.crateApiAccountAccountHandleDeviceTransferCommand(
-        that: this,
-        command: command,
-      );
+  Future<void> deviceTransferCommand({
+    required DeviceTransferCommand command,
+  }) => RustLib.instance.api.crateApiAccountAccountHandleDeviceTransferCommand(
+    that: this,
+    command: command,
+  );
 
-  Stream<String> deviceTransferEvents() =>
+  Stream<DeviceTransferEvent> deviceTransferEvents() =>
       RustLib.instance.api.crateApiAccountAccountHandleDeviceTransferEvents(
         that: this,
       );

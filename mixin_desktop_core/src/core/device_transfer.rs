@@ -42,37 +42,42 @@ pub struct DeviceTransferControlEvent {
     pub content: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct DeviceTransferEvent {
-    pub kind: String,
-    pub value: Option<f64>,
-    pub reason: Option<String>,
+#[derive(Clone, Debug)]
+pub enum ConnectionFailedReason {
+    VersionNotMatched,
+    Unknown,
 }
 
-impl DeviceTransferEvent {
-    fn simple(kind: &str) -> Self {
-        Self {
-            kind: kind.to_string(),
-            value: None,
-            reason: None,
-        }
-    }
+/// flutter_rust_bridge:non_opaque
+#[derive(Clone, Debug)]
+pub enum DeviceTransferEvent {
+    RestoreConnected,
+    RestoreStart,
+    RestoreSucceed,
+    RestoreFailed,
+    BackupServerCreated,
+    BackupStart,
+    BackupSucceed,
+    BackupFailed,
+    RestoreProgress(f64),
+    BackupProgress(f64),
+    RestoreNetworkSpeed(f64),
+    BackupNetworkSpeed(f64),
+    BackupRequestReceived,
+    RestoreRequestReceived,
+    ConnectionFailed(ConnectionFailedReason),
+}
 
-    fn value(kind: &str, value: f64) -> Self {
-        Self {
-            kind: kind.to_string(),
-            value: Some(value),
-            reason: None,
-        }
-    }
-
-    fn failed(reason: &str) -> Self {
-        Self {
-            kind: "connection_failed".to_string(),
-            value: None,
-            reason: Some(reason.to_string()),
-        }
-    }
+#[derive(Clone, Debug)]
+pub enum DeviceTransferCommand {
+    PullToRemote,
+    PushToRemote,
+    CancelRestore,
+    CancelBackup,
+    CancelBackupRequest,
+    CancelRestoreRequest,
+    ConfirmRestore,
+    ConfirmBackup,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -217,7 +222,9 @@ impl DeviceTransferService {
                 Ok(event) => {
                     if let Err(error) = self.handle_remote_content(&event.content).await {
                         log::error!("handle device transfer command: {error:?}");
-                        self.emit(DeviceTransferEvent::failed("unknown"));
+                        self.emit(DeviceTransferEvent::ConnectionFailed(
+                            ConnectionFailedReason::Unknown,
+                        ));
                     }
                 }
                 Err(broadcast::error::RecvError::Lagged(skipped)) => {
@@ -228,18 +235,20 @@ impl DeviceTransferService {
         }
     }
 
-    pub async fn command(self: &Arc<Self>, command: &str) -> Result<()> {
+    pub async fn command(self: &Arc<Self>, command: DeviceTransferCommand) -> Result<()> {
         if self.primary_session_id.is_none() {
             bail!("device transfer is unavailable without a primary session");
         }
         match command {
-            "pull_to_remote" => {
+            DeviceTransferCommand::PullToRemote => {
                 self.state.lock().await.waiting_for_remote_push = true;
                 self.send_remote(TransferCommand::pull(&self.device_id))
                     .await
             }
-            "push_to_remote" | "confirm_backup" => self.start_sender().await,
-            "confirm_restore" => {
+            DeviceTransferCommand::PushToRemote | DeviceTransferCommand::ConfirmBackup => {
+                self.start_sender().await
+            }
+            DeviceTransferCommand::ConfirmRestore => {
                 let remote = self
                     .state
                     .lock()
@@ -250,7 +259,7 @@ impl DeviceTransferService {
                 self.start_receiver(remote);
                 Ok(())
             }
-            "cancel_restore" => {
+            DeviceTransferCommand::CancelRestore => {
                 let mut state = self.state.lock().await;
                 state.waiting_for_remote_push = false;
                 if let Some(cancel) = state.receiver_cancel.take() {
@@ -258,18 +267,18 @@ impl DeviceTransferService {
                 }
                 Ok(())
             }
-            "cancel_backup" => {
+            DeviceTransferCommand::CancelBackup => {
                 if let Some(cancel) = self.state.lock().await.sender_cancel.take() {
                     cancel.cancel();
                 }
                 Ok(())
             }
-            "cancel_backup_request" | "cancel_restore_request" => {
+            DeviceTransferCommand::CancelBackupRequest
+            | DeviceTransferCommand::CancelRestoreRequest => {
                 self.state.lock().await.remote_push = None;
                 self.send_remote(TransferCommand::simple(&self.device_id, "cancel"))
                     .await
             }
-            _ => bail!("unknown device transfer command: {command}"),
         }
     }
 
@@ -296,13 +305,15 @@ impl DeviceTransferService {
             return Ok(());
         }
         if command.version != PROTOCOL_VERSION {
-            self.emit(DeviceTransferEvent::failed("version_not_matched"));
+            self.emit(DeviceTransferEvent::ConnectionFailed(
+                ConnectionFailedReason::VersionNotMatched,
+            ));
             self.send_remote(TransferCommand::simple(&self.device_id, "cancel"))
                 .await?;
             return Ok(());
         }
         match command.action.as_str() {
-            "pull" => self.emit(DeviceTransferEvent::simple("restore_request_received")),
+            "pull" => self.emit(DeviceTransferEvent::RestoreRequestReceived),
             "push" => {
                 let key = command
                     .secret_key
@@ -332,7 +343,7 @@ impl DeviceTransferService {
                 } else {
                     state.remote_push = Some(remote);
                     drop(state);
-                    self.emit(DeviceTransferEvent::simple("backup_request_received"));
+                    self.emit(DeviceTransferEvent::BackupRequestReceived);
                 }
             }
             "cancel" => {
@@ -362,14 +373,14 @@ impl DeviceTransferService {
         let key = generate_transfer_key()?;
         let cancel = CancellationToken::new();
         self.state.lock().await.sender_cancel = Some(cancel.clone());
-        self.emit(DeviceTransferEvent::simple("backup_server_created"));
+        self.emit(DeviceTransferEvent::BackupServerCreated);
 
         let service = self.clone();
         tokio::spawn(async move {
             let result = service.run_sender(listener, code, key, cancel).await;
             if let Err(error) = result {
                 log::error!("device transfer sender failed: {error:?}");
-                service.emit(DeviceTransferEvent::simple("backup_failed"));
+                service.emit(DeviceTransferEvent::BackupFailed);
             }
             service.state.lock().await.sender_cancel = None;
         });
@@ -389,7 +400,7 @@ impl DeviceTransferService {
             let result = service.run_receiver(remote, cancel).await;
             if let Err(error) = result {
                 log::error!("device transfer receiver failed: {error:?}");
-                service.emit(DeviceTransferEvent::simple("restore_failed"));
+                service.emit(DeviceTransferEvent::RestoreFailed);
             }
             service.state.lock().await.receiver_cancel = None;
         });
@@ -418,7 +429,7 @@ impl DeviceTransferService {
             bail!("device transfer verification failed");
         }
 
-        self.emit(DeviceTransferEvent::simple("backup_start"));
+        self.emit(DeviceTransferEvent::BackupStart);
         let specs = record_specs();
         let mut total = 0u64;
         for spec in &specs {
@@ -457,17 +468,16 @@ impl DeviceTransferService {
                         }
                         _ = cancel.cancelled() => return Ok(()),
                     }
-                    self.emit(DeviceTransferEvent::value(
-                        "backup_network_speed",
-                        transfer_speed(bytes_sent, started),
-                    ));
+                    self.emit(DeviceTransferEvent::BackupNetworkSpeed(transfer_speed(
+                        bytes_sent, started,
+                    )));
                     records_sent += 1;
                     let progress = if total == 0 {
                         0.0
                     } else {
                         (records_sent as f64 / total as f64 * 100.0).clamp(0.0, 100.0)
                     };
-                    self.emit(DeviceTransferEvent::value("backup_progress", progress));
+                    self.emit(DeviceTransferEvent::BackupProgress(progress));
                     if matches!(spec.kind, "message" | "transcript_message") {
                         if let Some(path) = self.attachment_for_record(spec.kind, &record).await? {
                             let message_id = record
@@ -499,10 +509,10 @@ impl DeviceTransferService {
             if let Packet::Command(command) = packet {
                 if command.action == "progress" {
                     if let Some(progress) = command.progress {
-                        self.emit(DeviceTransferEvent::value("backup_progress", progress));
+                        self.emit(DeviceTransferEvent::BackupProgress(progress));
                     }
                 } else if command.action == "finish" {
-                    self.emit(DeviceTransferEvent::simple("backup_succeed"));
+                    self.emit(DeviceTransferEvent::BackupSucceed);
                     return Ok(());
                 } else if command.action == "close" || command.action == "cancel" {
                     bail!("receiver closed transfer");
@@ -523,7 +533,7 @@ impl DeviceTransferService {
             &TransferCommand::connect(&self.device_id, remote.code, &self.user_id),
         )
         .await?;
-        self.emit(DeviceTransferEvent::simple("restore_connected"));
+        self.emit(DeviceTransferEvent::RestoreConnected);
 
         let mut total = 0u64;
         let mut progress_count = 0u64;
@@ -539,19 +549,19 @@ impl DeviceTransferService {
                 }
             };
             bytes_received += packet.wire_size() as u64;
-            self.emit(DeviceTransferEvent::value(
-                "restore_network_speed",
-                transfer_speed(bytes_received, started),
-            ));
+            self.emit(DeviceTransferEvent::RestoreNetworkSpeed(transfer_speed(
+                bytes_received,
+                started,
+            )));
             match packet {
                 Packet::Command(command) if command.action == "start" => {
                     total = command.total.unwrap_or_default();
                     progress_count = 0;
-                    self.emit(DeviceTransferEvent::simple("restore_start"));
-                    self.emit(DeviceTransferEvent::value("restore_progress", 0.0));
+                    self.emit(DeviceTransferEvent::RestoreStart);
+                    self.emit(DeviceTransferEvent::RestoreProgress(0.0));
                 }
                 Packet::Command(command) if command.action == "finish" => {
-                    self.emit(DeviceTransferEvent::value("restore_progress", 100.0));
+                    self.emit(DeviceTransferEvent::RestoreProgress(100.0));
                     write_command(
                         &mut writer,
                         &remote.key,
@@ -565,7 +575,7 @@ impl DeviceTransferService {
                     )
                     .await?;
                     self.conversation_changes.notify_all();
-                    self.emit(DeviceTransferEvent::simple("restore_succeed"));
+                    self.emit(DeviceTransferEvent::RestoreSucceed);
                     return Ok(());
                 }
                 Packet::Command(command)
@@ -586,7 +596,7 @@ impl DeviceTransferService {
                     } else {
                         (progress_count as f64 / total as f64 * 100.0).clamp(0.0, 100.0)
                     };
-                    self.emit(DeviceTransferEvent::value("restore_progress", progress));
+                    self.emit(DeviceTransferEvent::RestoreProgress(progress));
                     if last_progress_sent.elapsed() >= Duration::from_millis(200) {
                         write_command(
                             &mut writer,
