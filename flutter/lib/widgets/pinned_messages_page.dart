@@ -43,7 +43,6 @@ class PinnedMessagesPage extends StatefulWidget {
     required this.onLocate,
     required this.onSelectConversation,
     required this.onSelectConversationInfo,
-    required this.onOpenUri,
     super.key,
     this.onEmpty,
     this.onCountChanged,
@@ -56,7 +55,6 @@ class PinnedMessagesPage extends StatefulWidget {
   final ValueChanged<String> onLocate;
   final ValueChanged<ConversationListEntry> onSelectConversation;
   final ValueChanged<ConversationListEntry> onSelectConversationInfo;
-  final ValueChanged<Uri> onOpenUri;
   final VoidCallback? onEmpty;
   final ValueChanged<int>? onCountChanged;
 
@@ -289,7 +287,6 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
             onMarkAudioRead: _markAudioRead,
             onSelectConversation: widget.onSelectConversation,
             onSelectConversationInfo: widget.onSelectConversationInfo,
-            onOpenUri: widget.onOpenUri,
           );
         },
       ),
@@ -325,7 +322,6 @@ class _PinnedMessage extends StatelessWidget {
     required this.onMarkAudioRead,
     required this.onSelectConversation,
     required this.onSelectConversationInfo,
-    required this.onOpenUri,
     super.key,
   });
 
@@ -345,7 +341,6 @@ class _PinnedMessage extends StatelessWidget {
   final MessageEntryCallback onMarkAudioRead;
   final ValueChanged<ConversationListEntry> onSelectConversation;
   final ValueChanged<ConversationListEntry> onSelectConversationInfo;
-  final ValueChanged<Uri> onOpenUri;
 
   @override
   Widget build(BuildContext context) {
@@ -380,14 +375,12 @@ class _PinnedMessage extends StatelessWidget {
       onPinnedMessageTap: () => onLocate(message.id),
       audioPlaylist: messages,
       mentionNames: mentionNames,
-      onOpenUri: onOpenUri,
       onAppAction: (action, {title}) => openMessageAction(
         context: context,
         account: account,
         conversationId: message.conversationId,
         action: action,
         title: title,
-        onOpenUri: onOpenUri,
       ),
       onOpenMessage: onLocate,
       onOpenTranscript: (id) => unawaited(
@@ -399,7 +392,6 @@ class _PinnedMessage extends StatelessWidget {
           currentUserId: currentUserId,
           onSelectConversation: onSelectConversation,
           onSelectConversationInfo: onSelectConversationInfo,
-          onOpenUri: onOpenUri,
         ),
       ),
       onOpenImage: (item) => _openImage(context, item),

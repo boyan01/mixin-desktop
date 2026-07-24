@@ -23,6 +23,7 @@ import '../../l10n/l10n.dart';
 import '../../models/message_list_entry.dart';
 import '../../theme.dart';
 import '../../utils/name_color.dart';
+import '../app_protocol_handler.dart';
 import '../avatar_view.dart';
 import '../badges_widget.dart';
 import '../high_light_text.dart';
@@ -38,7 +39,6 @@ import '../sticker_page/sticker_item.dart';
 import '../toast.dart';
 
 typedef MessageStringCallback = void Function(String value);
-typedef MessageUriCallback = void Function(Uri uri);
 typedef MessageActionCallback = void Function(String value, {String? title});
 
 class WaitingMessageItem extends StatelessWidget {
@@ -46,18 +46,17 @@ class WaitingMessageItem extends StatelessWidget {
     required this.messageId,
     required this.subject,
     required this.dateAndStatus,
-    required this.onOpenHelp,
     super.key,
   });
 
   final String messageId;
   final String subject;
   final Widget dateAndStatus;
-  final VoidCallback? onOpenHelp;
 
   @override
   Widget build(BuildContext context) {
     final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
+    final helpUri = Uri.tryParse(l10n?.chatNotSupportUrl ?? '');
     return MessageLayout(
       spacing: 6,
       content: RichText(
@@ -78,7 +77,10 @@ class WaitingMessageItem extends StatelessWidget {
                 fontSize: context.messageStyle.primaryFontSize,
                 color: context.theme.accent,
               ),
-              recognizer: TapGestureRecognizer()..onTap = onOpenHelp,
+              recognizer: TapGestureRecognizer()
+                ..onTap = helpUri == null
+                    ? null
+                    : () => context.openUri(helpUri),
             ),
           ],
         ),
@@ -447,12 +449,10 @@ class ContactMessageItem extends StatelessWidget {
 class LocationMessageItem extends StatelessWidget {
   const LocationMessageItem({
     required this.message,
-    required this.onOpenUri,
     super.key,
   });
 
   final MessageListEntry message;
-  final MessageUriCallback? onOpenUri;
 
   @override
   Widget build(BuildContext context) {
@@ -465,7 +465,7 @@ class LocationMessageItem extends StatelessWidget {
       width: 260,
       height: 180,
       child: InteractiveDecoratedBox(
-        onTap: onOpenUri == null ? null : () => onOpenUri!(uri),
+        onTap: () => context.openUri(uri),
         child: Stack(
           children: [
             map.MapLayout(
@@ -566,7 +566,6 @@ class AppCardMessageItem extends StatelessWidget {
     this.highlightOpacity = 0,
     super.key,
     this.quote,
-    this.onOpenUri,
     this.onOpenIdentityNumber,
     this.mentionNames = const {},
     this.keyword = '',
@@ -582,7 +581,6 @@ class AppCardMessageItem extends StatelessWidget {
   final double highlightOpacity;
   final Widget dateAndStatus;
   final Widget? quote;
-  final MessageUriCallback? onOpenUri;
   final MessageStringCallback? onOpenIdentityNumber;
   final Map<String, String> mentionNames;
   final String keyword;
@@ -1052,9 +1050,7 @@ class PinMessageItem extends StatelessWidget {
 }
 
 class SecretMessageItem extends StatelessWidget {
-  const SecretMessageItem({required this.onOpenUri, super.key});
-
-  final MessageUriCallback? onOpenUri;
+  const SecretMessageItem({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -1066,9 +1062,9 @@ class SecretMessageItem extends StatelessWidget {
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
-            onTap: uri == null || onOpenUri == null
+            onTap: uri == null
                 ? null
-                : () => onOpenUri!(uri),
+                : () => context.openUri(uri),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: context.theme.encrypt,

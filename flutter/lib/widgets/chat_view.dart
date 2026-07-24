@@ -16,7 +16,6 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:super_context_menu/super_context_menu.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../constants/assets.dart';
@@ -93,7 +92,6 @@ class ChatView extends StatefulWidget {
     this.onOpenPinnedMessages,
     this.onSelectConversation,
     this.onSelectConversationInfo,
-    this.onOpenUri,
     this.showInfoAction = true,
     this.locateMessageId,
     this.locateRequest = 0,
@@ -105,7 +103,6 @@ class ChatView extends StatefulWidget {
   final ValueChanged<String> onDraftChanged;
   final ValueChanged<ConversationListEntry>? onSelectConversation;
   final ValueChanged<ConversationListEntry>? onSelectConversationInfo;
-  final ValueChanged<Uri>? onOpenUri;
   final VoidCallback? onBack;
   final VoidCallback? onSearch;
   final VoidCallback? onInfo;
@@ -674,7 +671,6 @@ class _ChatViewState extends State<ChatView>
                               onSelectConversation: widget.onSelectConversation,
                               onSelectConversationInfo:
                                   widget.onSelectConversationInfo,
-                              onOpenUri: widget.onOpenUri,
                               onStickerAlbumChanged:
                                   _stickerController.refreshLocal,
                             ),
@@ -1417,7 +1413,6 @@ class _MessageList extends StatelessWidget {
     required this.onReedit,
     required this.onSelectConversation,
     required this.onSelectConversationInfo,
-    required this.onOpenUri,
     required this.onStickerAlbumChanged,
   });
 
@@ -1438,7 +1433,6 @@ class _MessageList extends StatelessWidget {
   final ValueChanged<String> onReedit;
   final ValueChanged<ConversationListEntry>? onSelectConversation;
   final ValueChanged<ConversationListEntry>? onSelectConversationInfo;
-  final ValueChanged<Uri>? onOpenUri;
   final Future<void> Function() onStickerAlbumChanged;
 
   @override
@@ -1484,7 +1478,6 @@ class _MessageList extends StatelessWidget {
         onReedit: onReedit,
         onSelectConversation: onSelectConversation,
         onSelectConversationInfo: onSelectConversationInfo,
-        onOpenUri: onOpenUri,
         onMarkMentionRead: () => unawaited(actions.markMentionRead(message)),
         onMarkAudioRead: (audio) => unawaited(actions.markAudioRead(audio)),
         onDownloadAttachment: () =>
@@ -1548,7 +1541,6 @@ class _ChatMessage extends StatefulHookWidget {
     required this.onReedit,
     required this.onSelectConversation,
     required this.onSelectConversationInfo,
-    required this.onOpenUri,
     required this.onMarkMentionRead,
     required this.onMarkAudioRead,
     required this.onDownloadAttachment,
@@ -1587,7 +1579,6 @@ class _ChatMessage extends StatefulHookWidget {
   final ValueChanged<String> onReedit;
   final ValueChanged<ConversationListEntry>? onSelectConversation;
   final ValueChanged<ConversationListEntry>? onSelectConversationInfo;
-  final ValueChanged<Uri>? onOpenUri;
   final VoidCallback onMarkMentionRead;
   final ValueChanged<MessageListEntry> onMarkAudioRead;
   final VoidCallback onDownloadAttachment;
@@ -1649,7 +1640,6 @@ class _ChatMessageState extends State<_ChatMessage> {
       message: widget.message,
       isCurrentUser: presentation.isCurrentUser,
       currentUserId: widget.currentUserId,
-      onOpenUri: widget.onOpenUri ?? (uri) => unawaited(launchUrl(uri)),
       onOpenMessage: widget.onOpenMessage,
       recalledText: widget.recalledText,
       onReedit: widget.onReedit,
@@ -2112,7 +2102,6 @@ class _ChatMessageState extends State<_ChatMessage> {
         onSelectConversation: onSelectConversation,
         onSelectConversationInfo:
             widget.onSelectConversationInfo ?? onSelectConversation,
-        onOpenUri: widget.onOpenUri ?? (uri) => unawaited(launchUrl(uri)),
       ),
     );
   }
@@ -2150,7 +2139,6 @@ class _ChatMessageState extends State<_ChatMessage> {
       conversationId: widget.message.conversationId,
       action: action,
       title: title,
-      onOpenUri: widget.onOpenUri,
     );
   }
 

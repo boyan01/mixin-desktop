@@ -14,6 +14,7 @@ import '../models/conversation_list_entry.dart';
 import '../src/rust/desktop_api.dart';
 import '../theme.dart';
 import '../widgets/action_button.dart';
+import '../widgets/app_protocol_handler.dart';
 import '../widgets/avatar_view.dart';
 import '../widgets/buttons.dart';
 import '../widgets/high_light_text.dart';
@@ -394,14 +395,12 @@ class StorageCategoryUsageEntry {
 class AboutPage extends StatefulWidget {
   const AboutPage({
     required this.version,
-    required this.onOpenUri,
     super.key,
     this.onOpenLogDirectory,
     this.onLoadLogs,
   });
 
   final String version;
-  final Future<void> Function(Uri uri) onOpenUri;
   final Future<void> Function()? onOpenLogDirectory;
   final Future<List<String>> Function()? onLoadLogs;
 
@@ -495,27 +494,22 @@ class _AboutPageState extends State<AboutPage> {
                   _AboutLink(
                     title: context.l10n.followUsOnX,
                     uri: Uri.parse('https://x.com/MixinMessenger'),
-                    onOpen: widget.onOpenUri,
                   ),
                   _AboutLink(
                     title: context.l10n.followUsOnFacebook,
                     uri: Uri.parse('https://fb.com/MixinMessenger'),
-                    onOpen: widget.onOpenUri,
                   ),
                   _AboutLink(
                     title: context.l10n.helpCenter,
                     uri: Uri.parse('https://support.mixin.one'),
-                    onOpen: widget.onOpenUri,
                   ),
                   _AboutLink(
                     title: context.l10n.termsOfService,
                     uri: Uri.parse('https://mixin.one/pages/terms'),
-                    onOpen: widget.onOpenUri,
                   ),
                   _AboutLink(
                     title: context.l10n.privacyPolicy,
                     uri: Uri.parse('https://mixin.one/pages/privacy'),
-                    onOpen: widget.onOpenUri,
                   ),
                   if (defaultTargetPlatform != TargetPlatform.macOS)
                     CellItem(
@@ -549,7 +543,7 @@ class _AboutPageState extends State<AboutPage> {
       ),
       _ => Uri.parse('https://mixin.one/messenger'),
     };
-    unawaited(widget.onOpenUri(uri));
+    context.openUri(uri);
   }
 }
 
@@ -557,16 +551,17 @@ class _AboutLink extends StatelessWidget {
   const _AboutLink({
     required this.title,
     required this.uri,
-    required this.onOpen,
   });
 
   final String title;
   final Uri uri;
-  final Future<void> Function(Uri uri) onOpen;
 
   @override
   Widget build(BuildContext context) =>
-      CellItem(title: Text(title), onTap: () => unawaited(onOpen(uri)));
+      CellItem(
+        title: Text(title),
+        onTap: () => context.openUri(uri),
+      );
 }
 
 class SettingsLogPage extends StatefulWidget {

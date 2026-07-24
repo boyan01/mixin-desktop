@@ -48,7 +48,6 @@ class _PinMessagesPageState extends State<PinMessagesPage> {
           scope.notifier.closeAfterContentJump(routeMode: scope.routeMode);
         },
         onSelectConversation: scope.onSelectConversation,
-        onOpenUri: scope.onOpenUri,
         onSelectConversationInfo: (conversation) {
           scope.onSelectConversation(conversation);
           scope.notifier.openDestination(ConversationInfoDestination.infoPage);

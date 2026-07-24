@@ -270,7 +270,7 @@ class UrlTextMatcher extends TextMatcher {
           style: TextStyle(color: context.theme.accent),
           mouseCursor: SystemMouseCursors.click,
           recognizer: TapGestureRecognizer()
-            ..onTap = () => openUrl(context, linkString),
+            ..onTap = () => context.openUrl(linkString),
         ),
       );
 }
@@ -285,11 +285,6 @@ Iterable<TextRange> _textRangesFromRegExp(String text, RegExp regExp) => regExp
       (match) => TextRange(start: match.start, end: match.end),
     );
 
-void openUrl(BuildContext context, String value) {
-  final uri = Uri.tryParse(value);
-  if (uri == null || uri.scheme.isEmpty) return;
-  if (!AppProtocolHandler.maybeOpen(context, uri)) unawaited(launchUrl(uri));
-}
 
 class MailTextMatcher extends TextMatcher {
   MailTextMatcher(BuildContext context)

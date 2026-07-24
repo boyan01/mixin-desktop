@@ -16,6 +16,7 @@ import '../controllers/settings_controller.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../models/message_list_entry.dart';
 import '../theme.dart';
+import 'app_protocol_handler.dart';
 import 'attachment_status.dart';
 import 'image_by_blur_hash.dart';
 import 'interactive_decorated_box.dart';
@@ -42,7 +43,6 @@ class MessageContent extends StatelessWidget {
     required this.dateAndStatus,
     required this.overlayDateAndStatus,
     super.key,
-    this.onOpenUri,
     this.onOpenUser,
     this.onOpenMessage,
     this.onAction,
@@ -76,7 +76,6 @@ class MessageContent extends StatelessWidget {
   final bool isCurrentUser;
   final Widget dateAndStatus;
   final Widget overlayDateAndStatus;
-  final MessageUriCallback? onOpenUri;
   final MessageStringCallback? onOpenUser;
   final MessageStringCallback? onOpenMessage;
   final MessageStringCallback? onAction;
@@ -109,19 +108,9 @@ class MessageContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = message.status.toUpperCase();
     if (status == 'UNKNOWN' || message.isInvalidSpecialMessage) {
-      final l10n = Localizations.of<AppLocalizations>(
-        context,
-        AppLocalizations,
-      );
-      final helpUri = Uri.tryParse(l10n?.chatNotSupportUrl ?? '');
       return MessageLayout(
         spacing: 6,
-        content: _UnknownMessage(
-          message: message,
-          onOpenHelp: helpUri == null || onOpenUri == null
-              ? null
-              : () => onOpenUri!(helpUri),
-        ),
+        content: _UnknownMessage(message: message),
         dateAndStatus: dateAndStatus,
       );
     }
@@ -130,14 +119,10 @@ class MessageContent extends StatelessWidget {
         context,
         AppLocalizations,
       );
-      final helpUri = Uri.tryParse(l10n?.chatNotSupportUrl ?? '');
       return WaitingMessageItem(
         messageId: message.id,
         subject: isCurrentUser ? l10n?.linkedDevice ?? '' : message.senderName,
         dateAndStatus: dateAndStatus,
-        onOpenHelp: helpUri == null || onOpenUri == null
-            ? null
-            : () => onOpenUri!(helpUri),
       );
     }
     if (message.category == 'SYSTEM_CONVERSATION') {
@@ -150,7 +135,7 @@ class MessageContent extends StatelessWidget {
       return PinMessageItem(message: message, mentionNames: mentionNames);
     }
     if (message.category == 'SECRET') {
-      return SecretMessageItem(onOpenUri: onOpenUri);
+      return const SecretMessageItem();
     }
     if (message.category == 'STRANGER') {
       if (const {
@@ -223,7 +208,7 @@ class MessageContent extends StatelessWidget {
         onOpenTranscript: onOpenTranscript,
       );
     } else if (message.category.endsWith('_LOCATION')) {
-      content = LocationMessageItem(message: message, onOpenUri: onOpenUri);
+      content = LocationMessageItem(message: message);
     } else if (message.category == 'SYSTEM_ACCOUNT_SNAPSHOT') {
       content = SnapshotMessageItem(
         message: message,
@@ -282,19 +267,9 @@ class MessageContent extends StatelessWidget {
         attachmentSentByCurrentUser ?? isCurrentUser;
     if (message.isImage) {
       if (message.mediaWidth == null || message.mediaHeight == null) {
-        final l10n = Localizations.of<AppLocalizations>(
-          context,
-          AppLocalizations,
-        );
-        final helpUri = Uri.tryParse(l10n?.chatNotSupportUrl ?? '');
         return MessageLayout(
           spacing: 6,
-          content: _UnknownMessage(
-            message: message,
-            onOpenHelp: helpUri == null || onOpenUri == null
-                ? null
-                : () => onOpenUri!(helpUri),
-          ),
+          content: _UnknownMessage(message: message),
           dateAndStatus: dateAndStatus,
         );
       }
@@ -319,7 +294,6 @@ class MessageContent extends StatelessWidget {
         onOpen: onOpenVideo,
         onDownloadAttachment: onDownloadAttachment,
         onCancelAttachment: onCancelAttachment,
-        onOpenUri: onOpenUri,
       );
     }
     if (message.isAudio) {
@@ -359,16 +333,9 @@ class MessageContent extends StatelessWidget {
         keyword: keyword,
       );
     }
-    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
-    final helpUri = Uri.tryParse(l10n?.chatNotSupportUrl ?? '');
     return MessageLayout(
       spacing: 6,
-      content: _UnknownMessage(
-        message: message,
-        onOpenHelp: helpUri == null || onOpenUri == null
-            ? null
-            : () => onOpenUri!(helpUri),
-      ),
+      content: _UnknownMessage(message: message),
       dateAndStatus: dateAndStatus,
     );
   }
@@ -552,7 +519,6 @@ class _VideoMessage extends StatelessWidget {
     this.onOpen,
     this.onDownloadAttachment,
     this.onCancelAttachment,
-    this.onOpenUri,
   });
 
   final MessageListEntry message;
@@ -562,7 +528,6 @@ class _VideoMessage extends StatelessWidget {
   final MessageEntryCallback? onOpen;
   final MessageEntryCallback? onDownloadAttachment;
   final MessageEntryCallback? onCancelAttachment;
-  final MessageUriCallback? onOpenUri;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -581,7 +546,6 @@ class _VideoMessage extends StatelessWidget {
         onOpen: onOpen,
         onDownloadAttachment: onDownloadAttachment,
         onCancelAttachment: onCancelAttachment,
-        onOpenUri: onOpenUri,
       );
       return ConstrainedBox(
         key: Key('message-media-video-${message.id}'),
@@ -603,7 +567,6 @@ class MessageVideo extends StatelessWidget {
     this.onOpen,
     this.onDownloadAttachment,
     this.onCancelAttachment,
-    this.onOpenUri,
     super.key,
   });
 
@@ -616,12 +579,11 @@ class MessageVideo extends StatelessWidget {
   final MessageEntryCallback? onOpen;
   final MessageEntryCallback? onDownloadAttachment;
   final MessageEntryCallback? onCancelAttachment;
-  final MessageUriCallback? onOpenUri;
 
   @override
   Widget build(BuildContext context) => _InteractiveMessageCard(
     message: message,
-    onTap: _videoAction,
+    onTap: (msg) => _videoAction(context, msg),
     child: SizedBox.fromSize(
       size: size,
       child: Stack(
@@ -674,7 +636,7 @@ class MessageVideo extends StatelessWidget {
     ),
   );
 
-  void _videoAction(MessageListEntry _) {
+  void _videoAction(BuildContext context, MessageListEntry _) {
     switch (message.mediaStatus.toUpperCase()) {
       case 'CANCELED':
         onDownloadAttachment?.call(message);
@@ -683,9 +645,9 @@ class MessageVideo extends StatelessWidget {
       case 'DONE':
         onOpen?.call(message);
       default:
-        if (!message.isLive || onOpenUri == null) return;
+        if (!message.isLive) return;
         final uri = Uri.tryParse(message.mediaUrl?.trim() ?? '');
-        if (uri != null) onOpenUri!(uri);
+        if (uri != null) context.openUri(uri);
     }
   }
 }
@@ -981,14 +943,14 @@ MessageEntryCallback? _attachmentAction(
 };
 
 class _UnknownMessage extends StatelessWidget {
-  const _UnknownMessage({required this.message, required this.onOpenHelp});
+  const _UnknownMessage({required this.message});
 
   final MessageListEntry message;
-  final VoidCallback? onOpenHelp;
 
   @override
   Widget build(BuildContext context) {
     final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
+    final helpUri = Uri.tryParse(l10n?.chatNotSupportUrl ?? '');
     return RichText(
       key: Key('message-media-unknown-${message.id}'),
       text: TextSpan(
@@ -1006,7 +968,10 @@ class _UnknownMessage extends StatelessWidget {
               fontSize: context.messageFontSize(16),
               color: context.theme.accent,
             ),
-            recognizer: TapGestureRecognizer()..onTap = onOpenHelp,
+            recognizer: TapGestureRecognizer()
+              ..onTap = helpUri == null
+                  ? null
+                  : () => context.openUri(helpUri),
           ),
         ],
       ),

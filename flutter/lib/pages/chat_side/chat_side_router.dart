@@ -27,7 +27,6 @@ class ChatSideRouter extends StatelessWidget {
     required this.routeMode,
     required this.onLocateMessage,
     required this.onSelectConversation,
-    required this.onOpenUri,
     required this.onConversationDeleted,
     this.leadingPages = const [],
     super.key,
@@ -42,7 +41,6 @@ class ChatSideRouter extends StatelessWidget {
   final bool routeMode;
   final ValueChanged<String> onLocateMessage;
   final ValueChanged<ConversationListEntry> onSelectConversation;
-  final ValueChanged<Uri> onOpenUri;
   final VoidCallback onConversationDeleted;
 
   @override
@@ -69,7 +67,6 @@ class ChatSideRouter extends StatelessWidget {
       routeMode: routeMode,
       onLocateMessage: onLocateMessage,
       onSelectConversation: onSelectConversation,
-      onOpenUri: onOpenUri,
       onConversationDeleted: onConversationDeleted,
       child: navigator,
     );

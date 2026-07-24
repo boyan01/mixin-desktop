@@ -44,7 +44,6 @@ Future<void> showTranscriptDialog(
   required String currentUserId,
   required ValueChanged<ConversationListEntry> onSelectConversation,
   required ValueChanged<ConversationListEntry> onSelectConversationInfo,
-  required ValueChanged<Uri> onOpenUri,
 }) => showMixinDialog<void>(
   context: context,
   padding: const EdgeInsets.symmetric(vertical: 80),
@@ -56,7 +55,6 @@ Future<void> showTranscriptDialog(
     currentUserId: currentUserId,
     onSelectConversation: onSelectConversation,
     onSelectConversationInfo: onSelectConversationInfo,
-    onOpenUri: onOpenUri,
   ),
 );
 
@@ -68,7 +66,6 @@ class TranscriptPage extends StatefulWidget {
     required this.currentUserId,
     required this.onSelectConversation,
     required this.onSelectConversationInfo,
-    required this.onOpenUri,
     super.key,
   });
 
@@ -78,7 +75,6 @@ class TranscriptPage extends StatefulWidget {
   final String currentUserId;
   final ValueChanged<ConversationListEntry> onSelectConversation;
   final ValueChanged<ConversationListEntry> onSelectConversationInfo;
-  final ValueChanged<Uri> onOpenUri;
 
   @override
   State<TranscriptPage> createState() => _TranscriptPageState();
@@ -367,7 +363,6 @@ class _TranscriptPageState extends State<TranscriptPage>
                   onMarkAudioRead: _markAudioRead,
                   onSelectConversation: widget.onSelectConversation,
                   onSelectConversationInfo: widget.onSelectConversationInfo,
-                  onOpenUri: widget.onOpenUri,
                 );
               },
             ),
@@ -408,7 +403,6 @@ class _TranscriptMessage extends StatelessWidget {
     required this.onMarkAudioRead,
     required this.onSelectConversation,
     required this.onSelectConversationInfo,
-    required this.onOpenUri,
     super.key,
   });
 
@@ -430,7 +424,6 @@ class _TranscriptMessage extends StatelessWidget {
   final MessageEntryCallback onMarkAudioRead;
   final ValueChanged<ConversationListEntry> onSelectConversation;
   final ValueChanged<ConversationListEntry> onSelectConversationInfo;
-  final ValueChanged<Uri> onOpenUri;
 
   @override
   Widget build(BuildContext context) {
@@ -465,7 +458,6 @@ class _TranscriptMessage extends StatelessWidget {
       attachmentSentByCurrentUser: transcriptSentByCurrentUser,
       mentionNames: mentionNames,
       highlightOpacity: highlightOpacity,
-      onOpenUri: onOpenUri,
       onOpenMessage: onOpenMessage,
       onAppAction: (action, {title}) => openMessageAction(
         context: context,
@@ -473,7 +465,6 @@ class _TranscriptMessage extends StatelessWidget {
         conversationId: message.conversationId,
         action: action,
         title: title,
-        onOpenUri: onOpenUri,
       ),
       onOpenImage: (message) => _openImage(context, message),
       onOpenVideo: (message) => _openVideo(context, message),
@@ -491,7 +482,6 @@ class _TranscriptMessage extends StatelessWidget {
           currentUserId: currentUserId,
           onSelectConversation: onSelectConversation,
           onSelectConversationInfo: onSelectConversationInfo,
-          onOpenUri: onOpenUri,
         ),
       ),
       onMarkAudioRead: onMarkAudioRead,

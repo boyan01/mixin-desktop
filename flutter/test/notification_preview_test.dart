@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
-import 'package:mixin_desktop_ui/pages/home_page.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
+import 'package:mixin_desktop_ui/utils/notification_preview.dart';
 
 void main() {
   testWidgets('formats app card and pin notification previews', (tester) async {

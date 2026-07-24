@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../constants/assets.dart';
 import '../controllers/app_controller.dart';
@@ -264,8 +263,6 @@ class _SettingsPageState extends State<SettingsPage>
         version: version,
         onOpenLogDirectory: openAppLogDirectory,
         onLoadLogs: readAppLogLines,
-        onOpenUri: (uri) =>
-            launchUrl(uri, mode: LaunchMode.externalApplication).then((_) {}),
       ),
     );
   }

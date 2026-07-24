@@ -1,28 +1,24 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../controllers/app_controller.dart';
 import '../controllers/chat_side_notifier.dart';
 import '../controllers/conversation_list_controller.dart';
 import '../controllers/device_transfer_controller.dart';
+import '../controllers/home_navigation_controller.dart';
 import '../controllers/security_controller.dart';
-import '../controllers/settings_controller.dart';
 import '../l10n/l10n.dart';
 import '../models/conversation_list_entry.dart';
 import '../models/message_list_entry.dart';
 import '../src/rust/desktop_api.dart';
 import '../theme.dart';
 import '../utils/local_notification_center.dart';
-import '../utils/mixin_uri.dart';
 import '../utils/web_view.dart';
 import '../widgets/account_health_overlays.dart';
 import '../widgets/app_icon_badge.dart';
@@ -32,20 +28,15 @@ import '../widgets/avatar_view.dart';
 import '../widgets/chat_view.dart';
 import '../widgets/command_palette.dart';
 import '../widgets/conversation_list_view.dart';
-import '../widgets/device_transfer_dialog.dart';
 import '../widgets/device_transfer_widget.dart';
+import '../widgets/home_macos_menu_bar.dart';
+import '../widgets/home_notification_bridge.dart';
 import '../widgets/home_sidebar.dart';
 import '../widgets/mixin_dialog.dart';
-import '../widgets/mute_dialog.dart';
 import '../widgets/network_status.dart';
-import '../widgets/show_conversation_code_dialog.dart';
 import '../widgets/show_forward_conversation_selector.dart';
 import '../widgets/show_message_user_dialog.dart';
-import '../widgets/show_multisigs_payment_dialog.dart';
-import '../widgets/show_send_message_dialog.dart';
-import '../widgets/show_snapshot_detail_dialog.dart';
 import '../widgets/toast.dart';
-import '../widgets/unknown_mixin_url_dialog.dart';
 import 'chat_side/chat_side_router.dart';
 import 'conversation_info_destination.dart';
 import 'settings_page.dart';
@@ -159,80 +150,44 @@ class _HomeBody extends StatefulWidget {
 }
 
 class _HomeBodyState extends State<_HomeBody> {
-  static const _platformMenusChannel = MethodChannel(
-    'mixin_desktop/platform_menus',
-  );
-  ConversationListEntry? selectedConversation;
   final drafts = <String, String>{};
-  final chatSideController = ChatSideNotifier();
   bool userCollapsed = false;
-  bool settingsSelected = false;
   bool commandPaletteShowing = false;
-  String? locateMessageId;
-  int locateRequest = 0;
-  StreamSubscription<NotificationEvent>? notificationEventSubscription;
-  StreamSubscription<Uri>? notificationSelectionSubscription;
+  late final HomeNavigationController navigationController;
   DeviceTransferController? deviceTransferController;
+
+  ConversationListEntry? get selectedConversation =>
+      navigationController.selectedConversation;
+  bool get settingsSelected => navigationController.settingsSelected;
+  String? get locateMessageId => navigationController.locateMessageId;
+  int get locateRequest => navigationController.locateRequest;
+  HomeNavigationController get navigation => navigationController;
+
+  @override
+  void initState() {
+    super.initState();
+    navigationController = HomeNavigationController(
+      onConversationSelected: _onConversationSelected,
+    )..addListener(_onSelectedConversationChanged);
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (notificationEventSubscription != null) return;
-    final account = context.read<AccountHandle>();
-    deviceTransferController = DeviceTransferController(account);
-    notificationEventSubscription = account.desktopNotificationEvents().listen(
-      (event) => unawaited(_showMessageNotification(event)),
-      onError: (_) {},
-    );
-    notificationSelectionSubscription = notificationSelections.listen((uri) {
-      unawaited(_selectNotification(uri));
-    });
-  }
-
-  Future<void> _showMessageNotification(NotificationEvent message) async {
-    final dismissMessageId = message.dismissMessageId;
-    if (dismissMessageId != null) {
-      await dismissMessageNotification(dismissMessageId);
-      return;
-    }
-    final createdAt = DateTime.fromMicrosecondsSinceEpoch(
-      message.createdAtMicros,
-    );
-    if (createdAt.isBefore(
-      DateTime.now().subtract(const Duration(minutes: 2)),
-    )) {
-      return;
-    }
-    final appActive =
-        WidgetsBinding.instance.lifecycleState == null ||
-        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
-    if (appActive && selectedConversation?.id == message.conversationId) return;
-
-    final showPreview = context.read<SettingsController>().messagePreview;
-    final preview = showPreview
-        ? notificationPreview(context, message)
-        : context.l10n.aMessage;
-    await showMessageNotification(
-      title: message.conversationName,
-      body: preview,
-      uri: Uri(
-        scheme: 'mixin',
-        host: 'conversations',
-        path: message.conversationId,
-        queryParameters: {'message': message.messageId},
-      ),
-      conversationId: message.conversationId,
-      messageId: message.messageId,
+    deviceTransferController ??= DeviceTransferController(
+      context.read<AccountHandle>(),
     );
   }
 
-  Future<void> _selectNotification(Uri uri) async {
-    await windowManager.show();
-    await windowManager.focus();
-    if (!mounted) return;
-    await _openProtocolUri(uri);
-    final messageId = uri.queryParameters['message'];
-    if (messageId?.isNotEmpty == true && mounted) _locateMessage(messageId!);
+  void _onSelectedConversationChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onConversationSelected(ConversationListEntry conversation) {
+    context.read<ConversationListController>().recordRecentConversation(
+      conversation.id,
+    );
+    unawaited(dismissConversationNotifications(conversation.id));
   }
 
   void _updateDraft(ConversationListEntry conversation, String value) {
@@ -247,24 +202,11 @@ class _HomeBodyState extends State<_HomeBody> {
   }
 
   void _selectCategory() {
-    setState(() {
-      settingsSelected = false;
-      selectedConversation = null;
-    });
-    chatSideController.clear();
+    navigation.showChats();
   }
 
   void _selectConversation(ConversationListEntry conversation) {
-    context.read<ConversationListController>().recordRecentConversation(
-      conversation.id,
-    );
-    setState(() {
-      settingsSelected = false;
-      selectedConversation = conversation;
-      locateMessageId = null;
-    });
-    chatSideController.clear();
-    unawaited(dismissConversationNotifications(conversation.id));
+    navigation.select(conversation);
   }
 
   void _selectSearchConversation(ConversationListEntry conversation) {
@@ -303,166 +245,6 @@ class _HomeBodyState extends State<_HomeBody> {
     commandPaletteShowing = false;
   }
 
-  Future<void> _openProtocolUri(Uri uri) async {
-    if (!uri.isMixin) {
-      await launchUrl(uri);
-      return;
-    }
-
-    final userId = uri.userId;
-    if (userId?.trim().isNotEmpty == true) {
-      await _showUser(userId!);
-      return;
-    }
-
-    final conversationId = uri.conversationId;
-    if (conversationId?.trim().isNotEmpty == true) {
-      final controller = context.read<ConversationListController>();
-      final conversation = await controller.findConversation(conversationId!);
-      if (!mounted) return;
-      if (conversation == null) {
-        _showActionFailure();
-        return;
-      }
-      _selectConversation(conversation);
-      final startText = uri.startTextOfConversation;
-      if (startText?.trim().isNotEmpty == true) {
-        try {
-          await context.read<AccountHandle>().message().sendText(
-            conversationId: conversationId,
-            content: startText!,
-            silent: false,
-          );
-        } catch (_) {
-          if (mounted) _showActionFailure();
-        }
-      }
-      return;
-    }
-
-    final code = uri.code;
-    if (code?.trim().isNotEmpty == true) {
-      try {
-        final account = context.read<AccountHandle>();
-        final result = await account.conversation().resolveCode(code: code!);
-        if (!mounted) return;
-        if (result.kind == 'user' && result.userId != null) {
-          await _showUser(result.userId!);
-          return;
-        }
-        if (result.kind == 'conversation' && result.conversationId != null) {
-          String? conversationId;
-          if (result.alreadyMember) {
-            showToast(context.l10n.groupAlreadyIn);
-            conversationId = result.conversationId;
-          } else {
-            conversationId = await showConversationCodeDialog(
-              context,
-              account: account,
-              result: result,
-              code: code,
-            );
-          }
-          if (!mounted || conversationId == null) return;
-          final controller = context.read<ConversationListController>();
-          await controller.refresh();
-          final conversation = await controller.findConversation(
-            conversationId,
-          );
-          if (mounted && conversation != null) {
-            _selectConversation(conversation);
-          }
-          return;
-        }
-        if (result.kind == 'payment' || result.kind == 'multisig_request') {
-          await showMultisigsPaymentDialog(context, item: result, uri: uri);
-          return;
-        }
-      } on Object {
-        if (mounted) _showActionFailure();
-        return;
-      }
-    }
-
-    final snapshotTraceId = uri.snapshotTraceId?.trim();
-    if (snapshotTraceId?.isNotEmpty == true) {
-      try {
-        final snapshot = await context.read<AccountHandle>().snapshotByTrace(
-          traceId: snapshotTraceId!,
-        );
-        if (!mounted) return;
-        await showSnapshotDetailItemDialog(context, snapshot: snapshot);
-      } on Object {
-        if (mounted) _showActionFailure();
-      }
-      return;
-    }
-
-    if (uri.isSend) {
-      final handled = await showSendMessageDialog(
-        context,
-        account: context.read<AccountHandle>(),
-        category: uri.categoryOfSend,
-        conversationId: uri.conversationIdOfSend,
-        data: uri.dataOfSend,
-        userId: uri.userOfSend,
-        currentConversation: selectedConversation,
-        onSelectConversation: _selectConversation,
-      );
-      if (!handled && mounted) _showActionFailure();
-      return;
-    }
-
-    if (uri.isPay ||
-        uri.isMultisigs ||
-        uri.isSwap ||
-        uri.isMarkets ||
-        uri.isMembership) {
-      await showUnknownMixinUrlDialog(context, uri);
-      return;
-    }
-
-    final appId = uri.appId;
-    if (appId?.trim().isNotEmpty == true) {
-      if (!uri.actionIsOpen) {
-        await _showUser(appId!);
-        return;
-      }
-      final account = context.read<AccountHandle>();
-      late final List<Object?> results;
-      try {
-        results = await Future.wait<Object?>([
-          account.user().botHomeUri(appId: appId!),
-          account.user().userProfile(userId: appId),
-        ]);
-      } on Object {
-        if (mounted) {
-          showToastFailed(ToastError(context.l10n.botNotFound));
-        }
-        return;
-      }
-      if (!mounted) return;
-      final homeUri = Uri.tryParse(results.first as String? ?? '');
-      if (homeUri == null) {
-        showToastFailed(ToastError(context.l10n.botNotFound));
-        return;
-      }
-      final queryParameters = {...homeUri.queryParameters}
-        ..addAll({...uri.queryParameters}..remove('action'));
-      final profile = results.last as UserProfileItem?;
-      await openBotWebViewWindow(
-        context: context,
-        url: homeUri.replace(queryParameters: queryParameters).toString(),
-        title: profile?.fullName ?? '',
-        conversationId: conversationId ?? '',
-        currency: account.profile().fiatCurrency,
-      );
-      return;
-    }
-
-    if (uri.isMixinScheme) await showUnknownMixinUrlDialog(context, uri);
-  }
-
   Future<void> _openSearchUri(Uri uri) => openBotWebViewWindow(
     context: context,
     url: uri.toString(),
@@ -493,25 +275,15 @@ class _HomeBodyState extends State<_HomeBody> {
   }
 
   void _locateMessage(String messageId) {
-    setState(() {
-      locateMessageId = messageId;
-      locateRequest++;
-    });
+    navigation.locateMessage(messageId);
   }
 
   void _conversationDeleted() {
-    setState(() {
-      selectedConversation = null;
-      locateMessageId = null;
-    });
+    navigation.conversationDeleted();
   }
 
   void _selectProfile() {
-    setState(() {
-      settingsSelected = true;
-      selectedConversation = null;
-    });
-    chatSideController.clear();
+    navigation.showSettings();
   }
 
   Future<void> _performCreateAction(ConversationCreateAction action) async {
@@ -531,304 +303,6 @@ class _HomeBodyState extends State<_HomeBody> {
       case ConversationCreateAction.circle:
         await _createCircle();
     }
-  }
-
-  Future<void> _muteConversationFromMenu(
-    ConversationListController controller,
-    ConversationListEntry conversation,
-  ) async {
-    final duration = conversation.isMuted ? 0 : await showMuteDialog(context);
-    if (duration == null) return;
-    try {
-      await controller.setMuted(conversation, duration);
-    } catch (_) {
-      _showActionFailure();
-    }
-  }
-
-  Future<void> _deleteConversationFromMenu(
-    ConversationListController controller,
-    ConversationListEntry conversation,
-  ) async {
-    final confirmed = await showConfirmMixinDialog(
-      context,
-      context.l10n.conversationDeleteTitle(conversation.name),
-      description: context.l10n.deleteChatDescription,
-      positiveText: context.l10n.delete,
-    );
-    if (confirmed != DialogEvent.positive) return;
-    try {
-      await controller.deleteConversation(conversation);
-      if (mounted) _conversationDeleted();
-    } catch (_) {
-      _showActionFailure();
-    }
-  }
-
-  List<PlatformMenu> _macMenus(ConversationListController controller) {
-    final conversation = selectedConversation;
-    return [
-      PlatformMenu(
-        label: 'Mixin',
-        menus: [
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: '${context.l10n.about} Mixin',
-                onSelected: () =>
-                    _platformMenusChannel.invokeMethod<void>('showAbout'),
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: context.l10n.preferences,
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.comma,
-                  meta: true,
-                ),
-                onSelected: _selectProfile,
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: context.l10n.lock,
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyL,
-                  meta: true,
-                  shift: true,
-                ),
-                onSelected: context.read<SecurityController>().hasPasscode
-                    ? context.read<SecurityController>().lockNow
-                    : null,
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: context.l10n.quickSearch,
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyK,
-                  meta: true,
-                ),
-                onSelected: () => unawaited(_showCommandPalette(controller)),
-              ),
-              PlatformMenuItem(
-                label: context.l10n.hideMixin,
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyH,
-                  meta: true,
-                ),
-                onSelected: windowManager.hide,
-              ),
-              PlatformMenuItem(
-                label: context.l10n.showMixin,
-                onSelected: windowManager.show,
-              ),
-            ],
-          ),
-          PlatformMenuItem(
-            label: context.l10n.quitMixin,
-            shortcut: const SingleActivator(
-              LogicalKeyboardKey.keyQ,
-              meta: true,
-            ),
-            onSelected: () => exit(0),
-          ),
-        ],
-      ),
-      PlatformMenu(
-        label: context.l10n.file,
-        menus: [
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: context.l10n.createConversation,
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyN,
-                  meta: true,
-                ),
-                onSelected: () => unawaited(
-                  _performCreateAction(ConversationCreateAction.conversation),
-                ),
-              ),
-              PlatformMenuItem(
-                label: context.l10n.createGroup,
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyN,
-                  meta: true,
-                  shift: true,
-                ),
-                onSelected: () => unawaited(
-                  _performCreateAction(ConversationCreateAction.group),
-                ),
-              ),
-              if (kDebugMode)
-                PlatformMenuItemGroup(
-                  members: [
-                    PlatformMenuItem(
-                      label: 'chat backup and restore',
-                      onSelected: () => showDeviceTransferDialog(
-                        context,
-                        deviceTransferController!,
-                      ),
-                    ),
-                  ],
-                ),
-              PlatformMenuItem(
-                label: context.l10n.createCircle,
-                onSelected: () => unawaited(
-                  _performCreateAction(ConversationCreateAction.circle),
-                ),
-              ),
-              PlatformMenuItemGroup(
-                members: [
-                  PlatformMenuItem(
-                    label: context.l10n.closeWindow,
-                    onSelected: windowManager.close,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-      PlatformMenu(
-        label: context.l10n.conversation,
-        menus: [
-          PlatformMenuItem(
-            label: conversation?.isMuted == true
-                ? context.l10n.unmute
-                : context.l10n.mute,
-            onSelected: conversation == null
-                ? null
-                : () => unawaited(
-                    _muteConversationFromMenu(controller, conversation),
-                  ),
-          ),
-          PlatformMenuItem(
-            label: context.l10n.search,
-            onSelected: conversation == null
-                ? null
-                : () => chatSideController.toggleDestination(
-                    ConversationInfoDestination.searchMessageHistory,
-                  ),
-          ),
-          PlatformMenuItem(
-            label: context.l10n.deleteChat,
-            onSelected: conversation == null
-                ? null
-                : () => unawaited(
-                    _deleteConversationFromMenu(controller, conversation),
-                  ),
-          ),
-          PlatformMenuItem(
-            label: conversation?.isPinned == true
-                ? context.l10n.unpin
-                : context.l10n.pinTitle,
-            onSelected: conversation == null
-                ? null
-                : () => unawaited(controller.setPinned(conversation)),
-          ),
-          PlatformMenuItem(
-            label: context.l10n.toggleChatInfo,
-            onSelected: conversation == null
-                ? null
-                : chatSideController.toggleInfoPage,
-          ),
-        ],
-      ),
-      PlatformMenu(
-        label: context.l10n.window,
-        menus: [
-          PlatformMenuItem(
-            label: context.l10n.minimize,
-            shortcut: const SingleActivator(
-              LogicalKeyboardKey.keyM,
-              meta: true,
-            ),
-            onSelected: windowManager.minimize,
-          ),
-          PlatformMenuItem(
-            label: context.l10n.zoom,
-            onSelected: () async => await windowManager.isMaximized()
-                ? windowManager.restore()
-                : windowManager.maximize(),
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: context.l10n.previousConversation,
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.arrowUp,
-                  meta: true,
-                ),
-                onSelected: conversation == null
-                    ? null
-                    : () => _navigateConversation(controller, forward: false),
-              ),
-              PlatformMenuItem(
-                label: context.l10n.nextConversation,
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.arrowDown,
-                  meta: true,
-                ),
-                onSelected: conversation == null
-                    ? null
-                    : () => _navigateConversation(controller, forward: true),
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: 'Mixin',
-                shortcut: const SingleActivator(
-                  LogicalKeyboardKey.keyO,
-                  meta: true,
-                ),
-                onSelected: windowManager.show,
-              ),
-            ],
-          ),
-          PlatformMenuItemGroup(
-            members: [
-              PlatformMenuItem(
-                label: context.l10n.bringAllToFront,
-                onSelected: windowManager.show,
-              ),
-            ],
-          ),
-          PlatformMenuItem(label: 'Mixin', onSelected: windowManager.show),
-        ],
-      ),
-      PlatformMenu(
-        label: context.l10n.help,
-        menus: [
-          PlatformMenuItem(
-            label: context.l10n.helpCenter,
-            onSelected: () =>
-                unawaited(launchUrl(Uri.parse('https://support.mixin.one/'))),
-          ),
-          PlatformMenuItem(
-            label: context.l10n.termsOfService,
-            onSelected: () => unawaited(
-              launchUrl(Uri.parse('https://mixin.one/pages/terms')),
-            ),
-          ),
-          PlatformMenuItem(
-            label: context.l10n.privacyPolicy,
-            onSelected: () => unawaited(
-              launchUrl(Uri.parse('https://mixin.one/pages/privacy')),
-            ),
-          ),
-        ],
-      ),
-    ];
   }
 
   Future<void> _searchContact() async {
@@ -877,7 +351,7 @@ class _HomeBodyState extends State<_HomeBody> {
       onSelectConversation: _selectConversation,
       onSelectConversationInfo: (conversation) {
         _selectConversation(conversation);
-        chatSideController.openDestination(
+        navigation.chatSideController.openDestination(
           ConversationInfoDestination.infoPage,
         );
       },
@@ -941,10 +415,10 @@ class _HomeBodyState extends State<_HomeBody> {
 
   @override
   void dispose() {
-    unawaited(notificationEventSubscription?.cancel());
-    unawaited(notificationSelectionSubscription?.cancel());
+    navigationController
+      ..removeListener(_onSelectedConversationChanged)
+      ..dispose();
     unawaited(deviceTransferController?.dispose());
-    chatSideController.dispose();
     super.dispose();
   }
 
@@ -980,8 +454,11 @@ class _HomeBodyState extends State<_HomeBody> {
       onSearchUser: (query) => unawaited(_searchUser(query)),
       onLocalUserSelected: (profile) => unawaited(_openLocalUser(profile)),
       onMaoBotOpen: (profile) => unawaited(
-        _openProtocolUri(
+        openProtocolUri(
+          context,
           Uri.parse('mixin://apps/${profile.userId}?action=open'),
+          onSelectConversation: navigation.select,
+          currentConversation: selectedConversation,
         ),
       ),
       onOpenLink: (uri) => unawaited(_openSearchUri(uri)),
@@ -1014,7 +491,7 @@ class _HomeBodyState extends State<_HomeBody> {
         }
 
         if (mounted && selectedConversation?.id == conversation.id) {
-          setState(() => selectedConversation = null);
+          navigation.clearSelection();
         }
       },
       onCircleChanged: (conversation, circleId, add) async {
@@ -1166,19 +643,16 @@ class _HomeBodyState extends State<_HomeBody> {
                             return _ChatWithSide(
                               account: context.read<AccountHandle>(),
                               conversation: conversation,
-                              notifier: chatSideController,
+                              notifier: navigation.chatSideController,
                               draft:
                                   drafts[conversation.id] ?? conversation.draft,
                               locateMessageId: locateMessageId,
                               locateRequest: locateRequest,
                               onDraftChanged: (value) =>
                                   _updateDraft(conversation, value),
-                              onBack: () =>
-                                  setState(() => selectedConversation = null),
+                              onBack: navigation.clearSelection,
                               onLocateMessage: _locateMessage,
                               onSelectConversation: _selectConversation,
-                              onOpenUri: (uri) =>
-                                  unawaited(_openProtocolUri(uri)),
                               onConversationDeleted: _conversationDeleted,
                             );
                           }
@@ -1208,7 +682,7 @@ class _HomeBodyState extends State<_HomeBody> {
                                     : _ChatWithSide(
                                         account: context.read<AccountHandle>(),
                                         conversation: conversation,
-                                        notifier: chatSideController,
+                                        notifier: navigation.chatSideController,
                                         draft:
                                             drafts[conversation.id] ??
                                             conversation.draft,
@@ -1219,8 +693,6 @@ class _HomeBodyState extends State<_HomeBody> {
                                         onLocateMessage: _locateMessage,
                                         onSelectConversation:
                                             _selectConversation,
-                                        onOpenUri: (uri) =>
-                                            unawaited(_openProtocolUri(uri)),
                                         onConversationDeleted:
                                             _conversationDeleted,
                                       ),
@@ -1238,9 +710,7 @@ class _HomeBodyState extends State<_HomeBody> {
         ),
       ),
     );
-    final home = isMacOS
-        ? PlatformMenuBar(menus: _macMenus(controller), child: shortcutHome)
-        : shortcutHome;
+    final home = MacosMenuBar(child: shortcutHome);
     final content = controller.profile.fullName.trim().isNotEmpty
         ? home
         : Stack(
@@ -1251,16 +721,24 @@ class _HomeBodyState extends State<_HomeBody> {
             ],
           );
     final account = context.read<AccountHandle>();
-    return DeviceTransferHandlerWidget(
-      controller: deviceTransferController!,
-      child: AppIconBadge(
-        account: account,
-        child: AccountHealthOverlays(
-          account: account,
-          child: AppProtocolHandler(
-            initialUrl: widget.initialProtocolUrl,
-            onUri: (uri) => unawaited(_openProtocolUri(uri)),
-            child: content,
+    return ChangeNotifierProvider.value(
+      value: navigationController,
+      child: Provider<DeviceTransferController>.value(
+        value: deviceTransferController!,
+        child: DeviceTransferHandlerWidget(
+          controller: deviceTransferController!,
+          child: AppIconBadge(
+            account: account,
+            child: AccountHealthOverlays(
+              account: account,
+              child: AppProtocolHandler(
+                initialUrl: widget.initialProtocolUrl,
+                child: HomeNotificationBridge(
+                  account: account,
+                  child: content,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -1558,99 +1036,6 @@ class _SetupNameOverlayState extends State<_SetupNameOverlay> {
   );
 }
 
-String notificationPreview(BuildContext context, NotificationEvent message) {
-  final category = message.category;
-  if (category == 'MESSAGE_PIN') {
-    return _pinNotificationPreview(context, message);
-  }
-  final text = _notificationContentPreview(context, category, message.content);
-  return message.conversationCategory == 'GROUP'
-      ? '${message.senderName}: $text'
-      : text;
-}
-
-String _pinNotificationPreview(
-  BuildContext context,
-  NotificationEvent message,
-) {
-  try {
-    final value = jsonDecode(message.content) as Map<String, dynamic>;
-    final category = value['category']?.toString();
-    if (category == null) throw const FormatException('missing pin category');
-    final content = value['content']?.toString() ?? '';
-    return context.l10n.chatPinMessage(
-      message.senderName,
-      _notificationContentPreview(context, category, content),
-    );
-  } on Object {
-    return context.l10n.chatPinMessage(
-      message.senderName,
-      context.l10n.aMessage,
-    );
-  }
-}
-
-String _notificationContentPreview(
-  BuildContext context,
-  String category,
-  String content,
-) {
-  String text;
-  if (category.contains('TEXT')) {
-    text = content.trim();
-  } else if (category.contains('SNAPSHOT')) {
-    text = '[${context.l10n.transfer}]';
-  } else if (category.contains('STICKER')) {
-    text = '[${context.l10n.sticker}]';
-  } else if (category.contains('IMAGE')) {
-    text = '[${context.l10n.image}]';
-  } else if (category.contains('VIDEO')) {
-    text = '[${context.l10n.video}]';
-  } else if (category.contains('LIVE')) {
-    text = '[${context.l10n.live}]';
-  } else if (category.contains('DATA')) {
-    text = '[${context.l10n.file}]';
-  } else if (category.contains('POST')) {
-    text = content.trim().isEmpty ? context.l10n.post : content.trim();
-  } else if (category.contains('LOCATION')) {
-    text = '[${context.l10n.location}]';
-  } else if (category.contains('AUDIO')) {
-    text = '[${context.l10n.audio}]';
-  } else if (category.contains('CONTACT')) {
-    text = '[${context.l10n.contact}]';
-  } else if (category.contains('TRANSCRIPT')) {
-    text = '[${context.l10n.transcript}]';
-  } else if (category.contains('INSCRIPTION')) {
-    text = '[${context.l10n.collectible}]';
-  } else if (category == 'APP_BUTTON_GROUP') {
-    text = _appButtonGroupPreview(content);
-  } else if (category == 'APP_CARD') {
-    text = _appCardPreview(context, content);
-  } else {
-    text = context.l10n.messageNotSupport;
-  }
-  return text;
-}
-
-String _appButtonGroupPreview(String content) {
-  try {
-    return (jsonDecode(content) as List<dynamic>)
-        .map((item) => '[${(item as Map<String, dynamic>)['label'] ?? ''}]')
-        .join();
-  } on Object {
-    return '';
-  }
-}
-
-String _appCardPreview(BuildContext context, String content) {
-  try {
-    final value = jsonDecode(content) as Map<String, dynamic>;
-    return '[${value['title']?.toString() ?? context.l10n.card}]';
-  } on Object {
-    return '[${context.l10n.card}]';
-  }
-}
-
 class _ChatWithSide extends StatelessWidget {
   const _ChatWithSide({
     required this.account,
@@ -1662,7 +1047,6 @@ class _ChatWithSide extends StatelessWidget {
     required this.onDraftChanged,
     required this.onLocateMessage,
     required this.onSelectConversation,
-    required this.onOpenUri,
     required this.onConversationDeleted,
     this.onBack,
   });
@@ -1677,7 +1061,6 @@ class _ChatWithSide extends StatelessWidget {
   final VoidCallback? onBack;
   final ValueChanged<String> onLocateMessage;
   final ValueChanged<ConversationListEntry> onSelectConversation;
-  final ValueChanged<Uri> onOpenUri;
   final VoidCallback onConversationDeleted;
 
   @override
@@ -1703,7 +1086,6 @@ class _ChatWithSide extends StatelessWidget {
                 locateRequest: locateRequest,
                 onDraftChanged: onDraftChanged,
                 onSelectConversation: onSelectConversation,
-                onOpenUri: onOpenUri,
                 onSelectConversationInfo: (conversation) {
                   onSelectConversation(conversation);
                   notifier.openDestination(
@@ -1736,7 +1118,6 @@ class _ChatWithSide extends StatelessWidget {
                   destinations: notifier.state.destinations,
                   onLocateMessage: onLocateMessage,
                   onSelectConversation: onSelectConversation,
-                  onOpenUri: onOpenUri,
                   onConversationDeleted: onConversationDeleted,
                 ),
               ],

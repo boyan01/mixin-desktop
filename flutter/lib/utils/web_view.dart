@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../l10n/l10n.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../theme.dart';
+import '../widgets/app_protocol_handler.dart';
 import '../widgets/high_light_text.dart';
 import '../widgets/mixin_dialog.dart';
 import 'mixin_uri.dart';
@@ -22,7 +23,6 @@ void openMessageAction({
   required rust.AccountHandle account,
   required String conversationId,
   required String action,
-  required ValueChanged<Uri>? onOpenUri,
   String? title,
 }) {
   final value = action.trim();
@@ -42,7 +42,7 @@ void openMessageAction({
   final uri = Uri.tryParse(value);
   if (uri == null || uri.scheme.isEmpty) return;
   if (uri.isMixin) {
-    onOpenUri?.call(uri);
+    context.openUri(uri);
     return;
   }
   unawaited(

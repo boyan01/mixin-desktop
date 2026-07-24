@@ -1,11 +1,9 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:mixin_markdown_widget/mixin_markdown_widget.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../controllers/settings_controller.dart';
 import '../theme.dart';
@@ -223,10 +221,7 @@ class _MarkdownView extends HookWidget {
 
 void _openLink(BuildContext context, String destination) {
   if (destination.isEmpty) return;
-  final uri = Uri.tryParse(destination);
-  if (uri != null && !AppProtocolHandler.maybeOpen(context, uri)) {
-    unawaited(launchUrl(uri));
-  }
+  context.openUrl(destination);
 }
 
 Widget _buildMarkdownImage(

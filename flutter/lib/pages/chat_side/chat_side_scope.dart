@@ -16,7 +16,6 @@ class ChatSideScope extends InheritedWidget {
     required this.routeMode,
     required this.onLocateMessage,
     required this.onSelectConversation,
-    required this.onOpenUri,
     required this.onConversationDeleted,
     required super.child,
     super.key,
@@ -29,7 +28,6 @@ class ChatSideScope extends InheritedWidget {
   final bool routeMode;
   final ValueChanged<String> onLocateMessage;
   final ValueChanged<ConversationListEntry> onSelectConversation;
-  final ValueChanged<Uri> onOpenUri;
   final VoidCallback onConversationDeleted;
 
   static ChatSideScope of(BuildContext context) {
@@ -44,8 +42,7 @@ class ChatSideScope extends InheritedWidget {
       conversation != oldWidget.conversation ||
       notifier != oldWidget.notifier ||
       currentUserId != oldWidget.currentUserId ||
-      routeMode != oldWidget.routeMode ||
-      onOpenUri != oldWidget.onOpenUri;
+      routeMode != oldWidget.routeMode;
 }
 
 class ChatSidePageScaffold extends StatelessWidget {
