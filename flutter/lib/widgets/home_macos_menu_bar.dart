@@ -209,8 +209,9 @@ class _MacosMenuBarState extends State<MacosMenuBar> {
             onSelected: conversation == null
                 ? null
                 : () => unawaited(
-                    context.read<ConversationListController>().setPinned(
-                      conversation,
+                    context.read<AccountHandle>().conversation().setPinned(
+                      conversationId: conversation.id,
+                      pinned: !conversation.isPinned,
                     ),
                   ),
           ),
@@ -372,16 +373,18 @@ class _MacosMenuBarState extends State<MacosMenuBar> {
     final name = await showMixinDialog<String>(
       context: context,
       child: _NewGroupConfirm(
-        profile: context.read<ConversationListController>().profile,
+        profile: context.read<AccountHandle>().profile(),
         selected: selected,
       ),
     );
     if (!mounted || name == null || name.isEmpty) return;
     try {
-      await context.read<ConversationListController>().createGroup(
-        name,
-        selected.map((conversation) => conversation.ownerId).toList(),
+      final controller = context.read<ConversationListController>();
+      await context.read<AccountHandle>().conversation().createGroup(
+        name: name.trim(),
+        userIds: selected.map((conversation) => conversation.ownerId).toList(),
       );
+      await controller.refresh();
     } catch (error, stackTrace) {
       e('Create group from macOS menu failed', error, stackTrace);
       _showActionFailure();
@@ -432,9 +435,11 @@ class _MacosMenuBarState extends State<MacosMenuBar> {
     final duration = conversation.isMuted ? 0 : await showMuteDialog(context);
     if (duration == null) return;
     try {
-      await context.read<ConversationListController>().setMuted(
-        conversation,
-        duration,
+      await context.read<AccountHandle>().conversation().setMuted(
+        conversationId: conversation.id,
+        ownerId: conversation.ownerId,
+        category: conversation.category,
+        durationSeconds: duration,
       );
     } catch (error, stackTrace) {
       e(
@@ -455,8 +460,8 @@ class _MacosMenuBarState extends State<MacosMenuBar> {
     );
     if (confirmed != DialogEvent.positive) return;
     try {
-      await context.read<ConversationListController>().deleteConversation(
-        conversation,
+      await context.read<AccountHandle>().conversation().deleteConversation(
+        conversationId: conversation.id,
       );
       if (mounted) navigation.conversationDeleted();
     } catch (error, stackTrace) {

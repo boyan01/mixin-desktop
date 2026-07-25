@@ -76,7 +76,7 @@ class HomeSidebar extends HookWidget {
                 height: defaultTargetPlatform == TargetPlatform.macOS ? 64 : 16,
               ),
               _ProfileItem(
-                controller: controller,
+                account: controller.account,
                 collapsed: collapsed,
                 selected: profileSelected,
                 onTap: onProfileSelected,
@@ -421,42 +421,48 @@ class _Divider extends StatelessWidget {
   );
 }
 
-class _ProfileItem extends StatelessWidget {
+class _ProfileItem extends HookWidget {
   const _ProfileItem({
-    required this.controller,
+    required this.account,
     required this.collapsed,
     required this.selected,
     required this.onTap,
   });
 
-  final ConversationListController controller;
+  final rust.AccountHandle account;
   final bool collapsed;
   final bool selected;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => _SidebarItem(
-    customIcon: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: AvatarView(
-        userId: controller.profile.userId,
-        name: controller.profile.fullName,
-        avatarUrl: controller.profile.avatarUrl,
-        size: 24,
+  Widget build(BuildContext context) {
+    final profile = useStream(
+      useMemoized(account.profileChanges, [account]),
+      initialData: account.profile(),
+    ).data!;
+    return _SidebarItem(
+      customIcon: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: AvatarView(
+          userId: profile.userId,
+          name: profile.fullName,
+          avatarUrl: profile.avatarUrl,
+          size: 24,
+        ),
       ),
-    ),
-    title: controller.profile.fullName,
-    subtitle: controller.profile.identityNumber,
-    selected: selected,
-    count: 0,
-    mutedCount: 0,
-    collapsed: collapsed,
-    onTap: () {
-      onTap();
-      final scaffold = Scaffold.maybeOf(context);
-      if (scaffold?.isDrawerOpen ?? false) Navigator.pop(context);
-    },
-  );
+      title: profile.fullName,
+      subtitle: profile.identityNumber,
+      selected: selected,
+      count: 0,
+      mutedCount: 0,
+      collapsed: collapsed,
+      onTap: () {
+        onTap();
+        final scaffold = Scaffold.maybeOf(context);
+        if (scaffold?.isDrawerOpen ?? false) Navigator.pop(context);
+      },
+    );
+  }
 }
 
 class _CategoryItem extends StatelessWidget {

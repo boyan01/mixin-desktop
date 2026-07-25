@@ -42,17 +42,7 @@ String? _completeMao(String value) {
 }
 
 class ConversationListController extends ChangeNotifier {
-  ConversationListController(this.account) : profile = account.profile() {
-    _profileSubscription = account.profileChanges().listen(
-      (value) {
-        if (_disposed || profile == value) return;
-        profile = value;
-        notifyListeners();
-      },
-      onError: (Object exception, StackTrace stackTrace) {
-        e('Profile change stream failed', exception, stackTrace);
-      },
-    );
+  ConversationListController(this.account) {
     _changeSubscription = account.conversationChanges().listen(
       _scheduleChanges,
       onError: (Object exception, StackTrace stackTrace) {
@@ -63,7 +53,6 @@ class ConversationListController extends ChangeNotifier {
   }
 
   final rust.AccountHandle account;
-  rust.AccountProfile profile;
   final ConversationListStore _store = ConversationListStore();
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
@@ -82,7 +71,6 @@ class ConversationListController extends ChangeNotifier {
   Map<String, ConversationListEntry> searchMessageConversations = const {};
 
   StreamSubscription<rust.ConversationChangeEvent>? _changeSubscription;
-  StreamSubscription<rust.AccountProfile>? _profileSubscription;
   List<ConversationListEntry> _visibleConversations = const [];
   Timer? _searchTimer;
   Timer? _changeTimer;
@@ -243,38 +231,6 @@ class ConversationListController extends ChangeNotifier {
     }
   }
 
-  Future<void> setPinned(ConversationListEntry item) => account
-      .conversation()
-      .setPinned(conversationId: item.id, pinned: !item.isPinned);
-
-  Future<void> setMuted(ConversationListEntry item, int durationSeconds) =>
-      account.conversation().setMuted(
-        conversationId: item.id,
-        ownerId: item.ownerId,
-        category: item.category,
-        durationSeconds: durationSeconds,
-      );
-
-  Future<void> deleteConversation(ConversationListEntry item) =>
-      account.conversation().deleteConversation(conversationId: item.id);
-
-  Future<void> createGroup(String name, List<String> userIds) async {
-    await account.conversation().createGroup(
-      name: name.trim(),
-      userIds: userIds,
-    );
-    await refresh();
-  }
-
-  Future<void> updateProfile(String fullName, String biography) async {
-    await account.updateProfile(
-      fullName: fullName.trim(),
-      biography: biography.trim(),
-    );
-  }
-
-  Future<rust.AccountProfile> refreshProfile() => account.refreshProfile();
-
   ConversationListFilter get _filter => (
     category: category,
     circleId: circleId,
@@ -393,7 +349,6 @@ class ConversationListController extends ChangeNotifier {
     _changeTimer?.cancel();
     _reloadRetryTimer?.cancel();
     unawaited(_changeSubscription?.cancel());
-    unawaited(_profileSubscription?.cancel());
     super.dispose();
   }
 }

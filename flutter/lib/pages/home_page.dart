@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
@@ -304,13 +305,9 @@ class _HomeBodyState extends State<_HomeBody> {
   }
 
   Future<void> _searchContact() async {
-    final controller = context.read<ConversationListController>();
     final result = await showMixinDialog<MessageUserDialogResult>(
       context: context,
-      child: _SearchUserDialog(
-        account: context.read<AccountHandle>(),
-        currentIdentityNumber: controller.profile.identityNumber,
-      ),
+      child: const _SearchUserDialog(),
     );
     if (mounted && result != null) await _handleUserDialogResult(result);
   }
@@ -367,16 +364,18 @@ class _HomeBodyState extends State<_HomeBody> {
     final name = await showMixinDialog<String>(
       context: context,
       child: _NewGroupConfirm(
-        profile: context.read<ConversationListController>().profile,
+        profile: context.read<AccountHandle>().profile(),
         selected: selected,
       ),
     );
     if (!mounted || name == null || name.isEmpty) return;
     try {
-      await context.read<ConversationListController>().createGroup(
-        name,
-        selected.map((conversation) => conversation.ownerId).toList(),
+      final controller = context.read<ConversationListController>();
+      await context.read<AccountHandle>().conversation().createGroup(
+        name: name.trim(),
+        userIds: selected.map((conversation) => conversation.ownerId).toList(),
       );
+      await controller.refresh();
     } catch (error, stackTrace) {
       e('Create group failed', error, stackTrace);
       _showActionFailure();
@@ -443,7 +442,7 @@ class _HomeBodyState extends State<_HomeBody> {
         itemPositionsListener: controller.itemPositionsListener,
         itemScrollController: controller.itemScrollController,
         loading: controller.loading,
-        currentUserId: controller.profile.userId,
+        currentUserId: context.read<AccountHandle>().profile().userId,
         account: context.read<AccountHandle>(),
         circles: {
           for (final circle in snapshot.data!) circle.circleId: circle.name,
@@ -483,7 +482,10 @@ class _HomeBodyState extends State<_HomeBody> {
             : _selectSearchConversation,
         onPinned: (conversation) async {
           try {
-            await controller.setPinned(conversation);
+            await controller.account.conversation().setPinned(
+              conversationId: conversation.id,
+              pinned: !conversation.isPinned,
+            );
           } catch (error, stackTrace) {
             e('Set conversation pinned state failed', error, stackTrace);
             _showActionFailure();
@@ -491,7 +493,12 @@ class _HomeBodyState extends State<_HomeBody> {
         },
         onMuted: (conversation, duration) async {
           try {
-            await controller.setMuted(conversation, duration);
+            await controller.account.conversation().setMuted(
+              conversationId: conversation.id,
+              ownerId: conversation.ownerId,
+              category: conversation.category,
+              durationSeconds: duration,
+            );
           } catch (error, stackTrace) {
             e('Set conversation mute state failed', error, stackTrace);
             _showActionFailure();
@@ -499,7 +506,9 @@ class _HomeBodyState extends State<_HomeBody> {
         },
         onDeleted: (conversation) async {
           try {
-            await controller.deleteConversation(conversation);
+            await controller.account.conversation().deleteConversation(
+              conversationId: conversation.id,
+            );
           } catch (error, stackTrace) {
             e('Delete conversation failed', error, stackTrace);
             _showActionFailure();
@@ -653,11 +662,9 @@ class _HomeBodyState extends State<_HomeBody> {
                       child: LayoutBuilder(
                         builder: (context, mainConstraints) {
                           if (settingsSelected) {
-                            return SettingsPage(
-                              profile: controller.profile,
+                            return _ProfileSettingsPage(
+                              account: context.read<AccountHandle>(),
                               onSignOut: context.read<AppController>().signOut,
-                              onProfileUpdated: controller.updateProfile,
-                              onProfileRefresh: controller.refreshProfile,
                               onClose: _selectCategory,
                             );
                           }
@@ -739,15 +746,10 @@ class _HomeBodyState extends State<_HomeBody> {
       ),
     );
     final home = MacosMenuBar(child: shortcutHome);
-    final content = controller.profile.fullName.trim().isNotEmpty
-        ? home
-        : Stack(
-            fit: StackFit.expand,
-            children: [
-              home,
-              _SetupNameOverlay(controller: controller),
-            ],
-          );
+    final content = _ProfileSetupGate(
+      account: context.read<AccountHandle>(),
+      child: home,
+    );
     final account = context.read<AccountHandle>();
     return ChangeNotifierProvider.value(
       value: navigationController,
@@ -774,181 +776,192 @@ class _SearchIntent extends Intent {
   const _SearchIntent();
 }
 
-class _SearchUserDialog extends StatefulWidget {
-  const _SearchUserDialog({
+class _ProfileSettingsPage extends HookWidget {
+  const _ProfileSettingsPage({
     required this.account,
-    required this.currentIdentityNumber,
+    required this.onSignOut,
+    required this.onClose,
   });
 
   final AccountHandle account;
-  final String currentIdentityNumber;
+  final Future<void> Function() onSignOut;
+  final VoidCallback onClose;
 
   @override
-  State<_SearchUserDialog> createState() => _SearchUserDialogState();
+  Widget build(BuildContext context) {
+    final profile = useStream(
+      useMemoized(account.profileChanges, [account]),
+      initialData: account.profile(),
+    ).data!;
+    return SettingsPage(
+      profile: profile,
+      onSignOut: onSignOut,
+      onProfileUpdated: (fullName, biography) => account.updateProfile(
+        fullName: fullName.trim(),
+        biography: biography.trim(),
+      ),
+      onProfileRefresh: account.refreshProfile,
+      onClose: onClose,
+    );
+  }
 }
 
-class _SearchUserDialogState extends State<_SearchUserDialog> {
-  final controller = TextEditingController();
-  UserProfileItem? profile;
-  bool loading = false;
+class _ProfileSetupGate extends HookWidget {
+  const _ProfileSetupGate({
+    required this.account,
+    required this.child,
+  });
 
-  bool get searchable => controller.text.trim().length > 3;
+  final AccountHandle account;
+  final Widget child;
 
   @override
-  void initState() {
-    super.initState();
-    controller.addListener(_changed);
+  Widget build(BuildContext context) {
+    final profile = useStream(
+      useMemoized(account.profileChanges, [account]),
+      initialData: account.profile(),
+    ).data!;
+    if (profile.fullName.trim().isNotEmpty) return child;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        child,
+        _SetupNameOverlay(account: account),
+      ],
+    );
   }
+}
 
-  void _changed() => setState(() {});
+class _SearchUserDialog extends HookWidget {
+  const _SearchUserDialog();
 
-  Future<void> _search() async {
-    if (!searchable || loading) return;
-    setState(() => loading = true);
-    try {
-      final result = await widget.account.user().searchUser(
-        query: controller.text,
-      );
-      if (mounted) setState(() => profile = result);
-    } on Object catch (error, stackTrace) {
-      e('Search user dialog failed', error, stackTrace);
-      if (mounted) {
-        showToastFailed(ToastError(context.l10n.userNotFound));
+  @override
+  Widget build(BuildContext context) {
+    final controller = useTextEditingController();
+    useListenable(controller);
+    final profile = useState<UserProfileItem?>(null);
+    final loading = useState(false);
+    final account = context.read<AccountHandle>();
+    final searchable = controller.text.trim().length > 3;
+    final currentIdentityNumber = account.profile().identityNumber;
+
+    Future<void> search() async {
+      if (!searchable || loading.value) return;
+      loading.value = true;
+      try {
+        profile.value = await account.user().searchUser(query: controller.text);
+      } on Object catch (error, stackTrace) {
+        e('Search user dialog failed', error, stackTrace);
+        if (context.mounted) {
+          showToastFailed(ToastError(context.l10n.userNotFound));
+        }
+      } finally {
+        if (context.mounted) loading.value = false;
       }
-    } finally {
-      if (mounted) setState(() => loading = false);
     }
-  }
 
-  @override
-  void dispose() {
-    controller
-      ..removeListener(_changed)
-      ..dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AnimatedSize(
-    duration: const Duration(milliseconds: 200),
-    child: profile != null
-        ? MessageUserDialog(
-            account: widget.account,
-            profile: Future.value(profile),
-          )
-        : Stack(
-            children: [
-              Visibility(
-                visible: !loading,
-                maintainSize: true,
-                maintainAnimation: true,
-                maintainState: true,
-                child: AlertDialogLayout(
-                  title: Text(context.l10n.addContact),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      FocusableActionDetector(
-                        shortcuts: {
-                          if (searchable)
-                            const SingleActivator(LogicalKeyboardKey.enter):
-                                const _SearchIntent(),
-                        },
-                        actions: {
-                          _SearchIntent: CallbackAction<_SearchIntent>(
-                            onInvoke: (_) => _search(),
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      child: profile.value != null
+          ? MessageUserDialog(
+              account: account,
+              profile: Future.value(profile.value),
+            )
+          : Stack(
+              children: [
+                Visibility(
+                  visible: !loading.value,
+                  maintainSize: true,
+                  maintainAnimation: true,
+                  maintainState: true,
+                  child: AlertDialogLayout(
+                    title: Text(context.l10n.addContact),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        FocusableActionDetector(
+                          shortcuts: {
+                            if (searchable)
+                              const SingleActivator(LogicalKeyboardKey.enter):
+                                  const _SearchIntent(),
+                          },
+                          actions: {
+                            _SearchIntent: CallbackAction<_SearchIntent>(
+                              onInvoke: (_) => search(),
+                            ),
+                          },
+                          child: DialogTextField(
+                            textEditingController: controller,
+                            hintText: context.l10n.addPeopleSearchHint,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp('[0-9+]'),
+                              ),
+                              LengthLimitingTextInputFormatter(128),
+                            ],
                           ),
-                        },
-                        child: DialogTextField(
-                          textEditingController: controller,
-                          hintText: context.l10n.addPeopleSearchHint,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp('[0-9+]')),
-                            LengthLimitingTextInputFormatter(128),
-                          ],
                         ),
+                        if (currentIdentityNumber.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              context.l10n.myMixinId(
+                                currentIdentityNumber,
+                              ),
+                              style: TextStyle(
+                                color: context.theme.secondaryText,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    actions: [
+                      MixinButton(
+                        backgroundTransparent: true,
+                        onTap: () => Navigator.pop(context),
+                        child: Text(context.l10n.cancel),
                       ),
-                      if (widget.currentIdentityNumber.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            context.l10n.myMixinId(
-                              widget.currentIdentityNumber,
-                            ),
-                            style: TextStyle(
-                              color: context.theme.secondaryText,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
+                      MixinButton(
+                        disable: !searchable,
+                        onTap: search,
+                        child: Text(context.l10n.search),
+                      ),
                     ],
                   ),
-                  actions: [
-                    MixinButton(
-                      backgroundTransparent: true,
-                      onTap: () => Navigator.pop(context),
-                      child: Text(context.l10n.cancel),
-                    ),
-                    MixinButton(
-                      disable: !searchable,
-                      onTap: _search,
-                      child: Text(context.l10n.search),
-                    ),
-                  ],
                 ),
-              ),
-              if (loading)
-                Positioned.fill(
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: context.theme.accent,
+                if (loading.value)
+                  Positioned.fill(
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: context.theme.accent,
+                      ),
                     ),
                   ),
-                ),
-            ],
-          ),
-  );
+              ],
+            ),
+    );
+  }
 }
 
-class _NewGroupConfirm extends StatefulWidget {
+class _NewGroupConfirm extends HookWidget {
   const _NewGroupConfirm({required this.profile, required this.selected});
 
   final AccountProfile profile;
   final List<ConversationListEntry> selected;
 
   @override
-  State<_NewGroupConfirm> createState() => _NewGroupConfirmState();
-}
-
-class _NewGroupConfirmState extends State<_NewGroupConfirm> {
-  final controller = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    controller.addListener(_changed);
-  }
-
-  void _changed() => setState(() {});
-
-  @override
-  void dispose() {
-    controller
-      ..removeListener(_changed)
-      ..dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final controller = useTextEditingController();
+    useListenable(controller);
     final avatars = [
       ConversationAvatarEntry(
-        userId: widget.profile.userId,
-        name: widget.profile.fullName,
-        avatarUrl: widget.profile.avatarUrl,
+        userId: profile.userId,
+        name: profile.fullName,
+        avatarUrl: profile.avatarUrl,
       ),
-      ...widget.selected.map(
+      ...selected.map(
         (conversation) => ConversationAvatarEntry(
           userId: conversation.ownerId,
           name: conversation.name,
@@ -965,7 +978,7 @@ class _NewGroupConfirmState extends State<_NewGroupConfirm> {
           ClipOval(child: AvatarPuzzlesView(avatars: avatars, size: 60)),
           const SizedBox(height: 8),
           Text(
-            context.l10n.participantsCount(widget.selected.length + 1),
+            context.l10n.participantsCount(selected.length + 1),
             style: TextStyle(fontSize: 14, color: context.theme.secondaryText),
           ),
           const SizedBox(height: 48),
@@ -993,9 +1006,9 @@ class _NewGroupConfirmState extends State<_NewGroupConfirm> {
 }
 
 class _SetupNameOverlay extends StatefulWidget {
-  const _SetupNameOverlay({required this.controller});
+  const _SetupNameOverlay({required this.account});
 
-  final ConversationListController controller;
+  final AccountHandle account;
 
   @override
   State<_SetupNameOverlay> createState() => _SetupNameOverlayState();
@@ -1025,9 +1038,9 @@ class _SetupNameOverlayState extends State<_SetupNameOverlay> {
     if (name.isEmpty) return;
     showToastLoading();
     try {
-      await widget.controller.updateProfile(
-        name,
-        widget.controller.profile.biography,
+      await widget.account.updateProfile(
+        fullName: name,
+        biography: widget.account.profile().biography,
       );
     } on Object catch (error, stackTrace) {
       e('Update profile failed', error, stackTrace);
