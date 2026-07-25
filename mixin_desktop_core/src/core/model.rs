@@ -48,6 +48,7 @@ impl AppService {
                 db: db.clone(),
                 client: client.clone(),
                 conversation: conversation.clone(),
+                changes: changes.clone(),
             },
             conversation,
             message: MessageService::new(db.clone(), account_id.clone()),

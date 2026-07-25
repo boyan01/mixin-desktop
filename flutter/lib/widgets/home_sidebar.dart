@@ -15,6 +15,7 @@ import '../l10n/l10n.dart';
 import '../models/conversation_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../theme.dart';
+import '../utils/app_logger.dart';
 import 'avatar_view.dart';
 import 'custom_context_menu.dart';
 import 'mixin_dialog.dart';
@@ -48,6 +49,16 @@ class HomeSidebar extends HookWidget {
       useMemoized(controller.account.unseenCountChanges, [controller.account]),
       initialData: const <rust.ConversationUnseenCount>[],
     ).data!;
+    final circles = useStream(
+      useMemoized(controller.account.circleChanges, [controller.account]),
+      initialData: const <rust.CircleItem>[],
+    ).data!;
+    final orderedCircles = useState(circles);
+    useEffect(() {
+      orderedCircles.value = circles;
+      return null;
+    }, [circles]);
+    final visibleCircles = orderedCircles.value;
     return RepaintBoundary(
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -123,18 +134,25 @@ class HomeSidebar extends HookWidget {
                 onSelected: onCategorySelected,
               ),
               const SizedBox(height: 16),
-              if (controller.circles.isNotEmpty) const _Divider(),
-              if (controller.circles.isNotEmpty) const SizedBox(height: 12),
+              if (visibleCircles.isNotEmpty) const _Divider(),
+              if (visibleCircles.isNotEmpty) const SizedBox(height: 12),
               Expanded(
                 child: ReorderableListView.builder(
                   padding: EdgeInsets.zero,
                   buildDefaultDragHandles: false,
                   onReorderItem: (oldIndex, newIndex) => unawaited(
-                    _reorderCircles(context, controller, oldIndex, newIndex),
+                    _reorderCircles(
+                      context,
+                      controller,
+                      visibleCircles,
+                      orderedCircles,
+                      oldIndex,
+                      newIndex,
+                    ),
                   ),
-                  itemCount: controller.circles.length,
+                  itemCount: visibleCircles.length,
                   itemBuilder: (context, index) {
-                    final circle = controller.circles[index];
+                    final circle = visibleCircles[index];
                     return Listener(
                       key: ValueKey(circle.circleId),
                       onPointerDown: (event) {
@@ -252,8 +270,12 @@ class HomeSidebar extends HookWidget {
     final name = await _showCircleNameDialog(context, circle.name);
     if (name == null || !context.mounted) return;
     try {
-      await controller.updateCircle(circle.circleId, name);
-    } on Object {
+      await controller.account.conversation().updateCircle(
+        circleId: circle.circleId,
+        name: name.trim(),
+      );
+    } on Object catch (error, stackTrace) {
+      e('Update circle failed: ${circle.circleId}', error, stackTrace);
       if (context.mounted) _showFailure(context);
     }
   }
@@ -261,12 +283,25 @@ class HomeSidebar extends HookWidget {
   Future<void> _reorderCircles(
     BuildContext context,
     ConversationListController controller,
+    List<rust.CircleItem> circles,
+    ValueNotifier<List<rust.CircleItem>> orderedCircles,
     int oldIndex,
     int newIndex,
   ) async {
+    if (oldIndex == newIndex) return;
+    final reordered = [...circles];
+    final circle = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex, circle);
+    orderedCircles.value = reordered;
     try {
-      await controller.reorderCircles(oldIndex, newIndex);
-    } on Object {
+      await controller.account.conversation().reorderCircles(
+        circleIds: reordered
+            .map((circle) => circle.circleId)
+            .toList(growable: false),
+      );
+    } on Object catch (error, stackTrace) {
+      e('Reorder circles failed', error, stackTrace);
+      orderedCircles.value = circles;
       if (context.mounted) _showFailure(context);
     }
   }
@@ -287,8 +322,39 @@ class HomeSidebar extends HookWidget {
     );
     if (result == null || !context.mounted) return;
     try {
-      await controller.replaceCircleConversations(circle.circleId, result);
-    } on Object {
+      final account = controller.account;
+      final existing = await account.conversation().conversationItems();
+      final selectedIds = result.map((item) => item.id).toSet();
+      for (final item in result) {
+        if (item.circleIds.contains(circle.circleId)) continue;
+        await account.conversation().editCircleConversation(
+          circleId: circle.circleId,
+          conversationId: item.id,
+          ownerId: item.ownerId,
+          isGroup: item.isGroup,
+          add: true,
+        );
+      }
+      for (final item in existing) {
+        if (!item.circleIds.contains(circle.circleId) ||
+            selectedIds.contains(item.conversationId)) {
+          continue;
+        }
+        await account.conversation().editCircleConversation(
+          circleId: circle.circleId,
+          conversationId: item.conversationId,
+          ownerId: item.ownerId,
+          isGroup: item.category == 'GROUP',
+          add: false,
+        );
+      }
+      await controller.refresh();
+    } on Object catch (error, stackTrace) {
+      e(
+        'Replace circle conversations failed: ${circle.circleId}',
+        error,
+        stackTrace,
+      );
       if (context.mounted) _showFailure(context);
     }
   }
@@ -305,9 +371,16 @@ class HomeSidebar extends HookWidget {
     );
     if (confirmed == null || !context.mounted) return;
     try {
-      await controller.deleteCircle(circle.circleId);
+      await controller.account.conversation().deleteCircle(
+        circleId: circle.circleId,
+      );
+      if (controller.category == ConversationCategoryFilter.circle &&
+          controller.circleId == circle.circleId) {
+        controller.selectCategory(ConversationCategoryFilter.chats);
+      }
       onCategorySelected();
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Delete circle failed: ${circle.circleId}', error, stackTrace);
       if (context.mounted) _showFailure(context);
     }
   }

@@ -6,6 +6,7 @@ import '../../constants/assets.dart';
 import '../../l10n/l10n.dart';
 import '../../src/rust/desktop_api.dart' as rust;
 import '../../theme.dart';
+import '../../utils/app_logger.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/mixin_dialog.dart';
 
@@ -43,7 +44,8 @@ class _CircleManagerPageState extends State<CircleManagerPage> {
         loading = false;
         error = null;
       });
-    } on Object catch (exception) {
+    } on Object catch (exception, stackTrace) {
+      e('Load circles failed', exception, stackTrace);
       if (!mounted) return;
       setState(() {
         loading = false;
@@ -70,7 +72,12 @@ class _CircleManagerPageState extends State<CircleManagerPage> {
         isGroup: scope.conversation.isGroup,
         add: add,
       );
-    } on Object catch (exception) {
+    } on Object catch (exception, stackTrace) {
+      e(
+        'Update circle membership failed: ${circle.circleId}',
+        exception,
+        stackTrace,
+      );
       if (!mounted) return;
       setState(() {
         if (add) {
@@ -107,7 +114,8 @@ class _CircleManagerPageState extends State<CircleManagerPage> {
       if (!mounted) return;
       selected.add(circle.circleId);
       await _load();
-    } on Object catch (exception) {
+    } on Object catch (exception, stackTrace) {
+      e('Create circle failed', exception, stackTrace);
       if (mounted) setState(() => error = exception);
     }
   }

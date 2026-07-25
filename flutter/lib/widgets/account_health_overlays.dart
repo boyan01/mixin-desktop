@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../l10n/l10n.dart';
 import '../src/rust/desktop_api.dart';
 import '../theme.dart';
+import '../utils/app_logger.dart';
 import 'mixin_dialog.dart';
 
 class AccountHealthOverlays extends HookWidget {
@@ -63,7 +64,8 @@ class _LocalTimeError extends StatelessWidget {
                     loading.value = true;
                     try {
                       await account.refreshAccountHealth();
-                    } on Object {
+                    } on Object catch (error, stackTrace) {
+                      e('Refresh account health failed', error, stackTrace);
                       // The overlay remains visible until account health recovers.
                     }
                     loading.value = false;

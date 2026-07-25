@@ -183,8 +183,8 @@ class _TranscriptPageState extends State<TranscriptPage>
         );
       }
       await _refresh();
-    } on Object catch (error) {
-      e('download transcript attachment failed', error);
+    } on Object catch (error, stackTrace) {
+      e('Download transcript attachment failed', error, stackTrace);
     }
   }
 
@@ -195,8 +195,8 @@ class _TranscriptPageState extends State<TranscriptPage>
         messageId: message.id,
       );
       await _refresh();
-    } on Object catch (error) {
-      e('cancel transcript attachment failed', error);
+    } on Object catch (error, stackTrace) {
+      e('Cancel transcript attachment failed', error, stackTrace);
     }
   }
 
@@ -208,8 +208,8 @@ class _TranscriptPageState extends State<TranscriptPage>
         messageId: message.id,
       );
       await _refresh();
-    } on Object catch (error) {
-      e('mark transcript audio read failed', error);
+    } on Object catch (error, stackTrace) {
+      e('Mark transcript audio read failed', error, stackTrace);
     }
   }
 

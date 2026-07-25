@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../constants/assets.dart';
 import '../../l10n/l10n.dart';
 import '../../theme.dart';
+import '../../utils/app_logger.dart';
 import '../../widgets/adaptive_selection_toolbar.dart';
 import '../../widgets/buttons.dart';
 import '../../widgets/custom_popup_menu.dart';
@@ -57,7 +58,8 @@ class _DisappearMessagePageState extends State<DisappearMessagePage> {
         error = null;
       });
       unawaited(_refresh());
-    } on Object catch (exception) {
+    } on Object catch (exception, stackTrace) {
+      e('Load disappearing message setting failed', exception, stackTrace);
       if (!mounted) return;
       setState(() {
         loading = false;
@@ -73,7 +75,8 @@ class _DisappearMessagePageState extends State<DisappearMessagePage> {
         conversationId: scope.conversation.id,
       );
       if (mounted) setState(() => selected = detail.expireIn);
-    } on Object catch (exception) {
+    } on Object catch (exception, stackTrace) {
+      e('Refresh disappearing message setting failed', exception, stackTrace);
       if (mounted) setState(() => error = exception);
     }
   }
@@ -87,7 +90,8 @@ class _DisappearMessagePageState extends State<DisappearMessagePage> {
         conversationId: scope.conversation.id,
         duration: seconds,
       );
-    } on Object catch (exception) {
+    } on Object catch (exception, stackTrace) {
+      e('Set disappearing message duration failed', exception, stackTrace);
       if (!mounted) return;
       setState(() => error = exception);
       showToastFailed(exception);

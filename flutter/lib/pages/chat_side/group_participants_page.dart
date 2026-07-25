@@ -8,6 +8,7 @@ import '../../constants/icon_fonts.dart';
 import '../../l10n/l10n.dart';
 import '../../src/rust/desktop_api.dart' as rust;
 import '../../theme.dart';
+import '../../utils/app_logger.dart';
 import '../../widgets/avatar_view.dart';
 import '../../widgets/badges_widget.dart';
 import '../../widgets/custom_context_menu.dart';
@@ -63,7 +64,8 @@ class _GroupParticipantsPageState extends State<GroupParticipantsPage> {
         _participants = participants;
         _loading = false;
       });
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Load group participants failed', error, stackTrace);
       if (!mounted) return;
       setState(() => _loading = false);
     }

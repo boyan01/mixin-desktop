@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
+
 import '../network/core_http_client.dart';
 import '../src/rust/desktop_api.dart';
+import '../utils/app_logger.dart';
 
 class NetworkController extends ChangeNotifier {
   NetworkController(DesktopHandle desktop)
@@ -14,7 +16,6 @@ class NetworkController extends ChangeNotifier {
     enabled: false,
     proxies: [],
   );
-  Object? error;
   bool loading = true;
   int revision = 0;
   Future<void> _pendingMutation = Future.value();
@@ -25,12 +26,11 @@ class NetworkController extends ChangeNotifier {
 
   Future<void> initialize() async {
     loading = true;
-    error = null;
     notifyListeners();
     try {
       _settings = await settings.proxySettings();
-    } catch (exception) {
-      error = exception;
+    } catch (error, stackTrace) {
+      e('Load proxy settings failed', error, stackTrace);
     } finally {
       loading = false;
       notifyListeners();
@@ -76,19 +76,22 @@ class NetworkController extends ChangeNotifier {
   Future<void> _mutate(
     ProxySettingsItem Function(ProxySettingsItem current) update,
   ) {
-    final operation = _pendingMutation.catchError((_) {}).then((_) async {
-      final next = update(_settings);
-      error = null;
-      try {
-        await settings.setProxySettings(settings: next);
-        _settings = next;
-        revision++;
-      } catch (exception) {
-        error = exception;
-      } finally {
-        notifyListeners();
-      }
-    });
+    final operation = _pendingMutation
+        .catchError((Object error, StackTrace stackTrace) {
+          e('Previous proxy settings mutation failed', error, stackTrace);
+        })
+        .then((_) async {
+          final next = update(_settings);
+          try {
+            await settings.setProxySettings(settings: next);
+            _settings = next;
+            revision++;
+          } catch (error, stackTrace) {
+            e('Update proxy settings failed', error, stackTrace);
+          } finally {
+            notifyListeners();
+          }
+        });
     _pendingMutation = operation;
     return operation;
   }

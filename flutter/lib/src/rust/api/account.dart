@@ -21,6 +21,8 @@ abstract class AccountHandle implements RustOpaqueInterface {
 
   double attachmentProgress({required String messageId});
 
+  Stream<List<CircleItem>> circleChanges();
+
   Future<void> clearConversationStorage({
     required String conversationId,
     required List<String> categories,

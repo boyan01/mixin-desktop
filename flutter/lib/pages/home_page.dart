@@ -17,6 +17,7 @@ import '../models/conversation_list_entry.dart';
 import '../models/message_list_entry.dart';
 import '../src/rust/desktop_api.dart';
 import '../theme.dart';
+import '../utils/app_logger.dart';
 import '../utils/local_notification_center.dart';
 import '../utils/web_view.dart';
 import '../widgets/account_health_overlays.dart';
@@ -153,6 +154,7 @@ class _HomeBodyState extends State<_HomeBody> {
   bool userCollapsed = false;
   bool commandPaletteShowing = false;
   late final HomeNavigationController navigationController;
+  Stream<List<CircleItem>>? circleChanges;
 
   ConversationListEntry? get selectedConversation =>
       navigationController.selectedConversation;
@@ -167,6 +169,12 @@ class _HomeBodyState extends State<_HomeBody> {
     navigationController = HomeNavigationController(
       onConversationSelected: _onConversationSelected,
     )..addListener(_onSelectedConversationChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    circleChanges ??= context.read<AccountHandle>().circleChanges();
   }
 
   void _onSelectedConversationChanged() {
@@ -313,7 +321,8 @@ class _HomeBodyState extends State<_HomeBody> {
       final profile = await account.user().searchUser(query: query);
       if (!mounted) return;
       await _showUser(profile.userId);
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Search user failed: query=$query', error, stackTrace);
       _showActionFailure();
     }
   }
@@ -368,7 +377,8 @@ class _HomeBodyState extends State<_HomeBody> {
         name,
         selected.map((conversation) => conversation.ownerId).toList(),
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e('Create group failed', error, stackTrace);
       _showActionFailure();
     }
   }
@@ -393,12 +403,22 @@ class _HomeBodyState extends State<_HomeBody> {
     if (!mounted || selected == null) return;
     try {
       final controller = context.read<ConversationListController>();
-      final circle = await controller.createCircle(name);
+      final account = context.read<AccountHandle>();
+      final circle = await account.conversation().createCircle(
+        name: name.trim(),
+      );
       for (final conversation in selected) {
-        await controller.editCircle(conversation, circle.circleId, true);
+        await account.conversation().editCircleConversation(
+          circleId: circle.circleId,
+          conversationId: conversation.id,
+          ownerId: conversation.ownerId,
+          isGroup: conversation.isGroup,
+          add: true,
+        );
       }
       await controller.refresh();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e('Create circle failed', error, stackTrace);
       _showActionFailure();
     }
   }
@@ -414,88 +434,107 @@ class _HomeBodyState extends State<_HomeBody> {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<ConversationListController>();
-    final conversationList = ConversationListView(
-      conversations: controller.visibleConversations,
-      initialized: controller.initialized,
-      itemPositionsListener: controller.itemPositionsListener,
-      itemScrollController: controller.itemScrollController,
-      loading: controller.loading,
-      currentUserId: controller.profile.userId,
-      account: context.read<AccountHandle>(),
-      circles: {
-        for (final circle in controller.circles) circle.circleId: circle.name,
-      },
-      currentCircleId: controller.category == ConversationCategoryFilter.circle
-          ? controller.circleId
-          : null,
-      query: controller.query,
-      filterUnseen: controller.filterUnseen,
-      selectedConversationId: selectedConversation?.id,
-      onQueryChanged: controller.setQuery,
-      searchMessages: controller.searchMessages,
-      searchUsers: controller.searchUsers,
-      searchMaoUser: controller.searchMaoUser,
-      searchMao: controller.searchMao,
-      searchMessageConversations: controller.searchMessageConversations,
-      searchMessagesLoading: controller.searchMessagesLoading,
-      onSearchMessageSelected: (message) =>
-          unawaited(_selectSearchMessage(message)),
-      onSearchUser: (query) => unawaited(_searchUser(query)),
-      onLocalUserSelected: (profile) => unawaited(_openLocalUser(profile)),
-      onMaoBotOpen: (profile) => unawaited(
-        openProtocolUri(
-          context,
-          Uri.parse('mixin://apps/${profile.userId}?action=open'),
-          onSelectConversation: navigation.select,
-          currentConversation: selectedConversation,
-        ),
-      ),
-      onOpenLink: (uri) => unawaited(_openSearchUri(uri)),
-      onToggleUnseen: controller.toggleUnseen,
-      onCreateActionSelected: (action) =>
-          unawaited(_performCreateAction(action)),
-      onSelected: controller.query.trim().isEmpty
-          ? _selectConversation
-          : _selectSearchConversation,
-      onPinned: (conversation) async {
-        try {
-          await controller.setPinned(conversation);
-        } catch (_) {
-          _showActionFailure();
-        }
-      },
-      onMuted: (conversation, duration) async {
-        try {
-          await controller.setMuted(conversation, duration);
-        } catch (_) {
-          _showActionFailure();
-        }
-      },
-      onDeleted: (conversation) async {
-        try {
-          await controller.deleteConversation(conversation);
-        } catch (_) {
-          _showActionFailure();
-          return;
-        }
-
-        if (mounted && selectedConversation?.id == conversation.id) {
-          navigation.clearSelection();
-        }
-      },
-      onCircleChanged: (conversation, circleId, add) async {
-        try {
-          await controller.editCircle(conversation, circleId, add);
-        } catch (_) {
-          _showActionFailure();
-        }
-      },
-      audioPlayerBar: AudioPlayerBar(
+    final conversationList = StreamBuilder<List<CircleItem>>(
+      stream: circleChanges,
+      initialData: const [],
+      builder: (context, snapshot) => ConversationListView(
+        conversations: controller.visibleConversations,
+        initialized: controller.initialized,
+        itemPositionsListener: controller.itemPositionsListener,
+        itemScrollController: controller.itemScrollController,
+        loading: controller.loading,
+        currentUserId: controller.profile.userId,
+        account: context.read<AccountHandle>(),
+        circles: {
+          for (final circle in snapshot.data!) circle.circleId: circle.name,
+        },
+        currentCircleId:
+            controller.category == ConversationCategoryFilter.circle
+            ? controller.circleId
+            : null,
+        query: controller.query,
+        filterUnseen: controller.filterUnseen,
         selectedConversationId: selectedConversation?.id,
-        findConversation: controller.findConversation,
-        onConversationSelected: _selectConversation,
+        onQueryChanged: controller.setQuery,
+        searchMessages: controller.searchMessages,
+        searchUsers: controller.searchUsers,
+        searchMaoUser: controller.searchMaoUser,
+        searchMao: controller.searchMao,
+        searchMessageConversations: controller.searchMessageConversations,
+        searchMessagesLoading: controller.searchMessagesLoading,
+        onSearchMessageSelected: (message) =>
+            unawaited(_selectSearchMessage(message)),
+        onSearchUser: (query) => unawaited(_searchUser(query)),
+        onLocalUserSelected: (profile) => unawaited(_openLocalUser(profile)),
+        onMaoBotOpen: (profile) => unawaited(
+          openProtocolUri(
+            context,
+            Uri.parse('mixin://apps/${profile.userId}?action=open'),
+            onSelectConversation: navigation.select,
+            currentConversation: selectedConversation,
+          ),
+        ),
+        onOpenLink: (uri) => unawaited(_openSearchUri(uri)),
+        onToggleUnseen: controller.toggleUnseen,
+        onCreateActionSelected: (action) =>
+            unawaited(_performCreateAction(action)),
+        onSelected: controller.query.trim().isEmpty
+            ? _selectConversation
+            : _selectSearchConversation,
+        onPinned: (conversation) async {
+          try {
+            await controller.setPinned(conversation);
+          } catch (error, stackTrace) {
+            e('Set conversation pinned state failed', error, stackTrace);
+            _showActionFailure();
+          }
+        },
+        onMuted: (conversation, duration) async {
+          try {
+            await controller.setMuted(conversation, duration);
+          } catch (error, stackTrace) {
+            e('Set conversation mute state failed', error, stackTrace);
+            _showActionFailure();
+          }
+        },
+        onDeleted: (conversation) async {
+          try {
+            await controller.deleteConversation(conversation);
+          } catch (error, stackTrace) {
+            e('Delete conversation failed', error, stackTrace);
+            _showActionFailure();
+            return;
+          }
+
+          if (mounted && selectedConversation?.id == conversation.id) {
+            navigation.clearSelection();
+          }
+        },
+        onCircleChanged: (conversation, circleId, add) async {
+          try {
+            await controller.account.conversation().editCircleConversation(
+              circleId: circleId,
+              conversationId: conversation.id,
+              ownerId: conversation.ownerId,
+              isGroup: conversation.isGroup,
+              add: add,
+            );
+          } catch (error, stackTrace) {
+            e(
+              'Update conversation circle membership failed',
+              error,
+              stackTrace,
+            );
+            _showActionFailure();
+          }
+        },
+        audioPlayerBar: AudioPlayerBar(
+          selectedConversationId: selectedConversation?.id,
+          findConversation: controller.findConversation,
+          onConversationSelected: _selectConversation,
+        ),
+        networkStatus: NetworkStatus(account: context.read<AccountHandle>()),
       ),
-      networkStatus: NetworkStatus(account: context.read<AccountHandle>()),
     );
 
     final conversationPane = RepaintBoundary(
@@ -771,7 +810,8 @@ class _SearchUserDialogState extends State<_SearchUserDialog> {
         query: controller.text,
       );
       if (mounted) setState(() => profile = result);
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Search user dialog failed', error, stackTrace);
       if (mounted) {
         showToastFailed(ToastError(context.l10n.userNotFound));
       }
@@ -989,7 +1029,8 @@ class _SetupNameOverlayState extends State<_SetupNameOverlay> {
         name,
         widget.controller.profile.biography,
       );
-    } on Object catch (error) {
+    } on Object catch (error, stackTrace) {
+      e('Update profile failed', error, stackTrace);
       showToastFailed(error);
       return;
     }

@@ -13,6 +13,7 @@ import '../l10n/l10n.dart';
 import '../models/conversation_list_entry.dart';
 import '../src/rust/desktop_api.dart';
 import '../theme.dart';
+import '../utils/app_logger.dart';
 import '../widgets/action_button.dart';
 import '../widgets/app_protocol_handler.dart';
 import '../widgets/avatar_view.dart';
@@ -174,7 +175,8 @@ class _StorageUsageListPageState extends State<StorageUsageListPage> {
             ),
           )
           .toList(growable: false);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e('Load storage usage failed', error, stackTrace);
       return const [];
     }
   }
@@ -575,11 +577,10 @@ class _AboutLink extends StatelessWidget {
   final Uri uri;
 
   @override
-  Widget build(BuildContext context) =>
-      CellItem(
-        title: Text(title),
-        onTap: () => context.openUri(uri),
-      );
+  Widget build(BuildContext context) => CellItem(
+    title: Text(title),
+    onTap: () => context.openUri(uri),
+  );
 }
 
 class SettingsLogPage extends StatefulWidget {

@@ -8,6 +8,7 @@ import '../../constants/assets.dart';
 import '../../l10n/l10n.dart';
 import '../../src/rust/desktop_api.dart' as rust;
 import '../../theme.dart';
+import '../../utils/app_logger.dart';
 import '../../widgets/avatar_view.dart';
 import '../../widgets/badges_widget.dart';
 import '../../widgets/custom_popup_menu.dart';
@@ -77,7 +78,8 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
         currentParticipant = loadedParticipant;
         participantsLoaded = true;
       });
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Load conversation state failed', error, stackTrace);
       return;
     }
   }
@@ -130,7 +132,8 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
         developerId = loadedDeveloperId;
       });
       unawaited(_refreshRemoteState());
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Load conversation info failed', error, stackTrace);
       return;
     }
   }
@@ -148,14 +151,16 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
       setState(() {
         detail = refreshedDetail;
       });
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Refresh conversation detail failed', error, stackTrace);
       // Keep showing the local conversation detail if refresh fails.
     }
     if (appsFuture == null) return;
     try {
       final loadedApps = await appsFuture;
       if (mounted) setState(() => sharedApps = loadedApps);
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Refresh shared apps in conversation info failed', error, stackTrace);
       // Shared apps are optional on ChatInfo; keep showing the local cache.
     }
   }

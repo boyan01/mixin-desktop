@@ -252,6 +252,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustStreamSink<PlatformInt64> dco_decode_StreamSink_i_64_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<List<CircleItem>> dco_decode_StreamSink_list_circle_item_Sse(
+    dynamic raw,
+  );
+
+  @protected
   RustStreamSink<List<ConversationUnseenCount>>
   dco_decode_StreamSink_list_conversation_unseen_count_Sse(dynamic raw);
 
@@ -747,6 +752,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<PlatformInt64> sse_decode_StreamSink_i_64_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<List<CircleItem>> sse_decode_StreamSink_list_circle_item_Sse(
     SseDeserializer deserializer,
   );
 
@@ -1347,6 +1357,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_i_64_Sse(
     RustStreamSink<PlatformInt64> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_list_circle_item_Sse(
+    RustStreamSink<List<CircleItem>> self,
     SseSerializer serializer,
   );
 

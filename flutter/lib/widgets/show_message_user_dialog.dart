@@ -11,6 +11,7 @@ import '../l10n/l10n.dart';
 import '../models/conversation_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../theme.dart';
+import '../utils/app_logger.dart';
 import 'action_button.dart';
 import 'avatar_view.dart';
 import 'badges_widget.dart';
@@ -90,7 +91,8 @@ Future<MessageUserDialogResult?> showMessageUserDialog(
           : await account.user().searchUser(query: identityNumber!);
       Toast.dismiss();
     }
-  } on Object catch (error) {
+  } on Object catch (error, stackTrace) {
+    e('Load message user profile failed', error, stackTrace);
     showToastFailed(error);
     return null;
   }

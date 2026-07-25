@@ -13,6 +13,7 @@ import '../controllers/home_navigation_controller.dart';
 import '../l10n/l10n.dart';
 import '../models/conversation_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
+import '../utils/app_logger.dart';
 import '../utils/mixin_uri.dart';
 import '../utils/web_view.dart';
 import 'show_conversation_code_dialog.dart';
@@ -76,7 +77,8 @@ class _AppProtocolHandlerState extends State<AppProtocolHandler>
               : await protocolHandler.getInitialUrl());
       if (!mounted || source == null) return;
       _open(source);
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Open initial protocol URL failed', error, stackTrace);
       return;
     }
   }
@@ -227,7 +229,8 @@ Future<void> openProtocolUri(
           content: startText!,
           silent: false,
         );
-      } catch (_) {
+      } catch (error, stackTrace) {
+        e('Send protocol text message failed', error, stackTrace);
         showToastFailed(null);
       }
     }
@@ -275,7 +278,8 @@ Future<void> openProtocolUri(
         await showMultisigsPaymentDialog(context, item: result, uri: uri);
         return;
       }
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Resolve protocol code failed', error, stackTrace);
       showToastFailed(null);
       return;
     }
@@ -288,7 +292,8 @@ Future<void> openProtocolUri(
         traceId: snapshotTraceId!,
       );
       await showSnapshotDetailItemDialog(context, snapshot: snapshot);
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Load protocol snapshot failed: $snapshotTraceId', error, stackTrace);
       showToastFailed(null);
     }
     return;
@@ -335,7 +340,8 @@ Future<void> openProtocolUri(
         account.user().botHomeUri(appId: appId!),
         account.user().userProfile(userId: appId),
       ]);
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Load protocol app failed: $appId', error, stackTrace);
       showToastFailed(ToastError(context.l10n.botNotFound));
       return;
     }

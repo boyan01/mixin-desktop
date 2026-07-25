@@ -16,6 +16,7 @@ import '../models/conversation_list_entry.dart';
 import '../pages/conversation_info_destination.dart';
 import '../src/rust/desktop_api.dart';
 import '../theme.dart';
+import '../utils/app_logger.dart';
 import 'avatar_view.dart';
 import 'command_palette.dart';
 import 'device_transfer_dialog.dart';
@@ -381,7 +382,8 @@ class _MacosMenuBarState extends State<MacosMenuBar> {
         name,
         selected.map((conversation) => conversation.ownerId).toList(),
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e('Create group from macOS menu failed', error, stackTrace);
       _showActionFailure();
     }
   }
@@ -406,12 +408,22 @@ class _MacosMenuBarState extends State<MacosMenuBar> {
     if (!mounted || selected == null) return;
     try {
       final controller = context.read<ConversationListController>();
-      final circle = await controller.createCircle(name);
+      final account = context.read<AccountHandle>();
+      final circle = await account.conversation().createCircle(
+        name: name.trim(),
+      );
       for (final item in selected) {
-        await controller.editCircle(item, circle.circleId, true);
+        await account.conversation().editCircleConversation(
+          circleId: circle.circleId,
+          conversationId: item.id,
+          ownerId: item.ownerId,
+          isGroup: item.isGroup,
+          add: true,
+        );
       }
       await controller.refresh();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e('Create circle from macOS menu failed', error, stackTrace);
       _showActionFailure();
     }
   }
@@ -424,7 +436,12 @@ class _MacosMenuBarState extends State<MacosMenuBar> {
         conversation,
         duration,
       );
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e(
+        'Set conversation mute state from macOS menu failed',
+        error,
+        stackTrace,
+      );
       _showActionFailure();
     }
   }
@@ -442,7 +459,8 @@ class _MacosMenuBarState extends State<MacosMenuBar> {
         conversation,
       );
       if (mounted) navigation.conversationDeleted();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e('Delete conversation from macOS menu failed', error, stackTrace);
       _showActionFailure();
     }
   }

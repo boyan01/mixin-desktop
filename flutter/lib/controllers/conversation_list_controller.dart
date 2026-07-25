@@ -69,7 +69,6 @@ class ConversationListController extends ChangeNotifier {
       ItemPositionsListener.create();
   final ItemScrollController _itemScrollController = ItemScrollController();
 
-  List<rust.CircleItem> circles = const [];
   ConversationCategoryFilter category = ConversationCategoryFilter.chats;
   String? circleId;
   String query = '';
@@ -235,7 +234,8 @@ class ConversationListController extends ChangeNotifier {
       searchMaoUser = user;
       searchMao = user == null ? null : mao;
       notifyListeners();
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Search Mixin ID user failed: query=$query', error, stackTrace);
       if (_disposed || revision != _searchRevision) return;
       searchMaoUser = null;
       searchMao = null;
@@ -257,87 +257,6 @@ class ConversationListController extends ChangeNotifier {
 
   Future<void> deleteConversation(ConversationListEntry item) =>
       account.conversation().deleteConversation(conversationId: item.id);
-
-  Future<void> editCircle(
-    ConversationListEntry item,
-    String circleId,
-    bool add,
-  ) => account.conversation().editCircleConversation(
-    circleId: circleId,
-    conversationId: item.id,
-    ownerId: item.ownerId,
-    isGroup: item.isGroup,
-    add: add,
-  );
-
-  Future<rust.CircleItem> createCircle(String name) async {
-    final normalized = name.trim();
-    if (normalized.isEmpty) throw ArgumentError.value(name, 'name');
-    final circle = await account.conversation().createCircle(name: normalized);
-    await _refreshCircles();
-    return circle;
-  }
-
-  Future<void> updateCircle(String circleId, String name) async {
-    await account.conversation().updateCircle(
-      circleId: circleId,
-      name: name.trim(),
-    );
-    await _refreshCircles();
-  }
-
-  Future<void> deleteCircle(String circleId) async {
-    await account.conversation().deleteCircle(circleId: circleId);
-    if (category == ConversationCategoryFilter.circle &&
-        this.circleId == circleId) {
-      selectCategory(ConversationCategoryFilter.chats);
-    }
-    await _refreshCircles();
-  }
-
-  Future<void> replaceCircleConversations(
-    String circleId,
-    List<ConversationListEntry> selected,
-  ) async {
-    final existing = _store.filtered((
-      category: ConversationCategoryFilter.circle,
-      circleId: circleId,
-      query: '',
-      unseenOnly: false,
-    ));
-    final existingById = {for (final item in existing) item.id: item};
-    final selectedById = {for (final item in selected) item.id: item};
-    for (final item in selectedById.values) {
-      if (!existingById.containsKey(item.id)) {
-        await editCircle(item, circleId, true);
-      }
-    }
-    for (final item in existingById.values) {
-      if (!selectedById.containsKey(item.id)) {
-        await editCircle(item, circleId, false);
-      }
-    }
-    await refresh();
-  }
-
-  Future<void> reorderCircles(int oldIndex, int newIndex) async {
-    if (oldIndex == newIndex) return;
-    final previous = circles;
-    final reordered = [...circles];
-    final circle = reordered.removeAt(oldIndex);
-    reordered.insert(newIndex, circle);
-    circles = reordered;
-    notifyListeners();
-    try {
-      await account.conversation().reorderCircles(
-        circleIds: reordered.map((item) => item.circleId).toList(),
-      );
-    } on Object {
-      circles = previous;
-      notifyListeners();
-      rethrow;
-    }
-  }
 
   Future<void> createGroup(String name, List<String> userIds) async {
     await account.conversation().createGroup(
@@ -378,22 +297,18 @@ class ConversationListController extends ChangeNotifier {
 
   Future<void> _reloadAll() async {
     try {
-      final results = await Future.wait<dynamic>([
-        account.conversation().conversationItems(),
-        account.conversation().circles(),
-      ]);
+      final conversations = await account.conversation().conversationItems();
       if (_disposed) return;
-      final conversations = (results[0] as List<rust.ConversationListItem>)
+      final entries = conversations
           .map(ConversationListEntry.fromRust)
           .toList(growable: false);
-      _store.replaceAll(conversations);
-      circles = results[1] as List<rust.CircleItem>;
+      _store.replaceAll(entries);
       _initialized = true;
       _reloadRetryTimer?.cancel();
       _reloadRetryTimer = null;
       _reloadRetryAttempt = 0;
       _changeRetryAttempt = 0;
-      i('Loaded conversation list: count=${conversations.length}');
+      i('Loaded conversation list: count=${entries.length}');
       _rebuildView();
     } catch (exception, stackTrace) {
       if (_disposed) return;
@@ -467,17 +382,6 @@ class ConversationListController extends ChangeNotifier {
       _flushingChanges = false;
       if (_reloadAllPending || _pendingConversationIds.isNotEmpty) {
         _scheduleChangeFlush(delay: retryDelay ?? _changeMergeWindow);
-      }
-    }
-  }
-
-  Future<void> _refreshCircles() async {
-    try {
-      circles = await account.conversation().circles();
-      if (!_disposed) notifyListeners();
-    } catch (exception, stackTrace) {
-      if (!_disposed) {
-        e('Refresh conversation circles failed', exception, stackTrace);
       }
     }
   }

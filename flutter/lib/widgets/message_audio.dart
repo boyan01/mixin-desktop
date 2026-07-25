@@ -9,6 +9,7 @@ import 'package:ogg_opus_player/ogg_opus_player.dart';
 
 import '../models/message_list_entry.dart';
 import '../theme.dart';
+import '../utils/app_logger.dart';
 import 'attachment_status.dart';
 import 'interactive_decorated_box.dart';
 import 'message_style.dart';
@@ -288,7 +289,8 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
       });
       notifyListeners();
       return true;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e('Start message audio playback failed', error, stackTrace);
       stop();
       return false;
     }
@@ -369,7 +371,9 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
         avAudioSessionSetActiveOptions:
             AVAudioSessionSetActiveOptions.notifyOthersOnDeactivation,
       );
-    } catch (_) {}
+    } catch (error, stackTrace) {
+      e('Deactivate audio session after playback failed', error, stackTrace);
+    }
   }
 }
 

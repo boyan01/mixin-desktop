@@ -14,6 +14,7 @@ import '../../l10n/l10n.dart';
 import '../../models/message_list_entry.dart';
 import '../../src/rust/desktop_api.dart' as rust;
 import '../../theme.dart';
+import '../../utils/app_logger.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/avatar_view.dart';
 import '../../widgets/badges_widget.dart';
@@ -147,7 +148,8 @@ class _SearchMessagePageState extends State<SearchMessagePage> {
         loading = false;
         loadingMore = false;
       });
-    } on Object catch (exception) {
+    } on Object catch (exception, stackTrace) {
+      e('Search conversation messages failed', exception, stackTrace);
       if (!mounted || requestGeneration != searchGeneration) return;
       setState(() {
         loading = false;
@@ -190,7 +192,8 @@ class _SearchMessagePageState extends State<SearchMessagePage> {
           participantLoading = false;
         });
       }
-    } on Object catch (exception) {
+    } on Object catch (exception, stackTrace) {
+      e('Load conversation participants failed', exception, stackTrace);
       if (mounted && requestGeneration == participantGeneration) {
         setState(() {
           participantLoading = false;

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../src/rust/desktop_api.dart';
+import '../utils/app_logger.dart';
 import 'settings_store.dart';
 import 'sticker_controller.dart';
 
@@ -158,7 +159,8 @@ Future<void> _preloadStickers(
 ) async {
   try {
     await StickerController.refreshRemote(account, settings: settings);
-  } on Object {
+  } on Object catch (error, stackTrace) {
+    e('Preload stickers failed', error, stackTrace);
     // Sticker data is optional during account startup and can retry on picker open.
   }
 }

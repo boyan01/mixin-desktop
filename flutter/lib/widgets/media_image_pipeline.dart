@@ -5,6 +5,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
+
+import '../utils/app_logger.dart';
 import '../utils/image.dart';
 
 typedef PlaceholderWidgetBuilder = Widget Function();
@@ -146,7 +148,8 @@ class ProxyNetworkImage extends ImageProvider<ProxyNetworkImage> {
         await downloadImageBytes(key.url, client: key.client),
       );
       return decode(await ui.ImmutableBuffer.fromUint8List(bytes));
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e('Decode media image failed: ${key.url}', error, stackTrace);
       scheduleMicrotask(() => PaintingBinding.instance.imageCache.evict(key));
       rethrow;
     }

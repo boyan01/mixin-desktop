@@ -94,6 +94,7 @@ pub struct UserProfileItem {
     pub membership: Option<String>,
 }
 
+#[derive(Clone, PartialEq)]
 pub struct CircleItem {
     pub circle_id: String,
     pub name: String,

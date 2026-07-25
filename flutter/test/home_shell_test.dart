@@ -144,6 +144,23 @@ void main() {
     expect(find.text('2'), findsOneWidget);
   });
 
+  testWidgets('updates sidebar circles from circle changes', (tester) async {
+    final circles = StreamController<List<CircleItem>>.broadcast();
+    addTearDown(circles.close);
+    await _pumpHome(
+      tester,
+      size: const Size(1000, 700),
+      account: _FakeAccountHandle(circleChangesValues: circles.stream),
+    );
+
+    circles.add(const [
+      CircleItem(circleId: 'friends', name: 'Friends', conversationCount: 0),
+    ]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Friends'), findsOneWidget);
+  });
+
   testWidgets('opens and closes the original chat side info route', (
     tester,
   ) async {
@@ -510,7 +527,9 @@ class _FakeAccountHandle
     List<ConversationListItem>? conversations,
     this.sharedAppsValues = const [],
     Stream<List<ConversationUnseenCount>>? unseenCountValues,
+    Stream<List<CircleItem>>? circleChangesValues,
   }) : unseenCountValues = unseenCountValues ?? const Stream.empty(),
+       circleChangesValues = circleChangesValues ?? const Stream.empty(),
        _conversationItems = conversations ?? const [_conversation];
 
   static const _conversation = ConversationListItem(
@@ -606,6 +625,11 @@ class _FakeAccountHandle
 
   @override
   Future<List<CircleItem>> circles() async => const [];
+
+  final Stream<List<CircleItem>> circleChangesValues;
+
+  @override
+  Stream<List<CircleItem>> circleChanges() => circleChangesValues;
 
   @override
   Stream<ConversationChangeEvent> conversationChanges() => const Stream.empty();

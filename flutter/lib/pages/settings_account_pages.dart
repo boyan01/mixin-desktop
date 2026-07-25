@@ -11,6 +11,7 @@ import '../constants/assets.dart';
 import '../l10n/l10n.dart';
 import '../src/rust/desktop_api.dart' show AccountProfile;
 import '../theme.dart';
+import '../utils/app_logger.dart';
 import '../widgets/adaptive_selection_toolbar.dart';
 import '../widgets/avatar_view.dart';
 import '../widgets/buttons.dart';
@@ -80,7 +81,8 @@ class _EditProfileSettingsPageState extends State<EditProfileSettingsPage> {
         _biographyController.text = profile.biography;
         _phoneController.text = profile.phone;
       });
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Refresh account profile failed', error, stackTrace);
       // Keep the cached profile when refreshing fails, matching the source.
     }
   }
@@ -270,7 +272,8 @@ class _SecuritySettingsPageState extends State<SecuritySettingsPage> {
     try {
       await widget.onPasscodeChanged(passcode);
       if (mounted) setState(() => _hasPasscode = true);
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e('Change passcode failed', error, stackTrace);
       if (mounted) _showFailure(context);
     }
   }
@@ -415,7 +418,8 @@ class _BackupSettingsPageState extends State<BackupSettingsPage> {
     setState(() => _backingUp = true);
     try {
       await widget.onBackup();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e('Back up account failed', error, stackTrace);
       if (mounted) _showFailure(context);
     } finally {
       if (mounted) setState(() => _backingUp = false);
@@ -537,7 +541,8 @@ class _AccountDeleteSettingsPageState extends State<AccountDeleteSettingsPage> {
     setState(() => _deleting = true);
     try {
       await widget.onDeleteAccount();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e('Delete account failed', error, stackTrace);
       if (mounted) _showFailure(context);
     } finally {
       if (mounted) setState(() => _deleting = false);

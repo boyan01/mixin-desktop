@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../models/message_list_entry.dart';
 import '../../../theme.dart';
+import '../../../utils/app_logger.dart';
 import '../chat_side_scope.dart';
 
 typedef SharedMediaItemBuilder =
@@ -95,7 +96,8 @@ class _SharedMediaListState extends State<SharedMediaList> {
       setState(() {
         _messages = result;
       });
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Refresh shared media failed: kind=${widget.kind}', error, stackTrace);
       return;
     }
   }
@@ -116,7 +118,8 @@ class _SharedMediaListState extends State<SharedMediaList> {
         _hasMore = loaded.length == widget.pageSize;
         _loadingMore = false;
       });
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      e('Load shared media failed: kind=${widget.kind}', error, stackTrace);
       if (!mounted) return;
       setState(() {
         _loadingMore = false;

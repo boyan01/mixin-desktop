@@ -41,6 +41,32 @@ pub struct ConversationAccess {
 }
 
 impl ConversationAccess {
+    pub fn subscribe_circle_changes(
+        &self,
+    ) -> impl Stream<Item = Vec<model::CircleItem>> + Send + 'static {
+        let database = self.database.clone();
+        subscribe_on_updates(
+            move || {
+                let database = database.clone();
+                async move {
+                    Ok(database
+                        .circle_dao
+                        .summaries()
+                        .await?
+                        .into_iter()
+                        .map(Into::into)
+                        .collect())
+                }
+            },
+            vec![self.conversation_updates()],
+            self.shutdown.clone(),
+            UpdateSubscriptionOptions {
+                name: Some("circles"),
+                ..Default::default()
+            },
+        )
+    }
+
     pub fn subscribe_unseen_count_changes(
         &self,
     ) -> impl Stream<Item = Vec<model::ConversationUnseenCount>> + Send + 'static {

@@ -157,6 +157,20 @@ impl AccountHandle {
         forward_conversation_changes(&self.runtime, sink).await
     }
 
+    pub async fn circle_changes(&self, sink: StreamSink<Vec<CircleItem>>) -> Result<()> {
+        let mut changes = Box::pin(
+            self.runtime
+                .conversation_access()
+                .subscribe_circle_changes(),
+        );
+        while let Some(circles) = changes.next().await {
+            if sink.add(circles).is_err() {
+                break;
+            }
+        }
+        Ok(())
+    }
+
     pub async fn unseen_count_changes(
         &self,
         sink: StreamSink<Vec<ConversationUnseenCount>>,

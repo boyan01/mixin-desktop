@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../l10n/l10n.dart';
 import '../../src/rust/desktop_api.dart' as rust;
 import '../../theme.dart';
+import '../../utils/app_logger.dart';
 import '../../widgets/mixin_image.dart';
 import '../../widgets/show_message_user_dialog.dart';
 import '../conversation_info_destination.dart';
@@ -49,7 +50,8 @@ class _SharedAppsPageState extends State<SharedAppsPage> {
         error = null;
       });
       unawaited(_refresh());
-    } on Object catch (exception) {
+    } on Object catch (exception, stackTrace) {
+      e('Load local shared apps failed', exception, stackTrace);
       if (!mounted) return;
       setState(() {
         localLoaded = true;
@@ -69,7 +71,8 @@ class _SharedAppsPageState extends State<SharedAppsPage> {
         apps = values;
         error = null;
       });
-    } on Object catch (exception) {
+    } on Object catch (exception, stackTrace) {
+      e('Refresh shared apps failed', exception, stackTrace);
       if (mounted && apps.isEmpty) setState(() => error = exception);
     }
   }

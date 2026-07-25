@@ -5,6 +5,7 @@ use anyhow::Error;
 
 use sdk::Client;
 
+use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::model::ConversationService;
 use crate::db::MixinDatabase;
 
@@ -12,6 +13,7 @@ pub struct CircleService {
     pub(crate) db: Arc<MixinDatabase>,
     pub(crate) client: Arc<Client>,
     pub(crate) conversation: ConversationService,
+    pub(crate) changes: Option<ConversationChangeNotifier>,
 }
 
 impl CircleService {
@@ -25,6 +27,7 @@ impl CircleService {
         }
         let user_ids = user_ids.into_iter().collect::<Vec<_>>();
         self.conversation.refresh_user(&user_ids, false).await?;
+        self.notify_changes();
         Ok(())
     }
 
@@ -34,6 +37,7 @@ impl CircleService {
         let user_ids = self.update_circle_conversations(cid).await?;
         let user_ids = user_ids.into_iter().collect::<Vec<_>>();
         self.conversation.refresh_user(&user_ids, false).await?;
+        self.notify_changes();
         Ok(())
     }
 
@@ -59,5 +63,11 @@ impl CircleService {
             .into_iter()
             .filter_map(|c| c.user_id)
             .collect())
+    }
+
+    fn notify_changes(&self) {
+        if let Some(changes) = &self.changes {
+            changes.notify_all();
+        }
     }
 }

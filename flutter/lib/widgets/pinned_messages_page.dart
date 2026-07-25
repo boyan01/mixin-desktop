@@ -112,9 +112,9 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
         });
         widget.onCountChanged?.call(_messages.length);
         if (_messages.isEmpty) widget.onEmpty?.call();
-      } on Object catch (error) {
+      } on Object catch (error, stackTrace) {
         if (!mounted) return;
-        e('refresh pinned messages failed', error);
+        e('Refresh pinned messages failed', error, stackTrace);
         setState(() => _loading = false);
       }
     } while (_refreshPending && mounted);
@@ -151,8 +151,8 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
       );
       await _refresh();
       if (mounted && _messages.isEmpty) widget.onEmpty?.call();
-    } on Object catch (error) {
-      e('unpin message failed', error);
+    } on Object catch (error, stackTrace) {
+      e('Unpin message failed', error, stackTrace);
     }
   }
 
@@ -171,8 +171,8 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
         );
       }
       await _refresh();
-    } on Object catch (error) {
-      e('unpin all messages failed', error);
+    } on Object catch (error, stackTrace) {
+      e('Unpin all messages failed', error, stackTrace);
     }
   }
 
@@ -188,8 +188,8 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
         );
       }
       await _refresh();
-    } on Object catch (error) {
-      e('download pinned attachment failed', error);
+    } on Object catch (error, stackTrace) {
+      e('Download pinned attachment failed', error, stackTrace);
     }
   }
 
@@ -197,8 +197,8 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
     try {
       await widget.account.attachment().cancelAttachment(messageId: message.id);
       await _refresh();
-    } on Object catch (error) {
-      e('cancel pinned attachment failed', error);
+    } on Object catch (error, stackTrace) {
+      e('Cancel pinned attachment failed', error, stackTrace);
     }
   }
 

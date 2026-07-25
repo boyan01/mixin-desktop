@@ -5,6 +5,8 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:ogg_opus_player/ogg_opus_player.dart';
 
+import '../utils/app_logger.dart';
+
 const maxVoiceRecordingDuration = Duration(seconds: 60);
 
 enum VoiceRecorderStatus { idle, recording, recorded, sending }
@@ -240,7 +242,8 @@ class OggOpusRecorderBackend implements VoiceRecorderBackend {
     final recorder = OggOpusRecorder(path);
     try {
       recorder.start();
-    } catch (_) {
+    } catch (error, stackTrace) {
+      e('Start voice recorder failed', error, stackTrace);
       recorder.dispose();
       await _deactivateAudioSession();
       rethrow;
@@ -302,7 +305,9 @@ Future<void> _deleteFile(String path) async {
   try {
     final file = File(path);
     if (await file.exists()) await file.delete();
-  } catch (_) {}
+  } catch (error, stackTrace) {
+    e('Delete temporary voice recording failed: $path', error, stackTrace);
+  }
 }
 
 Future<void> _deactivateAudioSession() async {
@@ -313,5 +318,7 @@ Future<void> _deactivateAudioSession() async {
       avAudioSessionSetActiveOptions:
           AVAudioSessionSetActiveOptions.notifyOthersOnDeactivation,
     );
-  } catch (_) {}
+  } catch (error, stackTrace) {
+    e('Deactivate audio session failed', error, stackTrace);
+  }
 }

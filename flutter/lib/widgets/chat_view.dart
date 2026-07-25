@@ -283,8 +283,8 @@ class _ChatViewState extends State<ChatView>
         return;
       }
       setState(() => _isEncryptConversation = encrypted);
-    } on Object catch (error) {
-      e('resolve conversation encryption failed', error);
+    } on Object catch (error, stackTrace) {
+      e('Resolve conversation encryption failed', error, stackTrace);
     }
   }
 
