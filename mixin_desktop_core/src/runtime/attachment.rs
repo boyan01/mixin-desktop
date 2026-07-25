@@ -25,6 +25,34 @@ impl AttachmentAccess {
     pub(crate) fn new(state: Arc<AccountState>) -> Self {
         Self { state }
     }
+
+    async fn refresh_transcript_media_status(&self, transcript_id: &str) -> Result<()> {
+        let transcripts = self
+            .database
+            .transcript_message_dao
+            .find_by_transcript_id(transcript_id)
+            .await?;
+        let attachments = transcripts
+            .iter()
+            .filter(|message| message.category.is_attachment())
+            .collect::<Vec<_>>();
+        if attachments.is_empty() {
+            return Ok(());
+        }
+        let status = if attachments
+            .iter()
+            .all(|message| message.media_status == Some(MediaStatus::Done))
+        {
+            MediaStatus::Done
+        } else {
+            MediaStatus::Canceled
+        };
+        self.database
+            .message_dao
+            .update_media_status(transcript_id, status)
+            .await?;
+        Ok(())
+    }
 }
 
 impl Deref for AttachmentAccess {
@@ -114,6 +142,12 @@ impl AttachmentAccess {
             .update_media_status(message_id, MediaStatus::Pending)
             .await?;
         self.notify_messages_changed();
+        self.set_attachment_progress(message_id, 0, 0);
+        let progress_state = self.state.clone();
+        let progress_message_id = message_id.to_string();
+        let progress = Arc::new(move |completed, total| {
+            progress_state.set_attachment_progress(&progress_message_id, completed, total);
+        });
 
         let result: Result<()> = async {
             let existing = message.content.as_deref().and_then(|content| {
@@ -132,6 +166,8 @@ impl AttachmentAccess {
                         result = self.app_service.attachment.upload(
                             std::path::Path::new(&path),
                             !message.category.starts_with("PLAIN_"),
+                            Some(&cancellation),
+                            Some(progress.clone()),
                         ) => result?,
                         _ = cancellation.cancelled() => {
                             return Err(anyhow!("attachment upload canceled"));
@@ -212,6 +248,7 @@ impl AttachmentAccess {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .remove(message_id);
+        self.remove_attachment_progress(message_id);
         if let Err(error) = result {
             self.database
                 .message_dao
@@ -335,12 +372,14 @@ impl AttachmentAccess {
                 .transcript_message_dao
                 .update_media_status(transcript_id, message_id, MediaStatus::Canceled)
                 .await?;
+            self.refresh_transcript_media_status(transcript_id).await?;
             self.notify_messages_changed();
             if cancellation.is_cancelled() {
                 return Ok(());
             }
             return Err(error);
         }
+        self.refresh_transcript_media_status(transcript_id).await?;
         self.notify_messages_changed();
         Ok(())
     }
@@ -442,11 +481,70 @@ impl AttachmentAccess {
                         transcript.media_digest.clone(),
                     )
                 } else {
+                    let download_key =
+                        transcript_download_key(transcript_id, &transcript.message_id);
+                    let cancellation = CancellationToken::new();
+                    {
+                        let mut transfers = self
+                            .attachment_downloads
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner());
+                        if transfers.contains_key(&download_key) {
+                            return Err(anyhow!(
+                                "transcript attachment transfer is already active: {}",
+                                transcript.message_id
+                            ));
+                        }
+                        transfers.insert(download_key.clone(), cancellation.clone());
+                    }
+                    self.database
+                        .transcript_message_dao
+                        .update_media_status(
+                            transcript_id,
+                            &transcript.message_id,
+                            MediaStatus::Pending,
+                        )
+                        .await?;
+                    self.set_attachment_progress(&transcript.message_id, 0, 0);
+                    self.notify_messages_changed();
+                    let progress_state = self.state.clone();
+                    let progress_message_id = transcript.message_id.clone();
+                    let progress = Arc::new(move |completed, total| {
+                        progress_state.set_attachment_progress(
+                            &progress_message_id,
+                            completed,
+                            total,
+                        );
+                    });
                     let upload = self
                         .app_service
                         .attachment
-                        .upload(std::path::Path::new(&path), encrypted)
-                        .await?;
+                        .upload(
+                            std::path::Path::new(&path),
+                            encrypted,
+                            Some(&cancellation),
+                            Some(progress),
+                        )
+                        .await;
+                    self.attachment_downloads
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .remove(&download_key);
+                    self.remove_attachment_progress(&transcript.message_id);
+                    let upload = match upload {
+                        Ok(upload) => upload,
+                        Err(error) => {
+                            self.database
+                                .transcript_message_dao
+                                .update_media_status(
+                                    transcript_id,
+                                    &transcript.message_id,
+                                    MediaStatus::Canceled,
+                                )
+                                .await?;
+                            return Err(error);
+                        }
+                    };
                     (
                         upload.attachment_id,
                         upload.created_at,
@@ -512,13 +610,16 @@ impl AttachmentAccess {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .get(&download_key)
-            .cloned()
-            .ok_or_else(|| anyhow!("transcript attachment download is not active: {message_id}"))?;
+            .cloned();
+        let Some(cancellation) = cancellation else {
+            return Ok(());
+        };
         cancellation.cancel();
         self.database
             .transcript_message_dao
             .update_media_status(transcript_id, message_id, MediaStatus::Canceled)
             .await?;
+        self.refresh_transcript_media_status(transcript_id).await?;
         self.notify_messages_changed();
         Ok(())
     }
@@ -661,8 +762,10 @@ impl AttachmentAccess {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .get(message_id)
-            .cloned()
-            .ok_or_else(|| anyhow!("attachment download is not active: {message_id}"))?;
+            .cloned();
+        let Some(cancellation) = cancellation else {
+            return Ok(());
+        };
         cancellation.cancel();
         self.database
             .message_dao

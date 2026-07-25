@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../src/rust/desktop_api.dart' as rust;
+import 'settings_store.dart';
 
 class StickerController extends ChangeNotifier {
-  StickerController({required this.account});
+  StickerController({required this.account, required this.settings});
 
   static const _recentEmojiKey = 'recent_used_emoji';
   static const _recentEmojiLimit = 35;
@@ -13,6 +13,7 @@ class StickerController extends ChangeNotifier {
   static final Map<String, Future<bool>> _remoteRefreshes = {};
 
   final rust.AccountHandle account;
+  final SettingsStore settings;
   List<rust.StickerItem> recentStickers = const [];
   List<rust.StickerItem> personalStickers = const [];
   List<rust.StickerAlbumItem> albums = const [];
@@ -30,12 +31,18 @@ class StickerController extends ChangeNotifier {
 
   static Future<bool> refreshRemote(
     rust.AccountHandle account, {
+    required SettingsStore settings,
     bool force = false,
   }) {
     final accountId = account.accountId();
     final pending = _remoteRefreshes[accountId];
     if (pending != null) return pending;
-    final refresh = _refreshRemote(account, accountId, force: force);
+    final refresh = _refreshRemote(
+      account,
+      accountId,
+      settings: settings,
+      force: force,
+    );
     _remoteRefreshes[accountId] = refresh;
     return refresh.whenComplete(() {
       if (identical(_remoteRefreshes[accountId], refresh)) {
@@ -47,11 +54,11 @@ class StickerController extends ChangeNotifier {
   static Future<bool> _refreshRemote(
     rust.AccountHandle account,
     String accountId, {
+    required SettingsStore settings,
     required bool force,
   }) async {
-    final preferences = await SharedPreferences.getInstance();
     final refreshKey = 'sticker_refresh_at_$accountId';
-    final lastRefreshAt = preferences.getInt(refreshKey);
+    final lastRefreshAt = (await settings.get(refreshKey) as num?)?.toInt();
     final now = DateTime.now().millisecondsSinceEpoch;
     if (!force &&
         lastRefreshAt != null &&
@@ -60,9 +67,9 @@ class StickerController extends ChangeNotifier {
     }
     final hasNewAlbum = await account.sticker().refreshStickers();
     if (hasNewAlbum) {
-      await preferences.setBool('${_hasNewAlbumKey}_$accountId', true);
+      await settings.set('${_hasNewAlbumKey}_$accountId', true);
     }
-    await preferences.setInt(refreshKey, now);
+    await settings.set(refreshKey, now);
     return true;
   }
 
@@ -74,10 +81,16 @@ class StickerController extends ChangeNotifier {
     try {
       if (!initialized) {
         await _loadPrimaryLocal();
-        final preferences = await SharedPreferences.getInstance();
-        recentEmojis = preferences.getStringList(_recentEmojiKey) ?? const [];
+        recentEmojis =
+            (await settings.get(_recentEmojiKey) as List?)
+                ?.cast<String>()
+                .toList(growable: false) ??
+            const [];
         hasNewAlbum =
-            preferences.getBool('${_hasNewAlbumKey}_${account.accountId()}') ??
+            await settings.get(
+                  '${_hasNewAlbumKey}_${account.accountId()}',
+                )
+                as bool? ??
             false;
         initialized = true;
         _notify();
@@ -85,7 +98,7 @@ class StickerController extends ChangeNotifier {
         _notify();
       }
       try {
-        final refreshed = await refreshRemote(account);
+        final refreshed = await refreshRemote(account, settings: settings);
         _refreshSucceeded = true;
         if (refreshed) await _loadLocal();
       } on Object catch (exception) {
@@ -117,7 +130,7 @@ class StickerController extends ChangeNotifier {
     _notify();
     try {
       await _loadStoreLocal();
-      await refreshRemote(account, force: true);
+      await refreshRemote(account, settings: settings, force: true);
       _refreshSucceeded = true;
       await _loadStoreLocal();
       error = null;
@@ -134,8 +147,7 @@ class StickerController extends ChangeNotifier {
     if (!hasNewAlbum) return;
     hasNewAlbum = false;
     _notify();
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setBool(
+    await settings.set(
       '${_hasNewAlbumKey}_${account.accountId()}',
       false,
     );
@@ -229,8 +241,7 @@ class StickerController extends ChangeNotifier {
       ...recentEmojis.where((item) => item != emoji),
     ].take(_recentEmojiLimit).toList(growable: false);
     _notify();
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setStringList(_recentEmojiKey, recentEmojis);
+    await settings.set(_recentEmojiKey, recentEmojis);
   }
 
   void _notify() {

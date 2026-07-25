@@ -5,6 +5,7 @@ use serde_json::{Map, Number, Value};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
 const MULTI_AUTH_KEY: &str = "MultiAuthCubit";
+const SETTING_KEY: &str = "SettingCubit";
 const PRIMARY_SESSION_ID_KEY: &str = "primarySessionId";
 const STRING_KEY_TYPE: u8 = 1;
 
@@ -17,6 +18,26 @@ pub(super) struct LegacySignalState {
     pub next_pre_key_id: Option<u32>,
     pub next_signed_pre_key_id: Option<u32>,
     pub has_push_signal_keys: Option<bool>,
+}
+
+pub(super) async fn read_settings() -> anyhow::Result<Option<Vec<(String, String)>>> {
+    let path = crate::db::path::app_database_path("hydrated_box.hive")?;
+    let Some(bytes) = read_optional(&path).await? else {
+        return Ok(None);
+    };
+    let Some(value) = parse_value_for_key(&bytes, SETTING_KEY)? else {
+        return Ok(None);
+    };
+    let settings = value
+        .as_object()
+        .ok_or_else(|| anyhow!("legacy SettingCubit is not an object"))?
+        .iter()
+        .filter_map(|(key, value)| {
+            (!value.is_null())
+                .then(|| serde_json::to_string(value).map(|value| (key.clone(), value)))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Some(settings))
 }
 
 pub(super) async fn read_auths() -> anyhow::Result<Vec<LegacyAuth>> {

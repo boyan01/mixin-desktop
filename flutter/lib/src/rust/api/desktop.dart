@@ -28,21 +28,50 @@ abstract class DesktopHandle implements RustOpaqueInterface {
     BigInt? maxResponseBytes,
   });
 
-  Future<McpServerStatusItem> mcpServerStatus();
-
-  Future<McpSettingsItem> mcpSettings();
-
-  Future<ProxySettingsItem> proxySettings();
-
   Future<void> recreateAccountDatabase();
 
   Future<AccountHandle?> restoreAccount();
 
+  SettingsHandle get settings;
+}
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SettingsHandle>>
+abstract class SettingsHandle implements RustOpaqueInterface {
+  Future<bool> fileAutoDownload();
+
+  Future<McpServerStatusItem> mcpServerStatus();
+
+  Future<McpSettingsItem> mcpSettings();
+
+  Future<bool> photoAutoDownload();
+
+  Future<ProxySettingsItem> proxySettings();
+
+  Future<void> setFileAutoDownload({required bool value});
+
+  Future<void> setPhotoAutoDownload({required bool value});
+
   Future<void> setProxySettings({required ProxySettingsItem settings});
+
+  Future<void> setSetting({required String key, String? value});
+
+  Future<void> setVideoAutoDownload({required bool value});
+
+  Future<String?> setting({required String key});
+
+  Stream<bool> subscribeFileAutoDownload();
+
+  Stream<bool> subscribePhotoAutoDownload();
+
+  Stream<String?> subscribeSetting({required String key});
+
+  Stream<bool> subscribeVideoAutoDownload();
 
   Future<McpServerStatusItem> updateMcpSettings({
     required McpSettingsItem settings,
   });
+
+  Future<bool> videoAutoDownload();
 }
 
 class HttpResponseItem {

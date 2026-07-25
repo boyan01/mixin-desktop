@@ -14,7 +14,6 @@ import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:super_context_menu/super_context_menu.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -25,6 +24,7 @@ import '../controllers/mention_controller.dart';
 import '../controllers/message_action_controller.dart';
 import '../controllers/message_controller.dart';
 import '../controllers/settings_controller.dart';
+import '../controllers/settings_store.dart';
 import '../controllers/sticker_controller.dart';
 import '../controllers/voice_recorder_controller.dart';
 import '../l10n/generated/app_localizations.dart';
@@ -125,6 +125,7 @@ class _ChatViewState extends State<ChatView>
   late final FocusNode _inputFocusNode;
   late final VoiceRecorderController _voiceRecorderController;
   late StickerController _stickerController;
+  late final SettingsStore _settings;
   MessageListEntry? _quoteMessage;
   String? _highlightedMessageId;
   double _highlightOpacity = 0;
@@ -137,6 +138,7 @@ class _ChatViewState extends State<ChatView>
   @override
   void initState() {
     super.initState();
+    _settings = context.read<SettingsController>().store;
     _highlightController =
         AnimationController(
             duration: const Duration(milliseconds: 700),
@@ -152,7 +154,10 @@ class _ChatViewState extends State<ChatView>
     _inputFocusNode = FocusNode(debugLabel: 'chat_input');
     _voiceRecorderController = VoiceRecorderController()
       ..addListener(_onVoiceRecorderChanged);
-    _stickerController = StickerController(account: widget.account);
+    _stickerController = StickerController(
+      account: widget.account,
+      settings: _settings,
+    );
     _scheduleInputFocus();
     if (widget.locateMessageId != null) {
       WidgetsBinding.instance.addPostFrameCallback(
@@ -178,7 +183,10 @@ class _ChatViewState extends State<ChatView>
       unawaited(_voiceRecorderController.cancel());
       if (!identical(oldWidget.account, widget.account)) {
         _stickerController.dispose();
-        _stickerController = StickerController(account: widget.account);
+        _stickerController = StickerController(
+          account: widget.account,
+          settings: _settings,
+        );
       }
       _scheduleInputFocus();
     }
@@ -221,11 +229,13 @@ class _ChatViewState extends State<ChatView>
 
   Future<void> _loadOverlayPreferences() async {
     final conversationId = widget.conversation.id;
-    final preferences = await SharedPreferences.getInstance();
-    final scamDismissedUntil = preferences.getInt(_scamWarningKey);
+    final scamDismissedUntil = (await _settings.get(_scamWarningKey) as num?)
+        ?.toInt();
+    final showPinnedMessage =
+        await _settings.get(_showPinnedMessageKey) as bool? ?? true;
     if (!mounted || conversationId != widget.conversation.id) return;
     setState(() {
-      _showPinnedMessage = preferences.getBool(_showPinnedMessageKey) ?? true;
+      _showPinnedMessage = showPinnedMessage;
       _showScamWarning =
           widget.conversation.isScam &&
           (scamDismissedUntil == null ||
@@ -235,14 +245,12 @@ class _ChatViewState extends State<ChatView>
 
   Future<void> _dismissPinnedMessage() async {
     setState(() => _showPinnedMessage = false);
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setBool(_showPinnedMessageKey, false);
+    await _settings.set(_showPinnedMessageKey, false);
   }
 
   Future<void> _dismissScamWarning() async {
     setState(() => _showScamWarning = false);
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setInt(
+    await _settings.set(
       _scamWarningKey,
       DateTime.now().add(const Duration(days: 1)).millisecondsSinceEpoch,
     );

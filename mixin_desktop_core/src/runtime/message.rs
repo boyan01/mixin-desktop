@@ -263,7 +263,7 @@ impl MessageAccess {
         let upload = self
             .app_service
             .attachment
-            .upload(&local_path, prefix != "PLAIN")
+            .upload(&local_path, prefix != "PLAIN", None, None)
             .await?;
         let attachment = AttachmentMessage {
             key: upload.key.clone(),
@@ -1118,14 +1118,26 @@ impl MessageAccess {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .insert(message_id.clone(), cancellation.clone());
+        self.set_attachment_progress(&message_id, 0, 0);
+        let progress_state = self.state.clone();
+        let progress_message_id = message_id.clone();
+        let progress = Arc::new(move |completed, total| {
+            progress_state.set_attachment_progress(&progress_message_id, completed, total);
+        });
         let upload = tokio::select! {
-            result = self.app_service.attachment.upload(&local_path, prefix != "PLAIN") => result,
+            result = self.app_service.attachment.upload(
+                &local_path,
+                prefix != "PLAIN",
+                Some(&cancellation),
+                Some(progress.clone()),
+            ) => result,
             _ = cancellation.cancelled() => Err(anyhow!("attachment upload canceled")),
         };
         self.attachment_downloads
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .remove(&message_id);
+        self.remove_attachment_progress(&message_id);
         let upload = match upload {
             Ok(upload) => upload,
             Err(error) => {
@@ -1330,14 +1342,26 @@ impl MessageAccess {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .insert(message_id.clone(), cancellation.clone());
+        self.set_attachment_progress(&message_id, 0, 0);
+        let progress_state = self.state.clone();
+        let progress_message_id = message_id.clone();
+        let progress = Arc::new(move |completed, total| {
+            progress_state.set_attachment_progress(&progress_message_id, completed, total);
+        });
         let upload = tokio::select! {
-            result = self.app_service.attachment.upload(&local_path, prefix != "PLAIN") => result,
+            result = self.app_service.attachment.upload(
+                &local_path,
+                prefix != "PLAIN",
+                Some(&cancellation),
+                Some(progress.clone()),
+            ) => result,
             _ = cancellation.cancelled() => Err(anyhow!("attachment upload canceled")),
         };
         self.attachment_downloads
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .remove(&message_id);
+        self.remove_attachment_progress(&message_id);
         let upload = match upload {
             Ok(upload) => upload,
             Err(error) => {
@@ -1563,7 +1587,7 @@ impl MessageAccess {
                         let upload = match self
                             .app_service
                             .attachment
-                            .upload(&target_path, target_prefix != "PLAIN")
+                            .upload(&target_path, target_prefix != "PLAIN", None, None)
                             .await
                         {
                             Ok(upload) => upload,

@@ -19,6 +19,8 @@ abstract class AccountHandle implements RustOpaqueInterface {
 
   AttachmentAccess attachment();
 
+  double attachmentProgress({required String messageId});
+
   Future<void> clearConversationStorage({
     required String conversationId,
     required List<String> categories,
@@ -39,8 +41,6 @@ abstract class AccountHandle implements RustOpaqueInterface {
   Future<void> deviceTransferCommand({required DeviceTransferCommand command});
 
   Stream<DeviceTransferEvent> deviceTransferEvents();
-
-  double downloadProgress({required String messageId});
 
   String mediaDirectory();
 

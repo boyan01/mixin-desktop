@@ -3,17 +3,20 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mixin_desktop_ui/controllers/sticker_controller.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import 'test_settings_store.dart';
 
 void main() {
   test('shows local stickers before remote refresh completes', () async {
-    SharedPreferences.setMockInitialValues({});
     final remoteRefresh = Completer<void>();
     final account = _FakeAccount(
       id: 'local-first',
       remoteRefresh: remoteRefresh,
     );
-    final controller = StickerController(account: account);
+    final controller = StickerController(
+      account: account,
+      settings: TestSettingsStore(),
+    );
     final localReady = Completer<void>();
     controller.addListener(() {
       if (controller.initialized && !localReady.isCompleted) {
@@ -34,15 +37,25 @@ void main() {
   });
 
   test('limits background refresh to once every 24 hours', () async {
-    SharedPreferences.setMockInitialValues({
+    final settings = TestSettingsStore({
       'sticker_refresh_at_rate-limited': DateTime.now().millisecondsSinceEpoch,
     });
     final account = _FakeAccount(id: 'rate-limited');
 
-    expect(await StickerController.refreshRemote(account), isFalse);
+    expect(
+      await StickerController.refreshRemote(account, settings: settings),
+      isFalse,
+    );
     expect(account.refreshCalls, 0);
 
-    expect(await StickerController.refreshRemote(account, force: true), isTrue);
+    expect(
+      await StickerController.refreshRemote(
+        account,
+        settings: settings,
+        force: true,
+      ),
+      isTrue,
+    );
     expect(account.refreshCalls, 1);
   });
 }

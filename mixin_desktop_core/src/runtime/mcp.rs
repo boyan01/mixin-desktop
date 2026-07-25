@@ -2,6 +2,7 @@
 //!
 //! The server deliberately exposes no message-send or account-write operation.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
@@ -10,6 +11,7 @@ use axum::http::{header, HeaderMap, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::Router;
+use futures::{Stream, StreamExt as _};
 use rmcp::handler::server::{
     router::tool::ToolRouter,
     wrapper::{Json, Parameters},
@@ -22,13 +24,26 @@ use rmcp::{schemars, tool, tool_handler, tool_router, ServerHandler};
 use serde_json::{json, Map, Value};
 use subtle::ConstantTimeEq;
 use tokio::net::TcpListener;
+use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+use crate::db::app::SettingDao;
+
 use super::AccountRuntime;
 
 pub const DEFAULT_PORT: u16 = 55001;
+const MCP_ENABLED_KEY: &str = "enable_mcp_server";
+const MCP_TOKEN_KEY: &str = "mcp_server_token";
+const MCP_DRAFT_TOOLS_ENABLED_KEY: &str = "enable_mcp_draft_tools";
+const MCP_CIRCLE_MANAGEMENT_ENABLED_KEY: &str = "enable_mcp_circle_management";
+const MCP_SETTING_KEYS: [&str; 4] = [
+    MCP_ENABLED_KEY,
+    MCP_TOKEN_KEY,
+    MCP_DRAFT_TOOLS_ENABLED_KEY,
+    MCP_CIRCLE_MANAGEMENT_ENABLED_KEY,
+];
 type ToolOutput = Map<String, Value>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -57,18 +72,231 @@ pub struct McpServerStatus {
     pub last_error: Option<String>,
 }
 
-pub fn generate_access_token() -> String {
+fn generate_access_token() -> String {
     Uuid::new_v4().simple().to_string()
 }
 
 pub struct McpServer {
+    settings: SettingDao,
+    state: Mutex<McpServerState>,
+    settings_task: Mutex<Option<JoinHandle<()>>>,
+}
+
+#[derive(Default)]
+struct McpServerState {
+    runtime: Option<Arc<AccountRuntime>>,
+    running: Option<RunningMcpServer>,
+    applied_settings: Option<McpSettings>,
+    last_error: Option<String>,
+}
+
+impl McpServerState {
+    fn status(&self) -> McpServerStatus {
+        McpServerStatus {
+            running: self.running.is_some(),
+            endpoint: self
+                .running
+                .as_ref()
+                .map(|server| server.endpoint().to_owned()),
+            last_error: self.last_error.clone(),
+        }
+    }
+
+    async fn apply(&mut self, settings: McpSettings, force: bool) -> Result<McpServerStatus> {
+        if !force && self.applied_settings.as_ref() == Some(&settings) {
+            return Ok(self.status());
+        }
+        if let Some(server) = self.running.take() {
+            server.stop().await;
+        }
+        self.applied_settings = Some(settings.clone());
+        self.last_error = None;
+        if settings.enabled {
+            let runtime = self
+                .runtime
+                .clone()
+                .ok_or_else(|| anyhow!("MCP requires a signed-in account"))?;
+            match RunningMcpServer::start(runtime, settings).await {
+                Ok(server) => self.running = Some(server),
+                Err(error) => {
+                    self.last_error = Some(error.to_string());
+                    return Ok(self.status());
+                }
+            }
+        }
+        Ok(self.status())
+    }
+}
+
+struct RunningMcpServer {
     cancellation: CancellationToken,
-    task: JoinHandle<()>,
+    task: Option<JoinHandle<()>>,
     endpoint: String,
 }
 
 impl McpServer {
-    pub async fn start(runtime: Arc<AccountRuntime>, settings: McpSettings) -> Result<Self> {
+    pub async fn new(settings: SettingDao) -> Result<Arc<Self>> {
+        Self::ensure_access_token(&settings).await?;
+        let server = Arc::new(Self {
+            settings,
+            state: Mutex::new(McpServerState::default()),
+            settings_task: Mutex::new(None),
+        });
+        server.start_settings_subscription().await;
+        Ok(server)
+    }
+
+    pub async fn settings(&self) -> Result<McpSettings> {
+        Self::load_settings(&self.settings).await
+    }
+
+    pub async fn update_settings(&self, settings: McpSettings) -> Result<McpServerStatus> {
+        Self::save_settings(&self.settings, &settings).await?;
+        self.state.lock().await.apply(settings, false).await
+    }
+
+    pub async fn status(&self) -> McpServerStatus {
+        self.state.lock().await.status()
+    }
+
+    pub async fn start(&self, runtime: Arc<AccountRuntime>) -> Result<McpServerStatus> {
+        let settings = self.settings().await?;
+        let mut state = self.state.lock().await;
+        state.runtime = Some(runtime);
+        state.apply(settings, true).await
+    }
+
+    pub async fn stop(&self) {
+        let mut state = self.state.lock().await;
+        state.runtime = None;
+        if let Some(server) = state.running.take() {
+            server.stop().await;
+        }
+    }
+
+    async fn apply_settings(&self, settings: McpSettings) -> Result<McpServerStatus> {
+        self.state.lock().await.apply(settings, false).await
+    }
+
+    async fn start_settings_subscription(self: &Arc<Self>) {
+        let subscription = Self::subscribe_settings(self.settings.clone());
+        let server = Arc::downgrade(self);
+        let task = tokio::spawn(async move {
+            futures::pin_mut!(subscription);
+            let mut initial = true;
+            while let Some(next) = subscription.next().await {
+                let settings = match next {
+                    Ok(_) if initial => {
+                        initial = false;
+                        continue;
+                    }
+                    Ok(settings) => settings,
+                    Err(error) => {
+                        initial = false;
+                        log::warn!("MCP settings subscription failed: {error:?}");
+                        continue;
+                    }
+                };
+                let Some(server) = server.upgrade() else {
+                    return;
+                };
+                if let Err(error) = server.apply_settings(settings).await {
+                    log::warn!("failed to apply MCP settings: {error:?}");
+                }
+            }
+        });
+        if let Some(previous) = self.settings_task.lock().await.replace(task) {
+            previous.abort();
+        }
+    }
+
+    async fn ensure_access_token(settings: &SettingDao) -> Result<()> {
+        let token = settings.get(MCP_TOKEN_KEY).await?;
+        let token = token
+            .as_deref()
+            .map(serde_json::from_str::<Option<String>>)
+            .transpose()?
+            .flatten();
+        if token.is_none_or(|token| token.is_empty()) {
+            let token = serde_json::to_string(&Some(generate_access_token()))?;
+            settings.set(MCP_TOKEN_KEY, Some(&token)).await?;
+        }
+        Ok(())
+    }
+
+    async fn load_settings(settings: &SettingDao) -> Result<McpSettings> {
+        Self::ensure_access_token(settings).await?;
+        Ok(McpSettings {
+            enabled: Self::decode_setting(settings, MCP_ENABLED_KEY, false).await?,
+            token: Self::decode_setting(settings, MCP_TOKEN_KEY, None::<String>)
+                .await?
+                .expect("MCP token must be initialized"),
+            draft_tools_enabled: Self::decode_setting(settings, MCP_DRAFT_TOOLS_ENABLED_KEY, false)
+                .await?,
+            circle_management_enabled: Self::decode_setting(
+                settings,
+                MCP_CIRCLE_MANAGEMENT_ENABLED_KEY,
+                false,
+            )
+            .await?,
+        })
+    }
+
+    async fn save_settings(settings: &SettingDao, value: &McpSettings) -> Result<()> {
+        let enabled = serde_json::to_string(&value.enabled)?;
+        let token = serde_json::to_string(&Some(&value.token))?;
+        let draft_tools_enabled = serde_json::to_string(&value.draft_tools_enabled)?;
+        let circle_management_enabled = serde_json::to_string(&value.circle_management_enabled)?;
+        settings
+            .set_many(&[
+                (MCP_ENABLED_KEY, Some(&enabled)),
+                (MCP_TOKEN_KEY, Some(&token)),
+                (MCP_DRAFT_TOOLS_ENABLED_KEY, Some(&draft_tools_enabled)),
+                (
+                    MCP_CIRCLE_MANAGEMENT_ENABLED_KEY,
+                    Some(&circle_management_enabled),
+                ),
+            ])
+            .await
+    }
+
+    fn subscribe_settings(
+        settings: SettingDao,
+    ) -> impl Stream<Item = Result<McpSettings>> + Send + 'static {
+        let query_settings = settings.clone();
+        settings.subscribe_query(
+            MCP_SETTING_KEYS
+                .into_iter()
+                .map(str::to_owned)
+                .collect::<HashSet<_>>(),
+            move || {
+                let settings = query_settings.clone();
+                async move { Self::load_settings(&settings).await }
+            },
+        )
+    }
+
+    async fn decode_setting<T>(settings: &SettingDao, key: &str, default: T) -> Result<T>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        match settings.get(key).await? {
+            Some(value) => Ok(serde_json::from_str(&value)?),
+            None => Ok(default),
+        }
+    }
+}
+
+impl Drop for McpServer {
+    fn drop(&mut self) {
+        if let Some(task) = self.settings_task.get_mut().take() {
+            task.abort();
+        }
+    }
+}
+
+impl RunningMcpServer {
+    async fn start(runtime: Arc<AccountRuntime>, settings: McpSettings) -> Result<Self> {
         if settings.token.trim().is_empty() {
             return Err(anyhow!("MCP access token is unavailable"));
         }
@@ -103,7 +331,7 @@ impl McpServer {
         });
         Ok(Self {
             cancellation,
-            task,
+            task: Some(task),
             endpoint: format!("http://127.0.0.1:{DEFAULT_PORT}/mcp"),
         })
     }
@@ -112,9 +340,20 @@ impl McpServer {
         &self.endpoint
     }
 
-    pub async fn stop(self) {
+    async fn stop(mut self) {
         self.cancellation.cancel();
-        let _ = self.task.await;
+        if let Some(task) = self.task.take() {
+            let _ = task.await;
+        }
+    }
+}
+
+impl Drop for RunningMcpServer {
+    fn drop(&mut self) {
+        self.cancellation.cancel();
+        if let Some(task) = self.task.take() {
+            task.abort();
+        }
     }
 }
 
@@ -794,7 +1033,70 @@ fn circle_json(item: super::model::CircleItem) -> Value {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use crate::db::app::AppDatabase;
+
     use super::*;
+
+    #[tokio::test]
+    async fn server_initializes_token_and_persists_complete_settings() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = AppDatabase::connect_at(directory.path().join("app.db"))
+            .await
+            .unwrap();
+        let server = McpServer::new(database.setting_dao).await.unwrap();
+
+        let initial = server.settings().await.unwrap();
+        assert!(!initial.enabled);
+        assert!(!initial.token.is_empty());
+
+        let updated = McpSettings {
+            enabled: false,
+            token: "new-token".to_owned(),
+            draft_tools_enabled: true,
+            circle_management_enabled: true,
+        };
+        let status = server.update_settings(updated.clone()).await.unwrap();
+
+        assert!(!status.running);
+        assert_eq!(server.settings().await.unwrap(), updated);
+    }
+
+    #[tokio::test]
+    async fn settings_batch_update_emits_one_complete_snapshot() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = AppDatabase::connect_at(directory.path().join("app.db"))
+            .await
+            .unwrap();
+        let settings = database.setting_dao;
+        settings
+            .set(MCP_TOKEN_KEY, Some("\"initial-token\""))
+            .await
+            .unwrap();
+        let subscription = McpServer::subscribe_settings(settings.clone());
+        let mut subscription = Box::pin(subscription);
+
+        assert_eq!(
+            subscription.next().await.unwrap().unwrap(),
+            McpSettings::disabled("initial-token".to_owned())
+        );
+
+        let updated = McpSettings {
+            enabled: false,
+            token: "new-token".to_owned(),
+            draft_tools_enabled: true,
+            circle_management_enabled: true,
+        };
+        McpServer::save_settings(&settings, &updated).await.unwrap();
+
+        assert_eq!(subscription.next().await.unwrap().unwrap(), updated);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), subscription.next())
+                .await
+                .is_err()
+        );
+    }
 
     #[test]
     fn tool_router_builds_object_output_schemas_for_every_tool() {

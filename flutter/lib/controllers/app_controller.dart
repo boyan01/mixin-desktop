@@ -3,11 +3,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../src/rust/desktop_api.dart';
+import 'settings_store.dart';
 import 'sticker_controller.dart';
 
 enum AppStage { starting, signedOut, signedIn, failed }
 
 class AppController extends ChangeNotifier {
+  AppController({this.settings});
+
+  final SettingsStore? settings;
   AppStage stage = AppStage.starting;
   DesktopHandle? _desktop;
   AccountHandle? _account;
@@ -37,7 +41,9 @@ class AppController extends ChangeNotifier {
       }
       _account = account;
       stage = account == null ? AppStage.signedOut : AppStage.signedIn;
-      if (account != null) unawaited(_preloadStickers(account));
+      if (account != null && settings != null) {
+        unawaited(_preloadStickers(account, settings!));
+      }
     } catch (exception, stackTrace) {
       if (requestVersion != _requestVersion) return;
       final message = exception.toString();
@@ -58,7 +64,7 @@ class AppController extends ChangeNotifier {
     databaseOpenFailure = null;
     showLoginFailure = false;
     notifyListeners();
-    unawaited(_preloadStickers(account));
+    if (settings != null) unawaited(_preloadStickers(account, settings!));
   }
 
   Future<void> signOut() async {
@@ -146,9 +152,12 @@ class DatabaseOpenFailure {
   }
 }
 
-Future<void> _preloadStickers(AccountHandle account) async {
+Future<void> _preloadStickers(
+  AccountHandle account,
+  SettingsStore settings,
+) async {
   try {
-    await StickerController.refreshRemote(account);
+    await StickerController.refreshRemote(account, settings: settings);
   } on Object {
     // Sticker data is optional during account startup and can retry on picker open.
   }

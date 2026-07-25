@@ -29,6 +29,8 @@ import 'package:overlay_support/overlay_support.dart';
 import 'package:provider/provider.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import 'test_settings_store.dart';
+
 void main() {
   setUpAll(() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
@@ -1374,7 +1376,7 @@ class _LocalizedApp extends StatelessWidget {
       home: Portal(child: child),
     );
     return ChangeNotifierProvider(
-      create: (_) => SettingsController(),
+      create: (_) => SettingsController(store: TestSettingsStore()),
       child: overlaySupport ? OverlaySupport.global(child: app) : app,
     );
   }

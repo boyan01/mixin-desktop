@@ -5,9 +5,8 @@ use ring::signature::{Ed25519KeyPair, KeyPair};
 use sdk::Account;
 use serde::{Deserialize, Serialize};
 
-use super::PropertyDao;
+use super::{PropertyDao, PropertyGroup};
 
-const GROUP: &str = "auth";
 const AUTHS_KEY: &str = "auths";
 const ACTIVE_USER_ID_KEY: &str = "active_user_id";
 const AUTH_MIGRATION_KEY: &str = "auth_migration";
@@ -114,10 +113,10 @@ impl AuthDao {
         self.migrate_legacy_auths().await?;
         let stored = self
             .0
-            .get(GROUP, AUTHS_KEY)
+            .get(PropertyGroup::Auth, AUTHS_KEY)
             .await?
             .unwrap_or_else(|| "[]".to_string());
-        let active_user_id = self.0.get(GROUP, ACTIVE_USER_ID_KEY).await?;
+        let active_user_id = self.0.get(PropertyGroup::Auth, ACTIVE_USER_ID_KEY).await?;
 
         let mut auths = serde_json::from_str::<Vec<StoredAuth>>(&stored)?
             .into_iter()
@@ -132,9 +131,28 @@ impl AuthDao {
     }
 
     async fn migrate_legacy_auths(&self) -> anyhow::Result<()> {
-        let migrated = self.0.get(GROUP, AUTH_MIGRATION_KEY).await?;
+        let migrated = self.0.get(PropertyGroup::Auth, AUTH_MIGRATION_KEY).await?;
         if migrated.is_some() {
             return Ok(());
+        }
+
+        match super::legacy_hive::read_settings().await {
+            Ok(Some(settings)) => {
+                let mut updates = settings
+                    .iter()
+                    .map(|(key, value)| {
+                        (PropertyGroup::Setting, key.as_str(), Some(value.as_str()))
+                    })
+                    .collect::<Vec<_>>();
+                updates.push((
+                    PropertyGroup::Setting,
+                    "settingHasMigratedFromHive",
+                    Some("true"),
+                ));
+                self.0.update(&updates).await?;
+            }
+            Ok(None) => {}
+            Err(error) => warn!("failed to migrate legacy settings: {error}"),
         }
 
         match super::legacy_hive::read_auths().await {
@@ -174,7 +192,9 @@ impl AuthDao {
             Err(error) => warn!("failed to migrate legacy authorizations: {error}"),
         }
 
-        self.0.set(GROUP, AUTH_MIGRATION_KEY, "true").await?;
+        self.0
+            .set(PropertyGroup::Auth, AUTH_MIGRATION_KEY, "true")
+            .await?;
         Ok(())
     }
 
@@ -185,30 +205,28 @@ impl AuthDao {
         }
 
         let state = super::legacy_hive::read_signal_state(identity_number).await?;
-        let group = format!("crypto:{identity_number}");
+        let signal_database = crate::db::SignalDatabase::connect(identity_number.clone())
+            .await
+            .map_err(|error| anyhow!(error.to_string()))?;
         if let Some(value) = state.next_pre_key_id {
-            self.0
-                .set(&group, "next_pre_key_id", &serde_json::to_string(&value)?)
+            signal_database
+                .crypto_key_value
+                .set_next_pre_key_id(value)
                 .await?;
         }
         if let Some(value) = state.next_signed_pre_key_id {
-            self.0
-                .set(
-                    &group,
-                    "next_signed_pre_key_id",
-                    &serde_json::to_string(&value)?,
-                )
+            signal_database
+                .crypto_key_value
+                .set_next_signed_pre_key_id(value)
                 .await?;
         }
         if let Some(value) = state.has_push_signal_keys {
-            self.0
-                .set(
-                    &group,
-                    "has_push_signal_keys",
-                    &serde_json::to_string(&value)?,
-                )
+            signal_database
+                .crypto_key_value
+                .set_has_push_signal_keys(value)
                 .await?;
         }
+        signal_database.close().await;
         Ok(())
     }
 
@@ -235,8 +253,8 @@ impl AuthDao {
         let value = serde_json::to_string(&stored)?;
         self.0
             .update(&[
-                (GROUP, AUTHS_KEY, Some(value.as_str())),
-                (GROUP, ACTIVE_USER_ID_KEY, active_user_id),
+                (PropertyGroup::Auth, AUTHS_KEY, Some(value.as_str())),
+                (PropertyGroup::Auth, ACTIVE_USER_ID_KEY, active_user_id),
             ])
             .await?;
         Ok(())

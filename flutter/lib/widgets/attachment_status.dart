@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
@@ -8,68 +9,49 @@ import '../constants/assets.dart';
 import '../src/rust/api/account.dart';
 import '../theme.dart';
 
-class AttachmentStatusPending extends StatefulWidget {
+class AttachmentStatusPending extends HookWidget {
   const AttachmentStatusPending({required this.messageId, super.key});
 
   final String messageId;
 
   @override
-  State<AttachmentStatusPending> createState() =>
-      _AttachmentStatusPendingState();
-}
+  Widget build(BuildContext context) {
+    final progress = useState<double>(0);
+    useEffect(() {
+      progress.value = 0;
+      final timer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+        final value = context.read<AccountHandle>().attachmentProgress(
+          messageId: messageId,
+        );
+        if (value != progress.value) progress.value = value;
+      });
+      return timer.cancel;
+    }, [messageId]);
 
-class _AttachmentStatusPendingState extends State<AttachmentStatusPending> {
-  Timer? _timer;
-  double _value = 0;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _timer ??= Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (!mounted) return;
-      final value = context.read<AccountHandle>().downloadProgress(
-        messageId: widget.messageId,
-      );
-      if (value != _value) setState(() => _value = value);
-    });
-  }
-
-  @override
-  void didUpdateWidget(covariant AttachmentStatusPending oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.messageId != widget.messageId) _value = 0;
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => _StatusLayout(
-    child: Stack(
-      fit: StackFit.expand,
-      children: [
-        Center(
-          child: SizedBox.fromSize(
-            size: const Size.square(10),
-            child: DecoratedBox(
-              decoration: BoxDecoration(color: context.theme.accent),
+    return _StatusLayout(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Center(
+            child: SizedBox.fromSize(
+              size: const Size.square(10),
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: context.theme.accent),
+              ),
             ),
           ),
-        ),
-        TweenAnimationBuilder<double>(
-          tween: Tween<double>(end: _value),
-          duration: const Duration(milliseconds: 100),
-          builder: (context, value, _) => CircularProgressIndicator(
-            value: value,
-            valueColor: AlwaysStoppedAnimation(context.theme.accent),
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(end: progress.value),
+            duration: const Duration(milliseconds: 100),
+            builder: (context, value, _) => CircularProgressIndicator(
+              value: value,
+              valueColor: AlwaysStoppedAnimation(context.theme.accent),
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class AttachmentStatusWarning extends StatelessWidget {

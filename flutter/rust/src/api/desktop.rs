@@ -2,16 +2,24 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
+use futures::StreamExt as _;
 use mixin_desktop_core::network::{ProxyConfig, ProxySettings, ProxyType};
 use mixin_desktop_core::runtime::desktop::DesktopRuntime;
 use mixin_desktop_core::runtime::mcp::{McpServerStatus, McpSettings};
 use tokio::sync::OnceCell;
+
+use crate::frb_generated::StreamSink;
 
 use super::account::AccountHandle;
 use super::login::LoginHandle;
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct DesktopHandle {
+    runtime: Arc<DesktopRuntime>,
+}
+
+#[flutter_rust_bridge::frb(opaque)]
+pub struct SettingsHandle {
     runtime: Arc<DesktopRuntime>,
 }
 
@@ -157,31 +165,11 @@ pub async fn open_desktop() -> Result<DesktopHandle> {
 }
 
 impl DesktopHandle {
-    pub async fn mcp_settings(&self) -> Result<McpSettingsItem> {
-        Ok(self.runtime.mcp_settings().await?.into())
-    }
-
-    pub async fn update_mcp_settings(
-        &self,
-        settings: McpSettingsItem,
-    ) -> Result<McpServerStatusItem> {
-        Ok(self
-            .runtime
-            .update_mcp_settings(settings.into())
-            .await?
-            .into())
-    }
-
-    pub async fn mcp_server_status(&self) -> Result<McpServerStatusItem> {
-        Ok(self.runtime.mcp_server_status().await.into())
-    }
-
-    pub async fn proxy_settings(&self) -> Result<ProxySettingsItem> {
-        Ok(self.runtime.proxy_settings().await.into())
-    }
-
-    pub async fn set_proxy_settings(&self, settings: ProxySettingsItem) -> Result<()> {
-        self.runtime.set_proxy_settings(settings.try_into()?).await
+    #[flutter_rust_bridge::frb(sync, getter)]
+    pub fn settings(&self) -> SettingsHandle {
+        SettingsHandle {
+            runtime: self.runtime.clone(),
+        }
     }
 
     pub async fn http_request(
@@ -232,5 +220,117 @@ impl DesktopHandle {
             self.runtime.begin_login().await?,
             self.runtime.clone(),
         ))
+    }
+}
+
+impl SettingsHandle {
+    pub async fn photo_auto_download(&self) -> Result<bool> {
+        self.runtime.settings.photo_auto_download().await
+    }
+
+    pub async fn set_photo_auto_download(&self, value: bool) -> Result<()> {
+        self.runtime.settings.set_photo_auto_download(value).await
+    }
+
+    pub async fn subscribe_photo_auto_download(&self, sink: StreamSink<bool>) -> Result<()> {
+        let subscription = self.runtime.settings.subscribe_photo_auto_download();
+        futures::pin_mut!(subscription);
+        while let Some(value) = subscription.next().await {
+            if sink.add(value?).is_err() {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn video_auto_download(&self) -> Result<bool> {
+        self.runtime.settings.video_auto_download().await
+    }
+
+    pub async fn set_video_auto_download(&self, value: bool) -> Result<()> {
+        self.runtime.settings.set_video_auto_download(value).await
+    }
+
+    pub async fn subscribe_video_auto_download(&self, sink: StreamSink<bool>) -> Result<()> {
+        let subscription = self.runtime.settings.subscribe_video_auto_download();
+        futures::pin_mut!(subscription);
+        while let Some(value) = subscription.next().await {
+            if sink.add(value?).is_err() {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn file_auto_download(&self) -> Result<bool> {
+        self.runtime.settings.file_auto_download().await
+    }
+
+    pub async fn set_file_auto_download(&self, value: bool) -> Result<()> {
+        self.runtime.settings.set_file_auto_download(value).await
+    }
+
+    pub async fn subscribe_file_auto_download(&self, sink: StreamSink<bool>) -> Result<()> {
+        let subscription = self.runtime.settings.subscribe_file_auto_download();
+        futures::pin_mut!(subscription);
+        while let Some(value) = subscription.next().await {
+            if sink.add(value?).is_err() {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn setting(&self, key: String) -> Result<Option<String>> {
+        self.runtime.settings.get(&key).await
+    }
+
+    pub async fn set_setting(&self, key: String, value: Option<String>) -> Result<()> {
+        self.runtime.settings.set(&key, value.as_deref()).await
+    }
+
+    pub async fn subscribe_setting(
+        &self,
+        key: String,
+        sink: StreamSink<Option<String>>,
+    ) -> Result<()> {
+        let subscription = self.runtime.settings.subscribe(key);
+        futures::pin_mut!(subscription);
+        while let Some(value) = subscription.next().await {
+            if sink.add(value?).is_err() {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn mcp_settings(&self) -> Result<McpSettingsItem> {
+        Ok(self.runtime.mcp_server.settings().await?.into())
+    }
+
+    pub async fn update_mcp_settings(
+        &self,
+        settings: McpSettingsItem,
+    ) -> Result<McpServerStatusItem> {
+        Ok(self
+            .runtime
+            .mcp_server
+            .update_settings(settings.into())
+            .await?
+            .into())
+    }
+
+    pub async fn mcp_server_status(&self) -> Result<McpServerStatusItem> {
+        Ok(self.runtime.mcp_server.status().await.into())
+    }
+
+    pub async fn proxy_settings(&self) -> Result<ProxySettingsItem> {
+        Ok(self.runtime.settings.proxy_settings().await?.into())
+    }
+
+    pub async fn set_proxy_settings(&self, settings: ProxySettingsItem) -> Result<()> {
+        let settings: ProxySettings = settings.try_into()?;
+        settings.validate()?;
+        self.runtime.settings.set_proxy_settings(settings).await
     }
 }

@@ -5,10 +5,10 @@ import 'package:filesize/filesize.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
 
 import '../constants/assets.dart';
-import '../controllers/settings_controller.dart';
 import '../l10n/l10n.dart';
 import '../models/conversation_list_entry.dart';
 import '../src/rust/desktop_api.dart';
@@ -22,14 +22,26 @@ import '../widgets/mixin_dialog.dart';
 import '../widgets/settings_widgets.dart';
 import '../widgets/toast.dart';
 
-class StoragePage extends StatelessWidget {
+class StoragePage extends HookWidget {
   const StoragePage({required this.onOpenStorageUsage, super.key});
 
   final VoidCallback onOpenStorageUsage;
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<SettingsController>();
+    final settings = context.read<SettingsHandle>();
+    final photo = useStream(
+      useMemoized(settings.subscribePhotoAutoDownload),
+      initialData: true,
+    );
+    final video = useStream(
+      useMemoized(settings.subscribeVideoAutoDownload),
+      initialData: true,
+    );
+    final file = useStream(
+      useMemoized(settings.subscribeFileAutoDownload),
+      initialData: true,
+    );
     return Scaffold(
       backgroundColor: context.mixinTheme.background,
       appBar: MixinAppBar(title: Text(context.l10n.dataAndStorageUsage)),
@@ -49,22 +61,28 @@ class StoragePage extends StatelessWidget {
                     CellItem(
                       title: Text(context.l10n.photos),
                       trailing: SettingsSwitch(
-                        value: settings.photoAutoDownload,
-                        onChanged: settings.setPhotoAutoDownload,
+                        value: photo.data!,
+                        onChanged: (value) => unawaited(
+                          settings.setPhotoAutoDownload(value: value),
+                        ),
                       ),
                     ),
                     CellItem(
                       title: Text(context.l10n.videos),
                       trailing: SettingsSwitch(
-                        value: settings.videoAutoDownload,
-                        onChanged: settings.setVideoAutoDownload,
+                        value: video.data!,
+                        onChanged: (value) => unawaited(
+                          settings.setVideoAutoDownload(value: value),
+                        ),
                       ),
                     ),
                     CellItem(
                       title: Text(context.l10n.files),
                       trailing: SettingsSwitch(
-                        value: settings.fileAutoDownload,
-                        onChanged: settings.setFileAutoDownload,
+                        value: file.data!,
+                        onChanged: (value) => unawaited(
+                          settings.setFileAutoDownload(value: value),
+                        ),
                       ),
                     ),
                   ],

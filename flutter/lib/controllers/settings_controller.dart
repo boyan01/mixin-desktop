@@ -1,108 +1,77 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import 'settings_store.dart';
 
 class SettingsController extends ChangeNotifier {
-  static const _themeModeKey = 'settings.themeMode';
-  static const _messageShowAvatarKey = 'settings.messageShowAvatar';
-  static const _messageShowIdentityNumberKey =
-      'settings.messageShowIdentityNumber';
-  static const _messagePreviewKey = 'settings.messagePreview';
-  static const _photoAutoDownloadKey = 'settings.photoAutoDownload';
-  static const _videoAutoDownloadKey = 'settings.videoAutoDownload';
-  static const _fileAutoDownloadKey = 'settings.fileAutoDownload';
-  static const _chatFontSizeDeltaKey = 'settings.chatFontSizeDelta';
+  SettingsController({SettingsStore? store}) : _providedStore = store;
 
-  SharedPreferences? _preferences;
+  final SettingsStore? _providedStore;
+  late final SettingsStore store;
 
   ThemeMode themeMode = ThemeMode.system;
   bool messageShowAvatar = true;
   bool messageShowIdentityNumber = false;
   bool messagePreview = true;
-  bool photoAutoDownload = true;
-  bool videoAutoDownload = true;
-  bool fileAutoDownload = true;
   double chatFontSizeDelta = 0;
 
   Future<void> initialize() async {
-    final preferences = await SharedPreferences.getInstance();
-    _preferences = preferences;
-    themeMode = _themeModeFromName(preferences.getString(_themeModeKey));
+    store = _providedStore ?? await SettingsStore.open();
+    themeMode = switch (await store.get('brightness')) {
+      1 => ThemeMode.dark,
+      2 => ThemeMode.light,
+      _ => ThemeMode.system,
+    };
     messageShowAvatar =
-        preferences.getBool(_messageShowAvatarKey) ?? messageShowAvatar;
+        await store.get('messageShowAvatar') as bool? ?? messageShowAvatar;
     messageShowIdentityNumber =
-        preferences.getBool(_messageShowIdentityNumberKey) ??
+        await store.get('messageShowIdentityNumber') as bool? ??
         messageShowIdentityNumber;
-    messagePreview = preferences.getBool(_messagePreviewKey) ?? messagePreview;
-    photoAutoDownload =
-        preferences.getBool(_photoAutoDownloadKey) ?? photoAutoDownload;
-    videoAutoDownload =
-        preferences.getBool(_videoAutoDownloadKey) ?? videoAutoDownload;
-    fileAutoDownload =
-        preferences.getBool(_fileAutoDownloadKey) ?? fileAutoDownload;
+    messagePreview =
+        await store.get('messagePreview') as bool? ?? messagePreview;
     chatFontSizeDelta =
-        preferences.getDouble(_chatFontSizeDeltaKey) ?? chatFontSizeDelta;
+        (await store.get('chatFontSizeDelta') as num?)?.toDouble() ??
+        chatFontSizeDelta;
   }
 
-  void setThemeMode(ThemeMode value) {
+  Future<void> setThemeMode(ThemeMode value) async {
     if (themeMode == value) return;
     themeMode = value;
-    _preferences?.setString(_themeModeKey, value.name);
     notifyListeners();
+    await store.set(
+      'brightness',
+      switch (value) {
+        ThemeMode.system => 0,
+        ThemeMode.dark => 1,
+        ThemeMode.light => 2,
+      },
+    );
   }
 
-  void setMessageShowAvatar(bool value) {
+  Future<void> setMessageShowAvatar(bool value) async {
     if (messageShowAvatar == value) return;
     messageShowAvatar = value;
-    _preferences?.setBool(_messageShowAvatarKey, value);
     notifyListeners();
+    await store.set('messageShowAvatar', value);
   }
 
-  void setMessageShowIdentityNumber(bool value) {
+  Future<void> setMessageShowIdentityNumber(bool value) async {
     if (messageShowIdentityNumber == value) return;
     messageShowIdentityNumber = value;
-    _preferences?.setBool(_messageShowIdentityNumberKey, value);
     notifyListeners();
+    await store.set('messageShowIdentityNumber', value);
   }
 
-  void setMessagePreview(bool value) {
+  Future<void> setMessagePreview(bool value) async {
     if (messagePreview == value) return;
     messagePreview = value;
-    _preferences?.setBool(_messagePreviewKey, value);
     notifyListeners();
+    await store.set('messagePreview', value);
   }
 
-  void setPhotoAutoDownload(bool value) {
-    if (photoAutoDownload == value) return;
-    photoAutoDownload = value;
-    _preferences?.setBool(_photoAutoDownloadKey, value);
-    notifyListeners();
-  }
-
-  void setVideoAutoDownload(bool value) {
-    if (videoAutoDownload == value) return;
-    videoAutoDownload = value;
-    _preferences?.setBool(_videoAutoDownloadKey, value);
-    notifyListeners();
-  }
-
-  void setFileAutoDownload(bool value) {
-    if (fileAutoDownload == value) return;
-    fileAutoDownload = value;
-    _preferences?.setBool(_fileAutoDownloadKey, value);
-    notifyListeners();
-  }
-
-  void setChatFontSizeDelta(double value) {
+  Future<void> setChatFontSizeDelta(double value) async {
     if (chatFontSizeDelta == value) return;
     chatFontSizeDelta = value;
-    _preferences?.setDouble(_chatFontSizeDeltaKey, value);
     notifyListeners();
-  }
-
-  ThemeMode _themeModeFromName(String? value) {
-    for (final mode in ThemeMode.values) {
-      if (mode.name == value) return mode;
-    }
-    return ThemeMode.system;
+    await store.set('chatFontSizeDelta', value);
   }
 }

@@ -14,6 +14,7 @@ import 'package:window_manager/window_manager.dart';
 import 'app.dart';
 import 'controllers/app_controller.dart';
 import 'controllers/settings_controller.dart';
+import 'src/rust/api/desktop.dart';
 import 'src/rust/frb_generated.dart';
 import 'theme.dart';
 import 'utils/app_logger.dart';
@@ -59,15 +60,17 @@ Future<void> main(List<String> args) async {
   final initialProtocolUrl = defaultTargetPlatform == TargetPlatform.linux
       ? args.firstOrNull
       : await protocolHandler.getInitialUrl();
-  final controller = AppController();
-  unawaited(controller.initialize());
   final settingsController = SettingsController();
   await settingsController.initialize();
+  final desktop = await openDesktop();
+  final controller = AppController(settings: settingsController.store);
+  unawaited(controller.initialize());
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: controller),
         ChangeNotifierProvider.value(value: settingsController),
+        Provider.value(value: desktop.settings),
       ],
       child: OverlaySupport.global(
         child: MixinDesktopApp(initialProtocolUrl: initialProtocolUrl),

@@ -3,9 +3,11 @@ import '../network/core_http_client.dart';
 import '../src/rust/desktop_api.dart';
 
 class NetworkController extends ChangeNotifier {
-  NetworkController(this._desktop) : httpClient = CoreHttpClient(_desktop);
+  NetworkController(DesktopHandle desktop)
+    : settings = desktop.settings,
+      httpClient = CoreHttpClient(desktop);
 
-  final DesktopHandle _desktop;
+  final SettingsHandle settings;
   final CoreHttpClient httpClient;
 
   ProxySettingsItem _settings = const ProxySettingsItem(
@@ -26,7 +28,7 @@ class NetworkController extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      _settings = await _desktop.proxySettings();
+      _settings = await settings.proxySettings();
     } catch (exception) {
       error = exception;
     } finally {
@@ -78,7 +80,7 @@ class NetworkController extends ChangeNotifier {
       final next = update(_settings);
       error = null;
       try {
-        await _desktop.setProxySettings(settings: next);
+        await settings.setProxySettings(settings: next);
         _settings = next;
         revision++;
       } catch (exception) {

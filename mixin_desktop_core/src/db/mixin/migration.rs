@@ -1,138 +1,96 @@
-use anyhow::{bail, Context};
-use futures::{future::BoxFuture, FutureExt};
-use sqlx::{Pool, Sqlite, SqliteConnection};
+use futures::FutureExt;
+use sqlx::SqliteConnection;
 use uuid::Uuid;
 
-pub(crate) const SCHEMA_VERSION: i64 = 28;
-
-type MigrationFuture<'a> = BoxFuture<'a, anyhow::Result<()>>;
-type MigrationAction = for<'a> fn(&'a mut SqliteConnection) -> MigrationFuture<'a>;
-
-/// One command in the ordered database migration pipeline.
-struct Migration {
-    target_version: i64,
-    description: &'static str,
-    apply: MigrationAction,
-}
-
-impl Migration {
-    const fn new(target_version: i64, description: &'static str, apply: MigrationAction) -> Self {
-        Self {
-            target_version,
-            description,
-            apply,
-        }
-    }
-}
+use crate::db::migration::{Migration, MigrationFuture, Migrator};
 
 /// The single source of truth for migration order.
 const MIGRATIONS: &[Migration] = &[
-    Migration::new(3, "rebuild query indexes", migrate_to_v3),
-    Migration::new(
+    Migration::action(3, "rebuild query indexes", migrate_to_v3),
+    Migration::action(
         4,
         "recreate addresses and add message fields",
         migrate_to_v4,
     ),
-    Migration::new(5, "add transcript messages", migrate_to_v5),
-    Migration::new(6, "add pinned messages", migrate_to_v6),
-    Migration::new(7, "add fiat rates", migrate_to_v7),
-    Migration::new(8, "remove the legacy update trigger", migrate_to_v8),
-    Migration::new(9, "add message status lookup index", migrate_to_v9),
-    Migration::new(10, "extend sticker albums", migrate_to_v10),
-    Migration::new(11, "add favorite apps", migrate_to_v11),
-    Migration::new(12, "add snapshot trace ids", migrate_to_v12),
-    Migration::new(13, "add verified sticker albums", migrate_to_v13),
-    Migration::new(14, "add expiring messages", migrate_to_v14),
-    Migration::new(15, "add message category index", migrate_to_v15),
-    Migration::new(16, "add user identity index", migrate_to_v16),
-    Migration::new(17, "add user code fields", migrate_to_v17),
-    Migration::new(18, "add quoted message index", migrate_to_v18),
-    Migration::new(19, "add chains", migrate_to_v19),
-    Migration::new(20, "remove the legacy delete trigger", migrate_to_v20),
-    Migration::new(21, "schedule the FTS background migration", migrate_to_v21),
-    Migration::new(22, "add snapshot balance fields", migrate_to_v22),
-    Migration::new(23, "add properties", migrate_to_v23),
-    Migration::new(24, "add deactivated users", migrate_to_v24),
-    Migration::new(25, "add safe snapshots and tokens", migrate_to_v25),
-    Migration::new(26, "add inscriptions", migrate_to_v26),
-    Migration::new(27, "add memberships", migrate_to_v27),
-    Migration::new(28, "add token precision", migrate_to_v28),
+    Migration::action(5, "add transcript messages", migrate_to_v5),
+    Migration::action(6, "add pinned messages", migrate_to_v6),
+    Migration::sql(
+        7,
+        "add fiat rates",
+        "CREATE TABLE fiats (code TEXT NOT NULL, rate REAL NOT NULL, PRIMARY KEY(code))",
+    ),
+    Migration::sql(
+        8,
+        "remove the legacy update trigger",
+        "DROP TRIGGER IF EXISTS conversation_last_message_update",
+    ),
+    Migration::sql(
+        9,
+        "add message status lookup index",
+        "CREATE INDEX index_message_conversation_id_status_user_id \
+         ON messages(conversation_id, status, user_id)",
+    ),
+    Migration::action(10, "extend sticker albums", migrate_to_v10),
+    Migration::sql(
+        11,
+        "add favorite apps",
+        "CREATE TABLE favorite_apps (app_id TEXT NOT NULL, user_id TEXT NOT NULL, \
+         created_at INTEGER NOT NULL, PRIMARY KEY(app_id, user_id))",
+    ),
+    Migration::action(12, "add snapshot trace ids", migrate_to_v12),
+    Migration::action(13, "add verified sticker albums", migrate_to_v13),
+    Migration::action(14, "add expiring messages", migrate_to_v14),
+    Migration::sql(
+        15,
+        "add message category index",
+        "CREATE INDEX index_messages_conversation_id_category_created_at \
+         ON messages(conversation_id, category, created_at DESC)",
+    ),
+    Migration::sql(
+        16,
+        "add user identity index",
+        "CREATE INDEX index_users_identity_number ON users(identity_number)",
+    ),
+    Migration::action(17, "add user code fields", migrate_to_v17),
+    Migration::sql(
+        18,
+        "add quoted message index",
+        "CREATE INDEX index_messages_conversation_id_quote_message_id \
+         ON messages(conversation_id, quote_message_id)",
+    ),
+    Migration::sql(
+        19,
+        "add chains",
+        "CREATE TABLE chains (chain_id TEXT NOT NULL, name TEXT NOT NULL, symbol TEXT NOT NULL, \
+         icon_url TEXT NOT NULL, threshold INTEGER NOT NULL, PRIMARY KEY(chain_id))",
+    ),
+    Migration::sql(
+        20,
+        "remove the legacy delete trigger",
+        "DROP TRIGGER IF EXISTS conversation_last_message_delete",
+    ),
+    Migration::action(21, "schedule the FTS background migration", migrate_to_v21),
+    Migration::action(22, "add snapshot balance fields", migrate_to_v22),
+    Migration::sql(
+        23,
+        "add properties",
+        "CREATE TABLE properties (\"key\" TEXT NOT NULL, \"group\" TEXT NOT NULL, \
+         \"value\" TEXT NOT NULL, PRIMARY KEY(\"key\", \"group\"))",
+    ),
+    Migration::action(24, "add deactivated users", migrate_to_v24),
+    Migration::action(25, "add safe snapshots and tokens", migrate_to_v25),
+    Migration::action(26, "add inscriptions", migrate_to_v26),
+    Migration::action(27, "add memberships", migrate_to_v27),
+    Migration::action(28, "add token precision", migrate_to_v28),
 ];
 
-pub(crate) async fn migrate(pool: &Pool<Sqlite>) -> anyhow::Result<()> {
-    validate_registry()?;
-    let source_version = crate::db::migration::user_version(pool).await?;
-    if source_version > SCHEMA_VERSION {
-        bail!("mixin database version {source_version} is newer than supported {SCHEMA_VERSION}");
-    }
-    if source_version == SCHEMA_VERSION {
-        return Ok(());
-    }
-    if source_version == 0 {
-        return create_current_schema(pool).await;
-    }
-
-    run_migrations(pool, source_version).await
-}
-
-fn validate_registry() -> anyhow::Result<()> {
-    let mut previous = 0;
-    for migration in MIGRATIONS {
-        if migration.target_version <= previous {
-            bail!("mixin migrations must be ordered by target version");
-        }
-        previous = migration.target_version;
-    }
-    if previous != SCHEMA_VERSION {
-        bail!("latest mixin migration is v{previous}, but schema version is v{SCHEMA_VERSION}");
-    }
-    Ok(())
-}
-
-async fn create_current_schema(pool: &Pool<Sqlite>) -> anyhow::Result<()> {
-    if crate::db::migration::has_application_tables(pool).await? {
-        bail!("mixin database has no Drift user_version");
-    }
-
-    let mut transaction = pool.begin_with("BEGIN IMMEDIATE").await?;
-    sqlx::raw_sql(include_str!("schema.sql"))
-        .execute(&mut *transaction)
-        .await?;
-    set_current_version(&mut transaction).await?;
-    transaction.commit().await?;
-    Ok(())
-}
-
-async fn run_migrations(pool: &Pool<Sqlite>, source_version: i64) -> anyhow::Result<()> {
-    let mut transaction = pool.begin_with("BEGIN IMMEDIATE").await?;
-    for migration in MIGRATIONS
-        .iter()
-        .filter(|migration| migration.target_version > source_version)
-    {
-        log::info!(
-            "Migrating mixin database to v{}: {}",
-            migration.target_version,
-            migration.description
-        );
-        (migration.apply)(&mut transaction).await.with_context(|| {
-            format!(
-                "migrate mixin database to v{}: {}",
-                migration.target_version, migration.description
-            )
-        })?;
-    }
-    set_current_version(&mut transaction).await?;
-    transaction.commit().await?;
-    Ok(())
-}
-
-async fn set_current_version(connection: &mut SqliteConnection) -> anyhow::Result<()> {
-    let statement = format!("PRAGMA user_version = {SCHEMA_VERSION}");
-    sqlx::query(sqlx::AssertSqlSafe(statement))
-        .execute(connection)
-        .await?;
-    Ok(())
-}
+pub(crate) const SCHEMA_VERSION: i64 = 28;
+pub(crate) const MIGRATOR: Migrator = Migrator::new(
+    "mixin",
+    SCHEMA_VERSION,
+    include_str!("schema.sql"),
+    MIGRATIONS,
+);
 
 fn migrate_to_v21(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
     async move {
@@ -243,28 +201,6 @@ CREATE INDEX index_pin_messages_conversation_id ON pin_messages(conversation_id)
     .boxed()
 }
 
-fn migrate_to_v7(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
-    execute(
-        connection,
-        "CREATE TABLE fiats (code TEXT NOT NULL, rate REAL NOT NULL, PRIMARY KEY(code))",
-    )
-}
-
-fn migrate_to_v8(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
-    execute(
-        connection,
-        "DROP TRIGGER IF EXISTS conversation_last_message_update",
-    )
-}
-
-fn migrate_to_v9(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
-    execute(
-        connection,
-        "CREATE INDEX index_message_conversation_id_status_user_id \
-         ON messages(conversation_id, status, user_id)",
-    )
-}
-
 fn migrate_to_v10(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
     async move {
         add_column(
@@ -288,14 +224,6 @@ fn migrate_to_v10(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
         Ok(())
     }
     .boxed()
-}
-
-fn migrate_to_v11(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
-    execute(
-        connection,
-        "CREATE TABLE favorite_apps (app_id TEXT NOT NULL, user_id TEXT NOT NULL, \
-         created_at INTEGER NOT NULL, PRIMARY KEY(app_id, user_id))",
-    )
 }
 
 fn migrate_to_v12(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
@@ -325,50 +253,12 @@ fn migrate_to_v14(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
     .boxed()
 }
 
-fn migrate_to_v15(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
-    execute(
-        connection,
-        "CREATE INDEX index_messages_conversation_id_category_created_at \
-         ON messages(conversation_id, category, created_at DESC)",
-    )
-}
-
-fn migrate_to_v16(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
-    execute(
-        connection,
-        "CREATE INDEX index_users_identity_number ON users(identity_number)",
-    )
-}
-
 fn migrate_to_v17(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
     async move {
         add_column(connection, "users", "code_url", "TEXT").await?;
         add_column(connection, "users", "code_id", "TEXT").await
     }
     .boxed()
-}
-
-fn migrate_to_v18(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
-    execute(
-        connection,
-        "CREATE INDEX index_messages_conversation_id_quote_message_id \
-         ON messages(conversation_id, quote_message_id)",
-    )
-}
-
-fn migrate_to_v19(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
-    execute(
-        connection,
-        "CREATE TABLE chains (chain_id TEXT NOT NULL, name TEXT NOT NULL, symbol TEXT NOT NULL, \
-         icon_url TEXT NOT NULL, threshold INTEGER NOT NULL, PRIMARY KEY(chain_id))",
-    )
-}
-
-fn migrate_to_v20(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
-    execute(
-        connection,
-        "DROP TRIGGER IF EXISTS conversation_last_message_delete",
-    )
 }
 
 fn migrate_to_v22(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
@@ -378,14 +268,6 @@ fn migrate_to_v22(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
         add_column(connection, "snapshots", "closing_balance", "TEXT").await
     }
     .boxed()
-}
-
-fn migrate_to_v23(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
-    execute(
-        connection,
-        "CREATE TABLE properties (\"key\" TEXT NOT NULL, \"group\" TEXT NOT NULL, \
-         \"value\" TEXT NOT NULL, PRIMARY KEY(\"key\", \"group\"))",
-    )
 }
 
 fn migrate_to_v24(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
@@ -457,14 +339,6 @@ fn migrate_to_v28(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
     )
 }
 
-fn execute<'a>(connection: &'a mut SqliteConnection, sql: &'static str) -> MigrationFuture<'a> {
-    async move {
-        sqlx::query(sql).execute(connection).await?;
-        Ok(())
-    }
-    .boxed()
-}
-
 fn add_column_boxed<'a>(
     connection: &'a mut SqliteConnection,
     table: &'static str,
@@ -504,7 +378,7 @@ mod tests {
 
     #[test]
     fn migration_registry_is_ordered_and_current() {
-        validate_registry().unwrap();
+        MIGRATOR.validate().unwrap();
     }
 
     #[tokio::test]

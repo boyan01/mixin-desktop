@@ -1,11 +1,15 @@
+use std::io::BufReader;
 use std::sync::{Arc, Mutex};
 
+use anyhow::Result;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use sqlx::{Pool, Sqlite};
+
 use crate::core::crypto::signal_protocol::MAX_VALUE;
-use crate::db::key_value::KeyValue;
 
 pub struct CryptoKeyValue {
-    key_value: KeyValue,
-    group: String,
+    pool: Pool<Sqlite>,
     inner: Arc<Mutex<CryptoKeyValueInner>>,
 }
 
@@ -20,10 +24,9 @@ const KEY_NEXT_SIGNED_PRE_KEY_ID: &str = "next_signed_pre_key_id";
 const KEY_HAS_PUSH_SIGNAL_KEYS: &str = "has_push_signal_keys";
 
 impl CryptoKeyValue {
-    pub fn new(key_value: KeyValue, identity_number: String) -> Self {
+    pub fn new(pool: Pool<Sqlite>) -> Self {
         CryptoKeyValue {
-            key_value,
-            group: format!("crypto:{identity_number}"),
+            pool,
             inner: Arc::new(Mutex::new(CryptoKeyValueInner {
                 next_pre_key_id: 0,
                 next_signed_pre_key_id: 0,
@@ -32,27 +35,25 @@ impl CryptoKeyValue {
         }
     }
 
-    pub async fn init(&self) {
+    pub async fn init(&self) -> Result<()> {
         let next_pre_key_id: u32 = self
-            .key_value
-            .get_value(KEY_NEXT_PRE_KEY_ID, &self.group)
-            .await
+            .get_property(KEY_NEXT_PRE_KEY_ID)
+            .await?
             .unwrap_or_else(|| rand::random_range(0..MAX_VALUE));
         let next_signed_pre_key_id: u32 = self
-            .key_value
-            .get_value(KEY_NEXT_SIGNED_PRE_KEY_ID, &self.group)
-            .await
+            .get_property(KEY_NEXT_SIGNED_PRE_KEY_ID)
+            .await?
             .unwrap_or_else(|| rand::random_range(0..MAX_VALUE));
         let has_push_signal_keys: bool = self
-            .key_value
-            .get_value(KEY_HAS_PUSH_SIGNAL_KEYS, &self.group)
-            .await
+            .get_property(KEY_HAS_PUSH_SIGNAL_KEYS)
+            .await?
             .unwrap_or(false);
 
         let mut inner = self.inner.lock().unwrap();
         inner.next_pre_key_id = next_pre_key_id;
         inner.next_signed_pre_key_id = next_signed_pre_key_id;
         inner.has_push_signal_keys = has_push_signal_keys;
+        Ok(())
     }
 
     pub fn next_pre_key_id(&self) -> u32 {
@@ -67,34 +68,54 @@ impl CryptoKeyValue {
         self.inner.lock().unwrap().has_push_signal_keys
     }
 
-    pub async fn set_next_pre_key_id(&self, next_pre_key_id: u32) {
+    pub async fn set_next_pre_key_id(&self, next_pre_key_id: u32) -> Result<()> {
         self.inner.lock().unwrap().next_pre_key_id = next_pre_key_id;
-        self.key_value
-            .set_value(KEY_NEXT_PRE_KEY_ID, &self.group, &next_pre_key_id)
-            .await;
+        self.set_property(KEY_NEXT_PRE_KEY_ID, &next_pre_key_id)
+            .await
     }
 
-    pub async fn set_next_signed_pre_key_id(&self, next_signed_pre_key_id: u32) {
+    pub async fn set_next_signed_pre_key_id(&self, next_signed_pre_key_id: u32) -> Result<()> {
         self.inner.lock().unwrap().next_signed_pre_key_id = next_signed_pre_key_id;
-        self.key_value
-            .set_value(
-                KEY_NEXT_SIGNED_PRE_KEY_ID,
-                &self.group,
-                &next_signed_pre_key_id,
-            )
-            .await;
+        self.set_property(KEY_NEXT_SIGNED_PRE_KEY_ID, &next_signed_pre_key_id)
+            .await
     }
 
-    pub async fn set_has_push_signal_keys(&self, has_push_signal_keys: bool) {
+    pub async fn set_has_push_signal_keys(&self, has_push_signal_keys: bool) -> Result<()> {
         self.inner.lock().unwrap().has_push_signal_keys = has_push_signal_keys;
-        self.key_value
-            .set_value(KEY_HAS_PUSH_SIGNAL_KEYS, &self.group, &has_push_signal_keys)
-            .await;
+        self.set_property(KEY_HAS_PUSH_SIGNAL_KEYS, &has_push_signal_keys)
+            .await
     }
 
-    pub async fn clear(&self) {
-        if let Err(error) = self.key_value.clear_by_group(&self.group).await {
-            log::error!("failed to clear signal properties: {error}");
-        }
+    async fn get_property<T>(&self, key: &str) -> Result<Option<T>>
+    where
+        T: DeserializeOwned,
+    {
+        let value: Option<String> =
+            sqlx::query_scalar("SELECT value FROM properties WHERE key = ?")
+                .bind(key)
+                .fetch_optional(&self.pool)
+                .await?;
+        let Some(value) = value else {
+            return Ok(None);
+        };
+        Ok(Some(serde_json::from_reader(BufReader::new(
+            value.as_bytes(),
+        ))?))
+    }
+
+    async fn set_property<T>(&self, key: &str, value: &T) -> Result<()>
+    where
+        T: Serialize + ?Sized,
+    {
+        let value = serde_json::to_string(value)?;
+        sqlx::query(
+            "INSERT INTO properties (key, value) VALUES (?, ?)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        )
+        .bind(key)
+        .bind(value)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 }

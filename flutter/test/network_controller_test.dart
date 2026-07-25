@@ -47,24 +47,16 @@ void main() {
 }
 
 class _FakeDesktopHandle implements DesktopHandle {
-  ProxySettingsItem settings = const ProxySettingsItem(
-    enabled: false,
-    proxies: [],
-  );
-  final savedSettings = <ProxySettingsItem>[];
+  final settingsHandle = _FakeSettingsHandle();
   String? lastMethod;
   String? lastUrl;
   Map<String, String>? lastHeaders;
   Uint8List? lastBody;
 
-  @override
-  Future<ProxySettingsItem> proxySettings() async => settings;
+  List<ProxySettingsItem> get savedSettings => settingsHandle.savedSettings;
 
   @override
-  Future<void> setProxySettings({required ProxySettingsItem settings}) async {
-    this.settings = settings;
-    savedSettings.add(settings);
-  }
+  SettingsHandle get settings => settingsHandle;
 
   @override
   Future<HttpResponseItem> httpRequest({
@@ -84,6 +76,26 @@ class _FakeDesktopHandle implements DesktopHandle {
       headers: const {'content-type': 'text/plain'},
       body: Uint8List.fromList('response'.codeUnits),
     );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeSettingsHandle implements SettingsHandle {
+  ProxySettingsItem proxy = const ProxySettingsItem(
+    enabled: false,
+    proxies: [],
+  );
+  final savedSettings = <ProxySettingsItem>[];
+
+  @override
+  Future<ProxySettingsItem> proxySettings() async => proxy;
+
+  @override
+  Future<void> setProxySettings({required ProxySettingsItem settings}) async {
+    proxy = settings;
+    savedSettings.add(settings);
   }
 
   @override

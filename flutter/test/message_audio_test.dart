@@ -6,6 +6,8 @@ import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/message_audio.dart';
 import 'package:provider/provider.dart';
 
+import 'test_settings_store.dart';
+
 void main() {
   testWidgets('dispatches download and cancel actions', (tester) async {
     var downloaded = false;
@@ -58,7 +60,7 @@ class _TestApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ChangeNotifierProvider(
-    create: (_) => SettingsController(),
+    create: (_) => SettingsController(store: TestSettingsStore()),
     child: MaterialApp(
       theme: buildMixinTheme(Brightness.light),
       home: Scaffold(body: Center(child: child)),

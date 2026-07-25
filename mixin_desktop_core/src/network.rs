@@ -1,107 +1,21 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
+use futures::StreamExt as _;
+use log::error;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Method, Proxy};
-use serde::{Deserialize, Serialize};
-use tokio::sync::RwLock;
+use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use url::Url;
 
-use crate::db::app::PropertyDao;
+use crate::db::app::SettingDao;
+pub use crate::db::app::{ProxyConfig, ProxySettings, ProxyType};
 
-const PROPERTY_GROUP: &str = "network";
-const PROXY_SETTINGS_KEY: &str = "proxy_settings";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_RESPONSE_BYTES: usize = 32 * 1024 * 1024;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum ProxyType {
-    Http,
-    Socks5,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ProxyConfig {
-    pub id: String,
-    #[serde(rename = "type")]
-    pub proxy_type: ProxyType,
-    pub host: String,
-    pub port: u16,
-    pub username: Option<String>,
-    pub password: Option<String>,
-}
-
-impl ProxyConfig {
-    fn validate(&self) -> Result<()> {
-        if self.id.trim().is_empty() {
-            return Err(anyhow!("proxy id is required"));
-        }
-        if self.host.trim().is_empty() {
-            return Err(anyhow!("proxy host is required"));
-        }
-        if self.port == 0 {
-            return Err(anyhow!("proxy port is invalid"));
-        }
-        self.url()?;
-        Ok(())
-    }
-
-    fn url(&self) -> Result<Url> {
-        let scheme = match self.proxy_type {
-            ProxyType::Http => "http",
-            ProxyType::Socks5 => "socks5",
-        };
-        let mut url = Url::parse(&format!("{scheme}://{}:{}", self.host, self.port))?;
-        if let Some(username) = self.username.as_deref().filter(|value| !value.is_empty()) {
-            url.set_username(username)
-                .map_err(|_| anyhow!("proxy username is invalid"))?;
-        }
-        if let Some(password) = self.password.as_deref().filter(|value| !value.is_empty()) {
-            url.set_password(Some(password))
-                .map_err(|_| anyhow!("proxy password is invalid"))?;
-        }
-        Ok(url)
-    }
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ProxySettings {
-    pub enabled: bool,
-    pub selected_proxy_id: Option<String>,
-    pub proxies: Vec<ProxyConfig>,
-}
-
-impl ProxySettings {
-    fn validate(&self) -> Result<()> {
-        let mut ids = HashSet::new();
-        for proxy in &self.proxies {
-            proxy.validate()?;
-            if !ids.insert(proxy.id.as_str()) {
-                return Err(anyhow!("duplicate proxy id"));
-            }
-        }
-        if let Some(selected) = self.selected_proxy_id.as_deref() {
-            if !ids.contains(selected) {
-                return Err(anyhow!("selected proxy does not exist"));
-            }
-        }
-        if self.enabled && self.active_proxy().is_none() {
-            return Err(anyhow!("enabled proxy has no selection"));
-        }
-        Ok(())
-    }
-
-    pub fn active_proxy(&self) -> Option<&ProxyConfig> {
-        if !self.enabled {
-            return None;
-        }
-        let selected = self.selected_proxy_id.as_deref()?;
-        self.proxies.iter().find(|proxy| proxy.id == selected)
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct HttpResponse {
@@ -110,46 +24,47 @@ pub struct HttpResponse {
     pub body: Vec<u8>,
 }
 
-struct NetworkState {
-    settings: ProxySettings,
-    client: reqwest::Client,
-}
-
 pub struct NetworkService {
-    property_dao: PropertyDao,
-    state: RwLock<NetworkState>,
+    client: watch::Receiver<reqwest::Client>,
+    settings_task: JoinHandle<()>,
 }
 
 impl NetworkService {
-    pub async fn new(property_dao: PropertyDao) -> Result<Self> {
-        let settings = match property_dao.get(PROPERTY_GROUP, PROXY_SETTINGS_KEY).await? {
-            Some(value) => serde_json::from_str::<ProxySettings>(&value)
-                .context("invalid persisted proxy settings")?,
-            None => ProxySettings::default(),
-        };
-        settings.validate()?;
-        let client = build_client(settings.active_proxy())?;
+    pub async fn new(setting_dao: SettingDao) -> Result<Self> {
+        let mut settings = Box::pin(setting_dao.subscribe_proxy_settings());
+        let initial = settings
+            .next()
+            .await
+            .transpose()?
+            .ok_or_else(|| anyhow!("proxy settings subscription closed"))?;
+        initial.validate()?;
+        let client = build_client(initial.active_proxy())?;
+        let (client_sender, client) = watch::channel(client);
+        let settings_task = tokio::spawn(async move {
+            while let Some(next) = settings.next().await {
+                let next = match next {
+                    Ok(next) => next,
+                    Err(error) => {
+                        error!("proxy settings subscription failed: {error:?}");
+                        return;
+                    }
+                };
+                if let Err(error) = next.validate() {
+                    error!("invalid proxy settings update: {error:?}");
+                    continue;
+                }
+                match build_client(next.active_proxy()) {
+                    Ok(client) => {
+                        client_sender.send_replace(client);
+                    }
+                    Err(error) => error!("failed to apply proxy settings: {error:?}"),
+                }
+            }
+        });
         Ok(Self {
-            property_dao,
-            state: RwLock::new(NetworkState { settings, client }),
+            client,
+            settings_task,
         })
-    }
-
-    pub async fn proxy_settings(&self) -> ProxySettings {
-        self.state.read().await.settings.clone()
-    }
-
-    pub async fn set_proxy_settings(&self, settings: ProxySettings) -> Result<()> {
-        settings.validate()?;
-        let client = build_client(settings.active_proxy())?;
-        let encoded = serde_json::to_string(&settings)?;
-        self.property_dao
-            .set(PROPERTY_GROUP, PROXY_SETTINGS_KEY, &encoded)
-            .await?;
-        let mut state = self.state.write().await;
-        state.settings = settings;
-        state.client = client;
-        Ok(())
     }
 
     pub async fn request(
@@ -173,7 +88,7 @@ impl NetworkService {
                 HeaderValue::from_str(&value)?,
             );
         }
-        let client = self.state.read().await.client.clone();
+        let client = self.client.borrow().clone();
         let mut request = client
             .request(method, url)
             .headers(request_headers)
@@ -218,6 +133,12 @@ impl NetworkService {
     }
 }
 
+impl Drop for NetworkService {
+    fn drop(&mut self) {
+        self.settings_task.abort();
+    }
+}
+
 fn build_client(proxy: Option<&ProxyConfig>) -> Result<reqwest::Client> {
     let mut builder = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(10))
@@ -239,38 +160,6 @@ mod tests {
     use crate::db::app::AppDatabase;
 
     #[tokio::test]
-    async fn persists_proxy_settings_in_app_database() {
-        let directory = tempfile::tempdir().unwrap();
-        let database = AppDatabase::connect_at(directory.path().join("app.db"))
-            .await
-            .unwrap();
-        let service = NetworkService::new(database.property_dao.clone())
-            .await
-            .unwrap();
-        let settings = ProxySettings {
-            enabled: false,
-            selected_proxy_id: Some("local".to_owned()),
-            proxies: vec![ProxyConfig {
-                id: "local".to_owned(),
-                proxy_type: ProxyType::Http,
-                host: "127.0.0.1".to_owned(),
-                port: 7890,
-                username: Some("user".to_owned()),
-                password: Some("password".to_owned()),
-            }],
-        };
-
-        service.set_proxy_settings(settings.clone()).await.unwrap();
-        let restored = NetworkService::new(database.property_dao)
-            .await
-            .unwrap()
-            .proxy_settings()
-            .await;
-
-        assert_eq!(restored, settings);
-    }
-
-    #[tokio::test]
     async fn performs_http_request_and_returns_response_metadata() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
@@ -290,7 +179,7 @@ mod tests {
         let database = AppDatabase::connect_at(directory.path().join("app.db"))
             .await
             .unwrap();
-        let service = NetworkService::new(database.property_dao).await.unwrap();
+        let service = NetworkService::new(database.setting_dao).await.unwrap();
 
         let response = service
             .request(
@@ -331,8 +220,10 @@ mod tests {
         let database = AppDatabase::connect_at(directory.path().join("app.db"))
             .await
             .unwrap();
-        let service = NetworkService::new(database.property_dao).await.unwrap();
-        service
+        let settings = database.setting_dao.clone();
+        let service = NetworkService::new(database.setting_dao).await.unwrap();
+        let mut client_changes = service.client.clone();
+        settings
             .set_proxy_settings(ProxySettings {
                 enabled: true,
                 selected_proxy_id: Some("proxy".to_owned()),
@@ -346,6 +237,10 @@ mod tests {
                 }],
             })
             .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(1), client_changes.changed())
+            .await
+            .unwrap()
             .unwrap();
 
         let response = service

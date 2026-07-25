@@ -51,7 +51,7 @@ impl SignalService {
         self.signal_database
             .crypto_key_value
             .set_has_push_signal_keys(true)
-            .await;
+            .await?;
         Ok(())
     }
 
@@ -82,7 +82,7 @@ impl SignalService {
 
         crypto_key_value
             .set_next_pre_key_id((pre_key_offset + PRE_KEY_BATCH_SIZE + 1) & MAX_VALUE)
-            .await;
+            .await?;
 
         Ok(records)
     }
@@ -114,7 +114,7 @@ impl SignalService {
             .map_err(|e| anyhow!("failed to save signed pre key: {e}"))?;
         crypto_key_value
             .set_next_signed_pre_key_id((signed_pre_key_id + 1) % MAX_VALUE)
-            .await;
+            .await?;
 
         Ok(record)
     }

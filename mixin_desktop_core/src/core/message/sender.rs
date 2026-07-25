@@ -228,7 +228,7 @@ impl MessageSender {
             .signal_database
             .crypto_key_value
             .set_has_push_signal_keys(true)
-            .await;
+            .await?;
         *self.last_signal_key_refresh.lock().unwrap() = Some(now);
         info!("Registering new pre keys... {}", conversation_id);
         Ok(())

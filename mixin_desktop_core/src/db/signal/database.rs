@@ -1,13 +1,12 @@
 use std::error::Error;
 use std::path::Path;
 
-use anyhow::{anyhow, bail};
+use anyhow::anyhow;
 use libsignal_protocol::{IdentityKeyPair, PrivateKey};
 use rand_core::OsRng;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
 use crate::db;
-use crate::db::key_value::KeyValue;
 use crate::db::signal::crypto_store::CryptoKeyValue;
 use crate::db::signal::identity::{Identity, IdentityDao};
 use crate::db::signal::pre_key::PreKeyDao;
@@ -29,28 +28,10 @@ pub struct SignalDatabase {
 impl SignalDatabase {
     pub async fn connect(identity_number: String) -> Result<Self, Box<dyn Error>> {
         let path = crate::db::path::account_database_path(&identity_number, "signal.db")?;
-        let app_database = crate::db::app::AppDatabase::connect().await?;
-        let key_value = KeyValue(app_database.property_dao.0.clone());
-        Self::connect_with_key_value(path, key_value, identity_number).await
+        Self::connect_at(path).await
     }
 
     pub async fn connect_at(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
-        let path = path.as_ref();
-        let app_database = crate::db::app::AppDatabase::connect_at(
-            path.parent()
-                .unwrap_or_else(|| Path::new("."))
-                .join("app.db"),
-        )
-        .await?;
-        let key_value = KeyValue(app_database.property_dao.0.clone());
-        Self::connect_with_key_value(path, key_value, "test".to_string()).await
-    }
-
-    async fn connect_with_key_value(
-        path: impl AsRef<Path>,
-        key_value: KeyValue,
-        identity_number: String,
-    ) -> Result<Self, Box<dyn Error>> {
         let path = path.as_ref();
         crate::db::path::create_parent_directory(path).await?;
         let pool = SqlitePoolOptions::new()
@@ -63,7 +44,7 @@ impl SignalDatabase {
                     .create_if_missing(true),
             )
             .await?;
-        migrate(&pool).await?;
+        super::migration::MIGRATOR.migrate(&pool).await?;
 
         let database = SignalDatabase {
             pre_key_dao: PreKeyDao(pool.clone()),
@@ -71,10 +52,10 @@ impl SignalDatabase {
             session_dao: SessionDao(pool.clone()),
             sender_key_dao: SenderKeyDao(pool.clone()),
             identity_dao: IdentityDao(pool.clone()),
-            crypto_key_value: CryptoKeyValue::new(key_value, identity_number),
+            crypto_key_value: CryptoKeyValue::new(pool.clone()),
             ratchet_sender_key_dao: RatchetSenderKeyDao(pool.clone()),
         };
-        database.crypto_key_value.init().await;
+        database.crypto_key_value.init().await?;
         Ok(database)
     }
 
@@ -110,44 +91,19 @@ impl SignalDatabase {
             "signed_prekeys",
             "sessions",
             "ratchet_sender_keys",
+            "properties",
         ] {
             sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM {table}")))
                 .execute(&mut *transaction)
                 .await?;
         }
         transaction.commit().await?;
-        self.crypto_key_value.clear().await;
         Ok(())
     }
 
     pub async fn close(&self) {
         self.pre_key_dao.0.close().await;
     }
-}
-
-const SCHEMA_VERSION: i64 = 1;
-
-async fn migrate(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
-    let version = crate::db::migration::user_version(pool).await?;
-    if version > SCHEMA_VERSION {
-        bail!("signal database version {version} is newer than supported {SCHEMA_VERSION}");
-    }
-    if version == SCHEMA_VERSION {
-        return Ok(());
-    }
-    if crate::db::migration::has_application_tables(pool).await? {
-        bail!("signal database has no Drift user_version");
-    }
-
-    let mut transaction = pool.begin_with("BEGIN IMMEDIATE").await?;
-    sqlx::raw_sql(include_str!("schema.sql"))
-        .execute(&mut *transaction)
-        .await?;
-    sqlx::query("PRAGMA user_version = 1")
-        .execute(&mut *transaction)
-        .await?;
-    transaction.commit().await?;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -194,6 +150,7 @@ mod tests {
             "INSERT INTO signed_prekeys (prekey_id, record, timestamp) VALUES (1, X'01', 1)",
             "INSERT INTO sessions (address, device, record, timestamp) VALUES ('address', 1, X'01', 1)",
             "INSERT INTO ratchet_sender_keys VALUES ('group', 'sender', 'SENT', 'message', '2026-07-16T00:00:00Z')",
+            "INSERT INTO properties VALUES ('has_push_signal_keys', 'true')",
         ] {
             sqlx::query(statement).execute(pool).await?;
         }
@@ -207,6 +164,7 @@ mod tests {
             "signed_prekeys",
             "sessions",
             "ratchet_sender_keys",
+            "properties",
         ] {
             let count: i64 =
                 sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT COUNT(*) FROM {table}")))
@@ -214,6 +172,69 @@ mod tests {
                     .await?;
             assert_eq!(count, 0, "{table} was not cleared");
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn v1_upgrade_copies_legacy_app_counters_into_signal_properties(
+    ) -> Result<(), Box<dyn Error>> {
+        let directory = tempfile::tempdir()?;
+        let account_directory = directory.path().join("7000");
+        tokio::fs::create_dir(&account_directory).await?;
+        let path = account_directory.join("signal.db");
+        let pool = SqlitePoolOptions::new()
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(&path)
+                    .create_if_missing(true),
+            )
+            .await?;
+        sqlx::raw_sql(include_str!("schema.sql"))
+            .execute(&pool)
+            .await?;
+        sqlx::query("DROP TABLE properties").execute(&pool).await?;
+        sqlx::query("PRAGMA user_version = 1")
+            .execute(&pool)
+            .await?;
+        pool.close().await;
+
+        let app_pool = SqlitePoolOptions::new()
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(directory.path().join("app.db"))
+                    .create_if_missing(true),
+            )
+            .await?;
+        sqlx::raw_sql(
+            r#"CREATE TABLE properties (
+                "key" TEXT NOT NULL,
+                "group" TEXT NOT NULL,
+                "value" TEXT NOT NULL,
+                PRIMARY KEY ("key", "group")
+            );
+            INSERT INTO properties VALUES ('next_pre_key_id', 'crypto:7000', '123');
+            INSERT INTO properties VALUES ('next_signed_pre_key_id', 'crypto:7000', '456');
+            INSERT INTO properties VALUES ('has_push_signal_keys', 'crypto:7000', 'true');"#,
+        )
+        .execute(&app_pool)
+        .await?;
+        app_pool.close().await;
+
+        let database = SignalDatabase::connect_at(&path).await?;
+        let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+            .fetch_one(&database.pre_key_dao.0)
+            .await?;
+        let properties: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'properties'",
+        )
+        .fetch_one(&database.pre_key_dao.0)
+        .await?;
+
+        assert_eq!(version, super::super::migration::SCHEMA_VERSION);
+        assert_eq!(properties, 1);
+        assert_eq!(database.crypto_key_value.next_pre_key_id(), 123);
+        assert_eq!(database.crypto_key_value.next_signed_pre_key_id(), 456);
+        assert!(database.crypto_key_value.has_push_signal_keys());
         Ok(())
     }
 }

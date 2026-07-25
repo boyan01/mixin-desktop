@@ -494,10 +494,10 @@ class _SignedInBodyState extends State<_SignedInBody> {
   )..initialize();
   late final SecurityController _securityController = SecurityController(
     widget.account.profile().userId,
+    context.read<SettingsController>().store,
   );
   late final Future<void> _securityInitialized = _securityController
       .initialize();
-
   @override
   void dispose() {
     _networkController.dispose();

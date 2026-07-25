@@ -254,7 +254,7 @@ return connectionFailed(_that.field0);case _:
 
 class DeviceTransferEvent_RestoreConnected extends DeviceTransferEvent {
   const DeviceTransferEvent_RestoreConnected(): super._();
-
+  
 
 
 
@@ -286,7 +286,7 @@ String toString() {
 
 class DeviceTransferEvent_RestoreStart extends DeviceTransferEvent {
   const DeviceTransferEvent_RestoreStart(): super._();
-
+  
 
 
 
@@ -318,7 +318,7 @@ String toString() {
 
 class DeviceTransferEvent_RestoreSucceed extends DeviceTransferEvent {
   const DeviceTransferEvent_RestoreSucceed(): super._();
-
+  
 
 
 
@@ -350,7 +350,7 @@ String toString() {
 
 class DeviceTransferEvent_RestoreFailed extends DeviceTransferEvent {
   const DeviceTransferEvent_RestoreFailed(): super._();
-
+  
 
 
 
@@ -382,7 +382,7 @@ String toString() {
 
 class DeviceTransferEvent_BackupServerCreated extends DeviceTransferEvent {
   const DeviceTransferEvent_BackupServerCreated(): super._();
-
+  
 
 
 
@@ -414,7 +414,7 @@ String toString() {
 
 class DeviceTransferEvent_BackupStart extends DeviceTransferEvent {
   const DeviceTransferEvent_BackupStart(): super._();
-
+  
 
 
 
@@ -446,7 +446,7 @@ String toString() {
 
 class DeviceTransferEvent_BackupSucceed extends DeviceTransferEvent {
   const DeviceTransferEvent_BackupSucceed(): super._();
-
+  
 
 
 
@@ -478,7 +478,7 @@ String toString() {
 
 class DeviceTransferEvent_BackupFailed extends DeviceTransferEvent {
   const DeviceTransferEvent_BackupFailed(): super._();
-
+  
 
 
 
@@ -510,7 +510,7 @@ String toString() {
 
 class DeviceTransferEvent_RestoreProgress extends DeviceTransferEvent {
   const DeviceTransferEvent_RestoreProgress(this.field0): super._();
-
+  
 
  final  double field0;
 
@@ -576,7 +576,7 @@ as double,
 
 class DeviceTransferEvent_BackupProgress extends DeviceTransferEvent {
   const DeviceTransferEvent_BackupProgress(this.field0): super._();
-
+  
 
  final  double field0;
 
@@ -642,7 +642,7 @@ as double,
 
 class DeviceTransferEvent_RestoreNetworkSpeed extends DeviceTransferEvent {
   const DeviceTransferEvent_RestoreNetworkSpeed(this.field0): super._();
-
+  
 
  final  double field0;
 
@@ -708,7 +708,7 @@ as double,
 
 class DeviceTransferEvent_BackupNetworkSpeed extends DeviceTransferEvent {
   const DeviceTransferEvent_BackupNetworkSpeed(this.field0): super._();
-
+  
 
  final  double field0;
 
@@ -774,7 +774,7 @@ as double,
 
 class DeviceTransferEvent_BackupRequestReceived extends DeviceTransferEvent {
   const DeviceTransferEvent_BackupRequestReceived(): super._();
-
+  
 
 
 
@@ -806,7 +806,7 @@ String toString() {
 
 class DeviceTransferEvent_RestoreRequestReceived extends DeviceTransferEvent {
   const DeviceTransferEvent_RestoreRequestReceived(): super._();
-
+  
 
 
 
@@ -838,7 +838,7 @@ String toString() {
 
 class DeviceTransferEvent_ConnectionFailed extends DeviceTransferEvent {
   const DeviceTransferEvent_ConnectionFailed(this.field0): super._();
-
+  
 
  final  ConnectionFailedReason field0;
 

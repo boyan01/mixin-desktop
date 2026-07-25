@@ -1,19 +1,23 @@
-use anyhow::{bail, Context};
+use anyhow::Context;
 use std::path::Path;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
 pub use auth::*;
 pub use property::*;
+pub use settings::*;
 
 use crate::db::Error;
 
 pub mod auth;
 mod legacy_hive;
+mod migration;
 pub mod property;
+mod settings;
 pub struct AppDatabase {
     pub auth_dao: AuthDao,
     pub property_dao: PropertyDao,
+    pub setting_dao: SettingDao,
 }
 
 impl AppDatabase {
@@ -36,40 +40,17 @@ impl AppDatabase {
                     .create_if_missing(true),
             )
             .await?;
-        migrate(&pool)
+        migration::MIGRATOR
+            .migrate(&pool)
             .await
             .with_context(|| "app database migration failed")?;
         let property_dao = PropertyDao(pool);
         Ok(AppDatabase {
             auth_dao: AuthDao(property_dao.clone()),
+            setting_dao: SettingDao::new(property_dao.clone()),
             property_dao,
         })
     }
-}
-
-const SCHEMA_VERSION: i64 = 1;
-
-async fn migrate(pool: &sqlx::SqlitePool) -> anyhow::Result<()> {
-    let version = crate::db::migration::user_version(pool).await?;
-    if version > SCHEMA_VERSION {
-        bail!("app database version {version} is newer than supported {SCHEMA_VERSION}");
-    }
-    if version == SCHEMA_VERSION {
-        return Ok(());
-    }
-    if crate::db::migration::has_application_tables(pool).await? {
-        bail!("app database has no Drift user_version");
-    }
-
-    let mut transaction = pool.begin_with("BEGIN IMMEDIATE").await?;
-    sqlx::raw_sql(include_str!("app/schema.sql"))
-        .execute(&mut *transaction)
-        .await?;
-    sqlx::query("PRAGMA user_version = 1")
-        .execute(&mut *transaction)
-        .await?;
-    transaction.commit().await?;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -93,7 +74,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(version, 1);
+        assert_eq!(version, migration::SCHEMA_VERSION);
         assert_eq!(tables, vec!["properties"]);
 
         drop(database);

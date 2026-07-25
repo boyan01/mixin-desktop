@@ -1,7 +1,9 @@
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Component, Path, PathBuf};
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context as TaskContext, Poll};
 
 use aes::cipher::{Block, BlockCipherDecrypt, BlockCipherEncrypt, KeyInit};
 use aes::Aes256;
@@ -11,7 +13,7 @@ use hmac::{Hmac, KeyInit as HmacKeyInit, Mac};
 use reqwest::header::{CONNECTION, CONTENT_LENGTH, CONTENT_TYPE};
 use reqwest::Client as HttpClient;
 use sha2::{Digest, Sha256};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf};
 use tokio_util::io::ReaderStream;
 use tokio_util::sync::CancellationToken;
 
@@ -48,6 +50,44 @@ pub struct AttachmentUploadResult {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub key: Option<Vec<u8>>,
     pub digest: Option<Vec<u8>>,
+}
+
+struct ProgressReader<R> {
+    reader: R,
+    completed: u64,
+    total: u64,
+    progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
+}
+
+impl<R> ProgressReader<R> {
+    fn new(reader: R, total: u64, progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>) -> Self {
+        Self {
+            reader,
+            completed: 0,
+            total,
+            progress,
+        }
+    }
+}
+
+impl<R: AsyncRead + Unpin> AsyncRead for ProgressReader<R> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        context: &mut TaskContext<'_>,
+        buffer: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        let before = buffer.filled().len();
+        let result = Pin::new(&mut self.reader).poll_read(context, buffer);
+        if let Poll::Ready(Ok(())) = result {
+            self.completed = self
+                .completed
+                .saturating_add((buffer.filled().len() - before) as u64);
+            if let Some(progress) = &self.progress {
+                progress(self.completed, self.total);
+            }
+        }
+        result
+    }
 }
 
 impl AttachmentService {
@@ -204,7 +244,13 @@ impl AttachmentService {
         Ok(bytes)
     }
 
-    pub async fn upload(&self, path: &Path, encrypted: bool) -> Result<AttachmentUploadResult> {
+    pub async fn upload(
+        &self,
+        path: &Path,
+        encrypted: bool,
+        cancellation: Option<&CancellationToken>,
+        progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
+    ) -> Result<AttachmentUploadResult> {
         let attachment = self.mixin_client.attachment_api.create_attachment().await?;
         if attachment.attachment_id.trim().is_empty() {
             bail!("attachment response has no attachment ID");
@@ -250,16 +296,29 @@ impl AttachmentService {
         let operation = async {
             let file = tokio::fs::File::open(upload_path).await?;
             let length = file.metadata().await?.len();
-            self.http_client
+            progress.as_ref().map(|callback| callback(0, length));
+            let stream = ReaderStream::new(ProgressReader::new(file, length, progress.clone()));
+            let request = self
+                .http_client
                 .put(parsed_url)
                 .header(CONTENT_TYPE, "application/octet-stream")
                 .header(CONTENT_LENGTH, length)
                 .header(CONNECTION, "close")
                 .header("x-amz-acl", "public-read")
-                .body(reqwest::Body::wrap_stream(ReaderStream::new(file)))
-                .send()
-                .await?
-                .error_for_status()?;
+                .body(reqwest::Body::wrap_stream(stream))
+                .send();
+            match cancellation {
+                Some(cancellation) => tokio::select! {
+                    _ = cancellation.cancelled() => bail!("attachment upload canceled"),
+                    result = request => {
+                        result?.error_for_status()?;
+                    }
+                },
+                None => {
+                    request.await?.error_for_status()?;
+                }
+            }
+            progress.as_ref().map(|callback| callback(1, 1));
             Ok::<_, anyhow::Error>(())
         }
         .await;
@@ -731,6 +790,26 @@ mod tests {
 
     const FLUTTER_ATTACHMENT: &str = "101112131415161718191a1b1c1d1e1f7301839ee28e3d217404ef7b47ecaf7a82e1940f786b844d26d5cb2fd579b6b51871648d317bb4428c9962bc0ea88684d3ac624a099a9a445f2eb0eeaea59129";
     const FLUTTER_DIGEST: &str = "a0aac4cbc19d3f1d946b3677da7da8618a84dad087ffe7080c122bc830ad366a";
+
+    #[tokio::test]
+    async fn reading_an_upload_body_reports_transferred_bytes_and_total_size() {
+        let (mut writer, reader) = tokio::io::duplex(64);
+        tokio::spawn(async move {
+            writer.write_all(b"hello").await.unwrap();
+        });
+        let updates = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let captured_updates = updates.clone();
+        let progress = Arc::new(move |completed, total| {
+            captured_updates.lock().unwrap().push((completed, total));
+        });
+        let mut stream = ReaderStream::new(ProgressReader::new(reader, 5, Some(progress)));
+
+        while let Some(chunk) = stream.next().await {
+            chunk.unwrap();
+        }
+
+        assert_eq!(updates.lock().unwrap().last(), Some(&(5, 5)));
+    }
 
     #[test]
     fn decrypts_flutter_attachment_fixture() {

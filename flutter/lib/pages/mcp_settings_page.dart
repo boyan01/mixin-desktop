@@ -31,8 +31,8 @@ class _McpSettingsPageState extends State<McpSettingsPage> {
 
   Future<void> _load() async {
     try {
-      final settings = await widget.desktop.mcpSettings();
-      final status = await widget.desktop.mcpServerStatus();
+      final settings = await widget.desktop.settings.mcpSettings();
+      final status = await widget.desktop.settings.mcpServerStatus();
       if (mounted) {
         setState(() {
           _settings = settings;
@@ -52,7 +52,9 @@ class _McpSettingsPageState extends State<McpSettingsPage> {
     if (_updating) return;
     setState(() => _updating = true);
     try {
-      final status = await widget.desktop.updateMcpSettings(settings: next);
+      final status = await widget.desktop.settings.updateMcpSettings(
+        settings: next,
+      );
       if (mounted) {
         setState(() {
           _settings = next;

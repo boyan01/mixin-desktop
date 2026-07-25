@@ -14,6 +14,8 @@ import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dar
 import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
 import 'package:provider/provider.dart';
 
+import 'test_settings_store.dart';
+
 void main() {
   test(
     'unresolved media messages use the upstream normal bubble semantics',
@@ -725,7 +727,7 @@ class _TestApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ChangeNotifierProvider(
-    create: (_) => SettingsController(),
+    create: (_) => SettingsController(store: TestSettingsStore()),
     child: MaterialApp(
       theme: buildMixinTheme(Brightness.light),
       localizationsDelegates: const [

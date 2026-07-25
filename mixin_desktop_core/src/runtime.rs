@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use log::{error, warn};
-use tokio::sync::{oneshot, watch, RwLock};
+use tokio::sync::{mpsc, oneshot, watch, RwLock};
 use tokio_util::sync::CancellationToken;
 
 use sdk::api::account_api::AccountUpdateRequest;
@@ -24,13 +24,13 @@ use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::crypto::signal_protocol::SignalProtocol;
 use crate::core::device_transfer::{DeviceTransferControlEvent, DeviceTransferService};
 use crate::core::message::blaze::Blaze;
-use crate::core::message::decrypt::ServiceDecryptMessage;
+use crate::core::message::decrypt::{AttachmentTransferRequest, ServiceDecryptMessage};
 use crate::core::message::sender::MessageSender;
 use crate::core::model::auth::AuthService;
 use crate::core::model::signal::SignalService;
 use crate::core::model::{AppService, AttachmentExtra, ConversationService};
 use crate::core::user_agent::generate_user_agent;
-use crate::db::app::Auth;
+use crate::db::app::{Auth, SettingDao};
 use crate::db::mixin::message::{MediaStatus, Message};
 use crate::db::mixin::sticker::{Sticker, StickerAlbum};
 use crate::db::path::account_data_directory;
@@ -194,7 +194,11 @@ impl AccountRuntime {
             .unwrap_or_default()
     }
 
-    pub async fn start(auth: Auth, auth_service: Arc<AuthService>) -> Result<Self> {
+    pub async fn start(
+        auth: Auth,
+        auth_service: Arc<AuthService>,
+        setting_dao: SettingDao,
+    ) -> Result<Self> {
         let account_id = auth.account.user_id.clone();
         let account = auth.account.clone();
         let (profile, _) = watch::channel(account);
@@ -214,6 +218,7 @@ impl AccountRuntime {
         let conversation_changes = ConversationChangeNotifier::new();
         let (notification_changes, _) = watch::channel(0);
         let (account_health_updates, _) = watch::channel("ready".to_string());
+        let (attachment_transfer_sender, attachment_transfer_requests) = mpsc::unbounded_channel();
         let account_conversation_changes = conversation_changes.clone();
         let account_notification_changes = notification_changes.clone();
         let (ready_sender, ready_receiver) = oneshot::channel();
@@ -235,6 +240,7 @@ impl AccountRuntime {
                             account_notification_changes,
                             account_health_updates,
                             initial_account_health,
+                            attachment_transfer_sender,
                             ready_sender,
                         )),
                         Err(error) => {
@@ -256,26 +262,32 @@ impl AccountRuntime {
             .map_err(|error| anyhow!(error))?;
 
         account_health_updates.send_replace(initial_account_health);
+        let state = Arc::new(AccountState {
+            account_id,
+            profile,
+            auth_service,
+            client,
+            database,
+            signal_database,
+            app_service,
+            conversation_changes,
+            shutdown: shutdown.subscribe(),
+            notification_changes,
+            blaze,
+            device_transfer,
+            account_health: account_health_updates,
+            active: AtomicBool::new(true),
+            mutation_gate: RwLock::new(()),
+            attachment_downloads: Mutex::new(HashMap::new()),
+            attachment_progresses: Mutex::new(HashMap::new()),
+        });
+        tokio::spawn(run_attachment_transfer_requests(
+            state.clone(),
+            attachment_transfer_requests,
+            setting_dao,
+        ));
         Ok(Self {
-            state: Arc::new(AccountState {
-                account_id,
-                profile,
-                auth_service,
-                client,
-                database,
-                signal_database,
-                app_service,
-                conversation_changes,
-                shutdown: shutdown.subscribe(),
-                notification_changes,
-                blaze,
-                device_transfer,
-                account_health: account_health_updates,
-                active: AtomicBool::new(true),
-                mutation_gate: RwLock::new(()),
-                attachment_downloads: Mutex::new(HashMap::new()),
-                attachment_progresses: Mutex::new(HashMap::new()),
-            }),
+            state,
             shutdown,
             thread: Mutex::new(Some(thread)),
         })
@@ -809,6 +821,81 @@ impl AccountRuntime {
     }
 }
 
+async fn run_attachment_transfer_requests(
+    state: Arc<AccountState>,
+    mut requests: mpsc::UnboundedReceiver<AttachmentTransferRequest>,
+    setting_dao: SettingDao,
+) {
+    let mut shutdown = state.shutdown.clone();
+    loop {
+        tokio::select! {
+            request = requests.recv() => {
+                let Some(request) = request else {
+                    return;
+                };
+                if request.cancel {
+                    let attachment = AttachmentAccess::new(state.clone());
+                    let result = match request.transcript_id {
+                        Some(transcript_id) => attachment
+                            .cancel_transcript_attachment(transcript_id, request.message_id.clone())
+                            .await,
+                        None => attachment.cancel_attachment(request.message_id.clone()).await,
+                    };
+                    if let Err(error) = result {
+                        error!(
+                            "automatic attachment cancellation failed: message_id={}, error={error:?}",
+                            request.message_id,
+                        );
+                    }
+                    continue;
+                }
+                let should_download = match setting_dao
+                    .should_auto_download(&request.category)
+                    .await
+                {
+                    Ok(should_download) => should_download,
+                    Err(error) => {
+                        error!(
+                            "failed to load attachment auto-download settings: message_id={}, category={}, error={error:?}",
+                            request.message_id,
+                            request.category,
+                        );
+                        continue;
+                    }
+                };
+                if !should_download {
+                    continue;
+                }
+                let attachment = AttachmentAccess::new(state.clone());
+                tokio::spawn(async move {
+                    let result = match request.transcript_id.as_ref() {
+                        Some(transcript_id) => attachment
+                            .download_transcript_attachment(
+                                transcript_id.clone(),
+                                request.message_id.clone(),
+                            )
+                            .await,
+                        None => attachment.download_attachment(request.message_id.clone()).await,
+                    };
+                    if let Err(error) = result {
+                        error!(
+                            "automatic attachment download failed: message_id={}, transcript_id={:?}, category={}, error={error:?}",
+                            request.message_id,
+                            request.transcript_id,
+                            request.category,
+                        );
+                    }
+                });
+            }
+            changed = shutdown.changed() => {
+                if changed.is_err() || *shutdown.borrow() {
+                    return;
+                }
+            }
+        }
+    }
+}
+
 fn validate_storage_component(label: &str, value: &str) -> Result<()> {
     let mut components = Path::new(value).components();
     if !matches!(components.next(), Some(std::path::Component::Normal(_)))
@@ -874,6 +961,7 @@ async fn run_account(
     notification_changes: watch::Sender<u64>,
     account_health_updates: watch::Sender<String>,
     initial_account_health: String,
+    attachment_transfer_requests: mpsc::UnboundedSender<AttachmentTransferRequest>,
     ready_sender: oneshot::Sender<AccountStartupResult>,
 ) {
     let result = prepare_account(
@@ -882,6 +970,7 @@ async fn run_account(
         conversation_changes,
         notification_changes,
         initial_account_health,
+        attachment_transfer_requests,
     )
     .await;
     let (
@@ -979,6 +1068,7 @@ async fn prepare_account(
     conversation_changes: ConversationChangeNotifier,
     notification_changes: watch::Sender<u64>,
     account_health: String,
+    attachment_transfer_requests: mpsc::UnboundedSender<AttachmentTransferRequest>,
 ) -> Result<AccountServices> {
     let account = &auth.account;
     let account_id = account.user_id.clone();
@@ -1060,7 +1150,8 @@ async fn prepare_account(
         )
         .with_conversation_changes(conversation_changes)
         .with_notification_changes(notification_changes)
-        .with_device_transfer_controls(device_transfer_control_sender),
+        .with_device_transfer_controls(device_transfer_control_sender)
+        .with_attachment_transfer_requests(attachment_transfer_requests),
     );
     Ok((
         database,

@@ -50,3 +50,8 @@ CREATE TABLE ratchet_sender_keys (
     created_at TEXT NOT NULL,
     PRIMARY KEY (group_id, sender_id)
 );
+
+CREATE TABLE properties (
+    key TEXT PRIMARY KEY NOT NULL,
+    value TEXT NOT NULL
+);

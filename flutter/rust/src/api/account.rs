@@ -136,7 +136,7 @@ impl AccountHandle {
     }
 
     #[flutter_rust_bridge::frb(sync)]
-    pub fn download_progress(&self, message_id: String) -> f64 {
+    pub fn attachment_progress(&self, message_id: String) -> f64 {
         self.runtime.attachment_progress(&message_id)
     }
 

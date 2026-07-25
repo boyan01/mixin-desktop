@@ -2,15 +2,16 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import 'settings_store.dart';
 
 class SecurityController extends ChangeNotifier {
-  SecurityController(this.accountId);
+  SecurityController(this.accountId, this._settings);
 
   final String accountId;
+  final SettingsStore _settings;
   final LocalAuthentication _authentication = LocalAuthentication();
 
-  SharedPreferences? _preferences;
   String? _passcode;
   bool _biometric = false;
   Duration _lockDuration = const Duration(minutes: 1);
@@ -24,12 +25,11 @@ class SecurityController extends ChangeNotifier {
   String get _prefix => 'security.$accountId.';
 
   Future<void> initialize() async {
-    final preferences = await SharedPreferences.getInstance();
-    _preferences = preferences;
-    _passcode = preferences.getString('${_prefix}passcode');
-    _biometric = preferences.getBool('${_prefix}biometric') ?? false;
+    _passcode = await _settings.get('${_prefix}passcode') as String?;
+    _biometric = await _settings.get('${_prefix}biometric') as bool? ?? false;
     _lockDuration = Duration(
-      minutes: preferences.getInt('${_prefix}lockDuration') ?? 1,
+      minutes:
+          (await _settings.get('${_prefix}lockDuration') as num?)?.toInt() ?? 1,
     );
     notifyListeners();
   }
@@ -39,33 +39,27 @@ class SecurityController extends ChangeNotifier {
       throw ArgumentError('Passcode must be 6 digits');
     }
     _passcode = value;
-    final preferences = _preferences ?? await SharedPreferences.getInstance();
-    _preferences = preferences;
     if (value == null) {
-      await preferences.remove('${_prefix}passcode');
+      await _settings.set('${_prefix}passcode', null);
       _biometric = false;
       _lockDuration = const Duration(minutes: 1);
-      await preferences.setBool('${_prefix}biometric', false);
-      await preferences.remove('${_prefix}lockDuration');
+      await _settings.set('${_prefix}biometric', false);
+      await _settings.set('${_prefix}lockDuration', null);
     } else {
-      await preferences.setString('${_prefix}passcode', value);
+      await _settings.set('${_prefix}passcode', value);
     }
     notifyListeners();
   }
 
   Future<void> setBiometric(bool value) async {
     _biometric = value;
-    final preferences = _preferences ?? await SharedPreferences.getInstance();
-    _preferences = preferences;
-    await preferences.setBool('${_prefix}biometric', value);
+    await _settings.set('${_prefix}biometric', value);
     notifyListeners();
   }
 
   Future<void> setLockDuration(Duration value) async {
     _lockDuration = value;
-    final preferences = _preferences ?? await SharedPreferences.getInstance();
-    _preferences = preferences;
-    await preferences.setInt('${_prefix}lockDuration', value.inMinutes);
+    await _settings.set('${_prefix}lockDuration', value.inMinutes);
     notifyListeners();
   }
 

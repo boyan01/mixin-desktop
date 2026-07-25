@@ -12,6 +12,8 @@ import 'package:mixin_desktop_ui/widgets/toast.dart' as app_toast;
 import 'package:overlay_support/overlay_support.dart';
 import 'package:provider/provider.dart';
 
+import 'test_settings_store.dart';
+
 const _profile = AccountProfile(
   userId: 'ea91421a-98bb-41d2-abcf-af013d8b874b',
   fullName: 'Mixin User',
@@ -137,8 +139,13 @@ Future<void> _pumpSettings(
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
   await tester.pumpWidget(
-    ChangeNotifierProvider(
-      create: (_) => SettingsController(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => SettingsController(store: TestSettingsStore()),
+        ),
+        Provider<SettingsHandle>.value(value: _TestSettingsHandle()),
+      ],
       child: OverlaySupport.global(
         child: MaterialApp(
           theme: buildMixinTheme(Brightness.light),
@@ -163,4 +170,27 @@ Future<void> _pumpSettings(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _TestSettingsHandle implements SettingsHandle {
+  @override
+  Stream<bool> subscribePhotoAutoDownload() => Stream.value(true);
+
+  @override
+  Stream<bool> subscribeVideoAutoDownload() => Stream.value(true);
+
+  @override
+  Stream<bool> subscribeFileAutoDownload() => Stream.value(true);
+
+  @override
+  Future<void> setPhotoAutoDownload({required bool value}) async {}
+
+  @override
+  Future<void> setVideoAutoDownload({required bool value}) async {}
+
+  @override
+  Future<void> setFileAutoDownload({required bool value}) async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

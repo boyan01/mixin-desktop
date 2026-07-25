@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mixin_desktop_ui/controllers/app_controller.dart';
+import 'package:mixin_desktop_ui/controllers/settings_controller.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/chat_info_page.dart';
 import 'package:mixin_desktop_ui/pages/chat_side/search_message_page.dart';
@@ -18,6 +19,8 @@ import 'package:mixin_desktop_ui/widgets/home_sidebar.dart';
 import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
 import 'package:overlay_support/overlay_support.dart';
 import 'package:provider/provider.dart';
+
+import 'test_settings_store.dart';
 
 void main() {
   test('resolves the original desktop sidebar breakpoints', () {
@@ -461,6 +464,9 @@ Future<void> _pumpHome(
             ),
             ChangeNotifierProvider<AppController>.value(
               value: appController ?? _FakeAppController(),
+            ),
+            ChangeNotifierProvider(
+              create: (_) => SettingsController(store: TestSettingsStore()),
             ),
           ],
           child: const HomePage(),

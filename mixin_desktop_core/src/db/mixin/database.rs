@@ -90,7 +90,7 @@ impl MixinDatabase {
                     .create_if_missing(true),
             )
             .await?;
-        super::migration::migrate(&pool).await?;
+        super::migration::MIGRATOR.migrate(&pool).await?;
         Ok(MixinDatabase {
             user_dao: UserDao::new(pool.clone()),
             message_dao: MessageDao(pool.clone()),

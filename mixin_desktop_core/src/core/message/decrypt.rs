@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use anyhow::{anyhow, bail, Context, Result};
 use base64ct::{Base64, Encoding};
 use log::{error, info, warn};
-use tokio::sync::{broadcast, watch};
+use tokio::sync::{broadcast, mpsc, watch};
 use uuid::Uuid;
 
 use sdk::blaze_message::{
@@ -21,7 +21,6 @@ use sdk::{
     SystemCircleAction, SYSTEM_USER,
 };
 
-use crate::core::attachment::attachment_file_name;
 use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::crypto::compose_message::ComposeMessageData;
 use crate::core::crypto::encrypted_protocol;
@@ -57,6 +56,15 @@ pub struct ServiceDecryptMessage {
     conversation_changes: Option<ConversationChangeNotifier>,
     notification_changes: Option<watch::Sender<u64>>,
     device_transfer_controls: Option<broadcast::Sender<DeviceTransferControlEvent>>,
+    attachment_transfer_requests: Option<mpsc::UnboundedSender<AttachmentTransferRequest>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct AttachmentTransferRequest {
+    pub(crate) message_id: String,
+    pub(crate) category: String,
+    pub(crate) transcript_id: Option<String>,
+    pub(crate) cancel: bool,
 }
 
 struct PreparedTranscript {
@@ -92,6 +100,7 @@ impl ServiceDecryptMessage {
             conversation_changes: None,
             notification_changes: None,
             device_transfer_controls: None,
+            attachment_transfer_requests: None,
         }
     }
 
@@ -111,6 +120,53 @@ impl ServiceDecryptMessage {
     ) -> Self {
         self.device_transfer_controls = Some(sender);
         self
+    }
+
+    pub(crate) fn with_attachment_transfer_requests(
+        mut self,
+        sender: mpsc::UnboundedSender<AttachmentTransferRequest>,
+    ) -> Self {
+        self.attachment_transfer_requests = Some(sender);
+        self
+    }
+
+    fn request_attachment_download(
+        &self,
+        message_id: &str,
+        category: &str,
+        transcript_id: Option<&str>,
+    ) {
+        let Some(sender) = &self.attachment_transfer_requests else {
+            return;
+        };
+        if sender
+            .send(AttachmentTransferRequest {
+                message_id: message_id.to_string(),
+                category: category.to_string(),
+                transcript_id: transcript_id.map(str::to_string),
+                cancel: false,
+            })
+            .is_err()
+        {
+            warn!("attachment transfer request receiver is closed");
+        }
+    }
+
+    fn request_attachment_cancel(&self, message_id: &str, transcript_id: Option<&str>) {
+        let Some(sender) = &self.attachment_transfer_requests else {
+            return;
+        };
+        if sender
+            .send(AttachmentTransferRequest {
+                message_id: message_id.to_string(),
+                category: String::new(),
+                transcript_id: transcript_id.map(str::to_string),
+                cancel: true,
+            })
+            .is_err()
+        {
+            warn!("attachment transfer request receiver is closed");
+        }
     }
 
     pub async fn start(&self) {
@@ -345,59 +401,6 @@ impl ServiceDecryptMessage {
 }
 
 impl ServiceDecryptMessage {
-    async fn download_attachment(&self, message: &Message) {
-        let result: Result<()> = async {
-            let content = message
-                .content
-                .as_deref()
-                .ok_or_else(|| anyhow!("attachment message has no content"))?;
-            let extra: AttachmentExtra = serde_json::from_str(content)?;
-            self.database
-                .message_dao
-                .update_media_status(&message.message_id, MediaStatus::Pending)
-                .await?;
-            let downloaded = self
-                .app_service
-                .attachment
-                .download(message, &extra)
-                .await?;
-            let content = serde_json::to_string(&downloaded.attachment)?;
-            self.database
-                .message_dao
-                .complete_attachment_download(
-                    &message.message_id,
-                    attachment_file_name(&downloaded.path)?,
-                    downloaded.size,
-                    downloaded.status,
-                    &content,
-                )
-                .await?;
-            self.database
-                .message_dao
-                .update_message_quote_if_need(&message.conversation_id, &message.message_id)
-                .await?;
-            Ok(())
-        }
-        .await;
-        if let Err(err) = result {
-            warn!(
-                "failed to download attachment {}: {err}",
-                message.message_id
-            );
-            if let Err(update_err) = self
-                .database
-                .message_dao
-                .update_media_status(&message.message_id, MediaStatus::Canceled)
-                .await
-            {
-                error!(
-                    "failed to restore attachment {} status: {update_err}",
-                    message.message_id
-                );
-            }
-        }
-    }
-
     async fn prepare_transcript(
         &self,
         message_id: &str,
@@ -519,97 +522,17 @@ impl ServiceDecryptMessage {
         })
     }
 
-    async fn download_transcript_attachments(
+    fn request_transcript_attachment_downloads(
         &self,
-        conversation_id: &str,
         transcript_id: &str,
         attachments: &[TranscriptMessage],
     ) {
-        if attachments.is_empty() {
-            return;
-        }
-
-        let mut all_succeeded = true;
         for transcript in attachments {
-            let result: Result<()> = async {
-                let attachment_id = transcript_attachment_id(
-                    transcript
-                        .content
-                        .as_deref()
-                        .ok_or_else(|| anyhow!("transcript attachment has no content"))?,
-                )?;
-                let message = transcript_attachment_message(conversation_id, transcript)?;
-                let extra = AttachmentExtra {
-                    attachment_id,
-                    message_id: transcript.message_id.clone(),
-                    shareable: None,
-                    created_at: transcript.media_created_at,
-                };
-                self.database
-                    .transcript_message_dao
-                    .update_media_status(
-                        transcript_id,
-                        &transcript.message_id,
-                        MediaStatus::Pending,
-                    )
-                    .await?;
-                let downloaded = self
-                    .app_service
-                    .attachment
-                    .download_transcript(&message, &extra)
-                    .await?;
-                let content = serde_json::to_string(&downloaded.attachment)?;
-                self.database
-                    .transcript_message_dao
-                    .complete_attachment_download(
-                        transcript_id,
-                        &transcript.message_id,
-                        attachment_file_name(&downloaded.path)?,
-                        downloaded.size,
-                        downloaded.attachment.created_at,
-                        &content,
-                    )
-                    .await?;
-                Ok(())
-            }
-            .await;
-
-            if let Err(err) = result {
-                all_succeeded = false;
-                warn!(
-                    "failed to download transcript attachment {}: {err}",
-                    transcript.message_id
-                );
-                if let Err(update_err) = self
-                    .database
-                    .transcript_message_dao
-                    .update_media_status(
-                        transcript_id,
-                        &transcript.message_id,
-                        MediaStatus::Canceled,
-                    )
-                    .await
-                {
-                    error!(
-                        "failed to restore transcript attachment {} status: {update_err}",
-                        transcript.message_id
-                    );
-                }
-            }
-        }
-
-        let status = if all_succeeded {
-            MediaStatus::Done
-        } else {
-            MediaStatus::Canceled
-        };
-        if let Err(err) = self
-            .database
-            .message_dao
-            .update_media_status(transcript_id, status)
-            .await
-        {
-            error!("failed to update transcript {transcript_id} status: {err}");
+            self.request_attachment_download(
+                &transcript.message_id,
+                &transcript.category,
+                Some(transcript_id),
+            );
         }
     }
 
@@ -672,17 +595,7 @@ impl ServiceDecryptMessage {
                 .message_dao
                 .update_attachment_message(message_id, &message_update)
                 .await?;
-            if let Some(message) = self
-                .database
-                .message_dao
-                .find_message_by_id(&message_id.to_string())
-                .await?
-            {
-                let service = self.clone();
-                std::mem::drop(tokio::spawn(async move {
-                    service.download_attachment(&message).await;
-                }));
-            }
+            self.request_attachment_download(message_id, &data.category, None);
         } else if data.category == message_category::SIGNAL_STICKER {
             let sticker_message: StickerMessage = serde_json::from_str(&decode(plain_text)?)?;
             let sticker = self
@@ -744,18 +657,7 @@ impl ServiceDecryptMessage {
                 .message_fts_dao
                 .upsert(message_id, &data.conversation_id, &transcript.fts_content)
                 .await?;
-            let service = self.clone();
-            let conversation_id = data.conversation_id.clone();
-            let message_id = message_id.to_string();
-            std::mem::drop(tokio::spawn(async move {
-                service
-                    .download_transcript_attachments(
-                        &conversation_id,
-                        &message_id,
-                        &transcript.attachments,
-                    )
-                    .await;
-            }));
+            self.request_transcript_attachment_downloads(message_id, &transcript.attachments);
             return Ok(());
         }
 
@@ -948,10 +850,7 @@ impl ServiceDecryptMessage {
                 ..Message::default()
             };
             self.insert_message(&message, data).await?;
-            let service = self.clone();
-            std::mem::drop(tokio::spawn(async move {
-                service.download_attachment(&message).await;
-            }));
+            self.request_attachment_download(&message.message_id, &message.category, None);
         } else if data.category.is_sticker() {
             let plain = decode_content(data, plain_text)?;
             let sticker_message: StickerMessage = serde_json::from_str(&plain)?;
@@ -1090,18 +989,7 @@ impl ServiceDecryptMessage {
                     &transcript.fts_content,
                 )
                 .await?;
-            let service = self.clone();
-            let conversation_id = data.conversation_id.clone();
-            let message_id = data.message_id.clone();
-            std::mem::drop(tokio::spawn(async move {
-                service
-                    .download_transcript_attachments(
-                        &conversation_id,
-                        &message_id,
-                        &transcript.attachments,
-                    )
-                    .await;
-            }));
+            self.request_transcript_attachment_downloads(&data.message_id, &transcript.attachments);
         }
         Ok(())
     }
@@ -1345,6 +1233,16 @@ impl ServiceDecryptMessage {
             .as_ref()
             .is_some_and(|message| message.category.is_transcript())
         {
+            for transcript in self
+                .database
+                .transcript_message_dao
+                .find_by_transcript_id(&recall.message_id)
+                .await?
+                .into_iter()
+                .filter(|message| message.category.is_attachment())
+            {
+                self.request_attachment_cancel(&transcript.message_id, Some(&recall.message_id));
+            }
             self.database
                 .transcript_message_dao
                 .media_urls_by_transcript_id(&recall.message_id)
@@ -1352,12 +1250,17 @@ impl ServiceDecryptMessage {
         } else {
             Vec::new()
         };
-        if let Some(path) = recalled
+        if recalled
             .as_ref()
-            .filter(|message| message.category.is_attachment())
-            .and_then(|message| message.media_url.clone())
+            .is_some_and(|message| message.category.is_attachment())
         {
-            media_urls.push(path);
+            self.request_attachment_cancel(&recall.message_id, None);
+            if let Some(path) = recalled
+                .as_ref()
+                .and_then(|message| message.media_url.clone())
+            {
+                media_urls.push(path);
+            }
         }
         self.database
             .message_dao
