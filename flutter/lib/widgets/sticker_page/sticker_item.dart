@@ -149,7 +149,7 @@ BuildContext? _secondNavigatorContext(BuildContext context) {
   return find(context);
 }
 
-class StickerGroupIcon extends StatelessWidget {
+class StickerGroupIcon extends HookWidget {
   const StickerGroupIcon({
     required this.iconUrl,
     required this.size,
@@ -161,7 +161,11 @@ class StickerGroupIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLottie = iconUrl.toLowerCase().endsWith('.json');
+    final isLottie = useMemoized(
+      () =>
+          Uri.tryParse(iconUrl)?.path.toLowerCase().endsWith('.json') ?? false,
+      [iconUrl],
+    );
     return StickerItem(
       assetUrl: iconUrl,
       assetType: isLottie ? 'json' : null,

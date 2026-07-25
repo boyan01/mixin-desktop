@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lottie/lottie.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/utils/emoji.dart';
 import 'package:mixin_desktop_ui/utils/image.dart';
@@ -59,6 +60,23 @@ void main() {
       ),
       isA<NormalizedNetworkImage>(),
     );
+  });
+
+  testWidgets('renders a sticker group icon Lottie URL with query parameters', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const Directionality(
+        textDirection: TextDirection.ltr,
+        child: StickerGroupIcon(
+          iconUrl: 'https://images.mixin.one/sticker-group.json?version=1',
+          size: 48,
+        ),
+      ),
+    );
+
+    expect(find.byType(LottieBuilder), findsOneWidget);
+    expect(find.byType(MixinImage), findsNothing);
   });
 
   test('normalizes zero-delay gif frames like flutter-app', () {
