@@ -7,9 +7,49 @@ import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 import 'package:mixin_desktop_ui/widgets/conversation_list_view.dart';
+import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 void main() {
+  testWidgets(
+    'shows default avatars while contact and group avatar images load',
+    (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: Column(
+            children: [
+              AvatarView(
+                userId: 'alice',
+                name: 'Alice',
+                avatarUrl: 'https://images.mixin.one/alice.png',
+                size: 48,
+              ),
+              AvatarPuzzlesView(
+                avatars: [
+                  ConversationAvatarEntry(
+                    userId: 'bob',
+                    name: 'Bob',
+                    avatarUrl: 'https://images.mixin.one/bob.png',
+                  ),
+                ],
+                size: 48,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      final avatars = tester.widgetList<MixinImage>(find.byType(MixinImage));
+      expect(avatars, hasLength(2));
+      expect(avatars.every((avatar) => avatar.placeholder != null), isTrue);
+      expect(find.text('A'), findsOneWidget);
+      expect(find.text('B'), findsOneWidget);
+    },
+  );
+
   testWidgets('keeps the source item, avatar, badge and selected dimensions', (
     tester,
   ) async {

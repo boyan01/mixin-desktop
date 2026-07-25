@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../models/conversation_list_entry.dart';
+import 'mixin_image.dart';
 
 class ConversationAvatarView extends StatelessWidget {
   const ConversationAvatarView({
@@ -132,13 +134,11 @@ class AvatarView extends StatelessWidget {
     );
     final image = avatarUrl.isEmpty
         ? placeholder
-        : Image.network(
+        : MixinImage.network(
             avatarUrl,
             width: size,
             height: size,
-            fit: BoxFit.cover,
-            loadingBuilder: (context, child, loadingProgress) =>
-                loadingProgress == null ? child : placeholder,
+            placeholder: () => placeholder,
             errorBuilder: (_, _, _) => placeholder,
           );
     return clipOval ? ClipOval(child: image) : image;
