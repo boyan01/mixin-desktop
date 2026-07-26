@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
-import 'package:ogg_opus_player/ogg_opus_player.dart';
+import 'package:provider/provider.dart';
 
 import '../models/message_list_entry.dart';
+import '../src/rust/api/media.dart';
 import '../theme.dart';
 import '../utils/app_logger.dart';
 import 'attachment_status.dart';
@@ -40,12 +40,13 @@ class AudioMessageWidget extends StatefulWidget {
 }
 
 class _AudioMessageWidgetState extends State<AudioMessageWidget> {
-  final _coordinator = AudioMessagePlaybackCoordinator.instance;
+  late final AudioMessagePlaybackCoordinator _coordinator;
   bool _markedRead = false;
 
   @override
   void initState() {
     super.initState();
+    _coordinator = context.read<AudioMessagePlaybackCoordinator>();
     _coordinator
       ..attach()
       ..addListener(_onPlaybackChanged);
@@ -212,22 +213,79 @@ class _AudioStatusButton extends StatelessWidget {
   );
 }
 
+abstract interface class AudioPlaybackBackend {
+  Stream<MediaPlaybackEvent> events();
+
+  Future<void> play({
+    required List<MediaAudioItem> playlist,
+    required BigInt startIndex,
+  });
+
+  Future<void> pause();
+
+  Future<void> resume();
+
+  void stop();
+
+  Future<void> setSpeed(double speed);
+}
+
+class RustAudioPlaybackBackend implements AudioPlaybackBackend {
+  RustAudioPlaybackBackend(this._media);
+
+  final MediaHandle _media;
+
+  @override
+  Stream<MediaPlaybackEvent> events() => _media.audioPlaybackEvents();
+
+  @override
+  Future<void> play({
+    required List<MediaAudioItem> playlist,
+    required BigInt startIndex,
+  }) => _media.playAudio(playlist: playlist, startIndex: startIndex);
+
+  @override
+  Future<void> pause() => _media.pauseAudio();
+
+  @override
+  Future<void> resume() => _media.resumeAudio();
+
+  @override
+  void stop() => _media.stopAudio();
+
+  @override
+  Future<void> setSpeed(double speed) => _media.setAudioSpeed(speed: speed);
+}
+
 class AudioMessagePlaybackCoordinator extends ChangeNotifier {
-  AudioMessagePlaybackCoordinator._();
+  AudioMessagePlaybackCoordinator({required this._backend}) {
+    _events = _backend.events().listen(
+      _handleEvent,
+      onError: (Object error, StackTrace stackTrace) {
+        e('Observe message audio playback failed', error, stackTrace);
+        _clearPlayback();
+      },
+    );
+    _positionTimer = Timer.periodic(
+      const Duration(milliseconds: 50),
+      (_) => _updatePosition(),
+    );
+  }
 
-  static final instance = AudioMessagePlaybackCoordinator._();
-
-  OggOpusPlayer? _player;
-  Timer? _positionTimer;
+  final AudioPlaybackBackend _backend;
+  late final StreamSubscription<MediaPlaybackEvent> _events;
+  late final Timer _positionTimer;
   int _listenerOwners = 0;
   String? _currentMessageId;
   MessageListEntry? currentMessage;
   Duration position = Duration.zero;
   bool isPlaying = false;
   double speed = 1;
-  List<MessageListEntry> _playlist = const [];
-  int _playlistIndex = -1;
+  Map<String, MessageListEntry> _messagesById = const {};
   AudioMessageCallback? _onMarkRead;
+  Duration _anchorPosition = Duration.zero;
+  Duration _duration = Duration.zero;
+  Stopwatch? _positionClock;
 
   String? get currentMessageId => _currentMessageId;
 
@@ -235,7 +293,12 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
 
   void detach() {
     _listenerOwners = math.max(0, _listenerOwners - 1);
-    if (_listenerOwners == 0) stop();
+    if (_listenerOwners == 0) {
+      _backend.stop();
+      _messagesById = const {};
+      _onMarkRead = null;
+      _clearPlayback(notify: false);
+    }
   }
 
   Future<bool> play(
@@ -244,50 +307,55 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
     List<MessageListEntry> playlist = const [],
     AudioMessageCallback? onMarkRead,
   }) async {
-    _stop(deactivateSession: false);
-    _playlist = playlist.where((item) => item.isAudio).toList(growable: false);
-    _playlistIndex = _playlist.indexWhere((item) => item.id == message.id);
-    if (_playlistIndex < 0) {
-      _playlist = [message];
-      _playlistIndex = 0;
+    final candidates = playlist.where(_isPlayable).toList(growable: true);
+    var startIndex = candidates.indexWhere((item) => item.id == message.id);
+    if (startIndex < 0) {
+      candidates.insert(0, message);
+      startIndex = 0;
     }
+    _messagesById = {for (final item in candidates) item.id: item};
     _onMarkRead = onMarkRead;
-    return _start(message.id, path, message);
+    return _start(
+      playlist: [
+        for (final item in candidates)
+          MediaAudioItem(
+            id: item.id,
+            path: item.id == message.id
+                ? path
+                : _localMediaPath(item.mediaUrl)!,
+            durationMillis: BigInt.from(
+              int.tryParse(item.mediaDuration) ?? 0,
+            ),
+          ),
+      ],
+      startIndex: startIndex,
+    );
   }
 
   Future<bool> playPreview(String previewId, String path) async {
-    _stop(deactivateSession: false);
-    return _start(previewId, path, null);
+    _messagesById = const {};
+    _onMarkRead = null;
+    return _start(
+      playlist: [
+        MediaAudioItem(
+          id: previewId,
+          path: path,
+          durationMillis: BigInt.zero,
+        ),
+      ],
+      startIndex: 0,
+    );
   }
 
-  Future<bool> _start(
-    String messageId,
-    String path,
-    MessageListEntry? message,
-  ) async {
-    _disposePlayer();
+  Future<bool> _start({
+    required List<MediaAudioItem> playlist,
+    required int startIndex,
+  }) async {
     try {
-      final session = await AudioSession.instance;
-      await session.configure(const AudioSessionConfiguration.speech());
-      await session.setActive(true);
-      final player = OggOpusPlayer(path);
-      _player = player;
-      _currentMessageId = messageId;
-      currentMessage = message;
-      player.state.addListener(_handlePlayerState);
-      player
-        ..setPlaybackRate(speed)
-        ..play();
-      isPlaying = true;
-      _positionTimer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-        final current = _player;
-        if (current == null) return;
-        position = Duration(
-          milliseconds: (current.currentPosition * 1000).round(),
-        );
-        notifyListeners();
-      });
-      notifyListeners();
+      await _backend.play(
+        playlist: playlist,
+        startIndex: BigInt.from(startIndex),
+      );
       return true;
     } catch (error, stackTrace) {
       e('Start message audio playback failed', error, stackTrace);
@@ -296,84 +364,107 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
     }
   }
 
-  void pause() => _player?.pause();
+  Future<void> pause() => _runPlaybackCommand(
+    _backend.pause,
+    'Pause message audio playback failed',
+  );
 
-  void resume() => _player?.play();
+  Future<void> resume() => _runPlaybackCommand(
+    _backend.resume,
+    'Resume message audio playback failed',
+  );
 
   void setPlaybackRate(double value) {
-    speed = value;
-    _player?.setPlaybackRate(value);
-    notifyListeners();
+    unawaited(
+      _runPlaybackCommand(
+        () => _backend.setSpeed(value),
+        'Set message audio playback speed failed',
+      ),
+    );
   }
 
-  void _handlePlayerState() {
-    final state = _player?.state.value;
-    if (state == PlayerState.ended) {
-      unawaited(_playNext());
-      return;
-    }
-    if (state == PlayerState.error) {
-      stop();
-      return;
-    }
-    isPlaying = state == PlayerState.playing;
-    notifyListeners();
-  }
-
-  void stop() => _stop(deactivateSession: true);
-
-  void _stop({required bool deactivateSession}) {
-    _disposePlayer();
-    _playlist = const [];
-    _playlistIndex = -1;
+  void stop() {
+    _backend.stop();
+    _messagesById = const {};
     _onMarkRead = null;
-    if (deactivateSession) unawaited(_deactivateAudioSession());
+    _clearPlayback();
+  }
+
+  void _handleEvent(MediaPlaybackEvent event) {
+    switch (event) {
+      case MediaPlaybackEvent_Changed(:final snapshot):
+        final item = snapshot.item;
+        final nextMessage = item == null ? null : _messagesById[item.id];
+        if (nextMessage != null &&
+            nextMessage.id != currentMessage?.id &&
+            nextMessage.mediaStatus.toUpperCase() == 'DONE') {
+          _onMarkRead?.call(nextMessage);
+        }
+        _currentMessageId = item?.id;
+        currentMessage = nextMessage;
+        _anchorPosition = Duration(
+          milliseconds: snapshot.positionMillis.toInt(),
+        );
+        _duration = Duration(milliseconds: snapshot.durationMillis.toInt());
+        position = _anchorPosition;
+        speed = snapshot.speed;
+        isPlaying = snapshot.status == MediaPlaybackStatus.playing;
+        _resetPositionClock();
+        notifyListeners();
+      case MediaPlaybackEvent_Finished():
+        break;
+      case MediaPlaybackEvent_Failed(:final message):
+        e('Message audio playback failed: $message');
+        _clearPlayback();
+    }
+  }
+
+  void _updatePosition() {
+    final clock = _positionClock;
+    if (!isPlaying || clock == null) return;
+    final elapsedMillis = (clock.elapsedMilliseconds * speed).round();
+    final next = _anchorPosition + Duration(milliseconds: elapsedMillis);
+    position = next > _duration ? _duration : next;
     notifyListeners();
   }
 
-  void _disposePlayer() {
-    _positionTimer?.cancel();
-    _positionTimer = null;
-    final player = _player;
-    _player = null;
-    player?.state.removeListener(_handlePlayerState);
-    player?.dispose();
+  void _resetPositionClock() {
+    _positionClock = isPlaying ? (Stopwatch()..start()) : null;
+  }
+
+  void _clearPlayback({bool notify = true}) {
     _currentMessageId = null;
     currentMessage = null;
     position = Duration.zero;
+    _anchorPosition = Duration.zero;
+    _duration = Duration.zero;
+    _positionClock = null;
     isPlaying = false;
+    if (notify) notifyListeners();
   }
 
-  Future<void> _playNext() async {
-    final nextIndex = _playlistIndex + 1;
-    if (nextIndex >= _playlist.length) {
-      stop();
-      return;
-    }
-    final next = _playlist[nextIndex];
-    final path = _localMediaPath(next.mediaUrl);
-    if (path == null ||
-        !const {'DONE', 'READ'}.contains(next.mediaStatus.toUpperCase())) {
-      _playlistIndex = nextIndex;
-      await _playNext();
-      return;
-    }
-    _playlistIndex = nextIndex;
-    if (next.mediaStatus.toUpperCase() == 'DONE') _onMarkRead?.call(next);
-    await _start(next.id, path, next);
-  }
-
-  Future<void> _deactivateAudioSession() async {
+  Future<void> _runPlaybackCommand(
+    Future<void> Function() command,
+    String failureMessage,
+  ) async {
     try {
-      final session = await AudioSession.instance;
-      await session.setActive(
-        false,
-        avAudioSessionSetActiveOptions:
-            AVAudioSessionSetActiveOptions.notifyOthersOnDeactivation,
-      );
+      await command();
     } catch (error, stackTrace) {
-      e('Deactivate audio session after playback failed', error, stackTrace);
+      e(failureMessage, error, stackTrace);
     }
+  }
+
+  bool _isPlayable(MessageListEntry message) =>
+      message.isAudio &&
+      const {'DONE', 'READ'}.contains(message.mediaStatus.toUpperCase()) &&
+      _localMediaPath(message.mediaUrl) != null;
+
+  @override
+  void dispose() {
+    _positionTimer.cancel();
+    unawaited(_events.cancel());
+    _backend.stop();
+    super.dispose();
   }
 }
 

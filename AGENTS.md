@@ -1,10 +1,10 @@
-# Mixin Desktop Repository Working Agreement
+# Mixin Messenger Repository Working Agreement
 
 ## Scope routing
 
 - These rules apply to the whole repository.
-- For work under `desktop/`, also read `desktop/AGENTS.md`. It owns the SwiftUI architecture, macOS state management, navigation, UniFFI lifecycle, source organization, parity workflow, and Xcode validation.
-- For SwiftUI/macOS feature work that also changes `mixin_desktop_api`, `mixin_desktop_core`, or `mixin-bot-sdk`, apply the relevant bridge and parity rules from `desktop/AGENTS.md` to those shared changes.
+- For work under `swiftui/`, also read `swiftui/AGENTS.md`. It owns the SwiftUI architecture, macOS state management, navigation, UniFFI lifecycle, source organization, parity workflow, and Xcode validation.
+- For SwiftUI/macOS feature work that also changes `mixin_desktop_api`, `mixin_desktop_core`, or `mixin-bot-sdk`, apply the relevant bridge and parity rules from `swiftui/AGENTS.md` to those shared changes.
 - For work under `flutter/`, also read `flutter/AGENTS.md`. It owns Flutter hooks, Provider state management, FRB lifecycle, widget testing, and Flutter validation.
 - For work that affects both UI targets, preserve both bridge contracts and run the validation required by each affected target.
 
@@ -28,7 +28,7 @@
 - Do not expose SQL rows, DAOs, Tokio runtime handles, Rust path types, or internal synchronization primitives.
 - Keep bridge-specific error lowering exhaustive and typed. Preserve unauthorized, not found, cancelled, and invalid argument cases.
 - After changing an FRB-visible API, run `flutter_rust_bridge_codegen generate` from `flutter/` and include generated Dart changes.
-- After changing a UniFFI-visible API, regenerate Swift source, C headers, and the module map with the workflow in `desktop/README.md`.
+- After changing a UniFFI-visible API, regenerate Swift source, C headers, and the module map with the workflow in `swiftui/README.md`.
 - Generated code is committed. Inspect generated diffs for accidental API expansion, stale symbols, naming regressions, and formatting noise.
 - Do not add thin wrappers that only rename an existing operation. A wrapper must add conversion, batching, cancellation, lifecycle ownership, error lowering, or a meaningful test seam.
 
@@ -57,7 +57,7 @@ cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-- Follow `desktop/AGENTS.md` for SwiftUI, UniFFI, Xcode, and macOS live validation.
+- Follow `swiftui/AGENTS.md` for SwiftUI, UniFFI, Xcode, and macOS live validation.
 - Follow `flutter/AGENTS.md` for Dart formatting, Flutter analysis, tests, FRB generation, and Flutter builds.
 - A shared public API change must compile every affected bridge and UI target even when only one target currently consumes the new method.
 - Run `git diff --check` and inspect the final diff for generated noise and unrelated changes.

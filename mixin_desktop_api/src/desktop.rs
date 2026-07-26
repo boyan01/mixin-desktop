@@ -8,12 +8,13 @@ use tokio::sync::OnceCell;
 
 use crate::{
     AccountClient, ClientResult, HttpResponseItem, LoginClient, McpServerStatusItem,
-    McpSettingsItem, ProxySettingsItem,
+    McpSettingsItem, MediaClient, ProxySettingsItem,
 };
 
 #[derive(Clone)]
 pub struct DesktopClient {
     runtime: Arc<DesktopRuntime>,
+    media: Arc<MediaClient>,
 }
 
 #[derive(Clone)]
@@ -22,6 +23,7 @@ pub struct SettingsClient {
 }
 
 static DESKTOP_RUNTIME: OnceCell<Arc<DesktopRuntime>> = OnceCell::const_new();
+static MEDIA_CLIENT: std::sync::OnceLock<Arc<MediaClient>> = std::sync::OnceLock::new();
 
 impl DesktopClient {
     pub async fn open() -> ClientResult<Self> {
@@ -38,6 +40,9 @@ impl DesktopClient {
             .await?;
         Ok(Self {
             runtime: runtime.clone(),
+            media: MEDIA_CLIENT
+                .get_or_init(|| Arc::new(MediaClient::new()))
+                .clone(),
         })
     }
 
@@ -58,6 +63,10 @@ impl DesktopClient {
         SettingsClient {
             runtime: self.runtime.clone(),
         }
+    }
+
+    pub fn media(&self) -> Arc<MediaClient> {
+        self.media.clone()
     }
 
     pub async fn http_request(

@@ -85,6 +85,7 @@ class ChatView extends StatefulWidget {
     required this.conversation,
     required this.draft,
     required this.onDraftChanged,
+    this.media,
     super.key,
     this.onBack,
     this.onSearch,
@@ -98,6 +99,7 @@ class ChatView extends StatefulWidget {
   });
 
   final rust.AccountHandle account;
+  final rust.MediaHandle? media;
   final ConversationListEntry conversation;
   final String draft;
   final ValueChanged<String> onDraftChanged;
@@ -152,8 +154,12 @@ class _ChatViewState extends State<ChatView>
     _inputController = _MentionTextEditingController(text: widget.draft);
     _inputController.addListener(_onInputChanged);
     _inputFocusNode = FocusNode(debugLabel: 'chat_input');
-    _voiceRecorderController = VoiceRecorderController()
-      ..addListener(_onVoiceRecorderChanged);
+    _voiceRecorderController = VoiceRecorderController(
+      media: widget.media,
+      backend: widget.media == null
+          ? const _UnavailableVoiceRecorderBackend()
+          : null,
+    )..addListener(_onVoiceRecorderChanged);
     _stickerController = StickerController(
       account: widget.account,
       settings: _settings,
@@ -841,6 +847,21 @@ class _ChatViewState extends State<ChatView>
       ],
     ),
   );
+}
+
+class _UnavailableVoiceRecorderBackend implements VoiceRecorderBackend {
+  const _UnavailableVoiceRecorderBackend();
+
+  @override
+  Future<void> start(String path) =>
+      Future.error(StateError('Voice recording is unavailable'));
+
+  @override
+  Future<VoiceRecording> stop() =>
+      Future.error(StateError('Voice recording is unavailable'));
+
+  @override
+  Future<void> cancel() async {}
 }
 
 void _showDiscardRecordingWarningAlertOverlay(
@@ -2617,12 +2638,13 @@ class _VoiceRecordingPreview extends StatefulWidget {
 }
 
 class _VoiceRecordingPreviewState extends State<_VoiceRecordingPreview> {
-  final _coordinator = AudioMessagePlaybackCoordinator.instance;
+  late final AudioMessagePlaybackCoordinator _coordinator;
   late String _previewId;
 
   @override
   void initState() {
     super.initState();
+    _coordinator = context.read<AudioMessagePlaybackCoordinator>();
     _previewId = 'voice-preview-${widget.recording.path.hashCode}';
     _coordinator
       ..attach()

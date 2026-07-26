@@ -474,8 +474,12 @@ impl AttachmentAccess {
                     && fresh
                     && existing_attachment_id.is_some()
                 {
+                    let attachment_id = match existing_attachment_id {
+                        Some(attachment_id) => attachment_id,
+                        None => unreachable!("existing attachment ID was checked"),
+                    };
                     (
-                        existing_attachment_id.unwrap(),
+                        attachment_id,
                         transcript.media_created_at.unwrap(),
                         transcript.media_key.clone(),
                         transcript.media_digest.clone(),

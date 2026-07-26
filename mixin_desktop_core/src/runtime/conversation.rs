@@ -751,6 +751,24 @@ impl ConversationAccess {
         Ok(())
     }
 
+    pub async fn update_draft(
+        &self,
+        conversation_id: String,
+        draft: String,
+    ) -> Result<(), crate::error::CoreError> {
+        if draft.chars().count() > 64 * 1024 {
+            return Err(anyhow!("draft must not exceed 65536 characters").into());
+        }
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        self.database
+            .conversation_dao
+            .update_draft(&conversation_id, &draft)
+            .await?;
+        self.notify_conversation_changed(&conversation_id);
+        Ok(())
+    }
+
     pub async fn create_circle(
         &self,
         name: String,

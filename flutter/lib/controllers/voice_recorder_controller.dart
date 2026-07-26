@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
-import 'package:ogg_opus_player/ogg_opus_player.dart';
 
+import '../src/rust/api/media.dart';
 import '../utils/app_logger.dart';
 
 const maxVoiceRecordingDuration = Duration(seconds: 60);
@@ -54,9 +53,11 @@ abstract interface class VoiceRecorderBackend {
 
 class VoiceRecorderController extends ValueNotifier<VoiceRecorderState> {
   VoiceRecorderController({
+    MediaHandle? media,
     VoiceRecorderBackend? backend,
     VoiceRecordingPathFactory? pathFactory,
-  }) : _backend = backend ?? OggOpusRecorderBackend(),
+  }) : assert(media != null || backend != null),
+       _backend = backend ?? RustVoiceRecorderBackend(media!),
        _pathFactory = pathFactory ?? _temporaryRecordingPath,
        super(const VoiceRecorderState.idle());
 
@@ -226,70 +227,26 @@ class VoiceRecorderController extends ValueNotifier<VoiceRecorderState> {
   }
 }
 
-class OggOpusRecorderBackend implements VoiceRecorderBackend {
-  OggOpusRecorder? _recorder;
-  String? _path;
+class RustVoiceRecorderBackend implements VoiceRecorderBackend {
+  RustVoiceRecorderBackend(this._media);
+
+  final MediaHandle _media;
 
   @override
-  Future<void> start(String path) async {
-    if (_recorder != null) throw StateError('Recorder is already active');
-    final file = File(path);
-    if (await file.exists()) await file.delete();
-    await file.create(recursive: true);
-    final session = await AudioSession.instance;
-    await session.configure(const AudioSessionConfiguration.speech());
-    await session.setActive(true);
-    final recorder = OggOpusRecorder(path);
-    try {
-      recorder.start();
-    } catch (error, stackTrace) {
-      e('Start voice recorder failed', error, stackTrace);
-      recorder.dispose();
-      await _deactivateAudioSession();
-      rethrow;
-    }
-    _path = path;
-    _recorder = recorder;
-  }
+  Future<void> start(String _) => _media.startVoiceRecording();
 
   @override
   Future<VoiceRecording> stop() async {
-    final recorder = _recorder;
-    final path = _path;
-    if (recorder == null || path == null) {
-      throw StateError('Recorder is not active');
-    }
-    _recorder = null;
-    _path = null;
-    try {
-      await recorder.stop();
-      final waveform = await recorder.getWaveformData();
-      final duration = await recorder.duration();
-      return VoiceRecording(
-        path: path,
-        duration: Duration(milliseconds: (duration * 1000).round()),
-        waveform: waveform,
-      );
-    } finally {
-      recorder.dispose();
-      await _deactivateAudioSession();
-    }
+    final recording = await _media.stopVoiceRecording();
+    return VoiceRecording(
+      path: recording.path,
+      duration: Duration(milliseconds: recording.durationMillis.toInt()),
+      waveform: recording.waveform,
+    );
   }
 
   @override
-  Future<void> cancel() async {
-    final recorder = _recorder;
-    final path = _path;
-    _recorder = null;
-    _path = null;
-    try {
-      await recorder?.stop();
-    } finally {
-      recorder?.dispose();
-      await _deactivateAudioSession();
-      if (path != null) await _deleteFile(path);
-    }
-  }
+  Future<void> cancel() => _media.cancelVoiceRecording();
 }
 
 Future<String> _temporaryRecordingPath() async {
@@ -307,18 +264,5 @@ Future<void> _deleteFile(String path) async {
     if (await file.exists()) await file.delete();
   } catch (error, stackTrace) {
     e('Delete temporary voice recording failed: $path', error, stackTrace);
-  }
-}
-
-Future<void> _deactivateAudioSession() async {
-  try {
-    final session = await AudioSession.instance;
-    await session.setActive(
-      false,
-      avAudioSessionSetActiveOptions:
-          AVAudioSessionSetActiveOptions.notifyOthersOnDeactivation,
-    );
-  } catch (error, stackTrace) {
-    e('Deactivate audio session failed', error, stackTrace);
   }
 }

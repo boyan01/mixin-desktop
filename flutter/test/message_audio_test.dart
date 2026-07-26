@@ -6,6 +6,7 @@ import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/message_audio.dart';
 import 'package:provider/provider.dart';
 
+import 'test_audio_playback_backend.dart';
 import 'test_settings_store.dart';
 
 void main() {
@@ -59,8 +60,17 @@ class _TestApp extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => ChangeNotifierProvider(
-    create: (_) => SettingsController(store: TestSettingsStore()),
+  Widget build(BuildContext context) => MultiProvider(
+    providers: [
+      ChangeNotifierProvider(
+        create: (_) => SettingsController(store: TestSettingsStore()),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => AudioMessagePlaybackCoordinator(
+          backend: TestAudioPlaybackBackend(),
+        ),
+      ),
+    ],
     child: MaterialApp(
       theme: buildMixinTheme(Brightness.light),
       home: Scaffold(body: Center(child: child)),

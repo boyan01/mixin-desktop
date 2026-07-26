@@ -199,6 +199,14 @@ impl ConversationAccess {
             .await?)
     }
 
+    pub async fn update_draft(
+        &self,
+        conversation_id: String,
+        draft: String,
+    ) -> Result<(), ClientError> {
+        Ok(self.inner.update_draft(conversation_id, draft).await?)
+    }
+
     pub async fn create_circle(&self, name: String) -> Result<model::CircleItem, ClientError> {
         Ok(self.inner.create_circle(name).await?.into())
     }
@@ -308,6 +316,7 @@ impl From<CoreMessageAccess> for MessageAccess {
 }
 
 impl MessageAccess {
+    #[allow(clippy::too_many_arguments)]
     pub async fn send_remote_image(
         &self,
         conversation_id: String,
@@ -625,6 +634,7 @@ impl MessageAccess {
             .await?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn send_attachment(
         &self,
         conversation_id: String,

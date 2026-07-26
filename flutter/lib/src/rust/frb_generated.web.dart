@@ -11,6 +11,7 @@ import 'api/desktop.dart';
 import 'api/device_transfer.dart';
 import 'api/logging.dart';
 import 'api/login.dart';
+import 'api/media.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'error.dart';
@@ -52,6 +53,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_LoginHandlePtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLoginHandle;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_MediaHandlePtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle;
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_MessageAccessPtr => wire
@@ -109,6 +114,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  MediaHandle
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
+    dynamic raw,
+  );
+
+  @protected
   MessageAccess
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
     dynamic raw,
@@ -159,6 +170,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   LoginHandle
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLoginHandle(
+    dynamic raw,
+  );
+
+  @protected
+  MediaHandle
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
     dynamic raw,
   );
 
@@ -226,6 +243,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  MediaHandle
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
+    dynamic raw,
+  );
+
+  @protected
   MessageAccess
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
     dynamic raw,
@@ -281,6 +304,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_StreamSink_list_conversation_unseen_count_Sse(dynamic raw);
 
   @protected
+  RustStreamSink<MediaPlaybackEvent>
+  dco_decode_StreamSink_media_playback_event_Sse(dynamic raw);
+
+  @protected
+  RustStreamSink<MediaRecorderEvent>
+  dco_decode_StreamSink_media_recorder_event_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<NotificationEvent>
   dco_decode_StreamSink_notification_event_Sse(dynamic raw);
 
@@ -313,6 +344,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   McpSettingsItem dco_decode_box_autoadd_mcp_settings_item(dynamic raw);
+
+  @protected
+  MediaAudioItem dco_decode_box_autoadd_media_audio_item(dynamic raw);
+
+  @protected
+  MediaPlaybackSnapshot dco_decode_box_autoadd_media_playback_snapshot(
+    dynamic raw,
+  );
+
+  @protected
+  MediaRecorderSnapshot dco_decode_box_autoadd_media_recorder_snapshot(
+    dynamic raw,
+  );
+
+  @protected
+  MediaVoiceRecording dco_decode_box_autoadd_media_voice_recording(dynamic raw);
 
   @protected
   MessageOrderInfoView dco_decode_box_autoadd_message_order_info_view(
@@ -432,6 +479,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ImageMessageView> dco_decode_list_image_message_view(dynamic raw);
 
   @protected
+  List<MediaAudioItem> dco_decode_list_media_audio_item(dynamic raw);
+
+  @protected
   List<MessageListView> dco_decode_list_message_list_view(dynamic raw);
 
   @protected
@@ -470,6 +520,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   McpSettingsItem dco_decode_mcp_settings_item(dynamic raw);
 
   @protected
+  MediaAudioItem dco_decode_media_audio_item(dynamic raw);
+
+  @protected
+  MediaPlaybackEvent dco_decode_media_playback_event(dynamic raw);
+
+  @protected
+  MediaPlaybackSnapshot dco_decode_media_playback_snapshot(dynamic raw);
+
+  @protected
+  MediaPlaybackStatus dco_decode_media_playback_status(dynamic raw);
+
+  @protected
+  MediaRecorderEvent dco_decode_media_recorder_event(dynamic raw);
+
+  @protected
+  MediaRecorderSnapshot dco_decode_media_recorder_snapshot(dynamic raw);
+
+  @protected
+  MediaRecorderStatus dco_decode_media_recorder_status(dynamic raw);
+
+  @protected
+  MediaVoiceRecording dco_decode_media_voice_recording(dynamic raw);
+
+  @protected
   MessageListView dco_decode_message_list_view(dynamic raw);
 
   @protected
@@ -492,6 +566,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  MediaAudioItem? dco_decode_opt_box_autoadd_media_audio_item(dynamic raw);
+
+  @protected
+  MediaVoiceRecording? dco_decode_opt_box_autoadd_media_voice_recording(
+    dynamic raw,
+  );
 
   @protected
   MessageOrderInfoView? dco_decode_opt_box_autoadd_message_order_info_view(
@@ -606,6 +688,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  MediaHandle
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MessageAccess
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
     SseDeserializer deserializer,
@@ -656,6 +744,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   LoginHandle
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLoginHandle(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MediaHandle
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
     SseDeserializer deserializer,
   );
 
@@ -725,6 +819,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  MediaHandle
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MessageAccess
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
     SseDeserializer deserializer,
@@ -790,6 +890,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<MediaPlaybackEvent>
+  sse_decode_StreamSink_media_playback_event_Sse(SseDeserializer deserializer);
+
+  @protected
+  RustStreamSink<MediaRecorderEvent>
+  sse_decode_StreamSink_media_recorder_event_Sse(SseDeserializer deserializer);
+
+  @protected
   RustStreamSink<NotificationEvent>
   sse_decode_StreamSink_notification_event_Sse(SseDeserializer deserializer);
 
@@ -826,6 +934,26 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   McpSettingsItem sse_decode_box_autoadd_mcp_settings_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MediaAudioItem sse_decode_box_autoadd_media_audio_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MediaPlaybackSnapshot sse_decode_box_autoadd_media_playback_snapshot(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MediaRecorderSnapshot sse_decode_box_autoadd_media_recorder_snapshot(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MediaVoiceRecording sse_decode_box_autoadd_media_voice_recording(
     SseDeserializer deserializer,
   );
 
@@ -973,6 +1101,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<MediaAudioItem> sse_decode_list_media_audio_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<MessageListView> sse_decode_list_message_list_view(
     SseDeserializer deserializer,
   );
@@ -1023,6 +1156,44 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   McpSettingsItem sse_decode_mcp_settings_item(SseDeserializer deserializer);
 
   @protected
+  MediaAudioItem sse_decode_media_audio_item(SseDeserializer deserializer);
+
+  @protected
+  MediaPlaybackEvent sse_decode_media_playback_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MediaPlaybackSnapshot sse_decode_media_playback_snapshot(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MediaPlaybackStatus sse_decode_media_playback_status(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MediaRecorderEvent sse_decode_media_recorder_event(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MediaRecorderSnapshot sse_decode_media_recorder_snapshot(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MediaRecorderStatus sse_decode_media_recorder_status(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MediaVoiceRecording sse_decode_media_voice_recording(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MessageListView sse_decode_message_list_view(SseDeserializer deserializer);
 
   @protected
@@ -1047,6 +1218,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  MediaAudioItem? sse_decode_opt_box_autoadd_media_audio_item(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  MediaVoiceRecording? sse_decode_opt_box_autoadd_media_voice_recording(
+    SseDeserializer deserializer,
+  );
 
   @protected
   MessageOrderInfoView? sse_decode_opt_box_autoadd_message_order_info_view(
@@ -1187,6 +1368,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
+    MediaHandle self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
     MessageAccess self,
     SseSerializer serializer,
@@ -1245,6 +1433,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLoginHandle(
     LoginHandle self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
+    MediaHandle self,
     SseSerializer serializer,
   );
 
@@ -1326,6 +1521,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
+    MediaHandle self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
     MessageAccess self,
     SseSerializer serializer,
@@ -1401,6 +1603,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_media_playback_event_Sse(
+    RustStreamSink<MediaPlaybackEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_media_recorder_event_Sse(
+    RustStreamSink<MediaRecorderEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_notification_event_Sse(
     RustStreamSink<NotificationEvent> self,
     SseSerializer serializer,
@@ -1448,6 +1662,30 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_mcp_settings_item(
     McpSettingsItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_media_audio_item(
+    MediaAudioItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_media_playback_snapshot(
+    MediaPlaybackSnapshot self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_media_recorder_snapshot(
+    MediaRecorderSnapshot self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_media_voice_recording(
+    MediaVoiceRecording self,
     SseSerializer serializer,
   );
 
@@ -1629,6 +1867,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_media_audio_item(
+    List<MediaAudioItem> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_message_list_view(
     List<MessageListView> self,
     SseSerializer serializer,
@@ -1698,6 +1942,54 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_media_audio_item(
+    MediaAudioItem self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_media_playback_event(
+    MediaPlaybackEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_media_playback_snapshot(
+    MediaPlaybackSnapshot self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_media_playback_status(
+    MediaPlaybackStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_media_recorder_event(
+    MediaRecorderEvent self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_media_recorder_snapshot(
+    MediaRecorderSnapshot self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_media_recorder_status(
+    MediaRecorderStatus self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_media_voice_recording(
+    MediaVoiceRecording self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_message_list_view(
     MessageListView self,
     SseSerializer serializer,
@@ -1730,6 +2022,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_i_64(
     PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_media_audio_item(
+    MediaAudioItem? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_media_voice_recording(
+    MediaVoiceRecording? self,
     SseSerializer serializer,
   );
 
@@ -1944,6 +2248,22 @@ class RustLibWire implements BaseWire {
       );
 
   void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
+        ptr,
+      );
+
+  void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageAccess(
     int ptr,
   ) => wasmModule
@@ -2071,6 +2391,16 @@ extension type RustLibWasmModule._(JSObject _) implements JSObject {
 
   external void
   rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLoginHandle(
+    int ptr,
+  );
+
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMediaHandle(
     int ptr,
   );
 

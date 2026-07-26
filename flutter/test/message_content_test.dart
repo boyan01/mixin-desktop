@@ -8,12 +8,14 @@ import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
 import 'package:mixin_desktop_ui/widgets/image_by_blur_hash.dart';
 import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
+import 'package:mixin_desktop_ui/widgets/message_audio.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
 import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
 import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
 import 'package:provider/provider.dart';
 
+import 'test_audio_playback_backend.dart';
 import 'test_settings_store.dart';
 
 void main() {
@@ -726,8 +728,17 @@ class _TestApp extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => ChangeNotifierProvider(
-    create: (_) => SettingsController(store: TestSettingsStore()),
+  Widget build(BuildContext context) => MultiProvider(
+    providers: [
+      ChangeNotifierProvider(
+        create: (_) => SettingsController(store: TestSettingsStore()),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => AudioMessagePlaybackCoordinator(
+          backend: TestAudioPlaybackBackend(),
+        ),
+      ),
+    ],
     child: MaterialApp(
       theme: buildMixinTheme(Brightness.light),
       localizationsDelegates: const [

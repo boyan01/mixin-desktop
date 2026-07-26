@@ -32,10 +32,8 @@ pub(super) async fn read_settings() -> anyhow::Result<Option<Vec<(String, String
         .as_object()
         .ok_or_else(|| anyhow!("legacy SettingCubit is not an object"))?
         .iter()
-        .filter_map(|(key, value)| {
-            (!value.is_null())
-                .then(|| serde_json::to_string(value).map(|value| (key.clone(), value)))
-        })
+        .filter(|(_, value)| !value.is_null())
+        .map(|(key, value)| serde_json::to_string(value).map(|value| (key.clone(), value)))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Some(settings))
 }

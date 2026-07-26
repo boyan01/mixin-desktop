@@ -22,8 +22,6 @@ list(APPEND FLUTTER_FFI_PLUGIN_LIST
   flutter_local_notifications_windows
   jni
   mixin_desktop_flutter
-  ogg_opus_player
-  system_clock
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

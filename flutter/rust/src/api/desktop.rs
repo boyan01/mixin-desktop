@@ -11,6 +11,7 @@ use crate::{frb_generated::StreamSink, CoreError, Result};
 
 use super::account::AccountHandle;
 use super::login::LoginHandle;
+use super::media::MediaHandle;
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct DesktopHandle {
@@ -34,6 +35,11 @@ impl DesktopHandle {
         SettingsHandle {
             client: Arc::new(self.client.settings()),
         }
+    }
+
+    #[flutter_rust_bridge::frb(sync, getter)]
+    pub fn media(&self) -> MediaHandle {
+        MediaHandle::new(self.client.media())
     }
 
     pub async fn http_request(

@@ -225,17 +225,17 @@ impl AccountRuntime {
                         .enable_all()
                         .build();
                     match runtime {
-                        Ok(runtime) => runtime.block_on(run_account(
+                        Ok(runtime) => runtime.block_on(run_account(AccountRunContext {
                             auth,
                             client,
                             shutdown_receiver,
-                            account_conversation_changes,
-                            account_notification_changes,
+                            conversation_changes: account_conversation_changes,
+                            notification_changes: account_notification_changes,
                             account_health_updates,
                             initial_account_health,
-                            attachment_transfer_sender,
+                            attachment_transfer_requests: attachment_transfer_sender,
                             ready_sender,
-                        )),
+                        })),
                         Err(error) => {
                             let _ = ready_sender.send(Err(error.to_string()));
                         }
@@ -623,7 +623,27 @@ impl AccountRuntime {
             .account_api
             .update(&AccountUpdateRequest {
                 full_name: Some(full_name),
+                avatar_base64: None,
                 biography: Some(biography),
+            })
+            .await?;
+        self.persist_account_profile(account).await
+    }
+
+    pub async fn update_account_avatar(&self, avatar_base64: String) -> Result<Account> {
+        let avatar_base64 = avatar_base64.trim();
+        if avatar_base64.is_empty() {
+            return Err(anyhow!("account avatar is required"));
+        }
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        let account = self
+            .client
+            .account_api
+            .update(&AccountUpdateRequest {
+                full_name: None,
+                avatar_base64: Some(avatar_base64),
+                biography: None,
             })
             .await?;
         self.persist_account_profile(account).await
@@ -690,7 +710,7 @@ impl AccountRuntime {
                     }
                 })
                 .collect::<Vec<_>>();
-            usage.sort_by(|left, right| right.size_bytes.cmp(&left.size_bytes));
+            usage.sort_by_key(|item| std::cmp::Reverse(item.size_bytes));
             usage
         })
         .await
@@ -946,17 +966,30 @@ impl Drop for AccountRuntime {
     }
 }
 
-async fn run_account(
+struct AccountRunContext {
     auth: Auth,
     client: Arc<Client>,
-    mut shutdown_receiver: watch::Receiver<bool>,
+    shutdown_receiver: watch::Receiver<bool>,
     conversation_changes: ConversationChangeNotifier,
     notification_changes: watch::Sender<u64>,
     account_health_updates: watch::Sender<String>,
     initial_account_health: String,
     attachment_transfer_requests: mpsc::UnboundedSender<AttachmentTransferRequest>,
     ready_sender: oneshot::Sender<AccountStartupResult>,
-) {
+}
+
+async fn run_account(context: AccountRunContext) {
+    let AccountRunContext {
+        auth,
+        client,
+        mut shutdown_receiver,
+        conversation_changes,
+        notification_changes,
+        account_health_updates,
+        initial_account_health,
+        attachment_transfer_requests,
+        ready_sender,
+    } = context;
     let result = prepare_account(
         &auth,
         client.clone(),

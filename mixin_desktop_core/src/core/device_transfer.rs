@@ -488,7 +488,7 @@ impl DeviceTransferService {
                         }
                     }
                 }
-                if offset % 100 != 0 {
+                if !offset.is_multiple_of(100) {
                     break;
                 }
             }
@@ -855,7 +855,7 @@ fn encrypt_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>> {
 }
 
 fn decrypt_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-    if data.is_empty() || data.len() % 16 != 0 {
+    if data.is_empty() || !data.len().is_multiple_of(16) {
         bail!("invalid AES ciphertext length");
     }
     let cipher = Aes256::new_from_slice(key).map_err(|_| anyhow!("invalid AES key"))?;
@@ -1467,13 +1467,13 @@ fn normalize_outgoing_record(kind: &str, data: &mut Map<String, Value>) {
             normalize_millis_date(data, key);
         }
     }
-    if kind == "message" || kind == "transcript_message" {
-        if data.get("media_status").and_then(Value::as_str) == Some("PENDING") {
-            data.insert(
-                "media_status".to_string(),
-                Value::String("CANCELED".to_string()),
-            );
-        }
+    if (kind == "message" || kind == "transcript_message")
+        && data.get("media_status").and_then(Value::as_str) == Some("PENDING")
+    {
+        data.insert(
+            "media_status".to_string(),
+            Value::String("CANCELED".to_string()),
+        );
     }
     if kind == "message" {
         for key in ["media_key", "media_digest"] {
@@ -1526,13 +1526,13 @@ fn normalize_incoming_record(kind: &str, data: &mut Map<String, Value>) {
     if kind == "message" {
         data.insert("status".to_string(), Value::String("READ".to_string()));
     }
-    if kind == "message" || kind == "transcript_message" {
-        if data.get("media_status").and_then(Value::as_str) == Some("PENDING") {
-            data.insert(
-                "media_status".to_string(),
-                Value::String("CANCELED".to_string()),
-            );
-        }
+    if (kind == "message" || kind == "transcript_message")
+        && data.get("media_status").and_then(Value::as_str) == Some("PENDING")
+    {
+        data.insert(
+            "media_status".to_string(),
+            Value::String("CANCELED".to_string()),
+        );
     }
 }
 

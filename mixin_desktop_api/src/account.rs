@@ -43,6 +43,11 @@ impl AccountClient {
         Ok(AccountProfile::from(&account))
     }
 
+    pub async fn update_avatar(&self, avatar_base64: String) -> ClientResult<AccountProfile> {
+        let account = self.runtime.update_account_avatar(avatar_base64).await?;
+        Ok(AccountProfile::from(&account))
+    }
+
     pub async fn refresh_profile(&self) -> ClientResult<AccountProfile> {
         let account = self.runtime.refresh_account_profile().await?;
         Ok(AccountProfile::from(&account))

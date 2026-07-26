@@ -135,13 +135,20 @@ impl From<&sdk::Account> for AccountProfile {
 #[derive(Clone, Debug)]
 pub struct ConversationListItem {
     pub conversation_id: String,
+    pub owner_id: String,
+    pub category: String,
     pub name: String,
     pub icon_url: String,
+    pub draft: String,
     pub last_message: String,
+    pub last_read_message_id: Option<String>,
     pub unseen_count: i64,
     pub mention_count: i64,
     pub is_pinned: bool,
     pub is_muted: bool,
+    pub is_bot: bool,
+    pub is_scam: bool,
+    pub participant_count: i64,
     pub updated_at_millis: i64,
 }
 
@@ -149,13 +156,20 @@ impl From<ConversationListData> for ConversationListItem {
     fn from(value: ConversationListData) -> Self {
         Self {
             conversation_id: value.conversation_id,
+            owner_id: value.owner_id,
+            category: value.category,
             name: value.name,
             icon_url: value.avatar_url,
+            draft: value.draft,
             last_message: value.last_message,
+            last_read_message_id: value.last_read_message_id,
             unseen_count: value.unseen_count,
             mention_count: value.mention_count,
             is_pinned: value.is_pinned,
             is_muted: value.is_muted,
+            is_bot: value.is_bot,
+            is_scam: value.is_scam,
+            participant_count: value.participant_count,
             updated_at_millis: value.updated_at_millis,
         }
     }

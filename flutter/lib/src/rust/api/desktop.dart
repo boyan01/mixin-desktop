@@ -8,6 +8,7 @@ import '../frb_generated.dart';
 import '../third_party/mixin_desktop_api/model.dart';
 import 'account.dart';
 import 'login.dart';
+import 'media.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 Future<DesktopHandle> openDesktop() =>
@@ -27,6 +28,8 @@ abstract class DesktopHandle implements RustOpaqueInterface {
     BigInt? timeoutMillis,
     BigInt? maxResponseBytes,
   });
+
+  MediaHandle get media;
 
   Future<void> recreateAccountDatabase();
 

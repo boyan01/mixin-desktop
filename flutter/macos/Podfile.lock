@@ -10,9 +10,6 @@ PODS:
     - FlutterMacOS
   - mixin_desktop_flutter (0.0.1):
     - FlutterMacOS
-  - ogg_opus_player (0.0.1):
-    - Flutter
-    - FlutterMacOS
   - protocol_handler_macos (0.0.1):
     - FlutterMacOS
   - super_native_extensions (0.0.1):
@@ -27,7 +24,6 @@ DEPENDENCIES:
   - FlutterMacOS (from `Flutter/ephemeral`)
   - irondash_engine_context (from `Flutter/ephemeral/.symlinks/plugins/irondash_engine_context/macos`)
   - mixin_desktop_flutter (from `Flutter/ephemeral/.symlinks/plugins/mixin_desktop_flutter/macos`)
-  - ogg_opus_player (from `Flutter/ephemeral/.symlinks/plugins/ogg_opus_player/darwin`)
   - protocol_handler_macos (from `Flutter/ephemeral/.symlinks/plugins/protocol_handler_macos/macos`)
   - super_native_extensions (from `Flutter/ephemeral/.symlinks/plugins/super_native_extensions/macos`)
   - system_tray (from `Flutter/ephemeral/.symlinks/plugins/system_tray/macos`)
@@ -45,8 +41,6 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/irondash_engine_context/macos
   mixin_desktop_flutter:
     :path: Flutter/ephemeral/.symlinks/plugins/mixin_desktop_flutter/macos
-  ogg_opus_player:
-    :path: Flutter/ephemeral/.symlinks/plugins/ogg_opus_player/darwin
   protocol_handler_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/protocol_handler_macos/macos
   super_native_extensions:
@@ -60,8 +54,7 @@ SPEC CHECKSUMS:
   flutter_app_icon_badge: e05568a57ac0d98a0e7bc35c5b9ae9b118109b1e
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   irondash_engine_context: 893c7d96d20ce361d7e996f39d360c4c2f9869ba
-  mixin_desktop_flutter: a3cd9ad04b70e613095159b581c30dc874fd82a3
-  ogg_opus_player: 954784304f4e2722780018c4abf284e4f93cddf5
+  mixin_desktop_flutter: 4c45b4a4d82c0927a33bf09b2487d08dfd005c58
   protocol_handler_macos: f9cd7b13bcaf6b0425f7410cbe52376cb843a936
   super_native_extensions: c2795d6d9aedf4a79fae25cb6160b71b50549189
   system_tray: 53f0cdb020c3fbee711d3fe45ae7ce730e033d2b

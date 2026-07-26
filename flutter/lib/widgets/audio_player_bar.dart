@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
 
 import '../models/conversation_list_entry.dart';
 import '../models/message_list_entry.dart';
@@ -29,13 +30,14 @@ class AudioPlayerBar extends StatefulWidget {
 }
 
 class _AudioPlayerBarState extends State<AudioPlayerBar> {
-  final coordinator = AudioMessagePlaybackCoordinator.instance;
+  late final AudioMessagePlaybackCoordinator coordinator;
   ConversationListEntry? conversation;
   String? loadingConversationId;
 
   @override
   void initState() {
     super.initState();
+    coordinator = context.read<AudioMessagePlaybackCoordinator>();
     coordinator
       ..attach()
       ..addListener(_handlePlaybackChanged);

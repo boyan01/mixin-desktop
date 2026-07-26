@@ -5,7 +5,6 @@
 import FlutterMacOS
 import Foundation
 
-import audio_session
 import desktop_drop
 import desktop_keep_screen_on
 import desktop_webview_window
@@ -15,7 +14,6 @@ import flutter_app_icon_badge
 import flutter_local_notifications
 import irondash_engine_context
 import local_auth_darwin
-import ogg_opus_player
 import open_file_mac
 import package_info_plus
 import protocol_handler_macos
@@ -27,7 +25,6 @@ import video_player_avfoundation
 import window_manager
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
-  AudioSessionPlugin.register(with: registry.registrar(forPlugin: "AudioSessionPlugin"))
   DesktopDropPlugin.register(with: registry.registrar(forPlugin: "DesktopDropPlugin"))
   DesktopKeepScreenOnPlugin.register(with: registry.registrar(forPlugin: "DesktopKeepScreenOnPlugin"))
   DesktopWebviewWindowPlugin.register(with: registry.registrar(forPlugin: "DesktopWebviewWindowPlugin"))
@@ -37,7 +34,6 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   FlutterLocalNotificationsPlugin.register(with: registry.registrar(forPlugin: "FlutterLocalNotificationsPlugin"))
   IrondashEngineContextPlugin.register(with: registry.registrar(forPlugin: "IrondashEngineContextPlugin"))
   LocalAuthPlugin.register(with: registry.registrar(forPlugin: "LocalAuthPlugin"))
-  OggOpusPlayerPlugin.register(with: registry.registrar(forPlugin: "OggOpusPlayerPlugin"))
   OpenFilePlugin.register(with: registry.registrar(forPlugin: "OpenFilePlugin"))
   FPPPackageInfoPlusPlugin.register(with: registry.registrar(forPlugin: "FPPPackageInfoPlusPlugin"))
   ProtocolHandlerMacosPlugin.register(with: registry.registrar(forPlugin: "ProtocolHandlerMacosPlugin"))

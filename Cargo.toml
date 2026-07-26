@@ -4,6 +4,7 @@ members = [
     "mixin-bot-sdk",
     "mixin_desktop_core",
     "mixin_desktop_api",
+    "mixin_desktop_media",
     "flutter/rust",
-    "desktop/rust",
+    "swiftui/rust",
 ]

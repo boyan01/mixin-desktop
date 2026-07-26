@@ -360,8 +360,7 @@ impl MessageAccess {
         }
         let before_created_at_millis =
             before_created_at_micros.map(|value| value.div_euclid(1_000));
-        Ok(self
-            .database
+        self.database
             .message_dao
             .list_items(
                 conversation_id,
@@ -372,7 +371,7 @@ impl MessageAccess {
             .await?
             .into_iter()
             .map(|item| self.message_list_view(item))
-            .collect::<Result<Vec<_>>>()?)
+            .collect::<Result<Vec<_>>>()
     }
 
     pub async fn message_items_by_ids(
@@ -380,14 +379,13 @@ impl MessageAccess {
         message_ids: Vec<String>,
     ) -> Result<Vec<model::MessageListView>> {
         self.ensure_active()?;
-        Ok(self
-            .database
+        self.database
             .message_dao
             .list_items_by_ids(&message_ids)
             .await?
             .into_iter()
             .map(|item| self.message_list_view(item))
-            .collect::<Result<Vec<_>>>()?)
+            .collect::<Result<Vec<_>>>()
     }
 
     pub async fn message_order_info(
@@ -602,14 +600,13 @@ impl MessageAccess {
     ) -> Result<Vec<model::MessageListView>> {
         let conversation_id = conversation_id.as_str();
         let target_message_id = target_message_id.as_str();
-        Ok(self
-            .database
+        self.database
             .message_dao
             .list_items_around(conversation_id, target_message_id, before, after)
             .await?
             .into_iter()
             .map(|item| self.message_list_view(item))
-            .collect::<Result<Vec<_>>>()?)
+            .collect::<Result<Vec<_>>>()
     }
 
     pub async fn image_messages_around(
@@ -622,14 +619,13 @@ impl MessageAccess {
         let conversation_id = conversation_id.as_str();
         let target_message_id = target_message_id.as_str();
         self.ensure_active()?;
-        Ok(self
-            .database
+        self.database
             .message_dao
             .list_image_items_around(conversation_id, target_message_id, before, after)
             .await?
             .into_iter()
             .map(|item| self.image_message_view(item, conversation_id))
-            .collect::<Result<Vec<_>>>()?)
+            .collect::<Result<Vec<_>>>()
     }
 
     pub async fn pinned_messages(
@@ -638,14 +634,13 @@ impl MessageAccess {
     ) -> Result<Vec<model::MessageListView>> {
         let conversation_id = conversation_id.as_str();
         self.ensure_active()?;
-        Ok(self
-            .database
+        self.database
             .message_dao
             .list_pinned_items(conversation_id)
             .await?
             .into_iter()
             .map(|item| self.message_list_view(item))
-            .collect::<Result<Vec<_>>>()?)
+            .collect::<Result<Vec<_>>>()
     }
 
     pub async fn pinned_message_ids(&self, conversation_id: String) -> Result<Vec<String>> {
@@ -681,14 +676,13 @@ impl MessageAccess {
     ) -> Result<Vec<model::MessageListView>> {
         let transcript_id = transcript_id.as_str();
         self.ensure_active()?;
-        Ok(self
-            .database
+        self.database
             .transcript_message_dao
             .list_items(transcript_id)
             .await?
             .into_iter()
             .map(|item| self.transcript_message_list_view(item))
-            .collect::<Result<Vec<_>>>()?)
+            .collect::<Result<Vec<_>>>()
     }
 
     pub async fn send_text(

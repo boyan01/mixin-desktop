@@ -150,6 +150,11 @@ abstract class ConversationAccess implements RustOpaqueInterface {
 
   Future<void> updateCircle({required String circleId, required String name});
 
+  Future<void> updateDraft({
+    required String conversationId,
+    required String draft,
+  });
+
   Future<void> updateParticipants({
     required String conversationId,
     required String action,

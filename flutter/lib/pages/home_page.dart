@@ -1119,6 +1119,7 @@ class _ChatWithSide extends StatelessWidget {
               name: 'chat',
               child: ChatView(
                 account: account,
+                media: context.read<MediaHandle>(),
                 conversation: conversation,
                 draft: draft,
                 locateMessageId: locateMessageId,

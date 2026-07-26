@@ -15,11 +15,13 @@ import 'app.dart';
 import 'controllers/app_controller.dart';
 import 'controllers/settings_controller.dart';
 import 'src/rust/api/desktop.dart';
+import 'src/rust/api/media.dart';
 import 'src/rust/frb_generated.dart';
 import 'theme.dart';
 import 'utils/app_logger.dart';
 import 'utils/local_notification_center.dart';
 import 'utils/system_fonts.dart';
+import 'widgets/message_audio.dart';
 import 'widgets/web_view_navigation_bar.dart';
 
 Future<void> main(List<String> args) async {
@@ -71,6 +73,12 @@ Future<void> main(List<String> args) async {
         ChangeNotifierProvider.value(value: controller),
         ChangeNotifierProvider.value(value: settingsController),
         Provider.value(value: desktop.settings),
+        Provider<MediaHandle>.value(value: desktop.media),
+        ChangeNotifierProvider(
+          create: (_) => AudioMessagePlaybackCoordinator(
+            backend: RustAudioPlaybackBackend(desktop.media),
+          ),
+        ),
       ],
       child: OverlaySupport.global(
         child: MixinDesktopApp(initialProtocolUrl: initialProtocolUrl),

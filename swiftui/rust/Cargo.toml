@@ -1,0 +1,23 @@
+[package]
+name = "mixin_desktop_swift"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "mixin_desktop"
+crate-type = ["staticlib"]
+
+[features]
+swift-bindgen = ["uniffi/cli"]
+
+[dependencies]
+futures = "0.3"
+mixin_desktop_api = { path = "../../mixin_desktop_api" }
+thiserror = "2"
+tokio = { version = "1", features = ["sync"] }
+uniffi = { version = "0.32", default-features = false, features = ["tokio"] }
+
+[[bin]]
+name = "uniffi-bindgen-swift"
+path = "src/bin/uniffi_bindgen_swift.rs"
+required-features = ["swift-bindgen"]

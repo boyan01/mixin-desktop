@@ -31,6 +31,12 @@ impl From<anyhow::Error> for ClientError {
     }
 }
 
+impl From<mixin_desktop_media::MediaError> for ClientError {
+    fn from(error: mixin_desktop_media::MediaError) -> Self {
+        Self::Internal(error.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{ClientError, CoreError};

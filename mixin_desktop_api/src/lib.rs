@@ -5,6 +5,7 @@ pub mod dto;
 pub mod error;
 mod logging;
 mod login;
+mod media;
 pub mod model;
 
 pub use access::{AttachmentAccess, ConversationAccess, MessageAccess, StickerAccess, UserAccess};
@@ -20,6 +21,11 @@ pub use dto::{
 pub use error::{ClientError, ClientResult};
 pub use logging::{init_logging, log_directory};
 pub use login::LoginClient;
+pub use media::MediaClient;
+pub use mixin_desktop_media::{
+    AudioPlaybackEvent, AudioPlaybackItem, AudioPlaybackSnapshot, AudioPlaybackStatus,
+    VoiceRecorderEvent, VoiceRecorderSnapshot, VoiceRecorderStatus, VoiceRecording,
+};
 pub use model::{
     AccountProfile, ConnectionFailedReason, ConversationChangeEvent, ConversationListItem,
     DeviceTransferCommand, DeviceTransferEvent, HttpResponseItem, McpServerStatusItem,

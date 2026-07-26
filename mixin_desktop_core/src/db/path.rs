@@ -68,8 +68,7 @@ pub(crate) async fn create_parent_directory(path: &Path) -> anyhow::Result<()> {
 pub fn data_directory() -> anyhow::Result<PathBuf> {
     DATA_DIRECTORY
         .get_or_init(resolve_data_directory)
-        .as_ref()
-        .map(Clone::clone)
+        .clone()
         .map_err(|error| anyhow!(error))
 }
 

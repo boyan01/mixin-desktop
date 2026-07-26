@@ -176,6 +176,8 @@ pub struct AccountUpdateRequest<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub full_name: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_base64: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub biography: Option<&'a str>,
 }
 
@@ -231,10 +233,20 @@ mod test {
         assert_eq!(
             serde_json::to_value(AccountUpdateRequest {
                 full_name: Some("Mixin"),
+                avatar_base64: None,
                 biography: Some("Messenger"),
             })
             .unwrap(),
             serde_json::json!({"full_name": "Mixin", "biography": "Messenger"})
+        );
+        assert_eq!(
+            serde_json::to_value(AccountUpdateRequest {
+                full_name: None,
+                avatar_base64: Some("aW1hZ2U"),
+                biography: None,
+            })
+            .unwrap(),
+            serde_json::json!({"avatar_base64": "aW1hZ2U"})
         );
     }
 }

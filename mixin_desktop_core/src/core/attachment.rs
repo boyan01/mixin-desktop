@@ -296,7 +296,9 @@ impl AttachmentService {
         let operation = async {
             let file = tokio::fs::File::open(upload_path).await?;
             let length = file.metadata().await?.len();
-            progress.as_ref().map(|callback| callback(0, length));
+            if let Some(callback) = progress.as_ref() {
+                callback(0, length);
+            }
             let stream = ReaderStream::new(ProgressReader::new(file, length, progress.clone()));
             let request = self
                 .http_client
@@ -318,7 +320,9 @@ impl AttachmentService {
                     request.await?.error_for_status()?;
                 }
             }
-            progress.as_ref().map(|callback| callback(1, 1));
+            if let Some(callback) = progress.as_ref() {
+                callback(1, 1);
+            }
             Ok::<_, anyhow::Error>(())
         }
         .await;
@@ -457,7 +461,9 @@ impl AttachmentService {
         }
         .error_for_status()?;
         let total = response.content_length().unwrap_or_default();
-        progress.map(|callback| callback(0, total));
+        if let Some(callback) = progress {
+            callback(0, total);
+        }
         let mut stream = response.bytes_stream();
         let mut received = 0_u64;
         let mut file = tokio::fs::OpenOptions::new()
@@ -479,11 +485,15 @@ impl AttachmentService {
             let chunk = chunk?;
             file.write_all(&chunk).await?;
             received = received.saturating_add(chunk.len() as u64);
-            progress.map(|callback| callback(received, total));
+            if let Some(callback) = progress {
+                callback(received, total);
+            }
         }
         file.flush().await?;
         file.sync_all().await?;
-        progress.map(|callback| callback(1, 1));
+        if let Some(callback) = progress {
+            callback(1, 1);
+        }
         Ok(())
     }
 }

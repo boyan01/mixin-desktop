@@ -20,6 +20,7 @@ import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/chat_view.dart';
 import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
 import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
+import 'package:mixin_desktop_ui/widgets/message_audio.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
 import 'package:mixin_desktop_ui/widgets/message_media_preview_pages.dart';
@@ -29,6 +30,7 @@ import 'package:overlay_support/overlay_support.dart';
 import 'package:provider/provider.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import 'test_audio_playback_backend.dart';
 import 'test_settings_store.dart';
 
 void main() {
@@ -1375,8 +1377,17 @@ class _LocalizedApp extends StatelessWidget {
       supportedLocales: AppLocalizations.supportedLocales,
       home: Portal(child: child),
     );
-    return ChangeNotifierProvider(
-      create: (_) => SettingsController(store: TestSettingsStore()),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => SettingsController(store: TestSettingsStore()),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => AudioMessagePlaybackCoordinator(
+            backend: TestAudioPlaybackBackend(),
+          ),
+        ),
+      ],
       child: overlaySupport ? OverlaySupport.global(child: app) : app,
     );
   }
