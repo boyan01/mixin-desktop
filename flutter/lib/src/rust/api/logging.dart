@@ -3,8 +3,21 @@
 
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
+import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+
+Future<void> init({
+  required String appName,
+  required String appVersion,
+  required String buildNumber,
+}) => RustLib.instance.api.crateApiLoggingInit(
+  appName: appName,
+  appVersion: appVersion,
+  buildNumber: buildNumber,
+);
+
+Future<String> directory() => RustLib.instance.api.crateApiLoggingDirectory();
 
 void logFlutter({required String level, required String message}) => RustLib
     .instance

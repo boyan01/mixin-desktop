@@ -5,18 +5,20 @@
 
 import 'api/account.dart';
 import 'api/desktop.dart';
+import 'api/device_transfer.dart';
 import 'api/logging.dart';
 import 'api/login.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'error.dart';
 import 'frb_generated.dart';
 import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
-import 'third_party/mixin_desktop_core/core/device_transfer.dart';
-import 'third_party/mixin_desktop_core/runtime.dart';
-import 'third_party/mixin_desktop_core/runtime/logging.dart';
-import 'third_party/mixin_desktop_core/runtime/model.dart';
+import 'third_party/mixin_desktop_api/access.dart';
+import 'third_party/mixin_desktop_api/dto.dart';
+import 'third_party/mixin_desktop_api/error.dart';
+import 'third_party/mixin_desktop_api/model.dart';
 
 /// Main entrypoint of the Rust API
 class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
@@ -77,7 +79,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -752741114;
+  int get rustContentHash => -500129639;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -224,63 +226,61 @@ abstract class RustLibApi extends BaseApi {
 
   UserAccess crateApiAccountAccountHandleUser({required AccountHandle that});
 
-  Future<void> mixinDesktopCoreRuntimeAttachmentAccessCancelAttachment({
+  Future<void> mixinDesktopApiAccessAttachmentAccessCancelAttachment({
+    required AttachmentAccess that,
+    required String messageId,
+  });
+
+  Future<void> mixinDesktopApiAccessAttachmentAccessCancelTranscriptAttachment({
+    required AttachmentAccess that,
+    required String transcriptId,
+    required String messageId,
+  });
+
+  Future<void> mixinDesktopApiAccessAttachmentAccessDownloadAttachment({
     required AttachmentAccess that,
     required String messageId,
   });
 
   Future<void>
-  mixinDesktopCoreRuntimeAttachmentAccessCancelTranscriptAttachment({
+  mixinDesktopApiAccessAttachmentAccessDownloadTranscriptAttachment({
     required AttachmentAccess that,
     required String transcriptId,
     required String messageId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeAttachmentAccessDownloadAttachment({
+  Future<void> mixinDesktopApiAccessAttachmentAccessMarkAudioRead({
     required AttachmentAccess that,
     required String messageId,
   });
 
-  Future<void>
-  mixinDesktopCoreRuntimeAttachmentAccessDownloadTranscriptAttachment({
+  Future<void> mixinDesktopApiAccessAttachmentAccessMarkTranscriptAudioRead({
     required AttachmentAccess that,
     required String transcriptId,
     required String messageId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeAttachmentAccessMarkAudioRead({
+  Future<void> mixinDesktopApiAccessAttachmentAccessRetryAttachment({
     required AttachmentAccess that,
     required String messageId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeAttachmentAccessMarkTranscriptAudioRead({
-    required AttachmentAccess that,
-    required String transcriptId,
-    required String messageId,
-  });
-
-  Future<void> mixinDesktopCoreRuntimeAttachmentAccessRetryAttachment({
-    required AttachmentAccess that,
-    required String messageId,
-  });
-
-  Future<void>
-  mixinDesktopCoreRuntimeAttachmentAccessRetryTranscriptAttachment({
+  Future<void> mixinDesktopApiAccessAttachmentAccessRetryTranscriptAttachment({
     required AttachmentAccess that,
     required String transcriptId,
   });
 
-  Future<List<CircleItem>> mixinDesktopCoreRuntimeConversationAccessCircles({
+  Future<List<CircleItem>> mixinDesktopApiAccessConversationAccessCircles({
     required ConversationAccess that,
   });
 
-  Future<void> mixinDesktopCoreRuntimeConversationAccessClearConversation({
+  Future<void> mixinDesktopApiAccessConversationAccessClearConversation({
     required ConversationAccess that,
     required String conversationId,
   });
 
   Future<PlatformInt64>
-  mixinDesktopCoreRuntimeConversationAccessConversationCount({
+  mixinDesktopApiAccessConversationAccessConversationCount({
     required ConversationAccess that,
     required String category,
     String? circleId,
@@ -289,30 +289,30 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<ConversationDetailItem>
-  mixinDesktopCoreRuntimeConversationAccessConversationDetail({
+  mixinDesktopApiAccessConversationAccessConversationDetail({
     required ConversationAccess that,
     required String conversationId,
   });
 
   Future<List<ConversationListData>>
-  mixinDesktopCoreRuntimeConversationAccessConversationItems({
+  mixinDesktopApiAccessConversationAccessConversationItems({
     required ConversationAccess that,
   });
 
   Future<List<ConversationListData>>
-  mixinDesktopCoreRuntimeConversationAccessConversationItemsByIds({
+  mixinDesktopApiAccessConversationAccessConversationItemsByIds({
     required ConversationAccess that,
     required List<String> conversationIds,
   });
 
   Future<List<ConversationParticipantItem>>
-  mixinDesktopCoreRuntimeConversationAccessConversationParticipants({
+  mixinDesktopApiAccessConversationAccessConversationParticipants({
     required ConversationAccess that,
     required String conversationId,
   });
 
   Future<List<ConversationListData>>
-  mixinDesktopCoreRuntimeConversationAccessConversations({
+  mixinDesktopApiAccessConversationAccessConversations({
     required ConversationAccess that,
     required String category,
     String? circleId,
@@ -322,33 +322,33 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 offset,
   });
 
-  Future<CircleItem> mixinDesktopCoreRuntimeConversationAccessCreateCircle({
+  Future<CircleItem> mixinDesktopApiAccessConversationAccessCreateCircle({
     required ConversationAccess that,
     required String name,
   });
 
-  Future<String> mixinDesktopCoreRuntimeConversationAccessCreateGroup({
+  Future<String> mixinDesktopApiAccessConversationAccessCreateGroup({
     required ConversationAccess that,
     required String name,
     required List<String> userIds,
   });
 
-  Future<String?> mixinDesktopCoreRuntimeConversationAccessCurrentUserRole({
+  Future<String?> mixinDesktopApiAccessConversationAccessCurrentUserRole({
     required ConversationAccess that,
     required String conversationId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeConversationAccessDeleteCircle({
+  Future<void> mixinDesktopApiAccessConversationAccessDeleteCircle({
     required ConversationAccess that,
     required String circleId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeConversationAccessDeleteConversation({
+  Future<void> mixinDesktopApiAccessConversationAccessDeleteConversation({
     required ConversationAccess that,
     required String conversationId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeConversationAccessEditCircleConversation({
+  Future<void> mixinDesktopApiAccessConversationAccessEditCircleConversation({
     required ConversationAccess that,
     required String circleId,
     required String conversationId,
@@ -357,82 +357,81 @@ abstract class RustLibApi extends BaseApi {
     required bool add,
   });
 
-  Future<void> mixinDesktopCoreRuntimeConversationAccessEditConversation({
+  Future<void> mixinDesktopApiAccessConversationAccessEditConversation({
     required ConversationAccess that,
     required String conversationId,
     String? name,
     String? announcement,
   });
 
-  Future<void> mixinDesktopCoreRuntimeConversationAccessExitGroup({
+  Future<void> mixinDesktopApiAccessConversationAccessExitGroup({
     required ConversationAccess that,
     required String conversationId,
   });
 
   Future<List<GroupConversationItem>>
-  mixinDesktopCoreRuntimeConversationAccessGroupsInCommon({
+  mixinDesktopApiAccessConversationAccessGroupsInCommon({
     required ConversationAccess that,
     required String userId,
   });
 
-  Future<bool> mixinDesktopCoreRuntimeConversationAccessIsBotGroup({
+  Future<bool> mixinDesktopApiAccessConversationAccessIsBotGroup({
     required ConversationAccess that,
     required String conversationId,
   });
 
-  Future<String> mixinDesktopCoreRuntimeConversationAccessJoinGroup({
+  Future<String> mixinDesktopApiAccessConversationAccessJoinGroup({
     required ConversationAccess that,
     required String code,
   });
 
   Future<ConversationDetailItem>
-  mixinDesktopCoreRuntimeConversationAccessLocalConversationDetail({
+  mixinDesktopApiAccessConversationAccessLocalConversationDetail({
     required ConversationAccess that,
     required String conversationId,
   });
 
-  Future<String> mixinDesktopCoreRuntimeConversationAccessOpenUserConversation({
+  Future<String> mixinDesktopApiAccessConversationAccessOpenUserConversation({
     required ConversationAccess that,
     required String userId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeConversationAccessReorderCircles({
+  Future<void> mixinDesktopApiAccessConversationAccessReorderCircles({
     required ConversationAccess that,
     required List<String> circleIds,
   });
 
-  Future<CodeResult> mixinDesktopCoreRuntimeConversationAccessResolveCode({
+  Future<CodeResult> mixinDesktopApiAccessConversationAccessResolveCode({
     required ConversationAccess that,
     required String code,
   });
 
-  Future<void> mixinDesktopCoreRuntimeConversationAccessRotateGroupInvite({
+  Future<void> mixinDesktopApiAccessConversationAccessRotateGroupInvite({
     required ConversationAccess that,
     required String conversationId,
   });
 
   Future<List<ConversationParticipantItem>>
-  mixinDesktopCoreRuntimeConversationAccessSearchBotGroupUsers({
+  mixinDesktopApiAccessConversationAccessSearchBotGroupUsers({
     required ConversationAccess that,
     required String conversationId,
     required String keyword,
   });
 
   Future<List<ConversationParticipantItem>>
-  mixinDesktopCoreRuntimeConversationAccessSearchGroupUsers({
+  mixinDesktopApiAccessConversationAccessSearchGroupUsers({
     required ConversationAccess that,
     required String conversationId,
     required String keyword,
   });
 
-  Future<void>
-  mixinDesktopCoreRuntimeConversationAccessSetDisappearingMessages({
+  Future<void> mixinDesktopApiAccessConversationAccessSetDisappearingMessages({
     required ConversationAccess that,
     required String conversationId,
     required PlatformInt64 duration,
   });
 
-  Future<void> mixinDesktopCoreRuntimeConversationAccessSetMuted({
+  Future<void> mixinDesktopApiAccessConversationAccessSetMuted({
     required ConversationAccess that,
     required String conversationId,
     required String ownerId,
@@ -440,19 +439,19 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 durationSeconds,
   });
 
-  Future<void> mixinDesktopCoreRuntimeConversationAccessSetPinned({
+  Future<void> mixinDesktopApiAccessConversationAccessSetPinned({
     required ConversationAccess that,
     required String conversationId,
     required bool pinned,
   });
 
-  Future<void> mixinDesktopCoreRuntimeConversationAccessUpdateCircle({
+  Future<void> mixinDesktopApiAccessConversationAccessUpdateCircle({
     required ConversationAccess that,
     required String circleId,
     required String name,
   });
 
-  Future<void> mixinDesktopCoreRuntimeConversationAccessUpdateParticipants({
+  Future<void> mixinDesktopApiAccessConversationAccessUpdateParticipants({
     required ConversationAccess that,
     required String conversationId,
     required String action,
@@ -482,7 +481,7 @@ abstract class RustLibApi extends BaseApi {
     required DesktopHandle that,
   });
 
-  Future<AccountHandle?> crateApiDesktopDesktopHandleRestoreAccount({
+  Future<AccountHandle> crateApiDesktopDesktopHandleRestoreAccount({
     required DesktopHandle that,
   });
 
@@ -498,31 +497,31 @@ abstract class RustLibApi extends BaseApi {
     required LoginHandle that,
   });
 
-  Future<String> mixinDesktopCoreRuntimeMessageAccessCombineForwardMessages({
+  Future<String> mixinDesktopApiAccessMessageAccessCombineForwardMessages({
     required MessageAccess that,
     required String targetConversationId,
     required List<String> sourceMessageIds,
   });
 
-  Future<bool> mixinDesktopCoreRuntimeMessageAccessConversationIsEncrypted({
+  Future<bool> mixinDesktopApiAccessMessageAccessConversationIsEncrypted({
     required MessageAccess that,
     required String conversationId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeMessageAccessDeleteMessages({
+  Future<void> mixinDesktopApiAccessMessageAccessDeleteMessages({
     required MessageAccess that,
     required String conversationId,
     required List<String> messageIds,
   });
 
-  Future<List<String>> mixinDesktopCoreRuntimeMessageAccessForwardMessages({
+  Future<List<String>> mixinDesktopApiAccessMessageAccessForwardMessages({
     required MessageAccess that,
     required String targetConversationId,
     required List<String> sourceMessageIds,
   });
 
   Future<List<ImageMessageView>>
-  mixinDesktopCoreRuntimeMessageAccessImageMessagesAround({
+  mixinDesktopApiAccessMessageAccessImageMessagesAround({
     required MessageAccess that,
     required String conversationId,
     required String targetMessageId,
@@ -530,18 +529,18 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 after,
   });
 
-  Future<void> mixinDesktopCoreRuntimeMessageAccessMarkConversationRead({
+  Future<void> mixinDesktopApiAccessMessageAccessMarkConversationRead({
     required MessageAccess that,
     required String conversationId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeMessageAccessMarkMentionRead({
+  Future<void> mixinDesktopApiAccessMessageAccessMarkMentionRead({
     required MessageAccess that,
     required String conversationId,
     required String messageId,
   });
 
-  Future<List<String>> mixinDesktopCoreRuntimeMessageAccessMessageIdsAfter({
+  Future<List<String>> mixinDesktopApiAccessMessageAccessMessageIdsAfter({
     required MessageAccess that,
     required String conversationId,
     required PlatformInt64 anchorRowId,
@@ -549,7 +548,7 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 limit,
   });
 
-  Future<List<String>> mixinDesktopCoreRuntimeMessageAccessMessageIdsBefore({
+  Future<List<String>> mixinDesktopApiAccessMessageAccessMessageIdsBefore({
     required MessageAccess that,
     required String conversationId,
     required PlatformInt64 anchorRowId,
@@ -558,18 +557,18 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessMessageItemsByIds({
+  mixinDesktopApiAccessMessageAccessMessageItemsByIds({
     required MessageAccess that,
     required List<String> messageIds,
   });
 
   Future<MessageOrderInfoView?>
-  mixinDesktopCoreRuntimeMessageAccessMessageOrderInfo({
+  mixinDesktopApiAccessMessageAccessMessageOrderInfo({
     required MessageAccess that,
     required String messageId,
   });
 
-  Future<List<MessageListView>> mixinDesktopCoreRuntimeMessageAccessMessages({
+  Future<List<MessageListView>> mixinDesktopApiAccessMessageAccessMessages({
     required MessageAccess that,
     required String conversationId,
     PlatformInt64? beforeCreatedAtMicros,
@@ -578,7 +577,7 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessMessagesAround({
+  mixinDesktopApiAccessMessageAccessMessagesAround({
     required MessageAccess that,
     required String conversationId,
     required String targetMessageId,
@@ -587,30 +586,30 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<PinMessagePreviewItem?>
-  mixinDesktopCoreRuntimeMessageAccessPinMessagePreview({
+  mixinDesktopApiAccessMessageAccessPinMessagePreview({
     required MessageAccess that,
     required String conversationId,
   });
 
-  Future<List<String>> mixinDesktopCoreRuntimeMessageAccessPinnedMessageIds({
+  Future<List<String>> mixinDesktopApiAccessMessageAccessPinnedMessageIds({
     required MessageAccess that,
     required String conversationId,
   });
 
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessPinnedMessages({
+  mixinDesktopApiAccessMessageAccessPinnedMessages({
     required MessageAccess that,
     required String conversationId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeMessageAccessRecallMessages({
+  Future<void> mixinDesktopApiAccessMessageAccessRecallMessages({
     required MessageAccess that,
     required String conversationId,
     required List<String> messageIds,
   });
 
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessSearchGlobalMessages({
+  mixinDesktopApiAccessMessageAccessSearchGlobalMessages({
     required MessageAccess that,
     required String query,
     String? anchorMessageId,
@@ -618,7 +617,7 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessSearchMessages({
+  mixinDesktopApiAccessMessageAccessSearchMessages({
     required MessageAccess that,
     required String conversationId,
     required String query,
@@ -628,13 +627,13 @@ abstract class RustLibApi extends BaseApi {
     required int limit,
   });
 
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendAppCard({
+  Future<String> mixinDesktopApiAccessMessageAccessSendAppCard({
     required MessageAccess that,
     required String conversationId,
     required String content,
   });
 
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendAttachment({
+  Future<String> mixinDesktopApiAccessMessageAccessSendAttachment({
     required MessageAccess that,
     required String conversationId,
     required String path,
@@ -650,7 +649,7 @@ abstract class RustLibApi extends BaseApi {
     required bool silent,
   });
 
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendAudio({
+  Future<String> mixinDesktopApiAccessMessageAccessSendAudio({
     required MessageAccess that,
     required String conversationId,
     required String path,
@@ -659,7 +658,7 @@ abstract class RustLibApi extends BaseApi {
     String? quoteMessageId,
   });
 
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendContact({
+  Future<String> mixinDesktopApiAccessMessageAccessSendContact({
     required MessageAccess that,
     required String conversationId,
     required String sharedUserId,
@@ -667,13 +666,13 @@ abstract class RustLibApi extends BaseApi {
     required bool silent,
   });
 
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendPost({
+  Future<String> mixinDesktopApiAccessMessageAccessSendPost({
     required MessageAccess that,
     required String conversationId,
     required String content,
   });
 
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendRemoteImage({
+  Future<String> mixinDesktopApiAccessMessageAccessSendRemoteImage({
     required MessageAccess that,
     required String conversationId,
     required String url,
@@ -684,13 +683,13 @@ abstract class RustLibApi extends BaseApi {
     required bool silent,
   });
 
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendSticker({
+  Future<String> mixinDesktopApiAccessMessageAccessSendSticker({
     required MessageAccess that,
     required String conversationId,
     required String stickerId,
   });
 
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendText({
+  Future<String> mixinDesktopApiAccessMessageAccessSendText({
     required MessageAccess that,
     required String conversationId,
     required String content,
@@ -698,7 +697,7 @@ abstract class RustLibApi extends BaseApi {
     required bool silent,
   });
 
-  Future<void> mixinDesktopCoreRuntimeMessageAccessSetMessagePinned({
+  Future<void> mixinDesktopApiAccessMessageAccessSetMessagePinned({
     required MessageAccess that,
     required String conversationId,
     required String messageId,
@@ -706,7 +705,7 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessSharedMessages({
+  mixinDesktopApiAccessMessageAccessSharedMessages({
     required MessageAccess that,
     required String conversationId,
     required String kind,
@@ -715,13 +714,13 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessTranscriptMessages({
+  mixinDesktopApiAccessMessageAccessTranscriptMessages({
     required MessageAccess that,
     required String transcriptId,
   });
 
   Future<List<String>>
-  mixinDesktopCoreRuntimeMessageAccessUnreadMentionMessageIds({
+  mixinDesktopApiAccessMessageAccessUnreadMentionMessageIds({
     required MessageAccess that,
     required String conversationId,
   });
@@ -803,172 +802,172 @@ abstract class RustLibApi extends BaseApi {
     required SettingsHandle that,
   });
 
-  Future<void> mixinDesktopCoreRuntimeStickerAccessAddSticker({
+  Future<void> mixinDesktopApiAccessStickerAccessAddSticker({
     required StickerAccess that,
     required String stickerId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeStickerAccessAddStickerFromFile({
+  Future<void> mixinDesktopApiAccessStickerAccessAddStickerFromFile({
     required StickerAccess that,
     required String messageId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeStickerAccessAddStickerFromPath({
+  Future<void> mixinDesktopApiAccessStickerAccessAddStickerFromPath({
     required StickerAccess that,
     required String path,
   });
 
-  Future<List<StickerItem>> mixinDesktopCoreRuntimeStickerAccessAlbumStickers({
+  Future<List<StickerItem>> mixinDesktopApiAccessStickerAccessAlbumStickers({
     required StickerAccess that,
     required String albumId,
   });
 
-  Future<List<StickerItem>>
-  mixinDesktopCoreRuntimeStickerAccessPersonalStickers({
+  Future<List<StickerItem>> mixinDesktopApiAccessStickerAccessPersonalStickers({
     required StickerAccess that,
   });
 
-  Future<List<StickerItem>> mixinDesktopCoreRuntimeStickerAccessRecentStickers({
+  Future<List<StickerItem>> mixinDesktopApiAccessStickerAccessRecentStickers({
     required StickerAccess that,
   });
 
-  Future<void> mixinDesktopCoreRuntimeStickerAccessRefreshSticker({
-    required StickerAccess that,
-    required String stickerId,
-  });
-
-  Future<bool> mixinDesktopCoreRuntimeStickerAccessRefreshStickers({
-    required StickerAccess that,
-  });
-
-  Future<void> mixinDesktopCoreRuntimeStickerAccessRemoveSticker({
+  Future<void> mixinDesktopApiAccessStickerAccessRefreshSticker({
     required StickerAccess that,
     required String stickerId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeStickerAccessSetStickerAlbumAdded({
+  Future<bool> mixinDesktopApiAccessStickerAccessRefreshStickers({
+    required StickerAccess that,
+  });
+
+  Future<void> mixinDesktopApiAccessStickerAccessRemoveSticker({
+    required StickerAccess that,
+    required String stickerId,
+  });
+
+  Future<void> mixinDesktopApiAccessStickerAccessSetStickerAlbumAdded({
     required StickerAccess that,
     required String albumId,
     required bool added,
   });
 
-  Future<void> mixinDesktopCoreRuntimeStickerAccessSetStickerAlbumOrder({
+  Future<void> mixinDesktopApiAccessStickerAccessSetStickerAlbumOrder({
     required StickerAccess that,
     required List<String> albumIds,
   });
 
   Future<List<StickerAlbumItem>>
-  mixinDesktopCoreRuntimeStickerAccessStickerAlbums({
+  mixinDesktopApiAccessStickerAccessStickerAlbums({
     required StickerAccess that,
   });
 
-  Future<StickerDetailItem> mixinDesktopCoreRuntimeStickerAccessStickerDetail({
+  Future<StickerDetailItem> mixinDesktopApiAccessStickerAccessStickerDetail({
     required StickerAccess that,
     required String stickerId,
   });
 
   Future<List<StickerAlbumItem>>
-  mixinDesktopCoreRuntimeStickerAccessStickerStoreAlbums({
+  mixinDesktopApiAccessStickerAccessStickerStoreAlbums({
     required StickerAccess that,
   });
 
-  Future<void> mixinDesktopCoreRuntimeUserAccessAddContact({
+  Future<void> mixinDesktopApiAccessUserAccessAddContact({
     required UserAccess that,
     required String userId,
     required String fullName,
   });
 
-  Future<void> mixinDesktopCoreRuntimeUserAccessBlockUser({
+  Future<void> mixinDesktopApiAccessUserAccessBlockUser({
     required UserAccess that,
     required String userId,
   });
 
-  Future<String?> mixinDesktopCoreRuntimeUserAccessBotCreatorId({
+  Future<String?> mixinDesktopApiAccessUserAccessBotCreatorId({
     required UserAccess that,
     required String userId,
   });
 
-  Future<String?> mixinDesktopCoreRuntimeUserAccessBotHomeUri({
+  Future<String?> mixinDesktopApiAccessUserAccessBotHomeUri({
     required UserAccess that,
     required String appId,
   });
 
-  Future<List<SharedAppItem>> mixinDesktopCoreRuntimeUserAccessLocalSharedApps({
+  Future<List<SharedAppItem>> mixinDesktopApiAccessUserAccessLocalSharedApps({
     required UserAccess that,
     required String userId,
   });
 
-  Future<Map<String, String>> mixinDesktopCoreRuntimeUserAccessMentionNames({
+  Future<Map<String, String>> mixinDesktopApiAccessUserAccessMentionNames({
     required UserAccess that,
     required List<String> contents,
   });
 
-  Future<UserProfileItem?> mixinDesktopCoreRuntimeUserAccessRefreshUserProfile({
+  Future<UserProfileItem?> mixinDesktopApiAccessUserAccessRefreshUserProfile({
     required UserAccess that,
     required String userId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeUserAccessRemoveContact({
+  Future<void> mixinDesktopApiAccessUserAccessRemoveContact({
     required UserAccess that,
     required String userId,
   });
 
-  Future<List<String>> mixinDesktopCoreRuntimeUserAccessReplaceMentions({
+  Future<List<String>> mixinDesktopApiAccessUserAccessReplaceMentions({
     required UserAccess that,
     required List<String> contents,
   });
 
-  Future<void> mixinDesktopCoreRuntimeUserAccessReportUser({
+  Future<void> mixinDesktopApiAccessUserAccessReportUser({
     required UserAccess that,
     required String userId,
   });
 
   Future<List<UserProfileItem>>
-  mixinDesktopCoreRuntimeUserAccessSearchLocalUsers({
+  mixinDesktopApiAccessUserAccessSearchLocalUsers({
     required UserAccess that,
     required String query,
     required String category,
     required PlatformInt64 limit,
   });
 
-  Future<UserProfileItem?> mixinDesktopCoreRuntimeUserAccessSearchMaoUser({
+  Future<UserProfileItem?> mixinDesktopApiAccessUserAccessSearchMaoUser({
     required UserAccess that,
     required String query,
   });
 
-  Future<UserProfileItem> mixinDesktopCoreRuntimeUserAccessSearchUser({
+  Future<UserProfileItem> mixinDesktopApiAccessUserAccessSearchUser({
     required UserAccess that,
     required String query,
   });
 
-  Future<List<UserProfileItem>>
-  mixinDesktopCoreRuntimeUserAccessSelectableUsers({required UserAccess that});
+  Future<List<UserProfileItem>> mixinDesktopApiAccessUserAccessSelectableUsers({
+    required UserAccess that,
+  });
 
-  Future<List<SharedAppItem>> mixinDesktopCoreRuntimeUserAccessSharedApps({
+  Future<List<SharedAppItem>> mixinDesktopApiAccessUserAccessSharedApps({
     required UserAccess that,
     required String userId,
   });
 
-  Future<void> mixinDesktopCoreRuntimeUserAccessUnblockUser({
+  Future<void> mixinDesktopApiAccessUserAccessUnblockUser({
     required UserAccess that,
     required String userId,
   });
 
-  Future<UserProfileItem?> mixinDesktopCoreRuntimeUserAccessUserProfile({
+  Future<UserProfileItem?> mixinDesktopApiAccessUserAccessUserProfile({
     required UserAccess that,
     String? userId,
     String? identityNumber,
   });
 
   Future<List<UserProfileItem>>
-  mixinDesktopCoreRuntimeUserAccessUsersByIdentityNumbers({
+  mixinDesktopApiAccessUserAccessUsersByIdentityNumbers({
     required UserAccess that,
     required List<String> identityNumbers,
   });
 
-  Future<String> mixinDesktopCoreRuntimeLoggingDirectory();
+  Future<String> crateApiLoggingDirectory();
 
-  Future<void> mixinDesktopCoreRuntimeLoggingInit({
+  Future<void> crateApiLoggingInit({
     required String appName,
     required String appVersion,
     required String buildNumber,
@@ -1000,6 +999,14 @@ abstract class RustLibApi extends BaseApi {
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_AttachmentAccessPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_ClientError;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_ClientError;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ClientErrorPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_ConversationAccess;
@@ -1095,7 +1102,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta: kCrateApiAccountAccountHandleAccountHealthConstMeta,
           argValues: [that, sink],
@@ -1230,7 +1237,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta: kCrateApiAccountAccountHandleCircleChangesConstMeta,
           argValues: [that, sink],
@@ -1272,7 +1279,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta:
             kCrateApiAccountAccountHandleClearConversationStorageConstMeta,
@@ -1313,7 +1320,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta: kCrateApiAccountAccountHandleConnectionStatusConstMeta,
           argValues: [that, sink],
@@ -1390,7 +1397,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta: kCrateApiAccountAccountHandleConversationChangesConstMeta,
           argValues: [that, sink],
@@ -1431,7 +1438,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_storage_category_usage,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta:
             kCrateApiAccountAccountHandleConversationStorageUsageConstMeta,
@@ -1473,7 +1480,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta:
               kCrateApiAccountAccountHandleDesktopNotificationEventsConstMeta,
@@ -1515,7 +1522,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiAccountAccountHandleDeviceTransferCommandConstMeta,
         argValues: [that, command],
@@ -1555,7 +1562,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta: kCrateApiAccountAccountHandleDeviceTransferEventsConstMeta,
           argValues: [that, sink],
@@ -1589,7 +1596,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiAccountAccountHandleMediaDirectoryConstMeta,
         argValues: [that],
@@ -1660,7 +1667,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta: kCrateApiAccountAccountHandleMessageChangesConstMeta,
           argValues: [that, sink],
@@ -1732,7 +1739,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta: kCrateApiAccountAccountHandleProfileChangesConstMeta,
           argValues: [that, sink],
@@ -1770,7 +1777,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiAccountAccountHandleRefreshAccountHealthConstMeta,
         argValues: [that],
@@ -1807,7 +1814,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_account_profile,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiAccountAccountHandleRefreshProfileConstMeta,
         argValues: [that],
@@ -1876,7 +1883,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_snapshot_detail_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiAccountAccountHandleSafeSnapshotByIdConstMeta,
         argValues: [that, snapshotId],
@@ -1948,7 +1955,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiAccountAccountHandleSignOutConstMeta,
         argValues: [that],
@@ -1986,7 +1993,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_snapshot_detail_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiAccountAccountHandleSnapshotByIdConstMeta,
         argValues: [that, snapshotId],
@@ -2024,7 +2031,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_snapshot_detail_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiAccountAccountHandleSnapshotByTraceConstMeta,
         argValues: [that, traceId],
@@ -2091,7 +2098,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_conversation_storage_usage,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiAccountAccountHandleStorageUsageConstMeta,
         argValues: [that],
@@ -2134,7 +2141,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta: kCrateApiAccountAccountHandleUnseenCountChangesConstMeta,
           argValues: [that, sink],
@@ -2175,7 +2182,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta:
               kCrateApiAccountAccountHandleUnseenMessageCountChangesConstMeta,
@@ -2219,7 +2226,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_account_profile,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiAccountAccountHandleUpdateProfileConstMeta,
         argValues: [that, fullName, biography],
@@ -2265,7 +2272,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeAttachmentAccessCancelAttachment({
+  Future<void> mixinDesktopApiAccessAttachmentAccessCancelAttachment({
     required AttachmentAccess that,
     required String messageId,
   }) {
@@ -2287,10 +2294,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeAttachmentAccessCancelAttachmentConstMeta,
+            kMixinDesktopApiAccessAttachmentAccessCancelAttachmentConstMeta,
         argValues: [that, messageId],
         apiImpl: this,
       ),
@@ -2298,15 +2306,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeAttachmentAccessCancelAttachmentConstMeta =>
+  get kMixinDesktopApiAccessAttachmentAccessCancelAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentAccess_cancel_attachment",
         argNames: ["that", "messageId"],
       );
 
   @override
-  Future<void>
-  mixinDesktopCoreRuntimeAttachmentAccessCancelTranscriptAttachment({
+  Future<void> mixinDesktopApiAccessAttachmentAccessCancelTranscriptAttachment({
     required AttachmentAccess that,
     required String transcriptId,
     required String messageId,
@@ -2330,10 +2337,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeAttachmentAccessCancelTranscriptAttachmentConstMeta,
+            kMixinDesktopApiAccessAttachmentAccessCancelTranscriptAttachmentConstMeta,
         argValues: [that, transcriptId, messageId],
         apiImpl: this,
       ),
@@ -2341,14 +2349,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeAttachmentAccessCancelTranscriptAttachmentConstMeta =>
+  get kMixinDesktopApiAccessAttachmentAccessCancelTranscriptAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentAccess_cancel_transcript_attachment",
         argNames: ["that", "transcriptId", "messageId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeAttachmentAccessDownloadAttachment({
+  Future<void> mixinDesktopApiAccessAttachmentAccessDownloadAttachment({
     required AttachmentAccess that,
     required String messageId,
   }) {
@@ -2370,10 +2378,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeAttachmentAccessDownloadAttachmentConstMeta,
+            kMixinDesktopApiAccessAttachmentAccessDownloadAttachmentConstMeta,
         argValues: [that, messageId],
         apiImpl: this,
       ),
@@ -2381,7 +2390,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeAttachmentAccessDownloadAttachmentConstMeta =>
+  get kMixinDesktopApiAccessAttachmentAccessDownloadAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentAccess_download_attachment",
         argNames: ["that", "messageId"],
@@ -2389,7 +2398,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<void>
-  mixinDesktopCoreRuntimeAttachmentAccessDownloadTranscriptAttachment({
+  mixinDesktopApiAccessAttachmentAccessDownloadTranscriptAttachment({
     required AttachmentAccess that,
     required String transcriptId,
     required String messageId,
@@ -2413,10 +2422,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeAttachmentAccessDownloadTranscriptAttachmentConstMeta,
+            kMixinDesktopApiAccessAttachmentAccessDownloadTranscriptAttachmentConstMeta,
         argValues: [that, transcriptId, messageId],
         apiImpl: this,
       ),
@@ -2424,14 +2434,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeAttachmentAccessDownloadTranscriptAttachmentConstMeta =>
+  get kMixinDesktopApiAccessAttachmentAccessDownloadTranscriptAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentAccess_download_transcript_attachment",
         argNames: ["that", "transcriptId", "messageId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeAttachmentAccessMarkAudioRead({
+  Future<void> mixinDesktopApiAccessAttachmentAccessMarkAudioRead({
     required AttachmentAccess that,
     required String messageId,
   }) {
@@ -2453,10 +2463,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeAttachmentAccessMarkAudioReadConstMeta,
+        constMeta: kMixinDesktopApiAccessAttachmentAccessMarkAudioReadConstMeta,
         argValues: [that, messageId],
         apiImpl: this,
       ),
@@ -2464,14 +2474,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeAttachmentAccessMarkAudioReadConstMeta =>
+  get kMixinDesktopApiAccessAttachmentAccessMarkAudioReadConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentAccess_mark_audio_read",
         argNames: ["that", "messageId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeAttachmentAccessMarkTranscriptAudioRead({
+  Future<void> mixinDesktopApiAccessAttachmentAccessMarkTranscriptAudioRead({
     required AttachmentAccess that,
     required String transcriptId,
     required String messageId,
@@ -2495,10 +2505,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeAttachmentAccessMarkTranscriptAudioReadConstMeta,
+            kMixinDesktopApiAccessAttachmentAccessMarkTranscriptAudioReadConstMeta,
         argValues: [that, transcriptId, messageId],
         apiImpl: this,
       ),
@@ -2506,14 +2517,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeAttachmentAccessMarkTranscriptAudioReadConstMeta =>
+  get kMixinDesktopApiAccessAttachmentAccessMarkTranscriptAudioReadConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentAccess_mark_transcript_audio_read",
         argNames: ["that", "transcriptId", "messageId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeAttachmentAccessRetryAttachment({
+  Future<void> mixinDesktopApiAccessAttachmentAccessRetryAttachment({
     required AttachmentAccess that,
     required String messageId,
   }) {
@@ -2535,10 +2546,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeAttachmentAccessRetryAttachmentConstMeta,
+            kMixinDesktopApiAccessAttachmentAccessRetryAttachmentConstMeta,
         argValues: [that, messageId],
         apiImpl: this,
       ),
@@ -2546,15 +2558,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeAttachmentAccessRetryAttachmentConstMeta =>
+  get kMixinDesktopApiAccessAttachmentAccessRetryAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentAccess_retry_attachment",
         argNames: ["that", "messageId"],
       );
 
   @override
-  Future<void>
-  mixinDesktopCoreRuntimeAttachmentAccessRetryTranscriptAttachment({
+  Future<void> mixinDesktopApiAccessAttachmentAccessRetryTranscriptAttachment({
     required AttachmentAccess that,
     required String transcriptId,
   }) {
@@ -2576,10 +2587,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeAttachmentAccessRetryTranscriptAttachmentConstMeta,
+            kMixinDesktopApiAccessAttachmentAccessRetryTranscriptAttachmentConstMeta,
         argValues: [that, transcriptId],
         apiImpl: this,
       ),
@@ -2587,14 +2599,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeAttachmentAccessRetryTranscriptAttachmentConstMeta =>
+  get kMixinDesktopApiAccessAttachmentAccessRetryTranscriptAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentAccess_retry_transcript_attachment",
         argNames: ["that", "transcriptId"],
       );
 
   @override
-  Future<List<CircleItem>> mixinDesktopCoreRuntimeConversationAccessCircles({
+  Future<List<CircleItem>> mixinDesktopApiAccessConversationAccessCircles({
     required ConversationAccess that,
   }) {
     return handler.executeNormal(
@@ -2614,24 +2626,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_circle_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeConversationAccessCirclesConstMeta,
+        constMeta: kMixinDesktopApiAccessConversationAccessCirclesConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessCirclesConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessConversationAccessCirclesConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_circles",
         argNames: ["that"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeConversationAccessClearConversation({
+  Future<void> mixinDesktopApiAccessConversationAccessClearConversation({
     required ConversationAccess that,
     required String conversationId,
   }) {
@@ -2653,10 +2665,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessClearConversationConstMeta,
+            kMixinDesktopApiAccessConversationAccessClearConversationConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -2664,7 +2677,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessClearConversationConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessClearConversationConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_clear_conversation",
         argNames: ["that", "conversationId"],
@@ -2672,7 +2685,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<PlatformInt64>
-  mixinDesktopCoreRuntimeConversationAccessConversationCount({
+  mixinDesktopApiAccessConversationAccessConversationCount({
     required ConversationAccess that,
     required String category,
     String? circleId,
@@ -2700,10 +2713,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_i_64,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessConversationCountConstMeta,
+            kMixinDesktopApiAccessConversationAccessConversationCountConstMeta,
         argValues: [that, category, circleId, keyword, unseenOnly],
         apiImpl: this,
       ),
@@ -2711,7 +2725,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessConversationCountConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessConversationCountConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_conversation_count",
         argNames: ["that", "category", "circleId", "keyword", "unseenOnly"],
@@ -2719,7 +2733,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<ConversationDetailItem>
-  mixinDesktopCoreRuntimeConversationAccessConversationDetail({
+  mixinDesktopApiAccessConversationAccessConversationDetail({
     required ConversationAccess that,
     required String conversationId,
   }) {
@@ -2741,10 +2755,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_conversation_detail_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessConversationDetailConstMeta,
+            kMixinDesktopApiAccessConversationAccessConversationDetailConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -2752,7 +2767,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessConversationDetailConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessConversationDetailConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_conversation_detail",
         argNames: ["that", "conversationId"],
@@ -2760,7 +2775,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<ConversationListData>>
-  mixinDesktopCoreRuntimeConversationAccessConversationItems({
+  mixinDesktopApiAccessConversationAccessConversationItems({
     required ConversationAccess that,
   }) {
     return handler.executeNormal(
@@ -2780,10 +2795,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_conversation_list_data,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessConversationItemsConstMeta,
+            kMixinDesktopApiAccessConversationAccessConversationItemsConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
@@ -2791,7 +2807,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessConversationItemsConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessConversationItemsConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_conversation_items",
         argNames: ["that"],
@@ -2799,7 +2815,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<ConversationListData>>
-  mixinDesktopCoreRuntimeConversationAccessConversationItemsByIds({
+  mixinDesktopApiAccessConversationAccessConversationItemsByIds({
     required ConversationAccess that,
     required List<String> conversationIds,
   }) {
@@ -2821,10 +2837,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_conversation_list_data,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessConversationItemsByIdsConstMeta,
+            kMixinDesktopApiAccessConversationAccessConversationItemsByIdsConstMeta,
         argValues: [that, conversationIds],
         apiImpl: this,
       ),
@@ -2832,7 +2849,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessConversationItemsByIdsConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessConversationItemsByIdsConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_conversation_items_by_ids",
         argNames: ["that", "conversationIds"],
@@ -2840,7 +2857,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<ConversationParticipantItem>>
-  mixinDesktopCoreRuntimeConversationAccessConversationParticipants({
+  mixinDesktopApiAccessConversationAccessConversationParticipants({
     required ConversationAccess that,
     required String conversationId,
   }) {
@@ -2862,10 +2879,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_conversation_participant_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessConversationParticipantsConstMeta,
+            kMixinDesktopApiAccessConversationAccessConversationParticipantsConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -2873,7 +2891,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessConversationParticipantsConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessConversationParticipantsConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_conversation_participants",
         argNames: ["that", "conversationId"],
@@ -2881,7 +2899,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<ConversationListData>>
-  mixinDesktopCoreRuntimeConversationAccessConversations({
+  mixinDesktopApiAccessConversationAccessConversations({
     required ConversationAccess that,
     required String category,
     String? circleId,
@@ -2913,10 +2931,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_conversation_list_data,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessConversationsConstMeta,
+            kMixinDesktopApiAccessConversationAccessConversationsConstMeta,
         argValues: [
           that,
           category,
@@ -2932,7 +2951,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessConversationsConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessConversationsConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_conversations",
         argNames: [
@@ -2947,7 +2966,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<CircleItem> mixinDesktopCoreRuntimeConversationAccessCreateCircle({
+  Future<CircleItem> mixinDesktopApiAccessConversationAccessCreateCircle({
     required ConversationAccess that,
     required String name,
   }) {
@@ -2969,10 +2988,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_circle_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessCreateCircleConstMeta,
+            kMixinDesktopApiAccessConversationAccessCreateCircleConstMeta,
         argValues: [that, name],
         apiImpl: this,
       ),
@@ -2980,14 +3000,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessCreateCircleConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessCreateCircleConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_create_circle",
         argNames: ["that", "name"],
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeConversationAccessCreateGroup({
+  Future<String> mixinDesktopApiAccessConversationAccessCreateGroup({
     required ConversationAccess that,
     required String name,
     required List<String> userIds,
@@ -3011,10 +3031,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessCreateGroupConstMeta,
+        constMeta: kMixinDesktopApiAccessConversationAccessCreateGroupConstMeta,
         argValues: [that, name, userIds],
         apiImpl: this,
       ),
@@ -3022,14 +3042,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessCreateGroupConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessCreateGroupConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_create_group",
         argNames: ["that", "name", "userIds"],
       );
 
   @override
-  Future<String?> mixinDesktopCoreRuntimeConversationAccessCurrentUserRole({
+  Future<String?> mixinDesktopApiAccessConversationAccessCurrentUserRole({
     required ConversationAccess that,
     required String conversationId,
   }) {
@@ -3051,10 +3071,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessCurrentUserRoleConstMeta,
+            kMixinDesktopApiAccessConversationAccessCurrentUserRoleConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -3062,14 +3083,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessCurrentUserRoleConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessCurrentUserRoleConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_current_user_role",
         argNames: ["that", "conversationId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeConversationAccessDeleteCircle({
+  Future<void> mixinDesktopApiAccessConversationAccessDeleteCircle({
     required ConversationAccess that,
     required String circleId,
   }) {
@@ -3091,10 +3112,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessDeleteCircleConstMeta,
+            kMixinDesktopApiAccessConversationAccessDeleteCircleConstMeta,
         argValues: [that, circleId],
         apiImpl: this,
       ),
@@ -3102,14 +3124,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessDeleteCircleConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessDeleteCircleConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_delete_circle",
         argNames: ["that", "circleId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeConversationAccessDeleteConversation({
+  Future<void> mixinDesktopApiAccessConversationAccessDeleteConversation({
     required ConversationAccess that,
     required String conversationId,
   }) {
@@ -3131,10 +3153,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessDeleteConversationConstMeta,
+            kMixinDesktopApiAccessConversationAccessDeleteConversationConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -3142,14 +3165,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessDeleteConversationConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessDeleteConversationConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_delete_conversation",
         argNames: ["that", "conversationId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeConversationAccessEditCircleConversation({
+  Future<void> mixinDesktopApiAccessConversationAccessEditCircleConversation({
     required ConversationAccess that,
     required String circleId,
     required String conversationId,
@@ -3179,10 +3202,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessEditCircleConversationConstMeta,
+            kMixinDesktopApiAccessConversationAccessEditCircleConversationConstMeta,
         argValues: [that, circleId, conversationId, ownerId, isGroup, add],
         apiImpl: this,
       ),
@@ -3190,7 +3214,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessEditCircleConversationConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessEditCircleConversationConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_edit_circle_conversation",
         argNames: [
@@ -3204,7 +3228,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeConversationAccessEditConversation({
+  Future<void> mixinDesktopApiAccessConversationAccessEditConversation({
     required ConversationAccess that,
     required String conversationId,
     String? name,
@@ -3230,10 +3254,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessEditConversationConstMeta,
+            kMixinDesktopApiAccessConversationAccessEditConversationConstMeta,
         argValues: [that, conversationId, name, announcement],
         apiImpl: this,
       ),
@@ -3241,14 +3266,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessEditConversationConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessEditConversationConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_edit_conversation",
         argNames: ["that", "conversationId", "name", "announcement"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeConversationAccessExitGroup({
+  Future<void> mixinDesktopApiAccessConversationAccessExitGroup({
     required ConversationAccess that,
     required String conversationId,
   }) {
@@ -3270,9 +3295,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeConversationAccessExitGroupConstMeta,
+        constMeta: kMixinDesktopApiAccessConversationAccessExitGroupConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -3280,7 +3306,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessExitGroupConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessExitGroupConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_exit_group",
         argNames: ["that", "conversationId"],
@@ -3288,7 +3314,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<GroupConversationItem>>
-  mixinDesktopCoreRuntimeConversationAccessGroupsInCommon({
+  mixinDesktopApiAccessConversationAccessGroupsInCommon({
     required ConversationAccess that,
     required String userId,
   }) {
@@ -3310,10 +3336,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_group_conversation_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessGroupsInCommonConstMeta,
+            kMixinDesktopApiAccessConversationAccessGroupsInCommonConstMeta,
         argValues: [that, userId],
         apiImpl: this,
       ),
@@ -3321,14 +3348,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessGroupsInCommonConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessGroupsInCommonConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_groups_in_common",
         argNames: ["that", "userId"],
       );
 
   @override
-  Future<bool> mixinDesktopCoreRuntimeConversationAccessIsBotGroup({
+  Future<bool> mixinDesktopApiAccessConversationAccessIsBotGroup({
     required ConversationAccess that,
     required String conversationId,
   }) {
@@ -3350,10 +3377,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessIsBotGroupConstMeta,
+        constMeta: kMixinDesktopApiAccessConversationAccessIsBotGroupConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -3361,14 +3388,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessIsBotGroupConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessIsBotGroupConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_is_bot_group",
         argNames: ["that", "conversationId"],
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeConversationAccessJoinGroup({
+  Future<String> mixinDesktopApiAccessConversationAccessJoinGroup({
     required ConversationAccess that,
     required String code,
   }) {
@@ -3390,9 +3417,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeConversationAccessJoinGroupConstMeta,
+        constMeta: kMixinDesktopApiAccessConversationAccessJoinGroupConstMeta,
         argValues: [that, code],
         apiImpl: this,
       ),
@@ -3400,7 +3428,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessJoinGroupConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessJoinGroupConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_join_group",
         argNames: ["that", "code"],
@@ -3408,7 +3436,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<ConversationDetailItem>
-  mixinDesktopCoreRuntimeConversationAccessLocalConversationDetail({
+  mixinDesktopApiAccessConversationAccessLocalConversationDetail({
     required ConversationAccess that,
     required String conversationId,
   }) {
@@ -3430,10 +3458,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_conversation_detail_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessLocalConversationDetailConstMeta,
+            kMixinDesktopApiAccessConversationAccessLocalConversationDetailConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -3441,14 +3470,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessLocalConversationDetailConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessLocalConversationDetailConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_local_conversation_detail",
         argNames: ["that", "conversationId"],
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeConversationAccessOpenUserConversation({
+  Future<String> mixinDesktopApiAccessConversationAccessOpenUserConversation({
     required ConversationAccess that,
     required String userId,
   }) {
@@ -3470,10 +3499,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessOpenUserConversationConstMeta,
+            kMixinDesktopApiAccessConversationAccessOpenUserConversationConstMeta,
         argValues: [that, userId],
         apiImpl: this,
       ),
@@ -3481,14 +3511,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessOpenUserConversationConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessOpenUserConversationConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_open_user_conversation",
         argNames: ["that", "userId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeConversationAccessReorderCircles({
+  Future<void> mixinDesktopApiAccessConversationAccessReorderCircles({
     required ConversationAccess that,
     required List<String> circleIds,
   }) {
@@ -3510,10 +3540,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessReorderCirclesConstMeta,
+            kMixinDesktopApiAccessConversationAccessReorderCirclesConstMeta,
         argValues: [that, circleIds],
         apiImpl: this,
       ),
@@ -3521,14 +3552,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessReorderCirclesConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessReorderCirclesConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_reorder_circles",
         argNames: ["that", "circleIds"],
       );
 
   @override
-  Future<CodeResult> mixinDesktopCoreRuntimeConversationAccessResolveCode({
+  Future<CodeResult> mixinDesktopApiAccessConversationAccessResolveCode({
     required ConversationAccess that,
     required String code,
   }) {
@@ -3550,10 +3581,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_code_result,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessResolveCodeConstMeta,
+        constMeta: kMixinDesktopApiAccessConversationAccessResolveCodeConstMeta,
         argValues: [that, code],
         apiImpl: this,
       ),
@@ -3561,14 +3592,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessResolveCodeConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessResolveCodeConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_resolve_code",
         argNames: ["that", "code"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeConversationAccessRotateGroupInvite({
+  Future<void> mixinDesktopApiAccessConversationAccessRotateGroupInvite({
     required ConversationAccess that,
     required String conversationId,
   }) {
@@ -3590,10 +3621,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessRotateGroupInviteConstMeta,
+            kMixinDesktopApiAccessConversationAccessRotateGroupInviteConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -3601,7 +3633,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessRotateGroupInviteConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessRotateGroupInviteConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_rotate_group_invite",
         argNames: ["that", "conversationId"],
@@ -3609,7 +3641,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<ConversationParticipantItem>>
-  mixinDesktopCoreRuntimeConversationAccessSearchBotGroupUsers({
+  mixinDesktopApiAccessConversationAccessSearchBotGroupUsers({
     required ConversationAccess that,
     required String conversationId,
     required String keyword,
@@ -3633,10 +3665,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_conversation_participant_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessSearchBotGroupUsersConstMeta,
+            kMixinDesktopApiAccessConversationAccessSearchBotGroupUsersConstMeta,
         argValues: [that, conversationId, keyword],
         apiImpl: this,
       ),
@@ -3644,7 +3677,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessSearchBotGroupUsersConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessSearchBotGroupUsersConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_search_bot_group_users",
         argNames: ["that", "conversationId", "keyword"],
@@ -3652,7 +3685,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<ConversationParticipantItem>>
-  mixinDesktopCoreRuntimeConversationAccessSearchGroupUsers({
+  mixinDesktopApiAccessConversationAccessSearchGroupUsers({
     required ConversationAccess that,
     required String conversationId,
     required String keyword,
@@ -3676,10 +3709,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_conversation_participant_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessSearchGroupUsersConstMeta,
+            kMixinDesktopApiAccessConversationAccessSearchGroupUsersConstMeta,
         argValues: [that, conversationId, keyword],
         apiImpl: this,
       ),
@@ -3687,15 +3721,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessSearchGroupUsersConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessSearchGroupUsersConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_search_group_users",
         argNames: ["that", "conversationId", "keyword"],
       );
 
   @override
-  Future<void>
-  mixinDesktopCoreRuntimeConversationAccessSetDisappearingMessages({
+  Future<void> mixinDesktopApiAccessConversationAccessSetDisappearingMessages({
     required ConversationAccess that,
     required String conversationId,
     required PlatformInt64 duration,
@@ -3719,10 +3752,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessSetDisappearingMessagesConstMeta,
+            kMixinDesktopApiAccessConversationAccessSetDisappearingMessagesConstMeta,
         argValues: [that, conversationId, duration],
         apiImpl: this,
       ),
@@ -3730,14 +3764,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessSetDisappearingMessagesConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessSetDisappearingMessagesConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_set_disappearing_messages",
         argNames: ["that", "conversationId", "duration"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeConversationAccessSetMuted({
+  Future<void> mixinDesktopApiAccessConversationAccessSetMuted({
     required ConversationAccess that,
     required String conversationId,
     required String ownerId,
@@ -3765,17 +3799,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeConversationAccessSetMutedConstMeta,
+        constMeta: kMixinDesktopApiAccessConversationAccessSetMutedConstMeta,
         argValues: [that, conversationId, ownerId, category, durationSeconds],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessSetMutedConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessConversationAccessSetMutedConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_set_muted",
         argNames: [
@@ -3788,7 +3822,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeConversationAccessSetPinned({
+  Future<void> mixinDesktopApiAccessConversationAccessSetPinned({
     required ConversationAccess that,
     required String conversationId,
     required bool pinned,
@@ -3812,9 +3846,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeConversationAccessSetPinnedConstMeta,
+        constMeta: kMixinDesktopApiAccessConversationAccessSetPinnedConstMeta,
         argValues: [that, conversationId, pinned],
         apiImpl: this,
       ),
@@ -3822,14 +3857,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessSetPinnedConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessSetPinnedConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_set_pinned",
         argNames: ["that", "conversationId", "pinned"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeConversationAccessUpdateCircle({
+  Future<void> mixinDesktopApiAccessConversationAccessUpdateCircle({
     required ConversationAccess that,
     required String circleId,
     required String name,
@@ -3853,10 +3888,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessUpdateCircleConstMeta,
+            kMixinDesktopApiAccessConversationAccessUpdateCircleConstMeta,
         argValues: [that, circleId, name],
         apiImpl: this,
       ),
@@ -3864,14 +3900,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessUpdateCircleConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessUpdateCircleConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_update_circle",
         argNames: ["that", "circleId", "name"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeConversationAccessUpdateParticipants({
+  Future<void> mixinDesktopApiAccessConversationAccessUpdateParticipants({
     required ConversationAccess that,
     required String conversationId,
     required String action,
@@ -3899,10 +3935,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeConversationAccessUpdateParticipantsConstMeta,
+            kMixinDesktopApiAccessConversationAccessUpdateParticipantsConstMeta,
         argValues: [that, conversationId, action, userIds, role],
         apiImpl: this,
       ),
@@ -3910,7 +3947,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeConversationAccessUpdateParticipantsConstMeta =>
+  get kMixinDesktopApiAccessConversationAccessUpdateParticipantsConstMeta =>
       const TaskConstMeta(
         debugName: "ConversationAccess_update_participants",
         argNames: ["that", "conversationId", "action", "userIds", "role"],
@@ -3937,7 +3974,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopDesktopHandleAbortSavedLoginConstMeta,
         argValues: [that],
@@ -3974,7 +4011,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLoginHandle,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopDesktopHandleBeginLoginConstMeta,
         argValues: [that],
@@ -4022,7 +4059,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_http_response_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopDesktopHandleHttpRequestConstMeta,
         argValues: [
@@ -4074,7 +4111,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta:
             kCrateApiDesktopDesktopHandleRecreateAccountDatabaseConstMeta,
@@ -4092,7 +4129,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<AccountHandle?> crateApiDesktopDesktopHandleRestoreAccount({
+  Future<AccountHandle> crateApiDesktopDesktopHandleRestoreAccount({
     required DesktopHandle that,
   }) {
     return handler.executeNormal(
@@ -4112,8 +4149,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData:
-              sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle,
-          decodeErrorData: sse_decode_AnyhowException,
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopDesktopHandleRestoreAccountConstMeta,
         argValues: [that],
@@ -4240,7 +4277,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiLoginLoginHandleWaitConstMeta,
         argValues: [that],
@@ -4256,7 +4293,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeMessageAccessCombineForwardMessages({
+  Future<String> mixinDesktopApiAccessMessageAccessCombineForwardMessages({
     required MessageAccess that,
     required String targetConversationId,
     required List<String> sourceMessageIds,
@@ -4280,10 +4317,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessCombineForwardMessagesConstMeta,
+            kMixinDesktopApiAccessMessageAccessCombineForwardMessagesConstMeta,
         argValues: [that, targetConversationId, sourceMessageIds],
         apiImpl: this,
       ),
@@ -4291,14 +4329,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessCombineForwardMessagesConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessCombineForwardMessagesConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_combine_forward_messages",
         argNames: ["that", "targetConversationId", "sourceMessageIds"],
       );
 
   @override
-  Future<bool> mixinDesktopCoreRuntimeMessageAccessConversationIsEncrypted({
+  Future<bool> mixinDesktopApiAccessMessageAccessConversationIsEncrypted({
     required MessageAccess that,
     required String conversationId,
   }) {
@@ -4320,10 +4358,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessConversationIsEncryptedConstMeta,
+            kMixinDesktopApiAccessMessageAccessConversationIsEncryptedConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -4331,14 +4370,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessConversationIsEncryptedConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessConversationIsEncryptedConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_conversation_is_encrypted",
         argNames: ["that", "conversationId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeMessageAccessDeleteMessages({
+  Future<void> mixinDesktopApiAccessMessageAccessDeleteMessages({
     required MessageAccess that,
     required String conversationId,
     required List<String> messageIds,
@@ -4362,9 +4401,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessDeleteMessagesConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessDeleteMessagesConstMeta,
         argValues: [that, conversationId, messageIds],
         apiImpl: this,
       ),
@@ -4372,14 +4412,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessDeleteMessagesConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessDeleteMessagesConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_delete_messages",
         argNames: ["that", "conversationId", "messageIds"],
       );
 
   @override
-  Future<List<String>> mixinDesktopCoreRuntimeMessageAccessForwardMessages({
+  Future<List<String>> mixinDesktopApiAccessMessageAccessForwardMessages({
     required MessageAccess that,
     required String targetConversationId,
     required List<String> sourceMessageIds,
@@ -4403,10 +4443,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessForwardMessagesConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessForwardMessagesConstMeta,
         argValues: [that, targetConversationId, sourceMessageIds],
         apiImpl: this,
       ),
@@ -4414,7 +4454,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessForwardMessagesConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessForwardMessagesConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_forward_messages",
         argNames: ["that", "targetConversationId", "sourceMessageIds"],
@@ -4422,7 +4462,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<ImageMessageView>>
-  mixinDesktopCoreRuntimeMessageAccessImageMessagesAround({
+  mixinDesktopApiAccessMessageAccessImageMessagesAround({
     required MessageAccess that,
     required String conversationId,
     required String targetMessageId,
@@ -4450,10 +4490,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_image_message_view,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessImageMessagesAroundConstMeta,
+            kMixinDesktopApiAccessMessageAccessImageMessagesAroundConstMeta,
         argValues: [that, conversationId, targetMessageId, before, after],
         apiImpl: this,
       ),
@@ -4461,7 +4502,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessImageMessagesAroundConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessImageMessagesAroundConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_image_messages_around",
         argNames: [
@@ -4474,7 +4515,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeMessageAccessMarkConversationRead({
+  Future<void> mixinDesktopApiAccessMessageAccessMarkConversationRead({
     required MessageAccess that,
     required String conversationId,
   }) {
@@ -4496,10 +4537,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessMarkConversationReadConstMeta,
+            kMixinDesktopApiAccessMessageAccessMarkConversationReadConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -4507,14 +4549,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessMarkConversationReadConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessMarkConversationReadConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_mark_conversation_read",
         argNames: ["that", "conversationId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeMessageAccessMarkMentionRead({
+  Future<void> mixinDesktopApiAccessMessageAccessMarkMentionRead({
     required MessageAccess that,
     required String conversationId,
     required String messageId,
@@ -4538,10 +4580,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessMarkMentionReadConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessMarkMentionReadConstMeta,
         argValues: [that, conversationId, messageId],
         apiImpl: this,
       ),
@@ -4549,14 +4591,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessMarkMentionReadConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessMarkMentionReadConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_mark_mention_read",
         argNames: ["that", "conversationId", "messageId"],
       );
 
   @override
-  Future<List<String>> mixinDesktopCoreRuntimeMessageAccessMessageIdsAfter({
+  Future<List<String>> mixinDesktopApiAccessMessageAccessMessageIdsAfter({
     required MessageAccess that,
     required String conversationId,
     required PlatformInt64 anchorRowId,
@@ -4584,10 +4626,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessMessageIdsAfterConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessMessageIdsAfterConstMeta,
         argValues: [
           that,
           conversationId,
@@ -4601,7 +4643,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessMessageIdsAfterConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessMessageIdsAfterConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_message_ids_after",
         argNames: [
@@ -4614,7 +4656,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<List<String>> mixinDesktopCoreRuntimeMessageAccessMessageIdsBefore({
+  Future<List<String>> mixinDesktopApiAccessMessageAccessMessageIdsBefore({
     required MessageAccess that,
     required String conversationId,
     required PlatformInt64 anchorRowId,
@@ -4642,10 +4684,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessMessageIdsBeforeConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessMessageIdsBeforeConstMeta,
         argValues: [
           that,
           conversationId,
@@ -4659,7 +4701,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessMessageIdsBeforeConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessMessageIdsBeforeConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_message_ids_before",
         argNames: [
@@ -4673,7 +4715,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessMessageItemsByIds({
+  mixinDesktopApiAccessMessageAccessMessageItemsByIds({
     required MessageAccess that,
     required List<String> messageIds,
   }) {
@@ -4695,10 +4737,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_message_list_view,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessMessageItemsByIdsConstMeta,
+            kMixinDesktopApiAccessMessageAccessMessageItemsByIdsConstMeta,
         argValues: [that, messageIds],
         apiImpl: this,
       ),
@@ -4706,7 +4749,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessMessageItemsByIdsConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessMessageItemsByIdsConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_message_items_by_ids",
         argNames: ["that", "messageIds"],
@@ -4714,7 +4757,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<MessageOrderInfoView?>
-  mixinDesktopCoreRuntimeMessageAccessMessageOrderInfo({
+  mixinDesktopApiAccessMessageAccessMessageOrderInfo({
     required MessageAccess that,
     required String messageId,
   }) {
@@ -4736,10 +4779,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_message_order_info_view,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessMessageOrderInfoConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessMessageOrderInfoConstMeta,
         argValues: [that, messageId],
         apiImpl: this,
       ),
@@ -4747,14 +4790,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessMessageOrderInfoConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessMessageOrderInfoConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_message_order_info",
         argNames: ["that", "messageId"],
       );
 
   @override
-  Future<List<MessageListView>> mixinDesktopCoreRuntimeMessageAccessMessages({
+  Future<List<MessageListView>> mixinDesktopApiAccessMessageAccessMessages({
     required MessageAccess that,
     required String conversationId,
     PlatformInt64? beforeCreatedAtMicros,
@@ -4782,9 +4825,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_message_list_view,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessMessagesConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessMessagesConstMeta,
         argValues: [
           that,
           conversationId,
@@ -4797,7 +4841,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeMessageAccessMessagesConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessMessageAccessMessagesConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_messages",
         argNames: [
@@ -4811,7 +4855,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessMessagesAround({
+  mixinDesktopApiAccessMessageAccessMessagesAround({
     required MessageAccess that,
     required String conversationId,
     required String targetMessageId,
@@ -4839,9 +4883,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_message_list_view,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessMessagesAroundConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessMessagesAroundConstMeta,
         argValues: [that, conversationId, targetMessageId, before, after],
         apiImpl: this,
       ),
@@ -4849,7 +4894,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessMessagesAroundConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessMessagesAroundConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_messages_around",
         argNames: [
@@ -4863,7 +4908,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<PinMessagePreviewItem?>
-  mixinDesktopCoreRuntimeMessageAccessPinMessagePreview({
+  mixinDesktopApiAccessMessageAccessPinMessagePreview({
     required MessageAccess that,
     required String conversationId,
   }) {
@@ -4886,10 +4931,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_opt_box_autoadd_pin_message_preview_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessPinMessagePreviewConstMeta,
+            kMixinDesktopApiAccessMessageAccessPinMessagePreviewConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -4897,14 +4943,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessPinMessagePreviewConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessPinMessagePreviewConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_pin_message_preview",
         argNames: ["that", "conversationId"],
       );
 
   @override
-  Future<List<String>> mixinDesktopCoreRuntimeMessageAccessPinnedMessageIds({
+  Future<List<String>> mixinDesktopApiAccessMessageAccessPinnedMessageIds({
     required MessageAccess that,
     required String conversationId,
   }) {
@@ -4926,10 +4972,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessPinnedMessageIdsConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessPinnedMessageIdsConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -4937,7 +4983,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessPinnedMessageIdsConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessPinnedMessageIdsConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_pinned_message_ids",
         argNames: ["that", "conversationId"],
@@ -4945,7 +4991,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessPinnedMessages({
+  mixinDesktopApiAccessMessageAccessPinnedMessages({
     required MessageAccess that,
     required String conversationId,
   }) {
@@ -4967,9 +5013,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_message_list_view,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessPinnedMessagesConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessPinnedMessagesConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -4977,14 +5024,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessPinnedMessagesConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessPinnedMessagesConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_pinned_messages",
         argNames: ["that", "conversationId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeMessageAccessRecallMessages({
+  Future<void> mixinDesktopApiAccessMessageAccessRecallMessages({
     required MessageAccess that,
     required String conversationId,
     required List<String> messageIds,
@@ -5008,9 +5055,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessRecallMessagesConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessRecallMessagesConstMeta,
         argValues: [that, conversationId, messageIds],
         apiImpl: this,
       ),
@@ -5018,7 +5066,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessRecallMessagesConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessRecallMessagesConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_recall_messages",
         argNames: ["that", "conversationId", "messageIds"],
@@ -5026,7 +5074,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessSearchGlobalMessages({
+  mixinDesktopApiAccessMessageAccessSearchGlobalMessages({
     required MessageAccess that,
     required String query,
     String? anchorMessageId,
@@ -5052,10 +5100,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_message_list_view,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessSearchGlobalMessagesConstMeta,
+            kMixinDesktopApiAccessMessageAccessSearchGlobalMessagesConstMeta,
         argValues: [that, query, anchorMessageId, limit],
         apiImpl: this,
       ),
@@ -5063,7 +5112,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessSearchGlobalMessagesConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessSearchGlobalMessagesConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_search_global_messages",
         argNames: ["that", "query", "anchorMessageId", "limit"],
@@ -5071,7 +5120,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessSearchMessages({
+  mixinDesktopApiAccessMessageAccessSearchMessages({
     required MessageAccess that,
     required String conversationId,
     required String query,
@@ -5103,9 +5152,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_message_list_view,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessSearchMessagesConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessSearchMessagesConstMeta,
         argValues: [
           that,
           conversationId,
@@ -5121,7 +5171,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessSearchMessagesConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessSearchMessagesConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_search_messages",
         argNames: [
@@ -5136,7 +5186,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendAppCard({
+  Future<String> mixinDesktopApiAccessMessageAccessSendAppCard({
     required MessageAccess that,
     required String conversationId,
     required String content,
@@ -5160,23 +5210,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessSendAppCardConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessSendAppCardConstMeta,
         argValues: [that, conversationId, content],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeMessageAccessSendAppCardConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessMessageAccessSendAppCardConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_send_app_card",
         argNames: ["that", "conversationId", "content"],
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendAttachment({
+  Future<String> mixinDesktopApiAccessMessageAccessSendAttachment({
     required MessageAccess that,
     required String conversationId,
     required String path,
@@ -5220,9 +5271,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessSendAttachmentConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessSendAttachmentConstMeta,
         argValues: [
           that,
           conversationId,
@@ -5244,7 +5296,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessSendAttachmentConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessSendAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_send_attachment",
         argNames: [
@@ -5265,7 +5317,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendAudio({
+  Future<String> mixinDesktopApiAccessMessageAccessSendAudio({
     required MessageAccess that,
     required String conversationId,
     required String path,
@@ -5295,9 +5347,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessSendAudioConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessSendAudioConstMeta,
         argValues: [
           that,
           conversationId,
@@ -5311,7 +5364,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeMessageAccessSendAudioConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessMessageAccessSendAudioConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_send_audio",
         argNames: [
@@ -5325,7 +5378,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendContact({
+  Future<String> mixinDesktopApiAccessMessageAccessSendContact({
     required MessageAccess that,
     required String conversationId,
     required String sharedUserId,
@@ -5353,16 +5406,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessSendContactConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessSendContactConstMeta,
         argValues: [that, conversationId, sharedUserId, quoteMessageId, silent],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeMessageAccessSendContactConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessMessageAccessSendContactConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_send_contact",
         argNames: [
@@ -5375,7 +5429,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendPost({
+  Future<String> mixinDesktopApiAccessMessageAccessSendPost({
     required MessageAccess that,
     required String conversationId,
     required String content,
@@ -5399,23 +5453,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessSendPostConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessSendPostConstMeta,
         argValues: [that, conversationId, content],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeMessageAccessSendPostConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessMessageAccessSendPostConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_send_post",
         argNames: ["that", "conversationId", "content"],
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendRemoteImage({
+  Future<String> mixinDesktopApiAccessMessageAccessSendRemoteImage({
     required MessageAccess that,
     required String conversationId,
     required String url,
@@ -5449,10 +5504,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessSendRemoteImageConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessSendRemoteImageConstMeta,
         argValues: [
           that,
           conversationId,
@@ -5469,7 +5524,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessSendRemoteImageConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessSendRemoteImageConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_send_remote_image",
         argNames: [
@@ -5485,7 +5540,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendSticker({
+  Future<String> mixinDesktopApiAccessMessageAccessSendSticker({
     required MessageAccess that,
     required String conversationId,
     required String stickerId,
@@ -5509,23 +5564,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessSendStickerConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessSendStickerConstMeta,
         argValues: [that, conversationId, stickerId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeMessageAccessSendStickerConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessMessageAccessSendStickerConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_send_sticker",
         argNames: ["that", "conversationId", "stickerId"],
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeMessageAccessSendText({
+  Future<String> mixinDesktopApiAccessMessageAccessSendText({
     required MessageAccess that,
     required String conversationId,
     required String content,
@@ -5553,16 +5609,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessSendTextConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessSendTextConstMeta,
         argValues: [that, conversationId, content, quoteMessageId, silent],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeMessageAccessSendTextConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessMessageAccessSendTextConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_send_text",
         argNames: [
@@ -5575,7 +5632,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeMessageAccessSetMessagePinned({
+  Future<void> mixinDesktopApiAccessMessageAccessSetMessagePinned({
     required MessageAccess that,
     required String conversationId,
     required String messageId,
@@ -5601,10 +5658,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessSetMessagePinnedConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessSetMessagePinnedConstMeta,
         argValues: [that, conversationId, messageId, pinned],
         apiImpl: this,
       ),
@@ -5612,7 +5669,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessSetMessagePinnedConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessSetMessagePinnedConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_set_message_pinned",
         argNames: ["that", "conversationId", "messageId", "pinned"],
@@ -5620,7 +5677,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessSharedMessages({
+  mixinDesktopApiAccessMessageAccessSharedMessages({
     required MessageAccess that,
     required String conversationId,
     required String kind,
@@ -5648,9 +5705,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_message_list_view,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeMessageAccessSharedMessagesConstMeta,
+        constMeta: kMixinDesktopApiAccessMessageAccessSharedMessagesConstMeta,
         argValues: [that, conversationId, kind, offset, limit],
         apiImpl: this,
       ),
@@ -5658,7 +5716,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessSharedMessagesConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessSharedMessagesConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_shared_messages",
         argNames: ["that", "conversationId", "kind", "offset", "limit"],
@@ -5666,7 +5724,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<MessageListView>>
-  mixinDesktopCoreRuntimeMessageAccessTranscriptMessages({
+  mixinDesktopApiAccessMessageAccessTranscriptMessages({
     required MessageAccess that,
     required String transcriptId,
   }) {
@@ -5688,10 +5746,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_message_list_view,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessTranscriptMessagesConstMeta,
+            kMixinDesktopApiAccessMessageAccessTranscriptMessagesConstMeta,
         argValues: [that, transcriptId],
         apiImpl: this,
       ),
@@ -5699,7 +5758,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessTranscriptMessagesConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessTranscriptMessagesConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_transcript_messages",
         argNames: ["that", "transcriptId"],
@@ -5707,7 +5766,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<String>>
-  mixinDesktopCoreRuntimeMessageAccessUnreadMentionMessageIds({
+  mixinDesktopApiAccessMessageAccessUnreadMentionMessageIds({
     required MessageAccess that,
     required String conversationId,
   }) {
@@ -5729,10 +5788,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeMessageAccessUnreadMentionMessageIdsConstMeta,
+            kMixinDesktopApiAccessMessageAccessUnreadMentionMessageIdsConstMeta,
         argValues: [that, conversationId],
         apiImpl: this,
       ),
@@ -5740,7 +5800,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeMessageAccessUnreadMentionMessageIdsConstMeta =>
+  get kMixinDesktopApiAccessMessageAccessUnreadMentionMessageIdsConstMeta =>
       const TaskConstMeta(
         debugName: "MessageAccess_unread_mention_message_ids",
         argNames: ["that", "conversationId"],
@@ -5767,7 +5827,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandleFileAutoDownloadConstMeta,
         argValues: [that],
@@ -5803,7 +5863,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_mcp_server_status_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandleMcpServerStatusConstMeta,
         argValues: [that],
@@ -5839,7 +5899,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_mcp_settings_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandleMcpSettingsConstMeta,
         argValues: [that],
@@ -5875,7 +5935,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandlePhotoAutoDownloadConstMeta,
         argValues: [that],
@@ -5911,7 +5971,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_proxy_settings_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandleProxySettingsConstMeta,
         argValues: [that],
@@ -5949,7 +6009,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandleSetFileAutoDownloadConstMeta,
         argValues: [that, value],
@@ -5988,7 +6048,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandleSetPhotoAutoDownloadConstMeta,
         argValues: [that, value],
@@ -6027,7 +6087,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandleSetProxySettingsConstMeta,
         argValues: [that, settings],
@@ -6067,7 +6127,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandleSetSettingConstMeta,
         argValues: [that, key, value],
@@ -6105,7 +6165,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandleSetVideoAutoDownloadConstMeta,
         argValues: [that, value],
@@ -6144,7 +6204,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandleSettingConstMeta,
         argValues: [that, key],
@@ -6183,7 +6243,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta:
               kCrateApiDesktopSettingsHandleSubscribeFileAutoDownloadConstMeta,
@@ -6226,7 +6286,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta:
               kCrateApiDesktopSettingsHandleSubscribePhotoAutoDownloadConstMeta,
@@ -6271,7 +6331,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta: kCrateApiDesktopSettingsHandleSubscribeSettingConstMeta,
           argValues: [that, key, sink],
@@ -6312,7 +6372,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           },
           codec: SseCodec(
             decodeSuccessData: sse_decode_unit,
-            decodeErrorData: sse_decode_AnyhowException,
+            decodeErrorData: sse_decode_core_error,
           ),
           constMeta:
               kCrateApiDesktopSettingsHandleSubscribeVideoAutoDownloadConstMeta,
@@ -6354,7 +6414,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_mcp_server_status_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandleUpdateMcpSettingsConstMeta,
         argValues: [that, settings],
@@ -6390,7 +6450,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopSettingsHandleVideoAutoDownloadConstMeta,
         argValues: [that],
@@ -6406,7 +6466,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeStickerAccessAddSticker({
+  Future<void> mixinDesktopApiAccessStickerAccessAddSticker({
     required StickerAccess that,
     required String stickerId,
   }) {
@@ -6428,23 +6488,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeStickerAccessAddStickerConstMeta,
+        constMeta: kMixinDesktopApiAccessStickerAccessAddStickerConstMeta,
         argValues: [that, stickerId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeStickerAccessAddStickerConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessStickerAccessAddStickerConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_add_sticker",
         argNames: ["that", "stickerId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeStickerAccessAddStickerFromFile({
+  Future<void> mixinDesktopApiAccessStickerAccessAddStickerFromFile({
     required StickerAccess that,
     required String messageId,
   }) {
@@ -6466,10 +6527,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeStickerAccessAddStickerFromFileConstMeta,
+            kMixinDesktopApiAccessStickerAccessAddStickerFromFileConstMeta,
         argValues: [that, messageId],
         apiImpl: this,
       ),
@@ -6477,14 +6539,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessAddStickerFromFileConstMeta =>
+  get kMixinDesktopApiAccessStickerAccessAddStickerFromFileConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_add_sticker_from_file",
         argNames: ["that", "messageId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeStickerAccessAddStickerFromPath({
+  Future<void> mixinDesktopApiAccessStickerAccessAddStickerFromPath({
     required StickerAccess that,
     required String path,
   }) {
@@ -6506,10 +6568,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeStickerAccessAddStickerFromPathConstMeta,
+            kMixinDesktopApiAccessStickerAccessAddStickerFromPathConstMeta,
         argValues: [that, path],
         apiImpl: this,
       ),
@@ -6517,14 +6580,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessAddStickerFromPathConstMeta =>
+  get kMixinDesktopApiAccessStickerAccessAddStickerFromPathConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_add_sticker_from_path",
         argNames: ["that", "path"],
       );
 
   @override
-  Future<List<StickerItem>> mixinDesktopCoreRuntimeStickerAccessAlbumStickers({
+  Future<List<StickerItem>> mixinDesktopApiAccessStickerAccessAlbumStickers({
     required StickerAccess that,
     required String albumId,
   }) {
@@ -6546,25 +6609,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_sticker_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeStickerAccessAlbumStickersConstMeta,
+        constMeta: kMixinDesktopApiAccessStickerAccessAlbumStickersConstMeta,
         argValues: [that, albumId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessAlbumStickersConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessStickerAccessAlbumStickersConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_album_stickers",
         argNames: ["that", "albumId"],
       );
 
   @override
-  Future<List<StickerItem>>
-  mixinDesktopCoreRuntimeStickerAccessPersonalStickers({
+  Future<List<StickerItem>> mixinDesktopApiAccessStickerAccessPersonalStickers({
     required StickerAccess that,
   }) {
     return handler.executeNormal(
@@ -6584,10 +6646,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_sticker_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeStickerAccessPersonalStickersConstMeta,
+        constMeta: kMixinDesktopApiAccessStickerAccessPersonalStickersConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
@@ -6595,14 +6657,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessPersonalStickersConstMeta =>
+  get kMixinDesktopApiAccessStickerAccessPersonalStickersConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_personal_stickers",
         argNames: ["that"],
       );
 
   @override
-  Future<List<StickerItem>> mixinDesktopCoreRuntimeStickerAccessRecentStickers({
+  Future<List<StickerItem>> mixinDesktopApiAccessStickerAccessRecentStickers({
     required StickerAccess that,
   }) {
     return handler.executeNormal(
@@ -6622,9 +6684,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_sticker_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeStickerAccessRecentStickersConstMeta,
+        constMeta: kMixinDesktopApiAccessStickerAccessRecentStickersConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
@@ -6632,14 +6695,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessRecentStickersConstMeta =>
+  get kMixinDesktopApiAccessStickerAccessRecentStickersConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_recent_stickers",
         argNames: ["that"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeStickerAccessRefreshSticker({
+  Future<void> mixinDesktopApiAccessStickerAccessRefreshSticker({
     required StickerAccess that,
     required String stickerId,
   }) {
@@ -6661,9 +6724,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeStickerAccessRefreshStickerConstMeta,
+        constMeta: kMixinDesktopApiAccessStickerAccessRefreshStickerConstMeta,
         argValues: [that, stickerId],
         apiImpl: this,
       ),
@@ -6671,14 +6735,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessRefreshStickerConstMeta =>
+  get kMixinDesktopApiAccessStickerAccessRefreshStickerConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_refresh_sticker",
         argNames: ["that", "stickerId"],
       );
 
   @override
-  Future<bool> mixinDesktopCoreRuntimeStickerAccessRefreshStickers({
+  Future<bool> mixinDesktopApiAccessStickerAccessRefreshStickers({
     required StickerAccess that,
   }) {
     return handler.executeNormal(
@@ -6698,10 +6762,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeStickerAccessRefreshStickersConstMeta,
+        constMeta: kMixinDesktopApiAccessStickerAccessRefreshStickersConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
@@ -6709,14 +6773,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessRefreshStickersConstMeta =>
+  get kMixinDesktopApiAccessStickerAccessRefreshStickersConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_refresh_stickers",
         argNames: ["that"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeStickerAccessRemoveSticker({
+  Future<void> mixinDesktopApiAccessStickerAccessRemoveSticker({
     required StickerAccess that,
     required String stickerId,
   }) {
@@ -6738,24 +6802,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeStickerAccessRemoveStickerConstMeta,
+        constMeta: kMixinDesktopApiAccessStickerAccessRemoveStickerConstMeta,
         argValues: [that, stickerId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessRemoveStickerConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessStickerAccessRemoveStickerConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_remove_sticker",
         argNames: ["that", "stickerId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeStickerAccessSetStickerAlbumAdded({
+  Future<void> mixinDesktopApiAccessStickerAccessSetStickerAlbumAdded({
     required StickerAccess that,
     required String albumId,
     required bool added,
@@ -6779,10 +6843,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeStickerAccessSetStickerAlbumAddedConstMeta,
+            kMixinDesktopApiAccessStickerAccessSetStickerAlbumAddedConstMeta,
         argValues: [that, albumId, added],
         apiImpl: this,
       ),
@@ -6790,14 +6855,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessSetStickerAlbumAddedConstMeta =>
+  get kMixinDesktopApiAccessStickerAccessSetStickerAlbumAddedConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_set_sticker_album_added",
         argNames: ["that", "albumId", "added"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeStickerAccessSetStickerAlbumOrder({
+  Future<void> mixinDesktopApiAccessStickerAccessSetStickerAlbumOrder({
     required StickerAccess that,
     required List<String> albumIds,
   }) {
@@ -6819,10 +6884,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeStickerAccessSetStickerAlbumOrderConstMeta,
+            kMixinDesktopApiAccessStickerAccessSetStickerAlbumOrderConstMeta,
         argValues: [that, albumIds],
         apiImpl: this,
       ),
@@ -6830,7 +6896,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessSetStickerAlbumOrderConstMeta =>
+  get kMixinDesktopApiAccessStickerAccessSetStickerAlbumOrderConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_set_sticker_album_order",
         argNames: ["that", "albumIds"],
@@ -6838,7 +6904,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<StickerAlbumItem>>
-  mixinDesktopCoreRuntimeStickerAccessStickerAlbums({
+  mixinDesktopApiAccessStickerAccessStickerAlbums({
     required StickerAccess that,
   }) {
     return handler.executeNormal(
@@ -6858,24 +6924,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_sticker_album_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeStickerAccessStickerAlbumsConstMeta,
+        constMeta: kMixinDesktopApiAccessStickerAccessStickerAlbumsConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessStickerAlbumsConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessStickerAccessStickerAlbumsConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_sticker_albums",
         argNames: ["that"],
       );
 
   @override
-  Future<StickerDetailItem> mixinDesktopCoreRuntimeStickerAccessStickerDetail({
+  Future<StickerDetailItem> mixinDesktopApiAccessStickerAccessStickerDetail({
     required StickerAccess that,
     required String stickerId,
   }) {
@@ -6897,17 +6963,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_sticker_detail_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeStickerAccessStickerDetailConstMeta,
+        constMeta: kMixinDesktopApiAccessStickerAccessStickerDetailConstMeta,
         argValues: [that, stickerId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessStickerDetailConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessStickerAccessStickerDetailConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_sticker_detail",
         argNames: ["that", "stickerId"],
@@ -6915,7 +6981,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<StickerAlbumItem>>
-  mixinDesktopCoreRuntimeStickerAccessStickerStoreAlbums({
+  mixinDesktopApiAccessStickerAccessStickerStoreAlbums({
     required StickerAccess that,
   }) {
     return handler.executeNormal(
@@ -6935,10 +7001,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_sticker_album_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeStickerAccessStickerStoreAlbumsConstMeta,
+            kMixinDesktopApiAccessStickerAccessStickerStoreAlbumsConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
@@ -6946,14 +7013,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeStickerAccessStickerStoreAlbumsConstMeta =>
+  get kMixinDesktopApiAccessStickerAccessStickerStoreAlbumsConstMeta =>
       const TaskConstMeta(
         debugName: "StickerAccess_sticker_store_albums",
         argNames: ["that"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeUserAccessAddContact({
+  Future<void> mixinDesktopApiAccessUserAccessAddContact({
     required UserAccess that,
     required String userId,
     required String fullName,
@@ -6977,23 +7044,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessAddContactConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessAddContactConstMeta,
         argValues: [that, userId, fullName],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessAddContactConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessAddContactConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_add_contact",
         argNames: ["that", "userId", "fullName"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeUserAccessBlockUser({
+  Future<void> mixinDesktopApiAccessUserAccessBlockUser({
     required UserAccess that,
     required String userId,
   }) {
@@ -7015,23 +7083,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessBlockUserConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessBlockUserConstMeta,
         argValues: [that, userId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessBlockUserConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessBlockUserConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_block_user",
         argNames: ["that", "userId"],
       );
 
   @override
-  Future<String?> mixinDesktopCoreRuntimeUserAccessBotCreatorId({
+  Future<String?> mixinDesktopApiAccessUserAccessBotCreatorId({
     required UserAccess that,
     required String userId,
   }) {
@@ -7053,23 +7122,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessBotCreatorIdConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessBotCreatorIdConstMeta,
         argValues: [that, userId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessBotCreatorIdConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessBotCreatorIdConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_bot_creator_id",
         argNames: ["that", "userId"],
       );
 
   @override
-  Future<String?> mixinDesktopCoreRuntimeUserAccessBotHomeUri({
+  Future<String?> mixinDesktopApiAccessUserAccessBotHomeUri({
     required UserAccess that,
     required String appId,
   }) {
@@ -7091,23 +7161,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessBotHomeUriConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessBotHomeUriConstMeta,
         argValues: [that, appId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessBotHomeUriConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessBotHomeUriConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_bot_home_uri",
         argNames: ["that", "appId"],
       );
 
   @override
-  Future<List<SharedAppItem>> mixinDesktopCoreRuntimeUserAccessLocalSharedApps({
+  Future<List<SharedAppItem>> mixinDesktopApiAccessUserAccessLocalSharedApps({
     required UserAccess that,
     required String userId,
   }) {
@@ -7129,24 +7200,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_shared_app_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessLocalSharedAppsConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessLocalSharedAppsConstMeta,
         argValues: [that, userId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta
-  get kMixinDesktopCoreRuntimeUserAccessLocalSharedAppsConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessLocalSharedAppsConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_local_shared_apps",
         argNames: ["that", "userId"],
       );
 
   @override
-  Future<Map<String, String>> mixinDesktopCoreRuntimeUserAccessMentionNames({
+  Future<Map<String, String>> mixinDesktopApiAccessUserAccessMentionNames({
     required UserAccess that,
     required List<String> contents,
   }) {
@@ -7168,23 +7239,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_Map_String_String_None,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessMentionNamesConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessMentionNamesConstMeta,
         argValues: [that, contents],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessMentionNamesConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessMentionNamesConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_mention_names",
         argNames: ["that", "contents"],
       );
 
   @override
-  Future<UserProfileItem?> mixinDesktopCoreRuntimeUserAccessRefreshUserProfile({
+  Future<UserProfileItem?> mixinDesktopApiAccessUserAccessRefreshUserProfile({
     required UserAccess that,
     required String userId,
   }) {
@@ -7206,10 +7278,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_user_profile_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta:
-            kMixinDesktopCoreRuntimeUserAccessRefreshUserProfileConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessRefreshUserProfileConstMeta,
         argValues: [that, userId],
         apiImpl: this,
       ),
@@ -7217,14 +7289,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeUserAccessRefreshUserProfileConstMeta =>
+  get kMixinDesktopApiAccessUserAccessRefreshUserProfileConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_refresh_user_profile",
         argNames: ["that", "userId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeUserAccessRemoveContact({
+  Future<void> mixinDesktopApiAccessUserAccessRemoveContact({
     required UserAccess that,
     required String userId,
   }) {
@@ -7246,23 +7318,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessRemoveContactConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessRemoveContactConstMeta,
         argValues: [that, userId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessRemoveContactConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessRemoveContactConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_remove_contact",
         argNames: ["that", "userId"],
       );
 
   @override
-  Future<List<String>> mixinDesktopCoreRuntimeUserAccessReplaceMentions({
+  Future<List<String>> mixinDesktopApiAccessUserAccessReplaceMentions({
     required UserAccess that,
     required List<String> contents,
   }) {
@@ -7284,24 +7357,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessReplaceMentionsConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessReplaceMentionsConstMeta,
         argValues: [that, contents],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta
-  get kMixinDesktopCoreRuntimeUserAccessReplaceMentionsConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessReplaceMentionsConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_replace_mentions",
         argNames: ["that", "contents"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeUserAccessReportUser({
+  Future<void> mixinDesktopApiAccessUserAccessReportUser({
     required UserAccess that,
     required String userId,
   }) {
@@ -7323,16 +7396,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessReportUserConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessReportUserConstMeta,
         argValues: [that, userId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessReportUserConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessReportUserConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_report_user",
         argNames: ["that", "userId"],
@@ -7340,7 +7414,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<UserProfileItem>>
-  mixinDesktopCoreRuntimeUserAccessSearchLocalUsers({
+  mixinDesktopApiAccessUserAccessSearchLocalUsers({
     required UserAccess that,
     required String query,
     required String category,
@@ -7366,24 +7440,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_user_profile_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessSearchLocalUsersConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessSearchLocalUsersConstMeta,
         argValues: [that, query, category, limit],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta
-  get kMixinDesktopCoreRuntimeUserAccessSearchLocalUsersConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessSearchLocalUsersConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_search_local_users",
         argNames: ["that", "query", "category", "limit"],
       );
 
   @override
-  Future<UserProfileItem?> mixinDesktopCoreRuntimeUserAccessSearchMaoUser({
+  Future<UserProfileItem?> mixinDesktopApiAccessUserAccessSearchMaoUser({
     required UserAccess that,
     required String query,
   }) {
@@ -7405,23 +7479,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_user_profile_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessSearchMaoUserConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessSearchMaoUserConstMeta,
         argValues: [that, query],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessSearchMaoUserConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessSearchMaoUserConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_search_mao_user",
         argNames: ["that", "query"],
       );
 
   @override
-  Future<UserProfileItem> mixinDesktopCoreRuntimeUserAccessSearchUser({
+  Future<UserProfileItem> mixinDesktopApiAccessUserAccessSearchUser({
     required UserAccess that,
     required String query,
   }) {
@@ -7443,24 +7518,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_user_profile_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessSearchUserConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessSearchUserConstMeta,
         argValues: [that, query],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessSearchUserConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessSearchUserConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_search_user",
         argNames: ["that", "query"],
       );
 
   @override
-  Future<List<UserProfileItem>>
-  mixinDesktopCoreRuntimeUserAccessSelectableUsers({required UserAccess that}) {
+  Future<List<UserProfileItem>> mixinDesktopApiAccessUserAccessSelectableUsers({
+    required UserAccess that,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -7478,24 +7555,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_user_profile_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessSelectableUsersConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessSelectableUsersConstMeta,
         argValues: [that],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta
-  get kMixinDesktopCoreRuntimeUserAccessSelectableUsersConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessSelectableUsersConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_selectable_users",
         argNames: ["that"],
       );
 
   @override
-  Future<List<SharedAppItem>> mixinDesktopCoreRuntimeUserAccessSharedApps({
+  Future<List<SharedAppItem>> mixinDesktopApiAccessUserAccessSharedApps({
     required UserAccess that,
     required String userId,
   }) {
@@ -7517,23 +7594,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_shared_app_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessSharedAppsConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessSharedAppsConstMeta,
         argValues: [that, userId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessSharedAppsConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessSharedAppsConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_shared_apps",
         argNames: ["that", "userId"],
       );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeUserAccessUnblockUser({
+  Future<void> mixinDesktopApiAccessUserAccessUnblockUser({
     required UserAccess that,
     required String userId,
   }) {
@@ -7555,23 +7633,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessUnblockUserConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessUnblockUserConstMeta,
         argValues: [that, userId],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessUnblockUserConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessUnblockUserConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_unblock_user",
         argNames: ["that", "userId"],
       );
 
   @override
-  Future<UserProfileItem?> mixinDesktopCoreRuntimeUserAccessUserProfile({
+  Future<UserProfileItem?> mixinDesktopApiAccessUserAccessUserProfile({
     required UserAccess that,
     String? userId,
     String? identityNumber,
@@ -7595,16 +7674,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_user_profile_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
-        constMeta: kMixinDesktopCoreRuntimeUserAccessUserProfileConstMeta,
+        constMeta: kMixinDesktopApiAccessUserAccessUserProfileConstMeta,
         argValues: [that, userId, identityNumber],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeUserAccessUserProfileConstMeta =>
+  TaskConstMeta get kMixinDesktopApiAccessUserAccessUserProfileConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_user_profile",
         argNames: ["that", "userId", "identityNumber"],
@@ -7612,7 +7692,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<List<UserProfileItem>>
-  mixinDesktopCoreRuntimeUserAccessUsersByIdentityNumbers({
+  mixinDesktopApiAccessUserAccessUsersByIdentityNumbers({
     required UserAccess that,
     required List<String> identityNumbers,
   }) {
@@ -7634,10 +7714,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_user_profile_item,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError,
         ),
         constMeta:
-            kMixinDesktopCoreRuntimeUserAccessUsersByIdentityNumbersConstMeta,
+            kMixinDesktopApiAccessUserAccessUsersByIdentityNumbersConstMeta,
         argValues: [that, identityNumbers],
         apiImpl: this,
       ),
@@ -7645,14 +7726,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   TaskConstMeta
-  get kMixinDesktopCoreRuntimeUserAccessUsersByIdentityNumbersConstMeta =>
+  get kMixinDesktopApiAccessUserAccessUsersByIdentityNumbersConstMeta =>
       const TaskConstMeta(
         debugName: "UserAccess_users_by_identity_numbers",
         argNames: ["that", "identityNumbers"],
       );
 
   @override
-  Future<String> mixinDesktopCoreRuntimeLoggingDirectory() {
+  Future<String> crateApiLoggingDirectory() {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
@@ -7666,23 +7747,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
-        constMeta: kMixinDesktopCoreRuntimeLoggingDirectoryConstMeta,
+        constMeta: kCrateApiLoggingDirectoryConstMeta,
         argValues: [],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeLoggingDirectoryConstMeta =>
-      const TaskConstMeta(
-        debugName: "directory",
-        argNames: [],
-      );
+  TaskConstMeta get kCrateApiLoggingDirectoryConstMeta => const TaskConstMeta(
+    debugName: "directory",
+    argNames: [],
+  );
 
   @override
-  Future<void> mixinDesktopCoreRuntimeLoggingInit({
+  Future<void> crateApiLoggingInit({
     required String appName,
     required String appVersion,
     required String buildNumber,
@@ -7703,20 +7783,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
-        constMeta: kMixinDesktopCoreRuntimeLoggingInitConstMeta,
+        constMeta: kCrateApiLoggingInitConstMeta,
         argValues: [appName, appVersion, buildNumber],
         apiImpl: this,
       ),
     );
   }
 
-  TaskConstMeta get kMixinDesktopCoreRuntimeLoggingInitConstMeta =>
-      const TaskConstMeta(
-        debugName: "init",
-        argNames: ["appName", "appVersion", "buildNumber"],
-      );
+  TaskConstMeta get kCrateApiLoggingInitConstMeta => const TaskConstMeta(
+    debugName: "init",
+    argNames: ["appName", "appVersion", "buildNumber"],
+  );
 
   @override
   Future<void> crateApiLoggingInitApp() {
@@ -7733,7 +7812,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiLoggingInitAppConstMeta,
         argValues: [],
@@ -7796,7 +7875,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         codec: SseCodec(
           decodeSuccessData:
               sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDesktopHandle,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_core_error,
         ),
         constMeta: kCrateApiDesktopOpenDesktopConstMeta,
         argValues: [],
@@ -7825,6 +7904,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RustArcDecrementStrongCountFnType
   get rust_arc_decrement_strong_count_AttachmentAccess => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_ClientError => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_ClientError => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_ConversationAccess => wire
@@ -7904,6 +7991,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return AttachmentAccessImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  ClientError
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ClientErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -8079,6 +8175,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ClientError
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ClientErrorImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   ConversationAccess
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
     dynamic raw,
@@ -8245,17 +8350,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
-  }
-
-  @protected
-  AccountHandle
-  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-      raw,
-    );
   }
 
   @protected
@@ -8492,6 +8586,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       count: dco_decode_i_64(arr[2]),
       mutedCount: dco_decode_i_64(arr[3]),
     );
+  }
+
+  @protected
+  CoreError dco_decode_core_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return CoreError_Unauthorized();
+      case 1:
+        return CoreError_NotFound();
+      case 2:
+        return CoreError_Cancelled();
+      case 3:
+        return CoreError_InvalidArgument(
+          message: dco_decode_String(raw[1]),
+        );
+      case 4:
+        return CoreError_Other(
+          message: dco_decode_String(raw[1]),
+        );
+      default:
+        throw Exception("unreachable");
+    }
   }
 
   @protected
@@ -8912,19 +9029,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AccountHandle?
-  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-    dynamic raw,
-  ) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null
-        ? null
-        : dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-            raw,
-          );
-  }
-
-  @protected
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_bool(raw);
@@ -9253,6 +9357,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ClientError
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return ClientErrorImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   ConversationAccess
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
     SseDeserializer deserializer,
@@ -9478,6 +9594,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ClientError
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return ClientErrorImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   ConversationAccess
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
     SseDeserializer deserializer,
@@ -9689,17 +9817,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8() != 0;
-  }
-
-  @protected
-  AccountHandle
-  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-      deserializer,
-    ));
   }
 
   @protected
@@ -10011,6 +10128,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       count: var_count,
       mutedCount: var_mutedCount,
     );
+  }
+
+  @protected
+  CoreError sse_decode_core_error(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        return CoreError_Unauthorized();
+      case 1:
+        return CoreError_NotFound();
+      case 2:
+        return CoreError_Cancelled();
+      case 3:
+        var var_message = sse_decode_String(deserializer);
+        return CoreError_InvalidArgument(message: var_message);
+      case 4:
+        var var_message = sse_decode_String(deserializer);
+        return CoreError_Other(message: var_message);
+      default:
+        throw UnimplementedError('');
+    }
   }
 
   @protected
@@ -10634,22 +10774,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AccountHandle?
-  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-        deserializer,
-      ));
-    } else {
-      return null;
-    }
-  }
-
-  @protected
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -11089,6 +11213,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    ClientError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as ClientErrorImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
     ConversationAccess self,
     SseSerializer serializer,
@@ -11329,6 +11466,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as AttachmentAccessImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    ClientError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as ClientErrorImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -11642,19 +11792,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void
-  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-    AccountHandle self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-      self,
-      serializer,
-    );
-  }
-
-  @protected
   void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_bool(self, serializer);
@@ -11884,6 +12021,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_String(self.circleId, serializer);
     sse_encode_i_64(self.count, serializer);
     sse_encode_i_64(self.mutedCount, serializer);
+  }
+
+  @protected
+  void sse_encode_core_error(CoreError self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case CoreError_Unauthorized():
+        sse_encode_i_32(0, serializer);
+      case CoreError_NotFound():
+        sse_encode_i_32(1, serializer);
+      case CoreError_Cancelled():
+        sse_encode_i_32(2, serializer);
+      case CoreError_InvalidArgument(message: final message):
+        sse_encode_i_32(3, serializer);
+        sse_encode_String(message, serializer);
+      case CoreError_Other(message: final message):
+        sse_encode_i_32(4, serializer);
+        sse_encode_String(message, serializer);
+    }
   }
 
   @protected
@@ -12368,23 +12524,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_String(self, serializer);
-    }
-  }
-
-  @protected
-  void
-  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-    AccountHandle? self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-
-    sse_encode_bool(self != null, serializer);
-    if (self != null) {
-      sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-        self,
-        serializer,
-      );
     }
   }
 
@@ -12929,7 +13068,7 @@ class AttachmentAccessImpl extends RustOpaque implements AttachmentAccess {
   Future<void> cancelAttachment({required String messageId}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeAttachmentAccessCancelAttachment(
+      .mixinDesktopApiAccessAttachmentAccessCancelAttachment(
         that: this,
         messageId: messageId,
       );
@@ -12938,7 +13077,7 @@ class AttachmentAccessImpl extends RustOpaque implements AttachmentAccess {
     required String transcriptId,
     required String messageId,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeAttachmentAccessCancelTranscriptAttachment(
+      .mixinDesktopApiAccessAttachmentAccessCancelTranscriptAttachment(
         that: this,
         transcriptId: transcriptId,
         messageId: messageId,
@@ -12947,7 +13086,7 @@ class AttachmentAccessImpl extends RustOpaque implements AttachmentAccess {
   Future<void> downloadAttachment({required String messageId}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeAttachmentAccessDownloadAttachment(
+      .mixinDesktopApiAccessAttachmentAccessDownloadAttachment(
         that: this,
         messageId: messageId,
       );
@@ -12956,14 +13095,14 @@ class AttachmentAccessImpl extends RustOpaque implements AttachmentAccess {
     required String transcriptId,
     required String messageId,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeAttachmentAccessDownloadTranscriptAttachment(
+      .mixinDesktopApiAccessAttachmentAccessDownloadTranscriptAttachment(
         that: this,
         transcriptId: transcriptId,
         messageId: messageId,
       );
 
   Future<void> markAudioRead({required String messageId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeAttachmentAccessMarkAudioRead(
+      RustLib.instance.api.mixinDesktopApiAccessAttachmentAccessMarkAudioRead(
         that: this,
         messageId: messageId,
       );
@@ -12972,26 +13111,44 @@ class AttachmentAccessImpl extends RustOpaque implements AttachmentAccess {
     required String transcriptId,
     required String messageId,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeAttachmentAccessMarkTranscriptAudioRead(
+      .mixinDesktopApiAccessAttachmentAccessMarkTranscriptAudioRead(
         that: this,
         transcriptId: transcriptId,
         messageId: messageId,
       );
 
-  Future<void> retryAttachment({required String messageId}) => RustLib
-      .instance
-      .api
-      .mixinDesktopCoreRuntimeAttachmentAccessRetryAttachment(
+  Future<void> retryAttachment({required String messageId}) =>
+      RustLib.instance.api.mixinDesktopApiAccessAttachmentAccessRetryAttachment(
         that: this,
         messageId: messageId,
       );
 
   Future<void> retryTranscriptAttachment({required String transcriptId}) =>
       RustLib.instance.api
-          .mixinDesktopCoreRuntimeAttachmentAccessRetryTranscriptAttachment(
+          .mixinDesktopApiAccessAttachmentAccessRetryTranscriptAttachment(
             that: this,
             transcriptId: transcriptId,
           );
+}
+
+@sealed
+class ClientErrorImpl extends RustOpaque implements ClientError {
+  // Not to be used by end users
+  ClientErrorImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  ClientErrorImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_ClientError,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_ClientError,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_ClientErrorPtr,
+  );
 }
 
 @sealed
@@ -13018,14 +13175,14 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
   );
 
   Future<List<CircleItem>> circles() =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeConversationAccessCircles(
+      RustLib.instance.api.mixinDesktopApiAccessConversationAccessCircles(
         that: this,
       );
 
   Future<void> clearConversation({required String conversationId}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeConversationAccessClearConversation(
+      .mixinDesktopApiAccessConversationAccessClearConversation(
         that: this,
         conversationId: conversationId,
       );
@@ -13036,7 +13193,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
     required String keyword,
     required bool unseenOnly,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessConversationCount(
+      .mixinDesktopApiAccessConversationAccessConversationCount(
         that: this,
         category: category,
         circleId: circleId,
@@ -13047,20 +13204,20 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
   Future<ConversationDetailItem> conversationDetail({
     required String conversationId,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessConversationDetail(
+      .mixinDesktopApiAccessConversationAccessConversationDetail(
         that: this,
         conversationId: conversationId,
       );
 
   Future<List<ConversationListData>> conversationItems() => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessConversationItems(
+      .mixinDesktopApiAccessConversationAccessConversationItems(
         that: this,
       );
 
   Future<List<ConversationListData>> conversationItemsByIds({
     required List<String> conversationIds,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessConversationItemsByIds(
+      .mixinDesktopApiAccessConversationAccessConversationItemsByIds(
         that: this,
         conversationIds: conversationIds,
       );
@@ -13068,7 +13225,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
   Future<List<ConversationParticipantItem>> conversationParticipants({
     required String conversationId,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessConversationParticipants(
+      .mixinDesktopApiAccessConversationAccessConversationParticipants(
         that: this,
         conversationId: conversationId,
       );
@@ -13080,8 +13237,8 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
     required bool unseenOnly,
     required PlatformInt64 limit,
     required PlatformInt64 offset,
-  }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessConversations(
+  }) =>
+      RustLib.instance.api.mixinDesktopApiAccessConversationAccessConversations(
         that: this,
         category: category,
         circleId: circleId,
@@ -13091,10 +13248,8 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
         offset: offset,
       );
 
-  Future<CircleItem> createCircle({required String name}) => RustLib
-      .instance
-      .api
-      .mixinDesktopCoreRuntimeConversationAccessCreateCircle(
+  Future<CircleItem> createCircle({required String name}) =>
+      RustLib.instance.api.mixinDesktopApiAccessConversationAccessCreateCircle(
         that: this,
         name: name,
       );
@@ -13102,23 +13257,22 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
   Future<String> createGroup({
     required String name,
     required List<String> userIds,
-  }) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeConversationAccessCreateGroup(
-        that: this,
-        name: name,
-        userIds: userIds,
-      );
+  }) => RustLib.instance.api.mixinDesktopApiAccessConversationAccessCreateGroup(
+    that: this,
+    name: name,
+    userIds: userIds,
+  );
 
   Future<String?> currentUserRole({required String conversationId}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeConversationAccessCurrentUserRole(
+      .mixinDesktopApiAccessConversationAccessCurrentUserRole(
         that: this,
         conversationId: conversationId,
       );
 
-  Future<void> deleteCircle({required String circleId}) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessDeleteCircle(
+  Future<void> deleteCircle({required String circleId}) =>
+      RustLib.instance.api.mixinDesktopApiAccessConversationAccessDeleteCircle(
         that: this,
         circleId: circleId,
       );
@@ -13126,7 +13280,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
   Future<void> deleteConversation({required String conversationId}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeConversationAccessDeleteConversation(
+      .mixinDesktopApiAccessConversationAccessDeleteConversation(
         that: this,
         conversationId: conversationId,
       );
@@ -13138,7 +13292,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
     required bool isGroup,
     required bool add,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessEditCircleConversation(
+      .mixinDesktopApiAccessConversationAccessEditCircleConversation(
         that: this,
         circleId: circleId,
         conversationId: conversationId,
@@ -13152,7 +13306,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
     String? name,
     String? announcement,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessEditConversation(
+      .mixinDesktopApiAccessConversationAccessEditConversation(
         that: this,
         conversationId: conversationId,
         name: name,
@@ -13160,7 +13314,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
       );
 
   Future<void> exitGroup({required String conversationId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeConversationAccessExitGroup(
+      RustLib.instance.api.mixinDesktopApiAccessConversationAccessExitGroup(
         that: this,
         conversationId: conversationId,
       );
@@ -13168,27 +13322,24 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
   Future<List<GroupConversationItem>> groupsInCommon({
     required String userId,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessGroupsInCommon(
+      .mixinDesktopApiAccessConversationAccessGroupsInCommon(
         that: this,
         userId: userId,
       );
 
   Future<bool> isBotGroup({required String conversationId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeConversationAccessIsBotGroup(
+      RustLib.instance.api.mixinDesktopApiAccessConversationAccessIsBotGroup(
         that: this,
         conversationId: conversationId,
       );
 
-  Future<String> joinGroup({required String code}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeConversationAccessJoinGroup(
-        that: this,
-        code: code,
-      );
+  Future<String> joinGroup({required String code}) => RustLib.instance.api
+      .mixinDesktopApiAccessConversationAccessJoinGroup(that: this, code: code);
 
   Future<ConversationDetailItem> localConversationDetail({
     required String conversationId,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessLocalConversationDetail(
+      .mixinDesktopApiAccessConversationAccessLocalConversationDetail(
         that: this,
         conversationId: conversationId,
       );
@@ -13196,7 +13347,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
   Future<String> openUserConversation({required String userId}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeConversationAccessOpenUserConversation(
+      .mixinDesktopApiAccessConversationAccessOpenUserConversation(
         that: this,
         userId: userId,
       );
@@ -13204,13 +13355,13 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
   Future<void> reorderCircles({required List<String> circleIds}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeConversationAccessReorderCircles(
+      .mixinDesktopApiAccessConversationAccessReorderCircles(
         that: this,
         circleIds: circleIds,
       );
 
   Future<CodeResult> resolveCode({required String code}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeConversationAccessResolveCode(
+      RustLib.instance.api.mixinDesktopApiAccessConversationAccessResolveCode(
         that: this,
         code: code,
       );
@@ -13218,7 +13369,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
   Future<void> rotateGroupInvite({required String conversationId}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeConversationAccessRotateGroupInvite(
+      .mixinDesktopApiAccessConversationAccessRotateGroupInvite(
         that: this,
         conversationId: conversationId,
       );
@@ -13227,7 +13378,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
     required String conversationId,
     required String keyword,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessSearchBotGroupUsers(
+      .mixinDesktopApiAccessConversationAccessSearchBotGroupUsers(
         that: this,
         conversationId: conversationId,
         keyword: keyword,
@@ -13237,7 +13388,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
     required String conversationId,
     required String keyword,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessSearchGroupUsers(
+      .mixinDesktopApiAccessConversationAccessSearchGroupUsers(
         that: this,
         conversationId: conversationId,
         keyword: keyword,
@@ -13247,7 +13398,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
     required String conversationId,
     required PlatformInt64 duration,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessSetDisappearingMessages(
+      .mixinDesktopApiAccessConversationAccessSetDisappearingMessages(
         that: this,
         conversationId: conversationId,
         duration: duration,
@@ -13258,7 +13409,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
     required String ownerId,
     required String category,
     required PlatformInt64 durationSeconds,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeConversationAccessSetMuted(
+  }) => RustLib.instance.api.mixinDesktopApiAccessConversationAccessSetMuted(
     that: this,
     conversationId: conversationId,
     ownerId: ownerId,
@@ -13269,19 +13420,18 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
   Future<void> setPinned({
     required String conversationId,
     required bool pinned,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeConversationAccessSetPinned(
+  }) => RustLib.instance.api.mixinDesktopApiAccessConversationAccessSetPinned(
     that: this,
     conversationId: conversationId,
     pinned: pinned,
   );
 
   Future<void> updateCircle({required String circleId, required String name}) =>
-      RustLib.instance.api
-          .mixinDesktopCoreRuntimeConversationAccessUpdateCircle(
-            that: this,
-            circleId: circleId,
-            name: name,
-          );
+      RustLib.instance.api.mixinDesktopApiAccessConversationAccessUpdateCircle(
+        that: this,
+        circleId: circleId,
+        name: name,
+      );
 
   Future<void> updateParticipants({
     required String conversationId,
@@ -13289,7 +13439,7 @@ class ConversationAccessImpl extends RustOpaque implements ConversationAccess {
     required List<String> userIds,
     String? role,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeConversationAccessUpdateParticipants(
+      .mixinDesktopApiAccessConversationAccessUpdateParticipants(
         that: this,
         conversationId: conversationId,
         action: action,
@@ -13349,7 +13499,7 @@ class DesktopHandleImpl extends RustOpaque implements DesktopHandle {
         that: this,
       );
 
-  Future<AccountHandle?> restoreAccount() =>
+  Future<AccountHandle> restoreAccount() =>
       RustLib.instance.api.crateApiDesktopDesktopHandleRestoreAccount(
         that: this,
       );
@@ -13416,7 +13566,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     required String targetConversationId,
     required List<String> sourceMessageIds,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeMessageAccessCombineForwardMessages(
+      .mixinDesktopApiAccessMessageAccessCombineForwardMessages(
         that: this,
         targetConversationId: targetConversationId,
         sourceMessageIds: sourceMessageIds,
@@ -13424,7 +13574,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
 
   Future<bool> conversationIsEncrypted({required String conversationId}) =>
       RustLib.instance.api
-          .mixinDesktopCoreRuntimeMessageAccessConversationIsEncrypted(
+          .mixinDesktopApiAccessMessageAccessConversationIsEncrypted(
             that: this,
             conversationId: conversationId,
           );
@@ -13432,7 +13582,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
   Future<void> deleteMessages({
     required String conversationId,
     required List<String> messageIds,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessDeleteMessages(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessDeleteMessages(
     that: this,
     conversationId: conversationId,
     messageIds: messageIds,
@@ -13441,12 +13591,11 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
   Future<List<String>> forwardMessages({
     required String targetConversationId,
     required List<String> sourceMessageIds,
-  }) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessForwardMessages(
-        that: this,
-        targetConversationId: targetConversationId,
-        sourceMessageIds: sourceMessageIds,
-      );
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessForwardMessages(
+    that: this,
+    targetConversationId: targetConversationId,
+    sourceMessageIds: sourceMessageIds,
+  );
 
   Future<List<ImageMessageView>> imageMessagesAround({
     required String conversationId,
@@ -13454,7 +13603,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     required PlatformInt64 before,
     required PlatformInt64 after,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeMessageAccessImageMessagesAround(
+      .mixinDesktopApiAccessMessageAccessImageMessagesAround(
         that: this,
         conversationId: conversationId,
         targetMessageId: targetMessageId,
@@ -13465,7 +13614,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
   Future<void> markConversationRead({required String conversationId}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeMessageAccessMarkConversationRead(
+      .mixinDesktopApiAccessMessageAccessMarkConversationRead(
         that: this,
         conversationId: conversationId,
       );
@@ -13473,51 +13622,48 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
   Future<void> markMentionRead({
     required String conversationId,
     required String messageId,
-  }) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessMarkMentionRead(
-        that: this,
-        conversationId: conversationId,
-        messageId: messageId,
-      );
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessMarkMentionRead(
+    that: this,
+    conversationId: conversationId,
+    messageId: messageId,
+  );
 
   Future<List<String>> messageIdsAfter({
     required String conversationId,
     required PlatformInt64 anchorRowId,
     required PlatformInt64 anchorCreatedAtMicros,
     required PlatformInt64 limit,
-  }) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessMessageIdsAfter(
-        that: this,
-        conversationId: conversationId,
-        anchorRowId: anchorRowId,
-        anchorCreatedAtMicros: anchorCreatedAtMicros,
-        limit: limit,
-      );
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessMessageIdsAfter(
+    that: this,
+    conversationId: conversationId,
+    anchorRowId: anchorRowId,
+    anchorCreatedAtMicros: anchorCreatedAtMicros,
+    limit: limit,
+  );
 
   Future<List<String>> messageIdsBefore({
     required String conversationId,
     required PlatformInt64 anchorRowId,
     required PlatformInt64 anchorCreatedAtMicros,
     required PlatformInt64 limit,
-  }) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessMessageIdsBefore(
-        that: this,
-        conversationId: conversationId,
-        anchorRowId: anchorRowId,
-        anchorCreatedAtMicros: anchorCreatedAtMicros,
-        limit: limit,
-      );
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessMessageIdsBefore(
+    that: this,
+    conversationId: conversationId,
+    anchorRowId: anchorRowId,
+    anchorCreatedAtMicros: anchorCreatedAtMicros,
+    limit: limit,
+  );
 
   Future<List<MessageListView>> messageItemsByIds({
     required List<String> messageIds,
-  }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeMessageAccessMessageItemsByIds(
+  }) =>
+      RustLib.instance.api.mixinDesktopApiAccessMessageAccessMessageItemsByIds(
         that: this,
         messageIds: messageIds,
       );
 
   Future<MessageOrderInfoView?> messageOrderInfo({required String messageId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessMessageOrderInfo(
+      RustLib.instance.api.mixinDesktopApiAccessMessageAccessMessageOrderInfo(
         that: this,
         messageId: messageId,
       );
@@ -13527,7 +13673,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     PlatformInt64? beforeCreatedAtMicros,
     String? beforeMessageId,
     required PlatformInt64 limit,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessMessages(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessMessages(
     that: this,
     conversationId: conversationId,
     beforeCreatedAtMicros: beforeCreatedAtMicros,
@@ -13540,7 +13686,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     required String targetMessageId,
     required PlatformInt64 before,
     required PlatformInt64 after,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessMessagesAround(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessMessagesAround(
     that: this,
     conversationId: conversationId,
     targetMessageId: targetMessageId,
@@ -13550,21 +13696,21 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
 
   Future<PinMessagePreviewItem?> pinMessagePreview({
     required String conversationId,
-  }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeMessageAccessPinMessagePreview(
+  }) =>
+      RustLib.instance.api.mixinDesktopApiAccessMessageAccessPinMessagePreview(
         that: this,
         conversationId: conversationId,
       );
 
   Future<List<String>> pinnedMessageIds({required String conversationId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessPinnedMessageIds(
+      RustLib.instance.api.mixinDesktopApiAccessMessageAccessPinnedMessageIds(
         that: this,
         conversationId: conversationId,
       );
 
   Future<List<MessageListView>> pinnedMessages({
     required String conversationId,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessPinnedMessages(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessPinnedMessages(
     that: this,
     conversationId: conversationId,
   );
@@ -13572,7 +13718,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
   Future<void> recallMessages({
     required String conversationId,
     required List<String> messageIds,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessRecallMessages(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessRecallMessages(
     that: this,
     conversationId: conversationId,
     messageIds: messageIds,
@@ -13583,7 +13729,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     String? anchorMessageId,
     required int limit,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeMessageAccessSearchGlobalMessages(
+      .mixinDesktopApiAccessMessageAccessSearchGlobalMessages(
         that: this,
         query: query,
         anchorMessageId: anchorMessageId,
@@ -13597,7 +13743,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     required List<String> categories,
     String? anchorMessageId,
     required int limit,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSearchMessages(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessSearchMessages(
     that: this,
     conversationId: conversationId,
     query: query,
@@ -13610,7 +13756,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
   Future<String> sendAppCard({
     required String conversationId,
     required String content,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSendAppCard(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessSendAppCard(
     that: this,
     conversationId: conversationId,
     content: content,
@@ -13629,7 +13775,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     String? caption,
     String? quoteMessageId,
     required bool silent,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSendAttachment(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessSendAttachment(
     that: this,
     conversationId: conversationId,
     path: path,
@@ -13651,7 +13797,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     required PlatformInt64 durationMillis,
     required List<int> waveform,
     String? quoteMessageId,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSendAudio(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessSendAudio(
     that: this,
     conversationId: conversationId,
     path: path,
@@ -13665,7 +13811,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     required String sharedUserId,
     String? quoteMessageId,
     required bool silent,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSendContact(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessSendContact(
     that: this,
     conversationId: conversationId,
     sharedUserId: sharedUserId,
@@ -13676,7 +13822,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
   Future<String> sendPost({
     required String conversationId,
     required String content,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSendPost(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessSendPost(
     that: this,
     conversationId: conversationId,
     content: content,
@@ -13690,22 +13836,21 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     int? height,
     required String mimeType,
     required bool silent,
-  }) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSendRemoteImage(
-        that: this,
-        conversationId: conversationId,
-        url: url,
-        previewUrl: previewUrl,
-        width: width,
-        height: height,
-        mimeType: mimeType,
-        silent: silent,
-      );
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessSendRemoteImage(
+    that: this,
+    conversationId: conversationId,
+    url: url,
+    previewUrl: previewUrl,
+    width: width,
+    height: height,
+    mimeType: mimeType,
+    silent: silent,
+  );
 
   Future<String> sendSticker({
     required String conversationId,
     required String stickerId,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSendSticker(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessSendSticker(
     that: this,
     conversationId: conversationId,
     stickerId: stickerId,
@@ -13716,7 +13861,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     required String content,
     String? quoteMessageId,
     required bool silent,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSendText(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessSendText(
     that: this,
     conversationId: conversationId,
     content: content,
@@ -13728,20 +13873,19 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
     required String conversationId,
     required String messageId,
     required bool pinned,
-  }) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSetMessagePinned(
-        that: this,
-        conversationId: conversationId,
-        messageId: messageId,
-        pinned: pinned,
-      );
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessSetMessagePinned(
+    that: this,
+    conversationId: conversationId,
+    messageId: messageId,
+    pinned: pinned,
+  );
 
   Future<List<MessageListView>> sharedMessages({
     required String conversationId,
     required String kind,
     required BigInt offset,
     required BigInt limit,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeMessageAccessSharedMessages(
+  }) => RustLib.instance.api.mixinDesktopApiAccessMessageAccessSharedMessages(
     that: this,
     conversationId: conversationId,
     kind: kind,
@@ -13751,8 +13895,8 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
 
   Future<List<MessageListView>> transcriptMessages({
     required String transcriptId,
-  }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeMessageAccessTranscriptMessages(
+  }) =>
+      RustLib.instance.api.mixinDesktopApiAccessMessageAccessTranscriptMessages(
         that: this,
         transcriptId: transcriptId,
       );
@@ -13760,7 +13904,7 @@ class MessageAccessImpl extends RustOpaque implements MessageAccess {
   Future<List<String>> unreadMentionMessageIds({
     required String conversationId,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeMessageAccessUnreadMentionMessageIds(
+      .mixinDesktopApiAccessMessageAccessUnreadMentionMessageIds(
         that: this,
         conversationId: conversationId,
       );
@@ -13897,56 +14041,52 @@ class StickerAccessImpl extends RustOpaque implements StickerAccess {
   );
 
   Future<void> addSticker({required String stickerId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessAddSticker(
+      RustLib.instance.api.mixinDesktopApiAccessStickerAccessAddSticker(
         that: this,
         stickerId: stickerId,
       );
 
-  Future<void> addStickerFromFile({required String messageId}) => RustLib
-      .instance
-      .api
-      .mixinDesktopCoreRuntimeStickerAccessAddStickerFromFile(
+  Future<void> addStickerFromFile({required String messageId}) =>
+      RustLib.instance.api.mixinDesktopApiAccessStickerAccessAddStickerFromFile(
         that: this,
         messageId: messageId,
       );
 
-  Future<void> addStickerFromPath({required String path}) => RustLib
-      .instance
-      .api
-      .mixinDesktopCoreRuntimeStickerAccessAddStickerFromPath(
+  Future<void> addStickerFromPath({required String path}) =>
+      RustLib.instance.api.mixinDesktopApiAccessStickerAccessAddStickerFromPath(
         that: this,
         path: path,
       );
 
   Future<List<StickerItem>> albumStickers({required String albumId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessAlbumStickers(
+      RustLib.instance.api.mixinDesktopApiAccessStickerAccessAlbumStickers(
         that: this,
         albumId: albumId,
       );
 
   Future<List<StickerItem>> personalStickers() =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessPersonalStickers(
+      RustLib.instance.api.mixinDesktopApiAccessStickerAccessPersonalStickers(
         that: this,
       );
 
   Future<List<StickerItem>> recentStickers() =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessRecentStickers(
+      RustLib.instance.api.mixinDesktopApiAccessStickerAccessRecentStickers(
         that: this,
       );
 
   Future<void> refreshSticker({required String stickerId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessRefreshSticker(
+      RustLib.instance.api.mixinDesktopApiAccessStickerAccessRefreshSticker(
         that: this,
         stickerId: stickerId,
       );
 
   Future<bool> refreshStickers() =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessRefreshStickers(
+      RustLib.instance.api.mixinDesktopApiAccessStickerAccessRefreshStickers(
         that: this,
       );
 
   Future<void> removeSticker({required String stickerId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessRemoveSticker(
+      RustLib.instance.api.mixinDesktopApiAccessStickerAccessRemoveSticker(
         that: this,
         stickerId: stickerId,
       );
@@ -13955,7 +14095,7 @@ class StickerAccessImpl extends RustOpaque implements StickerAccess {
     required String albumId,
     required bool added,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeStickerAccessSetStickerAlbumAdded(
+      .mixinDesktopApiAccessStickerAccessSetStickerAlbumAdded(
         that: this,
         albumId: albumId,
         added: added,
@@ -13964,24 +14104,24 @@ class StickerAccessImpl extends RustOpaque implements StickerAccess {
   Future<void> setStickerAlbumOrder({required List<String> albumIds}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeStickerAccessSetStickerAlbumOrder(
+      .mixinDesktopApiAccessStickerAccessSetStickerAlbumOrder(
         that: this,
         albumIds: albumIds,
       );
 
   Future<List<StickerAlbumItem>> stickerAlbums() =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessStickerAlbums(
+      RustLib.instance.api.mixinDesktopApiAccessStickerAccessStickerAlbums(
         that: this,
       );
 
   Future<StickerDetailItem> stickerDetail({required String stickerId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeStickerAccessStickerDetail(
+      RustLib.instance.api.mixinDesktopApiAccessStickerAccessStickerDetail(
         that: this,
         stickerId: stickerId,
       );
 
-  Future<List<StickerAlbumItem>> stickerStoreAlbums() => RustLib.instance.api
-      .mixinDesktopCoreRuntimeStickerAccessStickerStoreAlbums(
+  Future<List<StickerAlbumItem>> stickerStoreAlbums() =>
+      RustLib.instance.api.mixinDesktopApiAccessStickerAccessStickerStoreAlbums(
         that: this,
       );
 }
@@ -14006,62 +14146,56 @@ class UserAccessImpl extends RustOpaque implements UserAccess {
   );
 
   Future<void> addContact({required String userId, required String fullName}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessAddContact(
+      RustLib.instance.api.mixinDesktopApiAccessUserAccessAddContact(
         that: this,
         userId: userId,
         fullName: fullName,
       );
 
   Future<void> blockUser({required String userId}) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeUserAccessBlockUser(that: this, userId: userId);
+      .mixinDesktopApiAccessUserAccessBlockUser(that: this, userId: userId);
 
-  Future<String?> botCreatorId({required String userId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessBotCreatorId(
-        that: this,
-        userId: userId,
-      );
+  Future<String?> botCreatorId({required String userId}) => RustLib.instance.api
+      .mixinDesktopApiAccessUserAccessBotCreatorId(that: this, userId: userId);
 
   Future<String?> botHomeUri({required String appId}) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeUserAccessBotHomeUri(that: this, appId: appId);
+      .mixinDesktopApiAccessUserAccessBotHomeUri(that: this, appId: appId);
 
   Future<List<SharedAppItem>> localSharedApps({required String userId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessLocalSharedApps(
+      RustLib.instance.api.mixinDesktopApiAccessUserAccessLocalSharedApps(
         that: this,
         userId: userId,
       );
 
   Future<Map<String, String>> mentionNames({required List<String> contents}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessMentionNames(
+      RustLib.instance.api.mixinDesktopApiAccessUserAccessMentionNames(
         that: this,
         contents: contents,
       );
 
   Future<UserProfileItem?> refreshUserProfile({required String userId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessRefreshUserProfile(
+      RustLib.instance.api.mixinDesktopApiAccessUserAccessRefreshUserProfile(
         that: this,
         userId: userId,
       );
 
-  Future<void> removeContact({required String userId}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessRemoveContact(
-        that: this,
-        userId: userId,
-      );
+  Future<void> removeContact({required String userId}) => RustLib.instance.api
+      .mixinDesktopApiAccessUserAccessRemoveContact(that: this, userId: userId);
 
   Future<List<String>> replaceMentions({required List<String> contents}) =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessReplaceMentions(
+      RustLib.instance.api.mixinDesktopApiAccessUserAccessReplaceMentions(
         that: this,
         contents: contents,
       );
 
   Future<void> reportUser({required String userId}) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeUserAccessReportUser(that: this, userId: userId);
+      .mixinDesktopApiAccessUserAccessReportUser(that: this, userId: userId);
 
   Future<List<UserProfileItem>> searchLocalUsers({
     required String query,
     required String category,
     required PlatformInt64 limit,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessSearchLocalUsers(
+  }) => RustLib.instance.api.mixinDesktopApiAccessUserAccessSearchLocalUsers(
     that: this,
     query: query,
     category: category,
@@ -14071,30 +14205,30 @@ class UserAccessImpl extends RustOpaque implements UserAccess {
   Future<UserProfileItem?> searchMaoUser({required String query}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeUserAccessSearchMaoUser(that: this, query: query);
+      .mixinDesktopApiAccessUserAccessSearchMaoUser(that: this, query: query);
 
   Future<UserProfileItem> searchUser({required String query}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeUserAccessSearchUser(that: this, query: query);
+      .mixinDesktopApiAccessUserAccessSearchUser(that: this, query: query);
 
   Future<List<UserProfileItem>> selectableUsers() =>
-      RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessSelectableUsers(
+      RustLib.instance.api.mixinDesktopApiAccessUserAccessSelectableUsers(
         that: this,
       );
 
   Future<List<SharedAppItem>> sharedApps({required String userId}) => RustLib
       .instance
       .api
-      .mixinDesktopCoreRuntimeUserAccessSharedApps(that: this, userId: userId);
+      .mixinDesktopApiAccessUserAccessSharedApps(that: this, userId: userId);
 
   Future<void> unblockUser({required String userId}) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeUserAccessUnblockUser(that: this, userId: userId);
+      .mixinDesktopApiAccessUserAccessUnblockUser(that: this, userId: userId);
 
   Future<UserProfileItem?> userProfile({
     String? userId,
     String? identityNumber,
-  }) => RustLib.instance.api.mixinDesktopCoreRuntimeUserAccessUserProfile(
+  }) => RustLib.instance.api.mixinDesktopApiAccessUserAccessUserProfile(
     that: this,
     userId: userId,
     identityNumber: identityNumber,
@@ -14103,7 +14237,7 @@ class UserAccessImpl extends RustOpaque implements UserAccess {
   Future<List<UserProfileItem>> usersByIdentityNumbers({
     required List<String> identityNumbers,
   }) => RustLib.instance.api
-      .mixinDesktopCoreRuntimeUserAccessUsersByIdentityNumbers(
+      .mixinDesktopApiAccessUserAccessUsersByIdentityNumbers(
         that: this,
         identityNumbers: identityNumbers,
       );

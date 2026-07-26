@@ -1,5 +1,6 @@
 use std::env;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use anyhow::{anyhow, Context};
 #[cfg(target_os = "linux")]
@@ -15,6 +16,8 @@ use objc2::rc::autoreleasepool;
 use objc2_foundation::{NSFileManager, NSSearchPathDirectory, NSSearchPathDomainMask};
 
 const DATA_DIRECTORY_ENV: &str = "MIXIN_DESKTOP_DATA_DIR";
+
+static DATA_DIRECTORY: OnceLock<Result<PathBuf, String>> = OnceLock::new();
 
 pub(crate) fn app_database_path(file_name: &str) -> anyhow::Result<PathBuf> {
     Ok(data_directory()?.join(file_name))
@@ -62,11 +65,20 @@ pub(crate) async fn create_parent_directory(path: &Path) -> anyhow::Result<()> {
         .with_context(|| format!("create database directory {}", parent.display()))
 }
 
-fn data_directory() -> anyhow::Result<PathBuf> {
+pub fn data_directory() -> anyhow::Result<PathBuf> {
+    DATA_DIRECTORY
+        .get_or_init(resolve_data_directory)
+        .as_ref()
+        .map(Clone::clone)
+        .map_err(|error| anyhow!(error))
+}
+
+fn resolve_data_directory() -> Result<PathBuf, String> {
     if let Some(path) = env::var_os(DATA_DIRECTORY_ENV).filter(|value| !value.is_empty()) {
         return Ok(PathBuf::from(path));
     }
-    platform_data_directory().ok_or_else(|| anyhow!("failed to resolve application data directory"))
+    platform_data_directory()
+        .ok_or_else(|| "failed to resolve application data directory".to_string())
 }
 
 #[cfg(target_os = "macos")]

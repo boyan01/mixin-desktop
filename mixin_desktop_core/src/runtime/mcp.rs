@@ -569,7 +569,7 @@ impl McpService {
                 .map(|messages| {
                     json!({"messages": messages.into_iter().map(message_json).collect::<Vec<_>>()})
                 }),
-            Err(error) => Err(error),
+            Err(error) => Err(error.into()),
         };
         result
             .map(object)
@@ -671,7 +671,7 @@ impl McpService {
                         .collect::<Vec<_>>();
                     json!({"participants": participants})
                 }),
-            Err(error) => Err(error),
+            Err(error) => Err(error.into()),
         };
         result
             .map(object)

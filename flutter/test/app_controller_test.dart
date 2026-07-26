@@ -3,6 +3,37 @@ import 'package:mixin_desktop_ui/controllers/app_controller.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 
 void main() {
+  test(
+    'initialize enters signed out when Rust reports no saved account',
+    () async {
+      final controller = AppController(
+        desktop: _FakeDesktopHandle(
+          restoreError: const CoreError.notFound(),
+        ),
+      );
+
+      await controller.initialize();
+
+      expect(controller.stage, AppStage.signedOut);
+      expect(controller.error, isNull);
+      controller.dispose();
+    },
+  );
+
+  test('initialize enters failed for other restore errors', () async {
+    final controller = AppController(
+      desktop: _FakeDesktopHandle(
+        restoreError: const CoreError.other(message: 'database unavailable'),
+      ),
+    );
+
+    await controller.initialize();
+
+    expect(controller.stage, AppStage.failed);
+    expect(controller.error, contains('database unavailable'));
+    controller.dispose();
+  });
+
   test('sign out clears the active account after Rust succeeds', () async {
     final account = _FakeAccountHandle();
     final controller = AppController()..setAccount(account);
@@ -26,6 +57,25 @@ void main() {
     expect(account.disposed, isTrue);
     controller.dispose();
   });
+}
+
+class _FakeDesktopHandle implements DesktopHandle {
+  _FakeDesktopHandle({required this.restoreError});
+
+  final Exception restoreError;
+  var _isDisposed = false;
+
+  @override
+  Future<AccountHandle> restoreAccount() async => throw restoreError;
+
+  @override
+  void dispose() => _isDisposed = true;
+
+  @override
+  bool get isDisposed => _isDisposed;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _FakeAccountHandle

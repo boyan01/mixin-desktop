@@ -7,6 +7,7 @@ import 'package:overlay_support/overlay_support.dart';
 
 import '../constants/assets.dart';
 import '../l10n/l10n.dart';
+import '../src/rust/error.dart';
 import '../utils/app_logger.dart';
 
 class Toast {
@@ -118,6 +119,7 @@ class ToastError extends Error {
     }
     final message = switch (error) {
       AnyhowException(:final message) => message,
+      CoreError_Other(:final message) => message,
       String() => error,
       _ => error?.toString(),
     };

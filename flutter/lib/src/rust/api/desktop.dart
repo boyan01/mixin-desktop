@@ -3,12 +3,12 @@
 
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
+import '../error.dart';
 import '../frb_generated.dart';
+import '../third_party/mixin_desktop_api/model.dart';
 import 'account.dart';
 import 'login.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
-
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`, `from`, `from`, `from`, `from`, `try_from`, `try_from`
 
 Future<DesktopHandle> openDesktop() =>
     RustLib.instance.api.crateApiDesktopOpenDesktop();
@@ -30,7 +30,7 @@ abstract class DesktopHandle implements RustOpaqueInterface {
 
   Future<void> recreateAccountDatabase();
 
-  Future<AccountHandle?> restoreAccount();
+  Future<AccountHandle> restoreAccount();
 
   SettingsHandle get settings;
 }
@@ -72,147 +72,4 @@ abstract class SettingsHandle implements RustOpaqueInterface {
   });
 
   Future<bool> videoAutoDownload();
-}
-
-class HttpResponseItem {
-  final int statusCode;
-  final Map<String, String> headers;
-  final Uint8List body;
-
-  const HttpResponseItem({
-    required this.statusCode,
-    required this.headers,
-    required this.body,
-  });
-
-  @override
-  int get hashCode => statusCode.hashCode ^ headers.hashCode ^ body.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is HttpResponseItem &&
-          runtimeType == other.runtimeType &&
-          statusCode == other.statusCode &&
-          headers == other.headers &&
-          body == other.body;
-}
-
-class McpServerStatusItem {
-  final bool running;
-  final String? endpoint;
-  final String? lastError;
-
-  const McpServerStatusItem({
-    required this.running,
-    this.endpoint,
-    this.lastError,
-  });
-
-  @override
-  int get hashCode => running.hashCode ^ endpoint.hashCode ^ lastError.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is McpServerStatusItem &&
-          runtimeType == other.runtimeType &&
-          running == other.running &&
-          endpoint == other.endpoint &&
-          lastError == other.lastError;
-}
-
-class McpSettingsItem {
-  final bool enabled;
-  final String token;
-  final bool draftToolsEnabled;
-  final bool circleManagementEnabled;
-
-  const McpSettingsItem({
-    required this.enabled,
-    required this.token,
-    required this.draftToolsEnabled,
-    required this.circleManagementEnabled,
-  });
-
-  @override
-  int get hashCode =>
-      enabled.hashCode ^
-      token.hashCode ^
-      draftToolsEnabled.hashCode ^
-      circleManagementEnabled.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is McpSettingsItem &&
-          runtimeType == other.runtimeType &&
-          enabled == other.enabled &&
-          token == other.token &&
-          draftToolsEnabled == other.draftToolsEnabled &&
-          circleManagementEnabled == other.circleManagementEnabled;
-}
-
-class ProxyItem {
-  final String id;
-  final String kind;
-  final String host;
-  final int port;
-  final String? username;
-  final String? password;
-
-  const ProxyItem({
-    required this.id,
-    required this.kind,
-    required this.host,
-    required this.port,
-    this.username,
-    this.password,
-  });
-
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      kind.hashCode ^
-      host.hashCode ^
-      port.hashCode ^
-      username.hashCode ^
-      password.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ProxyItem &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          kind == other.kind &&
-          host == other.host &&
-          port == other.port &&
-          username == other.username &&
-          password == other.password;
-}
-
-class ProxySettingsItem {
-  final bool enabled;
-  final String? selectedProxyId;
-  final List<ProxyItem> proxies;
-
-  const ProxySettingsItem({
-    required this.enabled,
-    this.selectedProxyId,
-    required this.proxies,
-  });
-
-  @override
-  int get hashCode =>
-      enabled.hashCode ^ selectedProxyId.hashCode ^ proxies.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ProxySettingsItem &&
-          runtimeType == other.runtimeType &&
-          enabled == other.enabled &&
-          selectedProxyId == other.selectedProxyId &&
-          proxies == other.proxies;
 }

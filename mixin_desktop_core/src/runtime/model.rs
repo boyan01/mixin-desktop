@@ -33,11 +33,6 @@ pub struct ConversationListData {
     pub group_avatars: Vec<GroupAvatar>,
 }
 
-pub struct ConversationChangeEvent {
-    pub conversation_ids: Vec<String>,
-    pub reload_all: bool,
-}
-
 #[derive(Clone, PartialEq, Eq)]
 pub struct ConversationUnseenCount {
     pub category: String,
@@ -66,19 +61,6 @@ pub struct ConversationStorageUsage {
 pub struct StorageCategoryUsage {
     pub category: String,
     pub size_bytes: i64,
-}
-
-pub struct AccountProfile {
-    pub user_id: String,
-    pub full_name: String,
-    pub avatar_url: String,
-    pub identity_number: String,
-    pub biography: String,
-    pub phone: String,
-    pub created_at: String,
-    pub is_verified: bool,
-    pub fiat_currency: String,
-    pub membership: Option<String>,
 }
 
 pub struct UserProfileItem {

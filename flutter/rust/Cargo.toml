@@ -7,15 +7,11 @@ edition = "2021"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-anyhow = "1"
-chrono = "0.4"
 flutter_rust_bridge = "=2.12.0"
 futures = "0.3"
 log = "0.4"
-sdk = { path = "../../mixin-bot-sdk", package = "mixin-bot-sdk" }
-serde_json = "1"
-mixin_desktop_core = { path = "../../mixin_desktop_core" }
-tokio = { version = "1", features = ["sync"] }
+mixin_desktop_api = { path = "../../mixin_desktop_api" }
+thiserror = "2"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

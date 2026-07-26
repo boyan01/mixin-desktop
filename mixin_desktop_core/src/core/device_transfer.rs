@@ -48,7 +48,6 @@ pub enum ConnectionFailedReason {
     Unknown,
 }
 
-/// flutter_rust_bridge:non_opaque
 #[derive(Clone, Debug)]
 pub enum DeviceTransferEvent {
     RestoreConnected,

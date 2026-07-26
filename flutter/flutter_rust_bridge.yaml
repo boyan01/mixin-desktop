@@ -1,3 +1,3 @@
-rust_input: crate::api,mixin_desktop_core::runtime::model,mixin_desktop_core::runtime::attachment,mixin_desktop_core::runtime::conversation,mixin_desktop_core::runtime::logging,mixin_desktop_core::runtime::message,mixin_desktop_core::runtime::sticker,mixin_desktop_core::runtime::user
+rust_input: crate::api,crate::error,mixin_desktop_api::access,mixin_desktop_api::dto,mixin_desktop_api::error,mixin_desktop_api::model
 rust_root: rust/
 dart_output: lib/src/rust

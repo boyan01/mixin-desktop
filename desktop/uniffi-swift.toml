@@ -1,0 +1,3 @@
+[crates.mixin_desktop.bindings.swift]
+ffi_module_name = "MixinDesktopFFI"
+ffi_module_filename = "MixinDesktopFFI"

@@ -32,7 +32,8 @@ use crate::api::login::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
-use mixin_desktop_core::runtime::*;
+use mixin_desktop_api::access::*;
+use mixin_desktop_api::error::*;
 
 // Section: boilerplate
 
@@ -42,7 +43,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -752741114;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -500129639;
 
 // Section: executor
 
@@ -81,7 +82,7 @@ fn wire__crate__api__account__AccountHandle_account_health_impl(
                 );
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -286,12 +287,12 @@ fn wire__crate__api__account__AccountHandle_circle_changes_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                Vec<mixin_desktop_core::runtime::model::CircleItem>,
+                Vec<mixin_desktop_api::dto::CircleItem>,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -352,7 +353,7 @@ fn wire__crate__api__account__AccountHandle_clear_conversation_storage_impl(
             let api_categories = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -417,7 +418,7 @@ fn wire__crate__api__account__AccountHandle_connection_status_impl(
                 );
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -523,12 +524,12 @@ fn wire__crate__api__account__AccountHandle_conversation_changes_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                mixin_desktop_core::runtime::model::ConversationChangeEvent,
+                mixin_desktop_api::model::ConversationChangeEvent,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -588,7 +589,7 @@ fn wire__crate__api__account__AccountHandle_conversation_storage_usage_impl(
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -647,12 +648,12 @@ fn wire__crate__api__account__AccountHandle_desktop_notification_events_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                mixin_desktop_core::runtime::model::NotificationEvent,
+                mixin_desktop_api::dto::NotificationEvent,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -711,12 +712,10 @@ fn wire__crate__api__account__AccountHandle_device_transfer_command_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
             let api_command =
-                <mixin_desktop_core::core::device_transfer::DeviceTransferCommand>::sse_decode(
-                    &mut deserializer,
-                );
+                <crate::api::device_transfer::DeviceTransferCommand>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -775,12 +774,12 @@ fn wire__crate__api__account__AccountHandle_device_transfer_events_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                mixin_desktop_core::core::device_transfer::DeviceTransferEvent,
+                crate::api::device_transfer::DeviceTransferEvent,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -837,27 +836,25 @@ fn wire__crate__api__account__AccountHandle_media_directory_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                (move || {
-                    let mut api_that_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_that, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, crate::error::CoreError>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_that_guard = api_that_guard.unwrap();
-                    let output_ok =
-                        crate::api::account::AccountHandle::media_directory(&*api_that_guard)?;
-                    Ok(output_ok)
-                })(),
-            )
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok =
+                    crate::api::account::AccountHandle::media_directory(&*api_that_guard)?;
+                Ok(output_ok)
+            })())
         },
     )
 }
@@ -940,7 +937,7 @@ fn wire__crate__api__account__AccountHandle_message_changes_impl(
                 );
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1046,12 +1043,12 @@ fn wire__crate__api__account__AccountHandle_profile_changes_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                mixin_desktop_core::runtime::model::AccountProfile,
+                mixin_desktop_api::model::AccountProfile,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1110,7 +1107,7 @@ fn wire__crate__api__account__AccountHandle_refresh_account_health_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1168,7 +1165,7 @@ fn wire__crate__api__account__AccountHandle_refresh_profile_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1274,7 +1271,7 @@ fn wire__crate__api__account__AccountHandle_safe_snapshot_by_id_impl(
             let api_snapshot_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1390,7 +1387,7 @@ fn wire__crate__api__account__AccountHandle_sign_out_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1447,7 +1444,7 @@ fn wire__crate__api__account__AccountHandle_snapshot_by_id_impl(
             let api_snapshot_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1507,7 +1504,7 @@ fn wire__crate__api__account__AccountHandle_snapshot_by_trace_impl(
             let api_trace_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1614,7 +1611,7 @@ fn wire__crate__api__account__AccountHandle_storage_usage_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1670,12 +1667,12 @@ fn wire__crate__api__account__AccountHandle_unseen_count_changes_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                Vec<mixin_desktop_core::runtime::model::ConversationUnseenCount>,
+                Vec<mixin_desktop_api::dto::ConversationUnseenCount>,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1738,7 +1735,7 @@ fn wire__crate__api__account__AccountHandle_unseen_message_count_changes_impl(
                 );
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1800,7 +1797,7 @@ fn wire__crate__api__account__AccountHandle_update_profile_impl(
             let api_biography = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1881,7 +1878,7 @@ fn wire__crate__api__account__AccountHandle_user_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__AttachmentAccess_cancel_attachment_impl(
+fn wire__mixin_desktop_api__access__AttachmentAccess_cancel_attachment_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1909,7 +1906,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_cancel_attachment_impl(
             let api_message_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -1929,7 +1926,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_cancel_attachment_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::AttachmentAccess::cancel_attachment(
+                            mixin_desktop_api::access::AttachmentAccess::cancel_attachment(
                                 &*api_that_guard,
                                 api_message_id,
                             )
@@ -1942,7 +1939,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_cancel_attachment_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__AttachmentAccess_cancel_transcript_attachment_impl(
+fn wire__mixin_desktop_api__access__AttachmentAccess_cancel_transcript_attachment_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1954,7 +1951,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_cancel_transcript_attachm
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentAccess>>>::sse_decode(&mut deserializer);
 let api_transcript_id = <String>::sse_decode(&mut deserializer);
 let api_message_id = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
+                    transform_result_sse::<_, ClientError>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
         for i in decode_indices_ {
@@ -1964,11 +1961,11 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = mixin_desktop_core::runtime::AttachmentAccess::cancel_transcript_attachment(&*api_that_guard, api_transcript_id, api_message_id).await?;   Ok(output_ok)
+ let output_ok = mixin_desktop_api::access::AttachmentAccess::cancel_transcript_attachment(&*api_that_guard, api_transcript_id, api_message_id).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
-fn wire__mixin_desktop_core__runtime__AttachmentAccess_download_attachment_impl(
+fn wire__mixin_desktop_api__access__AttachmentAccess_download_attachment_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1996,7 +1993,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_download_attachment_impl(
             let api_message_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2016,7 +2013,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_download_attachment_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::AttachmentAccess::download_attachment(
+                            mixin_desktop_api::access::AttachmentAccess::download_attachment(
                                 &*api_that_guard,
                                 api_message_id,
                             )
@@ -2029,7 +2026,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_download_attachment_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__AttachmentAccess_download_transcript_attachment_impl(
+fn wire__mixin_desktop_api__access__AttachmentAccess_download_transcript_attachment_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2041,7 +2038,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_download_transcript_attac
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentAccess>>>::sse_decode(&mut deserializer);
 let api_transcript_id = <String>::sse_decode(&mut deserializer);
 let api_message_id = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
+                    transform_result_sse::<_, ClientError>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
         for i in decode_indices_ {
@@ -2051,11 +2048,11 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = mixin_desktop_core::runtime::AttachmentAccess::download_transcript_attachment(&*api_that_guard, api_transcript_id, api_message_id).await?;   Ok(output_ok)
+ let output_ok = mixin_desktop_api::access::AttachmentAccess::download_transcript_attachment(&*api_that_guard, api_transcript_id, api_message_id).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
-fn wire__mixin_desktop_core__runtime__AttachmentAccess_mark_audio_read_impl(
+fn wire__mixin_desktop_api__access__AttachmentAccess_mark_audio_read_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2083,7 +2080,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_mark_audio_read_impl(
             let api_message_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2103,7 +2100,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_mark_audio_read_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::AttachmentAccess::mark_audio_read(
+                            mixin_desktop_api::access::AttachmentAccess::mark_audio_read(
                                 &*api_that_guard,
                                 api_message_id,
                             )
@@ -2116,7 +2113,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_mark_audio_read_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__AttachmentAccess_mark_transcript_audio_read_impl(
+fn wire__mixin_desktop_api__access__AttachmentAccess_mark_transcript_audio_read_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2128,7 +2125,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_mark_transcript_audio_rea
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentAccess>>>::sse_decode(&mut deserializer);
 let api_transcript_id = <String>::sse_decode(&mut deserializer);
 let api_message_id = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
+                    transform_result_sse::<_, ClientError>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
         for i in decode_indices_ {
@@ -2138,11 +2135,11 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = mixin_desktop_core::runtime::AttachmentAccess::mark_transcript_audio_read(&*api_that_guard, api_transcript_id, api_message_id).await?;   Ok(output_ok)
+ let output_ok = mixin_desktop_api::access::AttachmentAccess::mark_transcript_audio_read(&*api_that_guard, api_transcript_id, api_message_id).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
-fn wire__mixin_desktop_core__runtime__AttachmentAccess_retry_attachment_impl(
+fn wire__mixin_desktop_api__access__AttachmentAccess_retry_attachment_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2170,7 +2167,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_retry_attachment_impl(
             let api_message_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2190,7 +2187,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_retry_attachment_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::AttachmentAccess::retry_attachment(
+                            mixin_desktop_api::access::AttachmentAccess::retry_attachment(
                                 &*api_that_guard,
                                 api_message_id,
                             )
@@ -2203,7 +2200,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_retry_attachment_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__AttachmentAccess_retry_transcript_attachment_impl(
+fn wire__mixin_desktop_api__access__AttachmentAccess_retry_transcript_attachment_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2214,7 +2211,7 @@ fn wire__mixin_desktop_core__runtime__AttachmentAccess_retry_transcript_attachme
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentAccess>>>::sse_decode(&mut deserializer);
 let api_transcript_id = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
+                    transform_result_sse::<_, ClientError>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
         for i in decode_indices_ {
@@ -2224,11 +2221,11 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = mixin_desktop_core::runtime::AttachmentAccess::retry_transcript_attachment(&*api_that_guard, api_transcript_id).await?;   Ok(output_ok)
+ let output_ok = mixin_desktop_api::access::AttachmentAccess::retry_transcript_attachment(&*api_that_guard, api_transcript_id).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_circles_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_circles_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2255,7 +2252,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_circles_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2274,7 +2271,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_circles_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::ConversationAccess::circles(
+                        let output_ok = mixin_desktop_api::access::ConversationAccess::circles(
                             &*api_that_guard,
                         )
                         .await?;
@@ -2286,7 +2283,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_circles_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_clear_conversation_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_clear_conversation_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2314,7 +2311,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_clear_conversation_impl
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2334,7 +2331,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_clear_conversation_impl
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::clear_conversation(
+                            mixin_desktop_api::access::ConversationAccess::clear_conversation(
                                 &*api_that_guard,
                                 api_conversation_id,
                             )
@@ -2347,7 +2344,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_clear_conversation_impl
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_count_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_conversation_count_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2378,7 +2375,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_count_impl
             let api_unseen_only = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2398,7 +2395,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_count_impl
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::conversation_count(
+                            mixin_desktop_api::access::ConversationAccess::conversation_count(
                                 &*api_that_guard,
                                 api_category,
                                 api_circle_id,
@@ -2414,7 +2411,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_count_impl
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_detail_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_conversation_detail_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2442,7 +2439,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_detail_imp
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2462,7 +2459,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_detail_imp
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::conversation_detail(
+                            mixin_desktop_api::access::ConversationAccess::conversation_detail(
                                 &*api_that_guard,
                                 api_conversation_id,
                             )
@@ -2475,7 +2472,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_detail_imp
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_items_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_conversation_items_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2502,7 +2499,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_items_impl
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2522,7 +2519,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_items_impl
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::conversation_items(
+                            mixin_desktop_api::access::ConversationAccess::conversation_items(
                                 &*api_that_guard,
                             )
                             .await?;
@@ -2534,7 +2531,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_items_impl
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_items_by_ids_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_conversation_items_by_ids_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2545,7 +2542,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_items_by_i
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>>>::sse_decode(&mut deserializer);
 let api_conversation_ids = <Vec<String>>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
+                    transform_result_sse::<_, ClientError>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
         for i in decode_indices_ {
@@ -2555,11 +2552,11 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = mixin_desktop_core::runtime::ConversationAccess::conversation_items_by_ids(&*api_that_guard, api_conversation_ids).await?;   Ok(output_ok)
+ let output_ok = mixin_desktop_api::access::ConversationAccess::conversation_items_by_ids(&*api_that_guard, api_conversation_ids).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_participants_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_conversation_participants_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2570,7 +2567,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversation_participan
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>>>::sse_decode(&mut deserializer);
 let api_conversation_id = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
+                    transform_result_sse::<_, ClientError>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
         for i in decode_indices_ {
@@ -2580,11 +2577,11 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = mixin_desktop_core::runtime::ConversationAccess::conversation_participants(&*api_that_guard, api_conversation_id).await?;   Ok(output_ok)
+ let output_ok = mixin_desktop_api::access::ConversationAccess::conversation_participants(&*api_that_guard, api_conversation_id).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_conversations_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_conversations_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2617,7 +2614,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversations_impl(
             let api_offset = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2637,7 +2634,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversations_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::conversations(
+                            mixin_desktop_api::access::ConversationAccess::conversations(
                                 &*api_that_guard,
                                 api_category,
                                 api_circle_id,
@@ -2655,7 +2652,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_conversations_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_create_circle_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_create_circle_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2683,7 +2680,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_create_circle_impl(
             let api_name = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2703,7 +2700,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_create_circle_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::create_circle(
+                            mixin_desktop_api::access::ConversationAccess::create_circle(
                                 &*api_that_guard,
                                 api_name,
                             )
@@ -2716,7 +2713,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_create_circle_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_create_group_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_create_group_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2745,7 +2742,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_create_group_impl(
             let api_user_ids = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2765,7 +2762,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_create_group_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::create_group(
+                            mixin_desktop_api::access::ConversationAccess::create_group(
                                 &*api_that_guard,
                                 api_name,
                                 api_user_ids,
@@ -2779,7 +2776,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_create_group_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_current_user_role_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_current_user_role_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2807,7 +2804,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_current_user_role_impl(
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2827,7 +2824,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_current_user_role_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::current_user_role(
+                            mixin_desktop_api::access::ConversationAccess::current_user_role(
                                 &*api_that_guard,
                                 api_conversation_id,
                             )
@@ -2840,7 +2837,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_current_user_role_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_delete_circle_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_delete_circle_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2868,7 +2865,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_delete_circle_impl(
             let api_circle_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2888,7 +2885,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_delete_circle_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::delete_circle(
+                            mixin_desktop_api::access::ConversationAccess::delete_circle(
                                 &*api_that_guard,
                                 api_circle_id,
                             )
@@ -2901,7 +2898,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_delete_circle_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_delete_conversation_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_delete_conversation_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2929,7 +2926,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_delete_conversation_imp
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -2949,7 +2946,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_delete_conversation_imp
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::delete_conversation(
+                            mixin_desktop_api::access::ConversationAccess::delete_conversation(
                                 &*api_that_guard,
                                 api_conversation_id,
                             )
@@ -2962,7 +2959,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_delete_conversation_imp
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_edit_circle_conversation_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_edit_circle_conversation_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2977,7 +2974,7 @@ let api_conversation_id = <String>::sse_decode(&mut deserializer);
 let api_owner_id = <String>::sse_decode(&mut deserializer);
 let api_is_group = <bool>::sse_decode(&mut deserializer);
 let api_add = <bool>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
+                    transform_result_sse::<_, ClientError>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
         for i in decode_indices_ {
@@ -2987,11 +2984,11 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = mixin_desktop_core::runtime::ConversationAccess::edit_circle_conversation(&*api_that_guard, api_circle_id, api_conversation_id, api_owner_id, api_is_group, api_add).await?;   Ok(output_ok)
+ let output_ok = mixin_desktop_api::access::ConversationAccess::edit_circle_conversation(&*api_that_guard, api_circle_id, api_conversation_id, api_owner_id, api_is_group, api_add).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_edit_conversation_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_edit_conversation_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3021,7 +3018,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_edit_conversation_impl(
             let api_announcement = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3041,7 +3038,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_edit_conversation_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::edit_conversation(
+                            mixin_desktop_api::access::ConversationAccess::edit_conversation(
                                 &*api_that_guard,
                                 api_conversation_id,
                                 api_name,
@@ -3056,7 +3053,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_edit_conversation_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_exit_group_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_exit_group_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3084,7 +3081,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_exit_group_impl(
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3103,12 +3100,11 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_exit_group_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::exit_group(
-                                &*api_that_guard,
-                                api_conversation_id,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::ConversationAccess::exit_group(
+                            &*api_that_guard,
+                            api_conversation_id,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -3117,7 +3113,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_exit_group_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_groups_in_common_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_groups_in_common_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3145,7 +3141,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_groups_in_common_impl(
             let api_user_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3165,7 +3161,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_groups_in_common_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::groups_in_common(
+                            mixin_desktop_api::access::ConversationAccess::groups_in_common(
                                 &*api_that_guard,
                                 api_user_id,
                             )
@@ -3178,7 +3174,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_groups_in_common_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_is_bot_group_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_is_bot_group_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3206,7 +3202,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_is_bot_group_impl(
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3226,7 +3222,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_is_bot_group_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::is_bot_group(
+                            mixin_desktop_api::access::ConversationAccess::is_bot_group(
                                 &*api_that_guard,
                                 api_conversation_id,
                             )
@@ -3239,7 +3235,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_is_bot_group_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_join_group_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_join_group_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3267,7 +3263,92 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_join_group_impl(
             let api_code = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok = mixin_desktop_api::access::ConversationAccess::join_group(
+                            &*api_that_guard,
+                            api_code,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__mixin_desktop_api__access__ConversationAccess_local_conversation_detail_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "ConversationAccess_local_conversation_detail", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { 
+            let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
+            let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>>>::sse_decode(&mut deserializer);
+let api_conversation_id = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
+                    transform_result_sse::<_, ClientError>((move || async move {
+                        let mut api_that_guard = None;
+let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
+        for i in decode_indices_ {
+            match i {
+                0 => api_that_guard = Some(api_that.lockable_decode_async_ref().await),
+                _ => unreachable!(),
+            }
+        }
+        let api_that_guard = api_that_guard.unwrap();
+ let output_ok = mixin_desktop_api::access::ConversationAccess::local_conversation_detail(&*api_that_guard, api_conversation_id).await?;   Ok(output_ok)
+                    })().await)
+                } })
+}
+fn wire__mixin_desktop_api__access__ConversationAccess_open_user_conversation_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ConversationAccess_open_user_conversation",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>,
+            >>::sse_decode(&mut deserializer);
+            let api_user_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3287,9 +3368,9 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_join_group_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::join_group(
+                            mixin_desktop_api::access::ConversationAccess::open_user_conversation(
                                 &*api_that_guard,
-                                api_code,
+                                api_user_id,
                             )
                             .await?;
                         Ok(output_ok)
@@ -3300,57 +3381,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_join_group_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_local_conversation_detail_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "ConversationAccess_local_conversation_detail", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { 
-            let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
-            let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>>>::sse_decode(&mut deserializer);
-let api_conversation_id = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
-                        let mut api_that_guard = None;
-let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
-        for i in decode_indices_ {
-            match i {
-                0 => api_that_guard = Some(api_that.lockable_decode_async_ref().await),
-                _ => unreachable!(),
-            }
-        }
-        let api_that_guard = api_that_guard.unwrap();
- let output_ok = mixin_desktop_core::runtime::ConversationAccess::local_conversation_detail(&*api_that_guard, api_conversation_id).await?;   Ok(output_ok)
-                    })().await)
-                } })
-}
-fn wire__mixin_desktop_core__runtime__ConversationAccess_open_user_conversation_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "ConversationAccess_open_user_conversation", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { 
-            let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
-            let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>>>::sse_decode(&mut deserializer);
-let api_user_id = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
-                        let mut api_that_guard = None;
-let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
-        for i in decode_indices_ {
-            match i {
-                0 => api_that_guard = Some(api_that.lockable_decode_async_ref().await),
-                _ => unreachable!(),
-            }
-        }
-        let api_that_guard = api_that_guard.unwrap();
- let output_ok = mixin_desktop_core::runtime::ConversationAccess::open_user_conversation(&*api_that_guard, api_user_id).await?;   Ok(output_ok)
-                    })().await)
-                } })
-}
-fn wire__mixin_desktop_core__runtime__ConversationAccess_reorder_circles_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_reorder_circles_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3378,7 +3409,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_reorder_circles_impl(
             let api_circle_ids = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3398,7 +3429,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_reorder_circles_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::reorder_circles(
+                            mixin_desktop_api::access::ConversationAccess::reorder_circles(
                                 &*api_that_guard,
                                 api_circle_ids,
                             )
@@ -3411,7 +3442,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_reorder_circles_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_resolve_code_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_resolve_code_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3439,7 +3470,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_resolve_code_impl(
             let api_code = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3459,7 +3490,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_resolve_code_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::resolve_code(
+                            mixin_desktop_api::access::ConversationAccess::resolve_code(
                                 &*api_that_guard,
                                 api_code,
                             )
@@ -3472,7 +3503,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_resolve_code_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_rotate_group_invite_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_rotate_group_invite_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3500,7 +3531,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_rotate_group_invite_imp
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3520,7 +3551,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_rotate_group_invite_imp
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::rotate_group_invite(
+                            mixin_desktop_api::access::ConversationAccess::rotate_group_invite(
                                 &*api_that_guard,
                                 api_conversation_id,
                             )
@@ -3533,33 +3564,70 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_rotate_group_invite_imp
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_search_bot_group_users_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_search_bot_group_users_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
 ) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec,_,_,_>(flutter_rust_bridge::for_generated::TaskInfo{ debug_name: "ConversationAccess_search_bot_group_users", port: Some(port_), mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal }, move || { 
-            let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
-            let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>>>::sse_decode(&mut deserializer);
-let api_conversation_id = <String>::sse_decode(&mut deserializer);
-let api_keyword = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "ConversationAccess_search_bot_group_users",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>,
+            >>::sse_decode(&mut deserializer);
+            let api_conversation_id = <String>::sse_decode(&mut deserializer);
+            let api_keyword = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ClientError>(
+                    (move || async move {
                         let mut api_that_guard = None;
-let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
-        for i in decode_indices_ {
-            match i {
-                0 => api_that_guard = Some(api_that.lockable_decode_async_ref().await),
-                _ => unreachable!(),
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            mixin_desktop_api::access::ConversationAccess::search_bot_group_users(
+                                &*api_that_guard,
+                                api_conversation_id,
+                                api_keyword,
+                            )
+                            .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
             }
-        }
-        let api_that_guard = api_that_guard.unwrap();
- let output_ok = mixin_desktop_core::runtime::ConversationAccess::search_bot_group_users(&*api_that_guard, api_conversation_id, api_keyword).await?;   Ok(output_ok)
-                    })().await)
-                } })
+        },
+    )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_search_group_users_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_search_group_users_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3588,7 +3656,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_search_group_users_impl
             let api_keyword = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3608,7 +3676,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_search_group_users_impl
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::search_group_users(
+                            mixin_desktop_api::access::ConversationAccess::search_group_users(
                                 &*api_that_guard,
                                 api_conversation_id,
                                 api_keyword,
@@ -3622,7 +3690,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_search_group_users_impl
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_set_disappearing_messages_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_set_disappearing_messages_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3634,7 +3702,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_set_disappearing_messag
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>>>::sse_decode(&mut deserializer);
 let api_conversation_id = <String>::sse_decode(&mut deserializer);
 let api_duration = <i64>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
+                    transform_result_sse::<_, ClientError>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
         for i in decode_indices_ {
@@ -3644,11 +3712,11 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = mixin_desktop_core::runtime::ConversationAccess::set_disappearing_messages(&*api_that_guard, api_conversation_id, api_duration).await?;   Ok(output_ok)
+ let output_ok = mixin_desktop_api::access::ConversationAccess::set_disappearing_messages(&*api_that_guard, api_conversation_id, api_duration).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_set_muted_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_set_muted_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3679,7 +3747,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_set_muted_impl(
             let api_duration_seconds = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3698,7 +3766,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_set_muted_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::ConversationAccess::set_muted(
+                        let output_ok = mixin_desktop_api::access::ConversationAccess::set_muted(
                             &*api_that_guard,
                             api_conversation_id,
                             api_owner_id,
@@ -3714,7 +3782,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_set_muted_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_set_pinned_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_set_pinned_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3743,7 +3811,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_set_pinned_impl(
             let api_pinned = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3762,13 +3830,12 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_set_pinned_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::set_pinned(
-                                &*api_that_guard,
-                                api_conversation_id,
-                                api_pinned,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::ConversationAccess::set_pinned(
+                            &*api_that_guard,
+                            api_conversation_id,
+                            api_pinned,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -3777,7 +3844,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_set_pinned_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_update_circle_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_update_circle_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3806,7 +3873,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_update_circle_impl(
             let api_name = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3826,7 +3893,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_update_circle_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::update_circle(
+                            mixin_desktop_api::access::ConversationAccess::update_circle(
                                 &*api_that_guard,
                                 api_circle_id,
                                 api_name,
@@ -3840,7 +3907,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_update_circle_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__ConversationAccess_update_participants_impl(
+fn wire__mixin_desktop_api__access__ConversationAccess_update_participants_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3871,7 +3938,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_update_participants_imp
             let api_role = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3891,7 +3958,7 @@ fn wire__mixin_desktop_core__runtime__ConversationAccess_update_participants_imp
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::ConversationAccess::update_participants(
+                            mixin_desktop_api::access::ConversationAccess::update_participants(
                                 &*api_that_guard,
                                 api_conversation_id,
                                 api_action,
@@ -3934,7 +4001,7 @@ fn wire__crate__api__desktop__DesktopHandle_abort_saved_login_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -3991,7 +4058,7 @@ fn wire__crate__api__desktop__DesktopHandle_begin_login_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4055,7 +4122,7 @@ fn wire__crate__api__desktop__DesktopHandle_http_request_impl(
             let api_max_response_bytes = <Option<u64>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4119,7 +4186,7 @@ fn wire__crate__api__desktop__DesktopHandle_recreate_account_database_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4178,7 +4245,7 @@ fn wire__crate__api__desktop__DesktopHandle_restore_account_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4379,7 +4446,7 @@ fn wire__crate__api__login__LoginHandle_wait_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4408,7 +4475,7 @@ fn wire__crate__api__login__LoginHandle_wait_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_combine_forward_messages_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_combine_forward_messages_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4437,7 +4504,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_combine_forward_messages_imp
             let api_source_message_ids = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4457,7 +4524,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_combine_forward_messages_imp
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::combine_forward_messages(
+                            mixin_desktop_api::access::MessageAccess::combine_forward_messages(
                                 &*api_that_guard,
                                 api_target_conversation_id,
                                 api_source_message_ids,
@@ -4471,7 +4538,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_combine_forward_messages_imp
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_conversation_is_encrypted_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_conversation_is_encrypted_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4499,7 +4566,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_conversation_is_encrypted_im
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4519,7 +4586,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_conversation_is_encrypted_im
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::conversation_is_encrypted(
+                            mixin_desktop_api::access::MessageAccess::conversation_is_encrypted(
                                 &*api_that_guard,
                                 api_conversation_id,
                             )
@@ -4532,7 +4599,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_conversation_is_encrypted_im
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_delete_messages_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_delete_messages_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4561,7 +4628,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_delete_messages_impl(
             let api_message_ids = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4580,13 +4647,12 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_delete_messages_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::delete_messages(
-                                &*api_that_guard,
-                                api_conversation_id,
-                                api_message_ids,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::MessageAccess::delete_messages(
+                            &*api_that_guard,
+                            api_conversation_id,
+                            api_message_ids,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -4595,7 +4661,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_delete_messages_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_forward_messages_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_forward_messages_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4624,7 +4690,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_forward_messages_impl(
             let api_source_message_ids = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4643,13 +4709,12 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_forward_messages_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::forward_messages(
-                                &*api_that_guard,
-                                api_target_conversation_id,
-                                api_source_message_ids,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::MessageAccess::forward_messages(
+                            &*api_that_guard,
+                            api_target_conversation_id,
+                            api_source_message_ids,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -4658,7 +4723,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_forward_messages_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_image_messages_around_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_image_messages_around_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4689,7 +4754,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_image_messages_around_impl(
             let api_after = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4709,7 +4774,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_image_messages_around_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::image_messages_around(
+                            mixin_desktop_api::access::MessageAccess::image_messages_around(
                                 &*api_that_guard,
                                 api_conversation_id,
                                 api_target_message_id,
@@ -4725,7 +4790,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_image_messages_around_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_mark_conversation_read_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_mark_conversation_read_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4753,7 +4818,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_mark_conversation_read_impl(
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4773,7 +4838,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_mark_conversation_read_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::mark_conversation_read(
+                            mixin_desktop_api::access::MessageAccess::mark_conversation_read(
                                 &*api_that_guard,
                                 api_conversation_id,
                             )
@@ -4786,7 +4851,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_mark_conversation_read_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_mark_mention_read_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_mark_mention_read_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4815,7 +4880,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_mark_mention_read_impl(
             let api_message_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4835,7 +4900,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_mark_mention_read_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::mark_mention_read(
+                            mixin_desktop_api::access::MessageAccess::mark_mention_read(
                                 &*api_that_guard,
                                 api_conversation_id,
                                 api_message_id,
@@ -4849,7 +4914,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_mark_mention_read_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_message_ids_after_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_message_ids_after_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4880,7 +4945,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_message_ids_after_impl(
             let api_limit = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4900,7 +4965,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_message_ids_after_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::message_ids_after(
+                            mixin_desktop_api::access::MessageAccess::message_ids_after(
                                 &*api_that_guard,
                                 api_conversation_id,
                                 api_anchor_row_id,
@@ -4916,7 +4981,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_message_ids_after_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_message_ids_before_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_message_ids_before_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -4947,7 +5012,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_message_ids_before_impl(
             let api_limit = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -4967,7 +5032,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_message_ids_before_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::message_ids_before(
+                            mixin_desktop_api::access::MessageAccess::message_ids_before(
                                 &*api_that_guard,
                                 api_conversation_id,
                                 api_anchor_row_id,
@@ -4983,7 +5048,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_message_ids_before_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_message_items_by_ids_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_message_items_by_ids_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5011,7 +5076,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_message_items_by_ids_impl(
             let api_message_ids = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5031,7 +5096,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_message_items_by_ids_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::message_items_by_ids(
+                            mixin_desktop_api::access::MessageAccess::message_items_by_ids(
                                 &*api_that_guard,
                                 api_message_ids,
                             )
@@ -5044,7 +5109,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_message_items_by_ids_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_message_order_info_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_message_order_info_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5072,7 +5137,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_message_order_info_impl(
             let api_message_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5092,7 +5157,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_message_order_info_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::message_order_info(
+                            mixin_desktop_api::access::MessageAccess::message_order_info(
                                 &*api_that_guard,
                                 api_message_id,
                             )
@@ -5105,7 +5170,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_message_order_info_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_messages_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_messages_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5136,7 +5201,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_messages_impl(
             let api_limit = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5155,7 +5220,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_messages_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::MessageAccess::messages(
+                        let output_ok = mixin_desktop_api::access::MessageAccess::messages(
                             &*api_that_guard,
                             api_conversation_id,
                             api_before_created_at_micros,
@@ -5171,7 +5236,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_messages_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_messages_around_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_messages_around_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5202,7 +5267,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_messages_around_impl(
             let api_after = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5221,15 +5286,14 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_messages_around_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::messages_around(
-                                &*api_that_guard,
-                                api_conversation_id,
-                                api_target_message_id,
-                                api_before,
-                                api_after,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::MessageAccess::messages_around(
+                            &*api_that_guard,
+                            api_conversation_id,
+                            api_target_message_id,
+                            api_before,
+                            api_after,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5238,7 +5302,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_messages_around_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_pin_message_preview_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_pin_message_preview_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5266,7 +5330,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_pin_message_preview_impl(
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5286,7 +5350,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_pin_message_preview_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::pin_message_preview(
+                            mixin_desktop_api::access::MessageAccess::pin_message_preview(
                                 &*api_that_guard,
                                 api_conversation_id,
                             )
@@ -5299,7 +5363,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_pin_message_preview_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_pinned_message_ids_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_pinned_message_ids_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5327,7 +5391,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_pinned_message_ids_impl(
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5347,7 +5411,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_pinned_message_ids_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::pinned_message_ids(
+                            mixin_desktop_api::access::MessageAccess::pinned_message_ids(
                                 &*api_that_guard,
                                 api_conversation_id,
                             )
@@ -5360,7 +5424,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_pinned_message_ids_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_pinned_messages_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_pinned_messages_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5388,7 +5452,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_pinned_messages_impl(
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5407,12 +5471,11 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_pinned_messages_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::pinned_messages(
-                                &*api_that_guard,
-                                api_conversation_id,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::MessageAccess::pinned_messages(
+                            &*api_that_guard,
+                            api_conversation_id,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5421,7 +5484,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_pinned_messages_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_recall_messages_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_recall_messages_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5450,7 +5513,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_recall_messages_impl(
             let api_message_ids = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5469,13 +5532,12 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_recall_messages_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::recall_messages(
-                                &*api_that_guard,
-                                api_conversation_id,
-                                api_message_ids,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::MessageAccess::recall_messages(
+                            &*api_that_guard,
+                            api_conversation_id,
+                            api_message_ids,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5484,7 +5546,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_recall_messages_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_search_global_messages_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_search_global_messages_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5514,7 +5576,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_search_global_messages_impl(
             let api_limit = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5534,7 +5596,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_search_global_messages_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::search_global_messages(
+                            mixin_desktop_api::access::MessageAccess::search_global_messages(
                                 &*api_that_guard,
                                 api_query,
                                 api_anchor_message_id,
@@ -5549,7 +5611,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_search_global_messages_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_search_messages_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_search_messages_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5582,7 +5644,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_search_messages_impl(
             let api_limit = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5601,17 +5663,16 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_search_messages_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::search_messages(
-                                &*api_that_guard,
-                                api_conversation_id,
-                                api_query,
-                                api_sender_id,
-                                api_categories,
-                                api_anchor_message_id,
-                                api_limit,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::MessageAccess::search_messages(
+                            &*api_that_guard,
+                            api_conversation_id,
+                            api_query,
+                            api_sender_id,
+                            api_categories,
+                            api_anchor_message_id,
+                            api_limit,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5620,7 +5681,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_search_messages_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_send_app_card_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_send_app_card_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5649,7 +5710,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_app_card_impl(
             let api_content = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5668,7 +5729,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_app_card_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::MessageAccess::send_app_card(
+                        let output_ok = mixin_desktop_api::access::MessageAccess::send_app_card(
                             &*api_that_guard,
                             api_conversation_id,
                             api_content,
@@ -5682,7 +5743,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_app_card_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_send_attachment_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_send_attachment_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5721,7 +5782,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_attachment_impl(
             let api_silent = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5740,23 +5801,22 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_attachment_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::send_attachment(
-                                &*api_that_guard,
-                                api_conversation_id,
-                                api_path,
-                                api_kind,
-                                api_mime_type,
-                                api_name,
-                                api_width,
-                                api_height,
-                                api_duration_millis,
-                                api_thumbnail,
-                                api_caption,
-                                api_quote_message_id,
-                                api_silent,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::MessageAccess::send_attachment(
+                            &*api_that_guard,
+                            api_conversation_id,
+                            api_path,
+                            api_kind,
+                            api_mime_type,
+                            api_name,
+                            api_width,
+                            api_height,
+                            api_duration_millis,
+                            api_thumbnail,
+                            api_caption,
+                            api_quote_message_id,
+                            api_silent,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -5765,7 +5825,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_attachment_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_send_audio_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_send_audio_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5797,7 +5857,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_audio_impl(
             let api_quote_message_id = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5816,7 +5876,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_audio_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::MessageAccess::send_audio(
+                        let output_ok = mixin_desktop_api::access::MessageAccess::send_audio(
                             &*api_that_guard,
                             api_conversation_id,
                             api_path,
@@ -5833,7 +5893,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_audio_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_send_contact_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_send_contact_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5864,7 +5924,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_contact_impl(
             let api_silent = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5883,7 +5943,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_contact_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::MessageAccess::send_contact(
+                        let output_ok = mixin_desktop_api::access::MessageAccess::send_contact(
                             &*api_that_guard,
                             api_conversation_id,
                             api_shared_user_id,
@@ -5899,7 +5959,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_contact_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_send_post_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_send_post_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5928,7 +5988,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_post_impl(
             let api_content = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -5947,7 +6007,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_post_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::MessageAccess::send_post(
+                        let output_ok = mixin_desktop_api::access::MessageAccess::send_post(
                             &*api_that_guard,
                             api_conversation_id,
                             api_content,
@@ -5961,7 +6021,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_post_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_send_remote_image_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_send_remote_image_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -5995,7 +6055,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_remote_image_impl(
             let api_silent = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6015,7 +6075,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_remote_image_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::send_remote_image(
+                            mixin_desktop_api::access::MessageAccess::send_remote_image(
                                 &*api_that_guard,
                                 api_conversation_id,
                                 api_url,
@@ -6034,7 +6094,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_remote_image_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_send_sticker_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_send_sticker_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -6063,7 +6123,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_sticker_impl(
             let api_sticker_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6082,7 +6142,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_sticker_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::MessageAccess::send_sticker(
+                        let output_ok = mixin_desktop_api::access::MessageAccess::send_sticker(
                             &*api_that_guard,
                             api_conversation_id,
                             api_sticker_id,
@@ -6096,7 +6156,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_sticker_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_send_text_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_send_text_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -6127,7 +6187,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_text_impl(
             let api_silent = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6146,7 +6206,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_text_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::MessageAccess::send_text(
+                        let output_ok = mixin_desktop_api::access::MessageAccess::send_text(
                             &*api_that_guard,
                             api_conversation_id,
                             api_content,
@@ -6162,7 +6222,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_send_text_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_set_message_pinned_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_set_message_pinned_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -6192,7 +6252,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_set_message_pinned_impl(
             let api_pinned = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6212,7 +6272,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_set_message_pinned_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::set_message_pinned(
+                            mixin_desktop_api::access::MessageAccess::set_message_pinned(
                                 &*api_that_guard,
                                 api_conversation_id,
                                 api_message_id,
@@ -6227,7 +6287,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_set_message_pinned_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_shared_messages_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_shared_messages_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -6258,7 +6318,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_shared_messages_impl(
             let api_limit = <usize>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6277,15 +6337,14 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_shared_messages_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::shared_messages(
-                                &*api_that_guard,
-                                api_conversation_id,
-                                api_kind,
-                                api_offset,
-                                api_limit,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::MessageAccess::shared_messages(
+                            &*api_that_guard,
+                            api_conversation_id,
+                            api_kind,
+                            api_offset,
+                            api_limit,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -6294,7 +6353,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_shared_messages_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_transcript_messages_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_transcript_messages_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -6322,7 +6381,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_transcript_messages_impl(
             let api_transcript_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6342,7 +6401,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_transcript_messages_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::transcript_messages(
+                            mixin_desktop_api::access::MessageAccess::transcript_messages(
                                 &*api_that_guard,
                                 api_transcript_id,
                             )
@@ -6355,7 +6414,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_transcript_messages_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__MessageAccess_unread_mention_message_ids_impl(
+fn wire__mixin_desktop_api__access__MessageAccess_unread_mention_message_ids_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -6383,7 +6442,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_unread_mention_message_ids_i
             let api_conversation_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6403,7 +6462,7 @@ fn wire__mixin_desktop_core__runtime__MessageAccess_unread_mention_message_ids_i
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::MessageAccess::unread_mention_message_ids(
+                            mixin_desktop_api::access::MessageAccess::unread_mention_message_ids(
                                 &*api_that_guard,
                                 api_conversation_id,
                             )
@@ -6443,7 +6502,7 @@ fn wire__crate__api__desktop__SettingsHandle_file_auto_download_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6501,7 +6560,7 @@ fn wire__crate__api__desktop__SettingsHandle_mcp_server_status_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6559,7 +6618,7 @@ fn wire__crate__api__desktop__SettingsHandle_mcp_settings_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6616,7 +6675,7 @@ fn wire__crate__api__desktop__SettingsHandle_photo_auto_download_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6674,7 +6733,7 @@ fn wire__crate__api__desktop__SettingsHandle_proxy_settings_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6732,7 +6791,7 @@ fn wire__crate__api__desktop__SettingsHandle_set_file_auto_download_impl(
             let api_value = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6793,7 +6852,7 @@ fn wire__crate__api__desktop__SettingsHandle_set_photo_auto_download_impl(
             let api_value = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6852,10 +6911,10 @@ fn wire__crate__api__desktop__SettingsHandle_set_proxy_settings_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SettingsHandle>,
             >>::sse_decode(&mut deserializer);
             let api_settings =
-                <crate::api::desktop::ProxySettingsItem>::sse_decode(&mut deserializer);
+                <mixin_desktop_api::model::ProxySettingsItem>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6916,7 +6975,7 @@ fn wire__crate__api__desktop__SettingsHandle_set_setting_impl(
             let api_value = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -6977,7 +7036,7 @@ fn wire__crate__api__desktop__SettingsHandle_set_video_auto_download_impl(
             let api_value = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7038,7 +7097,7 @@ fn wire__crate__api__desktop__SettingsHandle_setting_impl(
             let api_key = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7099,7 +7158,7 @@ fn wire__crate__api__desktop__SettingsHandle_subscribe_file_auto_download_impl(
                 );
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7163,7 +7222,7 @@ fn wire__crate__api__desktop__SettingsHandle_subscribe_photo_auto_download_impl(
                 );
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7208,7 +7267,7 @@ fn wire__crate__api__desktop__SettingsHandle_subscribe_setting_impl(
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SettingsHandle>>>::sse_decode(&mut deserializer);
 let api_key = <String>::sse_decode(&mut deserializer);
 let api_sink = <StreamSink<Option<String>,flutter_rust_bridge::for_generated::SseCodec>>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
-                    transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
+                    transform_result_sse::<_, crate::error::CoreError>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
         for i in decode_indices_ {
@@ -7253,7 +7312,7 @@ fn wire__crate__api__desktop__SettingsHandle_subscribe_video_auto_download_impl(
                 );
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7312,10 +7371,10 @@ fn wire__crate__api__desktop__SettingsHandle_update_mcp_settings_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SettingsHandle>,
             >>::sse_decode(&mut deserializer);
             let api_settings =
-                <crate::api::desktop::McpSettingsItem>::sse_decode(&mut deserializer);
+                <mixin_desktop_api::model::McpSettingsItem>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7374,7 +7433,7 @@ fn wire__crate__api__desktop__SettingsHandle_video_auto_download_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7405,7 +7464,7 @@ fn wire__crate__api__desktop__SettingsHandle_video_auto_download_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_add_sticker_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7433,7 +7492,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_impl(
             let api_sticker_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7452,7 +7511,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::StickerAccess::add_sticker(
+                        let output_ok = mixin_desktop_api::access::StickerAccess::add_sticker(
                             &*api_that_guard,
                             api_sticker_id,
                         )
@@ -7465,7 +7524,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_from_file_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_add_sticker_from_file_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7493,7 +7552,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_from_file_impl(
             let api_message_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7513,7 +7572,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_from_file_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::StickerAccess::add_sticker_from_file(
+                            mixin_desktop_api::access::StickerAccess::add_sticker_from_file(
                                 &*api_that_guard,
                                 api_message_id,
                             )
@@ -7526,7 +7585,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_from_file_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_from_path_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_add_sticker_from_path_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7554,7 +7613,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_from_path_impl(
             let api_path = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7574,7 +7633,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_from_path_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::StickerAccess::add_sticker_from_path(
+                            mixin_desktop_api::access::StickerAccess::add_sticker_from_path(
                                 &*api_that_guard,
                                 api_path,
                             )
@@ -7587,7 +7646,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_from_path_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_album_stickers_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_album_stickers_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7615,7 +7674,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_album_stickers_impl(
             let api_album_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7634,7 +7693,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_album_stickers_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::StickerAccess::album_stickers(
+                        let output_ok = mixin_desktop_api::access::StickerAccess::album_stickers(
                             &*api_that_guard,
                             api_album_id,
                         )
@@ -7647,7 +7706,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_album_stickers_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_personal_stickers_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_personal_stickers_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7674,7 +7733,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_personal_stickers_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7694,7 +7753,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_personal_stickers_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::StickerAccess::personal_stickers(
+                            mixin_desktop_api::access::StickerAccess::personal_stickers(
                                 &*api_that_guard,
                             )
                             .await?;
@@ -7706,7 +7765,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_personal_stickers_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_recent_stickers_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_recent_stickers_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7733,7 +7792,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_recent_stickers_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7752,11 +7811,10 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_recent_stickers_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::StickerAccess::recent_stickers(
-                                &*api_that_guard,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::StickerAccess::recent_stickers(
+                            &*api_that_guard,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7765,7 +7823,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_recent_stickers_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_refresh_sticker_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_refresh_sticker_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7793,7 +7851,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_refresh_sticker_impl(
             let api_sticker_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7812,12 +7870,11 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_refresh_sticker_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::StickerAccess::refresh_sticker(
-                                &*api_that_guard,
-                                api_sticker_id,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::StickerAccess::refresh_sticker(
+                            &*api_that_guard,
+                            api_sticker_id,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7826,7 +7883,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_refresh_sticker_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_refresh_stickers_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_refresh_stickers_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7853,7 +7910,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_refresh_stickers_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7872,11 +7929,10 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_refresh_stickers_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::StickerAccess::refresh_stickers(
-                                &*api_that_guard,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::StickerAccess::refresh_stickers(
+                            &*api_that_guard,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -7885,7 +7941,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_refresh_stickers_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_remove_sticker_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_remove_sticker_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7913,7 +7969,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_remove_sticker_impl(
             let api_sticker_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7932,7 +7988,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_remove_sticker_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::StickerAccess::remove_sticker(
+                        let output_ok = mixin_desktop_api::access::StickerAccess::remove_sticker(
                             &*api_that_guard,
                             api_sticker_id,
                         )
@@ -7945,7 +8001,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_remove_sticker_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_set_sticker_album_added_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_set_sticker_album_added_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -7974,7 +8030,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_set_sticker_album_added_impl
             let api_added = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -7994,7 +8050,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_set_sticker_album_added_impl
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::StickerAccess::set_sticker_album_added(
+                            mixin_desktop_api::access::StickerAccess::set_sticker_album_added(
                                 &*api_that_guard,
                                 api_album_id,
                                 api_added,
@@ -8008,7 +8064,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_set_sticker_album_added_impl
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_set_sticker_album_order_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_set_sticker_album_order_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8036,7 +8092,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_set_sticker_album_order_impl
             let api_album_ids = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8056,7 +8112,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_set_sticker_album_order_impl
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::StickerAccess::set_sticker_album_order(
+                            mixin_desktop_api::access::StickerAccess::set_sticker_album_order(
                                 &*api_that_guard,
                                 api_album_ids,
                             )
@@ -8069,7 +8125,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_set_sticker_album_order_impl
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_sticker_albums_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_sticker_albums_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8096,7 +8152,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_sticker_albums_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8115,7 +8171,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_sticker_albums_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::StickerAccess::sticker_albums(
+                        let output_ok = mixin_desktop_api::access::StickerAccess::sticker_albums(
                             &*api_that_guard,
                         )
                         .await?;
@@ -8127,7 +8183,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_sticker_albums_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_sticker_detail_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_sticker_detail_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8155,7 +8211,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_sticker_detail_impl(
             let api_sticker_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8174,7 +8230,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_sticker_detail_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::StickerAccess::sticker_detail(
+                        let output_ok = mixin_desktop_api::access::StickerAccess::sticker_detail(
                             &*api_that_guard,
                             api_sticker_id,
                         )
@@ -8187,7 +8243,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_sticker_detail_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__StickerAccess_sticker_store_albums_impl(
+fn wire__mixin_desktop_api__access__StickerAccess_sticker_store_albums_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8214,7 +8270,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_sticker_store_albums_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8234,7 +8290,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_sticker_store_albums_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::StickerAccess::sticker_store_albums(
+                            mixin_desktop_api::access::StickerAccess::sticker_store_albums(
                                 &*api_that_guard,
                             )
                             .await?;
@@ -8246,7 +8302,7 @@ fn wire__mixin_desktop_core__runtime__StickerAccess_sticker_store_albums_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_add_contact_impl(
+fn wire__mixin_desktop_api__access__UserAccess_add_contact_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8275,7 +8331,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_add_contact_impl(
             let api_full_name = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8294,7 +8350,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_add_contact_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::add_contact(
+                        let output_ok = mixin_desktop_api::access::UserAccess::add_contact(
                             &*api_that_guard,
                             api_user_id,
                             api_full_name,
@@ -8308,7 +8364,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_add_contact_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_block_user_impl(
+fn wire__mixin_desktop_api__access__UserAccess_block_user_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8336,7 +8392,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_block_user_impl(
             let api_user_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8355,7 +8411,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_block_user_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::block_user(
+                        let output_ok = mixin_desktop_api::access::UserAccess::block_user(
                             &*api_that_guard,
                             api_user_id,
                         )
@@ -8368,7 +8424,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_block_user_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_bot_creator_id_impl(
+fn wire__mixin_desktop_api__access__UserAccess_bot_creator_id_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8396,7 +8452,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_bot_creator_id_impl(
             let api_user_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8415,7 +8471,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_bot_creator_id_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::bot_creator_id(
+                        let output_ok = mixin_desktop_api::access::UserAccess::bot_creator_id(
                             &*api_that_guard,
                             api_user_id,
                         )
@@ -8428,7 +8484,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_bot_creator_id_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_bot_home_uri_impl(
+fn wire__mixin_desktop_api__access__UserAccess_bot_home_uri_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8456,7 +8512,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_bot_home_uri_impl(
             let api_app_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8475,7 +8531,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_bot_home_uri_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::bot_home_uri(
+                        let output_ok = mixin_desktop_api::access::UserAccess::bot_home_uri(
                             &*api_that_guard,
                             api_app_id,
                         )
@@ -8488,7 +8544,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_bot_home_uri_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_local_shared_apps_impl(
+fn wire__mixin_desktop_api__access__UserAccess_local_shared_apps_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8516,7 +8572,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_local_shared_apps_impl(
             let api_user_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8535,7 +8591,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_local_shared_apps_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::local_shared_apps(
+                        let output_ok = mixin_desktop_api::access::UserAccess::local_shared_apps(
                             &*api_that_guard,
                             api_user_id,
                         )
@@ -8548,7 +8604,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_local_shared_apps_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_mention_names_impl(
+fn wire__mixin_desktop_api__access__UserAccess_mention_names_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8576,7 +8632,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_mention_names_impl(
             let api_contents = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8595,7 +8651,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_mention_names_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::mention_names(
+                        let output_ok = mixin_desktop_api::access::UserAccess::mention_names(
                             &*api_that_guard,
                             api_contents,
                         )
@@ -8608,7 +8664,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_mention_names_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_refresh_user_profile_impl(
+fn wire__mixin_desktop_api__access__UserAccess_refresh_user_profile_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8636,7 +8692,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_refresh_user_profile_impl(
             let api_user_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8656,7 +8712,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_refresh_user_profile_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::UserAccess::refresh_user_profile(
+                            mixin_desktop_api::access::UserAccess::refresh_user_profile(
                                 &*api_that_guard,
                                 api_user_id,
                             )
@@ -8669,7 +8725,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_refresh_user_profile_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_remove_contact_impl(
+fn wire__mixin_desktop_api__access__UserAccess_remove_contact_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8697,7 +8753,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_remove_contact_impl(
             let api_user_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8716,7 +8772,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_remove_contact_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::remove_contact(
+                        let output_ok = mixin_desktop_api::access::UserAccess::remove_contact(
                             &*api_that_guard,
                             api_user_id,
                         )
@@ -8729,7 +8785,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_remove_contact_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_replace_mentions_impl(
+fn wire__mixin_desktop_api__access__UserAccess_replace_mentions_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8757,7 +8813,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_replace_mentions_impl(
             let api_contents = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8776,7 +8832,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_replace_mentions_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::replace_mentions(
+                        let output_ok = mixin_desktop_api::access::UserAccess::replace_mentions(
                             &*api_that_guard,
                             api_contents,
                         )
@@ -8789,7 +8845,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_replace_mentions_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_report_user_impl(
+fn wire__mixin_desktop_api__access__UserAccess_report_user_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8817,7 +8873,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_report_user_impl(
             let api_user_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8836,7 +8892,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_report_user_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::report_user(
+                        let output_ok = mixin_desktop_api::access::UserAccess::report_user(
                             &*api_that_guard,
                             api_user_id,
                         )
@@ -8849,7 +8905,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_report_user_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_search_local_users_impl(
+fn wire__mixin_desktop_api__access__UserAccess_search_local_users_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8879,7 +8935,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_search_local_users_impl(
             let api_limit = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8898,14 +8954,13 @@ fn wire__mixin_desktop_core__runtime__UserAccess_search_local_users_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok =
-                            mixin_desktop_core::runtime::UserAccess::search_local_users(
-                                &*api_that_guard,
-                                api_query,
-                                api_category,
-                                api_limit,
-                            )
-                            .await?;
+                        let output_ok = mixin_desktop_api::access::UserAccess::search_local_users(
+                            &*api_that_guard,
+                            api_query,
+                            api_category,
+                            api_limit,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -8914,7 +8969,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_search_local_users_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_search_mao_user_impl(
+fn wire__mixin_desktop_api__access__UserAccess_search_mao_user_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -8942,7 +8997,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_search_mao_user_impl(
             let api_query = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -8961,7 +9016,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_search_mao_user_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::search_mao_user(
+                        let output_ok = mixin_desktop_api::access::UserAccess::search_mao_user(
                             &*api_that_guard,
                             api_query,
                         )
@@ -8974,7 +9029,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_search_mao_user_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_search_user_impl(
+fn wire__mixin_desktop_api__access__UserAccess_search_user_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -9002,7 +9057,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_search_user_impl(
             let api_query = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -9021,7 +9076,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_search_user_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::search_user(
+                        let output_ok = mixin_desktop_api::access::UserAccess::search_user(
                             &*api_that_guard,
                             api_query,
                         )
@@ -9034,7 +9089,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_search_user_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_selectable_users_impl(
+fn wire__mixin_desktop_api__access__UserAccess_selectable_users_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -9061,7 +9116,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_selectable_users_impl(
             >>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -9080,7 +9135,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_selectable_users_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::selectable_users(
+                        let output_ok = mixin_desktop_api::access::UserAccess::selectable_users(
                             &*api_that_guard,
                         )
                         .await?;
@@ -9092,7 +9147,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_selectable_users_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_shared_apps_impl(
+fn wire__mixin_desktop_api__access__UserAccess_shared_apps_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -9120,7 +9175,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_shared_apps_impl(
             let api_user_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -9139,7 +9194,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_shared_apps_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::shared_apps(
+                        let output_ok = mixin_desktop_api::access::UserAccess::shared_apps(
                             &*api_that_guard,
                             api_user_id,
                         )
@@ -9152,7 +9207,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_shared_apps_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_unblock_user_impl(
+fn wire__mixin_desktop_api__access__UserAccess_unblock_user_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -9180,7 +9235,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_unblock_user_impl(
             let api_user_id = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -9199,7 +9254,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_unblock_user_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::unblock_user(
+                        let output_ok = mixin_desktop_api::access::UserAccess::unblock_user(
                             &*api_that_guard,
                             api_user_id,
                         )
@@ -9212,7 +9267,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_unblock_user_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_user_profile_impl(
+fn wire__mixin_desktop_api__access__UserAccess_user_profile_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -9241,7 +9296,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_user_profile_impl(
             let api_identity_number = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -9260,7 +9315,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_user_profile_impl(
                             }
                         }
                         let api_that_guard = api_that_guard.unwrap();
-                        let output_ok = mixin_desktop_core::runtime::UserAccess::user_profile(
+                        let output_ok = mixin_desktop_api::access::UserAccess::user_profile(
                             &*api_that_guard,
                             api_user_id,
                             api_identity_number,
@@ -9274,7 +9329,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_user_profile_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__UserAccess_users_by_identity_numbers_impl(
+fn wire__mixin_desktop_api__access__UserAccess_users_by_identity_numbers_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -9302,7 +9357,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_users_by_identity_numbers_impl(
             let api_identity_numbers = <Vec<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, ClientError>(
                     (move || async move {
                         let mut api_that_guard = None;
                         let decode_indices_ =
@@ -9322,7 +9377,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_users_by_identity_numbers_impl(
                         }
                         let api_that_guard = api_that_guard.unwrap();
                         let output_ok =
-                            mixin_desktop_core::runtime::UserAccess::users_by_identity_numbers(
+                            mixin_desktop_api::access::UserAccess::users_by_identity_numbers(
                                 &*api_that_guard,
                                 api_identity_numbers,
                             )
@@ -9335,7 +9390,7 @@ fn wire__mixin_desktop_core__runtime__UserAccess_users_by_identity_numbers_impl(
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__logging__directory_impl(
+fn wire__crate__api__logging__directory_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -9359,17 +9414,15 @@ fn wire__mixin_desktop_core__runtime__logging__directory_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             deserializer.end();
             move |context| {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                    (move || {
-                        let output_ok = mixin_desktop_core::runtime::logging::directory()?;
-                        Ok(output_ok)
-                    })(),
-                )
+                transform_result_sse::<_, crate::error::CoreError>((move || {
+                    let output_ok = crate::api::logging::directory()?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
 }
-fn wire__mixin_desktop_core__runtime__logging__init_impl(
+fn wire__crate__api__logging__init_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -9396,16 +9449,11 @@ fn wire__mixin_desktop_core__runtime__logging__init_impl(
             let api_build_number = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                    (move || {
-                        let output_ok = mixin_desktop_core::runtime::logging::init(
-                            api_app_name,
-                            api_app_version,
-                            api_build_number,
-                        )?;
-                        Ok(output_ok)
-                    })(),
-                )
+                transform_result_sse::<_, crate::error::CoreError>((move || {
+                    let output_ok =
+                        crate::api::logging::init(api_app_name, api_app_version, api_build_number)?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -9434,12 +9482,10 @@ fn wire__crate__api__logging__init_app_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             deserializer.end();
             move |context| {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
-                    (move || {
-                        let output_ok = crate::api::logging::init_app()?;
-                        Ok(output_ok)
-                    })(),
-                )
+                transform_result_sse::<_, crate::error::CoreError>((move || {
+                    let output_ok = crate::api::logging::init_app()?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -9501,7 +9547,7 @@ fn wire__crate__api__desktop__open_desktop_impl(
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             deserializer.end();
             move |context| async move {
-                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                transform_result_sse::<_, crate::error::CoreError>(
                     (move || async move {
                         let output_ok = crate::api::desktop::open_desktop().await?;
                         Ok(output_ok)
@@ -9518,7 +9564,7 @@ fn wire__crate__api__desktop__open_desktop_impl(
 #[allow(clippy::unnecessary_literal_unwrap)]
 const _: fn() = || {
     {
-        let AccountProfile = None::<mixin_desktop_core::runtime::model::AccountProfile>.unwrap();
+        let AccountProfile = None::<mixin_desktop_api::model::AccountProfile>.unwrap();
         let _: String = AccountProfile.user_id;
         let _: String = AccountProfile.full_name;
         let _: String = AccountProfile.avatar_url;
@@ -9531,20 +9577,19 @@ const _: fn() = || {
         let _: Option<String> = AccountProfile.membership;
     }
     {
-        let CircleItem = None::<mixin_desktop_core::runtime::model::CircleItem>.unwrap();
+        let CircleItem = None::<mixin_desktop_api::dto::CircleItem>.unwrap();
         let _: String = CircleItem.circle_id;
         let _: String = CircleItem.name;
         let _: i64 = CircleItem.conversation_count;
     }
     {
-        let CodeResult = None::<mixin_desktop_core::runtime::model::CodeResult>.unwrap();
+        let CodeResult = None::<mixin_desktop_api::dto::CodeResult>.unwrap();
         let _: String = CodeResult.kind;
         let _: Option<String> = CodeResult.user_id;
         let _: Option<String> = CodeResult.conversation_id;
         let _: Option<String> = CodeResult.conversation_name;
         let _: i64 = CodeResult.participant_count;
-        let _: Vec<mixin_desktop_core::runtime::model::GroupAvatar> =
-            CodeResult.participant_avatars;
+        let _: Vec<mixin_desktop_api::dto::GroupAvatar> = CodeResult.participant_avatars;
         let _: bool = CodeResult.already_member;
         let _: Option<String> = CodeResult.asset_id;
         let _: Option<String> = CodeResult.asset_symbol;
@@ -9559,13 +9604,13 @@ const _: fn() = || {
     }
     {
         let ConversationChangeEvent =
-            None::<mixin_desktop_core::runtime::model::ConversationChangeEvent>.unwrap();
+            None::<mixin_desktop_api::model::ConversationChangeEvent>.unwrap();
         let _: Vec<String> = ConversationChangeEvent.conversation_ids;
         let _: bool = ConversationChangeEvent.reload_all;
     }
     {
         let ConversationDetailItem =
-            None::<mixin_desktop_core::runtime::model::ConversationDetailItem>.unwrap();
+            None::<mixin_desktop_api::dto::ConversationDetailItem>.unwrap();
         let _: String = ConversationDetailItem.conversation_id;
         let _: String = ConversationDetailItem.name;
         let _: String = ConversationDetailItem.announcement;
@@ -9575,8 +9620,7 @@ const _: fn() = || {
         let _: i64 = ConversationDetailItem.expire_in;
     }
     {
-        let ConversationListData =
-            None::<mixin_desktop_core::runtime::model::ConversationListData>.unwrap();
+        let ConversationListData = None::<mixin_desktop_api::dto::ConversationListData>.unwrap();
         let _: String = ConversationListData.conversation_id;
         let _: String = ConversationListData.owner_id;
         let _: String = ConversationListData.name;
@@ -9608,12 +9652,11 @@ const _: fn() = || {
         let _: String = ConversationListData.identity_number;
         let _: Vec<String> = ConversationListData.circle_ids;
         let _: i64 = ConversationListData.participant_count;
-        let _: Vec<mixin_desktop_core::runtime::model::GroupAvatar> =
-            ConversationListData.group_avatars;
+        let _: Vec<mixin_desktop_api::dto::GroupAvatar> = ConversationListData.group_avatars;
     }
     {
         let ConversationParticipantItem =
-            None::<mixin_desktop_core::runtime::model::ConversationParticipantItem>.unwrap();
+            None::<mixin_desktop_api::dto::ConversationParticipantItem>.unwrap();
         let _: String = ConversationParticipantItem.user_id;
         let _: Option<String> = ConversationParticipantItem.role;
         let _: i64 = ConversationParticipantItem.created_at_millis;
@@ -9628,69 +9671,39 @@ const _: fn() = || {
     }
     {
         let ConversationStorageUsage =
-            None::<mixin_desktop_core::runtime::model::ConversationStorageUsage>.unwrap();
-        let _: mixin_desktop_core::runtime::model::ConversationListData =
-            ConversationStorageUsage.conversation;
+            None::<mixin_desktop_api::dto::ConversationStorageUsage>.unwrap();
+        let _: mixin_desktop_api::dto::ConversationListData = ConversationStorageUsage.conversation;
         let _: i64 = ConversationStorageUsage.size_bytes;
     }
     {
         let ConversationUnseenCount =
-            None::<mixin_desktop_core::runtime::model::ConversationUnseenCount>.unwrap();
+            None::<mixin_desktop_api::dto::ConversationUnseenCount>.unwrap();
         let _: String = ConversationUnseenCount.category;
         let _: Option<String> = ConversationUnseenCount.circle_id;
         let _: i64 = ConversationUnseenCount.count;
         let _: i64 = ConversationUnseenCount.muted_count;
     }
-    match None::<mixin_desktop_core::core::device_transfer::DeviceTransferEvent>.unwrap() {
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreConnected => {}
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreStart => {}
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreSucceed => {}
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreFailed => {}
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupServerCreated => {}
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupStart => {}
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupSucceed => {}
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupFailed => {}
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreProgress(field0) => {
-            let _: f64 = field0;
-        }
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupProgress(field0) => {
-            let _: f64 = field0;
-        }
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreNetworkSpeed(
-            field0,
-        ) => {
-            let _: f64 = field0;
-        }
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupNetworkSpeed(
-            field0,
-        ) => {
-            let _: f64 = field0;
-        }
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupRequestReceived => {}
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreRequestReceived => {}
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent::ConnectionFailed(
-            field0,
-        ) => {
-            let _: mixin_desktop_core::core::device_transfer::ConnectionFailedReason = field0;
-        }
-    }
     {
-        let GroupAvatar = None::<mixin_desktop_core::runtime::model::GroupAvatar>.unwrap();
+        let GroupAvatar = None::<mixin_desktop_api::dto::GroupAvatar>.unwrap();
         let _: String = GroupAvatar.user_id;
         let _: String = GroupAvatar.name;
         let _: String = GroupAvatar.avatar_url;
     }
     {
-        let GroupConversationItem =
-            None::<mixin_desktop_core::runtime::model::GroupConversationItem>.unwrap();
+        let GroupConversationItem = None::<mixin_desktop_api::dto::GroupConversationItem>.unwrap();
         let _: String = GroupConversationItem.conversation_id;
         let _: String = GroupConversationItem.name;
         let _: String = GroupConversationItem.avatar_url;
         let _: i64 = GroupConversationItem.participant_count;
     }
     {
-        let ImageMessageView =
-            None::<mixin_desktop_core::runtime::model::ImageMessageView>.unwrap();
+        let HttpResponseItem = None::<mixin_desktop_api::model::HttpResponseItem>.unwrap();
+        let _: u16 = HttpResponseItem.status_code;
+        let _: std::collections::HashMap<String, String> = HttpResponseItem.headers;
+        let _: Vec<u8> = HttpResponseItem.body;
+    }
+    {
+        let ImageMessageView = None::<mixin_desktop_api::dto::ImageMessageView>.unwrap();
         let _: String = ImageMessageView.message_id;
         let _: i64 = ImageMessageView.created_at_micros;
         let _: String = ImageMessageView.media_url;
@@ -9703,7 +9716,20 @@ const _: fn() = || {
         let _: String = ImageMessageView.avatar_url;
     }
     {
-        let MessageListView = None::<mixin_desktop_core::runtime::model::MessageListView>.unwrap();
+        let McpServerStatusItem = None::<mixin_desktop_api::model::McpServerStatusItem>.unwrap();
+        let _: bool = McpServerStatusItem.running;
+        let _: Option<String> = McpServerStatusItem.endpoint;
+        let _: Option<String> = McpServerStatusItem.last_error;
+    }
+    {
+        let McpSettingsItem = None::<mixin_desktop_api::model::McpSettingsItem>.unwrap();
+        let _: bool = McpSettingsItem.enabled;
+        let _: String = McpSettingsItem.token;
+        let _: bool = McpSettingsItem.draft_tools_enabled;
+        let _: bool = McpSettingsItem.circle_management_enabled;
+    }
+    {
+        let MessageListView = None::<mixin_desktop_api::dto::MessageListView>.unwrap();
         let _: String = MessageListView.message_id;
         let _: String = MessageListView.conversation_id;
         let _: String = MessageListView.sender_id;
@@ -9778,15 +9804,13 @@ const _: fn() = || {
         let _: Option<i64> = MessageListView.expire_in;
     }
     {
-        let MessageOrderInfoView =
-            None::<mixin_desktop_core::runtime::model::MessageOrderInfoView>.unwrap();
+        let MessageOrderInfoView = None::<mixin_desktop_api::dto::MessageOrderInfoView>.unwrap();
         let _: String = MessageOrderInfoView.message_id;
         let _: i64 = MessageOrderInfoView.row_id;
         let _: i64 = MessageOrderInfoView.created_at_micros;
     }
     {
-        let NotificationEvent =
-            None::<mixin_desktop_core::runtime::model::NotificationEvent>.unwrap();
+        let NotificationEvent = None::<mixin_desktop_api::dto::NotificationEvent>.unwrap();
         let _: String = NotificationEvent.message_id;
         let _: String = NotificationEvent.conversation_id;
         let _: String = NotificationEvent.sender_name;
@@ -9798,14 +9822,28 @@ const _: fn() = || {
         let _: Option<String> = NotificationEvent.dismiss_message_id;
     }
     {
-        let PinMessagePreviewItem =
-            None::<mixin_desktop_core::runtime::model::PinMessagePreviewItem>.unwrap();
+        let PinMessagePreviewItem = None::<mixin_desktop_api::dto::PinMessagePreviewItem>.unwrap();
         let _: String = PinMessagePreviewItem.message_id;
         let _: String = PinMessagePreviewItem.content;
         let _: String = PinMessagePreviewItem.sender_name;
     }
     {
-        let SharedAppItem = None::<mixin_desktop_core::runtime::model::SharedAppItem>.unwrap();
+        let ProxyItem = None::<mixin_desktop_api::model::ProxyItem>.unwrap();
+        let _: String = ProxyItem.id;
+        let _: String = ProxyItem.kind;
+        let _: String = ProxyItem.host;
+        let _: u16 = ProxyItem.port;
+        let _: Option<String> = ProxyItem.username;
+        let _: Option<String> = ProxyItem.password;
+    }
+    {
+        let ProxySettingsItem = None::<mixin_desktop_api::model::ProxySettingsItem>.unwrap();
+        let _: bool = ProxySettingsItem.enabled;
+        let _: Option<String> = ProxySettingsItem.selected_proxy_id;
+        let _: Vec<mixin_desktop_api::model::ProxyItem> = ProxySettingsItem.proxies;
+    }
+    {
+        let SharedAppItem = None::<mixin_desktop_api::dto::SharedAppItem>.unwrap();
         let _: String = SharedAppItem.app_id;
         let _: String = SharedAppItem.name;
         let _: String = SharedAppItem.icon_url;
@@ -9813,8 +9851,7 @@ const _: fn() = || {
         let _: String = SharedAppItem.home_uri;
     }
     {
-        let SnapshotDetailItem =
-            None::<mixin_desktop_core::runtime::model::SnapshotDetailItem>.unwrap();
+        let SnapshotDetailItem = None::<mixin_desktop_api::dto::SnapshotDetailItem>.unwrap();
         let _: String = SnapshotDetailItem.snapshot_id;
         let _: Option<String> = SnapshotDetailItem.trace_id;
         let _: String = SnapshotDetailItem.snapshot_type;
@@ -9847,8 +9884,7 @@ const _: fn() = || {
         let _: Option<String> = SnapshotDetailItem.withdrawal_receiver;
     }
     {
-        let StickerAlbumItem =
-            None::<mixin_desktop_core::runtime::model::StickerAlbumItem>.unwrap();
+        let StickerAlbumItem = None::<mixin_desktop_api::dto::StickerAlbumItem>.unwrap();
         let _: String = StickerAlbumItem.album_id;
         let _: String = StickerAlbumItem.name;
         let _: String = StickerAlbumItem.icon_url;
@@ -9859,17 +9895,14 @@ const _: fn() = || {
         let _: bool = StickerAlbumItem.is_verified;
     }
     {
-        let StickerDetailItem =
-            None::<mixin_desktop_core::runtime::model::StickerDetailItem>.unwrap();
-        let _: mixin_desktop_core::runtime::model::StickerItem = StickerDetailItem.sticker;
-        let _: Option<mixin_desktop_core::runtime::model::StickerAlbumItem> =
-            StickerDetailItem.album;
-        let _: Vec<mixin_desktop_core::runtime::model::StickerItem> =
-            StickerDetailItem.album_stickers;
+        let StickerDetailItem = None::<mixin_desktop_api::dto::StickerDetailItem>.unwrap();
+        let _: mixin_desktop_api::dto::StickerItem = StickerDetailItem.sticker;
+        let _: Option<mixin_desktop_api::dto::StickerAlbumItem> = StickerDetailItem.album;
+        let _: Vec<mixin_desktop_api::dto::StickerItem> = StickerDetailItem.album_stickers;
         let _: bool = StickerDetailItem.is_personal;
     }
     {
-        let StickerItem = None::<mixin_desktop_core::runtime::model::StickerItem>.unwrap();
+        let StickerItem = None::<mixin_desktop_api::dto::StickerItem>.unwrap();
         let _: String = StickerItem.sticker_id;
         let _: Option<String> = StickerItem.album_id;
         let _: String = StickerItem.name;
@@ -9881,13 +9914,12 @@ const _: fn() = || {
         let _: Option<i64> = StickerItem.last_use_at_millis;
     }
     {
-        let StorageCategoryUsage =
-            None::<mixin_desktop_core::runtime::model::StorageCategoryUsage>.unwrap();
+        let StorageCategoryUsage = None::<mixin_desktop_api::dto::StorageCategoryUsage>.unwrap();
         let _: String = StorageCategoryUsage.category;
         let _: i64 = StorageCategoryUsage.size_bytes;
     }
     {
-        let UserProfileItem = None::<mixin_desktop_core::runtime::model::UserProfileItem>.unwrap();
+        let UserProfileItem = None::<mixin_desktop_api::dto::UserProfileItem>.unwrap();
         let _: String = UserProfileItem.user_id;
         let _: String = UserProfileItem.identity_number;
         let _: String = UserProfileItem.full_name;
@@ -9908,6 +9940,9 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentAccess>
+);
+flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClientError>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>
@@ -9956,6 +9991,16 @@ impl SseDecode for AttachmentAccess {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <RustOpaqueMoi<
             flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentAccess>,
+        >>::sse_decode(deserializer);
+        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
+    }
+}
+
+impl SseDecode for ClientError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <RustOpaqueMoi<
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClientError>,
         >>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
     }
@@ -10060,6 +10105,16 @@ impl SseDecode
 }
 
 impl SseDecode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClientError>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <usize>::sse_decode(deserializer);
+        return decode_rust_opaque_moi(inner);
+    }
+}
+
+impl SseDecode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -10139,7 +10194,7 @@ impl SseDecode for StreamSink<String, flutter_rust_bridge::for_generated::SseCod
 
 impl SseDecode
     for StreamSink<
-        mixin_desktop_core::runtime::model::AccountProfile,
+        mixin_desktop_api::model::AccountProfile,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -10160,7 +10215,7 @@ impl SseDecode for StreamSink<bool, flutter_rust_bridge::for_generated::SseCodec
 
 impl SseDecode
     for StreamSink<
-        mixin_desktop_core::runtime::model::ConversationChangeEvent,
+        mixin_desktop_api::model::ConversationChangeEvent,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -10173,7 +10228,7 @@ impl SseDecode
 
 impl SseDecode
     for StreamSink<
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent,
+        crate::api::device_transfer::DeviceTransferEvent,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -10194,7 +10249,7 @@ impl SseDecode for StreamSink<i64, flutter_rust_bridge::for_generated::SseCodec>
 
 impl SseDecode
     for StreamSink<
-        Vec<mixin_desktop_core::runtime::model::CircleItem>,
+        Vec<mixin_desktop_api::dto::CircleItem>,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -10207,7 +10262,7 @@ impl SseDecode
 
 impl SseDecode
     for StreamSink<
-        Vec<mixin_desktop_core::runtime::model::ConversationUnseenCount>,
+        Vec<mixin_desktop_api::dto::ConversationUnseenCount>,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -10220,7 +10275,7 @@ impl SseDecode
 
 impl SseDecode
     for StreamSink<
-        mixin_desktop_core::runtime::model::NotificationEvent,
+        mixin_desktop_api::dto::NotificationEvent,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -10255,7 +10310,7 @@ impl SseDecode for String {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::AccountProfile {
+impl SseDecode for mixin_desktop_api::model::AccountProfile {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_userId = <String>::sse_decode(deserializer);
@@ -10268,7 +10323,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::AccountProfile {
         let mut var_isVerified = <bool>::sse_decode(deserializer);
         let mut var_fiatCurrency = <String>::sse_decode(deserializer);
         let mut var_membership = <Option<String>>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::AccountProfile {
+        return mixin_desktop_api::model::AccountProfile {
             user_id: var_userId,
             full_name: var_fullName,
             avatar_url: var_avatarUrl,
@@ -10290,13 +10345,13 @@ impl SseDecode for bool {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::CircleItem {
+impl SseDecode for mixin_desktop_api::dto::CircleItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_circleId = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_conversationCount = <i64>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::CircleItem {
+        return mixin_desktop_api::dto::CircleItem {
             circle_id: var_circleId,
             name: var_name,
             conversation_count: var_conversationCount,
@@ -10304,7 +10359,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::CircleItem {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::CodeResult {
+impl SseDecode for mixin_desktop_api::dto::CodeResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_kind = <String>::sse_decode(deserializer);
@@ -10313,7 +10368,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::CodeResult {
         let mut var_conversationName = <Option<String>>::sse_decode(deserializer);
         let mut var_participantCount = <i64>::sse_decode(deserializer);
         let mut var_participantAvatars =
-            <Vec<mixin_desktop_core::runtime::model::GroupAvatar>>::sse_decode(deserializer);
+            <Vec<mixin_desktop_api::dto::GroupAvatar>>::sse_decode(deserializer);
         let mut var_alreadyMember = <bool>::sse_decode(deserializer);
         let mut var_assetId = <Option<String>>::sse_decode(deserializer);
         let mut var_assetSymbol = <Option<String>>::sse_decode(deserializer);
@@ -10325,7 +10380,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::CodeResult {
         let mut var_threshold = <i64>::sse_decode(deserializer);
         let mut var_state = <Option<String>>::sse_decode(deserializer);
         let mut var_action = <Option<String>>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::CodeResult {
+        return mixin_desktop_api::dto::CodeResult {
             kind: var_kind,
             user_id: var_userId,
             conversation_id: var_conversationId,
@@ -10347,33 +10402,31 @@ impl SseDecode for mixin_desktop_core::runtime::model::CodeResult {
     }
 }
 
-impl SseDecode for mixin_desktop_core::core::device_transfer::ConnectionFailedReason {
+impl SseDecode for crate::api::device_transfer::ConnectionFailedReason {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut inner = <i32>::sse_decode(deserializer);
         return match inner {
-            0 => {
-                mixin_desktop_core::core::device_transfer::ConnectionFailedReason::VersionNotMatched
-            }
-            1 => mixin_desktop_core::core::device_transfer::ConnectionFailedReason::Unknown,
+            0 => crate::api::device_transfer::ConnectionFailedReason::VersionNotMatched,
+            1 => crate::api::device_transfer::ConnectionFailedReason::Unknown,
             _ => unreachable!("Invalid variant for ConnectionFailedReason: {}", inner),
         };
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::ConversationChangeEvent {
+impl SseDecode for mixin_desktop_api::model::ConversationChangeEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_conversationIds = <Vec<String>>::sse_decode(deserializer);
         let mut var_reloadAll = <bool>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::ConversationChangeEvent {
+        return mixin_desktop_api::model::ConversationChangeEvent {
             conversation_ids: var_conversationIds,
             reload_all: var_reloadAll,
         };
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::ConversationDetailItem {
+impl SseDecode for mixin_desktop_api::dto::ConversationDetailItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_conversationId = <String>::sse_decode(deserializer);
@@ -10383,7 +10436,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::ConversationDetailItem {
         let mut var_createdAtMillis = <i64>::sse_decode(deserializer);
         let mut var_muteUntilMillis = <i64>::sse_decode(deserializer);
         let mut var_expireIn = <i64>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::ConversationDetailItem {
+        return mixin_desktop_api::dto::ConversationDetailItem {
             conversation_id: var_conversationId,
             name: var_name,
             announcement: var_announcement,
@@ -10395,7 +10448,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::ConversationDetailItem {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::ConversationListData {
+impl SseDecode for mixin_desktop_api::dto::ConversationListData {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_conversationId = <String>::sse_decode(deserializer);
@@ -10430,8 +10483,8 @@ impl SseDecode for mixin_desktop_core::runtime::model::ConversationListData {
         let mut var_circleIds = <Vec<String>>::sse_decode(deserializer);
         let mut var_participantCount = <i64>::sse_decode(deserializer);
         let mut var_groupAvatars =
-            <Vec<mixin_desktop_core::runtime::model::GroupAvatar>>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::ConversationListData {
+            <Vec<mixin_desktop_api::dto::GroupAvatar>>::sse_decode(deserializer);
+        return mixin_desktop_api::dto::ConversationListData {
             conversation_id: var_conversationId,
             owner_id: var_ownerId,
             name: var_name,
@@ -10468,7 +10521,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::ConversationListData {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::ConversationParticipantItem {
+impl SseDecode for mixin_desktop_api::dto::ConversationParticipantItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_userId = <String>::sse_decode(deserializer);
@@ -10482,7 +10535,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::ConversationParticipantIt
         let mut var_isBot = <bool>::sse_decode(deserializer);
         let mut var_relationship = <String>::sse_decode(deserializer);
         let mut var_membership = <Option<String>>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::ConversationParticipantItem {
+        return mixin_desktop_api::dto::ConversationParticipantItem {
             user_id: var_userId,
             role: var_role,
             created_at_millis: var_createdAtMillis,
@@ -10498,27 +10551,27 @@ impl SseDecode for mixin_desktop_core::runtime::model::ConversationParticipantIt
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::ConversationStorageUsage {
+impl SseDecode for mixin_desktop_api::dto::ConversationStorageUsage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_conversation =
-            <mixin_desktop_core::runtime::model::ConversationListData>::sse_decode(deserializer);
+            <mixin_desktop_api::dto::ConversationListData>::sse_decode(deserializer);
         let mut var_sizeBytes = <i64>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::ConversationStorageUsage {
+        return mixin_desktop_api::dto::ConversationStorageUsage {
             conversation: var_conversation,
             size_bytes: var_sizeBytes,
         };
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::ConversationUnseenCount {
+impl SseDecode for mixin_desktop_api::dto::ConversationUnseenCount {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_category = <String>::sse_decode(deserializer);
         let mut var_circleId = <Option<String>>::sse_decode(deserializer);
         let mut var_count = <i64>::sse_decode(deserializer);
         let mut var_mutedCount = <i64>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::ConversationUnseenCount {
+        return mixin_desktop_api::dto::ConversationUnseenCount {
             category: var_category,
             circle_id: var_circleId,
             count: var_count,
@@ -10527,81 +10580,122 @@ impl SseDecode for mixin_desktop_core::runtime::model::ConversationUnseenCount {
     }
 }
 
-impl SseDecode for mixin_desktop_core::core::device_transfer::DeviceTransferCommand {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut inner = <i32>::sse_decode(deserializer);
-        return match inner {
-            0 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::PullToRemote,
-1 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::PushToRemote,
-2 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelRestore,
-3 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelBackup,
-4 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelBackupRequest,
-5 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelRestoreRequest,
-6 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::ConfirmRestore,
-7 => mixin_desktop_core::core::device_transfer::DeviceTransferCommand::ConfirmBackup,
-            _ => unreachable!("Invalid variant for DeviceTransferCommand: {}", inner),
-        };
-    }
-}
-
-impl SseDecode for mixin_desktop_core::core::device_transfer::DeviceTransferEvent {
+impl SseDecode for crate::error::CoreError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreConnected;
+                return crate::error::CoreError::Unauthorized;
             }
             1 => {
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreStart;
+                return crate::error::CoreError::NotFound;
             }
             2 => {
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreSucceed;
+                return crate::error::CoreError::Cancelled;
             }
             3 => {
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreFailed;
+                let mut var_message = <String>::sse_decode(deserializer);
+                return crate::error::CoreError::InvalidArgument {
+                    message: var_message,
+                };
             }
             4 => {
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupServerCreated;
+                let mut var_message = <String>::sse_decode(deserializer);
+                return crate::error::CoreError::Other {
+                    message: var_message,
+                };
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+
+impl SseDecode for crate::api::device_transfer::DeviceTransferCommand {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::device_transfer::DeviceTransferCommand::PullToRemote,
+            1 => crate::api::device_transfer::DeviceTransferCommand::PushToRemote,
+            2 => crate::api::device_transfer::DeviceTransferCommand::CancelRestore,
+            3 => crate::api::device_transfer::DeviceTransferCommand::CancelBackup,
+            4 => crate::api::device_transfer::DeviceTransferCommand::CancelBackupRequest,
+            5 => crate::api::device_transfer::DeviceTransferCommand::CancelRestoreRequest,
+            6 => crate::api::device_transfer::DeviceTransferCommand::ConfirmRestore,
+            7 => crate::api::device_transfer::DeviceTransferCommand::ConfirmBackup,
+            _ => unreachable!("Invalid variant for DeviceTransferCommand: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::device_transfer::DeviceTransferEvent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                return crate::api::device_transfer::DeviceTransferEvent::RestoreConnected;
+            }
+            1 => {
+                return crate::api::device_transfer::DeviceTransferEvent::RestoreStart;
+            }
+            2 => {
+                return crate::api::device_transfer::DeviceTransferEvent::RestoreSucceed;
+            }
+            3 => {
+                return crate::api::device_transfer::DeviceTransferEvent::RestoreFailed;
+            }
+            4 => {
+                return crate::api::device_transfer::DeviceTransferEvent::BackupServerCreated;
             }
             5 => {
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupStart;
+                return crate::api::device_transfer::DeviceTransferEvent::BackupStart;
             }
             6 => {
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupSucceed;
+                return crate::api::device_transfer::DeviceTransferEvent::BackupSucceed;
             }
             7 => {
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupFailed;
+                return crate::api::device_transfer::DeviceTransferEvent::BackupFailed;
             }
             8 => {
                 let mut var_field0 = <f64>::sse_decode(deserializer);
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreProgress(var_field0);
+                return crate::api::device_transfer::DeviceTransferEvent::RestoreProgress(
+                    var_field0,
+                );
             }
             9 => {
                 let mut var_field0 = <f64>::sse_decode(deserializer);
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupProgress(var_field0);
+                return crate::api::device_transfer::DeviceTransferEvent::BackupProgress(
+                    var_field0,
+                );
             }
             10 => {
                 let mut var_field0 = <f64>::sse_decode(deserializer);
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreNetworkSpeed(var_field0);
+                return crate::api::device_transfer::DeviceTransferEvent::RestoreNetworkSpeed(
+                    var_field0,
+                );
             }
             11 => {
                 let mut var_field0 = <f64>::sse_decode(deserializer);
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupNetworkSpeed(var_field0);
+                return crate::api::device_transfer::DeviceTransferEvent::BackupNetworkSpeed(
+                    var_field0,
+                );
             }
             12 => {
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupRequestReceived;
+                return crate::api::device_transfer::DeviceTransferEvent::BackupRequestReceived;
             }
             13 => {
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreRequestReceived;
+                return crate::api::device_transfer::DeviceTransferEvent::RestoreRequestReceived;
             }
             14 => {
                 let mut var_field0 =
-                    <mixin_desktop_core::core::device_transfer::ConnectionFailedReason>::sse_decode(
-                        deserializer,
-                    );
-                return mixin_desktop_core::core::device_transfer::DeviceTransferEvent::ConnectionFailed(var_field0);
+                    <crate::api::device_transfer::ConnectionFailedReason>::sse_decode(deserializer);
+                return crate::api::device_transfer::DeviceTransferEvent::ConnectionFailed(
+                    var_field0,
+                );
             }
             _ => {
                 unimplemented!("");
@@ -10617,13 +10711,13 @@ impl SseDecode for f64 {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::GroupAvatar {
+impl SseDecode for mixin_desktop_api::dto::GroupAvatar {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_userId = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_avatarUrl = <String>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::GroupAvatar {
+        return mixin_desktop_api::dto::GroupAvatar {
             user_id: var_userId,
             name: var_name,
             avatar_url: var_avatarUrl,
@@ -10631,14 +10725,14 @@ impl SseDecode for mixin_desktop_core::runtime::model::GroupAvatar {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::GroupConversationItem {
+impl SseDecode for mixin_desktop_api::dto::GroupConversationItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_conversationId = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_avatarUrl = <String>::sse_decode(deserializer);
         let mut var_participantCount = <i64>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::GroupConversationItem {
+        return mixin_desktop_api::dto::GroupConversationItem {
             conversation_id: var_conversationId,
             name: var_name,
             avatar_url: var_avatarUrl,
@@ -10647,13 +10741,13 @@ impl SseDecode for mixin_desktop_core::runtime::model::GroupConversationItem {
     }
 }
 
-impl SseDecode for crate::api::desktop::HttpResponseItem {
+impl SseDecode for mixin_desktop_api::model::HttpResponseItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_statusCode = <u16>::sse_decode(deserializer);
         let mut var_headers = <std::collections::HashMap<String, String>>::sse_decode(deserializer);
         let mut var_body = <Vec<u8>>::sse_decode(deserializer);
-        return crate::api::desktop::HttpResponseItem {
+        return mixin_desktop_api::model::HttpResponseItem {
             status_code: var_statusCode,
             headers: var_headers,
             body: var_body,
@@ -10675,7 +10769,7 @@ impl SseDecode for i64 {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::ImageMessageView {
+impl SseDecode for mixin_desktop_api::dto::ImageMessageView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_messageId = <String>::sse_decode(deserializer);
@@ -10688,7 +10782,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::ImageMessageView {
         let mut var_userFullName = <String>::sse_decode(deserializer);
         let mut var_userIdentityNumber = <String>::sse_decode(deserializer);
         let mut var_avatarUrl = <String>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::ImageMessageView {
+        return mixin_desktop_api::dto::ImageMessageView {
             message_id: var_messageId,
             created_at_micros: var_createdAtMicros,
             media_url: var_mediaUrl,
@@ -10715,133 +10809,123 @@ impl SseDecode for Vec<String> {
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::CircleItem> {
+impl SseDecode for Vec<mixin_desktop_api::dto::CircleItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_core::runtime::model::CircleItem>::sse_decode(deserializer));
+            ans_.push(<mixin_desktop_api::dto::CircleItem>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::ConversationListData> {
+impl SseDecode for Vec<mixin_desktop_api::dto::ConversationListData> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<mixin_desktop_api::dto::ConversationListData>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<mixin_desktop_api::dto::ConversationParticipantItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(
-                <mixin_desktop_core::runtime::model::ConversationListData>::sse_decode(
-                    deserializer,
-                ),
+                <mixin_desktop_api::dto::ConversationParticipantItem>::sse_decode(deserializer),
             );
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::ConversationParticipantItem> {
+impl SseDecode for Vec<mixin_desktop_api::dto::ConversationStorageUsage> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(
-                <mixin_desktop_core::runtime::model::ConversationParticipantItem>::sse_decode(
-                    deserializer,
-                ),
-            );
+            ans_.push(<mixin_desktop_api::dto::ConversationStorageUsage>::sse_decode(deserializer));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::ConversationStorageUsage> {
+impl SseDecode for Vec<mixin_desktop_api::dto::ConversationUnseenCount> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(
-                <mixin_desktop_core::runtime::model::ConversationStorageUsage>::sse_decode(
-                    deserializer,
-                ),
-            );
+            ans_.push(<mixin_desktop_api::dto::ConversationUnseenCount>::sse_decode(deserializer));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::ConversationUnseenCount> {
+impl SseDecode for Vec<mixin_desktop_api::dto::GroupAvatar> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(
-                <mixin_desktop_core::runtime::model::ConversationUnseenCount>::sse_decode(
-                    deserializer,
-                ),
-            );
+            ans_.push(<mixin_desktop_api::dto::GroupAvatar>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::GroupAvatar> {
+impl SseDecode for Vec<mixin_desktop_api::dto::GroupConversationItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_core::runtime::model::GroupAvatar>::sse_decode(deserializer));
+            ans_.push(<mixin_desktop_api::dto::GroupConversationItem>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::GroupConversationItem> {
+impl SseDecode for Vec<mixin_desktop_api::dto::ImageMessageView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(
-                <mixin_desktop_core::runtime::model::GroupConversationItem>::sse_decode(
-                    deserializer,
-                ),
-            );
+            ans_.push(<mixin_desktop_api::dto::ImageMessageView>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::ImageMessageView> {
+impl SseDecode for Vec<mixin_desktop_api::dto::MessageListView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(
-                <mixin_desktop_core::runtime::model::ImageMessageView>::sse_decode(deserializer),
-            );
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::MessageListView> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(
-                <mixin_desktop_core::runtime::model::MessageListView>::sse_decode(deserializer),
-            );
+            ans_.push(<mixin_desktop_api::dto::MessageListView>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -10859,13 +10943,15 @@ impl SseDecode for Vec<u8> {
     }
 }
 
-impl SseDecode for Vec<crate::api::desktop::ProxyItem> {
+impl SseDecode for Vec<mixin_desktop_api::model::ProxyItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<crate::api::desktop::ProxyItem>::sse_decode(deserializer));
+            ans_.push(<mixin_desktop_api::model::ProxyItem>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -10883,83 +10969,83 @@ impl SseDecode for Vec<(String, String)> {
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::SharedAppItem> {
+impl SseDecode for Vec<mixin_desktop_api::dto::SharedAppItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(
-                <mixin_desktop_core::runtime::model::SharedAppItem>::sse_decode(deserializer),
-            );
+            ans_.push(<mixin_desktop_api::dto::SharedAppItem>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::StickerAlbumItem> {
+impl SseDecode for Vec<mixin_desktop_api::dto::StickerAlbumItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(
-                <mixin_desktop_core::runtime::model::StickerAlbumItem>::sse_decode(deserializer),
-            );
+            ans_.push(<mixin_desktop_api::dto::StickerAlbumItem>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::StickerItem> {
+impl SseDecode for Vec<mixin_desktop_api::dto::StickerItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_core::runtime::model::StickerItem>::sse_decode(deserializer));
+            ans_.push(<mixin_desktop_api::dto::StickerItem>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::StorageCategoryUsage> {
+impl SseDecode for Vec<mixin_desktop_api::dto::StorageCategoryUsage> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(
-                <mixin_desktop_core::runtime::model::StorageCategoryUsage>::sse_decode(
-                    deserializer,
-                ),
-            );
+            ans_.push(<mixin_desktop_api::dto::StorageCategoryUsage>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_core::runtime::model::UserProfileItem> {
+impl SseDecode for Vec<mixin_desktop_api::dto::UserProfileItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(
-                <mixin_desktop_core::runtime::model::UserProfileItem>::sse_decode(deserializer),
-            );
+            ans_.push(<mixin_desktop_api::dto::UserProfileItem>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
 }
 
-impl SseDecode for crate::api::desktop::McpServerStatusItem {
+impl SseDecode for mixin_desktop_api::model::McpServerStatusItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_running = <bool>::sse_decode(deserializer);
         let mut var_endpoint = <Option<String>>::sse_decode(deserializer);
         let mut var_lastError = <Option<String>>::sse_decode(deserializer);
-        return crate::api::desktop::McpServerStatusItem {
+        return mixin_desktop_api::model::McpServerStatusItem {
             running: var_running,
             endpoint: var_endpoint,
             last_error: var_lastError,
@@ -10967,14 +11053,14 @@ impl SseDecode for crate::api::desktop::McpServerStatusItem {
     }
 }
 
-impl SseDecode for crate::api::desktop::McpSettingsItem {
+impl SseDecode for mixin_desktop_api::model::McpSettingsItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_enabled = <bool>::sse_decode(deserializer);
         let mut var_token = <String>::sse_decode(deserializer);
         let mut var_draftToolsEnabled = <bool>::sse_decode(deserializer);
         let mut var_circleManagementEnabled = <bool>::sse_decode(deserializer);
-        return crate::api::desktop::McpSettingsItem {
+        return mixin_desktop_api::model::McpSettingsItem {
             enabled: var_enabled,
             token: var_token,
             draft_tools_enabled: var_draftToolsEnabled,
@@ -10983,7 +11069,7 @@ impl SseDecode for crate::api::desktop::McpSettingsItem {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::MessageListView {
+impl SseDecode for mixin_desktop_api::dto::MessageListView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_messageId = <String>::sse_decode(deserializer);
@@ -11058,7 +11144,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::MessageListView {
         let mut var_mentionRead = <Option<bool>>::sse_decode(deserializer);
         let mut var_pinned = <bool>::sse_decode(deserializer);
         let mut var_expireIn = <Option<i64>>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::MessageListView {
+        return mixin_desktop_api::dto::MessageListView {
             message_id: var_messageId,
             conversation_id: var_conversationId,
             sender_id: var_senderId,
@@ -11135,13 +11221,13 @@ impl SseDecode for mixin_desktop_core::runtime::model::MessageListView {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::MessageOrderInfoView {
+impl SseDecode for mixin_desktop_api::dto::MessageOrderInfoView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_messageId = <String>::sse_decode(deserializer);
         let mut var_rowId = <i64>::sse_decode(deserializer);
         let mut var_createdAtMicros = <i64>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::MessageOrderInfoView {
+        return mixin_desktop_api::dto::MessageOrderInfoView {
             message_id: var_messageId,
             row_id: var_rowId,
             created_at_micros: var_createdAtMicros,
@@ -11149,7 +11235,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::MessageOrderInfoView {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::NotificationEvent {
+impl SseDecode for mixin_desktop_api::dto::NotificationEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_messageId = <String>::sse_decode(deserializer);
@@ -11161,7 +11247,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::NotificationEvent {
         let mut var_conversationName = <String>::sse_decode(deserializer);
         let mut var_conversationCategory = <String>::sse_decode(deserializer);
         let mut var_dismissMessageId = <Option<String>>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::NotificationEvent {
+        return mixin_desktop_api::dto::NotificationEvent {
             message_id: var_messageId,
             conversation_id: var_conversationId,
             sender_name: var_senderName,
@@ -11180,17 +11266,6 @@ impl SseDecode for Option<String> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<String>::sse_decode(deserializer));
-        } else {
-            return None;
-        }
-    }
-}
-
-impl SseDecode for Option<AccountHandle> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        if (<bool>::sse_decode(deserializer)) {
-            return Some(<AccountHandle>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -11241,43 +11316,39 @@ impl SseDecode for Option<i64> {
     }
 }
 
-impl SseDecode for Option<mixin_desktop_core::runtime::model::MessageOrderInfoView> {
+impl SseDecode for Option<mixin_desktop_api::dto::MessageOrderInfoView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(
-                <mixin_desktop_core::runtime::model::MessageOrderInfoView>::sse_decode(
-                    deserializer,
-                ),
-            );
+            return Some(<mixin_desktop_api::dto::MessageOrderInfoView>::sse_decode(
+                deserializer,
+            ));
         } else {
             return None;
         }
     }
 }
 
-impl SseDecode for Option<mixin_desktop_core::runtime::model::PinMessagePreviewItem> {
+impl SseDecode for Option<mixin_desktop_api::dto::PinMessagePreviewItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(
-                <mixin_desktop_core::runtime::model::PinMessagePreviewItem>::sse_decode(
-                    deserializer,
-                ),
-            );
+            return Some(<mixin_desktop_api::dto::PinMessagePreviewItem>::sse_decode(
+                deserializer,
+            ));
         } else {
             return None;
         }
     }
 }
 
-impl SseDecode for Option<mixin_desktop_core::runtime::model::StickerAlbumItem> {
+impl SseDecode for Option<mixin_desktop_api::dto::StickerAlbumItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(
-                <mixin_desktop_core::runtime::model::StickerAlbumItem>::sse_decode(deserializer),
-            );
+            return Some(<mixin_desktop_api::dto::StickerAlbumItem>::sse_decode(
+                deserializer,
+            ));
         } else {
             return None;
         }
@@ -11295,13 +11366,13 @@ impl SseDecode for Option<u64> {
     }
 }
 
-impl SseDecode for Option<mixin_desktop_core::runtime::model::UserProfileItem> {
+impl SseDecode for Option<mixin_desktop_api::dto::UserProfileItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(
-                <mixin_desktop_core::runtime::model::UserProfileItem>::sse_decode(deserializer),
-            );
+            return Some(<mixin_desktop_api::dto::UserProfileItem>::sse_decode(
+                deserializer,
+            ));
         } else {
             return None;
         }
@@ -11319,13 +11390,13 @@ impl SseDecode for Option<Vec<u8>> {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::PinMessagePreviewItem {
+impl SseDecode for mixin_desktop_api::dto::PinMessagePreviewItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_messageId = <String>::sse_decode(deserializer);
         let mut var_content = <String>::sse_decode(deserializer);
         let mut var_senderName = <String>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::PinMessagePreviewItem {
+        return mixin_desktop_api::dto::PinMessagePreviewItem {
             message_id: var_messageId,
             content: var_content,
             sender_name: var_senderName,
@@ -11333,7 +11404,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::PinMessagePreviewItem {
     }
 }
 
-impl SseDecode for crate::api::desktop::ProxyItem {
+impl SseDecode for mixin_desktop_api::model::ProxyItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <String>::sse_decode(deserializer);
@@ -11342,7 +11413,7 @@ impl SseDecode for crate::api::desktop::ProxyItem {
         let mut var_port = <u16>::sse_decode(deserializer);
         let mut var_username = <Option<String>>::sse_decode(deserializer);
         let mut var_password = <Option<String>>::sse_decode(deserializer);
-        return crate::api::desktop::ProxyItem {
+        return mixin_desktop_api::model::ProxyItem {
             id: var_id,
             kind: var_kind,
             host: var_host,
@@ -11353,13 +11424,13 @@ impl SseDecode for crate::api::desktop::ProxyItem {
     }
 }
 
-impl SseDecode for crate::api::desktop::ProxySettingsItem {
+impl SseDecode for mixin_desktop_api::model::ProxySettingsItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_enabled = <bool>::sse_decode(deserializer);
         let mut var_selectedProxyId = <Option<String>>::sse_decode(deserializer);
-        let mut var_proxies = <Vec<crate::api::desktop::ProxyItem>>::sse_decode(deserializer);
-        return crate::api::desktop::ProxySettingsItem {
+        let mut var_proxies = <Vec<mixin_desktop_api::model::ProxyItem>>::sse_decode(deserializer);
+        return mixin_desktop_api::model::ProxySettingsItem {
             enabled: var_enabled,
             selected_proxy_id: var_selectedProxyId,
             proxies: var_proxies,
@@ -11376,7 +11447,7 @@ impl SseDecode for (String, String) {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::SharedAppItem {
+impl SseDecode for mixin_desktop_api::dto::SharedAppItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_appId = <String>::sse_decode(deserializer);
@@ -11384,7 +11455,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::SharedAppItem {
         let mut var_iconUrl = <String>::sse_decode(deserializer);
         let mut var_description = <String>::sse_decode(deserializer);
         let mut var_homeUri = <String>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::SharedAppItem {
+        return mixin_desktop_api::dto::SharedAppItem {
             app_id: var_appId,
             name: var_name,
             icon_url: var_iconUrl,
@@ -11394,7 +11465,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::SharedAppItem {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::SnapshotDetailItem {
+impl SseDecode for mixin_desktop_api::dto::SnapshotDetailItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_snapshotId = <String>::sse_decode(deserializer);
@@ -11427,7 +11498,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::SnapshotDetailItem {
         let mut var_depositHash = <Option<String>>::sse_decode(deserializer);
         let mut var_withdrawalHash = <Option<String>>::sse_decode(deserializer);
         let mut var_withdrawalReceiver = <Option<String>>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::SnapshotDetailItem {
+        return mixin_desktop_api::dto::SnapshotDetailItem {
             snapshot_id: var_snapshotId,
             trace_id: var_traceId,
             snapshot_type: var_snapshotType,
@@ -11462,7 +11533,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::SnapshotDetailItem {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::StickerAlbumItem {
+impl SseDecode for mixin_desktop_api::dto::StickerAlbumItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_albumId = <String>::sse_decode(deserializer);
@@ -11473,7 +11544,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::StickerAlbumItem {
         let mut var_banner = <Option<String>>::sse_decode(deserializer);
         let mut var_added = <bool>::sse_decode(deserializer);
         let mut var_isVerified = <bool>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::StickerAlbumItem {
+        return mixin_desktop_api::dto::StickerAlbumItem {
             album_id: var_albumId,
             name: var_name,
             icon_url: var_iconUrl,
@@ -11486,19 +11557,16 @@ impl SseDecode for mixin_desktop_core::runtime::model::StickerAlbumItem {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::StickerDetailItem {
+impl SseDecode for mixin_desktop_api::dto::StickerDetailItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_sticker =
-            <mixin_desktop_core::runtime::model::StickerItem>::sse_decode(deserializer);
+        let mut var_sticker = <mixin_desktop_api::dto::StickerItem>::sse_decode(deserializer);
         let mut var_album =
-            <Option<mixin_desktop_core::runtime::model::StickerAlbumItem>>::sse_decode(
-                deserializer,
-            );
+            <Option<mixin_desktop_api::dto::StickerAlbumItem>>::sse_decode(deserializer);
         let mut var_albumStickers =
-            <Vec<mixin_desktop_core::runtime::model::StickerItem>>::sse_decode(deserializer);
+            <Vec<mixin_desktop_api::dto::StickerItem>>::sse_decode(deserializer);
         let mut var_isPersonal = <bool>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::StickerDetailItem {
+        return mixin_desktop_api::dto::StickerDetailItem {
             sticker: var_sticker,
             album: var_album,
             album_stickers: var_albumStickers,
@@ -11507,7 +11575,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::StickerDetailItem {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::StickerItem {
+impl SseDecode for mixin_desktop_api::dto::StickerItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_stickerId = <String>::sse_decode(deserializer);
@@ -11519,7 +11587,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::StickerItem {
         let mut var_assetType = <String>::sse_decode(deserializer);
         let mut var_createdAtMillis = <i64>::sse_decode(deserializer);
         let mut var_lastUseAtMillis = <Option<i64>>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::StickerItem {
+        return mixin_desktop_api::dto::StickerItem {
             sticker_id: var_stickerId,
             album_id: var_albumId,
             name: var_name,
@@ -11533,12 +11601,12 @@ impl SseDecode for mixin_desktop_core::runtime::model::StickerItem {
     }
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::StorageCategoryUsage {
+impl SseDecode for mixin_desktop_api::dto::StorageCategoryUsage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_category = <String>::sse_decode(deserializer);
         let mut var_sizeBytes = <i64>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::StorageCategoryUsage {
+        return mixin_desktop_api::dto::StorageCategoryUsage {
             category: var_category,
             size_bytes: var_sizeBytes,
         };
@@ -11578,7 +11646,7 @@ impl SseDecode for () {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {}
 }
 
-impl SseDecode for mixin_desktop_core::runtime::model::UserProfileItem {
+impl SseDecode for mixin_desktop_api::dto::UserProfileItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_userId = <String>::sse_decode(deserializer);
@@ -11591,7 +11659,7 @@ impl SseDecode for mixin_desktop_core::runtime::model::UserProfileItem {
         let mut var_relationship = <String>::sse_decode(deserializer);
         let mut var_codeUrl = <String>::sse_decode(deserializer);
         let mut var_membership = <Option<String>>::sse_decode(deserializer);
-        return mixin_desktop_core::runtime::model::UserProfileItem {
+        return mixin_desktop_api::dto::UserProfileItem {
             user_id: var_userId,
             identity_number: var_identityNumber,
             full_name: var_fullName,
@@ -11754,239 +11822,237 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        33 => wire__mixin_desktop_core__runtime__AttachmentAccess_cancel_attachment_impl(
+        33 => wire__mixin_desktop_api__access__AttachmentAccess_cancel_attachment_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        34 => {
-            wire__mixin_desktop_core__runtime__AttachmentAccess_cancel_transcript_attachment_impl(
-                port,
-                ptr,
-                rust_vec_len,
-                data_len,
-            )
-        }
-        35 => wire__mixin_desktop_core__runtime__AttachmentAccess_download_attachment_impl(
+        34 => wire__mixin_desktop_api__access__AttachmentAccess_cancel_transcript_attachment_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        35 => wire__mixin_desktop_api__access__AttachmentAccess_download_attachment_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
         36 => {
-            wire__mixin_desktop_core__runtime__AttachmentAccess_download_transcript_attachment_impl(
+            wire__mixin_desktop_api__access__AttachmentAccess_download_transcript_attachment_impl(
                 port,
                 ptr,
                 rust_vec_len,
                 data_len,
             )
         }
-        37 => wire__mixin_desktop_core__runtime__AttachmentAccess_mark_audio_read_impl(
+        37 => wire__mixin_desktop_api__access__AttachmentAccess_mark_audio_read_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        38 => wire__mixin_desktop_core__runtime__AttachmentAccess_mark_transcript_audio_read_impl(
+        38 => wire__mixin_desktop_api__access__AttachmentAccess_mark_transcript_audio_read_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__mixin_desktop_core__runtime__AttachmentAccess_retry_attachment_impl(
+        39 => wire__mixin_desktop_api__access__AttachmentAccess_retry_attachment_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        40 => wire__mixin_desktop_core__runtime__AttachmentAccess_retry_transcript_attachment_impl(
+        40 => wire__mixin_desktop_api__access__AttachmentAccess_retry_transcript_attachment_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        41 => wire__mixin_desktop_core__runtime__ConversationAccess_circles_impl(
+        41 => wire__mixin_desktop_api__access__ConversationAccess_circles_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        42 => wire__mixin_desktop_core__runtime__ConversationAccess_clear_conversation_impl(
+        42 => wire__mixin_desktop_api__access__ConversationAccess_clear_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        43 => wire__mixin_desktop_core__runtime__ConversationAccess_conversation_count_impl(
+        43 => wire__mixin_desktop_api__access__ConversationAccess_conversation_count_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        44 => wire__mixin_desktop_core__runtime__ConversationAccess_conversation_detail_impl(
+        44 => wire__mixin_desktop_api__access__ConversationAccess_conversation_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        45 => wire__mixin_desktop_core__runtime__ConversationAccess_conversation_items_impl(
+        45 => wire__mixin_desktop_api__access__ConversationAccess_conversation_items_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        46 => wire__mixin_desktop_core__runtime__ConversationAccess_conversation_items_by_ids_impl(
+        46 => wire__mixin_desktop_api__access__ConversationAccess_conversation_items_by_ids_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => wire__mixin_desktop_core__runtime__ConversationAccess_conversation_participants_impl(
+        47 => wire__mixin_desktop_api__access__ConversationAccess_conversation_participants_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        48 => wire__mixin_desktop_core__runtime__ConversationAccess_conversations_impl(
+        48 => wire__mixin_desktop_api__access__ConversationAccess_conversations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        49 => wire__mixin_desktop_core__runtime__ConversationAccess_create_circle_impl(
+        49 => wire__mixin_desktop_api__access__ConversationAccess_create_circle_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        50 => wire__mixin_desktop_core__runtime__ConversationAccess_create_group_impl(
+        50 => wire__mixin_desktop_api__access__ConversationAccess_create_group_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__mixin_desktop_core__runtime__ConversationAccess_current_user_role_impl(
+        51 => wire__mixin_desktop_api__access__ConversationAccess_current_user_role_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        52 => wire__mixin_desktop_core__runtime__ConversationAccess_delete_circle_impl(
+        52 => wire__mixin_desktop_api__access__ConversationAccess_delete_circle_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__mixin_desktop_core__runtime__ConversationAccess_delete_conversation_impl(
+        53 => wire__mixin_desktop_api__access__ConversationAccess_delete_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        54 => wire__mixin_desktop_core__runtime__ConversationAccess_edit_circle_conversation_impl(
+        54 => wire__mixin_desktop_api__access__ConversationAccess_edit_circle_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__mixin_desktop_core__runtime__ConversationAccess_edit_conversation_impl(
+        55 => wire__mixin_desktop_api__access__ConversationAccess_edit_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        56 => wire__mixin_desktop_core__runtime__ConversationAccess_exit_group_impl(
+        56 => wire__mixin_desktop_api__access__ConversationAccess_exit_group_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        57 => wire__mixin_desktop_core__runtime__ConversationAccess_groups_in_common_impl(
+        57 => wire__mixin_desktop_api__access__ConversationAccess_groups_in_common_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        58 => wire__mixin_desktop_core__runtime__ConversationAccess_is_bot_group_impl(
+        58 => wire__mixin_desktop_api__access__ConversationAccess_is_bot_group_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__mixin_desktop_core__runtime__ConversationAccess_join_group_impl(
+        59 => wire__mixin_desktop_api__access__ConversationAccess_join_group_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        60 => wire__mixin_desktop_core__runtime__ConversationAccess_local_conversation_detail_impl(
+        60 => wire__mixin_desktop_api__access__ConversationAccess_local_conversation_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        61 => wire__mixin_desktop_core__runtime__ConversationAccess_open_user_conversation_impl(
+        61 => wire__mixin_desktop_api__access__ConversationAccess_open_user_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        62 => wire__mixin_desktop_core__runtime__ConversationAccess_reorder_circles_impl(
+        62 => wire__mixin_desktop_api__access__ConversationAccess_reorder_circles_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        63 => wire__mixin_desktop_core__runtime__ConversationAccess_resolve_code_impl(
+        63 => wire__mixin_desktop_api__access__ConversationAccess_resolve_code_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        64 => wire__mixin_desktop_core__runtime__ConversationAccess_rotate_group_invite_impl(
+        64 => wire__mixin_desktop_api__access__ConversationAccess_rotate_group_invite_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        65 => wire__mixin_desktop_core__runtime__ConversationAccess_search_bot_group_users_impl(
+        65 => wire__mixin_desktop_api__access__ConversationAccess_search_bot_group_users_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        66 => wire__mixin_desktop_core__runtime__ConversationAccess_search_group_users_impl(
+        66 => wire__mixin_desktop_api__access__ConversationAccess_search_group_users_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        67 => wire__mixin_desktop_core__runtime__ConversationAccess_set_disappearing_messages_impl(
+        67 => wire__mixin_desktop_api__access__ConversationAccess_set_disappearing_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        68 => wire__mixin_desktop_core__runtime__ConversationAccess_set_muted_impl(
+        68 => wire__mixin_desktop_api__access__ConversationAccess_set_muted_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        69 => wire__mixin_desktop_core__runtime__ConversationAccess_set_pinned_impl(
+        69 => wire__mixin_desktop_api__access__ConversationAccess_set_pinned_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        70 => wire__mixin_desktop_core__runtime__ConversationAccess_update_circle_impl(
+        70 => wire__mixin_desktop_api__access__ConversationAccess_update_circle_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        71 => wire__mixin_desktop_core__runtime__ConversationAccess_update_participants_impl(
+        71 => wire__mixin_desktop_api__access__ConversationAccess_update_participants_impl(
             port,
             ptr,
             rust_vec_len,
@@ -12023,187 +12089,187 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         80 => wire__crate__api__login__LoginHandle_wait_impl(port, ptr, rust_vec_len, data_len),
-        81 => wire__mixin_desktop_core__runtime__MessageAccess_combine_forward_messages_impl(
+        81 => wire__mixin_desktop_api__access__MessageAccess_combine_forward_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        82 => wire__mixin_desktop_core__runtime__MessageAccess_conversation_is_encrypted_impl(
+        82 => wire__mixin_desktop_api__access__MessageAccess_conversation_is_encrypted_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        83 => wire__mixin_desktop_core__runtime__MessageAccess_delete_messages_impl(
+        83 => wire__mixin_desktop_api__access__MessageAccess_delete_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        84 => wire__mixin_desktop_core__runtime__MessageAccess_forward_messages_impl(
+        84 => wire__mixin_desktop_api__access__MessageAccess_forward_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        85 => wire__mixin_desktop_core__runtime__MessageAccess_image_messages_around_impl(
+        85 => wire__mixin_desktop_api__access__MessageAccess_image_messages_around_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        86 => wire__mixin_desktop_core__runtime__MessageAccess_mark_conversation_read_impl(
+        86 => wire__mixin_desktop_api__access__MessageAccess_mark_conversation_read_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        87 => wire__mixin_desktop_core__runtime__MessageAccess_mark_mention_read_impl(
+        87 => wire__mixin_desktop_api__access__MessageAccess_mark_mention_read_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        88 => wire__mixin_desktop_core__runtime__MessageAccess_message_ids_after_impl(
+        88 => wire__mixin_desktop_api__access__MessageAccess_message_ids_after_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        89 => wire__mixin_desktop_core__runtime__MessageAccess_message_ids_before_impl(
+        89 => wire__mixin_desktop_api__access__MessageAccess_message_ids_before_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        90 => wire__mixin_desktop_core__runtime__MessageAccess_message_items_by_ids_impl(
+        90 => wire__mixin_desktop_api__access__MessageAccess_message_items_by_ids_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        91 => wire__mixin_desktop_core__runtime__MessageAccess_message_order_info_impl(
+        91 => wire__mixin_desktop_api__access__MessageAccess_message_order_info_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        92 => wire__mixin_desktop_core__runtime__MessageAccess_messages_impl(
+        92 => wire__mixin_desktop_api__access__MessageAccess_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        93 => wire__mixin_desktop_core__runtime__MessageAccess_messages_around_impl(
+        93 => wire__mixin_desktop_api__access__MessageAccess_messages_around_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        94 => wire__mixin_desktop_core__runtime__MessageAccess_pin_message_preview_impl(
+        94 => wire__mixin_desktop_api__access__MessageAccess_pin_message_preview_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        95 => wire__mixin_desktop_core__runtime__MessageAccess_pinned_message_ids_impl(
+        95 => wire__mixin_desktop_api__access__MessageAccess_pinned_message_ids_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        96 => wire__mixin_desktop_core__runtime__MessageAccess_pinned_messages_impl(
+        96 => wire__mixin_desktop_api__access__MessageAccess_pinned_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        97 => wire__mixin_desktop_core__runtime__MessageAccess_recall_messages_impl(
+        97 => wire__mixin_desktop_api__access__MessageAccess_recall_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        98 => wire__mixin_desktop_core__runtime__MessageAccess_search_global_messages_impl(
+        98 => wire__mixin_desktop_api__access__MessageAccess_search_global_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        99 => wire__mixin_desktop_core__runtime__MessageAccess_search_messages_impl(
+        99 => wire__mixin_desktop_api__access__MessageAccess_search_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        100 => wire__mixin_desktop_core__runtime__MessageAccess_send_app_card_impl(
+        100 => wire__mixin_desktop_api__access__MessageAccess_send_app_card_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        101 => wire__mixin_desktop_core__runtime__MessageAccess_send_attachment_impl(
+        101 => wire__mixin_desktop_api__access__MessageAccess_send_attachment_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        102 => wire__mixin_desktop_core__runtime__MessageAccess_send_audio_impl(
+        102 => wire__mixin_desktop_api__access__MessageAccess_send_audio_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        103 => wire__mixin_desktop_core__runtime__MessageAccess_send_contact_impl(
+        103 => wire__mixin_desktop_api__access__MessageAccess_send_contact_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        104 => wire__mixin_desktop_core__runtime__MessageAccess_send_post_impl(
+        104 => wire__mixin_desktop_api__access__MessageAccess_send_post_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        105 => wire__mixin_desktop_core__runtime__MessageAccess_send_remote_image_impl(
+        105 => wire__mixin_desktop_api__access__MessageAccess_send_remote_image_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        106 => wire__mixin_desktop_core__runtime__MessageAccess_send_sticker_impl(
+        106 => wire__mixin_desktop_api__access__MessageAccess_send_sticker_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        107 => wire__mixin_desktop_core__runtime__MessageAccess_send_text_impl(
+        107 => wire__mixin_desktop_api__access__MessageAccess_send_text_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        108 => wire__mixin_desktop_core__runtime__MessageAccess_set_message_pinned_impl(
+        108 => wire__mixin_desktop_api__access__MessageAccess_set_message_pinned_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        109 => wire__mixin_desktop_core__runtime__MessageAccess_shared_messages_impl(
+        109 => wire__mixin_desktop_api__access__MessageAccess_shared_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        110 => wire__mixin_desktop_core__runtime__MessageAccess_transcript_messages_impl(
+        110 => wire__mixin_desktop_api__access__MessageAccess_transcript_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        111 => wire__mixin_desktop_core__runtime__MessageAccess_unread_mention_message_ids_impl(
+        111 => wire__mixin_desktop_api__access__MessageAccess_unread_mention_message_ids_impl(
             port,
             ptr,
             rust_vec_len,
@@ -12311,207 +12377,200 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        129 => wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_impl(
+        129 => wire__mixin_desktop_api__access__StickerAccess_add_sticker_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        130 => wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_from_file_impl(
+        130 => wire__mixin_desktop_api__access__StickerAccess_add_sticker_from_file_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        131 => wire__mixin_desktop_core__runtime__StickerAccess_add_sticker_from_path_impl(
+        131 => wire__mixin_desktop_api__access__StickerAccess_add_sticker_from_path_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        132 => wire__mixin_desktop_core__runtime__StickerAccess_album_stickers_impl(
+        132 => wire__mixin_desktop_api__access__StickerAccess_album_stickers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        133 => wire__mixin_desktop_core__runtime__StickerAccess_personal_stickers_impl(
+        133 => wire__mixin_desktop_api__access__StickerAccess_personal_stickers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        134 => wire__mixin_desktop_core__runtime__StickerAccess_recent_stickers_impl(
+        134 => wire__mixin_desktop_api__access__StickerAccess_recent_stickers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        135 => wire__mixin_desktop_core__runtime__StickerAccess_refresh_sticker_impl(
+        135 => wire__mixin_desktop_api__access__StickerAccess_refresh_sticker_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        136 => wire__mixin_desktop_core__runtime__StickerAccess_refresh_stickers_impl(
+        136 => wire__mixin_desktop_api__access__StickerAccess_refresh_stickers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        137 => wire__mixin_desktop_core__runtime__StickerAccess_remove_sticker_impl(
+        137 => wire__mixin_desktop_api__access__StickerAccess_remove_sticker_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        138 => wire__mixin_desktop_core__runtime__StickerAccess_set_sticker_album_added_impl(
+        138 => wire__mixin_desktop_api__access__StickerAccess_set_sticker_album_added_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        139 => wire__mixin_desktop_core__runtime__StickerAccess_set_sticker_album_order_impl(
+        139 => wire__mixin_desktop_api__access__StickerAccess_set_sticker_album_order_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        140 => wire__mixin_desktop_core__runtime__StickerAccess_sticker_albums_impl(
+        140 => wire__mixin_desktop_api__access__StickerAccess_sticker_albums_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        141 => wire__mixin_desktop_core__runtime__StickerAccess_sticker_detail_impl(
+        141 => wire__mixin_desktop_api__access__StickerAccess_sticker_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        142 => wire__mixin_desktop_core__runtime__StickerAccess_sticker_store_albums_impl(
+        142 => wire__mixin_desktop_api__access__StickerAccess_sticker_store_albums_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        143 => wire__mixin_desktop_core__runtime__UserAccess_add_contact_impl(
+        143 => wire__mixin_desktop_api__access__UserAccess_add_contact_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        144 => wire__mixin_desktop_core__runtime__UserAccess_block_user_impl(
+        144 => wire__mixin_desktop_api__access__UserAccess_block_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        145 => wire__mixin_desktop_core__runtime__UserAccess_bot_creator_id_impl(
+        145 => wire__mixin_desktop_api__access__UserAccess_bot_creator_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        146 => wire__mixin_desktop_core__runtime__UserAccess_bot_home_uri_impl(
+        146 => wire__mixin_desktop_api__access__UserAccess_bot_home_uri_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        147 => wire__mixin_desktop_core__runtime__UserAccess_local_shared_apps_impl(
+        147 => wire__mixin_desktop_api__access__UserAccess_local_shared_apps_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        148 => wire__mixin_desktop_core__runtime__UserAccess_mention_names_impl(
+        148 => wire__mixin_desktop_api__access__UserAccess_mention_names_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        149 => wire__mixin_desktop_core__runtime__UserAccess_refresh_user_profile_impl(
+        149 => wire__mixin_desktop_api__access__UserAccess_refresh_user_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        150 => wire__mixin_desktop_core__runtime__UserAccess_remove_contact_impl(
+        150 => wire__mixin_desktop_api__access__UserAccess_remove_contact_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        151 => wire__mixin_desktop_core__runtime__UserAccess_replace_mentions_impl(
+        151 => wire__mixin_desktop_api__access__UserAccess_replace_mentions_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        152 => wire__mixin_desktop_core__runtime__UserAccess_report_user_impl(
+        152 => wire__mixin_desktop_api__access__UserAccess_report_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        153 => wire__mixin_desktop_core__runtime__UserAccess_search_local_users_impl(
+        153 => wire__mixin_desktop_api__access__UserAccess_search_local_users_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        154 => wire__mixin_desktop_core__runtime__UserAccess_search_mao_user_impl(
+        154 => wire__mixin_desktop_api__access__UserAccess_search_mao_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        155 => wire__mixin_desktop_core__runtime__UserAccess_search_user_impl(
+        155 => wire__mixin_desktop_api__access__UserAccess_search_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        156 => wire__mixin_desktop_core__runtime__UserAccess_selectable_users_impl(
+        156 => wire__mixin_desktop_api__access__UserAccess_selectable_users_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        157 => wire__mixin_desktop_core__runtime__UserAccess_shared_apps_impl(
+        157 => wire__mixin_desktop_api__access__UserAccess_shared_apps_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        158 => wire__mixin_desktop_core__runtime__UserAccess_unblock_user_impl(
+        158 => wire__mixin_desktop_api__access__UserAccess_unblock_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        159 => wire__mixin_desktop_core__runtime__UserAccess_user_profile_impl(
+        159 => wire__mixin_desktop_api__access__UserAccess_user_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        160 => wire__mixin_desktop_core__runtime__UserAccess_users_by_identity_numbers_impl(
+        160 => wire__mixin_desktop_api__access__UserAccess_users_by_identity_numbers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        161 => wire__mixin_desktop_core__runtime__logging__directory_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        162 => {
-            wire__mixin_desktop_core__runtime__logging__init_impl(port, ptr, rust_vec_len, data_len)
-        }
+        161 => wire__crate__api__logging__directory_impl(port, ptr, rust_vec_len, data_len),
+        162 => wire__crate__api__logging__init_impl(port, ptr, rust_vec_len, data_len),
         163 => wire__crate__api__logging__init_app_impl(port, ptr, rust_vec_len, data_len),
         165 => wire__crate__api__desktop__open_desktop_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
@@ -12586,6 +12645,21 @@ impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<
 
 impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<AttachmentAccess>> for AttachmentAccess {
     fn into_into_dart(self) -> FrbWrapper<AttachmentAccess> {
+        self.into()
+    }
+}
+
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<ClientError> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
+            .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<ClientError> {}
+
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<ClientError>> for ClientError {
+    fn into_into_dart(self) -> FrbWrapper<ClientError> {
         self.into()
     }
 }
@@ -12699,9 +12773,7 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<UserAccess>> for UserAccess {
 }
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::AccountProfile>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::model::AccountProfile> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.user_id.into_into_dart().into_dart(),
@@ -12719,20 +12791,18 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::AccountProfile>
+    for FrbWrapper<mixin_desktop_api::model::AccountProfile>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::AccountProfile>,
-    > for mixin_desktop_core::runtime::model::AccountProfile
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::model::AccountProfile>>
+    for mixin_desktop_api::model::AccountProfile
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::AccountProfile> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::model::AccountProfile> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_core::runtime::model::CircleItem> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::CircleItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.circle_id.into_into_dart().into_dart(),
@@ -12743,18 +12813,18 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_core::runtime::m
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::CircleItem>
+    for FrbWrapper<mixin_desktop_api::dto::CircleItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_core::runtime::model::CircleItem>>
-    for mixin_desktop_core::runtime::model::CircleItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::CircleItem>>
+    for mixin_desktop_api::dto::CircleItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::CircleItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::CircleItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_core::runtime::model::CodeResult> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::CodeResult> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.kind.into_into_dart().into_dart(),
@@ -12779,46 +12849,40 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_core::runtime::m
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::CodeResult>
+    for FrbWrapper<mixin_desktop_api::dto::CodeResult>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_core::runtime::model::CodeResult>>
-    for mixin_desktop_core::runtime::model::CodeResult
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::CodeResult>>
+    for mixin_desktop_api::dto::CodeResult
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::CodeResult> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::CodeResult> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::core::device_transfer::ConnectionFailedReason>
-{
+impl flutter_rust_bridge::IntoDart for crate::api::device_transfer::ConnectionFailedReason {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self.0 {
-                    mixin_desktop_core::core::device_transfer::ConnectionFailedReason::VersionNotMatched => 0.into_dart(),
-mixin_desktop_core::core::device_transfer::ConnectionFailedReason::Unknown => 1.into_dart(),
-                    _ => unreachable!(),
-                }
+        match self {
+            Self::VersionNotMatched => 0.into_dart(),
+            Self::Unknown => 1.into_dart(),
+            _ => unreachable!(),
+        }
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::core::device_transfer::ConnectionFailedReason>
+    for crate::api::device_transfer::ConnectionFailedReason
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::core::device_transfer::ConnectionFailedReason>,
-    > for mixin_desktop_core::core::device_transfer::ConnectionFailedReason
+impl flutter_rust_bridge::IntoIntoDart<crate::api::device_transfer::ConnectionFailedReason>
+    for crate::api::device_transfer::ConnectionFailedReason
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::core::device_transfer::ConnectionFailedReason> {
-        self.into()
+    fn into_into_dart(self) -> crate::api::device_transfer::ConnectionFailedReason {
+        self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationChangeEvent>
+    for FrbWrapper<mixin_desktop_api::model::ConversationChangeEvent>
 {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -12829,24 +12893,19 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationChangeEvent>
+    for FrbWrapper<mixin_desktop_api::model::ConversationChangeEvent>
 {
 }
 impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::ConversationChangeEvent>,
-    > for mixin_desktop_core::runtime::model::ConversationChangeEvent
+    flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::model::ConversationChangeEvent>>
+    for mixin_desktop_api::model::ConversationChangeEvent
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::runtime::model::ConversationChangeEvent> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::model::ConversationChangeEvent> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationDetailItem>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::ConversationDetailItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.conversation_id.into_into_dart().into_dart(),
@@ -12861,24 +12920,18 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationDetailItem>
+    for FrbWrapper<mixin_desktop_api::dto::ConversationDetailItem>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::ConversationDetailItem>,
-    > for mixin_desktop_core::runtime::model::ConversationDetailItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::ConversationDetailItem>>
+    for mixin_desktop_api::dto::ConversationDetailItem
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::runtime::model::ConversationDetailItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::ConversationDetailItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationListData>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::ConversationListData> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.conversation_id.into_into_dart().into_dart(),
@@ -12924,23 +12977,19 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationListData>
+    for FrbWrapper<mixin_desktop_api::dto::ConversationListData>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::ConversationListData>,
-    > for mixin_desktop_core::runtime::model::ConversationListData
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::ConversationListData>>
+    for mixin_desktop_api::dto::ConversationListData
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::runtime::model::ConversationListData> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::ConversationListData> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationParticipantItem>
+    for FrbWrapper<mixin_desktop_api::dto::ConversationParticipantItem>
 {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -12960,23 +13009,21 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationParticipantItem>
+    for FrbWrapper<mixin_desktop_api::dto::ConversationParticipantItem>
 {
 }
 impl
     flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::ConversationParticipantItem>,
-    > for mixin_desktop_core::runtime::model::ConversationParticipantItem
+        FrbWrapper<mixin_desktop_api::dto::ConversationParticipantItem>,
+    > for mixin_desktop_api::dto::ConversationParticipantItem
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::runtime::model::ConversationParticipantItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::ConversationParticipantItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationStorageUsage>
+    for FrbWrapper<mixin_desktop_api::dto::ConversationStorageUsage>
 {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -12987,24 +13034,18 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationStorageUsage>
+    for FrbWrapper<mixin_desktop_api::dto::ConversationStorageUsage>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::ConversationStorageUsage>,
-    > for mixin_desktop_core::runtime::model::ConversationStorageUsage
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::ConversationStorageUsage>>
+    for mixin_desktop_api::dto::ConversationStorageUsage
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::runtime::model::ConversationStorageUsage> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::ConversationStorageUsage> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationUnseenCount>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::ConversationUnseenCount> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.category.into_into_dart().into_dart(),
@@ -13016,98 +13057,136 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationUnseenCount>
+    for FrbWrapper<mixin_desktop_api::dto::ConversationUnseenCount>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::ConversationUnseenCount>,
-    > for mixin_desktop_core::runtime::model::ConversationUnseenCount
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::ConversationUnseenCount>>
+    for mixin_desktop_api::dto::ConversationUnseenCount
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::runtime::model::ConversationUnseenCount> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::ConversationUnseenCount> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferCommand>
-{
+impl flutter_rust_bridge::IntoDart for crate::error::CoreError {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self.0 {
-                    mixin_desktop_core::core::device_transfer::DeviceTransferCommand::PullToRemote => 0.into_dart(),
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::PushToRemote => 1.into_dart(),
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelRestore => 2.into_dart(),
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelBackup => 3.into_dart(),
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelBackupRequest => 4.into_dart(),
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelRestoreRequest => 5.into_dart(),
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::ConfirmRestore => 6.into_dart(),
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::ConfirmBackup => 7.into_dart(),
-                    _ => unreachable!(),
-                }
+        match self {
+            crate::error::CoreError::Unauthorized => [0.into_dart()].into_dart(),
+            crate::error::CoreError::NotFound => [1.into_dart()].into_dart(),
+            crate::error::CoreError::Cancelled => [2.into_dart()].into_dart(),
+            crate::error::CoreError::InvalidArgument { message } => {
+                [3.into_dart(), message.into_into_dart().into_dart()].into_dart()
+            }
+            crate::error::CoreError::Other { message } => {
+                [4.into_dart(), message.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::error::CoreError {}
+impl flutter_rust_bridge::IntoIntoDart<crate::error::CoreError> for crate::error::CoreError {
+    fn into_into_dart(self) -> crate::error::CoreError {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::device_transfer::DeviceTransferCommand {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::PullToRemote => 0.into_dart(),
+            Self::PushToRemote => 1.into_dart(),
+            Self::CancelRestore => 2.into_dart(),
+            Self::CancelBackup => 3.into_dart(),
+            Self::CancelBackupRequest => 4.into_dart(),
+            Self::CancelRestoreRequest => 5.into_dart(),
+            Self::ConfirmRestore => 6.into_dart(),
+            Self::ConfirmBackup => 7.into_dart(),
+            _ => unreachable!(),
+        }
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferCommand>
+    for crate::api::device_transfer::DeviceTransferCommand
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferCommand>,
-    > for mixin_desktop_core::core::device_transfer::DeviceTransferCommand
+impl flutter_rust_bridge::IntoIntoDart<crate::api::device_transfer::DeviceTransferCommand>
+    for crate::api::device_transfer::DeviceTransferCommand
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferCommand> {
-        self.into()
+    fn into_into_dart(self) -> crate::api::device_transfer::DeviceTransferCommand {
+        self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferEvent>
-{
+impl flutter_rust_bridge::IntoDart for crate::api::device_transfer::DeviceTransferEvent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        match self.0 {mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreConnected => { [0.into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreStart => { [1.into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreSucceed => { [2.into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreFailed => { [3.into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupServerCreated => { [4.into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupStart => { [5.into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupSucceed => { [6.into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupFailed => { [7.into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreProgress(field0) => { [8.into_dart(),
-field0.into_into_dart().into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupProgress(field0) => { [9.into_dart(),
-field0.into_into_dart().into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreNetworkSpeed(field0) => { [10.into_dart(),
-field0.into_into_dart().into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupNetworkSpeed(field0) => { [11.into_dart(),
-field0.into_into_dart().into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupRequestReceived => { [12.into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreRequestReceived => { [13.into_dart()].into_dart() }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::ConnectionFailed(field0) => { [14.into_dart(),
-field0.into_into_dart().into_dart()].into_dart() }
- _ => { unimplemented!(""); }}
+        match self {
+            crate::api::device_transfer::DeviceTransferEvent::RestoreConnected => {
+                [0.into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::RestoreStart => {
+                [1.into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::RestoreSucceed => {
+                [2.into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::RestoreFailed => {
+                [3.into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupServerCreated => {
+                [4.into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupStart => {
+                [5.into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupSucceed => {
+                [6.into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupFailed => {
+                [7.into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::RestoreProgress(field0) => {
+                [8.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupProgress(field0) => {
+                [9.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::RestoreNetworkSpeed(field0) => {
+                [10.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupNetworkSpeed(field0) => {
+                [11.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupRequestReceived => {
+                [12.into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::RestoreRequestReceived => {
+                [13.into_dart()].into_dart()
+            }
+            crate::api::device_transfer::DeviceTransferEvent::ConnectionFailed(field0) => {
+                [14.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferEvent>
+    for crate::api::device_transfer::DeviceTransferEvent
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferEvent>,
-    > for mixin_desktop_core::core::device_transfer::DeviceTransferEvent
+impl flutter_rust_bridge::IntoIntoDart<crate::api::device_transfer::DeviceTransferEvent>
+    for crate::api::device_transfer::DeviceTransferEvent
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::core::device_transfer::DeviceTransferEvent> {
-        self.into()
+    fn into_into_dart(self) -> crate::api::device_transfer::DeviceTransferEvent {
+        self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_core::runtime::model::GroupAvatar> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::GroupAvatar> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.user_id.into_into_dart().into_dart(),
@@ -13118,20 +13197,18 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_core::runtime::m
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::GroupAvatar>
+    for FrbWrapper<mixin_desktop_api::dto::GroupAvatar>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_core::runtime::model::GroupAvatar>>
-    for mixin_desktop_core::runtime::model::GroupAvatar
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::GroupAvatar>>
+    for mixin_desktop_api::dto::GroupAvatar
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::GroupAvatar> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::GroupAvatar> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::GroupConversationItem>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::GroupConversationItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.conversation_id.into_into_dart().into_dart(),
@@ -13143,46 +13220,40 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::GroupConversationItem>
+    for FrbWrapper<mixin_desktop_api::dto::GroupConversationItem>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::GroupConversationItem>,
-    > for mixin_desktop_core::runtime::model::GroupConversationItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::GroupConversationItem>>
+    for mixin_desktop_api::dto::GroupConversationItem
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::runtime::model::GroupConversationItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::GroupConversationItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::desktop::HttpResponseItem {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::model::HttpResponseItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.status_code.into_into_dart().into_dart(),
-            self.headers.into_into_dart().into_dart(),
-            self.body.into_into_dart().into_dart(),
+            self.0.status_code.into_into_dart().into_dart(),
+            self.0.headers.into_into_dart().into_dart(),
+            self.0.body.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::desktop::HttpResponseItem
+    for FrbWrapper<mixin_desktop_api::model::HttpResponseItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::desktop::HttpResponseItem>
-    for crate::api::desktop::HttpResponseItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::model::HttpResponseItem>>
+    for mixin_desktop_api::model::HttpResponseItem
 {
-    fn into_into_dart(self) -> crate::api::desktop::HttpResponseItem {
-        self
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::model::HttpResponseItem> {
+        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::ImageMessageView>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::ImageMessageView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.message_id.into_into_dart().into_dart(),
@@ -13200,67 +13271,66 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::ImageMessageView>
+    for FrbWrapper<mixin_desktop_api::dto::ImageMessageView>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::ImageMessageView>,
-    > for mixin_desktop_core::runtime::model::ImageMessageView
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::ImageMessageView>>
+    for mixin_desktop_api::dto::ImageMessageView
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::ImageMessageView> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::ImageMessageView> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::desktop::McpServerStatusItem {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::model::McpServerStatusItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.running.into_into_dart().into_dart(),
-            self.endpoint.into_into_dart().into_dart(),
-            self.last_error.into_into_dart().into_dart(),
+            self.0.running.into_into_dart().into_dart(),
+            self.0.endpoint.into_into_dart().into_dart(),
+            self.0.last_error.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::desktop::McpServerStatusItem
+    for FrbWrapper<mixin_desktop_api::model::McpServerStatusItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::desktop::McpServerStatusItem>
-    for crate::api::desktop::McpServerStatusItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::model::McpServerStatusItem>>
+    for mixin_desktop_api::model::McpServerStatusItem
 {
-    fn into_into_dart(self) -> crate::api::desktop::McpServerStatusItem {
-        self
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::model::McpServerStatusItem> {
+        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::desktop::McpSettingsItem {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::model::McpSettingsItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.enabled.into_into_dart().into_dart(),
-            self.token.into_into_dart().into_dart(),
-            self.draft_tools_enabled.into_into_dart().into_dart(),
-            self.circle_management_enabled.into_into_dart().into_dart(),
+            self.0.enabled.into_into_dart().into_dart(),
+            self.0.token.into_into_dart().into_dart(),
+            self.0.draft_tools_enabled.into_into_dart().into_dart(),
+            self.0
+                .circle_management_enabled
+                .into_into_dart()
+                .into_dart(),
         ]
         .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::desktop::McpSettingsItem
+    for FrbWrapper<mixin_desktop_api::model::McpSettingsItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::desktop::McpSettingsItem>
-    for crate::api::desktop::McpSettingsItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::model::McpSettingsItem>>
+    for mixin_desktop_api::model::McpSettingsItem
 {
-    fn into_into_dart(self) -> crate::api::desktop::McpSettingsItem {
-        self
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::model::McpSettingsItem> {
+        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::MessageListView>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::MessageListView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.message_id.into_into_dart().into_dart(),
@@ -13349,22 +13419,18 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::MessageListView>
+    for FrbWrapper<mixin_desktop_api::dto::MessageListView>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::MessageListView>,
-    > for mixin_desktop_core::runtime::model::MessageListView
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::MessageListView>>
+    for mixin_desktop_api::dto::MessageListView
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::MessageListView> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::MessageListView> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::MessageOrderInfoView>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::MessageOrderInfoView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.message_id.into_into_dart().into_dart(),
@@ -13375,24 +13441,18 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::MessageOrderInfoView>
+    for FrbWrapper<mixin_desktop_api::dto::MessageOrderInfoView>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::MessageOrderInfoView>,
-    > for mixin_desktop_core::runtime::model::MessageOrderInfoView
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::MessageOrderInfoView>>
+    for mixin_desktop_api::dto::MessageOrderInfoView
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::runtime::model::MessageOrderInfoView> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::MessageOrderInfoView> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::NotificationEvent>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::NotificationEvent> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.message_id.into_into_dart().into_dart(),
@@ -13409,22 +13469,18 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::NotificationEvent>
+    for FrbWrapper<mixin_desktop_api::dto::NotificationEvent>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::NotificationEvent>,
-    > for mixin_desktop_core::runtime::model::NotificationEvent
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::NotificationEvent>>
+    for mixin_desktop_api::dto::NotificationEvent
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::NotificationEvent> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::NotificationEvent> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::PinMessagePreviewItem>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::PinMessagePreviewItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.message_id.into_into_dart().into_dart(),
@@ -13435,71 +13491,65 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::PinMessagePreviewItem>
+    for FrbWrapper<mixin_desktop_api::dto::PinMessagePreviewItem>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::PinMessagePreviewItem>,
-    > for mixin_desktop_core::runtime::model::PinMessagePreviewItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::PinMessagePreviewItem>>
+    for mixin_desktop_api::dto::PinMessagePreviewItem
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::runtime::model::PinMessagePreviewItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::PinMessagePreviewItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::desktop::ProxyItem {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::model::ProxyItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.id.into_into_dart().into_dart(),
-            self.kind.into_into_dart().into_dart(),
-            self.host.into_into_dart().into_dart(),
-            self.port.into_into_dart().into_dart(),
-            self.username.into_into_dart().into_dart(),
-            self.password.into_into_dart().into_dart(),
+            self.0.id.into_into_dart().into_dart(),
+            self.0.kind.into_into_dart().into_dart(),
+            self.0.host.into_into_dart().into_dart(),
+            self.0.port.into_into_dart().into_dart(),
+            self.0.username.into_into_dart().into_dart(),
+            self.0.password.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::desktop::ProxyItem
+    for FrbWrapper<mixin_desktop_api::model::ProxyItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::desktop::ProxyItem>
-    for crate::api::desktop::ProxyItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::model::ProxyItem>>
+    for mixin_desktop_api::model::ProxyItem
 {
-    fn into_into_dart(self) -> crate::api::desktop::ProxyItem {
-        self
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::model::ProxyItem> {
+        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::desktop::ProxySettingsItem {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::model::ProxySettingsItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
-            self.enabled.into_into_dart().into_dart(),
-            self.selected_proxy_id.into_into_dart().into_dart(),
-            self.proxies.into_into_dart().into_dart(),
+            self.0.enabled.into_into_dart().into_dart(),
+            self.0.selected_proxy_id.into_into_dart().into_dart(),
+            self.0.proxies.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for crate::api::desktop::ProxySettingsItem
+    for FrbWrapper<mixin_desktop_api::model::ProxySettingsItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<crate::api::desktop::ProxySettingsItem>
-    for crate::api::desktop::ProxySettingsItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::model::ProxySettingsItem>>
+    for mixin_desktop_api::model::ProxySettingsItem
 {
-    fn into_into_dart(self) -> crate::api::desktop::ProxySettingsItem {
-        self
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::model::ProxySettingsItem> {
+        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::SharedAppItem>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::SharedAppItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.app_id.into_into_dart().into_dart(),
@@ -13512,21 +13562,18 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::SharedAppItem>
+    for FrbWrapper<mixin_desktop_api::dto::SharedAppItem>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_core::runtime::model::SharedAppItem>>
-    for mixin_desktop_core::runtime::model::SharedAppItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::SharedAppItem>>
+    for mixin_desktop_api::dto::SharedAppItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::SharedAppItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::SharedAppItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::SnapshotDetailItem>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::SnapshotDetailItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.snapshot_id.into_into_dart().into_dart(),
@@ -13564,22 +13611,18 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::SnapshotDetailItem>
+    for FrbWrapper<mixin_desktop_api::dto::SnapshotDetailItem>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::SnapshotDetailItem>,
-    > for mixin_desktop_core::runtime::model::SnapshotDetailItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::SnapshotDetailItem>>
+    for mixin_desktop_api::dto::SnapshotDetailItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::SnapshotDetailItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::SnapshotDetailItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::StickerAlbumItem>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::StickerAlbumItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.album_id.into_into_dart().into_dart(),
@@ -13595,22 +13638,18 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::StickerAlbumItem>
+    for FrbWrapper<mixin_desktop_api::dto::StickerAlbumItem>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::StickerAlbumItem>,
-    > for mixin_desktop_core::runtime::model::StickerAlbumItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::StickerAlbumItem>>
+    for mixin_desktop_api::dto::StickerAlbumItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::StickerAlbumItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::StickerAlbumItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::StickerDetailItem>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::StickerDetailItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.sticker.into_into_dart().into_dart(),
@@ -13622,20 +13661,18 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::StickerDetailItem>
+    for FrbWrapper<mixin_desktop_api::dto::StickerDetailItem>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::StickerDetailItem>,
-    > for mixin_desktop_core::runtime::model::StickerDetailItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::StickerDetailItem>>
+    for mixin_desktop_api::dto::StickerDetailItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::StickerDetailItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::StickerDetailItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_core::runtime::model::StickerItem> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::StickerItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.sticker_id.into_into_dart().into_dart(),
@@ -13652,20 +13689,18 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_core::runtime::m
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::StickerItem>
+    for FrbWrapper<mixin_desktop_api::dto::StickerItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_core::runtime::model::StickerItem>>
-    for mixin_desktop_core::runtime::model::StickerItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::StickerItem>>
+    for mixin_desktop_api::dto::StickerItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::StickerItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::StickerItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::StorageCategoryUsage>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::StorageCategoryUsage> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.category.into_into_dart().into_dart(),
@@ -13675,24 +13710,18 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::StorageCategoryUsage>
+    for FrbWrapper<mixin_desktop_api::dto::StorageCategoryUsage>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::StorageCategoryUsage>,
-    > for mixin_desktop_core::runtime::model::StorageCategoryUsage
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::StorageCategoryUsage>>
+    for mixin_desktop_api::dto::StorageCategoryUsage
 {
-    fn into_into_dart(
-        self,
-    ) -> FrbWrapper<mixin_desktop_core::runtime::model::StorageCategoryUsage> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::StorageCategoryUsage> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_core::runtime::model::UserProfileItem>
-{
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::UserProfileItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.user_id.into_into_dart().into_dart(),
@@ -13710,15 +13739,13 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_core::runtime::model::UserProfileItem>
+    for FrbWrapper<mixin_desktop_api::dto::UserProfileItem>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_core::runtime::model::UserProfileItem>,
-    > for mixin_desktop_core::runtime::model::UserProfileItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::UserProfileItem>>
+    for mixin_desktop_api::dto::UserProfileItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::UserProfileItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::UserProfileItem> {
         self.into()
     }
 }
@@ -13741,6 +13768,13 @@ impl SseEncode for AttachmentAccess {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentAccess>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
+    }
+}
+
+impl SseEncode for ClientError {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClientError>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
     }
 }
 
@@ -13813,6 +13847,17 @@ impl SseEncode
 
 impl SseEncode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentAccess>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        let (ptr, size) = self.sse_encode_raw();
+        <usize>::sse_encode(ptr, serializer);
+        <i32>::sse_encode(size, serializer);
+    }
+}
+
+impl SseEncode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClientError>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -13908,7 +13953,7 @@ impl SseEncode for StreamSink<String, flutter_rust_bridge::for_generated::SseCod
 
 impl SseEncode
     for StreamSink<
-        mixin_desktop_core::runtime::model::AccountProfile,
+        mixin_desktop_api::model::AccountProfile,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -13927,7 +13972,7 @@ impl SseEncode for StreamSink<bool, flutter_rust_bridge::for_generated::SseCodec
 
 impl SseEncode
     for StreamSink<
-        mixin_desktop_core::runtime::model::ConversationChangeEvent,
+        mixin_desktop_api::model::ConversationChangeEvent,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -13939,7 +13984,7 @@ impl SseEncode
 
 impl SseEncode
     for StreamSink<
-        mixin_desktop_core::core::device_transfer::DeviceTransferEvent,
+        crate::api::device_transfer::DeviceTransferEvent,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -13958,7 +14003,7 @@ impl SseEncode for StreamSink<i64, flutter_rust_bridge::for_generated::SseCodec>
 
 impl SseEncode
     for StreamSink<
-        Vec<mixin_desktop_core::runtime::model::CircleItem>,
+        Vec<mixin_desktop_api::dto::CircleItem>,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -13970,7 +14015,7 @@ impl SseEncode
 
 impl SseEncode
     for StreamSink<
-        Vec<mixin_desktop_core::runtime::model::ConversationUnseenCount>,
+        Vec<mixin_desktop_api::dto::ConversationUnseenCount>,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -13982,7 +14027,7 @@ impl SseEncode
 
 impl SseEncode
     for StreamSink<
-        mixin_desktop_core::runtime::model::NotificationEvent,
+        mixin_desktop_api::dto::NotificationEvent,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -14013,7 +14058,7 @@ impl SseEncode for String {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::AccountProfile {
+impl SseEncode for mixin_desktop_api::model::AccountProfile {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.user_id, serializer);
@@ -14036,7 +14081,7 @@ impl SseEncode for bool {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::CircleItem {
+impl SseEncode for mixin_desktop_api::dto::CircleItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.circle_id, serializer);
@@ -14045,7 +14090,7 @@ impl SseEncode for mixin_desktop_core::runtime::model::CircleItem {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::CodeResult {
+impl SseEncode for mixin_desktop_api::dto::CodeResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.kind, serializer);
@@ -14053,7 +14098,7 @@ impl SseEncode for mixin_desktop_core::runtime::model::CodeResult {
         <Option<String>>::sse_encode(self.conversation_id, serializer);
         <Option<String>>::sse_encode(self.conversation_name, serializer);
         <i64>::sse_encode(self.participant_count, serializer);
-        <Vec<mixin_desktop_core::runtime::model::GroupAvatar>>::sse_encode(
+        <Vec<mixin_desktop_api::dto::GroupAvatar>>::sse_encode(
             self.participant_avatars,
             serializer,
         );
@@ -14071,16 +14116,23 @@ impl SseEncode for mixin_desktop_core::runtime::model::CodeResult {
     }
 }
 
-impl SseEncode for mixin_desktop_core::core::device_transfer::ConnectionFailedReason {
+impl SseEncode for crate::api::device_transfer::ConnectionFailedReason {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(match self {mixin_desktop_core::core::device_transfer::ConnectionFailedReason::VersionNotMatched => { 0 }
-mixin_desktop_core::core::device_transfer::ConnectionFailedReason::Unknown => { 1 }
- _ => { unimplemented!(""); }}, serializer);
+        <i32>::sse_encode(
+            match self {
+                crate::api::device_transfer::ConnectionFailedReason::VersionNotMatched => 0,
+                crate::api::device_transfer::ConnectionFailedReason::Unknown => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::ConversationChangeEvent {
+impl SseEncode for mixin_desktop_api::model::ConversationChangeEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<String>>::sse_encode(self.conversation_ids, serializer);
@@ -14088,7 +14140,7 @@ impl SseEncode for mixin_desktop_core::runtime::model::ConversationChangeEvent {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::ConversationDetailItem {
+impl SseEncode for mixin_desktop_api::dto::ConversationDetailItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.conversation_id, serializer);
@@ -14101,7 +14153,7 @@ impl SseEncode for mixin_desktop_core::runtime::model::ConversationDetailItem {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::ConversationListData {
+impl SseEncode for mixin_desktop_api::dto::ConversationListData {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.conversation_id, serializer);
@@ -14135,14 +14187,11 @@ impl SseEncode for mixin_desktop_core::runtime::model::ConversationListData {
         <String>::sse_encode(self.identity_number, serializer);
         <Vec<String>>::sse_encode(self.circle_ids, serializer);
         <i64>::sse_encode(self.participant_count, serializer);
-        <Vec<mixin_desktop_core::runtime::model::GroupAvatar>>::sse_encode(
-            self.group_avatars,
-            serializer,
-        );
+        <Vec<mixin_desktop_api::dto::GroupAvatar>>::sse_encode(self.group_avatars, serializer);
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::ConversationParticipantItem {
+impl SseEncode for mixin_desktop_api::dto::ConversationParticipantItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.user_id, serializer);
@@ -14159,18 +14208,15 @@ impl SseEncode for mixin_desktop_core::runtime::model::ConversationParticipantIt
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::ConversationStorageUsage {
+impl SseEncode for mixin_desktop_api::dto::ConversationStorageUsage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <mixin_desktop_core::runtime::model::ConversationListData>::sse_encode(
-            self.conversation,
-            serializer,
-        );
+        <mixin_desktop_api::dto::ConversationListData>::sse_encode(self.conversation, serializer);
         <i64>::sse_encode(self.size_bytes, serializer);
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::ConversationUnseenCount {
+impl SseEncode for mixin_desktop_api::dto::ConversationUnseenCount {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.category, serializer);
@@ -14180,45 +14226,116 @@ impl SseEncode for mixin_desktop_core::runtime::model::ConversationUnseenCount {
     }
 }
 
-impl SseEncode for mixin_desktop_core::core::device_transfer::DeviceTransferCommand {
+impl SseEncode for crate::error::CoreError {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(match self {mixin_desktop_core::core::device_transfer::DeviceTransferCommand::PullToRemote => { 0 }
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::PushToRemote => { 1 }
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelRestore => { 2 }
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelBackup => { 3 }
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelBackupRequest => { 4 }
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::CancelRestoreRequest => { 5 }
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::ConfirmRestore => { 6 }
-mixin_desktop_core::core::device_transfer::DeviceTransferCommand::ConfirmBackup => { 7 }
- _ => { unimplemented!(""); }}, serializer);
+        match self {
+            crate::error::CoreError::Unauthorized => {
+                <i32>::sse_encode(0, serializer);
+            }
+            crate::error::CoreError::NotFound => {
+                <i32>::sse_encode(1, serializer);
+            }
+            crate::error::CoreError::Cancelled => {
+                <i32>::sse_encode(2, serializer);
+            }
+            crate::error::CoreError::InvalidArgument { message } => {
+                <i32>::sse_encode(3, serializer);
+                <String>::sse_encode(message, serializer);
+            }
+            crate::error::CoreError::Other { message } => {
+                <i32>::sse_encode(4, serializer);
+                <String>::sse_encode(message, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
-impl SseEncode for mixin_desktop_core::core::device_transfer::DeviceTransferEvent {
+impl SseEncode for crate::api::device_transfer::DeviceTransferCommand {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        match self {mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreConnected => { <i32>::sse_encode(0, serializer);  }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreStart => { <i32>::sse_encode(1, serializer);  }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreSucceed => { <i32>::sse_encode(2, serializer);  }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreFailed => { <i32>::sse_encode(3, serializer);  }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupServerCreated => { <i32>::sse_encode(4, serializer);  }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupStart => { <i32>::sse_encode(5, serializer);  }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupSucceed => { <i32>::sse_encode(6, serializer);  }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupFailed => { <i32>::sse_encode(7, serializer);  }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreProgress(field0) => { <i32>::sse_encode(8, serializer); <f64>::sse_encode(field0, serializer);
- }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupProgress(field0) => { <i32>::sse_encode(9, serializer); <f64>::sse_encode(field0, serializer);
- }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreNetworkSpeed(field0) => { <i32>::sse_encode(10, serializer); <f64>::sse_encode(field0, serializer);
- }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupNetworkSpeed(field0) => { <i32>::sse_encode(11, serializer); <f64>::sse_encode(field0, serializer);
- }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::BackupRequestReceived => { <i32>::sse_encode(12, serializer);  }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::RestoreRequestReceived => { <i32>::sse_encode(13, serializer);  }
-mixin_desktop_core::core::device_transfer::DeviceTransferEvent::ConnectionFailed(field0) => { <i32>::sse_encode(14, serializer); <mixin_desktop_core::core::device_transfer::ConnectionFailedReason>::sse_encode(field0, serializer);
- }
- _ => { unimplemented!(""); }}
+        <i32>::sse_encode(
+            match self {
+                crate::api::device_transfer::DeviceTransferCommand::PullToRemote => 0,
+                crate::api::device_transfer::DeviceTransferCommand::PushToRemote => 1,
+                crate::api::device_transfer::DeviceTransferCommand::CancelRestore => 2,
+                crate::api::device_transfer::DeviceTransferCommand::CancelBackup => 3,
+                crate::api::device_transfer::DeviceTransferCommand::CancelBackupRequest => 4,
+                crate::api::device_transfer::DeviceTransferCommand::CancelRestoreRequest => 5,
+                crate::api::device_transfer::DeviceTransferCommand::ConfirmRestore => 6,
+                crate::api::device_transfer::DeviceTransferCommand::ConfirmBackup => 7,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::device_transfer::DeviceTransferEvent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::device_transfer::DeviceTransferEvent::RestoreConnected => {
+                <i32>::sse_encode(0, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::RestoreStart => {
+                <i32>::sse_encode(1, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::RestoreSucceed => {
+                <i32>::sse_encode(2, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::RestoreFailed => {
+                <i32>::sse_encode(3, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupServerCreated => {
+                <i32>::sse_encode(4, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupStart => {
+                <i32>::sse_encode(5, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupSucceed => {
+                <i32>::sse_encode(6, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupFailed => {
+                <i32>::sse_encode(7, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::RestoreProgress(field0) => {
+                <i32>::sse_encode(8, serializer);
+                <f64>::sse_encode(field0, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupProgress(field0) => {
+                <i32>::sse_encode(9, serializer);
+                <f64>::sse_encode(field0, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::RestoreNetworkSpeed(field0) => {
+                <i32>::sse_encode(10, serializer);
+                <f64>::sse_encode(field0, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupNetworkSpeed(field0) => {
+                <i32>::sse_encode(11, serializer);
+                <f64>::sse_encode(field0, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::BackupRequestReceived => {
+                <i32>::sse_encode(12, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::RestoreRequestReceived => {
+                <i32>::sse_encode(13, serializer);
+            }
+            crate::api::device_transfer::DeviceTransferEvent::ConnectionFailed(field0) => {
+                <i32>::sse_encode(14, serializer);
+                <crate::api::device_transfer::ConnectionFailedReason>::sse_encode(
+                    field0, serializer,
+                );
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -14229,7 +14346,7 @@ impl SseEncode for f64 {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::GroupAvatar {
+impl SseEncode for mixin_desktop_api::dto::GroupAvatar {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.user_id, serializer);
@@ -14238,7 +14355,7 @@ impl SseEncode for mixin_desktop_core::runtime::model::GroupAvatar {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::GroupConversationItem {
+impl SseEncode for mixin_desktop_api::dto::GroupConversationItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.conversation_id, serializer);
@@ -14248,7 +14365,7 @@ impl SseEncode for mixin_desktop_core::runtime::model::GroupConversationItem {
     }
 }
 
-impl SseEncode for crate::api::desktop::HttpResponseItem {
+impl SseEncode for mixin_desktop_api::model::HttpResponseItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <u16>::sse_encode(self.status_code, serializer);
@@ -14271,7 +14388,7 @@ impl SseEncode for i64 {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::ImageMessageView {
+impl SseEncode for mixin_desktop_api::dto::ImageMessageView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.message_id, serializer);
@@ -14297,102 +14414,92 @@ impl SseEncode for Vec<String> {
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::CircleItem> {
+impl SseEncode for Vec<mixin_desktop_api::dto::CircleItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::CircleItem>::sse_encode(item, serializer);
+            <mixin_desktop_api::dto::CircleItem>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::ConversationListData> {
+impl SseEncode for Vec<mixin_desktop_api::dto::ConversationListData> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::ConversationListData>::sse_encode(
-                item, serializer,
-            );
+            <mixin_desktop_api::dto::ConversationListData>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::ConversationParticipantItem> {
+impl SseEncode for Vec<mixin_desktop_api::dto::ConversationParticipantItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::ConversationParticipantItem>::sse_encode(
-                item, serializer,
-            );
+            <mixin_desktop_api::dto::ConversationParticipantItem>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::ConversationStorageUsage> {
+impl SseEncode for Vec<mixin_desktop_api::dto::ConversationStorageUsage> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::ConversationStorageUsage>::sse_encode(
-                item, serializer,
-            );
+            <mixin_desktop_api::dto::ConversationStorageUsage>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::ConversationUnseenCount> {
+impl SseEncode for Vec<mixin_desktop_api::dto::ConversationUnseenCount> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::ConversationUnseenCount>::sse_encode(
-                item, serializer,
-            );
+            <mixin_desktop_api::dto::ConversationUnseenCount>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::GroupAvatar> {
+impl SseEncode for Vec<mixin_desktop_api::dto::GroupAvatar> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::GroupAvatar>::sse_encode(item, serializer);
+            <mixin_desktop_api::dto::GroupAvatar>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::GroupConversationItem> {
+impl SseEncode for Vec<mixin_desktop_api::dto::GroupConversationItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::GroupConversationItem>::sse_encode(
-                item, serializer,
-            );
+            <mixin_desktop_api::dto::GroupConversationItem>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::ImageMessageView> {
+impl SseEncode for Vec<mixin_desktop_api::dto::ImageMessageView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::ImageMessageView>::sse_encode(item, serializer);
+            <mixin_desktop_api::dto::ImageMessageView>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::MessageListView> {
+impl SseEncode for Vec<mixin_desktop_api::dto::MessageListView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::MessageListView>::sse_encode(item, serializer);
+            <mixin_desktop_api::dto::MessageListView>::sse_encode(item, serializer);
         }
     }
 }
@@ -14407,12 +14514,12 @@ impl SseEncode for Vec<u8> {
     }
 }
 
-impl SseEncode for Vec<crate::api::desktop::ProxyItem> {
+impl SseEncode for Vec<mixin_desktop_api::model::ProxyItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <crate::api::desktop::ProxyItem>::sse_encode(item, serializer);
+            <mixin_desktop_api::model::ProxyItem>::sse_encode(item, serializer);
         }
     }
 }
@@ -14427,59 +14534,57 @@ impl SseEncode for Vec<(String, String)> {
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::SharedAppItem> {
+impl SseEncode for Vec<mixin_desktop_api::dto::SharedAppItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::SharedAppItem>::sse_encode(item, serializer);
+            <mixin_desktop_api::dto::SharedAppItem>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::StickerAlbumItem> {
+impl SseEncode for Vec<mixin_desktop_api::dto::StickerAlbumItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::StickerAlbumItem>::sse_encode(item, serializer);
+            <mixin_desktop_api::dto::StickerAlbumItem>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::StickerItem> {
+impl SseEncode for Vec<mixin_desktop_api::dto::StickerItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::StickerItem>::sse_encode(item, serializer);
+            <mixin_desktop_api::dto::StickerItem>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::StorageCategoryUsage> {
+impl SseEncode for Vec<mixin_desktop_api::dto::StorageCategoryUsage> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::StorageCategoryUsage>::sse_encode(
-                item, serializer,
-            );
+            <mixin_desktop_api::dto::StorageCategoryUsage>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_core::runtime::model::UserProfileItem> {
+impl SseEncode for Vec<mixin_desktop_api::dto::UserProfileItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_core::runtime::model::UserProfileItem>::sse_encode(item, serializer);
+            <mixin_desktop_api::dto::UserProfileItem>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for crate::api::desktop::McpServerStatusItem {
+impl SseEncode for mixin_desktop_api::model::McpServerStatusItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.running, serializer);
@@ -14488,7 +14593,7 @@ impl SseEncode for crate::api::desktop::McpServerStatusItem {
     }
 }
 
-impl SseEncode for crate::api::desktop::McpSettingsItem {
+impl SseEncode for mixin_desktop_api::model::McpSettingsItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.enabled, serializer);
@@ -14498,7 +14603,7 @@ impl SseEncode for crate::api::desktop::McpSettingsItem {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::MessageListView {
+impl SseEncode for mixin_desktop_api::dto::MessageListView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.message_id, serializer);
@@ -14576,7 +14681,7 @@ impl SseEncode for mixin_desktop_core::runtime::model::MessageListView {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::MessageOrderInfoView {
+impl SseEncode for mixin_desktop_api::dto::MessageOrderInfoView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.message_id, serializer);
@@ -14585,7 +14690,7 @@ impl SseEncode for mixin_desktop_core::runtime::model::MessageOrderInfoView {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::NotificationEvent {
+impl SseEncode for mixin_desktop_api::dto::NotificationEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.message_id, serializer);
@@ -14606,16 +14711,6 @@ impl SseEncode for Option<String> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <String>::sse_encode(value, serializer);
-        }
-    }
-}
-
-impl SseEncode for Option<AccountHandle> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <bool>::sse_encode(self.is_some(), serializer);
-        if let Some(value) = self {
-            <AccountHandle>::sse_encode(value, serializer);
         }
     }
 }
@@ -14660,36 +14755,32 @@ impl SseEncode for Option<i64> {
     }
 }
 
-impl SseEncode for Option<mixin_desktop_core::runtime::model::MessageOrderInfoView> {
+impl SseEncode for Option<mixin_desktop_api::dto::MessageOrderInfoView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <mixin_desktop_core::runtime::model::MessageOrderInfoView>::sse_encode(
-                value, serializer,
-            );
+            <mixin_desktop_api::dto::MessageOrderInfoView>::sse_encode(value, serializer);
         }
     }
 }
 
-impl SseEncode for Option<mixin_desktop_core::runtime::model::PinMessagePreviewItem> {
+impl SseEncode for Option<mixin_desktop_api::dto::PinMessagePreviewItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <mixin_desktop_core::runtime::model::PinMessagePreviewItem>::sse_encode(
-                value, serializer,
-            );
+            <mixin_desktop_api::dto::PinMessagePreviewItem>::sse_encode(value, serializer);
         }
     }
 }
 
-impl SseEncode for Option<mixin_desktop_core::runtime::model::StickerAlbumItem> {
+impl SseEncode for Option<mixin_desktop_api::dto::StickerAlbumItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <mixin_desktop_core::runtime::model::StickerAlbumItem>::sse_encode(value, serializer);
+            <mixin_desktop_api::dto::StickerAlbumItem>::sse_encode(value, serializer);
         }
     }
 }
@@ -14704,12 +14795,12 @@ impl SseEncode for Option<u64> {
     }
 }
 
-impl SseEncode for Option<mixin_desktop_core::runtime::model::UserProfileItem> {
+impl SseEncode for Option<mixin_desktop_api::dto::UserProfileItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <mixin_desktop_core::runtime::model::UserProfileItem>::sse_encode(value, serializer);
+            <mixin_desktop_api::dto::UserProfileItem>::sse_encode(value, serializer);
         }
     }
 }
@@ -14724,7 +14815,7 @@ impl SseEncode for Option<Vec<u8>> {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::PinMessagePreviewItem {
+impl SseEncode for mixin_desktop_api::dto::PinMessagePreviewItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.message_id, serializer);
@@ -14733,7 +14824,7 @@ impl SseEncode for mixin_desktop_core::runtime::model::PinMessagePreviewItem {
     }
 }
 
-impl SseEncode for crate::api::desktop::ProxyItem {
+impl SseEncode for mixin_desktop_api::model::ProxyItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
@@ -14745,12 +14836,12 @@ impl SseEncode for crate::api::desktop::ProxyItem {
     }
 }
 
-impl SseEncode for crate::api::desktop::ProxySettingsItem {
+impl SseEncode for mixin_desktop_api::model::ProxySettingsItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.enabled, serializer);
         <Option<String>>::sse_encode(self.selected_proxy_id, serializer);
-        <Vec<crate::api::desktop::ProxyItem>>::sse_encode(self.proxies, serializer);
+        <Vec<mixin_desktop_api::model::ProxyItem>>::sse_encode(self.proxies, serializer);
     }
 }
 
@@ -14762,7 +14853,7 @@ impl SseEncode for (String, String) {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::SharedAppItem {
+impl SseEncode for mixin_desktop_api::dto::SharedAppItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.app_id, serializer);
@@ -14773,7 +14864,7 @@ impl SseEncode for mixin_desktop_core::runtime::model::SharedAppItem {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::SnapshotDetailItem {
+impl SseEncode for mixin_desktop_api::dto::SnapshotDetailItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.snapshot_id, serializer);
@@ -14809,7 +14900,7 @@ impl SseEncode for mixin_desktop_core::runtime::model::SnapshotDetailItem {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::StickerAlbumItem {
+impl SseEncode for mixin_desktop_api::dto::StickerAlbumItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.album_id, serializer);
@@ -14823,22 +14914,17 @@ impl SseEncode for mixin_desktop_core::runtime::model::StickerAlbumItem {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::StickerDetailItem {
+impl SseEncode for mixin_desktop_api::dto::StickerDetailItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <mixin_desktop_core::runtime::model::StickerItem>::sse_encode(self.sticker, serializer);
-        <Option<mixin_desktop_core::runtime::model::StickerAlbumItem>>::sse_encode(
-            self.album, serializer,
-        );
-        <Vec<mixin_desktop_core::runtime::model::StickerItem>>::sse_encode(
-            self.album_stickers,
-            serializer,
-        );
+        <mixin_desktop_api::dto::StickerItem>::sse_encode(self.sticker, serializer);
+        <Option<mixin_desktop_api::dto::StickerAlbumItem>>::sse_encode(self.album, serializer);
+        <Vec<mixin_desktop_api::dto::StickerItem>>::sse_encode(self.album_stickers, serializer);
         <bool>::sse_encode(self.is_personal, serializer);
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::StickerItem {
+impl SseEncode for mixin_desktop_api::dto::StickerItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.sticker_id, serializer);
@@ -14853,7 +14939,7 @@ impl SseEncode for mixin_desktop_core::runtime::model::StickerItem {
     }
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::StorageCategoryUsage {
+impl SseEncode for mixin_desktop_api::dto::StorageCategoryUsage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.category, serializer);
@@ -14894,7 +14980,7 @@ impl SseEncode for () {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {}
 }
 
-impl SseEncode for mixin_desktop_core::runtime::model::UserProfileItem {
+impl SseEncode for mixin_desktop_api::dto::UserProfileItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.user_id, serializer);
@@ -14936,7 +15022,8 @@ mod io {
     };
     use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
-    use mixin_desktop_core::runtime::*;
+    use mixin_desktop_api::access::*;
+    use mixin_desktop_api::error::*;
 
     // Section: boilerplate
 
@@ -14968,6 +15055,20 @@ mod io {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentAccess>>::decrement_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_mixin_desktop_ui_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClientError>>::increment_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_mixin_desktop_ui_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClientError>>::decrement_strong_count(ptr as _);
     }
 
     #[unsafe(no_mangle)]
@@ -15090,7 +15191,8 @@ mod web {
     use flutter_rust_bridge::for_generated::wasm_bindgen::prelude::*;
     use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
-    use mixin_desktop_core::runtime::*;
+    use mixin_desktop_api::access::*;
+    use mixin_desktop_api::error::*;
 
     // Section: boilerplate
 
@@ -15122,6 +15224,20 @@ mod web {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentAccess>>::decrement_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClientError>>::increment_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ClientError>>::decrement_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]

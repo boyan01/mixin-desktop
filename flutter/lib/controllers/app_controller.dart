@@ -10,7 +10,8 @@ import 'sticker_controller.dart';
 enum AppStage { starting, signedOut, signedIn, failed }
 
 class AppController extends ChangeNotifier {
-  AppController({this.settings});
+  // ignore: prefer_initializing_formals
+  AppController({this.settings, DesktopHandle? desktop}) : _desktop = desktop;
 
   final SettingsStore? settings;
   AppStage stage = AppStage.starting;
@@ -37,16 +38,22 @@ class AppController extends ChangeNotifier {
       _desktop ??= await openDesktop();
       final account = await _desktop!.restoreAccount();
       if (requestVersion != _requestVersion) {
-        account?.dispose();
+        account.dispose();
         return;
       }
       _account = account;
-      stage = account == null ? AppStage.signedOut : AppStage.signedIn;
-      if (account != null && settings != null) {
+      stage = AppStage.signedIn;
+      if (settings != null) {
         unawaited(_preloadStickers(account, settings!));
       }
     } catch (exception, stackTrace) {
       if (requestVersion != _requestVersion) return;
+      if (exception is CoreError_NotFound) {
+        _account = null;
+        stage = AppStage.signedOut;
+        notifyListeners();
+        return;
+      }
       final message = exception.toString();
       databaseOpenFailure = DatabaseOpenFailure.tryParse(message);
       error = message;

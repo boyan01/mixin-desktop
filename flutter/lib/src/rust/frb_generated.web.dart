@@ -8,16 +8,18 @@
 
 import 'api/account.dart';
 import 'api/desktop.dart';
+import 'api/device_transfer.dart';
 import 'api/logging.dart';
 import 'api/login.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'error.dart';
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_web.dart';
-import 'third_party/mixin_desktop_core/core/device_transfer.dart';
-import 'third_party/mixin_desktop_core/runtime.dart';
-import 'third_party/mixin_desktop_core/runtime/logging.dart';
-import 'third_party/mixin_desktop_core/runtime/model.dart';
+import 'third_party/mixin_desktop_api/access.dart';
+import 'third_party/mixin_desktop_api/dto.dart';
+import 'third_party/mixin_desktop_api/error.dart';
+import 'third_party/mixin_desktop_api/model.dart';
 
 abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustLibApiImplPlatform({
@@ -34,6 +36,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_AttachmentAccessPtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_ClientErrorPtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError;
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_ConversationAccessPtr => wire
@@ -75,6 +81,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   AttachmentAccess
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+    dynamic raw,
+  );
+
+  @protected
+  ClientError
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
     dynamic raw,
   );
 
@@ -190,6 +202,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ClientError
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    dynamic raw,
+  );
+
+  @protected
   ConversationAccess
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
     dynamic raw,
@@ -282,12 +300,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool dco_decode_bool(dynamic raw);
 
   @protected
-  AccountHandle
-  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-    dynamic raw,
-  );
-
-  @protected
   bool dco_decode_box_autoadd_bool(dynamic raw);
 
   @protected
@@ -352,6 +364,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ConversationUnseenCount dco_decode_conversation_unseen_count(dynamic raw);
+
+  @protected
+  CoreError dco_decode_core_error(dynamic raw);
 
   @protected
   DeviceTransferCommand dco_decode_device_transfer_command(dynamic raw);
@@ -467,12 +482,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
-  AccountHandle?
-  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-    dynamic raw,
-  );
-
-  @protected
   bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
 
   @protected
@@ -569,6 +578,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   AttachmentAccess
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ClientError
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
     SseDeserializer deserializer,
   );
 
@@ -686,6 +701,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  ClientError
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   ConversationAccess
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
     SseDeserializer deserializer,
@@ -792,12 +813,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
-  AccountHandle
-  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
@@ -882,6 +897,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ConversationUnseenCount sse_decode_conversation_unseen_count(
     SseDeserializer deserializer,
   );
+
+  @protected
+  CoreError sse_decode_core_error(SseDeserializer deserializer);
 
   @protected
   DeviceTransferCommand sse_decode_device_transfer_command(
@@ -1019,12 +1037,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
-  AccountHandle?
-  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
 
   @protected
@@ -1142,6 +1154,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
     AttachmentAccess self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    ClientError self,
     SseSerializer serializer,
   );
 
@@ -1279,6 +1298,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    ClientError self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
     ConversationAccess self,
     SseSerializer serializer,
@@ -1405,13 +1431,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
-  void
-  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-    AccountHandle self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
 
   @protected
@@ -1512,6 +1531,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     ConversationUnseenCount self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_core_error(CoreError self, SseSerializer serializer);
 
   @protected
   void sse_encode_device_transfer_command(
@@ -1697,13 +1719,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
-  void
-  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAccountHandle(
-    AccountHandle? self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
 
   @protected
@@ -1865,6 +1880,22 @@ class RustLibWire implements BaseWire {
       );
 
   void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+        ptr,
+      );
+
+  void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerConversationAccess(
     int ptr,
   ) => wasmModule
@@ -2000,6 +2031,16 @@ extension type RustLibWasmModule._(JSObject _) implements JSObject {
 
   external void
   rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentAccess(
+    int ptr,
+  );
+
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerClientError(
     int ptr,
   );
 

@@ -1,3 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["mixin-bot-sdk", "mixin_desktop_core", "flutter/rust"]
+members = [
+    "mixin-bot-sdk",
+    "mixin_desktop_core",
+    "mixin_desktop_api",
+    "flutter/rust",
+    "desktop/rust",
+]

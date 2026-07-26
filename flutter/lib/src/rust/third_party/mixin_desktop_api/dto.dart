@@ -3,66 +3,10 @@
 
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
-import '../../../frb_generated.dart';
+import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `NotificationEventBatch`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`
-
-class AccountProfile {
-  final String userId;
-  final String fullName;
-  final String avatarUrl;
-  final String identityNumber;
-  final String biography;
-  final String phone;
-  final String createdAt;
-  final bool isVerified;
-  final String fiatCurrency;
-  final String? membership;
-
-  const AccountProfile({
-    required this.userId,
-    required this.fullName,
-    required this.avatarUrl,
-    required this.identityNumber,
-    required this.biography,
-    required this.phone,
-    required this.createdAt,
-    required this.isVerified,
-    required this.fiatCurrency,
-    this.membership,
-  });
-
-  @override
-  int get hashCode =>
-      userId.hashCode ^
-      fullName.hashCode ^
-      avatarUrl.hashCode ^
-      identityNumber.hashCode ^
-      biography.hashCode ^
-      phone.hashCode ^
-      createdAt.hashCode ^
-      isVerified.hashCode ^
-      fiatCurrency.hashCode ^
-      membership.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is AccountProfile &&
-          runtimeType == other.runtimeType &&
-          userId == other.userId &&
-          fullName == other.fullName &&
-          avatarUrl == other.avatarUrl &&
-          identityNumber == other.identityNumber &&
-          biography == other.biography &&
-          phone == other.phone &&
-          createdAt == other.createdAt &&
-          isVerified == other.isVerified &&
-          fiatCurrency == other.fiatCurrency &&
-          membership == other.membership;
-}
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 class CircleItem {
   final String circleId;
@@ -170,27 +114,6 @@ class CodeResult {
           threshold == other.threshold &&
           state == other.state &&
           action == other.action;
-}
-
-class ConversationChangeEvent {
-  final List<String> conversationIds;
-  final bool reloadAll;
-
-  const ConversationChangeEvent({
-    required this.conversationIds,
-    required this.reloadAll,
-  });
-
-  @override
-  int get hashCode => conversationIds.hashCode ^ reloadAll.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ConversationChangeEvent &&
-          runtimeType == other.runtimeType &&
-          conversationIds == other.conversationIds &&
-          reloadAll == other.reloadAll;
 }
 
 class ConversationDetailItem {

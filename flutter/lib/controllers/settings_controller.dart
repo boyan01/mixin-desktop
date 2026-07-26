@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'settings_store.dart';
 
 class SettingsController extends ChangeNotifier {
-  SettingsController({SettingsStore? store}) : _providedStore = store;
+  SettingsController({SettingsStore? store}) {
+    _store = store;
+  }
 
-  final SettingsStore? _providedStore;
-  late final SettingsStore store;
+  SettingsStore? _store;
+  SettingsStore get store =>
+      _store ?? (throw StateError('SettingsController is not initialized'));
 
   ThemeMode themeMode = ThemeMode.system;
   bool messageShowAvatar = true;
@@ -15,7 +18,7 @@ class SettingsController extends ChangeNotifier {
   double chatFontSizeDelta = 0;
 
   Future<void> initialize() async {
-    store = _providedStore ?? await SettingsStore.open();
+    _store ??= await SettingsStore.open();
     themeMode = switch (await store.get('brightness')) {
       1 => ThemeMode.dark,
       2 => ThemeMode.light,

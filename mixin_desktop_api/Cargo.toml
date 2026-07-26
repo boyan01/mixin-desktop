@@ -1,0 +1,15 @@
+[package]
+name = "mixin_desktop_api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+async-stream = "0.3"
+chrono = "0.4"
+futures = "0.3"
+mixin_desktop_core = { path = "../mixin_desktop_core" }
+sdk = { path = "../mixin-bot-sdk", package = "mixin-bot-sdk" }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["sync"] }

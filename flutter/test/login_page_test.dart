@@ -105,7 +105,8 @@ class _FakeDesktopHandle implements DesktopHandle {
   }
 
   @override
-  Future<AccountHandle?> restoreAccount() async => null;
+  Future<AccountHandle> restoreAccount() async =>
+      throw StateError('no saved account');
 
   @override
   void dispose() => _isDisposed = true;

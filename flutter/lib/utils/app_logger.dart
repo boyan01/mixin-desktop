@@ -5,7 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../src/rust/api/logging.dart';
-import '../src/rust/third_party/mixin_desktop_core/runtime/logging.dart';
+import '../src/rust/error.dart';
 
 String? _logDirectoryPath;
 var _isLogReady = false;
@@ -40,12 +40,17 @@ void w(String message) {
 void e(String message, [Object? error, StackTrace? stackTrace]) {
   var messageWithStack = message;
   if (error != null) {
-    if (error case AnyhowException(:final message)) {
-      final lines = message.split('\n');
-      final errorMessage = lines.length <= 10
-          ? message
+    final bridgeMessage = switch (error) {
+      AnyhowException(:final message) => message,
+      CoreError_Other(:final message) => message,
+      _ => null,
+    };
+    if (bridgeMessage != null) {
+      final lines = bridgeMessage.split('\n');
+      final truncatedMessage = lines.length <= 10
+          ? bridgeMessage
           : '${lines.take(9).join('\n')}\n... ${lines.length - 9} lines omitted';
-      messageWithStack += ' (AnyhowException($errorMessage))';
+      messageWithStack += ' (${error.runtimeType}($truncatedMessage))';
     } else {
       messageWithStack += ' ($error)';
     }

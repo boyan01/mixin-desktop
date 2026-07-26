@@ -135,7 +135,7 @@ pub fn init(app_name: String, app_version: String, build_number: String) -> Resu
         return Ok(());
     }
 
-    let directory = directory_path()?;
+    let directory = path::log_directory()?;
     let header_prefix = log_header_prefix(&app_name, &app_version, &build_number);
     let file = IndexedFileAppender::new(
         directory.clone(),
@@ -162,11 +162,7 @@ pub fn init(app_name: String, app_version: String, build_number: String) -> Resu
 }
 
 pub fn directory() -> Result<String> {
-    Ok(directory_path()?.to_string_lossy().into_owned())
-}
-
-fn directory_path() -> Result<PathBuf> {
-    path::log_directory()
+    Ok(path::log_directory()?.to_string_lossy().into_owned())
 }
 
 fn log_header_prefix(app_name: &str, app_version: &str, build_number: &str) -> String {

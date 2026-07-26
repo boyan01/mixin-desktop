@@ -3,13 +3,15 @@
 
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
+import '../error.dart';
 import '../frb_generated.dart';
-import '../third_party/mixin_desktop_core/core/device_transfer.dart';
-import '../third_party/mixin_desktop_core/runtime.dart';
-import '../third_party/mixin_desktop_core/runtime/model.dart';
+import '../third_party/mixin_desktop_api/access.dart';
+import '../third_party/mixin_desktop_api/dto.dart';
+import '../third_party/mixin_desktop_api/model.dart';
+import 'device_transfer.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `account_profile`, `forward_conversation_changes`, `forward_message_changes`, `new`
+// These functions are ignored because they are not marked as `pub`: `new`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>>
 abstract class AccountHandle implements RustOpaqueInterface {

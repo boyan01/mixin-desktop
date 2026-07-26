@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::anyhow;
 use chrono::Utc;
 use futures::stream;
 use futures::{Stream, StreamExt};
@@ -129,11 +129,16 @@ impl ConversationAccess {
             },
         ))
     }
+}
 
-    pub async fn resolve_code(&self, code: String) -> Result<model::CodeResult> {
+impl ConversationAccess {
+    pub async fn resolve_code(
+        &self,
+        code: String,
+    ) -> Result<model::CodeResult, crate::error::CoreError> {
         let code = code.trim();
         if code.is_empty() {
-            return Err(anyhow!("code is empty"));
+            return Err(anyhow!("code is empty").into());
         }
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
@@ -311,10 +316,10 @@ impl ConversationAccess {
         }
     }
 
-    pub async fn join_group(&self, code: String) -> Result<String> {
+    pub async fn join_group(&self, code: String) -> Result<String, crate::error::CoreError> {
         let code = code.trim();
         if code.is_empty() {
-            return Err(anyhow!("code is empty"));
+            return Err(anyhow!("code is empty").into());
         }
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
@@ -328,10 +333,13 @@ impl ConversationAccess {
         Ok(conversation_id)
     }
 
-    pub async fn open_user_conversation(&self, user_id: String) -> Result<String> {
+    pub async fn open_user_conversation(
+        &self,
+        user_id: String,
+    ) -> Result<String, crate::error::CoreError> {
         let user_id = user_id.trim();
         if user_id.is_empty() || user_id == self.account_id {
-            return Err(anyhow!("invalid conversation user"));
+            return Err(anyhow!("invalid conversation user").into());
         }
         let conversation_id = generate_conversation_id(&self.account_id, user_id).to_string();
         if self
@@ -349,7 +357,7 @@ impl ConversationAccess {
         let user_ids = [user_id.to_string()];
         let users = self.client.user_api.get_users(&user_ids).await?;
         if users.is_empty() {
-            return Err(anyhow!("conversation user not found"));
+            return Err(crate::error::CoreError::NotFound);
         }
         self.database.user_dao.insert_sdk_users(users).await?;
         self.client
@@ -374,7 +382,9 @@ impl ConversationAccess {
         self.notify_conversation_changed(&conversation_id);
         Ok(conversation_id)
     }
+}
 
+impl ConversationAccess {
     pub(crate) fn new(state: Arc<AccountState>) -> Self {
         Self { state }
     }
@@ -389,7 +399,7 @@ pub(crate) fn subscribe_on_updates<T, Query, QueryFuture>(
 where
     T: Clone + PartialEq + Send + 'static,
     Query: Fn() -> QueryFuture + Send + Sync + 'static,
-    QueryFuture: Future<Output = Result<T>> + Send + 'static,
+    QueryFuture: Future<Output = anyhow::Result<T>> + Send + 'static,
 {
     let mut updates = stream::select_all(updates);
     let throttle = options.throttle;
@@ -456,7 +466,9 @@ impl Deref for ConversationAccess {
 }
 
 impl ConversationAccess {
-    pub async fn conversation_items(&self) -> Result<Vec<model::ConversationListData>> {
+    pub async fn conversation_items(
+        &self,
+    ) -> Result<Vec<model::ConversationListData>, crate::error::CoreError> {
         Ok(self
             .database
             .conversation_dao
@@ -470,7 +482,7 @@ impl ConversationAccess {
     pub async fn conversation_items_by_ids(
         &self,
         conversation_ids: Vec<String>,
-    ) -> Result<Vec<model::ConversationListData>> {
+    ) -> Result<Vec<model::ConversationListData>, crate::error::CoreError> {
         Ok(self
             .database
             .conversation_dao
@@ -481,7 +493,10 @@ impl ConversationAccess {
             .collect())
     }
 
-    pub async fn is_bot_group(&self, conversation_id: String) -> Result<bool> {
+    pub async fn is_bot_group(
+        &self,
+        conversation_id: String,
+    ) -> Result<bool, crate::error::CoreError> {
         Ok(self
             .database
             .conversation_dao
@@ -495,7 +510,7 @@ impl ConversationAccess {
         circle_id: Option<String>,
         keyword: String,
         unseen_only: bool,
-    ) -> Result<i64> {
+    ) -> Result<i64, crate::error::CoreError> {
         let circle_id = circle_id.as_deref();
         let category = category.as_str();
         let keyword = keyword.as_str();
@@ -514,7 +529,7 @@ impl ConversationAccess {
         unseen_only: bool,
         limit: i64,
         offset: i64,
-    ) -> Result<Vec<model::ConversationListData>> {
+    ) -> Result<Vec<model::ConversationListData>, crate::error::CoreError> {
         let circle_id = circle_id.as_deref();
         let category = category.as_str();
         let keyword = keyword.as_str();
@@ -528,14 +543,17 @@ impl ConversationAccess {
             .collect())
     }
 
-    pub async fn current_user_role(&self, conversation_id: String) -> Result<Option<String>> {
+    pub async fn current_user_role(
+        &self,
+        conversation_id: String,
+    ) -> Result<Option<String>, crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         let conversation = self
             .database
             .conversation_dao
             .find_conversation_by_id(conversation_id)
             .await?
-            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
+            .ok_or(crate::error::CoreError::NotFound)?;
         if conversation.category != Some(ConversationCategory::Group) {
             return Ok(Some("OWNER".to_string()));
         }
@@ -550,7 +568,7 @@ impl ConversationAccess {
     pub async fn conversation_participants(
         &self,
         conversation_id: String,
-    ) -> Result<Vec<model::ConversationParticipantItem>> {
+    ) -> Result<Vec<model::ConversationParticipantItem>, crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         self.ensure_active()?;
         Ok(self
@@ -567,7 +585,7 @@ impl ConversationAccess {
         &self,
         conversation_id: String,
         keyword: String,
-    ) -> Result<Vec<model::ConversationParticipantItem>> {
+    ) -> Result<Vec<model::ConversationParticipantItem>, crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         let keyword = keyword.as_str();
         self.ensure_active()?;
@@ -585,7 +603,7 @@ impl ConversationAccess {
         &self,
         conversation_id: String,
         keyword: String,
-    ) -> Result<Vec<model::ConversationParticipantItem>> {
+    ) -> Result<Vec<model::ConversationParticipantItem>, crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         let keyword = keyword.as_str();
         self.ensure_active()?;
@@ -602,7 +620,7 @@ impl ConversationAccess {
     pub async fn conversation_detail(
         &self,
         conversation_id: String,
-    ) -> Result<model::ConversationDetailItem> {
+    ) -> Result<model::ConversationDetailItem, crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         self.ensure_active()?;
         self.app_service
@@ -614,14 +632,14 @@ impl ConversationAccess {
             .conversation_dao
             .find_conversation_by_id(conversation_id)
             .await?
-            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?
+            .ok_or(crate::error::CoreError::NotFound)?
             .into())
     }
 
     pub async fn local_conversation_detail(
         &self,
         conversation_id: String,
-    ) -> Result<model::ConversationDetailItem> {
+    ) -> Result<model::ConversationDetailItem, crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         self.ensure_active()?;
         Ok(self
@@ -629,14 +647,14 @@ impl ConversationAccess {
             .conversation_dao
             .find_conversation_by_id(conversation_id)
             .await?
-            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?
+            .ok_or(crate::error::CoreError::NotFound)?
             .into())
     }
 
     pub async fn groups_in_common(
         &self,
         user_id: String,
-    ) -> Result<Vec<model::GroupConversationItem>> {
+    ) -> Result<Vec<model::GroupConversationItem>, crate::error::CoreError> {
         let user_id = user_id.as_str();
         self.ensure_active()?;
         let mut result = Vec::new();
@@ -686,7 +704,7 @@ impl ConversationAccess {
         action: String,
         user_ids: Vec<String>,
         role: Option<String>,
-    ) -> Result<()> {
+    ) -> Result<(), crate::error::CoreError> {
         let role = role.as_deref();
         let conversation_id = conversation_id.as_str();
         let action = action.as_str();
@@ -717,7 +735,7 @@ impl ConversationAccess {
         &self,
         conversation_id: String,
         duration: i64,
-    ) -> Result<()> {
+    ) -> Result<(), crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
@@ -733,10 +751,13 @@ impl ConversationAccess {
         Ok(())
     }
 
-    pub async fn create_circle(&self, name: String) -> Result<model::CircleItem> {
+    pub async fn create_circle(
+        &self,
+        name: String,
+    ) -> Result<model::CircleItem, crate::error::CoreError> {
         let name = name.trim();
         if name.is_empty() || name.chars().count() > 64 {
-            return Err(anyhow!("circle name must contain 1 to 64 characters"));
+            return Err(anyhow!("circle name must contain 1 to 64 characters").into());
         }
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
@@ -749,11 +770,15 @@ impl ConversationAccess {
         Ok(circle.into())
     }
 
-    pub async fn update_circle(&self, circle_id: String, name: String) -> Result<()> {
+    pub async fn update_circle(
+        &self,
+        circle_id: String,
+        name: String,
+    ) -> Result<(), crate::error::CoreError> {
         let circle_id = circle_id.as_str();
         let name = name.trim();
         if name.is_empty() || name.chars().count() > 64 {
-            return Err(anyhow!("circle name must contain 1 to 64 characters"));
+            return Err(anyhow!("circle name must contain 1 to 64 characters").into());
         }
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
@@ -770,7 +795,7 @@ impl ConversationAccess {
         Ok(())
     }
 
-    pub async fn delete_circle(&self, circle_id: String) -> Result<()> {
+    pub async fn delete_circle(&self, circle_id: String) -> Result<(), crate::error::CoreError> {
         let circle_id = circle_id.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
@@ -784,7 +809,10 @@ impl ConversationAccess {
         Ok(())
     }
 
-    pub async fn reorder_circles(&self, circle_ids: Vec<String>) -> Result<()> {
+    pub async fn reorder_circles(
+        &self,
+        circle_ids: Vec<String>,
+    ) -> Result<(), crate::error::CoreError> {
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
         let existing = self.database.circle_dao.list().await?;
@@ -797,19 +825,21 @@ impl ConversationAccess {
             .map(String::as_str)
             .collect::<HashSet<_>>();
         if requested.len() != circle_ids.len() || requested != expected {
-            return Err(anyhow!(
-                "circle order must contain every circle exactly once"
-            ));
+            return Err(anyhow!("circle order must contain every circle exactly once").into());
         }
         self.database.circle_dao.update_orders(&circle_ids).await?;
         self.notify_all_conversations_changed();
         Ok(())
     }
 
-    pub async fn create_group(&self, name: String, user_ids: Vec<String>) -> Result<String> {
+    pub async fn create_group(
+        &self,
+        name: String,
+        user_ids: Vec<String>,
+    ) -> Result<String, crate::error::CoreError> {
         let name = name.trim();
         if name.is_empty() || name.chars().count() > 40 {
-            return Err(anyhow!("group name must contain 1 to 40 characters"));
+            return Err(anyhow!("group name must contain 1 to 40 characters").into());
         }
         let mut user_ids = user_ids
             .into_iter()
@@ -818,7 +848,7 @@ impl ConversationAccess {
         user_ids.sort();
         user_ids.dedup();
         if user_ids.is_empty() {
-            return Err(anyhow!("group requires at least one participant"));
+            return Err(anyhow!("group requires at least one participant").into());
         }
         let random_id = Uuid::new_v4().to_string();
         let conversation_id = group_conversation_id(&self.account_id, name, &user_ids, &random_id);
@@ -856,7 +886,7 @@ impl ConversationAccess {
         conversation_id: String,
         name: Option<String>,
         announcement: Option<String>,
-    ) -> Result<()> {
+    ) -> Result<(), crate::error::CoreError> {
         let name = name.as_deref();
         let announcement = announcement.as_deref();
         let conversation_id = conversation_id.as_str();
@@ -883,7 +913,7 @@ impl ConversationAccess {
         Ok(())
     }
 
-    pub async fn exit_group(&self, conversation_id: String) -> Result<()> {
+    pub async fn exit_group(&self, conversation_id: String) -> Result<(), crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
@@ -896,7 +926,10 @@ impl ConversationAccess {
         Ok(())
     }
 
-    pub async fn rotate_group_invite(&self, conversation_id: String) -> Result<()> {
+    pub async fn rotate_group_invite(
+        &self,
+        conversation_id: String,
+    ) -> Result<(), crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
@@ -909,7 +942,10 @@ impl ConversationAccess {
         Ok(())
     }
 
-    pub async fn clear_conversation(&self, conversation_id: String) -> Result<()> {
+    pub async fn clear_conversation(
+        &self,
+        conversation_id: String,
+    ) -> Result<(), crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
@@ -921,7 +957,7 @@ impl ConversationAccess {
         Ok(())
     }
 
-    pub async fn circles(&self) -> Result<Vec<model::CircleItem>> {
+    pub async fn circles(&self) -> Result<Vec<model::CircleItem>, crate::error::CoreError> {
         Ok(self
             .database
             .circle_dao
@@ -932,7 +968,11 @@ impl ConversationAccess {
             .collect())
     }
 
-    pub async fn set_pinned(&self, conversation_id: String, pinned: bool) -> Result<()> {
+    pub async fn set_pinned(
+        &self,
+        conversation_id: String,
+        pinned: bool,
+    ) -> Result<(), crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
@@ -950,7 +990,7 @@ impl ConversationAccess {
         owner_id: String,
         category: String,
         duration_seconds: i64,
-    ) -> Result<()> {
+    ) -> Result<(), crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         let owner_id = owner_id.as_str();
         let category = category.as_str();
@@ -996,7 +1036,10 @@ impl ConversationAccess {
         Ok(())
     }
 
-    pub async fn delete_conversation(&self, conversation_id: String) -> Result<()> {
+    pub async fn delete_conversation(
+        &self,
+        conversation_id: String,
+    ) -> Result<(), crate::error::CoreError> {
         let conversation_id = conversation_id.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
@@ -1015,7 +1058,7 @@ impl ConversationAccess {
         owner_id: String,
         is_group: bool,
         add: bool,
-    ) -> Result<()> {
+    ) -> Result<(), crate::error::CoreError> {
         let circle_id = circle_id.as_str();
         let conversation_id = conversation_id.as_str();
         let owner_id = owner_id.as_str();

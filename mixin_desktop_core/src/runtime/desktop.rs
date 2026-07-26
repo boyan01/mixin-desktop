@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use crate::core::model::auth::AuthService;
 use crate::core::user_agent::generate_user_agent;
 use crate::db::app::{AppDatabase, PropertyDao, PropertyGroup, SettingDao};
-use crate::db::path::account_data_directory;
+use crate::db::path::{account_data_directory, data_directory};
 use crate::db::SignalDatabase;
 use crate::network::{HttpResponse, NetworkService, SharedNetworkService};
 
@@ -33,6 +33,12 @@ pub struct DesktopRuntime {
 
 impl DesktopRuntime {
     pub async fn open() -> Result<Self> {
+        info!(
+            "opening desktop runtime: version: {}, data directory: {}",
+            env!("CARGO_PKG_VERSION"),
+            data_directory()?.display(),
+        );
+
         let database = Arc::new(AppDatabase::connect().await?);
         let auth_service = Arc::new(AuthService::new(database.clone()));
         auth_service.initialize().await?;
