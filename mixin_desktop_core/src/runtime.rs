@@ -206,14 +206,7 @@ impl AccountRuntime {
             credential(&auth),
             Some(generate_user_agent()),
         ));
-        let initial_account_health = match client.account_api.get_me().await {
-            Err(sdk::ApiError::Server(error))
-                if error.code == sdk::err::error_code::AUTHENTICATION =>
-            {
-                return Err(SessionUnauthorized.into());
-            }
-            result => account_health(result)?,
-        };
+        let initial_account_health = startup_account_health(client.account_api.get_me().await)?;
         let (shutdown, shutdown_receiver) = watch::channel(false);
         let conversation_changes = ConversationChangeNotifier::new();
         let (notification_changes, _) = watch::channel(0);
@@ -1200,6 +1193,27 @@ fn account_health<T>(result: std::result::Result<T, sdk::ApiError>) -> Result<St
     }
 }
 
+fn startup_account_health<T>(result: std::result::Result<T, sdk::ApiError>) -> Result<String> {
+    match result {
+        Ok(_) => Ok("ready".to_string()),
+        Err(sdk::ApiError::Server(error)) if error.code == sdk::err::error_code::AUTHENTICATION => {
+            Err(SessionUnauthorized.into())
+        }
+        Err(sdk::ApiError::Server(error))
+            if error.code == sdk::err::error_code::TIME_INACCURATE =>
+        {
+            Ok("time_inaccurate".to_string())
+        }
+        Err(sdk::ApiError::Server(error)) if error.code == sdk::err::error_code::OLD_VERSION => {
+            Ok("update_required".to_string())
+        }
+        Err(error) => {
+            warn!("account health probe failed during cached startup: {error}");
+            Ok("ready".to_string())
+        }
+    }
+}
+
 pub fn credential(auth: &Auth) -> Credential {
     Credential::KeyStore(KeyStore {
         app_id: auth.account.user_id.clone(),
@@ -1401,7 +1415,44 @@ mod tests {
 
     use image::{DynamicImage, ImageFormat, Rgba, RgbaImage};
 
-    use super::validate_sticker_image;
+    use super::{startup_account_health, validate_sticker_image, SessionUnauthorized};
+
+    fn server_error(code: i64) -> sdk::ApiError {
+        sdk::ApiError::Server(sdk::Error {
+            status: 400,
+            code,
+            description: "test".to_string(),
+        })
+    }
+
+    #[test]
+    fn cached_startup_remains_ready_when_account_probe_has_transport_failure() {
+        let error = reqwest::Client::new().get("://").build().unwrap_err();
+
+        let health = startup_account_health::<()>(Err(sdk::ApiError::Request(error))).unwrap();
+
+        assert_eq!(health, "ready");
+    }
+
+    #[test]
+    fn cached_startup_requires_login_when_account_probe_confirms_unauthorized() {
+        let error =
+            startup_account_health::<()>(Err(server_error(sdk::err::error_code::AUTHENTICATION)))
+                .unwrap_err();
+
+        assert!(error.downcast_ref::<SessionUnauthorized>().is_some());
+    }
+
+    #[test]
+    fn cached_startup_preserves_actionable_account_health_errors() {
+        for (code, expected) in [
+            (sdk::err::error_code::TIME_INACCURATE, "time_inaccurate"),
+            (sdk::err::error_code::OLD_VERSION, "update_required"),
+        ] {
+            let health = startup_account_health::<()>(Err(server_error(code))).unwrap();
+            assert_eq!(health, expected);
+        }
+    }
 
     fn png(width: u32, height: u32) -> Vec<u8> {
         let image = RgbaImage::from_fn(width, height, |x, y| {
