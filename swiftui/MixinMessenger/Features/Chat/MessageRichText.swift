@@ -1,24 +1,35 @@
-import AppKit
+import Foundation
 import SwiftUI
 
 /// Selectable message text with the same inline link ordering used by
 /// Flutter's SelectableMessageText: URL, email, then emoji presentation.
 struct MessageRichText: View {
-    let content: String
-    var baseFontSize: CGFloat = 16
-    var color: Color = .primary
-    var lineLimit: Int?
-    var mentionNames: [String: String] = [:]
-    var highlight: String = ""
-    var onOpenURL: ((URL) -> Void)?
+    private let presentation: MessageRichTextPresentation
+    private let color: Color
+    private let lineLimit: Int?
+    private let onOpenURL: ((URL) -> Void)?
 
-    var body: some View {
-        let presentation = MessageRichTextPresentation(
+    init(
+        content: String,
+        baseFontSize: CGFloat = 16,
+        color: Color = .primary,
+        lineLimit: Int? = nil,
+        mentionNames: [String: String] = [:],
+        highlight: String = "",
+        onOpenURL: ((URL) -> Void)? = nil
+    ) {
+        presentation = MessageRichTextPresentation(
             content: content,
             baseFontSize: baseFontSize,
             mentionNames: mentionNames,
             highlight: highlight
         )
+        self.color = color
+        self.lineLimit = lineLimit
+        self.onOpenURL = onOpenURL
+    }
+
+    var body: some View {
         Text(presentation.attributedText)
             .font(.system(size: presentation.fontSize))
             .foregroundStyle(color)
@@ -29,54 +40,69 @@ struct MessageRichText: View {
                 OpenURLAction { url in
                     if let onOpenURL {
                         onOpenURL(url)
-                    } else {
-                        NSWorkspace.shared.open(url)
+                        return .handled
                     }
-                    return .handled
+                    return .systemAction(url)
                 }
             )
     }
 }
 
 struct MessageRichTextPresentation {
-    let content: String
-    let baseFontSize: CGFloat
-    var mentionNames: [String: String] = [:]
-    var highlight = ""
+    let attributedText: AttributedString
+    let fontSize: CGFloat
 
-    var fontSize: CGFloat {
-        switch emojiOnlyCount {
-        case 1:
-            max(baseFontSize, 44)
-        case 2:
-            max(baseFontSize, 38)
-        case 3:
-            max(baseFontSize, 32)
-        default:
-            baseFontSize
-        }
-    }
-
-    var attributedText: AttributedString {
-        let rendered = renderedContent
-        let value = NSMutableAttributedString(
-            string: rendered.text,
-            attributes: [
-                .font: NSFont.systemFont(ofSize: fontSize),
-            ]
+    init(
+        content: String,
+        baseFontSize: CGFloat,
+        mentionNames: [String: String] = [:],
+        highlight: String = ""
+    ) {
+        let rendered = Self.renderedContent(
+            content: content,
+            mentionNames: mentionNames
         )
-        applyDetectedLinks(
-            to: value,
+        let fontSize =
+            switch Self.emojiOnlyCount(in: rendered.text) {
+            case 1:
+                max(baseFontSize, 44)
+            case 2:
+                max(baseFontSize, 38)
+            case 3:
+                max(baseFontSize, 32)
+            default:
+                baseFontSize
+            }
+        var attributedText = AttributedString(rendered.text)
+        Self.applyDetectedLinks(
+            to: &attributedText,
             content: rendered.text,
             mentionLinks: rendered.mentions
         )
-        applyHighlight(to: value, content: rendered.text)
-        applyEmojiFont(to: value, content: rendered.text)
-        return AttributedString(value)
+        Self.applyHighlight(
+            to: &attributedText,
+            content: rendered.text,
+            highlight: highlight
+        )
+        self.fontSize = fontSize
+        self.attributedText = attributedText
     }
 
-    var emojiOnlyCount: Int? {
-        let visible = renderedContent.text.filter { !$0.isWhitespace }
+    private static let mentionExpression = try? NSRegularExpression(
+        pattern: #"@(\d{4,})"#
+    )
+    private static let emailExpression = try? NSRegularExpression(
+        pattern: #"\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b"#
+    )
+    private static let identityExpression = try? NSRegularExpression(
+        pattern: #"@(\d{4,})|(?<!\d)(7000\d{6})(?!\d)"#
+    )
+    private static let linkDetector = try? NSDataDetector(
+        types: NSTextCheckingResult.CheckingType.link.rawValue
+    )
+
+    private static func emojiOnlyCount(in content: String) -> Int? {
+        let visible = content.filter { !$0.isWhitespace }
         guard !visible.isEmpty else {
             return nil
         }
@@ -87,14 +113,17 @@ struct MessageRichTextPresentation {
         return characters.count
     }
 
-    private var renderedContent: RenderedMessageText {
+    private static func renderedContent(
+        content: String,
+        mentionNames: [String: String]
+    ) -> RenderedMessageText {
         guard !mentionNames.isEmpty,
-              let expression = try? NSRegularExpression(pattern: #"@(\d{4,})"#)
+            let mentionExpression
         else {
             return RenderedMessageText(text: content, mentions: [])
         }
         let source = content as NSString
-        let matches = expression.matches(
+        let matches = mentionExpression.matches(
             in: content,
             range: NSRange(location: 0, length: source.length)
         )
@@ -136,128 +165,135 @@ struct MessageRichTextPresentation {
         return RenderedMessageText(text: output, mentions: mentions)
     }
 
-    private func applyDetectedLinks(
-        to value: NSMutableAttributedString,
+    private static func applyDetectedLinks(
+        to value: inout AttributedString,
         content: String,
         mentionLinks: [RenderedMention]
     ) {
-        let fullRange = NSRange(location: 0, length: value.length)
+        let fullRange = NSRange(location: 0, length: (content as NSString).length)
         var linkedRanges: [NSRange] = []
         for mention in mentionLinks {
             if let url = URL(string: "mixin://users/\(mention.identity)") {
-                applyLink(url, range: mention.range, to: value)
+                applyLink(url, range: mention.range, content: content, to: &value)
                 linkedRanges.append(mention.range)
             }
         }
-        if let detector = try? NSDataDetector(
-            types: NSTextCheckingResult.CheckingType.link.rawValue
-        ) {
-            detector.enumerateMatches(
+        if let linkDetector {
+            linkDetector.enumerateMatches(
                 in: content,
                 options: [],
                 range: fullRange
             ) { match, _, _ in
                 guard let match,
-                      let url = match.url,
-                      match.range.length > 0,
-                      !linkedRanges.contains(where: {
-                          NSIntersectionRange($0, match.range).length > 0
-                      })
+                    let url = match.url,
+                    match.range.length > 0,
+                    !linkedRanges.contains(where: {
+                        NSIntersectionRange($0, match.range).length > 0
+                    })
                 else {
                     return
                 }
-                applyLink(url, range: match.range, to: value)
+                applyLink(url, range: match.range, content: content, to: &value)
                 linkedRanges.append(match.range)
             }
         }
 
-        guard let mail = try? NSRegularExpression(
-            pattern: #"\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b"#
-        ) else {
+        guard let emailExpression else {
             return
         }
-        for match in mail.matches(in: content, range: fullRange)
+        for match in emailExpression.matches(in: content, range: fullRange)
         where !linkedRanges.contains(where: { NSIntersectionRange($0, match.range).length > 0 }) {
             let address = (content as NSString).substring(with: match.range)
             var components = URLComponents()
             components.scheme = "mailto"
             components.path = address
             if let url = components.url {
-                applyLink(url, range: match.range, to: value)
+                applyLink(url, range: match.range, content: content, to: &value)
                 linkedRanges.append(match.range)
             }
         }
 
-        guard let identities = try? NSRegularExpression(
-            pattern: #"@(\d{4,})|(?<!\d)(7000\d{6})(?!\d)"#
-        ) else {
+        guard let identityExpression else {
             return
         }
-        for match in identities.matches(in: content, range: fullRange)
+        for match in identityExpression.matches(in: content, range: fullRange)
         where !linkedRanges.contains(where: { NSIntersectionRange($0, match.range).length > 0 }) {
             let raw = (content as NSString).substring(with: match.range)
             let identity = raw.hasPrefix("@") ? String(raw.dropFirst()) : raw
             if let url = URL(string: "mixin://users/\(identity)") {
-                applyLink(url, range: match.range, to: value)
+                applyLink(url, range: match.range, content: content, to: &value)
             }
         }
     }
 
-    private func applyLink(
+    private static func applyLink(
         _ url: URL,
         range: NSRange,
-        to value: NSMutableAttributedString
+        content: String,
+        to value: inout AttributedString
     ) {
-        value.addAttributes(
-            [
-                .link: url,
-                .foregroundColor: NSColor.controlAccentColor,
-                .underlineStyle: NSUnderlineStyle.single.rawValue,
-            ],
-            range: range
+        guard let range = attributedRange(range, content: content, in: value) else {
+            return
+        }
+        value[range].link = url
+        value[range].foregroundColor = .accentColor
+        value[range].underlineStyle = Text.LineStyle(
+            pattern: .solid,
+            color: .accentColor
         )
     }
 
-    private func applyHighlight(
-        to value: NSMutableAttributedString,
-        content: String
+    private static func applyHighlight(
+        to value: inout AttributedString,
+        content: String,
+        highlight: String
     ) {
         let keyword = highlight.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !keyword.isEmpty,
-              let expression = try? NSRegularExpression(
-                  pattern: NSRegularExpression.escapedPattern(for: keyword),
-                  options: [.caseInsensitive]
-              )
-        else {
+        guard !keyword.isEmpty else {
             return
         }
-        let range = NSRange(location: 0, length: (content as NSString).length)
-        for match in expression.matches(in: content, range: range) {
-            value.addAttribute(
-                .backgroundColor,
-                value: NSColor.selectedTextBackgroundColor,
-                range: match.range
+
+        var searchStart = content.startIndex
+        while searchStart < content.endIndex,
+            let match = content.range(
+                of: keyword,
+                options: [.caseInsensitive],
+                range: searchStart..<content.endIndex
             )
+        {
+            guard
+                let range = attributedRange(
+                    NSRange(match, in: content),
+                    content: content,
+                    in: value
+                )
+            else {
+                searchStart = match.upperBound
+                continue
+            }
+            value[range].backgroundColor = Color.accentColor.opacity(0.24)
+            searchStart = match.upperBound
         }
     }
 
-    private func applyEmojiFont(
-        to value: NSMutableAttributedString,
-        content: String
-    ) {
-        var utf16Offset = 0
-        for character in content {
-            let length = String(character).utf16.count
-            if character.isPresentedAsEmoji {
-                value.addAttribute(
-                    .font,
-                    value: NSFont(name: "Apple Color Emoji", size: fontSize)
-                        ?? NSFont.systemFont(ofSize: fontSize),
-                    range: NSRange(location: utf16Offset, length: length)
-                )
-            }
-            utf16Offset += length
+    private static func attributedRange(
+        _ range: NSRange,
+        content: String,
+        in value: AttributedString
+    ) -> Range<AttributedString.Index>? {
+        guard let stringRange = Range(range, in: content),
+            let lowerBound = AttributedString.Index(
+                stringRange.lowerBound,
+                within: value
+            ),
+            let upperBound = AttributedString.Index(
+                stringRange.upperBound,
+                within: value
+            )
+        else {
+            return nil
         }
+        return lowerBound..<upperBound
     }
 }
 

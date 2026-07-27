@@ -40,15 +40,6 @@ private struct MessageSearchTaskID: Hashable {
     let category: MessageSearchCategory
 }
 
-private struct ChatTimelineRow: Identifiable, Equatable {
-    let message: SwiftMessageItem
-    let startsNewDay: Bool
-    let sameUserPrevious: Bool
-    let sameUserNext: Bool
-
-    var id: String { message.messageId }
-}
-
 private struct ChatTimelineRenderKey: Equatable {
     let modelID: ObjectIdentifier
     let conversationID: String
@@ -57,6 +48,8 @@ private struct ChatTimelineRenderKey: Equatable {
     let unseenCount: Int64
     let selectedMessageIDs: Set<String>
     let showJumpToLatest: Bool
+    let newMessageCount: Int
+    let highlightedMessageID: String?
     let reduceMotion: Bool
 }
 
@@ -227,6 +220,8 @@ struct ChatTimelineView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.mixinTheme) private var theme
     @State private var model = ChatTimelineModel()
+    @State private var scrollCoordinator = ChatScrollCoordinator()
+    @State private var scrollPosition = ScrollPosition(idType: String.self)
     @State private var draft: String
     @State private var searchPresented = false
     @State private var searchQuery = ""
@@ -242,7 +237,6 @@ struct ChatTimelineView: View {
     @State private var stickerDetailID: String?
     @State private var voiceRecorder = VoiceRecorderModel()
     @State private var scamWarningVisible: Bool
-    @State private var showJumpToLatest = false
     @State private var pinnedMessagesPresented = false
     @State private var dropTargeted = false
     @State private var forwardCombined: Bool?
@@ -315,7 +309,10 @@ struct ChatTimelineView: View {
                         lastReadMessageID: lastReadMessageID,
                         unseenCount: unseenCount,
                         selectedMessageIDs: selectedMessageIDs,
-                        showJumpToLatest: showJumpToLatest,
+                        showJumpToLatest: scrollCoordinator.showJumpToLatest,
+                        newMessageCount: scrollCoordinator.newMessageCount,
+                        highlightedMessageID:
+                            scrollCoordinator.highlightedMessageID,
                         reduceMotion: reduceMotion
                     )
                 ) {
@@ -357,15 +354,59 @@ struct ChatTimelineView: View {
             value: selectedMessageIDs.isEmpty
         )
         .task(id: conversationID) {
-            await model.start(
+            scrollPosition = ScrollPosition(idType: String.self)
+            scrollCoordinator.reset(conversationID: conversationID)
+            let jumpRequest = navigation.messageJumpRequest.flatMap {
+                $0.conversationID == conversationID ? $0 : nil
+            }
+            let savedPosition = navigation.chatViewportPosition(
+                conversationID: conversationID
+            )
+            let initialAnchor: ChatTimelineAnchor? =
+                if let jumpRequest {
+                    .message(
+                        id: jumpRequest.messageID,
+                        alignment: .center,
+                        offset: 0,
+                        highlight: true
+                    )
+                } else if let savedPosition {
+                    .message(
+                        id: savedPosition.messageID,
+                        alignment: .top,
+                        offset: savedPosition.offset,
+                        highlight: false
+                    )
+                } else {
+                    nil
+                }
+            let resolvedAnchor = await model.start(
                 account: session.handle,
                 conversationID: conversationID,
+                currentUserID: session.profile.userId,
                 lastReadMessageID: lastReadMessageID,
-                unseenCount: unseenCount
+                unseenCount: unseenCount,
+                initialAnchor: initialAnchor
             )
-            await consumeMessageJump()
+            if let resolvedAnchor {
+                scrollCoordinator.prepareInitialPosition(
+                    resolvedAnchor,
+                    position: $scrollPosition
+                )
+                model.presentInitialTimeline()
+            }
+            if let jumpRequest {
+                navigation.consumeMessageJump(revision: jumpRequest.revision)
+            }
         }
         .onDisappear {
+            navigation.saveChatViewportPosition(
+                scrollCoordinator.savedPosition(
+                    hasNewerMessages: model.hasNewerMessages
+                ),
+                conversationID: conversationID
+            )
+            scrollCoordinator.stop()
             model.stop()
             voiceRecorder.dispose()
         }
@@ -500,7 +541,7 @@ struct ChatTimelineView: View {
                     Button {
                         pinnedMessagesPresented = false
                         Task {
-                            _ = await model.locate(messageID: message.messageId)
+                            _ = await locateMessage(message.messageId)
                         }
                     } label: {
                         SearchMessageRow(
@@ -723,7 +764,7 @@ struct ChatTimelineView: View {
                         ForEach(model.searchResults, id: \.messageId) { message in
                             Button {
                                 Task {
-                                    if await model.locate(messageID: message.messageId) {
+                                    if await locateMessage(message.messageId) {
                                         closeSearch(clearResults: false)
                                     }
                                 }
@@ -774,8 +815,15 @@ struct ChatTimelineView: View {
         else {
             return
         }
-        _ = await model.locate(messageID: request.messageID)
+        _ = await locateMessage(request.messageID)
         navigation.consumeMessageJump(revision: request.revision)
+    }
+
+    private func locateMessage(_ messageID: String) async -> Bool {
+        await model.locate(
+            messageID: messageID,
+            reuseLoadedWindow: scrollCoordinator.canAnimateJump(to: messageID)
+        )
     }
 
     private func closeSearch(clearResults: Bool = true) {
@@ -1097,33 +1145,14 @@ struct ChatTimelineView: View {
                     systemImage: "bubble.left"
                 )
             } else {
-                ScrollViewReader { proxy in
-                    ZStack(alignment: .bottomTrailing) {
-                        ScrollView {
-                            LazyVStack(spacing: 0) {
-                                if model.hasOlderMessages {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                        .opacity(model.loadingOlder ? 1 : 0)
-                                        .onAppear {
-                                            Task {
-                                                let anchor = model.messages.first?
-                                                    .messageId
-                                                await model.loadOlder()
-                                                guard let anchor else {
-                                                    return
-                                                }
-                                                var transaction = Transaction()
-                                                transaction.disablesAnimations = true
-                                                withTransaction(transaction) {
-                                                    proxy.scrollTo(anchor, anchor: .top)
-                                                }
-                                            }
-                                        }
-                                }
-
-                                ForEach(model.rows) { row in
-                                    let message = row.message
+                @Bindable var coordinator = scrollCoordinator
+                ZStack(alignment: .bottomTrailing) {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            let unreadBoundaryID = unreadBoundaryMessageID
+                            ForEach(model.rows) { row in
+                                if let message = model.message(id: row.messageID) {
+                                    VStack(spacing: 0) {
                                     if row.startsNewDay {
                                         Text(
                                             message.createdAtMicros.dayChipTitle
@@ -1135,7 +1164,7 @@ struct ChatTimelineView: View {
                                             .background(.regularMaterial, in: Capsule())
                                             .frame(maxWidth: .infinity)
                                     }
-                                    if message.messageId == unreadBoundaryMessageID {
+                                    if message.messageId == unreadBoundaryID {
                                         HStack(spacing: 8) {
                                             Rectangle()
                                                 .frame(height: 1)
@@ -1149,9 +1178,16 @@ struct ChatTimelineView: View {
                                     MessageRow(
                                         message: message,
                                         mentionNames: model.mentionNames,
+                                        mentionNamesRevision:
+                                            model.mentionNamesRevision,
                                         audioPlaylist: message.presentationKind == .audio
                                             ? model.audioMessages
                                             : [],
+                                        mediaIndexRevision:
+                                            message.presentationKind == .audio
+                                                || message.isRichContent
+                                                ? model.mediaIndexRevision
+                                                : 0,
                                         mediaDirectory: model.mediaDirectory,
                                         conversationName: conversationName,
                                         outgoing: message.senderId == session.profile.userId,
@@ -1245,50 +1281,106 @@ struct ChatTimelineView: View {
                                         }
                                     )
                                     .equatable()
-                                    .id(message.messageId)
                                 }
-
-                                if model.hasNewerMessages {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                        .opacity(model.loadingNewer ? 1 : 0)
-                                        .onAppear {
-                                            Task {
-                                                let anchor = model.messages.last?
-                                                    .messageId
-                                                await model.loadNewer()
-                                                guard let anchor else {
-                                                    return
-                                                }
-                                                var transaction = Transaction()
-                                                transaction.disablesAnimations = true
-                                                withTransaction(transaction) {
-                                                    proxy.scrollTo(anchor, anchor: .bottom)
-                                                }
-                                            }
+                                    .background {
+                                        if coordinator.highlightedMessageID
+                                            == message.messageId
+                                        {
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(Color.accentColor.opacity(0.16))
+                                                .transition(.opacity)
                                         }
+                                    }
+                                    .id(message.messageId)
+                                    .onGeometryChange(for: CGRect.self) { proxy in
+                                        proxy.frame(
+                                            in: .scrollView(axis: .vertical)
+                                        )
+                                    } action: { frame in
+                                        coordinator.updateRowFrame(
+                                            messageID: message.messageId,
+                                            frame: frame,
+                                            position: $scrollPosition
+                                        )
+                                    }
                                 }
                             }
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 12)
                         }
-                        .defaultScrollAnchor(.bottom)
-                        .onScrollGeometryChange(for: Bool.self) { geometry in
-                            geometry.contentOffset.y
-                                + geometry.containerSize.height
-                                < geometry.contentSize.height - 120
-                        } action: { _, visible in
-                            showJumpToLatest = visible
-                        }
-                        .onChange(of: model.initialScrollMessageID) {
-                            guard let messageID = model.initialScrollMessageID else {
-                                return
-                            }
-                            proxy.scrollTo(messageID, anchor: .center)
-                        }
-                        timelineOverlays(proxy: proxy)
-                        pinnedMessagesOverlay(proxy: proxy)
+                        .scrollTargetLayout()
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 12)
                     }
+                    .scrollPosition($scrollPosition)
+                    .defaultScrollAnchor(.bottom)
+                    .onScrollGeometryChange(
+                        for: ChatScrollGeometry.self
+                    ) { geometry in
+                        ChatScrollGeometry(geometry)
+                    } action: { _, geometry in
+                        let direction = coordinator.updateGeometry(
+                            geometry,
+                            hasOlderMessages: model.hasOlderMessages,
+                            hasNewerMessages: model.hasNewerMessages,
+                            position: $scrollPosition
+                        )
+                        guard let direction else {
+                            return
+                        }
+                        Task {
+                            switch direction {
+                            case .older:
+                                await model.loadOlder()
+                            case .newer:
+                                await model.loadNewer()
+                            }
+                        }
+                    }
+                    .onScrollTargetVisibilityChange(
+                        idType: String.self,
+                        threshold: 0.01
+                    ) { ids in
+                        coordinator.updateVisibleMessageIDs(ids)
+                        model.updateVisibleMessageIDs(ids)
+                    }
+                    .onScrollPhaseChange { _, phase in
+                        coordinator.updatePhase(phase)
+                    }
+                    .onChange(
+                        of: model.timelineChange,
+                        initial: true
+                    ) { _, change in
+                        coordinator.handle(
+                            change,
+                            hasNewerMessages: model.hasNewerMessages,
+                            reduceMotion: reduceMotion,
+                            position: $scrollPosition
+                        )
+                    }
+
+                    if model.loadingOlder {
+                        ProgressView()
+                            .controlSize(.small)
+                            .padding(8)
+                            .background(.regularMaterial, in: Capsule())
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: .infinity,
+                                alignment: .top
+                            )
+                            .padding(.top, 8)
+                            .allowsHitTesting(false)
+                    } else if model.loadingNewer {
+                        ProgressView()
+                            .controlSize(.small)
+                            .padding(8)
+                            .background(.regularMaterial, in: Capsule())
+                            .padding(.trailing, 16)
+                            .padding(.bottom, 64)
+                            .allowsHitTesting(false)
+                    }
+
+                    timelineOverlays
+                    pinnedMessagesOverlay
                 }
             }
         }
@@ -1311,7 +1403,7 @@ struct ChatTimelineView: View {
     }
 
     @ViewBuilder
-    private func timelineOverlays(proxy: ScrollViewProxy) -> some View {
+    private var timelineOverlays: some View {
         VStack(alignment: .trailing, spacing: 8) {
             if !model.unreadMentionMessageIDs.isEmpty {
                 Button {
@@ -1319,8 +1411,7 @@ struct ChatTimelineView: View {
                         guard let messageID = model.unreadMentionMessageIDs.first else {
                             return
                         }
-                        if await model.locate(messageID: messageID) {
-                            proxy.scrollTo(messageID, anchor: .center)
+                        if await locateMessage(messageID) {
                             await model.markMentionRead(messageID: messageID)
                         }
                     }
@@ -1341,23 +1432,37 @@ struct ChatTimelineView: View {
                     }
                 }
             }
-            if showJumpToLatest, !model.messages.isEmpty {
+            if scrollCoordinator.showJumpToLatest, !model.messages.isEmpty {
                 Button {
                     Task {
                         if model.hasNewerMessages {
                             await model.jumpToLatest()
-                        }
-                        guard let latest = model.messages.last else {
-                            return
-                        }
-                        withAnimation {
-                            proxy.scrollTo(latest.messageId, anchor: .bottom)
+                        } else {
+                            scrollCoordinator.scrollToLatest(
+                                position: $scrollPosition,
+                                animated: !reduceMotion
+                            )
                         }
                     }
                 } label: {
-                    Image(systemName: "arrow.down")
-                        .frame(width: 38, height: 38)
-                        .background(.regularMaterial, in: Circle())
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "arrow.down")
+                            .frame(width: 38, height: 38)
+                            .background(.regularMaterial, in: Circle())
+                        if scrollCoordinator.newMessageCount > 0 {
+                            Text(
+                                scrollCoordinator.newMessageCount > 99
+                                    ? "99+"
+                                    : "\(scrollCoordinator.newMessageCount)"
+                            )
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .frame(minHeight: 17)
+                            .background(Color.accentColor, in: Capsule())
+                            .offset(x: 6, y: -4)
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
                 .help("Jump to latest")
@@ -1367,7 +1472,7 @@ struct ChatTimelineView: View {
     }
 
     @ViewBuilder
-    private func pinnedMessagesOverlay(proxy: ScrollViewProxy) -> some View {
+    private var pinnedMessagesOverlay: some View {
         if let pinned = model.pinnedMessages.first {
             HStack(spacing: 8) {
                 if !model.pinnedPreviewDismissed {
@@ -1376,9 +1481,7 @@ struct ChatTimelineView: View {
                         onDismiss: model.dismissPinnedPreview,
                         onLocate: {
                             Task {
-                                if await model.locate(messageID: pinned.messageId) {
-                                    proxy.scrollTo(pinned.messageId, anchor: .center)
-                                }
+                                _ = await locateMessage(pinned.messageId)
                             }
                         }
                     )
@@ -1675,6 +1778,188 @@ private struct SearchMessageRow: View {
     }
 }
 
+private struct MessageContentMetadataLayout: Layout {
+    struct Cache {
+        var measurement: Measurement?
+    }
+
+    struct Measurement {
+        let proposedWidth: CGFloat?
+        let size: CGSize
+        let contentSize: CGSize
+        let metadataSize: CGSize
+        let contentOrigin: CGPoint
+        let metadataOrigin: CGPoint
+    }
+
+    let inlineSpacing: CGFloat
+    let stackedSpacing: CGFloat
+
+    init(inlineSpacing: CGFloat = 6, stackedSpacing: CGFloat = 2) {
+        self.inlineSpacing = inlineSpacing
+        self.stackedSpacing = stackedSpacing
+    }
+
+    func makeCache(subviews _: Subviews) -> Cache {
+        Cache()
+    }
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout Cache
+    ) -> CGSize {
+        let measurement = measure(proposal: proposal, subviews: subviews)
+        cache.measurement = measurement
+        return measurement.size
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout Cache
+    ) {
+        guard subviews.count == 2 else {
+            return
+        }
+        let width = proposal.width ?? bounds.width
+        let measurement: Measurement
+        if let cached = cache.measurement,
+            cached.proposedWidth == width,
+            abs(cached.size.width - bounds.width) < 0.5,
+            abs(cached.size.height - bounds.height) < 0.5
+        {
+            measurement = cached
+        } else {
+            measurement = measure(
+                proposal: ProposedViewSize(
+                    width: width,
+                    height: proposal.height ?? bounds.height
+                ),
+                subviews: subviews
+            )
+            cache.measurement = measurement
+        }
+
+        subviews[0].place(
+            at: CGPoint(
+                x: bounds.minX + measurement.contentOrigin.x,
+                y: bounds.minY + measurement.contentOrigin.y
+            ),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(measurement.contentSize)
+        )
+        subviews[1].place(
+            at: CGPoint(
+                x: bounds.minX + measurement.metadataOrigin.x,
+                y: bounds.minY + measurement.metadataOrigin.y
+            ),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(measurement.metadataSize)
+        )
+    }
+
+    private func measure(
+        proposal: ProposedViewSize,
+        subviews: Subviews
+    ) -> Measurement {
+        guard subviews.count == 2 else {
+            return Measurement(
+                proposedWidth: proposal.width,
+                size: .zero,
+                contentSize: .zero,
+                metadataSize: .zero,
+                contentOrigin: .zero,
+                metadataOrigin: .zero
+            )
+        }
+
+        let content = subviews[0]
+        let metadata = subviews[1]
+        let metadataDimensions = metadata.dimensions(in: .unspecified)
+        let metadataSize = CGSize(
+            width: metadataDimensions.width,
+            height: metadataDimensions.height
+        )
+        let idealContentDimensions = content.dimensions(in: .unspecified)
+        let idealContentSize = CGSize(
+            width: idealContentDimensions.width,
+            height: idealContentDimensions.height
+        )
+        let availableWidth = proposal.width ?? .infinity
+
+        if idealContentSize.width + inlineSpacing + metadataSize.width
+            <= availableWidth
+        {
+            return inlineMeasurement(
+                proposedWidth: proposal.width,
+                contentDimensions: idealContentDimensions,
+                contentSize: idealContentSize,
+                metadataDimensions: metadataDimensions,
+                metadataSize: metadataSize
+            )
+        }
+
+        let contentWidth = max(availableWidth, metadataSize.width)
+        let contentDimensions = content.dimensions(
+            in: ProposedViewSize(
+                width: contentWidth.isFinite ? contentWidth : nil,
+                height: proposal.height
+            )
+        )
+        let contentSize = CGSize(
+            width: contentDimensions.width,
+            height: contentDimensions.height
+        )
+        return Measurement(
+            proposedWidth: proposal.width,
+            size: CGSize(
+                width: max(contentSize.width, metadataSize.width),
+                height: contentSize.height + stackedSpacing + metadataSize.height
+            ),
+            contentSize: contentSize,
+            metadataSize: metadataSize,
+            contentOrigin: .zero,
+            metadataOrigin: CGPoint(
+                x: max(contentSize.width - metadataSize.width, 0),
+                y: contentSize.height + stackedSpacing
+            )
+        )
+    }
+
+    private func inlineMeasurement(
+        proposedWidth: CGFloat?,
+        contentDimensions: ViewDimensions,
+        contentSize: CGSize,
+        metadataDimensions: ViewDimensions,
+        metadataSize: CGSize
+    ) -> Measurement {
+        let contentBaseline = contentDimensions[.lastTextBaseline]
+        let metadataBaseline = metadataDimensions[.lastTextBaseline]
+        let baseline = max(contentBaseline, metadataBaseline)
+        let contentY = baseline - contentBaseline
+        let metadataY = baseline - metadataBaseline
+        return Measurement(
+            proposedWidth: proposedWidth,
+            size: CGSize(
+                width: contentSize.width + inlineSpacing + metadataSize.width,
+                height: max(
+                    contentY + contentSize.height,
+                    metadataY + metadataSize.height
+                )
+            ),
+            contentSize: contentSize,
+            metadataSize: metadataSize,
+            contentOrigin: CGPoint(x: 0, y: contentY),
+            metadataOrigin: CGPoint(
+                x: contentSize.width + inlineSpacing,
+                y: metadataY
+            )
+        )
+    }
+}
+
 private struct MessageRow: View, Equatable {
     @Environment(AccountSession.self) private var session
     @Environment(HomeNavigationModel.self) private var navigation
@@ -1686,7 +1971,9 @@ private struct MessageRow: View, Equatable {
     @State private var scanningQRCode = false
     let message: SwiftMessageItem
     let mentionNames: [String: String]
+    let mentionNamesRevision: Int
     let audioPlaylist: [SwiftMessageItem]
+    let mediaIndexRevision: Int
     let mediaDirectory: URL?
     let conversationName: String?
     let outgoing: Bool
@@ -1717,8 +2004,8 @@ private struct MessageRow: View, Equatable {
 
     static func == (lhs: MessageRow, rhs: MessageRow) -> Bool {
         lhs.message == rhs.message
-            && lhs.mentionNames == rhs.mentionNames
-            && lhs.audioPlaylist == rhs.audioPlaylist
+            && lhs.mentionNamesRevision == rhs.mentionNamesRevision
+            && lhs.mediaIndexRevision == rhs.mediaIndexRevision
             && lhs.mediaDirectory == rhs.mediaDirectory
             && lhs.conversationName == rhs.conversationName
             && lhs.outgoing == rhs.outgoing
@@ -1728,7 +2015,6 @@ private struct MessageRow: View, Equatable {
             && lhs.recalledText == rhs.recalledText
             && lhs.selected == rhs.selected
             && lhs.selectionActive == rhs.selectionActive
-            && lhs.imageMessages == rhs.imageMessages
             && lhs.attachmentProgress == rhs.attachmentProgress
     }
 
@@ -1846,15 +2132,9 @@ private struct MessageRow: View, Equatable {
             } else if message.usesOuterMetadata {
                 messageBody
             } else {
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .lastTextBaseline, spacing: 6) {
-                        messageBody
-                        messageMetadata
-                    }
-                    VStack(alignment: .trailing, spacing: 2) {
-                        messageBody
-                        messageMetadata
-                    }
+                MessageContentMetadataLayout {
+                    messageBody
+                    messageMetadata
                 }
             }
         }
@@ -2088,13 +2368,27 @@ final class ChatTimelineModel {
     }
 
     private(set) var state: State = .loading
-    private(set) var messages: [SwiftMessageItem] = []
-    fileprivate var rows: [ChatTimelineRow] = []
-    private(set) var imageMessages: [SwiftMessageItem] = []
-    private(set) var audioMessages: [SwiftMessageItem] = []
+    private var timelineStore = ChatTimelineStore()
+    var messages: [SwiftMessageItem] { timelineStore.messages }
+    fileprivate var rows: [ChatTimelineRow] { timelineStore.rows }
+    fileprivate func message(id: String) -> SwiftMessageItem? {
+        timelineStore.message(id: id)
+    }
+    var imageMessages: [SwiftMessageItem] {
+        timelineStore.imageMessages
+    }
+    var audioMessages: [SwiftMessageItem] {
+        timelineStore.audioMessages
+    }
+    var mediaIndexRevision: Int {
+        timelineStore.mediaRevision
+    }
+    var mentionNamesRevision: Int {
+        mentionPresentationRevision
+    }
     private(set) var hasOlderMessages = false
     private(set) var hasNewerMessages = false
-    private(set) var initialScrollMessageID: String?
+    private(set) var timelineChange: ChatTimelineChange?
     private(set) var sending = false
     private(set) var sendError: String?
     private(set) var searchResults: [SwiftMessageItem] = []
@@ -2111,6 +2405,7 @@ final class ChatTimelineModel {
     private(set) var mediaDirectory: URL?
     private var account: SwiftAccountHandle?
     private var conversationID: String?
+    private var currentUserID: String?
     private var conversationSubscription: SwiftConversationSubscription?
     private var conversationSubscriptionTask: Task<Void, Never>?
     private var messageSubscription: SwiftMessageSubscription?
@@ -2119,7 +2414,13 @@ final class ChatTimelineModel {
     private var windowVersion = 0
     private var searchVersion = 0
     private var mentionRevision = 0
-    private var mentionContentsKey = ""
+    private var mentionPresentationRevision = 0
+    private var resolvedMentionContents = Set<String>()
+    private var timelineRevision = 0
+    private var visibleMessageIDs = Set<String>()
+    private var messageRevision: UInt64 = 0
+    private var refreshedMessageRevisions: [String: UInt64] = [:]
+    private var visibleRefreshTask: Task<Void, Never>?
     private(set) var loadingOlder = false
     private(set) var loadingNewer = false
     private var refreshInFlight = false
@@ -2133,8 +2434,8 @@ final class ChatTimelineModel {
 
     private static let recalledTextLimit = 100
     private static let recalledTextLifetime: TimeInterval = 6 * 60
-    private static let pageSize = 60
-    private static let maximumWindowSize = 240
+    private static let initialPageSize = 60
+    private static let pageSize = 100
 
     func recalledText(messageID: String) -> String? {
         guard let value = recalledTexts[messageID],
@@ -2148,12 +2449,16 @@ final class ChatTimelineModel {
     func start(
         account: SwiftAccountHandle,
         conversationID: String,
+        currentUserID: String,
         lastReadMessageID: String?,
-        unseenCount: Int64
-    ) async {
+        unseenCount: Int64,
+        initialAnchor: ChatTimelineAnchor?
+    ) async -> ChatTimelineAnchor? {
         stop()
+        timelineStore.removeAll()
         self.account = account
         self.conversationID = conversationID
+        self.currentUserID = currentUserID
         pinnedMessages = []
         pinnedMessagesLoaded = false
         let pinnedPreviewPreferenceKey = "show_pin_message_\(conversationID)"
@@ -2186,8 +2491,14 @@ final class ChatTimelineModel {
         let messageSubscription = account.messageChanges()
         self.messageSubscription = messageSubscription
         messageSubscriptionTask = Task { [weak self] in
-            while !Task.isCancelled, await messageSubscription.next() != nil {
-                guard let self, self.needsMessageRevisionRefresh else {
+            while !Task.isCancelled,
+                  let revision = await messageSubscription.next()
+            {
+                guard let self else {
+                    continue
+                }
+                messageRevision = revision
+                guard self.needsMessageRevisionRefresh else {
                     continue
                 }
                 await self.refreshChangedMessages(includeRecent: false)
@@ -2198,33 +2509,66 @@ final class ChatTimelineModel {
                 conversationId: conversationID
             )
             guard self.conversationID == conversationID else {
-                return
+                return nil
             }
             currentUserRole = role
         } catch {
             guard self.conversationID == conversationID else {
-                return
+                return nil
             }
             currentUserRole = nil
         }
-        let loadedUnreadWindow: Bool
-        if unseenCount > 0, let lastReadMessageID {
-            loadedUnreadWindow = await loadUnreadWindow(
+        let loadedInitialWindow =
+            if let initialAnchor {
+                await loadAnchorWindow(
+                    initialAnchor,
+                    mutation: .reset(anchor: initialAnchor),
+                    presentWhenLoaded: false
+                )
+            } else {
+                false
+            }
+        let unreadAnchor: ChatTimelineAnchor?
+        if !loadedInitialWindow,
+           unseenCount > 0,
+           let lastReadMessageID
+        {
+            unreadAnchor = await loadUnreadWindow(
                 lastReadMessageID: lastReadMessageID,
-                unseenCount: unseenCount
+                unseenCount: unseenCount,
+                presentWhenLoaded: false
             )
         } else {
-            loadedUnreadWindow = false
+            unreadAnchor = nil
         }
-        if !loadedUnreadWindow {
-            await loadLatest(limit: Self.pageSize, markRead: true)
+        let resolvedAnchor: ChatTimelineAnchor?
+        if loadedInitialWindow {
+            resolvedAnchor = initialAnchor
+        } else if let unreadAnchor {
+            resolvedAnchor = unreadAnchor
+        } else if await loadLatest(
+            limit: Self.initialPageSize,
+            markRead: true,
+            presentWhenLoaded: false
+        ) {
+            resolvedAnchor = .latest
+        } else {
+            resolvedAnchor = nil
         }
         await reloadTimelineActions()
+        return resolvedAnchor
+    }
+
+    func presentInitialTimeline() {
+        guard case .loading = state else {
+            return
+        }
+        state = .ready
     }
 
     func reload() async {
         if messages.isEmpty {
-            await loadLatest(limit: Self.pageSize, markRead: true)
+            _ = await loadLatest(limit: Self.initialPageSize, markRead: true)
         } else {
             await refreshChangedMessages(includeRecent: true)
         }
@@ -2232,7 +2576,7 @@ final class ChatTimelineModel {
     }
 
     func jumpToLatest() async {
-        await loadLatest(limit: Self.pageSize, markRead: true)
+        _ = await loadLatest(limit: Self.initialPageSize, markRead: true)
         await reloadTimelineActions()
     }
 
@@ -2799,36 +3143,27 @@ final class ChatTimelineModel {
         hasMoreSearchResults = false
     }
 
-    func locate(messageID: String) async -> Bool {
-        guard let account, let conversationID else {
+    func locate(
+        messageID: String,
+        reuseLoadedWindow: Bool
+    ) async -> Bool {
+        guard account != nil, conversationID != nil else {
             return false
         }
-        do {
-            let items = try await account.messagesAround(
-                conversationId: conversationID,
-                targetMessageId: messageID,
-                before: 30,
-                after: 30
-            )
-            guard self.conversationID == conversationID,
-                  items.contains(where: { $0.messageId == messageID })
-            else {
-                return false
-            }
-            replaceMessages(items.sorted(by: Self.isEarlier))
-            hasOlderMessages = items.count >= 31
-            let targetIndex = messages.firstIndex { $0.messageId == messageID }
-            hasNewerMessages = targetIndex.map {
-                messages.count - $0 - 1 >= 30
-            } ?? false
-            state = .ready
-            initialScrollMessageID = messageID
-            await reloadMentionNames()
+        let anchor = ChatTimelineAnchor.message(
+            id: messageID,
+            alignment: .center,
+            offset: 0,
+            highlight: true
+        )
+        if reuseLoadedWindow, timelineStore.contains(messageID) {
+            publishTimelineChange(.jump(anchor: anchor))
             return true
-        } catch {
-            searchError = MixinErrorPresenter.message(for: error)
-            return false
         }
+        return await loadAnchorWindow(
+            anchor,
+            mutation: .jump(anchor: anchor)
+        )
     }
 
     func loadOlder() async {
@@ -2851,7 +3186,7 @@ final class ChatTimelineModel {
                 limit: Int64(Self.pageSize)
             )
             hasOlderMessages = older.count == Self.pageSize
-            merge(older, keeping: .oldest)
+            prependMessages(Array(older.reversed()), mutation: .prepend)
             await reloadMentionNames()
         } catch {
             mutationError = MixinErrorPresenter.message(for: error)
@@ -2879,10 +3214,35 @@ final class ChatTimelineModel {
             )
             let newer = page.filter { $0.messageId != newest.messageId }
             hasNewerMessages = newer.count == Self.pageSize
-            merge(newer, keeping: .newest)
+            appendMessages(
+                newer,
+                mutation: .append(source: .history, count: newer.count)
+            )
             await reloadMentionNames()
         } catch {
             mutationError = MixinErrorPresenter.message(for: error)
+        }
+    }
+
+    func updateVisibleMessageIDs(_ messageIDs: [String]) {
+        visibleMessageIDs = Set(messageIDs)
+        guard messageRevision > 0 else {
+            return
+        }
+        let staleIDs = messageIDs.filter {
+            refreshedMessageRevisions[$0] != messageRevision
+        }
+        guard !staleIDs.isEmpty else {
+            return
+        }
+        let revision = messageRevision
+        visibleRefreshTask?.cancel()
+        visibleRefreshTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(80))
+            guard !Task.isCancelled, let self else {
+                return
+            }
+            await refreshMessageIDs(staleIDs, revision: revision)
         }
     }
 
@@ -2899,6 +3259,8 @@ final class ChatTimelineModel {
         messageSubscriptionTask = nil
         messageSubscription?.cancel()
         messageSubscription = nil
+        visibleRefreshTask?.cancel()
+        visibleRefreshTask = nil
         recalledTextExpiryTask?.cancel()
         recalledTextExpiryTask = nil
         refreshInFlight = false
@@ -2907,10 +3269,15 @@ final class ChatTimelineModel {
         refreshRecentPending = false
         account = nil
         conversationID = nil
+        currentUserID = nil
+        visibleMessageIDs = []
+        messageRevision = 0
+        refreshedMessageRevisions = [:]
         mediaDirectory = nil
         currentUserRole = nil
         mentionNames = [:]
-        mentionContentsKey = ""
+        mentionPresentationRevision = 0
+        resolvedMentionContents = []
         pinnedMessagesLoaded = false
         pinnedPreviewPreferenceKey = nil
         recalledTexts = [:]
@@ -2983,9 +3350,65 @@ final class ChatTimelineModel {
         }
     }
 
-    private func loadLatest(limit: Int, markRead: Bool) async {
+    private func loadAnchorWindow(
+        _ anchor: ChatTimelineAnchor,
+        mutation: ChatTimelineMutation,
+        presentWhenLoaded: Bool = true
+    ) async -> Bool {
+        guard case let .message(messageID, _, _, _) = anchor,
+              let account,
+              let conversationID
+        else {
+            return false
+        }
+        requestVersion += 1
+        let version = requestVersion
+        let halfPage: Int64 = 30
+        do {
+            let items = try await account.messagesAround(
+                conversationId: conversationID,
+                targetMessageId: messageID,
+                before: halfPage,
+                after: halfPage
+            )
+            guard version == requestVersion,
+                  self.conversationID == conversationID,
+                  items.contains(where: { $0.messageId == messageID })
+            else {
+                return false
+            }
+            replaceMessages(
+                items,
+                mutation: mutation
+            )
+            let targetIndex = messages.firstIndex {
+                $0.messageId == messageID
+            }
+            hasOlderMessages = targetIndex.map { $0 >= Int(halfPage) } ?? false
+            hasNewerMessages = targetIndex.map {
+                messages.count - $0 - 1 >= Int(halfPage)
+            } ?? false
+            if presentWhenLoaded {
+                state = .ready
+            }
+            await reloadMentionNames()
+            return true
+        } catch {
+            guard version == requestVersion else {
+                return false
+            }
+            searchError = MixinErrorPresenter.message(for: error)
+            return false
+        }
+    }
+
+    private func loadLatest(
+        limit: Int,
+        markRead: Bool,
+        presentWhenLoaded: Bool = true
+    ) async -> Bool {
         guard let account, let conversationID else {
-            return
+            return false
         }
         requestVersion += 1
         let version = requestVersion
@@ -2997,31 +3420,38 @@ final class ChatTimelineModel {
                 limit: Int64(limit)
             )
             guard version == requestVersion, self.conversationID == conversationID else {
-                return
+                return false
             }
-            replaceMessages(items.sorted(by: Self.isEarlier))
+            replaceMessages(
+                Array(items.reversed()),
+                mutation: .reset(anchor: .latest)
+            )
             hasOlderMessages = items.count == limit
             hasNewerMessages = false
-            state = .ready
-            initialScrollMessageID = messages.last?.messageId
+            if presentWhenLoaded {
+                state = .ready
+            }
             await reloadMentionNames()
             if markRead {
                 try await account.markConversationRead(conversationId: conversationID)
             }
+            return true
         } catch {
             guard version == requestVersion else {
-                return
+                return false
             }
             state = .failed(MixinErrorPresenter.message(for: error))
+            return false
         }
     }
 
     private func loadUnreadWindow(
         lastReadMessageID: String,
-        unseenCount: Int64
-    ) async -> Bool {
+        unseenCount _: Int64,
+        presentWhenLoaded: Bool
+    ) async -> ChatTimelineAnchor? {
         guard let account, let conversationID else {
-            return false
+            return nil
         }
         requestVersion += 1
         let version = requestVersion
@@ -3030,7 +3460,7 @@ final class ChatTimelineModel {
                 conversationId: conversationID,
                 targetMessageId: lastReadMessageID,
                 before: 30,
-                after: min(max(unseenCount + 10, 60), 200)
+                after: 30
             )
             guard version == requestVersion,
                   self.conversationID == conversationID,
@@ -3038,28 +3468,40 @@ final class ChatTimelineModel {
                       $0.messageId == lastReadMessageID
                   })
             else {
-                return false
+                return nil
             }
-            replaceMessages(items.sorted(by: Self.isEarlier))
+            let initialMessageID = items.indices.contains(readIndex + 1)
+                ? items[readIndex + 1].messageId
+                : items.last?.messageId
+            let anchor = initialMessageID.map {
+                ChatTimelineAnchor.message(
+                    id: $0,
+                    alignment: .focus,
+                    offset: 0,
+                    highlight: false
+                )
+            } ?? .latest
+            replaceMessages(
+                items,
+                mutation: .reset(anchor: anchor)
+            )
             hasOlderMessages = readIndex >= 30
-            let requestedAfter = min(max(unseenCount + 10, 60), 200)
             let sortedReadIndex = messages.firstIndex {
                 $0.messageId == lastReadMessageID
             }
             hasNewerMessages = sortedReadIndex.map {
-                messages.count - $0 - 1 >= Int(requestedAfter)
+                messages.count - $0 - 1 >= 30
             } ?? false
-            state = .ready
-            initialScrollMessageID = messages.first(where: {
-                Self.isEarlier(items[readIndex], $0)
-            })?.messageId ?? messages.last?.messageId
+            if presentWhenLoaded {
+                state = .ready
+            }
             try await account.markConversationRead(conversationId: conversationID)
-            return true
+            return anchor
         } catch {
             guard version == requestVersion else {
-                return false
+                return nil
             }
-            return false
+            return nil
         }
     }
 
@@ -3131,10 +3573,12 @@ final class ChatTimelineModel {
         }
         let version = windowVersion
         let currentMessages = messages
-        let currentIDs = currentMessages.map(\.messageId)
+        let refreshIDs = visibleMessageIDs.union(mutableMessageIDs)
 
         do {
-            async let loaded = account.messageItemsByIds(messageIds: currentIDs)
+            async let loaded = account.messageItemsByIds(
+                messageIds: Array(refreshIDs)
+            )
             let recentItems: [SwiftMessageItem]
             if includeRecent, !hasNewerMessages {
                 recentItems = try await account.messages(
@@ -3155,23 +3599,52 @@ final class ChatTimelineModel {
                 return
             }
 
-            let loadedByID = Dictionary(
-                uniqueKeysWithValues: loadedItems.map { ($0.messageId, $0) }
-            )
-            let refreshed = currentIDs.compactMap { loadedByID[$0] }
+            let loadedIDs = Set(loadedItems.map(\.messageId))
+            let removedIDs = refreshIDs.subtracting(loadedIDs)
+            for messageID in refreshIDs {
+                refreshedMessageRevisions[messageID] = messageRevision
+            }
             if includeRecent, !hasNewerMessages {
-                var seen = Set<String>()
-                var merged = (refreshed + recentItems)
-                    .filter { seen.insert($0.messageId).inserted }
-                    .sorted(by: Self.isEarlier)
-                if merged.count > Self.maximumWindowSize {
-                    merged.removeFirst(merged.count - Self.maximumWindowSize)
-                    hasOlderMessages = true
+                let newestID = currentMessages.last?.messageId
+                let boundaryIndex = newestID.flatMap { newestID in
+                    recentItems.firstIndex {
+                        $0.messageId == newestID
+                    }
                 }
-                replaceMessages(merged)
-                hasNewerMessages = false
+                let recentUpdates = recentItems.filter {
+                    timelineStore.contains($0.messageId)
+                }
+                let liveItems = boundaryIndex.map {
+                    Array(recentItems[..<$0].reversed())
+                } ?? []
+                let sentByCurrentUser = liveItems.contains {
+                    $0.senderId == currentUserID
+                }
+                let updated = timelineStore.update(
+                    loadedItems + recentUpdates,
+                    removingIDs: removedIDs
+                )
+                let appended = timelineStore.append(liveItems)
+                if updated || appended {
+                    windowVersion += 1
+                    publishTimelineChange(
+                        liveItems.isEmpty
+                            ? .update
+                            : .append(
+                                source: .live(
+                                    sentByCurrentUser: sentByCurrentUser
+                                ),
+                                count: liveItems.count
+                            )
+                    )
+                }
+                hasNewerMessages = boundaryIndex == nil
             } else {
-                replaceMessages(refreshed)
+                updateMessages(
+                    loadedItems,
+                    removingIDs: removedIDs,
+                    mutation: .update
+                )
             }
             await reloadMentionNames()
         } catch {
@@ -3182,111 +3655,151 @@ final class ChatTimelineModel {
         }
     }
 
-    private enum WindowEdge {
-        case oldest
-        case newest
-    }
-
-    private func merge(_ items: [SwiftMessageItem], keeping edge: WindowEdge) {
-        let combined = items + messages
-        var seen = Set<String>()
-        var merged = combined
-            .filter { seen.insert($0.messageId).inserted }
-            .sorted(by: Self.isEarlier)
-        if merged.count > Self.maximumWindowSize {
-            let overflow = merged.count - Self.maximumWindowSize
-            switch edge {
-            case .oldest:
-                merged.removeLast(overflow)
-                hasNewerMessages = true
-            case .newest:
-                merged.removeFirst(overflow)
-                hasOlderMessages = true
-            }
-        }
-        replaceMessages(merged)
-    }
-
-    private func replaceMessages(_ items: [SwiftMessageItem]) {
-        guard items != messages else {
+    private func refreshMessageIDs(
+        _ messageIDs: [String],
+        revision: UInt64
+    ) async {
+        guard let account,
+              let conversationID,
+              !messageIDs.isEmpty
+        else {
             return
         }
-        messages = items
-        windowVersion += 1
-        rows = items.enumerated().map { index, message in
-            let previous = index > 0 ? items[index - 1] : nil
-            let next = index + 1 < items.count ? items[index + 1] : nil
-            let sameDayPrevious = previous?.createdAtMicros.calendarDay
-                == message.createdAtMicros.calendarDay
-            let sameDayNext = next?.createdAtMicros.calendarDay
-                == message.createdAtMicros.calendarDay
-            return ChatTimelineRow(
-                message: message,
-                startsNewDay: !sameDayPrevious,
-                sameUserPrevious: sameDayPrevious
-                    && previous?.senderId == message.senderId
-                    && previous?.breaksMessageGrouping == false,
-                sameUserNext: sameDayNext
-                    && next?.senderId == message.senderId
-                    && !message.breaksMessageGrouping
+        let version = windowVersion
+        do {
+            let loaded = try await account.messageItemsByIds(
+                messageIds: messageIDs
             )
+            guard self.conversationID == conversationID,
+                  version == windowVersion
+            else {
+                return
+            }
+            let requested = Set(messageIDs)
+            let loadedIDs = Set(loaded.map(\.messageId))
+            for messageID in requested {
+                refreshedMessageRevisions[messageID] = revision
+            }
+            updateMessages(
+                loaded,
+                removingIDs: requested.subtracting(loadedIDs),
+                mutation: .update
+            )
+        } catch {
+            guard self.conversationID == conversationID else {
+                return
+            }
+            mutationError = MixinErrorPresenter.message(for: error)
         }
-        imageMessages = items.filter {
-            $0.category.hasSuffix("_IMAGE")
-                && $0.mediaStatus.isComplete
-                && $0.localMediaURL != nil
+    }
+
+    private func prependMessages(
+        _ items: [SwiftMessageItem],
+        mutation: ChatTimelineMutation
+    ) {
+        guard timelineStore.prepend(items) else {
+            return
         }
-        audioMessages = items.filter {
-            $0.category.hasSuffix("_AUDIO")
-                && ["DONE", "READ"].contains($0.mediaStatus.uppercased())
+        windowVersion += 1
+        publishTimelineChange(mutation)
+    }
+
+    private func appendMessages(
+        _ items: [SwiftMessageItem],
+        mutation: ChatTimelineMutation
+    ) {
+        guard timelineStore.append(items) else {
+            return
         }
+        windowVersion += 1
+        publishTimelineChange(mutation)
+    }
+
+    private func updateMessages(
+        _ items: [SwiftMessageItem],
+        removingIDs: Set<String> = [],
+        mutation: ChatTimelineMutation
+    ) {
+        guard timelineStore.update(items, removingIDs: removingIDs) else {
+            return
+        }
+        windowVersion += 1
+        publishTimelineChange(mutation)
+    }
+
+    private func replaceMessages(
+        _ items: [SwiftMessageItem],
+        mutation: ChatTimelineMutation
+    ) {
+        guard timelineStore.reset(with: items) else {
+            switch mutation {
+            case .reset, .jump:
+                publishTimelineChange(mutation)
+            case .prepend, .append, .update:
+                break
+            }
+            return
+        }
+        windowVersion += 1
+        publishTimelineChange(mutation)
+    }
+
+    private func publishTimelineChange(
+        _ mutation: ChatTimelineMutation
+    ) {
+        timelineRevision += 1
+        timelineChange = ChatTimelineChange(
+            revision: timelineRevision,
+            mutation: mutation
+        )
     }
 
     private var needsMessageRevisionRefresh: Bool {
-        messages.contains { message in
-            message.mediaStatus.uppercased() == "PENDING"
-                || (message.presentationKind == .sticker
-                    && message.presentationImageURL == nil)
-        }
+        !visibleMessageIDs.isEmpty || !timelineStore.mutableMessageIDs.isEmpty
+    }
+
+    private var mutableMessageIDs: Set<String> {
+        timelineStore.mutableMessageIDs
     }
 
     private func reloadMentionNames() async {
         guard let account, let conversationID else {
             return
         }
-        let contents = (messages + searchResults + pinnedMessages)
+        let auxiliaryContents = (searchResults + pinnedMessages)
             .flatMap { message in
                 [message.content, message.caption, message.quoteContent]
                     .compactMap { $0 }
             }
             .filter { $0.range(of: #"@\d{4,}"#, options: .regularExpression) != nil }
-        let key = Array(Set(contents)).sorted().joined(separator: "\u{0}")
-        guard key != mentionContentsKey else {
+        let contents = timelineStore.mentionContents.union(auxiliaryContents)
+        let unresolved = contents.subtracting(resolvedMentionContents)
+        guard !unresolved.isEmpty else {
             return
         }
-        mentionContentsKey = key
         mentionRevision += 1
         let revision = mentionRevision
-        guard !contents.isEmpty else {
-            mentionNames = [:]
-            return
-        }
         do {
-            let names = try await account.mentionNames(contents: contents)
+            let names = try await account.mentionNames(
+                contents: Array(unresolved)
+            )
             guard revision == mentionRevision,
                   self.conversationID == conversationID
             else {
                 return
             }
-            mentionNames = names
+            let previousNames = mentionNames
+            mentionNames.merge(names) { _, new in new }
+            if mentionNames != previousNames {
+                mentionPresentationRevision += 1
+            }
+            resolvedMentionContents.formUnion(unresolved)
         } catch {
             guard revision == mentionRevision,
                   self.conversationID == conversationID
             else {
                 return
             }
-            mentionContentsKey = ""
-            mentionNames = [:]
         }
     }
 
@@ -3295,12 +3808,6 @@ final class ChatTimelineModel {
         return items.filter { seen.insert($0.messageId).inserted }
     }
 
-    private static func isEarlier(_ lhs: SwiftMessageItem, _ rhs: SwiftMessageItem) -> Bool {
-        if lhs.createdAtMicros == rhs.createdAtMicros {
-            return lhs.messageId < rhs.messageId
-        }
-        return lhs.createdAtMicros < rhs.createdAtMicros
-    }
 }
 
 enum MessagePresentationKind {

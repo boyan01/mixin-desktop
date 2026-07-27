@@ -35,6 +35,11 @@ struct MessageJumpRequest {
     let revision: Int
 }
 
+struct ChatViewportPosition: Equatable {
+    let messageID: String
+    let offset: CGFloat
+}
+
 enum ChatInspectorRoute: Hashable {
     case circles
     case participants
@@ -80,6 +85,7 @@ final class HomeNavigationModel {
     private var conversationNames: [String: String] = [:]
     private var conversationDrafts: [String: String] = [:]
     private var conversationItems: [String: SwiftConversationListItem] = [:]
+    private var chatViewportPositions: [String: ChatViewportPosition] = [:]
     private(set) var conversationCommandRequest: ConversationCommandRequest?
     private var conversationCommandRevision = 0
 
@@ -150,6 +156,19 @@ final class HomeNavigationModel {
         messageJumpRequest = nil
     }
 
+    func chatViewportPosition(
+        conversationID: String
+    ) -> ChatViewportPosition? {
+        chatViewportPositions[conversationID]
+    }
+
+    func saveChatViewportPosition(
+        _ position: ChatViewportPosition?,
+        conversationID: String
+    ) {
+        chatViewportPositions[conversationID] = position
+    }
+
     func toggleConversationInfo() {
         guard selectedConversation != nil else {
             return
@@ -205,6 +224,7 @@ final class HomeNavigationModel {
     }
 
     func conversationDeleted(_ conversationID: String) {
+        chatViewportPositions[conversationID] = nil
         guard selectedConversationID == conversationID else {
             return
         }
@@ -226,26 +246,49 @@ final class HomeNavigationModel {
     }
 
     func updateConversationOrder(_ conversations: [SwiftConversationListItem]) {
-        conversationIDs = conversations.map(\.conversationId)
-        conversationNames = Dictionary(
+        let updatedIDs = conversations.map(\.conversationId)
+        let updatedNames = Dictionary(
             uniqueKeysWithValues: conversations.map {
                 ($0.conversationId, $0.name)
             }
         )
-        conversationDrafts = Dictionary(
+        let updatedDrafts = Dictionary(
             uniqueKeysWithValues: conversations.map {
                 ($0.conversationId, $0.draft)
             }
         )
-        conversationItems = Dictionary(
+        let updatedItems = Dictionary(
             uniqueKeysWithValues: conversations.map {
                 ($0.conversationId, $0)
             }
         )
+
+        if conversationIDs != updatedIDs {
+            conversationIDs = updatedIDs
+        }
+        if conversationNames != updatedNames {
+            conversationNames = updatedNames
+        }
+        if conversationDrafts != updatedDrafts {
+            conversationDrafts = updatedDrafts
+        }
+        if conversationItems != updatedItems {
+            conversationItems = updatedItems
+        }
+
         if let selectedConversationID {
-            selectedConversationName = conversationNames[selectedConversationID]
-            selectedConversationDraft = conversationDrafts[selectedConversationID] ?? ""
-            selectedConversation = conversationItems[selectedConversationID]
+            let updatedName = updatedNames[selectedConversationID]
+            let updatedDraft = updatedDrafts[selectedConversationID] ?? ""
+            let updatedConversation = updatedItems[selectedConversationID]
+            if selectedConversationName != updatedName {
+                selectedConversationName = updatedName
+            }
+            if selectedConversationDraft != updatedDraft {
+                selectedConversationDraft = updatedDraft
+            }
+            if selectedConversation != updatedConversation {
+                selectedConversation = updatedConversation
+            }
         }
     }
 

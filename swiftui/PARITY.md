@@ -279,7 +279,12 @@ not complete a node.
     interaction are mirrored with a capsule search field, clear/Escape
     behavior, 36-point action targets and animated hover, pressed and selected
     feedback. Conversation rows are semantic buttons, preserving keyboard and
-    accessibility activation.
+    accessibility activation; selectable rich-text labels do not participate
+    in hit testing, so the row button exclusively owns click and drag gestures.
+    Conversation change events use the same 16 ms merge window as Flutter,
+    coalesce duplicate IDs and full reloads, and publish one ordered array
+    mutation per batch. Navigation dictionaries also skip equal assignments,
+    avoiding whole-shell invalidation on unchanged event payloads.
   - Bridge: `SwiftConversationListItem` preserves the existing facade's full
     `ConversationListData` contract instead of maintaining a second Swift-side
     data source.
@@ -289,8 +294,10 @@ not complete a node.
     The 2026-07-26 interaction pass also built a locally signed sandboxed Debug
     app, restored the existing account from the shared app container, and
     verified pointer-driven search input/clear, unseen filtering and
-    conversation selection against live data. Paging boundary and event-order
-    comparison remain.
+    conversation selection against live data. The later regression pass
+    switched ten live conversations in succession, paged the conversation list
+    to its lower window and back to the top, and kept click and scroll input
+    responsive while high-volume conversation events continued.
 - [x] Conversation category/circle/unseen filtering
   - Source: `HomeNavigationController` —
     `flutter/lib/controllers/home_navigation_controller.dart`
@@ -357,8 +364,8 @@ not complete a node.
     locate, unread-mention count/jump/clear controls and scroll-distance
     jump-to-latest visibility use authoritative conversation/message state.
     The header and preview both open the real pinned-messages collection,
-    whose rows can locate the exact message back in the bounded timeline.
-- [x] Bounded timeline, paging, day chips, unread separator, live changes
+    whose rows can locate the exact message back in the timeline.
+- [x] Incremental timeline, paging, day chips, unread separator, live changes
   - Source: `_MessageList`, `_UnreadMessageBar`, `_ChatMessage` —
     `flutter/lib/widgets/chat_view.dart`
   - Source: `MessageRows` — `flutter/lib/widgets/message_rows.dart`
@@ -366,19 +373,32 @@ not complete a node.
     `flutter/lib/widgets/message_day_time.dart`
   - Required Rust API: `messages`, `messagesAround`, ID windows,
     `messageItemsByIds`, `messageChanges`.
-  - Swift implementation: `ChatTimelineModel`,
-    `ChatTimelineRenderBoundary`, `SwiftConversationSubscription` and
-    `SwiftMessageSubscription`; 60-item bidirectional pages feed a 240-item
-    presentation window, prepend/append restores the retained edge anchor, and
-    loaded rows refresh by stable IDs while active-conversation events merge
-    recent messages. Day/media/audio presentation indexes are derived once per
-    window, and composer/search state no longer invalidates the timeline render
-    subtree. Unseen conversations open an ID-anchored window around the
-    last-read message, with an unread separator and calendar day chips.
-  - Validation: regenerated UniFFI bindings and signed/unsigned Xcode Debug
-    builds pass. The 2026-07-26 signed-in smoke opened a real high-volume group,
-    exercised rapid scrolling, triggered older paging, preserved the timeline
-    after live conversation events, and returned through jump-to-latest.
+  - Swift implementation: `ChatTimelineModel`, `ChatTimelineStore`,
+    `ChatScrollCoordinator`, `ChatTimelineRenderBoundary`,
+    `SwiftConversationSubscription` and `SwiftMessageSubscription`; the native
+    `ScrollView`/`LazyVStack` timeline starts with 60 messages and loads
+    bidirectional 100-message pages without a presentation-count cap while the
+    conversation remains open. Stable message IDs, `ScrollPosition`,
+    `ScrollGeometry`, `ScrollPhase` and row geometry preserve the visible
+    anchor across prepends, row-height changes, live inserts, explicit message
+    jumps and conversation restoration. Loaders stay outside scroll content,
+    pagination starts three viewports before an edge, and tail following is
+    conditional on the user's current position. The store incrementally
+    rebuilds affected rows and mention lookups, while media/audio indexes use
+    compact revisions; change events refresh visible or mutable IDs and
+    active-conversation events merge the recent tail. Unseen conversations open
+    around the last-read message with an unread separator and calendar day
+    chips. `ScrollPosition` remains native SwiftUI state while the coordinator
+    owns only scroll policy and ignores callbacks after its view disappears;
+    rapid conversation replacement therefore cannot synchronously invalidate
+    the outgoing message tree from a scroll-state writeback.
+  - Validation: signed and unsigned Xcode Debug builds pass. The 2026-07-26
+    signed-in smoke opened a real high-volume group, exercised multiple older
+    page loads from 22:34 back to 21:54 without losing the visible anchor,
+    switched conversations and restored the same 21:54 viewport, then returned
+    to the 23:26 tail through jump-to-latest. A follow-up sample reproduced and
+    removed the rapid-switch `ScrollToScrollStateRequest` invalidation loop;
+    ten consecutive live switches completed and the process returned to idle.
 - [x] Message layout, bubble, sender, metadata, selection and actions
   - Source: `MessagePresentation` —
     `flutter/lib/widgets/message_presentation.dart`
@@ -487,7 +507,7 @@ not complete a node.
     URL action, keeps text selectable, applies Apple Color Emoji per grapheme,
     and enlarges messages containing only one to three emoji. Plain timeline
     text, compact search rows, image captions and rich-content fallbacks use the
-    component. `ChatTimelineModel` batches the bounded current timeline,
+    component. `ChatTimelineModel` batches the currently loaded timeline,
     search and pinned windows' content, caption and quoted content into one
     `mentionNames(contents:)` bridge request. Resolved `@identityNumber`
     mentions render as `@displayName` while retaining their original identity
@@ -591,7 +611,7 @@ not complete a node.
     preview and sends `quote_message_id`; selection mode supports row toggling,
     formatted multi-message clipboard copy, cancel, and confirmed delete for me
     or delete for everyone. Pin/unpin, batch delete and batch recall execute
-    through `SwiftAccountHandle` and refresh the bounded timeline, with visible
+    through `SwiftAccountHandle` and refresh the active timeline, with visible
     mutation failures. `ForwardConversationSheet` provides a searchable
     destination picker and runs real single/batch forward or 2...99-message
     combined-transcript forwarding. A successful local text recall retains its
@@ -1050,7 +1070,7 @@ not complete a node.
     and currently visible messages, removes recalled notifications, clears a
     conversation's notifications when selected, and activates/navigates the
     app when a banner is clicked. The notification payload's message ID is
-    passed into the shared bounded-timeline locate request, so selection centers
+    passed into the shared timeline locate request, so selection centers
     the exact clicked message after loading its surrounding window.
   - Remaining: signed-in live delivery, recall and exact-message selection
     verification.

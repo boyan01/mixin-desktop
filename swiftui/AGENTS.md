@@ -315,6 +315,10 @@ xcodebuild \
 - For a UniFFI-visible change, regenerate all bindings using `swiftui/README.md`, then run Rust tests, Swift model tests, and the Xcode Debug build.
 - For changes to the shared public API that also touch `flutter/`, run `flutter analyze`, relevant `flutter test` targets, and `flutter build macos --debug` when generated bindings, plugins, or native build behavior changed.
 - Run a live app smoke test for startup, restore/login, Blaze/Signal, real event streams, notifications, media, file access, protocol links, and visual interaction changes.
+- Use a temporary `-derivedDataPath` only for isolated compile validation. A build with `CODE_SIGNING_ALLOWED=NO` must not be launched for live verification because it does not preserve the app's Sandbox container and data-directory behavior.
+- For live smoke tests, visual checks, and performance profiling, build and launch the signed app from the existing Xcode DerivedData location. Omit the temporary `-derivedDataPath`, or explicitly reuse the DerivedData path of the active Xcode project.
+- Resolve the actual live product path from Xcode build settings when needed. Do not assume that a newly created `/tmp` product has the same credentials, container, persisted state, or runtime behavior as the existing development app.
+- Do not use `open -na` to launch a temporary copy for stateful verification. Launch the signed product associated with the existing project so account data, window state, permissions, and Sandbox paths remain consistent.
 - Do not claim visual or behavioral parity without running the relevant flow.
 - Run `git diff --check`, inspect the final diff, and separate repository failures from local Xcode, CocoaPods, signing, or cache failures.
 

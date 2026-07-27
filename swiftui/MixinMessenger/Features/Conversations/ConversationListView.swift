@@ -22,10 +22,8 @@ struct ConversationListView: View {
         }
         .background(theme.primary)
         .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 340)
-        .task {
-            await model.start(account: session.handle)
-        }
         .task(id: Query(section: navigation.section, keyword: keyword, unseenOnly: unseenOnly)) {
+            await model.start(account: session.handle)
             if !keyword.isEmpty {
                 try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled else {
@@ -469,6 +467,7 @@ private struct ConversationRow: View {
                             lineLimit: 1,
                             highlight: keyword
                         )
+                        .allowsHitTesting(false)
                         ConversationIdentityBadge(conversation: conversation)
                     }
                     Spacer(minLength: 8)
@@ -676,6 +675,7 @@ private struct ConversationPreview: View {
                 lineLimit: 1,
                 highlight: keyword
             )
+            .allowsHitTesting(false)
         }
         .lineLimit(1)
     }
@@ -724,6 +724,10 @@ final class ConversationListModel {
     private var nextOffset: Int64 = 0
     private var subscription: SwiftConversationSubscription?
     private var subscriptionTask: Task<Void, Never>?
+    private var pendingConversationIDs = Set<String>()
+    private var reloadAllPending = false
+    private var changeFlushTask: Task<Void, Never>?
+    private var changeFlushGeneration = 0
 
     func start(account: SwiftAccountHandle) async {
         guard self.account !== account else {
@@ -740,11 +744,10 @@ final class ConversationListModel {
                 guard let self else {
                     return
                 }
-                if event.reloadAll {
-                    await reloadVisibleWindow()
-                } else if !event.conversationIds.isEmpty {
-                    await applyChanges(conversationIDs: event.conversationIds)
-                }
+                scheduleChanges(
+                    reloadAll: event.reloadAll,
+                    conversationIDs: event.conversationIds
+                )
             }
         }
     }
@@ -864,10 +867,17 @@ final class ConversationListModel {
     }
 
     func stop() {
+        requestVersion += 1
+        remoteSearchVersion += 1
         subscription?.cancel()
         subscription = nil
         subscriptionTask?.cancel()
         subscriptionTask = nil
+        changeFlushTask?.cancel()
+        changeFlushTask = nil
+        changeFlushGeneration += 1
+        pendingConversationIDs = []
+        reloadAllPending = false
         account = nil
     }
 
@@ -948,7 +958,9 @@ final class ConversationListModel {
             guard version == requestVersion else {
                 return
             }
-            conversations = items
+            if conversations != items {
+                conversations = items
+            }
             loadedLimit = requestedLimit
             nextOffset = Int64(items.count)
             canLoadMore = items.count == requestedLimit
@@ -974,11 +986,16 @@ final class ConversationListModel {
                 return
             }
             let changedIDs = Set(conversationIDs)
-            conversations.removeAll { changedIDs.contains($0.conversationId) }
-            conversations.append(contentsOf: changed.filter(matchesCurrentQuery))
-            conversations.sort(by: Self.isOrderedBefore)
-            if conversations.count > loadedLimit {
-                conversations.removeLast(conversations.count - loadedLimit)
+            var updated = conversations.filter {
+                !changedIDs.contains($0.conversationId)
+            }
+            updated.append(contentsOf: changed.filter(matchesCurrentQuery))
+            updated.sort(by: Self.isOrderedBefore)
+            if updated.count > loadedLimit {
+                updated.removeLast(updated.count - loadedLimit)
+            }
+            if updated != conversations {
+                conversations = updated
             }
         } catch {
             guard version == requestVersion else {
@@ -995,7 +1012,57 @@ final class ConversationListModel {
         for item in items {
             byID[item.conversationId] = item
         }
-        conversations = byID.values.sorted(by: Self.isOrderedBefore)
+        let updated = byID.values.sorted(by: Self.isOrderedBefore)
+        if updated != conversations {
+            conversations = updated
+        }
+    }
+
+    private func scheduleChanges(
+        reloadAll: Bool,
+        conversationIDs: [String]
+    ) {
+        reloadAllPending = reloadAllPending || reloadAll
+        pendingConversationIDs.formUnion(conversationIDs)
+        guard changeFlushTask == nil else {
+            return
+        }
+        let generation = changeFlushGeneration
+        changeFlushTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(16))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, let self else {
+                return
+            }
+            await flushChanges(generation: generation)
+        }
+    }
+
+    private func flushChanges(generation: Int) async {
+        guard generation == changeFlushGeneration else {
+            return
+        }
+        let reloadAll = reloadAllPending
+        let conversationIDs = Array(pendingConversationIDs)
+        reloadAllPending = false
+        pendingConversationIDs = []
+
+        if reloadAll {
+            await reloadVisibleWindow()
+        } else if !conversationIDs.isEmpty {
+            await applyChanges(conversationIDs: conversationIDs)
+        }
+
+        guard generation == changeFlushGeneration else {
+            return
+        }
+        changeFlushTask = nil
+        if reloadAllPending || !pendingConversationIDs.isEmpty {
+            scheduleChanges(reloadAll: false, conversationIDs: [])
+        }
     }
 
     private func matchesCurrentQuery(_ item: SwiftConversationListItem) -> Bool {
