@@ -471,43 +471,53 @@ class MessageImage extends StatelessWidget {
   final MessageEntryCallback? onCancelAttachment;
 
   @override
-  Widget build(BuildContext context) => _InteractiveMessageCard(
-    message: message,
-    onTap: _attachmentAction(
-      message,
-      onOpen: onOpen,
-      onDownload: onDownloadAttachment,
-      onCancel: onCancelAttachment,
-    ),
-    child: SizedBox.fromSize(
-      size: size,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          _MediaImage(message: message, fit: BoxFit.cover),
-          Center(
-            child: MediaStatusOverlay(
-              messageId: message.id,
-              status: message.mediaStatus,
-              upload: sentByCurrentUser && message.mediaUrl?.isNotEmpty == true,
-            ),
-          ),
-          if (showStatus)
-            Positioned(
-              right: isCurrentUser ? 12 : 4,
-              bottom: 4,
-              child: _TimestampPill(child: overlayDateAndStatus),
-            ),
-          if (size != null && _needsImageExtendIcon(message, size!))
-            Positioned(
-              top: 8,
-              right: isCurrentUser ? 16 : 8,
-              child: const _PostDetailIcon(),
-            ),
-        ],
+  Widget build(BuildContext context) {
+    final mediaStatus = message.mediaStatus.toUpperCase();
+    final useMediaUrl =
+        sentByCurrentUser || mediaStatus == 'DONE' || mediaStatus == 'READ';
+    return _InteractiveMessageCard(
+      message: message,
+      onTap: _attachmentAction(
+        message,
+        onOpen: onOpen,
+        onDownload: onDownloadAttachment,
+        onCancel: onCancelAttachment,
       ),
-    ),
-  );
+      child: SizedBox.fromSize(
+        size: size,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _MediaImage(
+              message: message,
+              fit: BoxFit.cover,
+              useMediaUrl: useMediaUrl,
+            ),
+            Center(
+              child: MediaStatusOverlay(
+                messageId: message.id,
+                status: message.mediaStatus,
+                upload:
+                    sentByCurrentUser && message.mediaUrl?.isNotEmpty == true,
+              ),
+            ),
+            if (showStatus)
+              Positioned(
+                right: isCurrentUser ? 12 : 4,
+                bottom: 4,
+                child: _TimestampPill(child: overlayDateAndStatus),
+              ),
+            if (size != null && _needsImageExtendIcon(message, size!))
+              Positioned(
+                top: 8,
+                right: isCurrentUser ? 16 : 8,
+                child: const _PostDetailIcon(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _VideoMessage extends StatelessWidget {

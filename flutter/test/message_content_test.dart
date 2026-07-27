@@ -446,6 +446,51 @@ void main() {
     expect(canceled, ['pending-video']);
   });
 
+  testWidgets('loads incoming local image only after download is done', (
+    tester,
+  ) async {
+    Future<void> render(
+      String mediaStatus, {
+      bool sentByCurrentUser = false,
+    }) => tester.pumpWidget(
+      _TestApp(
+        child: MessageContent(
+          message: _message(
+            id: 'local-image',
+            category: 'PLAIN_IMAGE',
+            mediaUrl: '/missing/local-image.png',
+            mediaStatus: mediaStatus,
+            mediaWidth: 1,
+            mediaHeight: 1,
+          ),
+          isCurrentUser: false,
+          attachmentSentByCurrentUser: sentByCurrentUser,
+          dateAndStatus: const Text('time'),
+          overlayDateAndStatus: const Text('overlay'),
+        ),
+      ),
+    );
+
+    await render('CANCELED');
+    await tester.pump();
+    final image = find.descendant(
+      of: find.byKey(const Key('message-media-image-local-image')),
+      matching: find.byType(Image),
+    );
+    expect(image, findsNothing);
+
+    await render('CANCELED', sentByCurrentUser: true);
+    await tester.pump();
+    expect(image, findsOneWidget);
+    expect(tester.widget<Image>(image).image, isA<FileImage>());
+
+    await render('DONE');
+    await tester.pump();
+
+    expect(image, findsOneWidget);
+    expect(tester.widget<Image>(image).image, isA<FileImage>());
+  });
+
   testWidgets('keeps invalid quotes inert and opens valid quote previews', (
     tester,
   ) async {
@@ -761,6 +806,7 @@ MessageListEntry _message({
   String mediaDuration = '',
   String mediaStatus = '',
   String? mediaName,
+  String? mediaUrl,
   String? mediaMimeType,
   int? mediaSize,
   int? mediaWidth,
@@ -794,6 +840,7 @@ MessageListEntry _message({
   mediaDuration: mediaDuration,
   mediaStatus: mediaStatus,
   mediaName: mediaName,
+  mediaUrl: mediaUrl,
   mediaMimeType: mediaMimeType,
   mediaSize: mediaSize,
   mediaWidth: mediaWidth,
