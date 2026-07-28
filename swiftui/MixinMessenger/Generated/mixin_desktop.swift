@@ -6413,6 +6413,10 @@ public struct SwiftMessageItem: Equatable, Hashable {
     public var senderRelationship: String
     public var senderAppId: String?
     public var senderIsBot: Bool
+    public var senderParticipantId: String?
+    public var senderRole: String?
+    public var conversationOwnerId: String?
+    public var conversationCategory: String?
     public var category: String
     public var content: String
     public var status: String
@@ -6469,7 +6473,7 @@ public struct SwiftMessageItem: Equatable, Hashable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(messageId: String, conversationId: String, senderId: String, senderName: String, senderIdentityNumber: String?, senderAvatarUrl: String, senderRelationship: String, senderAppId: String?, senderIsBot: Bool, category: String, content: String, status: String, createdAtMicros: Int64, mediaUrl: String?, mediaMimeType: String?, mediaSize: Int64?, mediaDuration: String, mediaWidth: Int32?, mediaHeight: Int32?, thumbImage: String?, thumbUrl: String?, mediaStatus: String, mediaName: String?, mediaWaveform: String?, caption: String?, quoteMessageId: String?, quoteContent: String?, action: String?, participantFullName: String?, snapshotId: String?, snapshotType: String?, snapshotAmount: String?, snapshotMemo: String?, snapshotAssetSymbol: String?, snapshotAssetIconUrl: String?, snapshotChainIconUrl: String?, snapshotOpponentId: String?, snapshotTransactionHash: String?, snapshotCreatedAt: String?, inscriptionHash: String?, inscriptionCollectionHash: String?, inscriptionSequence: Int64?, inscriptionContentType: String?, inscriptionContentUrl: String?, inscriptionName: String?, inscriptionIconUrl: String?, sharedUserFullName: String?, sharedUserIdentityNumber: String?, sharedUserId: String?, sharedUserAvatarUrl: String?, sharedUserIsVerified: Bool, sharedUserMembership: String?, sharedUserAppId: String?, stickerId: String?, stickerAssetUrl: String?, stickerAssetWidth: Int32?, stickerAssetHeight: Int32?, stickerAssetName: String?, stickerAssetType: String?, hyperlink: String?, pinned: Bool, expireIn: Int64?) {
+    public init(messageId: String, conversationId: String, senderId: String, senderName: String, senderIdentityNumber: String?, senderAvatarUrl: String, senderRelationship: String, senderAppId: String?, senderIsBot: Bool, senderParticipantId: String?, senderRole: String?, conversationOwnerId: String?, conversationCategory: String?, category: String, content: String, status: String, createdAtMicros: Int64, mediaUrl: String?, mediaMimeType: String?, mediaSize: Int64?, mediaDuration: String, mediaWidth: Int32?, mediaHeight: Int32?, thumbImage: String?, thumbUrl: String?, mediaStatus: String, mediaName: String?, mediaWaveform: String?, caption: String?, quoteMessageId: String?, quoteContent: String?, action: String?, participantFullName: String?, snapshotId: String?, snapshotType: String?, snapshotAmount: String?, snapshotMemo: String?, snapshotAssetSymbol: String?, snapshotAssetIconUrl: String?, snapshotChainIconUrl: String?, snapshotOpponentId: String?, snapshotTransactionHash: String?, snapshotCreatedAt: String?, inscriptionHash: String?, inscriptionCollectionHash: String?, inscriptionSequence: Int64?, inscriptionContentType: String?, inscriptionContentUrl: String?, inscriptionName: String?, inscriptionIconUrl: String?, sharedUserFullName: String?, sharedUserIdentityNumber: String?, sharedUserId: String?, sharedUserAvatarUrl: String?, sharedUserIsVerified: Bool, sharedUserMembership: String?, sharedUserAppId: String?, stickerId: String?, stickerAssetUrl: String?, stickerAssetWidth: Int32?, stickerAssetHeight: Int32?, stickerAssetName: String?, stickerAssetType: String?, hyperlink: String?, pinned: Bool, expireIn: Int64?) {
         self.messageId = messageId
         self.conversationId = conversationId
         self.senderId = senderId
@@ -6479,6 +6483,10 @@ public struct SwiftMessageItem: Equatable, Hashable {
         self.senderRelationship = senderRelationship
         self.senderAppId = senderAppId
         self.senderIsBot = senderIsBot
+        self.senderParticipantId = senderParticipantId
+        self.senderRole = senderRole
+        self.conversationOwnerId = conversationOwnerId
+        self.conversationCategory = conversationCategory
         self.category = category
         self.content = content
         self.status = status
@@ -6559,6 +6567,10 @@ public struct FfiConverterTypeSwiftMessageItem: FfiConverterRustBuffer {
                 senderRelationship: FfiConverterString.read(from: &buf),
                 senderAppId: FfiConverterOptionString.read(from: &buf),
                 senderIsBot: FfiConverterBool.read(from: &buf),
+                senderParticipantId: FfiConverterOptionString.read(from: &buf),
+                senderRole: FfiConverterOptionString.read(from: &buf),
+                conversationOwnerId: FfiConverterOptionString.read(from: &buf),
+                conversationCategory: FfiConverterOptionString.read(from: &buf),
                 category: FfiConverterString.read(from: &buf),
                 content: FfiConverterString.read(from: &buf),
                 status: FfiConverterString.read(from: &buf),
@@ -6625,6 +6637,10 @@ public struct FfiConverterTypeSwiftMessageItem: FfiConverterRustBuffer {
         FfiConverterString.write(value.senderRelationship, into: &buf)
         FfiConverterOptionString.write(value.senderAppId, into: &buf)
         FfiConverterBool.write(value.senderIsBot, into: &buf)
+        FfiConverterOptionString.write(value.senderParticipantId, into: &buf)
+        FfiConverterOptionString.write(value.senderRole, into: &buf)
+        FfiConverterOptionString.write(value.conversationOwnerId, into: &buf)
+        FfiConverterOptionString.write(value.conversationCategory, into: &buf)
         FfiConverterString.write(value.category, into: &buf)
         FfiConverterString.write(value.content, into: &buf)
         FfiConverterString.write(value.status, into: &buf)

@@ -356,7 +356,10 @@ class MessageActionController extends ChangeNotifier {
         conversationId: conversation.id,
         messageIds: selected.map((message) => message.id).toList(),
       );
-      for (final message in selected.where((message) => message.isText)) {
+      final currentUserId = account.accountId();
+      for (final message in selected.where(
+        (message) => message.isText && message.senderId == currentUserId,
+      )) {
         _recalledText[message.id] = message.content;
         _recalledTextTimers.remove(message.id)?.cancel();
         _recalledTextTimers[message.id] = Timer(const Duration(minutes: 6), () {

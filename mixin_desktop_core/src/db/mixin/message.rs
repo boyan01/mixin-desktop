@@ -8,7 +8,7 @@ use sqlx::{Executor, QueryBuilder, Sqlite};
 
 use sdk::blaze_message::{MessageStatus, CREATE_MESSAGE};
 use sdk::message_category::{MESSAGE_PIN, MESSAGE_RECALL};
-use sdk::ACKNOWLEDGE_MESSAGE_RECEIPTS;
+use sdk::{ACKNOWLEDGE_MESSAGE_RECEIPTS, RECALL_MESSAGE as RECALL_MESSAGE_ACTION};
 
 use crate::db::datetime::DatabaseDateTime;
 use crate::db::mixin::database::MARK_LIMIT;
@@ -88,6 +88,8 @@ pub struct MessageListItem {
     pub sender_app_id: Option<String>,
     pub sender_is_scam: bool,
     pub sender_is_bot: bool,
+    pub sender_participant_id: Option<String>,
+    pub sender_role: Option<String>,
     pub category: String,
     pub content: Option<String>,
     pub status: MessageStatus,
@@ -172,6 +174,8 @@ SELECT message.message_id,
        sender.app_id AS sender_app_id,
        COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
        CASE WHEN COALESCE(sender.app_id, '') != '' THEN TRUE ELSE FALSE END AS sender_is_bot,
+       sender_participant.user_id AS sender_participant_id,
+       sender_participant.role AS sender_role,
        message.category,
        message.content,
        message.status,
@@ -238,6 +242,9 @@ SELECT message.message_id,
        END AS expire_in
 FROM messages message
 LEFT JOIN users sender ON sender.user_id = message.user_id
+LEFT JOIN participants sender_participant
+       ON sender_participant.conversation_id = message.conversation_id
+      AND sender_participant.user_id = message.user_id
 LEFT JOIN users participant ON participant.user_id = message.participant_id
 LEFT JOIN conversations conversation ON conversation.conversation_id = message.conversation_id
 LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
@@ -711,6 +718,8 @@ SELECT message.message_id,
        sender.app_id AS sender_app_id,
        COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
        CASE WHEN COALESCE(sender.app_id, '') != '' THEN TRUE ELSE FALSE END AS sender_is_bot,
+       sender_participant.user_id AS sender_participant_id,
+       sender_participant.role AS sender_role,
        message.category,
        message.content,
        message.status,
@@ -777,6 +786,9 @@ SELECT message.message_id,
        END AS expire_in
 FROM messages message
 LEFT JOIN users sender ON sender.user_id = message.user_id
+LEFT JOIN participants sender_participant
+       ON sender_participant.conversation_id = message.conversation_id
+      AND sender_participant.user_id = message.user_id
 LEFT JOIN users participant ON participant.user_id = message.participant_id
 LEFT JOIN conversations conversation ON conversation.conversation_id = message.conversation_id
 LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
@@ -923,6 +935,8 @@ SELECT message.message_id,
        sender.app_id AS sender_app_id,
        COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
        CASE WHEN COALESCE(sender.app_id, '') != '' THEN TRUE ELSE FALSE END AS sender_is_bot,
+       sender_participant.user_id AS sender_participant_id,
+       sender_participant.role AS sender_role,
        message.category,
        message.content,
        message.status,
@@ -990,6 +1004,9 @@ SELECT message.message_id,
 FROM pin_messages selected_pin
 INNER JOIN messages message ON message.message_id = selected_pin.message_id
 LEFT JOIN users sender ON sender.user_id = message.user_id
+LEFT JOIN participants sender_participant
+       ON sender_participant.conversation_id = message.conversation_id
+      AND sender_participant.user_id = message.user_id
 LEFT JOIN users participant ON participant.user_id = message.participant_id
 LEFT JOIN conversations conversation ON conversation.conversation_id = message.conversation_id
 LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
@@ -1074,6 +1091,8 @@ SELECT message.message_id,
        sender.app_id AS sender_app_id,
        COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
        CASE WHEN COALESCE(sender.app_id, '') != '' THEN TRUE ELSE FALSE END AS sender_is_bot,
+       sender_participant.user_id AS sender_participant_id,
+       sender_participant.role AS sender_role,
        message.category,
        message.content,
        message.status,
@@ -1141,6 +1160,9 @@ SELECT message.message_id,
 FROM message_window
 INNER JOIN messages message ON message.message_id = message_window.message_id
 LEFT JOIN users sender ON sender.user_id = message.user_id
+LEFT JOIN participants sender_participant
+       ON sender_participant.conversation_id = message.conversation_id
+      AND sender_participant.user_id = message.user_id
 LEFT JOIN users participant ON participant.user_id = message.participant_id
 LEFT JOIN conversations conversation ON conversation.conversation_id = message.conversation_id
 LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
@@ -1389,23 +1411,28 @@ ORDER BY message.created_at ASC, message.rowid ASC
         transaction: &mut sqlx::Transaction<'_, Sqlite>,
         job: &Job,
     ) -> Result<(), Error> {
-        sqlx::query(
+        let statement = if job.action == RECALL_MESSAGE_ACTION {
+            r#"INSERT OR IGNORE INTO jobs (job_id, action, created_at, order_id, priority, user_id,
+             conversation_id, resend_message_id, run_count, blaze_message)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+        } else {
             r#"INSERT OR REPLACE INTO jobs (job_id, action, created_at, order_id, priority, user_id,
              conversation_id, resend_message_id, run_count, blaze_message)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
-        )
-        .bind(&job.job_id)
-        .bind(&job.action)
-        .bind(job.created_at.and_utc().timestamp_millis())
-        .bind(job.order_id)
-        .bind(job.priority)
-        .bind(job.user_id.as_ref())
-        .bind(job.conversation_id.as_ref())
-        .bind(job.resend_message_id.as_ref())
-        .bind(job.run_count)
-        .bind(&job.blaze_message)
-        .execute(&mut **transaction)
-        .await?;
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
+        };
+        sqlx::query(statement)
+            .bind(&job.job_id)
+            .bind(&job.action)
+            .bind(job.created_at.and_utc().timestamp_millis())
+            .bind(job.order_id)
+            .bind(job.priority)
+            .bind(job.user_id.as_ref())
+            .bind(job.conversation_id.as_ref())
+            .bind(job.resend_message_id.as_ref())
+            .bind(job.run_count)
+            .bind(&job.blaze_message)
+            .execute(&mut **transaction)
+            .await?;
         Ok(())
     }
 
@@ -1950,7 +1977,7 @@ ORDER BY message.created_at ASC, message.rowid ASC
         Ok(())
     }
 
-    pub async fn recall_messages_with_jobs(
+    pub async fn insert_recall_jobs(
         &self,
         conversation_id: &str,
         message_ids: &[String],
@@ -1963,58 +1990,26 @@ ORDER BY message.created_at ASC, message.rowid ASC
             return Err(anyhow::anyhow!("recall message ids contain duplicates").into());
         }
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
-        for job in jobs {
-            Self::insert_job_with(&mut transaction, job).await?;
-        }
-        let mut recalled = 0;
         for message_id in message_ids {
-            let result = sqlx::query(
-                r#"UPDATE messages SET
-                   category = ?, content = NULL, media_url = NULL, media_mime_type = NULL,
-                   media_size = NULL, media_duration = '', media_width = NULL, media_height = NULL,
-                   media_hash = NULL, thumb_image = NULL, media_key = NULL, media_digest = NULL,
-                   media_status = 'CANCELED', action = NULL, participant_id = NULL,
-                   snapshot_id = NULL, hyperlink = NULL, name = NULL, album_id = NULL,
-                   sticker_id = NULL, shared_user_id = NULL, media_waveform = NULL,
-                   quote_message_id = NULL, quote_content = NULL, thumb_url = NULL, caption = NULL
-                   WHERE conversation_id = ? AND message_id = ?"#,
+            let exists = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM messages \
+                 WHERE conversation_id = ? AND message_id = ?)",
             )
-            .bind(MESSAGE_RECALL)
             .bind(conversation_id)
             .bind(message_id)
-            .execute(&mut *transaction)
+            .fetch_one(&mut *transaction)
             .await?;
-            if result.rows_affected() != 1 {
+            if !exists {
                 return Err(
                     anyhow::anyhow!("message not found in conversation: {message_id}").into(),
                 );
             }
-            recalled += 1;
-            sqlx::query(
-                "UPDATE messages SET content = NULL WHERE conversation_id = ? \
-                 AND category = ? AND quote_message_id = ? AND content IS NOT NULL",
-            )
-            .bind(conversation_id)
-            .bind(MESSAGE_PIN)
-            .bind(message_id)
-            .execute(&mut *transaction)
-            .await?;
-            crate::db::mixin::message_fts::delete_message_fts(&mut transaction, message_id).await?;
-            for table in ["pin_messages", "message_mentions"] {
-                let query = format!("DELETE FROM {table} WHERE message_id = ?");
-                sqlx::query(sqlx::AssertSqlSafe(query))
-                    .bind(message_id)
-                    .execute(&mut *transaction)
-                    .await?;
-            }
-            sqlx::query("DELETE FROM transcript_messages WHERE transcript_id = ?")
-                .bind(message_id)
-                .execute(&mut *transaction)
-                .await?;
-            Self::update_message_quote_with(&mut transaction, conversation_id, message_id).await?;
+        }
+        for job in jobs {
+            Self::insert_job_with(&mut transaction, job).await?;
         }
         transaction.commit().await?;
-        Ok(recalled)
+        Ok(jobs.len() as u64)
     }
 
     pub async fn set_message_pinned_with_job(
@@ -2062,35 +2057,6 @@ ORDER BY message.created_at ASC, message.rowid ASC
                 .await?;
         }
         transaction.commit().await?;
-        Ok(())
-    }
-
-    async fn update_message_quote_with(
-        transaction: &mut sqlx::Transaction<'_, Sqlite>,
-        conversation_id: &str,
-        message_id: &str,
-    ) -> Result<(), Error> {
-        let query = format!(
-            "{} WHERE message.message_id = ?",
-            QUOTE_MESSAGE_QUERY_PREFIX
-        );
-        let message = sqlx::query_as::<_, QuoteMessage>(sqlx::AssertSqlSafe(query))
-            .bind(message_id)
-            .fetch_optional(&mut **transaction)
-            .await?;
-        if let Some(message) = message {
-            let content =
-                serde_json::to_string(&message).with_context(|| "convert quote message to json")?;
-            sqlx::query(
-                "UPDATE messages SET quote_content = ? \
-                 WHERE conversation_id = ? AND quote_message_id = ?",
-            )
-            .bind(content)
-            .bind(conversation_id)
-            .bind(message_id)
-            .execute(&mut **transaction)
-            .await?;
-        }
         Ok(())
     }
 
@@ -2645,7 +2611,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rolls_back_recall_jobs_and_messages_on_failure() {
+    async fn queues_recall_jobs_without_mutating_messages() {
         let (_directory, database) = test_database().await;
         for message_id in ["first", "second"] {
             database
@@ -2654,25 +2620,17 @@ mod tests {
                 .await
                 .unwrap();
         }
-        sqlx::query(
-            "CREATE TRIGGER reject_second_recall BEFORE UPDATE ON messages \
-             WHEN OLD.message_id = 'second' AND NEW.category = 'MESSAGE_RECALL' \
-             BEGIN SELECT RAISE(ABORT, 'rejected'); END",
-        )
-        .execute(&database.message_dao.0)
-        .await
-        .unwrap();
         let ids = ["first".to_string(), "second".to_string()];
         let jobs = ids
             .iter()
             .map(|message_id| Job::create_send_recall_job("conversation", message_id))
             .collect::<Vec<_>>();
 
-        assert!(database
+        database
             .message_dao
-            .recall_messages_with_jobs("conversation", &ids, &jobs)
+            .insert_recall_jobs("conversation", &ids, &jobs)
             .await
-            .is_err());
+            .unwrap();
         let recalled: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM messages WHERE message_id IN ('first', 'second') \
              AND category = 'MESSAGE_RECALL'",
@@ -2684,7 +2642,68 @@ mod tests {
             .fetch_one(&database.message_dao.0)
             .await
             .unwrap();
-        assert_eq!((recalled, jobs), (0, 0));
+        assert_eq!((recalled, jobs), (0, 2));
+    }
+
+    #[tokio::test]
+    async fn rolls_back_recall_jobs_when_any_message_is_missing() {
+        let (_directory, database) = test_database().await;
+        database
+            .message_dao
+            .insert_message(&message("first"))
+            .await
+            .unwrap();
+        let ids = ["first".to_string(), "missing".to_string()];
+        let jobs = ids
+            .iter()
+            .map(|message_id| Job::create_send_recall_job("conversation", message_id))
+            .collect::<Vec<_>>();
+
+        assert!(database
+            .message_dao
+            .insert_recall_jobs("conversation", &ids, &jobs)
+            .await
+            .is_err());
+        let jobs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM jobs")
+            .fetch_one(&database.message_dao.0)
+            .await
+            .unwrap();
+        assert_eq!(jobs, 0);
+    }
+
+    #[tokio::test]
+    async fn duplicate_recall_request_does_not_reset_acknowledged_job() {
+        let (_directory, database) = test_database().await;
+        database
+            .message_dao
+            .insert_message(&message("message"))
+            .await
+            .unwrap();
+        let ids = ["message".to_string()];
+        let jobs = [Job::create_send_recall_job("conversation", "message")];
+        database
+            .message_dao
+            .insert_recall_jobs("conversation", &ids, &jobs)
+            .await
+            .unwrap();
+        database
+            .job_dao
+            .reschedule_job(&jobs[0].job_id, Utc::now().naive_utc(), 1)
+            .await
+            .unwrap();
+
+        database
+            .message_dao
+            .insert_recall_jobs("conversation", &ids, &jobs)
+            .await
+            .unwrap();
+
+        let run_count: i32 = sqlx::query_scalar("SELECT run_count FROM jobs WHERE job_id = ?")
+            .bind(&jobs[0].job_id)
+            .fetch_one(&database.message_dao.0)
+            .await
+            .unwrap();
+        assert_eq!(run_count, 1);
     }
 
     #[tokio::test]
@@ -2936,6 +2955,34 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["oldest"]
         );
+    }
+
+    #[tokio::test]
+    async fn lists_sender_participant_role_for_recall_policy() {
+        let (_directory, database) = test_database().await;
+        database
+            .message_dao
+            .insert_message(&message("message"))
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO participants (conversation_id, user_id, role, created_at) \
+             VALUES ('conversation', 'sender', 'ADMIN', 0)",
+        )
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
+
+        let item = database
+            .message_dao
+            .list_items("conversation", None, None, 1)
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+
+        assert_eq!(item.sender_participant_id.as_deref(), Some("sender"));
+        assert_eq!(item.sender_role.as_deref(), Some("ADMIN"));
     }
 
     #[tokio::test]

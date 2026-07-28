@@ -106,6 +106,7 @@ impl Job {
 
     pub fn create_send_recall_job(conversation_id: &str, message_id: &str) -> Job {
         Job {
+            job_id: unique_object_id(&[conversation_id, message_id, RECALL_MESSAGE]).to_string(),
             conversation_id: Some(conversation_id.to_string()),
             action: RECALL_MESSAGE.to_string(),
             blaze_message: serde_json::to_string(&RecallMessage {
@@ -413,6 +414,16 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(count, jobs.len() as i64);
+    }
+
+    #[test]
+    fn recall_jobs_are_stable_for_the_same_message() {
+        let first = Job::create_send_recall_job("conversation", "message");
+        let second = Job::create_send_recall_job("conversation", "message");
+        let other = Job::create_send_recall_job("conversation", "other");
+
+        assert_eq!(first.job_id, second.job_id);
+        assert_ne!(first.job_id, other.job_id);
     }
 
     #[tokio::test]

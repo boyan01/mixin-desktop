@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -7,17 +8,21 @@ use serde::Deserialize;
 use tokio::sync::Notify;
 
 use sdk::err::error_code::BAD_DATA;
+use sdk::message::RecallMessage;
 use sdk::message_category::MessageCategory;
 use sdk::{
     message_category, AttachmentMessage, BlazeMessage, BlazeMessageParam, Client, MessageStatus,
     PIN_MESSAGE, RECALL_MESSAGE, SENDING_MESSAGE,
 };
 
+use crate::core::attachment::{attachment_path, transcript_attachment_path};
 use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::crypto::encrypted_protocol;
 use crate::core::message::sender::{MessageResult, MessageSender};
 use crate::core::model::{AttachmentExtra, ConversationService};
 use crate::db::mixin::job::Job;
+use crate::db::mixin::message::Message;
+use crate::db::path::account_data_directory;
 use crate::db::MixinDatabase;
 
 use super::{is_terminal_result, sanitize_transcript_app_card, JobCategory, JobTrigger};
@@ -29,6 +34,7 @@ pub(super) struct SendingJobRunner {
     pub(super) client: Arc<Client>,
     pub(super) user_id: String,
     pub(super) session_id: String,
+    pub(super) identity_number: String,
     pub(super) private_key: Vec<u8>,
     pub(super) sender: Arc<MessageSender>,
     pub(super) changes: Option<ConversationChangeNotifier>,
@@ -78,10 +84,7 @@ impl SendingJobRunner {
                         self.send_control_message(&job, message_category::MESSAGE_PIN)
                             .await
                     }
-                    RECALL_MESSAGE => {
-                        self.send_control_message(&job, message_category::MESSAGE_RECALL)
-                            .await
-                    }
+                    RECALL_MESSAGE => self.send_recall_message(&job).await,
                     SENDING_MESSAGE => self.send_user_message(&job).await,
                     _ => Ok(false),
                 };
@@ -125,6 +128,139 @@ impl SendingJobRunner {
             return Ok(false);
         }
         Ok(true)
+    }
+
+    async fn send_recall_message(&self, job: &Job) -> Result<bool> {
+        let conversation_id = job
+            .conversation_id
+            .as_deref()
+            .ok_or_else(|| anyhow!("recall job has no conversation id"))?;
+        let content = job
+            .blaze_message
+            .as_deref()
+            .ok_or_else(|| anyhow!("recall job has no payload"))?;
+        let recall: RecallMessage =
+            serde_json::from_str(content).context("decode recall job payload")?;
+        if job.run_count > 0 {
+            self.finish_recall_job(job, &recall).await?;
+            return Ok(false);
+        }
+
+        let result = self
+            .sender
+            .deliver(BlazeMessage::new_param_blaze(BlazeMessageParam {
+                conversation_id: Some(conversation_id.to_string()),
+                conversation_checksum: Some(self.sender.get_check_sum(conversation_id).await?),
+                message_id: Some(job.job_id.clone()),
+                category: Some(message_category::MESSAGE_RECALL.to_string()),
+                data: Some(Base64::encode_string(content.as_bytes())),
+                status: Some(MessageStatus::Sending.into()),
+                ..BlazeMessageParam::default()
+            }))
+            .await?;
+        if result.success && result.error_code.is_none() {
+            self.database
+                .job_dao
+                .reschedule_job(&job.job_id, chrono::Utc::now().naive_utc(), 1)
+                .await?;
+            self.finish_recall_job(job, &recall).await?;
+            return Ok(false);
+        }
+        if is_terminal_result(&result) {
+            self.database.job_dao.delete_job_by_id(&job.job_id).await?;
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    async fn finish_recall_job(&self, job: &Job, recall: &RecallMessage) -> Result<()> {
+        let conversation_id = job
+            .conversation_id
+            .as_deref()
+            .ok_or_else(|| anyhow!("recall job has no conversation id"))?;
+        let Some(message) = self
+            .database
+            .message_dao
+            .find_message_by_id(&recall.message_id)
+            .await?
+        else {
+            self.database.job_dao.delete_job_by_id(&job.job_id).await?;
+            return Ok(());
+        };
+        if !message.category.is_recall() {
+            for path in self.recalled_attachment_paths(&message).await? {
+                match tokio::fs::remove_file(&path).await {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(error) => {
+                        return Err(error).with_context(|| {
+                            format!("remove recalled attachment {}", path.display())
+                        });
+                    }
+                }
+            }
+            self.database
+                .message_dao
+                .recall_message(conversation_id, &recall.message_id)
+                .await?;
+        }
+        self.database.job_dao.delete_job_by_id(&job.job_id).await?;
+        self.notify_changes(conversation_id);
+        Ok(())
+    }
+
+    async fn recalled_attachment_paths(&self, message: &Message) -> Result<Vec<PathBuf>> {
+        let account_data_dir = account_data_directory(&self.identity_number)?;
+        let mut paths = Vec::new();
+        if message.category.is_transcript() {
+            for transcript in self
+                .database
+                .transcript_message_dao
+                .find_by_transcript_id(&message.message_id)
+                .await?
+                .into_iter()
+                .filter(|transcript| transcript.category.is_attachment())
+            {
+                let Some(media_url) = transcript
+                    .media_url
+                    .as_deref()
+                    .filter(|media_url| !media_url.trim().is_empty())
+                else {
+                    continue;
+                };
+                let path = if Path::new(media_url).is_absolute() {
+                    PathBuf::from(media_url)
+                } else {
+                    transcript_attachment_path(
+                        &account_data_dir,
+                        &Message {
+                            message_id: transcript.message_id,
+                            conversation_id: message.conversation_id.clone(),
+                            category: transcript.category,
+                            media_mime_type: transcript.media_mime_type,
+                            name: transcript.media_name,
+                            ..Message::default()
+                        },
+                    )?
+                };
+                paths.push(path);
+            }
+        } else if message.category.is_attachment() {
+            if let Some(media_url) = message
+                .media_url
+                .as_deref()
+                .filter(|media_url| !media_url.trim().is_empty())
+            {
+                paths.push(if Path::new(media_url).is_absolute() {
+                    PathBuf::from(media_url)
+                } else {
+                    attachment_path(&account_data_dir, message)?
+                });
+            }
+        }
+        paths.sort_unstable();
+        paths.dedup();
+        Ok(paths)
     }
 
     async fn send_user_message(&self, job: &Job) -> Result<bool> {

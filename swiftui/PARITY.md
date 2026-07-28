@@ -619,9 +619,16 @@ not complete a node.
     recalled row exposes `Re-edit`, appends that content to the current draft,
     moves the cursor to the end and focuses the AppKit composer. The cache is
     never restored for remote or historical recalls and is cleared with the
-    conversation lifecycle.
-  - Validation: combined UniFFI/Xcode validation passes; signed-in recall,
-    re-edit and mutation verification remain.
+    conversation lifecycle. Recall is available for completed messages within
+    30 days: either message in a direct conversation, any group message for an
+    owner, and regular-member messages for an admin. Rust repeats the permission
+    checks and keeps the original local message until Blaze accepts the
+    deterministic recall job; rejected recalls leave the original message
+    unchanged, while acknowledged local cleanup resumes after restart without
+    redelivery.
+  - Validation: Rust recall policy/job/database tests, Flutter chat policy
+    tests, Flutter analysis and the unsigned SwiftUI Debug build pass;
+    signed-in recall, re-edit and mutation verification remain.
 - [x] Mentions and keyboard selection
   - Source: `_MentionTextEditingController`, `_MentionPanelPortal`,
     `_MentionPanel`, `_MoveMentionIntent`, `_SelectMentionIntent` —

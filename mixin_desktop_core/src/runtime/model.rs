@@ -320,6 +320,8 @@ pub struct MessageListView {
     pub sender_app_id: Option<String>,
     pub sender_is_scam: bool,
     pub sender_is_bot: bool,
+    pub sender_participant_id: Option<String>,
+    pub sender_role: Option<String>,
     pub category: String,
     pub content: String,
     pub status: String,

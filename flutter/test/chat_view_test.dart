@@ -1000,6 +1000,78 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
+  test('recall policy allows direct peers and enforces group roles', () {
+    final now = DateTime.now();
+    MessageActionPolicy policy(
+      MessageListEntry message, {
+      String? role,
+    }) => MessageActionPolicy(
+      message: message,
+      currentUserId: 'me',
+      currentUserRole: role,
+      now: now,
+    );
+
+    expect(
+      policy(
+        _policyMessage(createdAt: now, conversationCategory: 'CONTACT'),
+      ).canRecall,
+      isTrue,
+    );
+    expect(
+      policy(
+        _policyMessage(
+          createdAt: now,
+          conversationCategory: 'GROUP',
+          senderParticipantId: 'sender',
+        ),
+        role: 'ADMIN',
+      ).canRecall,
+      isTrue,
+    );
+    expect(
+      policy(
+        _policyMessage(
+          createdAt: now,
+          conversationCategory: 'GROUP',
+          senderParticipantId: 'sender',
+          senderRole: 'ADMIN',
+        ),
+        role: 'ADMIN',
+      ).canRecall,
+      isFalse,
+    );
+    expect(
+      policy(
+        _policyMessage(
+          createdAt: now,
+          conversationCategory: 'GROUP',
+          conversationOwnerId: 'me',
+        ),
+      ).canRecall,
+      isTrue,
+    );
+    expect(
+      policy(
+        _policyMessage(
+          createdAt: now,
+          conversationCategory: 'GROUP',
+        ),
+        role: 'ADMIN',
+      ).canRecall,
+      isFalse,
+    );
+    expect(
+      policy(
+        _policyMessage(
+          createdAt: now.subtract(const Duration(days: 30)),
+          conversationCategory: 'CONTACT',
+        ),
+      ).canRecall,
+      isFalse,
+    );
+  });
+
   testWidgets('renders sticker asset url and Lottie json branches', (
     tester,
   ) async {
@@ -1308,6 +1380,31 @@ MessageListItem _message({
   stickerAssetType: stickerAssetType,
   sharedUserIsVerified: false,
   pinned: false,
+);
+
+MessageListEntry _policyMessage({
+  required DateTime createdAt,
+  required String conversationCategory,
+  String conversationOwnerId = 'owner',
+  String? senderParticipantId,
+  String? senderRole,
+}) => MessageListEntry(
+  id: 'message',
+  conversationId: 'conversation',
+  senderId: 'sender',
+  senderName: 'Sender',
+  senderAvatarUrl: '',
+  senderIsVerified: false,
+  category: 'PLAIN_TEXT',
+  content: 'content',
+  status: 'READ',
+  createdAt: createdAt,
+  mediaDuration: '',
+  mediaStatus: '',
+  senderParticipantId: senderParticipantId,
+  senderRole: senderRole,
+  conversationOwnerId: conversationOwnerId,
+  conversationCategory: conversationCategory,
 );
 
 MessageListEntry _entry({

@@ -93,6 +93,7 @@ impl JobService {
             message_sender,
             private_key: auth.private_key.clone(),
             session_id: auth.account.session_id.clone(),
+            identity_number: auth.account.identity_number.clone(),
             changes,
             expired_message_notify,
         };
@@ -183,6 +184,7 @@ struct JobParams {
     message_sender: Arc<MessageSender>,
     private_key: Vec<u8>,
     session_id: String,
+    identity_number: String,
     changes: Option<ConversationChangeNotifier>,
     expired_message_notify: Arc<Notify>,
 }
@@ -212,6 +214,7 @@ async fn start_all_jobs(mut params: JobParams) {
                 client: params.client.clone(),
                 user_id: params.user_id.clone(),
                 session_id: params.session_id.clone(),
+                identity_number: params.identity_number,
                 private_key: params.private_key,
                 sender: params.message_sender,
                 changes: params.changes.clone(),

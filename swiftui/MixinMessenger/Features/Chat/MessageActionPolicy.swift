@@ -25,10 +25,35 @@ struct MessageActionPolicy: Equatable {
     }
 
     var canRecall: Bool {
-        message.status.isCompletedMessageStatus
-            && message.senderId == currentUserID
+        let baseAllowed = message.status.isCompletedMessageStatus
             && message.category.canRecall
-            && now < message.createdAt.addingTimeInterval(60 * 60)
+            && now < message.createdAt.addingTimeInterval(30 * 24 * 60 * 60)
+        guard baseAllowed else {
+            return false
+        }
+        if message.senderId == currentUserID {
+            return true
+        }
+        if message.conversationCategory?.uppercased() == "CONTACT" {
+            return true
+        }
+        guard message.conversationCategory?.uppercased() == "GROUP" else {
+            return false
+        }
+        if message.conversationOwnerId == currentUserID {
+            return true
+        }
+
+        switch currentUserRole?.uppercased() {
+        case "OWNER":
+            return true
+        case "ADMIN":
+            return message.senderId != message.conversationOwnerId
+                && message.senderParticipantId != nil
+                && message.senderRole == nil
+        default:
+            return false
+        }
     }
 
     var canDelete: Bool {

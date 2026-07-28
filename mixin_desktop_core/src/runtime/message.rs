@@ -2006,19 +2006,36 @@ impl MessageAccess {
         let message_ids = message_ids.as_slice();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
-        let recall_deadline = Utc::now().naive_utc() - chrono::Duration::minutes(60);
+        let conversation = self
+            .database
+            .conversation_dao
+            .find_conversation_by_id(conversation_id)
+            .await?
+            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
+        let current_participant = self
+            .database
+            .participant_dao
+            .find_participant_by_id(conversation_id, &self.account_id)
+            .await?;
+        let current_user_role = current_participant
+            .as_ref()
+            .and_then(|participant| participant.role.as_deref());
+        let now = Utc::now().naive_utc();
         let messages = self.messages_by_ids(message_ids).await?;
         for (message, message_id) in messages.iter().zip(message_ids) {
-            let sent = matches!(
-                message.status,
-                MessageStatus::Sent | MessageStatus::Delivered | MessageStatus::Read
-            );
-            if message.conversation_id != conversation_id
-                || message.user_id != self.account_id
-                || !sent
-                || !message.category.can_recall()
-                || message.created_at < recall_deadline
-            {
+            let sender_participant = self
+                .database
+                .participant_dao
+                .find_participant_by_id(conversation_id, &message.user_id)
+                .await?;
+            if !can_recall_message(
+                message,
+                &conversation,
+                &self.account_id,
+                current_user_role,
+                sender_participant.as_ref(),
+                now,
+            ) {
                 return Err(anyhow!("message can not be recalled: {message_id}"));
             }
         }
@@ -2028,10 +2045,9 @@ impl MessageAccess {
             .collect::<Vec<_>>();
         self.database
             .message_dao
-            .recall_messages_with_jobs(conversation_id, message_ids, &jobs)
+            .insert_recall_jobs(conversation_id, message_ids, &jobs)
             .await?;
         self.app_service.job.wake(sdk::RECALL_MESSAGE)?;
-        self.notify_conversation_changed(conversation_id);
         Ok(())
     }
 
@@ -2234,6 +2250,44 @@ impl MessageAccess {
     }
 }
 
+fn can_recall_message(
+    message: &Message,
+    conversation: &crate::db::mixin::conversation::Conversation,
+    current_user_id: &str,
+    current_user_role: Option<&str>,
+    sender_participant: Option<&crate::db::mixin::participant::Participant>,
+    now: chrono::NaiveDateTime,
+) -> bool {
+    let sent = matches!(
+        message.status,
+        MessageStatus::Sent | MessageStatus::Delivered | MessageStatus::Read
+    );
+    if message.conversation_id != conversation.conversation_id
+        || !sent
+        || !message.category.can_recall()
+        || now >= message.created_at + chrono::Duration::days(30)
+    {
+        return false;
+    }
+    if message.user_id == current_user_id {
+        return true;
+    }
+    match conversation.category {
+        Some(ConversationCategory::Contact) => true,
+        Some(ConversationCategory::Group) => {
+            if conversation.owner_id.as_deref() == Some(current_user_id)
+                || current_user_role.is_some_and(|role| role.eq_ignore_ascii_case("OWNER"))
+            {
+                return true;
+            }
+            current_user_role.is_some_and(|role| role.eq_ignore_ascii_case("ADMIN"))
+                && conversation.owner_id.as_deref() != Some(message.user_id.as_str())
+                && sender_participant.is_some_and(|participant| participant.role.is_none())
+        }
+        None => false,
+    }
+}
+
 fn is_shareable_app_card_action(action: &str) -> bool {
     let Ok(uri) = url::Url::parse(action) else {
         return false;
@@ -2295,8 +2349,15 @@ fn normalized_quote_content(
 
 #[cfg(test)]
 mod tests {
-    use super::normalized_quote_content;
+    use super::{can_recall_message, normalized_quote_content};
     use std::path::PathBuf;
+
+    use chrono::{Duration, Utc};
+    use sdk::{ConversationCategory, MessageStatus};
+
+    use crate::db::mixin::conversation::{Conversation, ConversationStatus};
+    use crate::db::mixin::message::Message;
+    use crate::db::mixin::participant::Participant;
 
     #[test]
     fn normalizes_quote_media_path_without_changing_stored_content() {
@@ -2330,5 +2391,151 @@ mod tests {
             normalized["media_url"],
             "/account/Media/Images/conversation/quoted.png"
         );
+    }
+
+    #[test]
+    fn recall_policy_allows_direct_peers_and_group_role_hierarchy() {
+        let now = Utc::now().naive_utc();
+        let mut conversation = conversation(ConversationCategory::Contact);
+        let mut message = recallable_message(now - Duration::days(1));
+
+        assert!(can_recall_message(
+            &message,
+            &conversation,
+            "current",
+            None,
+            None,
+            now,
+        ));
+
+        conversation.category = Some(ConversationCategory::Group);
+        let regular = participant("sender", None);
+        assert!(can_recall_message(
+            &message,
+            &conversation,
+            "current",
+            Some("OWNER"),
+            Some(&regular),
+            now,
+        ));
+        assert!(can_recall_message(
+            &message,
+            &conversation,
+            "current",
+            Some("ADMIN"),
+            Some(&regular),
+            now,
+        ));
+
+        let admin = participant("sender", Some("ADMIN"));
+        assert!(!can_recall_message(
+            &message,
+            &conversation,
+            "current",
+            Some("ADMIN"),
+            Some(&admin),
+            now,
+        ));
+        assert!(!can_recall_message(
+            &message,
+            &conversation,
+            "current",
+            Some("ADMIN"),
+            None,
+            now,
+        ));
+
+        message.user_id = "owner".to_string();
+        assert!(!can_recall_message(
+            &message,
+            &conversation,
+            "current",
+            Some("ADMIN"),
+            Some(&regular),
+            now,
+        ));
+    }
+
+    #[test]
+    fn recall_policy_keeps_status_category_and_thirty_day_constraints() {
+        let now = Utc::now().naive_utc();
+        let conversation = conversation(ConversationCategory::Contact);
+        let mut message = recallable_message(now - Duration::days(29));
+        message.user_id = "current".to_string();
+
+        assert!(can_recall_message(
+            &message,
+            &conversation,
+            "current",
+            None,
+            None,
+            now,
+        ));
+        message.created_at = now - Duration::days(30);
+        assert!(!can_recall_message(
+            &message,
+            &conversation,
+            "current",
+            None,
+            None,
+            now,
+        ));
+        message.created_at = now - Duration::days(1);
+        message.status = MessageStatus::Sending;
+        assert!(!can_recall_message(
+            &message,
+            &conversation,
+            "current",
+            None,
+            None,
+            now,
+        ));
+        message.status = MessageStatus::Read;
+        message.category = "SYSTEM_USER".to_string();
+        assert!(!can_recall_message(
+            &message,
+            &conversation,
+            "current",
+            None,
+            None,
+            now,
+        ));
+    }
+
+    fn conversation(category: ConversationCategory) -> Conversation {
+        Conversation {
+            conversation_id: "conversation".to_string(),
+            owner_id: Some("owner".to_string()),
+            category: Some(category),
+            name: String::new(),
+            icon_url: String::new(),
+            announcement: String::new(),
+            code_url: String::new(),
+            created_at: Utc::now(),
+            status: ConversationStatus::SUCCESS,
+            mute_until: Utc::now(),
+            expire_in: 0,
+        }
+    }
+
+    fn recallable_message(created_at: chrono::NaiveDateTime) -> Message {
+        Message {
+            message_id: "message".to_string(),
+            conversation_id: "conversation".to_string(),
+            user_id: "sender".to_string(),
+            category: "PLAIN_TEXT".to_string(),
+            status: MessageStatus::Read,
+            created_at,
+            ..Message::default()
+        }
+    }
+
+    fn participant(user_id: &str, role: Option<&str>) -> Participant {
+        Participant {
+            conversation_id: "conversation".to_string(),
+            user_id: user_id.to_string(),
+            role: role.map(str::to_string),
+            created_at: Utc::now(),
+        }
     }
 }

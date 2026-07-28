@@ -45,12 +45,26 @@ class MessageActionPolicy {
           message.category.isVideo ||
           message.category.isAudio);
 
-  bool get canRecall =>
-      !isTranscriptPage &&
-      _isCompleted &&
-      message.senderId == currentUserId &&
-      message.category.canRecall &&
-      now.isBefore(message.createdAt.add(const Duration(minutes: 60)));
+  bool get canRecall {
+    final baseAllowed =
+        !isTranscriptPage &&
+        _isCompleted &&
+        message.category.canRecall &&
+        now.isBefore(message.createdAt.add(const Duration(days: 30)));
+    if (!baseAllowed) return false;
+    if (message.senderId == currentUserId) return true;
+    if (message.conversationCategory?.toUpperCase() == 'CONTACT') return true;
+    if (message.conversationCategory?.toUpperCase() != 'GROUP') return false;
+
+    final role = currentUserRole?.toUpperCase();
+    if (message.conversationOwnerId == currentUserId || role == 'OWNER') {
+      return true;
+    }
+    return role == 'ADMIN' &&
+        message.senderId != message.conversationOwnerId &&
+        message.senderParticipantId != null &&
+        message.senderRole == null;
+  }
 
   bool get canDelete => !isTranscriptPage && !isPinnedPage;
 

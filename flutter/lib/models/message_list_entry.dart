@@ -60,6 +60,8 @@ class MessageListEntry {
     this.senderAppId,
     this.senderIsScam = false,
     this.senderIsBot = false,
+    this.senderParticipantId,
+    this.senderRole,
     this.conversationOwnerId,
     this.conversationCategory,
     this.sharedUserFullName,
@@ -138,6 +140,8 @@ class MessageListEntry {
         senderAppId: item.senderAppId,
         senderIsScam: item.senderIsScam,
         senderIsBot: item.senderIsBot,
+        senderParticipantId: item.senderParticipantId,
+        senderRole: item.senderRole,
         conversationOwnerId: item.conversationOwnerId,
         conversationCategory: item.conversationCategory,
         sharedUserFullName: item.sharedUserFullName,
@@ -212,6 +216,8 @@ class MessageListEntry {
   final String? senderAppId;
   final bool senderIsScam;
   final bool senderIsBot;
+  final String? senderParticipantId;
+  final String? senderRole;
   final String? conversationOwnerId;
   final String? conversationCategory;
   final String? sharedUserFullName;

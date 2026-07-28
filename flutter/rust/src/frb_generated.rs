@@ -10583,6 +10583,8 @@ const _: fn() = || {
         let _: Option<String> = MessageListView.sender_app_id;
         let _: bool = MessageListView.sender_is_scam;
         let _: bool = MessageListView.sender_is_bot;
+        let _: Option<String> = MessageListView.sender_participant_id;
+        let _: Option<String> = MessageListView.sender_role;
         let _: String = MessageListView.category;
         let _: String = MessageListView.content;
         let _: String = MessageListView.status;
@@ -12129,6 +12131,8 @@ impl SseDecode for mixin_desktop_api::dto::MessageListView {
         let mut var_senderAppId = <Option<String>>::sse_decode(deserializer);
         let mut var_senderIsScam = <bool>::sse_decode(deserializer);
         let mut var_senderIsBot = <bool>::sse_decode(deserializer);
+        let mut var_senderParticipantId = <Option<String>>::sse_decode(deserializer);
+        let mut var_senderRole = <Option<String>>::sse_decode(deserializer);
         let mut var_category = <String>::sse_decode(deserializer);
         let mut var_content = <String>::sse_decode(deserializer);
         let mut var_status = <String>::sse_decode(deserializer);
@@ -12202,6 +12206,8 @@ impl SseDecode for mixin_desktop_api::dto::MessageListView {
             sender_app_id: var_senderAppId,
             sender_is_scam: var_senderIsScam,
             sender_is_bot: var_senderIsBot,
+            sender_participant_id: var_senderParticipantId,
+            sender_role: var_senderRole,
             category: var_category,
             content: var_content,
             status: var_status,
@@ -14691,6 +14697,8 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Messag
             self.0.sender_app_id.into_into_dart().into_dart(),
             self.0.sender_is_scam.into_into_dart().into_dart(),
             self.0.sender_is_bot.into_into_dart().into_dart(),
+            self.0.sender_participant_id.into_into_dart().into_dart(),
+            self.0.sender_role.into_into_dart().into_dart(),
             self.0.category.into_into_dart().into_dart(),
             self.0.content.into_into_dart().into_dart(),
             self.0.status.into_into_dart().into_dart(),
@@ -16130,6 +16138,8 @@ impl SseEncode for mixin_desktop_api::dto::MessageListView {
         <Option<String>>::sse_encode(self.sender_app_id, serializer);
         <bool>::sse_encode(self.sender_is_scam, serializer);
         <bool>::sse_encode(self.sender_is_bot, serializer);
+        <Option<String>>::sse_encode(self.sender_participant_id, serializer);
+        <Option<String>>::sse_encode(self.sender_role, serializer);
         <String>::sse_encode(self.category, serializer);
         <String>::sse_encode(self.content, serializer);
         <String>::sse_encode(self.status, serializer);

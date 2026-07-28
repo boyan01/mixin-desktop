@@ -536,6 +536,8 @@ class MessageListView {
   final String? senderAppId;
   final bool senderIsScam;
   final bool senderIsBot;
+  final String? senderParticipantId;
+  final String? senderRole;
   final String category;
   final String content;
   final String status;
@@ -610,6 +612,8 @@ class MessageListView {
     this.senderAppId,
     required this.senderIsScam,
     required this.senderIsBot,
+    this.senderParticipantId,
+    this.senderRole,
     required this.category,
     required this.content,
     required this.status,
@@ -686,6 +690,8 @@ class MessageListView {
       senderAppId.hashCode ^
       senderIsScam.hashCode ^
       senderIsBot.hashCode ^
+      senderParticipantId.hashCode ^
+      senderRole.hashCode ^
       category.hashCode ^
       content.hashCode ^
       status.hashCode ^
@@ -764,6 +770,8 @@ class MessageListView {
           senderAppId == other.senderAppId &&
           senderIsScam == other.senderIsScam &&
           senderIsBot == other.senderIsBot &&
+          senderParticipantId == other.senderParticipantId &&
+          senderRole == other.senderRole &&
           category == other.category &&
           content == other.content &&
           status == other.status &&

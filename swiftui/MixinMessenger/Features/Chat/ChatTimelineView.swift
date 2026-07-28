@@ -3285,7 +3285,10 @@ final class ChatTimelineModel {
 
     private func retainRecalledText(from messages: [SwiftMessageItem]) {
         let expiresAt = Date().addingTimeInterval(Self.recalledTextLifetime)
-        for message in messages where message.category.hasSuffix("_TEXT") {
+        for message in messages
+            where message.category.hasSuffix("_TEXT")
+                && message.senderId == currentUserID
+        {
             recalledTexts[message.messageId] = RecalledText(
                 content: message.content,
                 expiresAt: expiresAt
