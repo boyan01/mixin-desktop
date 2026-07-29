@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../controllers/conversation_list_controller.dart';
+import '../controllers/conversation_list_viewport.dart';
 import '../controllers/home_navigation_controller.dart';
 import '../controllers/security_controller.dart';
 import '../l10n/l10n.dart';
@@ -484,8 +485,9 @@ class _MacosMenuBarState extends State<MacosMenuBar> {
     final nextIndex = forward ? index + 1 : index - 1;
     if (nextIndex < 0 || nextIndex >= conversations.length) return;
     navigation.select(conversations[nextIndex]);
-    if (controller.itemScrollController.isAttached) {
-      controller.itemScrollController.jumpTo(
+    final viewport = context.read<ConversationListViewport>();
+    if (viewport.itemScrollController.isAttached) {
+      viewport.itemScrollController.jumpTo(
         index: nextIndex,
         alignment: forward ? 0.9 : 0,
       );

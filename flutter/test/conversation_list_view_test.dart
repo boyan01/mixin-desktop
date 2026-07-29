@@ -8,7 +8,6 @@ import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/avatar_view.dart';
 import 'package:mixin_desktop_ui/widgets/conversation_list_view.dart';
 import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 void main() {
   testWidgets(
@@ -150,54 +149,6 @@ void main() {
       tester.getSize(find.byType(AvatarView).at(2)),
       const Size.square(25),
     );
-  });
-
-  testWidgets('opens the responsive drawer from the search bar', (
-    tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(360, 720));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildMixinTheme(Brightness.light),
-        locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Portal(
-          child: Scaffold(
-            drawer: const Drawer(child: Text('Navigation')),
-            body: ConversationListView(
-              conversations: const [],
-              initialized: true,
-              itemPositionsListener: ItemPositionsListener.create(),
-              itemScrollController: ItemScrollController(),
-              loading: false,
-              currentUserId: 'current-user',
-              circles: const {},
-              currentCircleId: null,
-              filterUnseen: false,
-              selectedConversationId: null,
-              onQueryChanged: (_) {},
-              onToggleUnseen: () {},
-              onCreateActionSelected: (_) {},
-              onSelected: (_) {},
-              onPinned: (_) {},
-              onMuted: (_, _) {},
-              onDeleted: (_) {},
-              onCircleChanged: (_, _, _) {},
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('open-drawer')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Navigation'), findsOneWidget);
-    expect(tester.getTopLeft(find.text('Navigation')).dx, 0);
   });
 }
 

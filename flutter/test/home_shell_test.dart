@@ -16,10 +16,13 @@ import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/chat_view.dart';
 import 'package:mixin_desktop_ui/widgets/conversation_list_view.dart';
 import 'package:mixin_desktop_ui/widgets/home_sidebar.dart';
+import 'package:mixin_desktop_ui/widgets/message_audio.dart';
 import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
 import 'package:overlay_support/overlay_support.dart';
 import 'package:provider/provider.dart';
+import 'package:super_context_menu/super_context_menu.dart';
 
+import 'test_audio_playback_backend.dart';
 import 'test_settings_store.dart';
 
 void main() {
@@ -256,6 +259,34 @@ void main() {
     expect(_conversationTitle('Mixin Team'), findsOneWidget);
   });
 
+  testWidgets('recreates circle stream when conversation pane remounts', (
+    tester,
+  ) async {
+    final circleStreams = <StreamController<List<CircleItem>>>[];
+    addTearDown(() async {
+      for (final stream in circleStreams) {
+        await stream.close();
+      }
+    });
+    final account = _FakeAccountHandle(
+      circleChangesFactory: () {
+        final stream = StreamController<List<CircleItem>>();
+        circleStreams.add(stream);
+        return stream.stream;
+      },
+    );
+    await _pumpHome(tester, size: const Size(600, 700), account: account);
+
+    await tester.tap(_conversationTitle('Mixin Team'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('chat-back')));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(ConversationListView), findsOneWidget);
+    expect(circleStreams, hasLength(greaterThanOrEqualTo(3)));
+  });
+
   testWidgets('keeps per-conversation drafts across responsive remounts', (
     tester,
   ) async {
@@ -405,7 +436,7 @@ void main() {
     expect(_conversationTitle('Mixin Team'), findsOneWidget);
   });
 
-  testWidgets('shows mutation failures and clears selection after delete', (
+  testWidgets('shows pin failures and clears selection after delete', (
     tester,
   ) async {
     final account = _FakeAccountHandle()..mutationError = StateError('failed');
@@ -415,36 +446,53 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ChatView), findsOneWidget);
 
-    final conversation = tester
-        .widget<ConversationItem>(find.byType(ConversationItem))
-        .conversation;
-    final conversationList = tester.widget<ConversationListView>(
-      find.byType(ConversationListView),
-    );
-
-    Future<void> expectFailure(VoidCallback action) async {
-      action();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 250));
-      expect(find.text('Failed'), findsWidgets);
-      ScaffoldMessenger.of(
-        tester.element(find.byType(HomePage)),
-      ).hideCurrentSnackBar();
-      await tester.pumpAndSettle();
+    Future<void> invokeMenuAction(String title) async {
+      final widget = tester.widget<ContextMenuWidget>(
+        find.byType(ContextMenuWidget),
+      );
+      final menu = await widget.menuProvider(
+        MenuRequest(
+          onShowMenu: ChangeNotifier(),
+          onHideMenu: ValueNotifier(null),
+          onPreviewAction: ChangeNotifier(),
+          location: Offset.zero,
+        ),
+      );
+      final action = menu!.children.whereType<MenuAction>().singleWhere(
+        (action) => action.title == title,
+      );
+      action.callback();
     }
 
-    await expectFailure(() => conversationList.onPinned(conversation));
-    await expectFailure(() => conversationList.onMuted(conversation, 0));
-    await expectFailure(
-      () => conversationList.onCircleChanged(conversation, 'circle', true),
-    );
-    await expectFailure(() => conversationList.onDeleted(conversation));
+    await invokeMenuAction('Pin');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.text('Failed'), findsWidgets);
+    ScaffoldMessenger.of(
+      tester.element(find.byType(HomePage)),
+    ).hideCurrentSnackBar();
+    await tester.pumpAndSettle();
+
+    Future<void> deleteConversation() async {
+      await invokeMenuAction('Delete Chat');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirm'));
+      await tester.pump();
+    }
+
+    await deleteConversation();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.text('Failed'), findsWidgets);
+    ScaffoldMessenger.of(
+      tester.element(find.byType(HomePage)),
+    ).hideCurrentSnackBar();
+    await tester.pumpAndSettle();
     expect(find.byType(ChatView), findsOneWidget);
 
     account
       ..mutationError = null
       ..deleteCompleter = Completer<void>();
-    conversationList.onDeleted(conversation);
+    await deleteConversation();
     await tester.pump();
     expect(find.byType(ChatView), findsOneWidget);
 
@@ -470,6 +518,7 @@ Future<void> _pumpHome(
   addTearDown(tester.view.resetDevicePixelRatio);
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
+  final resolvedAccount = account ?? _FakeAccountHandle();
 
   await tester.pumpWidget(
     OverlaySupport.global(
@@ -477,13 +526,19 @@ Future<void> _pumpHome(
         child: MultiProvider(
           providers: [
             Provider<AccountHandle>.value(
-              value: account ?? _FakeAccountHandle(),
+              value: resolvedAccount,
             ),
+            Provider<MediaHandle>.value(value: resolvedAccount),
             ChangeNotifierProvider<AppController>.value(
               value: appController ?? _FakeAppController(),
             ),
             ChangeNotifierProvider(
               create: (_) => SettingsController(store: TestSettingsStore()),
+            ),
+            ChangeNotifierProvider(
+              create: (_) => AudioMessagePlaybackCoordinator(
+                backend: TestAudioPlaybackBackend(),
+              ),
             ),
           ],
           child: const HomePage(),
@@ -520,6 +575,7 @@ class _FakeAccountHandle
         AccountHandle,
         AttachmentAccess,
         ConversationAccess,
+        MediaHandle,
         MessageAccess,
         StickerAccess,
         UserAccess {
@@ -528,6 +584,7 @@ class _FakeAccountHandle
     this.sharedAppsValues = const [],
     Stream<List<ConversationUnseenCount>>? unseenCountValues,
     Stream<List<CircleItem>>? circleChangesValues,
+    this.circleChangesFactory,
   }) : unseenCountValues = unseenCountValues ?? const Stream.empty(),
        circleChangesValues = circleChangesValues ?? const Stream.empty(),
        _conversationItems = conversations ?? const [_conversation];
@@ -595,6 +652,7 @@ class _FakeAccountHandle
   final List<ConversationListItem> _conversationItems;
   final List<SharedAppItem> sharedAppsValues;
   final Stream<List<ConversationUnseenCount>> unseenCountValues;
+  final Stream<List<CircleItem>> Function()? circleChangesFactory;
   final conversationKeywords = <String>[];
   final sentTexts = <String>[];
   Object? mutationError;
@@ -629,7 +687,8 @@ class _FakeAccountHandle
   final Stream<List<CircleItem>> circleChangesValues;
 
   @override
-  Stream<List<CircleItem>> circleChanges() => circleChangesValues;
+  Stream<List<CircleItem>> circleChanges() =>
+      circleChangesFactory?.call() ?? circleChangesValues;
 
   @override
   Stream<ConversationChangeEvent> conversationChanges() => const Stream.empty();

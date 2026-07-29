@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -6,17 +7,30 @@ import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:super_context_menu/super_context_menu.dart';
 
 import '../constants/assets.dart';
 import '../constants/icon_fonts.dart';
+import '../controllers/conversation_filter_controller.dart';
+import '../controllers/conversation_list_controller.dart';
+import '../controllers/conversation_list_viewport.dart';
+import '../controllers/conversation_search_controller.dart';
+import '../controllers/home_navigation_controller.dart';
 import '../l10n/l10n.dart';
+import '../models/conversation_create_action.dart';
 import '../models/conversation_list_entry.dart';
 import '../models/message_list_entry.dart';
-import '../src/rust/desktop_api.dart' show AccountHandle, UserProfileItem;
+import '../pages/conversation_create_dialogs.dart';
+import '../src/rust/desktop_api.dart'
+    show AccountHandle, CircleItem, UserProfileItem;
 import '../theme.dart';
+import '../utils/app_logger.dart';
+import '../utils/web_view.dart';
 import 'action_button.dart';
+import 'app_protocol_handler.dart';
+import 'audio_player_bar.dart';
 import 'avatar_view.dart';
 import 'badges_widget.dart';
 import 'conversation_search_results.dart';
@@ -30,175 +44,281 @@ import 'message_selectable_text.dart';
 import 'mixin_dialog.dart';
 import 'move_window.dart';
 import 'mute_dialog.dart';
+import 'network_status.dart';
 import 'search_text_field.dart';
+import 'show_forward_conversation_selector.dart';
+import 'toast.dart';
 
-enum ConversationCreateAction { searchContact, conversation, group, circle }
+export '../models/conversation_create_action.dart';
 
-class ConversationListView extends StatefulWidget {
-  const ConversationListView({
-    required this.conversations,
-    required this.initialized,
-    required this.itemPositionsListener,
-    required this.itemScrollController,
-    required this.loading,
-    required this.currentUserId,
-    required this.circles,
-    required this.currentCircleId,
-    required this.filterUnseen,
-    required this.selectedConversationId,
-    required this.onQueryChanged,
-    required this.onToggleUnseen,
-    required this.onCreateActionSelected,
-    required this.onSelected,
-    required this.onPinned,
-    required this.onMuted,
-    required this.onDeleted,
-    required this.onCircleChanged,
-    super.key,
-    this.query = '',
-    this.account,
-    this.searchMessages = const [],
-    this.searchUsers = const [],
-    this.searchMaoUser,
-    this.searchMao,
-    this.searchMessageConversations = const {},
-    this.searchMessagesLoading = false,
-    this.onSearchMessageSelected,
-    this.onSearchUser,
-    this.onLocalUserSelected,
-    this.onMaoBotOpen,
-    this.onOpenLink,
-    this.audioPlayerBar = const SizedBox.shrink(),
-    this.networkStatus = const SizedBox.shrink(),
-  });
-
-  final List<ConversationListEntry> conversations;
-  final bool initialized;
-  final ItemPositionsListener itemPositionsListener;
-  final ItemScrollController itemScrollController;
-  final bool loading;
-  final String currentUserId;
-  final AccountHandle? account;
-  final Map<String, String> circles;
-  final String? currentCircleId;
-  final String query;
-  final bool filterUnseen;
-  final String? selectedConversationId;
-  final ValueChanged<String> onQueryChanged;
-  final List<MessageListEntry> searchMessages;
-  final List<UserProfileItem> searchUsers;
-  final UserProfileItem? searchMaoUser;
-  final String? searchMao;
-  final Map<String, ConversationListEntry> searchMessageConversations;
-  final bool searchMessagesLoading;
-  final ValueChanged<MessageListEntry>? onSearchMessageSelected;
-  final ValueChanged<String>? onSearchUser;
-  final ValueChanged<UserProfileItem>? onLocalUserSelected;
-  final ValueChanged<UserProfileItem>? onMaoBotOpen;
-  final ValueChanged<Uri>? onOpenLink;
-  final VoidCallback onToggleUnseen;
-  final ValueChanged<ConversationCreateAction> onCreateActionSelected;
-  final ValueChanged<ConversationListEntry> onSelected;
-  final ValueChanged<ConversationListEntry> onPinned;
-  final void Function(ConversationListEntry, int) onMuted;
-  final ValueChanged<ConversationListEntry> onDeleted;
-  final void Function(ConversationListEntry, String, bool) onCircleChanged;
-  final Widget audioPlayerBar;
-  final Widget networkStatus;
-
-  @override
-  State<ConversationListView> createState() => _ConversationListViewState();
-}
-
-class _ConversationListViewState extends State<ConversationListView> {
-  late final TextEditingController searchController;
-  final searchFocusNode = FocusNode();
-
-  @override
-  void initState() {
-    super.initState();
-    searchController = TextEditingController(text: widget.query);
-  }
-
-  @override
-  void didUpdateWidget(covariant ConversationListView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (searchController.text == widget.query) return;
-    searchController.value = TextEditingValue(
-      text: widget.query,
-      selection: TextSelection.collapsed(offset: widget.query.length),
-    );
-  }
-
-  @override
-  void dispose() {
-    searchController.dispose();
-    searchFocusNode.dispose();
-    super.dispose();
-  }
+class ConversationListView extends StatelessWidget {
+  const ConversationListView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final content = widget.query.trim().isEmpty
-        ? _ConversationListBody(
-            conversations: widget.conversations,
-            initialized: widget.initialized,
-            loading: widget.loading,
-            filterUnseen: widget.filterUnseen,
-            itemPositionsListener: widget.itemPositionsListener,
-            itemScrollController: widget.itemScrollController,
-            currentUserId: widget.currentUserId,
-            account: widget.account,
-            circles: widget.circles,
-            currentCircleId: widget.currentCircleId,
-            selectedConversationId: widget.selectedConversationId,
-            onSelected: widget.onSelected,
-            onPinned: widget.onPinned,
-            onMuted: widget.onMuted,
-            onDeleted: widget.onDeleted,
-            onCircleChanged: widget.onCircleChanged,
-          )
-        : ConversationSearchResults(
-            keyword: widget.query,
-            users: widget.searchUsers,
-            maoUser: widget.searchMaoUser,
-            mao: widget.searchMao,
-            conversations: widget.conversations,
-            messages: widget.searchMessages,
-            messageConversations: widget.searchMessageConversations,
-            loadingMessages: widget.searchMessagesLoading,
-            account: widget.account,
-            onConversationSelected: widget.onSelected,
-            onMessageSelected: widget.onSearchMessageSelected ?? (_) {},
-            onSearchUser: widget.onSearchUser ?? (_) {},
-            onUserSelected: widget.onLocalUserSelected ?? (_) {},
-            onMaoBotOpen: widget.onMaoBotOpen ?? (_) {},
-            onOpenLink: widget.onOpenLink ?? (_) {},
-            onClear: () {
-              searchController.clear();
-              widget.onQueryChanged('');
-              searchFocusNode.unfocus();
-            },
-          );
+    final account = context.read<AccountHandle>();
     return Material(
       color: context.mixinTheme.primary,
       child: Column(
         children: [
-          _SearchBar(
-            controller: searchController,
-            focusNode: searchFocusNode,
-            filterUnseen: widget.filterUnseen,
-            onChanged: widget.onQueryChanged,
-            onToggleUnseen: widget.onToggleUnseen,
-            onCreateActionSelected: widget.onCreateActionSelected,
-          ),
-          widget.networkStatus,
-          Expanded(child: content),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            child: widget.audioPlayerBar,
-          ),
+          const _ConversationSearchBar(),
+          NetworkStatus(account: account),
+          const Expanded(child: _ConversationContent()),
+          const _ConversationFooter(),
         ],
+      ),
+    );
+  }
+}
+
+class _ConversationSearchBar extends HookWidget {
+  const _ConversationSearchBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final query = context.select<ConversationFilterController, String>(
+      (controller) => controller.query,
+    );
+    final unseenOnly = context.select<ConversationFilterController, bool>(
+      (controller) => controller.unseenOnly,
+    );
+    final controller = useTextEditingController(text: query);
+    final focusNode = useFocusNode();
+    useEffect(() {
+      if (controller.text != query) {
+        controller.value = TextEditingValue(
+          text: query,
+          selection: TextSelection.collapsed(offset: query.length),
+        );
+      }
+      return null;
+    }, [controller, query]);
+
+    Future<void> performCreateAction(ConversationCreateAction action) async {
+      switch (action) {
+        case ConversationCreateAction.searchContact:
+          await showSearchContactDialog(context);
+        case ConversationCreateAction.conversation:
+          final account = context.read<AccountHandle>();
+          final conversation = await showConversationSelector(
+            context,
+            account: account,
+            title: context.l10n.createConversation,
+            category: ConversationCategoryFilter.contacts,
+          );
+          if (context.mounted && conversation != null) {
+            context.read<HomeNavigationController>().select(conversation);
+          }
+        case ConversationCreateAction.group:
+          await showCreateGroupDialog(context);
+        case ConversationCreateAction.circle:
+          await showCreateCircleDialog(context);
+      }
+    }
+
+    return _SearchBar(
+      controller: controller,
+      focusNode: focusNode,
+      filterUnseen: unseenOnly,
+      onChanged: context.read<ConversationFilterController>().setQuery,
+      onToggleUnseen: context.read<ConversationFilterController>().toggleUnseen,
+      onCreateActionSelected: (action) =>
+          unawaited(performCreateAction(action)),
+    );
+  }
+}
+
+class _ConversationContent extends StatelessWidget {
+  const _ConversationContent();
+
+  @override
+  Widget build(BuildContext context) {
+    final searching = context.select<ConversationFilterController, bool>(
+      (controller) => controller.query.trim().isNotEmpty,
+    );
+    return searching
+        ? const _ConversationSearchContent()
+        : const _ConversationItemsContent();
+  }
+}
+
+class _ConversationItemsContent extends HookWidget {
+  const _ConversationItemsContent();
+
+  @override
+  Widget build(BuildContext context) {
+    final account = context.read<AccountHandle>();
+    final state = context
+        .select<
+          ConversationListController,
+          ({
+            List<String> conversationIds,
+            bool initialized,
+            bool loading,
+          })
+        >(
+          (controller) => (
+            conversationIds: controller.visibleConversationIds,
+            initialized: controller.initialized,
+            loading: controller.loading,
+          ),
+        );
+    final viewport = context.read<ConversationListViewport>();
+    final filter = context
+        .select<
+          ConversationFilterController,
+          ({
+            bool unseenOnly,
+            ConversationCategoryFilter category,
+            String? circleId,
+          })
+        >(
+          (controller) => (
+            unseenOnly: controller.unseenOnly,
+            category: controller.category,
+            circleId: controller.circleId,
+          ),
+        );
+    final circles = useStream(
+      useMemoized(account.circleChanges, [account]),
+      initialData: const <CircleItem>[],
+    ).data!;
+
+    return _ConversationListBody(
+      conversationIds: state.conversationIds,
+      initialized: state.initialized,
+      loading: state.loading,
+      filterUnseen: filter.unseenOnly,
+      itemPositionsListener: viewport.itemPositionsListener,
+      itemScrollController: viewport.itemScrollController,
+      circles: {for (final circle in circles) circle.circleId: circle.name},
+      currentCircleId: filter.category == ConversationCategoryFilter.circle
+          ? filter.circleId
+          : null,
+    );
+  }
+}
+
+class _ConversationSearchContent extends StatelessWidget {
+  const _ConversationSearchContent();
+
+  @override
+  Widget build(BuildContext context) {
+    final account = context.read<AccountHandle>();
+    final query = context.select<ConversationFilterController, String>(
+      (controller) => controller.query,
+    );
+    final conversations = context
+        .select<ConversationListController, List<ConversationListEntry>>(
+          (controller) => controller.visibleConversations,
+        );
+    final search = context
+        .select<
+          ConversationSearchController,
+          ({
+            List<UserProfileItem> users,
+            UserProfileItem? maoUser,
+            String? mao,
+            List<MessageListEntry> messages,
+            Map<String, ConversationListEntry> messageConversations,
+            bool loading,
+          })
+        >(
+          (controller) => (
+            users: controller.users,
+            maoUser: controller.maoUser,
+            mao: controller.mao,
+            messages: controller.messages,
+            messageConversations: controller.messageConversations,
+            loading: controller.loading,
+          ),
+        );
+
+    void selectConversation(ConversationListEntry conversation) {
+      context.read<ConversationFilterController>().setQuery('');
+      context.read<HomeNavigationController>().select(conversation);
+    }
+
+    Future<void> selectMessage(MessageListEntry message) async {
+      final conversation = await context
+          .read<ConversationListController>()
+          .findConversation(message.conversationId);
+      if (!context.mounted || conversation == null) return;
+      context.read<ConversationFilterController>().setQuery('');
+      context.read<HomeNavigationController>()
+        ..select(conversation)
+        ..locateMessage(message.id);
+    }
+
+    Future<void> searchUser(String value) async {
+      try {
+        final profile = await account.user().searchUser(query: value);
+        if (context.mounted) {
+          await showConversationUser(context, userId: profile.userId);
+        }
+      } on Object catch (error, stackTrace) {
+        e('Search user failed: query=$value', error, stackTrace);
+        if (context.mounted) showToastFailed(null);
+      }
+    }
+
+    return ConversationSearchResults(
+      keyword: query,
+      users: search.users,
+      maoUser: search.maoUser,
+      mao: search.mao,
+      conversations: conversations,
+      messages: search.messages,
+      messageConversations: search.messageConversations,
+      loadingMessages: search.loading,
+      account: account,
+      onConversationSelected: selectConversation,
+      onMessageSelected: (message) => unawaited(selectMessage(message)),
+      onSearchUser: (value) => unawaited(searchUser(value)),
+      onUserSelected: (profile) => unawaited(
+        showConversationUser(context, userId: profile.userId),
+      ),
+      onMaoBotOpen: (profile) => unawaited(
+        openProtocolUri(
+          context,
+          Uri.parse('mixin://apps/${profile.userId}?action=open'),
+          onSelectConversation: context.read<HomeNavigationController>().select,
+          currentConversation: context
+              .read<HomeNavigationController>()
+              .selectedConversation,
+        ),
+      ),
+      onOpenLink: (uri) => unawaited(
+        openBotWebViewWindow(
+          context: context,
+          url: uri.toString(),
+          title: '',
+          conversationId: '',
+          currency: account.profile().fiatCurrency,
+        ),
+      ),
+      onClear: () => context.read<ConversationFilterController>().setQuery(''),
+    );
+  }
+}
+
+class _ConversationFooter extends StatelessWidget {
+  const _ConversationFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedConversationId = context
+        .select<HomeNavigationController, String?>(
+          (controller) => controller.selectedConversation?.id,
+        );
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      child: AudioPlayerBar(
+        selectedConversationId: selectedConversationId,
+        findConversation: context
+            .read<ConversationListController>()
+            .findConversation,
+        onConversationSelected: context.read<HomeNavigationController>().select,
       ),
     );
   }
@@ -206,40 +326,24 @@ class _ConversationListViewState extends State<ConversationListView> {
 
 class _ConversationListBody extends StatelessWidget {
   const _ConversationListBody({
-    required this.conversations,
+    required this.conversationIds,
     required this.initialized,
     required this.loading,
     required this.filterUnseen,
     required this.itemPositionsListener,
     required this.itemScrollController,
-    required this.currentUserId,
-    required this.account,
     required this.circles,
     required this.currentCircleId,
-    required this.selectedConversationId,
-    required this.onSelected,
-    required this.onPinned,
-    required this.onMuted,
-    required this.onDeleted,
-    required this.onCircleChanged,
   });
 
-  final List<ConversationListEntry> conversations;
+  final List<String> conversationIds;
   final bool initialized;
   final bool loading;
   final bool filterUnseen;
   final ItemPositionsListener itemPositionsListener;
   final ItemScrollController itemScrollController;
-  final String currentUserId;
-  final AccountHandle? account;
   final Map<String, String> circles;
   final String? currentCircleId;
-  final String? selectedConversationId;
-  final ValueChanged<ConversationListEntry> onSelected;
-  final ValueChanged<ConversationListEntry> onPinned;
-  final void Function(ConversationListEntry, int) onMuted;
-  final ValueChanged<ConversationListEntry> onDeleted;
-  final void Function(ConversationListEntry, String, bool) onCircleChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -251,7 +355,7 @@ class _ConversationListBody extends StatelessWidget {
         ),
       );
     }
-    if (conversations.isEmpty) {
+    if (conversationIds.isEmpty) {
       return _EmptyState(
         text: filterUnseen ? context.l10n.searchEmpty : context.l10n.noData,
       );
@@ -259,26 +363,118 @@ class _ConversationListBody extends StatelessWidget {
     return ScrollablePositionedList.builder(
       itemPositionsListener: itemPositionsListener,
       itemScrollController: itemScrollController,
-      itemCount: conversations.length,
-      itemBuilder: (context, index) {
-        final conversation = conversations[index];
-        return _ConversationContextMenu(
-          conversation: conversation,
-          onPinned: onPinned,
-          onMuted: onMuted,
-          onDeleted: onDeleted,
-          circles: circles,
-          currentCircleId: currentCircleId,
-          onCircleChanged: onCircleChanged,
-          child: ConversationItem(
-            conversation: conversation,
-            currentUserId: currentUserId,
-            account: account,
-            selected: conversation.id == selectedConversationId,
-            onTap: () => onSelected(conversation),
-          ),
+      itemCount: conversationIds.length,
+      itemBuilder: (context, index) => _ConversationRow(
+        conversationId: conversationIds[index],
+        circles: circles,
+        currentCircleId: currentCircleId,
+      ),
+    );
+  }
+}
+
+class _ConversationRow extends StatelessWidget {
+  const _ConversationRow({
+    required this.conversationId,
+    required this.circles,
+    required this.currentCircleId,
+  });
+
+  final String conversationId;
+  final Map<String, String> circles;
+  final String? currentCircleId;
+
+  @override
+  Widget build(BuildContext context) {
+    final conversation = context
+        .select<ConversationListController, ConversationListEntry?>(
+          (controller) => controller.item(conversationId),
         );
-      },
+    if (conversation == null) return const SizedBox.shrink();
+    final selected = context.select<HomeNavigationController, bool>(
+      (controller) => controller.selectedConversation?.id == conversationId,
+    );
+    final account = context.read<AccountHandle>();
+
+    Future<void> setPinned() async {
+      try {
+        await account.conversation().setPinned(
+          conversationId: conversation.id,
+          pinned: !conversation.isPinned,
+        );
+      } on Object catch (error, stackTrace) {
+        e('Set conversation pinned state failed', error, stackTrace);
+        if (context.mounted) showToastFailed(null);
+      }
+    }
+
+    Future<void> setMuted(int duration) async {
+      try {
+        await account.conversation().setMuted(
+          conversationId: conversation.id,
+          ownerId: conversation.ownerId,
+          category: conversation.category,
+          durationSeconds: duration,
+        );
+      } on Object catch (error, stackTrace) {
+        e('Set conversation mute state failed', error, stackTrace);
+        if (context.mounted) showToastFailed(null);
+      }
+    }
+
+    Future<void> deleteConversation() async {
+      try {
+        await account.conversation().deleteConversation(
+          conversationId: conversation.id,
+        );
+      } on Object catch (error, stackTrace) {
+        e('Delete conversation failed', error, stackTrace);
+        if (context.mounted) showToastFailed(null);
+        return;
+      }
+      if (!context.mounted) return;
+      final navigation = context.read<HomeNavigationController>();
+      if (navigation.selectedConversation?.id == conversation.id) {
+        navigation.clearSelection();
+      }
+    }
+
+    Future<void> changeCircle(String circleId, bool add) async {
+      try {
+        await account.conversation().editCircleConversation(
+          circleId: circleId,
+          conversationId: conversation.id,
+          ownerId: conversation.ownerId,
+          isGroup: conversation.isGroup,
+          add: add,
+        );
+      } on Object catch (error, stackTrace) {
+        e(
+          'Update conversation circle membership failed',
+          error,
+          stackTrace,
+        );
+        if (context.mounted) showToastFailed(null);
+      }
+    }
+
+    return _ConversationContextMenu(
+      conversation: conversation,
+      onPinned: (_) => unawaited(setPinned()),
+      onMuted: (_, duration) => unawaited(setMuted(duration)),
+      onDeleted: (_) => unawaited(deleteConversation()),
+      circles: circles,
+      currentCircleId: currentCircleId,
+      onCircleChanged: (_, circleId, add) =>
+          unawaited(changeCircle(circleId, add)),
+      child: ConversationItem(
+        conversation: conversation,
+        currentUserId: account.profile().userId,
+        account: account,
+        selected: selected,
+        onTap: () =>
+            context.read<HomeNavigationController>().select(conversation),
+      ),
     );
   }
 }

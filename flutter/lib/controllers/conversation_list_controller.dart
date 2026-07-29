@@ -1,13 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../models/command_palette_item.dart';
 import '../models/conversation_list_entry.dart';
-import '../models/message_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../utils/app_logger.dart';
+import 'conversation_filter_controller.dart';
 import 'conversation_list_store.dart';
 
 const _changeMergeWindow = Duration(milliseconds: 16);
@@ -25,24 +24,9 @@ Duration _retryDelay(int attempt) =>
         ? attempt
         : _retryDelays.length - 1];
 
-String? _completeMao(String value) {
-  final text = value.trim();
-  final candidate = text.replaceFirst(RegExp(r'\.$'), '');
-  if (candidate.isEmpty ||
-      candidate.runes.length > 128 ||
-      candidate.runes.every((rune) => rune >= 48 && rune <= 57) ||
-      RegExp(r'[\sA-Z]').hasMatch(candidate)) {
-    return null;
-  }
-  if (text.endsWith('.mao')) return text;
-  if (text.endsWith('.ma')) return '${text}o';
-  if (text.endsWith('.m')) return '${text}ao';
-  if (text.endsWith('.')) return '${text}mao';
-  return '$text.mao';
-}
-
 class ConversationListController extends ChangeNotifier {
-  ConversationListController(this.account) {
+  ConversationListController(this.account, this.filter) {
+    filter.addListener(_rebuildView);
     _changeSubscription = account.conversationChanges().listen(
       _scheduleChanges,
       onError: (Object exception, StackTrace stackTrace) {
@@ -53,29 +37,16 @@ class ConversationListController extends ChangeNotifier {
   }
 
   final rust.AccountHandle account;
+  final ConversationFilterController filter;
   final ConversationListStore _store = ConversationListStore();
-  final ItemPositionsListener _itemPositionsListener =
-      ItemPositionsListener.create();
-  final ItemScrollController _itemScrollController = ItemScrollController();
 
-  ConversationCategoryFilter category = ConversationCategoryFilter.chats;
-  String? circleId;
-  String query = '';
-  bool filterUnseen = false;
   bool loading = true;
-  bool searchMessagesLoading = false;
-  List<rust.UserProfileItem> searchUsers = const [];
-  rust.UserProfileItem? searchMaoUser;
-  String? searchMao;
-  List<MessageListEntry> searchMessages = const [];
-  Map<String, ConversationListEntry> searchMessageConversations = const {};
 
   StreamSubscription<rust.ConversationChangeEvent>? _changeSubscription;
   List<ConversationListEntry> _visibleConversations = const [];
-  Timer? _searchTimer;
+  List<String> _visibleConversationIds = const [];
   Timer? _changeTimer;
   Timer? _reloadRetryTimer;
-  int _searchRevision = 0;
   int _changeRetryAttempt = 0;
   int _reloadRetryAttempt = 0;
   final Set<String> _pendingConversationIds = {};
@@ -86,29 +57,13 @@ class ConversationListController extends ChangeNotifier {
   var _disposed = false;
 
   bool get initialized => _initialized;
-  ItemPositionsListener get itemPositionsListener => _itemPositionsListener;
-  ItemScrollController get itemScrollController => _itemScrollController;
 
+  List<ConversationListEntry> get items => _store.items;
   List<ConversationListEntry> get visibleConversations => _visibleConversations;
+  List<String> get visibleConversationIds => _visibleConversationIds;
 
-  void selectCategory(ConversationCategoryFilter value, {String? circle}) {
-    category = value;
-    circleId = circle;
-    _rebuildView();
-  }
-
-  void setQuery(String value) {
-    if (query == value) return;
-    query = value;
-    _rebuildView();
-    _scheduleMessageSearch();
-  }
-
-  void toggleUnseen() {
-    filterUnseen = !filterUnseen;
-    _rebuildView();
-    _scheduleMessageSearch();
-  }
+  ConversationListEntry? item(String conversationId) =>
+      _store.item(conversationId);
 
   Future<void> refresh() async {
     await _reloadAll();
@@ -153,93 +108,21 @@ class ConversationListController extends ChangeNotifier {
     ]..sort((left, right) => right.matchScore.compareTo(left.matchScore));
   }
 
-  void _scheduleMessageSearch() {
-    _searchTimer?.cancel();
-    final normalized = query.trim();
-    final revision = ++_searchRevision;
-    if (normalized.isEmpty || filterUnseen) {
-      searchMessagesLoading = false;
-      searchMessages = const [];
-      searchUsers = const [];
-      searchMaoUser = null;
-      searchMao = null;
-      searchMessageConversations = const {};
-      notifyListeners();
-      return;
-    }
-    searchMessagesLoading = true;
-    searchMaoUser = null;
-    searchMao = null;
-    notifyListeners();
-    _searchTimer = Timer(const Duration(milliseconds: 150), () async {
-      unawaited(_searchMaoUser(normalized, revision));
-      try {
-        final results = await Future.wait<dynamic>([
-          account.message().searchGlobalMessages(
-            query: normalized,
-            limit: 32,
-          ),
-          account.user().searchLocalUsers(
-            query: normalized,
-            category: category.name,
-            limit: 64,
-          ),
-        ]);
-        if (_disposed || revision != _searchRevision) return;
-        final messages = (results[0] as List<rust.MessageListItem>)
-            .map(MessageListEntry.fromRust)
-            .toList(growable: false);
-        if (_disposed || revision != _searchRevision) return;
-        searchMessages = messages;
-        searchUsers = results[1] as List<rust.UserProfileItem>;
-        searchMessageConversations = {
-          for (final item in _store.items) item.id: item,
-        };
-        searchMessagesLoading = false;
-        notifyListeners();
-      } catch (exception, stackTrace) {
-        if (_disposed || revision != _searchRevision) return;
-        searchMessages = const [];
-        searchUsers = const [];
-        searchMessageConversations = const {};
-        searchMessagesLoading = false;
-        e(
-          'Search conversations failed: query=$normalized',
-          exception,
-          stackTrace,
-        );
-        notifyListeners();
-      }
-    });
-  }
-
-  Future<void> _searchMaoUser(String query, int revision) async {
-    final mao = _completeMao(query);
-    if (mao == null) return;
-    try {
-      final user = await account.user().searchMaoUser(query: query);
-      if (_disposed || revision != _searchRevision) return;
-      searchMaoUser = user;
-      searchMao = user == null ? null : mao;
-      notifyListeners();
-    } on Object catch (error, stackTrace) {
-      e('Search Mixin ID user failed: query=$query', error, stackTrace);
-      if (_disposed || revision != _searchRevision) return;
-      searchMaoUser = null;
-      searchMao = null;
-      notifyListeners();
-    }
-  }
-
   ConversationListFilter get _filter => (
-    category: category,
-    circleId: circleId,
-    query: query.trim(),
-    unseenOnly: filterUnseen,
+    category: filter.category,
+    circleId: filter.circleId,
+    query: filter.query.trim(),
+    unseenOnly: filter.unseenOnly,
   );
 
   void _rebuildView() {
     _visibleConversations = _store.filtered(_filter);
+    final ids = _visibleConversations
+        .map((conversation) => conversation.id)
+        .toList(growable: false);
+    if (!listEquals(_visibleConversationIds, ids)) {
+      _visibleConversationIds = ids;
+    }
     loading = !_initialized;
     if (!_disposed) notifyListeners();
   }
@@ -345,7 +228,7 @@ class ConversationListController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _searchTimer?.cancel();
+    filter.removeListener(_rebuildView);
     _changeTimer?.cancel();
     _reloadRetryTimer?.cancel();
     unawaited(_changeSubscription?.cancel());

@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
 import 'package:super_context_menu/super_context_menu.dart';
 
 import '../constants/assets.dart';
 import '../constants/icon_fonts.dart';
+import '../controllers/conversation_filter_controller.dart';
 import '../controllers/conversation_list_controller.dart';
 import '../l10n/l10n.dart';
 import '../models/conversation_list_entry.dart';
@@ -24,7 +26,6 @@ import 'toast.dart';
 
 class HomeSidebar extends HookWidget {
   const HomeSidebar({
-    required this.controller,
     required this.collapsed,
     required this.showCollapse,
     required this.profileSelected,
@@ -34,7 +35,6 @@ class HomeSidebar extends HookWidget {
     super.key,
   });
 
-  final ConversationListController controller;
   final bool collapsed;
   final bool showCollapse;
   final bool profileSelected;
@@ -44,13 +44,15 @@ class HomeSidebar extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    final account = context.read<rust.AccountHandle>();
+    final controller = context.read<ConversationListController>();
     final colors = context.mixinTheme;
     final unseenCounts = useStream(
-      useMemoized(controller.account.unseenCountChanges, [controller.account]),
+      useMemoized(account.unseenCountChanges, [account]),
       initialData: const <rust.ConversationUnseenCount>[],
     ).data!;
     final circles = useStream(
-      useMemoized(controller.account.circleChanges, [controller.account]),
+      useMemoized(account.circleChanges, [account]),
       initialData: const <rust.CircleItem>[],
     ).data!;
     final orderedCircles = useState(circles);
@@ -76,7 +78,7 @@ class HomeSidebar extends HookWidget {
                 height: defaultTargetPlatform == TargetPlatform.macOS ? 64 : 16,
               ),
               _ProfileItem(
-                account: controller.account,
+                account: account,
                 collapsed: collapsed,
                 selected: profileSelected,
                 onTap: onProfileSelected,
@@ -86,7 +88,6 @@ class HomeSidebar extends HookWidget {
                 asset: MixinAssets.chat,
                 title: context.l10n.allChats,
                 filter: ConversationCategoryFilter.chats,
-                controller: controller,
                 unseenCounts: unseenCounts,
                 collapsed: collapsed,
                 onSelected: onCategorySelected,
@@ -98,7 +99,6 @@ class HomeSidebar extends HookWidget {
                 asset: MixinAssets.contacts,
                 title: context.l10n.contactTitle,
                 filter: ConversationCategoryFilter.contacts,
-                controller: controller,
                 unseenCounts: unseenCounts,
                 collapsed: collapsed,
                 onSelected: onCategorySelected,
@@ -108,7 +108,6 @@ class HomeSidebar extends HookWidget {
                 asset: MixinAssets.groups,
                 title: context.l10n.groups,
                 filter: ConversationCategoryFilter.groups,
-                controller: controller,
                 unseenCounts: unseenCounts,
                 collapsed: collapsed,
                 onSelected: onCategorySelected,
@@ -118,7 +117,6 @@ class HomeSidebar extends HookWidget {
                 asset: MixinAssets.bots,
                 title: context.l10n.botsTitle,
                 filter: ConversationCategoryFilter.bots,
-                controller: controller,
                 unseenCounts: unseenCounts,
                 collapsed: collapsed,
                 onSelected: onCategorySelected,
@@ -128,7 +126,6 @@ class HomeSidebar extends HookWidget {
                 asset: MixinAssets.strangers,
                 title: context.l10n.strangers,
                 filter: ConversationCategoryFilter.strangers,
-                controller: controller,
                 unseenCounts: unseenCounts,
                 collapsed: collapsed,
                 onSelected: onCategorySelected,
@@ -187,7 +184,6 @@ class HomeSidebar extends HookWidget {
                               title: circle.name,
                               filter: ConversationCategoryFilter.circle,
                               circleId: circle.circleId,
-                              controller: controller,
                               unseenCounts: unseenCounts,
                               collapsed: collapsed,
                               onSelected: onCategorySelected,
@@ -374,9 +370,10 @@ class HomeSidebar extends HookWidget {
       await controller.account.conversation().deleteCircle(
         circleId: circle.circleId,
       );
-      if (controller.category == ConversationCategoryFilter.circle &&
-          controller.circleId == circle.circleId) {
-        controller.selectCategory(ConversationCategoryFilter.chats);
+      final filter = context.read<ConversationFilterController>();
+      if (filter.category == ConversationCategoryFilter.circle &&
+          filter.circleId == circle.circleId) {
+        filter.selectCategory(ConversationCategoryFilter.chats);
       }
       onCategorySelected();
     } on Object catch (error, stackTrace) {
@@ -470,7 +467,6 @@ class _CategoryItem extends StatelessWidget {
     required this.asset,
     required this.title,
     required this.filter,
-    required this.controller,
     required this.unseenCounts,
     required this.collapsed,
     required this.onSelected,
@@ -481,7 +477,6 @@ class _CategoryItem extends StatelessWidget {
   final String asset;
   final String title;
   final ConversationCategoryFilter filter;
-  final ConversationListController controller;
   final List<rust.ConversationUnseenCount> unseenCounts;
   final bool collapsed;
   final VoidCallback onSelected;
@@ -489,24 +484,32 @@ class _CategoryItem extends StatelessWidget {
   final Color? iconColor;
 
   @override
-  Widget build(BuildContext context) => _SidebarItem(
-    asset: asset,
-    title: title,
-    selected:
-        controller.category == filter &&
-        (filter != ConversationCategoryFilter.circle ||
-            controller.circleId == circleId),
-    count: _unseenCountFor(unseenCounts, filter, circleId),
-    mutedCount: _mutedUnseenCountFor(unseenCounts, filter, circleId),
-    collapsed: collapsed,
-    iconColor: iconColor,
-    onTap: () {
-      controller.selectCategory(filter, circle: circleId);
-      onSelected();
-      final scaffold = Scaffold.maybeOf(context);
-      if (scaffold?.isDrawerOpen ?? false) Navigator.pop(context);
-    },
-  );
+  Widget build(BuildContext context) {
+    final selected = context.select<ConversationFilterController, bool>(
+      (controller) =>
+          controller.category == filter &&
+          (filter != ConversationCategoryFilter.circle ||
+              controller.circleId == circleId),
+    );
+    return _SidebarItem(
+      asset: asset,
+      title: title,
+      selected: selected,
+      count: _unseenCountFor(unseenCounts, filter, circleId),
+      mutedCount: _mutedUnseenCountFor(unseenCounts, filter, circleId),
+      collapsed: collapsed,
+      iconColor: iconColor,
+      onTap: () {
+        context.read<ConversationFilterController>().selectCategory(
+          filter,
+          circle: circleId,
+        );
+        onSelected();
+        final scaffold = Scaffold.maybeOf(context);
+        if (scaffold?.isDrawerOpen ?? false) Navigator.pop(context);
+      },
+    );
+  }
 }
 
 int _unseenCountFor(

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mixin_desktop_ui/controllers/conversation_filter_controller.dart';
 import 'package:mixin_desktop_ui/controllers/conversation_list_controller.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 
@@ -9,12 +10,19 @@ void main() {
 
   test('loads once and batches exact conversation id updates', () async {
     final account = _FakeAccount();
-    final controller = ConversationListController(account);
+    final filter = ConversationFilterController();
+    final controller = ConversationListController(account, filter);
+    addTearDown(filter.dispose);
     addTearDown(controller.dispose);
     addTearDown(account.dispose);
 
     await _waitUntil(() => controller.initialized);
     expect(account.fullLoads, 1);
+    expect(controller.visibleConversations.map((item) => item.id), ['first']);
+
+    filter.setQuery('missing');
+    expect(controller.visibleConversations, isEmpty);
+    filter.setQuery('');
     expect(controller.visibleConversations.map((item) => item.id), ['first']);
 
     account.items['first'] = _item('first', name: 'First updated', time: 2);
