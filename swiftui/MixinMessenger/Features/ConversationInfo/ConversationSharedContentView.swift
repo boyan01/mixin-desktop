@@ -5,6 +5,7 @@ struct ConversationSharedContentView: View {
     @Environment(AccountSession.self) private var session
     @Environment(HomeNavigationModel.self) private var navigation
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.mixinTheme) private var theme
     @State private var model = ConversationSharedContentModel()
     @State private var selection = ConversationSharedContentKind.media
 
@@ -12,18 +13,25 @@ struct ConversationSharedContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-                Picker("Content type", selection: $selection) {
-                    ForEach(ConversationSharedContentKind.allCases) { kind in
-                        Text(kind.title).tag(kind)
+            content
+
+            HStack(spacing: 0) {
+                ForEach(ConversationSharedContentKind.allCases) { kind in
+                    Button {
+                        selection = kind
+                    } label: {
+                        Text(kind.title)
+                            .font(.system(size: 14))
+                            .foregroundStyle(
+                                selection == kind ? theme.accent : theme.secondaryText
+                            )
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
+                    .buttonStyle(.plain)
                 }
-                .pickerStyle(.segmented)
-                .padding(12)
-
-                Divider()
-
-                content
             }
+            .frame(height: 56)
+        }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle("Shared Media")
         .task(id: SharedContentTaskID(
@@ -45,19 +53,11 @@ struct ConversationSharedContentView: View {
     private var content: some View {
         switch model.state {
         case .loading:
-            ProgressView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case let .failed(message):
-            ContentUnavailableView(
-                "Unable to load \(selection.title.lowercased())",
-                systemImage: "exclamationmark.triangle",
-                description: Text(message)
-            )
+            emptyContent
+        case .failed:
+            emptyContent
         case .ready where model.messages.isEmpty:
-            ContentUnavailableView(
-                selection.emptyTitle,
-                systemImage: selection.systemImage
-            )
+            emptyContent
         case .ready:
             if selection == .media {
                 mediaGrid
@@ -68,67 +68,63 @@ struct ConversationSharedContentView: View {
     }
 
     private var mediaGrid: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12, pinnedViews: [.sectionHeaders]) {
-                ForEach(model.groups) { group in
-                    Section {
-                        LazyVGrid(
-                            columns: [
-                                GridItem(.adaptive(minimum: 112), spacing: 6),
-                            ],
-                            spacing: 6
-                        ) {
-                            ForEach(group.messages, id: \.messageId) { message in
-                                SharedMediaGridItem(
-                                    message: message,
-                                    imageMessages: model.imageMessages,
-                                    account: session.handle,
-                                    currentUserID: session.profile.userId
-                                )
-                                .contextMenu {
-                                    Button("Locate in Chat", systemImage: "scope") {
-                                        locate(message)
+        GeometryReader { proxy in
+            let columnCount = proxy.size.width >= 600 ? 4 : 3
+            AppScrollView {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    ForEach(model.groups) { group in
+                        Section {
+                            LazyVGrid(
+                                columns: Array(
+                                    repeating: GridItem(.flexible(), spacing: 5),
+                                    count: columnCount
+                                ),
+                                spacing: 5
+                            ) {
+                                ForEach(group.messages, id: \.messageId) { message in
+                                    SharedMediaGridItem(
+                                        message: message,
+                                        imageMessages: model.imageMessages,
+                                        account: session.handle,
+                                        currentUserID: session.profile.userId
+                                    )
+                                    .contextMenu {
+                                        Button("Locate in Chat", systemImage: "scope") {
+                                            locate(message)
+                                        }
+                                    }
+                                    .onAppear {
+                                        loadMoreIfNeeded(message)
                                     }
                                 }
-                                .onAppear {
-                                    loadMoreIfNeeded(message)
-                                }
                             }
+                            .padding(.horizontal, 10)
+                        } header: {
+                            dateHeader(group.day)
                         }
-                        .padding(.horizontal, 10)
-                    } header: {
-                        dateHeader(group.day)
                     }
-                }
 
-                loadingFooter
+                    loadingFooter
+                }
             }
         }
     }
 
     private var messageList: some View {
-        ScrollView {
+        AppScrollView {
             LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 ForEach(model.groups) { group in
                     Section {
                         ForEach(group.messages, id: \.messageId) { message in
-                            ConversationContentMessageRow(
-                                message: message,
-                                imageMessages: model.imageMessages,
-                                account: session.handle,
-                                currentUserID: session.profile.userId
-                            )
+                            sharedMessageRow(message)
                             .contextMenu {
                                 Button("Locate in Chat", systemImage: "scope") {
                                     locate(message)
                                 }
                             }
-                            .padding(.horizontal, 12)
                             .onAppear {
                                 loadMoreIfNeeded(message)
                             }
-                            Divider()
-                                .padding(.leading, 56)
                         }
                     } header: {
                         dateHeader(group.day)
@@ -140,14 +136,48 @@ struct ConversationSharedContentView: View {
         }
     }
 
+    @ViewBuilder
+    private func sharedMessageRow(_ message: MessageItem) -> some View {
+        switch selection {
+        case .post:
+            SharedPostMessageRow(message: message)
+        case .file:
+            SharedFileMessageRow(
+                message: message,
+                account: session.handle,
+                currentUserID: session.profile.userId
+            )
+        case .media:
+            EmptyView()
+        }
+    }
+
     private func dateHeader(_ date: Date) -> some View {
         Text(date.formatted(date: .abbreviated, time: .omitted))
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(.secondary)
+            .font(.system(size: 14))
+            .foregroundStyle(theme.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .background(.bar)
+            .padding(10)
+            .frame(height: 38)
+            .background(theme.primary)
+    }
+
+    private var emptyContent: some View {
+        VStack(spacing: 0) {
+            Image(selection.emptyAssetName)
+                .resizable()
+                .renderingMode(.template)
+                .foregroundStyle(theme.secondaryText.opacity(0.4))
+                .frame(
+                    width: selection == .media ? 74 : 72,
+                    height: selection == .media ? 80 : 79
+                )
+            Spacer().frame(height: 24)
+            Text(selection.emptyTitle)
+                .font(.system(size: 12))
+                .foregroundStyle(theme.secondaryText)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -159,7 +189,7 @@ struct ConversationSharedContentView: View {
         }
     }
 
-    private func loadMoreIfNeeded(_ message: SwiftMessageItem) {
+    private func loadMoreIfNeeded(_ message: MessageItem) {
         guard message.messageId == model.messages.last?.messageId else {
             return
         }
@@ -172,12 +202,93 @@ struct ConversationSharedContentView: View {
         }
     }
 
-    private func locate(_ message: SwiftMessageItem) {
+    private func locate(_ message: MessageItem) {
         navigation.locateMessage(
             conversationID: conversationID,
             messageID: message.messageId
         )
         dismiss()
+    }
+}
+
+private struct SharedPostMessageRow: View {
+    @Environment(\.mixinTheme) private var theme
+    let message: MessageItem
+
+    @State private var previewPresented = false
+
+    var body: some View {
+        PostMessageView(
+            message: message,
+            minimumHeight: 0,
+            contentPadding: 8,
+            background: theme.sidebarSelected
+        ) {
+            previewPresented = true
+        }
+        .padding(.leading, 10)
+        .padding(.trailing, 10)
+        .padding(.bottom, 10)
+        .sheet(isPresented: $previewPresented) {
+            PostMessagePreview(message: message)
+        }
+    }
+}
+
+private struct SharedFileMessageRow: View {
+    let message: MessageItem
+    let account: SwiftAccountHandle
+    let currentUserID: String
+
+    @State private var operationError: String?
+
+    var body: some View {
+        FileMessageView(
+            message: message,
+            outgoing: message.senderId == currentUserID,
+            progress: {
+                account.attachmentProgress(messageId: message.messageId)
+            },
+            onAttachmentAction: {
+                Task {
+                    await performAttachmentAction()
+                }
+            }
+        )
+        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .alert(
+            "Attachment action failed",
+            isPresented: Binding(
+                get: { operationError != nil },
+                set: { if !$0 { operationError = nil } }
+            )
+        ) {
+            Button("OK") {
+                operationError = nil
+            }
+        } message: {
+            Text(operationError ?? "")
+        }
+    }
+
+    private func performAttachmentAction() async {
+        do {
+            switch message.mediaStatus.uppercased() {
+            case "CANCELED":
+                if message.senderId == currentUserID {
+                    try await account.retryAttachment(messageId: message.messageId)
+                } else {
+                    try await account.downloadAttachment(messageId: message.messageId)
+                }
+            case "PENDING":
+                try await account.cancelAttachment(messageId: message.messageId)
+            default:
+                break
+            }
+        } catch {
+            operationError = MixinErrorPresenter.message(for: error)
+        }
     }
 }
 
@@ -198,9 +309,9 @@ enum ConversationSharedContentKind: String, CaseIterable, Identifiable {
         case .media:
             "Media"
         case .post:
-            "Posts"
+            "Post"
         case .file:
-            "Files"
+            "File"
         }
     }
 
@@ -215,14 +326,12 @@ enum ConversationSharedContentKind: String, CaseIterable, Identifiable {
         }
     }
 
-    var systemImage: String {
+    var emptyAssetName: String {
         switch self {
         case .media:
-            "photo.on.rectangle.angled"
-        case .post:
-            "doc.richtext"
-        case .file:
-            "folder"
+            "EmptyImage"
+        case .post, .file:
+            "EmptyFile"
         }
     }
 
@@ -232,8 +341,8 @@ enum ConversationSharedContentKind: String, CaseIterable, Identifiable {
 }
 
 private struct SharedMediaGridItem: View {
-    let message: SwiftMessageItem
-    let imageMessages: [SwiftMessageItem]
+    let message: MessageItem
+    let imageMessages: [MessageItem]
     let account: SwiftAccountHandle
     let currentUserID: String
 
@@ -258,17 +367,20 @@ private struct SharedMediaGridItem: View {
                 .clipped()
 
                 if message.category.hasSuffix("_VIDEO") {
-                    Label(
-                        message.mediaDuration,
-                        systemImage: "play.fill"
-                    )
-                    .font(.caption2)
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 12))
+                        Text(AudioMessageView.format(
+                            Int64(message.mediaDuration) ?? 0
+                        ))
+                        .font(.system(size: 12).monospacedDigit())
+                    }
                     .foregroundStyle(.white)
-                    .padding(6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 5)
+                    .frame(maxWidth: .infinity, minHeight: 20, alignment: .leading)
                     .background(
                         LinearGradient(
-                            colors: [.black.opacity(0.55), .clear],
+                            colors: [.black.opacity(0.5), .clear],
                             startPoint: .bottom,
                             endPoint: .top
                         )
@@ -276,27 +388,24 @@ private struct SharedMediaGridItem: View {
                 }
             }
             .background(Color.secondary.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 5))
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $previewPresented) {
-            NavigationStack {
-                ConversationContentMessageRow(
-                    message: message,
-                    imageMessages: imageMessages,
-                    account: account,
-                    currentUserID: currentUserID
-                )
-                .padding(20)
-                .frame(minWidth: 420, minHeight: 360)
-                .navigationTitle(message.mediaName ?? "Media")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Close") {
-                            previewPresented = false
-                        }
+            if message.category.hasSuffix("_VIDEO") {
+                VideoMessagePreview(message: message)
+            } else {
+                ImageMessagePreview(
+                    messages: imageMessages,
+                    initialMessageID: message.messageId,
+                    loadWindow: { messageID in
+                        try await account.imageMessagesAround(
+                            conversationId: message.conversationId,
+                            targetMessageId: messageID,
+                            before: 40,
+                            after: 40
+                        )
                     }
-                }
+                )
             }
         }
     }
@@ -304,7 +413,7 @@ private struct SharedMediaGridItem: View {
 
 struct ConversationSharedContentGroup: Identifiable {
     let day: Date
-    let messages: [SwiftMessageItem]
+    let messages: [MessageItem]
 
     var id: Date { day }
 }
@@ -319,7 +428,7 @@ final class ConversationSharedContentModel {
     }
 
     private(set) var state: State = .loading
-    private(set) var messages: [SwiftMessageItem] = []
+    private(set) var messages: [MessageItem] = []
     private(set) var hasMore = true
     private(set) var loadingMore = false
 
@@ -327,7 +436,7 @@ final class ConversationSharedContentModel {
     private var subscriptionTask: Task<Void, Never>?
     private var requestVersion = 0
 
-    var imageMessages: [SwiftMessageItem] {
+    var imageMessages: [MessageItem] {
         messages.filter { $0.category.hasSuffix("_IMAGE") }
     }
 

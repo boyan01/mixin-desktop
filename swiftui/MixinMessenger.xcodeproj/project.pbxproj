@@ -10,6 +10,7 @@
 		7A1000013016000000000001 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 7A1000043016000000000001 /* Lottie */; };
 		7A2000013017000000000001 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 7A2000043017000000000001 /* Nuke */; };
 		7A2000023017000000000001 /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 7A2000053017000000000001 /* NukeUI */; };
+		7A3000013018000000000001 /* SwiftUIIntrospect in Frameworks */ = {isa = PBXBuildFile; productRef = 7A3000043018000000000001 /* SwiftUIIntrospect */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 				7A1000013016000000000001 /* Lottie in Frameworks */,
 				7A2000013017000000000001 /* Nuke in Frameworks */,
 				7A2000023017000000000001 /* NukeUI in Frameworks */,
+				7A3000013018000000000001 /* SwiftUIIntrospect in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +80,7 @@
 				7A1000043016000000000001 /* Lottie */,
 				7A2000043017000000000001 /* Nuke */,
 				7A2000053017000000000001 /* NukeUI */,
+				7A3000043018000000000001 /* SwiftUIIntrospect */,
 			);
 			productName = "Mixin Messenger";
 			productReference = 6C7906593014E81A00522583 /* Mixin Messenger.app */;
@@ -110,6 +113,7 @@
 			packageReferences = (
 				7A1000033016000000000001 /* XCRemoteSwiftPackageReference "lottie-spm" */,
 				7A2000033017000000000001 /* XCRemoteSwiftPackageReference "Nuke" */,
+				7A3000033018000000000001 /* XCRemoteSwiftPackageReference "swiftui-introspect" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6C79065A3014E81A00522583 /* Products */;
@@ -149,7 +153,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -euo pipefail\nexport PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"\nif ! command -v cargo >/dev/null 2>&1; then\n  echo \"error: cargo was not found. Install Rust with rustup or add cargo to PATH.\"\n  exit 1\nfi\ncd \"$SRCROOT/..\"\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  cargo build -p mixin_desktop_swift --release\n  RUST_LIBRARY=\"$SRCROOT/../target/release/libmixin_desktop.a\"\nelse\n  cargo build -p mixin_desktop_swift\n  RUST_LIBRARY=\"$SRCROOT/../target/debug/libmixin_desktop.a\"\nfi\ncargo build -p mixin_desktop_swift --features swift-bindgen --bin uniffi-bindgen-swift\nBINDGEN=\"$SRCROOT/../target/debug/uniffi-bindgen-swift\"\nBINDGEN_CONFIG=\"$SRCROOT/uniffi-swift.toml\"\n\"$BINDGEN\" \"$RUST_LIBRARY\" \"$SRCROOT/MixinMessenger/Generated\" --swift-sources --config \"$BINDGEN_CONFIG\"\n\"$BINDGEN\" \"$RUST_LIBRARY\" \"$SRCROOT/generated\" --headers --config \"$BINDGEN_CONFIG\"\n\"$BINDGEN\" \"$RUST_LIBRARY\" \"$SRCROOT/generated\" --modulemap --module-name MixinDesktopFFI --modulemap-filename module.modulemap --config \"$BINDGEN_CONFIG\"\nfind \"$SRCROOT/MixinMessenger/Generated\" \"$SRCROOT/generated\" -type f -exec perl -pi -e \"s/[ \t]+$//\" {} +\nfind \"$SRCROOT/MixinMessenger/Generated\" \"$SRCROOT/generated\" -type f -exec perl -0777 -pi -e \"s/\\n+\\z/\\n/\" {} +\n";
+			shellScript = "set -euo pipefail\nexport PATH=\"$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\"\nif ! command -v cargo >/dev/null 2>&1; then\n  echo \"error: cargo was not found. Install Rust with rustup or add cargo to PATH.\"\n  exit 1\nfi\nexport MACOSX_DEPLOYMENT_TARGET=\"${MACOSX_DEPLOYMENT_TARGET:-15.0}\"\nexport CARGO_TARGET_DIR=\"$SRCROOT/../Build/Rust/macos-$MACOSX_DEPLOYMENT_TARGET\"\ncd \"$SRCROOT/..\"\nif [ \"$CONFIGURATION\" = \"Release\" ]; then\n  cargo build -p mixin_desktop_swift --release\n  RUST_LIBRARY=\"$CARGO_TARGET_DIR/release/libmixin_desktop.a\"\nelse\n  cargo build -p mixin_desktop_swift\n  RUST_LIBRARY=\"$CARGO_TARGET_DIR/debug/libmixin_desktop.a\"\nfi\ncargo build -p mixin_desktop_swift --features swift-bindgen --bin uniffi-bindgen-swift\nBINDGEN=\"$CARGO_TARGET_DIR/debug/uniffi-bindgen-swift\"\nBINDGEN_CONFIG=\"$SRCROOT/uniffi-swift.toml\"\n\"$BINDGEN\" \"$RUST_LIBRARY\" \"$SRCROOT/MixinMessenger/Generated\" --swift-sources --config \"$BINDGEN_CONFIG\"\n\"$BINDGEN\" \"$RUST_LIBRARY\" \"$SRCROOT/generated\" --headers --config \"$BINDGEN_CONFIG\"\n\"$BINDGEN\" \"$RUST_LIBRARY\" \"$SRCROOT/generated\" --modulemap --module-name MixinDesktopFFI --modulemap-filename module.modulemap --config \"$BINDGEN_CONFIG\"\nfind \"$SRCROOT/MixinMessenger/Generated\" \"$SRCROOT/generated\" -type f -exec perl -pi -e \"s/[ \t]+$//\" {} +\nfind \"$SRCROOT/MixinMessenger/Generated\" \"$SRCROOT/generated\" -type f -exec perl -0777 -pi -e \"s/\\n+\\z/\\n/\" {} +\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -307,9 +311,9 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/../target/debug",
+					"$(PROJECT_DIR)/../Build/Rust/macos-$(MACOSX_DEPLOYMENT_TARGET)/debug",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -377,9 +381,9 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(PROJECT_DIR)/../target/release",
+					"$(PROJECT_DIR)/../Build/Rust/macos-$(MACOSX_DEPLOYMENT_TARGET)/release",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
@@ -458,6 +462,14 @@
 				minimumVersion = 13.0.6;
 			};
 		};
+		7A3000033018000000000001 /* XCRemoteSwiftPackageReference "swiftui-introspect" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/siteline/swiftui-introspect.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 26.0.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -475,6 +487,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7A2000033017000000000001 /* XCRemoteSwiftPackageReference "Nuke" */;
 			productName = NukeUI;
+		};
+		7A3000043018000000000001 /* SwiftUIIntrospect */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A3000033018000000000001 /* XCRemoteSwiftPackageReference "swiftui-introspect" */;
+			productName = SwiftUIIntrospect;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

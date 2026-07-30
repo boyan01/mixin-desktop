@@ -3,121 +3,88 @@ import SwiftUI
 
 struct ConversationSharedAppsView: View {
     @Environment(AccountSession.self) private var session
+    @Environment(HomeNavigationModel.self) private var navigation
+    @Environment(\.mixinTheme) private var theme
     @State private var model = ConversationSharedAppsModel()
 
     let conversationID: String
     let userID: String
+    let isGroup: Bool
 
     var body: some View {
-        Group {
-                if !model.loaded, model.apps.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if model.apps.isEmpty {
-                    ContentUnavailableView(
-                        "No Shared Apps",
-                        systemImage: "square.grid.2x2"
-                    )
-                } else {
-                    List(model.apps, id: \.appId) { app in
-                        Button {
-                            open(app)
-                        } label: {
-                            HStack(spacing: 12) {
-                                MixinRemoteImage(url: URL(string: app.iconUrl)) { image in
-                                    image.resizable().scaledToFill()
-                                } placeholder: {
-                                    Image(systemName: "app.fill")
-                                        .resizable()
-                                        .padding(9)
-                                        .foregroundStyle(.secondary)
-                                }
-                                .frame(width: 50, height: 50)
-                                .background(Color.secondary.opacity(0.08))
-                                .clipShape(Circle())
-
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(app.name)
-                                        .font(.headline)
-                                        .foregroundStyle(.primary)
-                                    Text(app.description)
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(2)
-                                }
+        AppScrollView {
+            VStack(spacing: 0) {
+                Spacer().frame(height: 6)
+                ForEach(model.apps, id: \.appId) { app in
+                    Button {
+                        navigation.inspectorPath.append(.userProfile(userID: app.appId))
+                    } label: {
+                        HStack(spacing: 10) {
+                            MixinRemoteImage(url: URL(string: app.iconUrl)) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                Circle().fill(theme.listSelected)
                             }
-                            .padding(.vertical, 6)
+                            .frame(width: 50, height: 50)
+                            .clipShape(Circle())
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(app.name)
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(theme.text)
+                                Text(app.description)
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(theme.secondaryText)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
                         }
-                        .buttonStyle(.plain)
+                        .padding(.vertical, 10)
+                        .padding(.horizontal, 16)
                     }
-                    .listStyle(.inset)
+                    .buttonStyle(.plain)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .navigationTitle("Shared Apps")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    if model.refreshing {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                }
-            }
-        .task(id: userID) {
-            await model.start(account: session.handle, userID: userID)
         }
-        .alert(
-            "Unable to load shared apps",
-            isPresented: Binding(
-                get: { model.errorMessage != nil },
-                set: { if !$0 { model.errorMessage = nil } }
+        .background(theme.primary)
+        .navigationTitle("Shared Apps")
+        .task(id: SharedAppsTaskID(userID: userID, isGroup: isGroup)) {
+            await model.start(
+                account: session.handle,
+                userID: userID,
+                isGroup: isGroup
             )
-        ) {
-            Button("Retry") {
-                Task {
-                    await model.refresh(
-                        account: session.handle,
-                        userID: userID
-                    )
-                }
-            }
-            Button("OK", role: .cancel) {
-                model.errorMessage = nil
-            }
-        } message: {
-            Text(model.errorMessage ?? "")
         }
     }
 
-    private func open(_ app: SwiftSharedAppItem) {
-        guard let url = URL(string: app.homeUri), !app.homeUri.isEmpty else {
-            model.errorMessage = "This app does not provide a valid home URL."
-            return
-        }
-        BotWebViewWindow.open(
-            url: url,
-            title: app.name,
-            conversationID: conversationID,
-            currency: session.profile.fiatCurrency
-        )
-    }
+}
+
+private struct SharedAppsTaskID: Hashable {
+    let userID: String
+    let isGroup: Bool
 }
 
 @MainActor
 @Observable
 final class ConversationSharedAppsModel {
-    private(set) var apps: [SwiftSharedAppItem] = []
+    private(set) var apps: [SharedAppItem] = []
     private(set) var loaded = false
     private(set) var refreshing = false
-    var errorMessage: String?
-
     private var requestVersion = 0
 
-    func start(account: SwiftAccountHandle, userID: String) async {
+    func start(
+        account: SwiftAccountHandle,
+        userID: String,
+        isGroup: Bool
+    ) async {
         requestVersion += 1
         let version = requestVersion
         loaded = false
         apps = []
+        guard !isGroup else {
+            loaded = true
+            return
+        }
         do {
             apps = try await account.localSharedApps(userId: userID)
             guard version == requestVersion else {
@@ -129,7 +96,8 @@ final class ConversationSharedAppsModel {
                 return
             }
             loaded = true
-            errorMessage = MixinErrorPresenter.message(for: error)
+            // Flutter keeps the blank list if local shared apps are unavailable.
+            return
         }
         await refresh(account: account, userID: userID)
     }
@@ -149,13 +117,9 @@ final class ConversationSharedAppsModel {
             }
             apps = remote
             loaded = true
-            errorMessage = nil
         } catch {
             guard version == requestVersion else {
                 return
-            }
-            if apps.isEmpty {
-                errorMessage = MixinErrorPresenter.message(for: error)
             }
         }
     }

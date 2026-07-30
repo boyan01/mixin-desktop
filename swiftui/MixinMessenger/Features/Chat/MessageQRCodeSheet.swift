@@ -22,10 +22,19 @@ enum MessageQRPresentation: Identifiable {
 
 struct MessageQRCodeSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.mixinTheme) private var theme
 
     let presentation: MessageQRPresentation
 
     var body: some View {
+        if case let .generated(content) = presentation {
+            generatedContent(content)
+        } else {
+            auxiliaryContent
+        }
+    }
+
+    private var auxiliaryContent: some View {
         VStack(spacing: 18) {
             HStack {
                 Text(title)
@@ -41,8 +50,8 @@ struct MessageQRCodeSheet: View {
             }
 
             switch presentation {
-            case let .generated(content):
-                generatedContent(content)
+            case .generated:
+                EmptyView()
             case let .detected(contents):
                 detectedContent(contents)
             case .detectionFailed:
@@ -72,13 +81,16 @@ struct MessageQRCodeSheet: View {
     }
 
     private func generatedContent(_ content: String) -> some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
+            Spacer().frame(height: 36)
             if let image = QRCodeRenderer.image(for: content) {
                 Image(nsImage: image)
                     .interpolation(.none)
                     .resizable()
                     .scaledToFit()
+                    .padding(8)
                     .frame(width: 240, height: 240)
+                    .background(.white)
                     .accessibilityLabel("QR code for message text")
             } else {
                 ContentUnavailableView(
@@ -87,22 +99,23 @@ struct MessageQRCodeSheet: View {
                 )
                 .frame(height: 240)
             }
-
-            Text(content)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-                .lineLimit(3)
-                .frame(maxWidth: 320)
-
-            Button("Copy Content", systemImage: "doc.on.doc") {
-                copy(content)
+            Spacer().frame(height: 20)
+            Button("Confirm") {
+                dismiss()
             }
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(.white)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(theme.accent, in: RoundedRectangle(cornerRadius: 5))
+            Spacer().frame(height: 20)
         }
+        .padding(.horizontal, 20)
+        .frame(minWidth: 320, minHeight: 210)
     }
 
     private func detectedContent(_ contents: [String]) -> some View {
-        ScrollView {
+        AppScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(Array(contents.enumerated()), id: \.offset) { _, content in
                     VStack(alignment: .leading, spacing: 10) {

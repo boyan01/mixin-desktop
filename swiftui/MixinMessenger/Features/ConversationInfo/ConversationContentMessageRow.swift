@@ -1,15 +1,16 @@
 import SwiftUI
 
 struct ConversationContentMessageRow: View {
-    let message: SwiftMessageItem
-    let imageMessages: [SwiftMessageItem]
+    @Environment(\.mixinTheme) private var theme
+    let message: MessageItem
+    let imageMessages: [MessageItem]
     let account: SwiftAccountHandle
     let currentUserID: String
 
     @State private var operationError: String?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 0) {
             MixinRemoteImage(url: URL(string: message.senderAvatarUrl)) { image in
                 image.resizable().scaledToFill()
             } placeholder: {
@@ -17,18 +18,15 @@ struct ConversationContentMessageRow: View {
                     .resizable()
                     .foregroundStyle(.secondary)
             }
-            .frame(width: 34, height: 34)
+            .frame(width: 32, height: 32)
             .clipShape(Circle())
 
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 4) {
                     Text(message.senderName)
-                        .font(.headline)
+                        .font(.system(size: 14))
+                        .foregroundStyle(theme.text)
                         .lineLimit(1)
-                    Spacer()
-                    Text(message.conversationContentTimestamp)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
                 if message.conversationContentIsRich {
@@ -71,7 +69,7 @@ struct ConversationContentMessageRow: View {
                 }
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 2)
         .alert(
             "Attachment action failed",
             isPresented: Binding(
@@ -87,7 +85,7 @@ struct ConversationContentMessageRow: View {
         }
     }
 
-    private func performAttachmentAction(_ item: SwiftMessageItem? = nil) async {
+    private func performAttachmentAction(_ item: MessageItem? = nil) async {
         let target = item ?? message
         do {
             switch target.mediaStatus.uppercased() {
@@ -114,7 +112,7 @@ struct ConversationContentMessageRow: View {
     }
 
     private func performTranscriptAttachmentAction(
-        _ item: SwiftMessageItem
+        _ item: MessageItem
     ) async {
         do {
             switch item.mediaStatus.uppercased() {
@@ -143,7 +141,7 @@ struct ConversationContentMessageRow: View {
     }
 }
 
-extension SwiftMessageItem {
+extension MessageItem {
     var conversationContentDate: Date {
         Date(timeIntervalSince1970: Double(createdAtMicros) / 1_000_000)
     }

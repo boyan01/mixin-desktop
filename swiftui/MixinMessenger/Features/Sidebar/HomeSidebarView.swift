@@ -11,7 +11,7 @@ struct HomeSidebarView: View {
   @Environment(HomeNavigationModel.self) private var navigation
   @State private var model = SidebarModel()
   @State private var presentedSheet: CircleSheet?
-  @State private var pendingDelete: SwiftCircleItem?
+  @State private var pendingDelete: CircleItem?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
@@ -58,15 +58,16 @@ struct HomeSidebarView: View {
         )
       }
 
+      Spacer()
+        .frame(height: 16)
+
       if !model.circles.isEmpty {
-        Spacer()
-          .frame(height: 16)
         sidebarDivider
         Spacer()
-          .frame(height: 8)
+          .frame(height: 12)
       }
 
-      ScrollView {
+      AppScrollView {
         LazyVStack(spacing: 0) {
           ForEach(model.circles, id: \.circleId) { circle in
             let section = HomeSection.circle(circle.circleId)
@@ -120,7 +121,6 @@ struct HomeSidebarView: View {
           }
         }
       }
-      .scrollIndicators(.never)
 
       if showCollapseControl {
         SidebarItem(
@@ -132,6 +132,7 @@ struct HomeSidebarView: View {
           mutedCount: 0,
           action: onToggleCollapsed
         )
+        .transition(.move(edge: .bottom).combined(with: .opacity))
       }
 
       Spacer()
@@ -142,6 +143,12 @@ struct HomeSidebarView: View {
       theme.primary
         .overlay(sidebarBackgroundOverlay)
     }
+    .overlay(alignment: .trailing) {
+      Rectangle()
+        .fill(theme.divider)
+        .frame(width: 1)
+    }
+    .animation(.easeInOut(duration: 0.2), value: showCollapseControl)
     .task {
       await model.start(account: session.handle)
     }
@@ -179,7 +186,7 @@ struct HomeSidebarView: View {
           if await model.deleteCircle(circle, account: session.handle),
             navigation.section == .circle(circle.circleId)
           {
-            navigation.section = .chats
+            navigation.showChats()
           }
           pendingDelete = nil
         }
@@ -219,25 +226,20 @@ struct HomeSidebarView: View {
     SidebarItem(
       title: session.profile.fullName,
       subtitle: session.profile.identityNumber,
-      selected: navigation.section == .settings,
+      selected: navigation.page == .settings,
       collapsed: collapsed,
       count: 0,
       mutedCount: 0,
       action: {
-        navigation.section = .settings
+        navigation.showSettings()
       }
     ) {
-      MixinRemoteImage(url: URL(string: session.profile.avatarUrl)) { image in
-        image
-          .resizable()
-          .scaledToFill()
-      } placeholder: {
-        Image(systemName: "person.crop.circle.fill")
-          .resizable()
-          .foregroundStyle(theme.secondaryText)
-      }
-      .frame(width: 24, height: 24)
-      .clipShape(Circle())
+      UserAvatar(
+        userID: session.profile.userId,
+        name: session.profile.fullName,
+        url: session.profile.avatarUrl,
+        size: 24
+      )
       .padding(.vertical, 8)
     }
   }
@@ -266,12 +268,12 @@ struct HomeSidebarView: View {
       title: title,
       assetName: assetName,
       iconColor: iconColor,
-      selected: navigation.section == section,
+      selected: navigation.page == .chats && navigation.section == section,
       collapsed: collapsed,
       count: count.count,
       mutedCount: count.muted,
       action: {
-        navigation.section = section
+        navigation.showChats(section: section)
       }
     )
   }
@@ -295,6 +297,7 @@ private struct SidebarItem<Icon: View>: View {
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.mixinTheme) private var theme
   @State private var hovering = false
+  @State private var hoveringHoverCard = false
 
   let title: String
   var subtitle: String?
@@ -374,8 +377,42 @@ private struct SidebarItem<Icon: View>: View {
       .contentShape(RoundedRectangle(cornerRadius: 8))
     }
     .buttonStyle(.plain)
-    .onHover { hovering = $0 }
-    .help(collapsed ? title : "")
+    .onHover { isHovering in
+      withAnimation(.easeOut(duration: isHovering ? 0.12 : 0.06)) {
+        hovering = isHovering
+      }
+    }
+    .overlay(alignment: .leading) {
+      if collapsed && (hovering || hoveringHoverCard) {
+        HStack(spacing: 12) {
+          VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+              .font(.system(size: 14))
+              .foregroundStyle(theme.text)
+              .lineLimit(1)
+            if let subtitle {
+              Text(subtitle)
+                .font(.system(size: 12))
+                .foregroundStyle(theme.secondaryText)
+                .lineLimit(1)
+            }
+          }
+          if count > 0 {
+            SidebarBadge(count: count)
+          }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .fixedSize()
+        .background(theme.background, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.leading, 8)
+        .offset(x: 40)
+        .onHover { hoveringHoverCard = $0 }
+        .onTapGesture(perform: action)
+        .transition(.opacity)
+      }
+    }
+    .zIndex(collapsed && (hovering || hoveringHoverCard) ? 1 : 0)
     .accessibilityLabel(title)
     .accessibilityValue(count > 0 ? "\(count) unread" : "")
   }
@@ -501,8 +538,8 @@ private func circleColor(_ circleID: String) -> Color {
 }
 
 private enum CircleSheet: Identifiable {
-  case rename(SwiftCircleItem)
-  case conversations(SwiftCircleItem)
+  case rename(CircleItem)
+  case conversations(CircleItem)
 
   var id: String {
     switch self {

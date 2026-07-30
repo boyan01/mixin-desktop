@@ -56,6 +56,10 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("k", modifiers: .command)
             .disabled(navigation == nil)
+
+            Button("Show Mixin") {
+                WindowActions.show()
+            }
         }
 
         CommandGroup(after: .newItem) {
@@ -69,18 +73,18 @@ struct AppCommands: Commands {
             }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
                 .disabled(navigation == nil)
-            Button("New Circle") {
-                navigation?.showCreation(.circle)
-            }
-            .disabled(navigation == nil)
-
             #if DEBUG
             Divider()
-            Button("Chat Backup and Restore") {
+            Button("chat backup and restore") {
                 deviceTransfer?.openSetup()
             }
             .disabled(deviceTransfer == nil)
             #endif
+
+            Button("New Circle") {
+                navigation?.showCreation(.circle)
+            }
+            .disabled(navigation == nil)
 
             Divider()
             Button("Close Window") {
@@ -97,7 +101,6 @@ struct AppCommands: Commands {
             Button("Search Messages") {
                 navigation?.focusMessageSearch()
             }
-                .keyboardShortcut("f", modifiers: .command)
                 .disabled(navigation?.selectedConversationID == nil)
             Button("Delete Chat") {
                 navigation?.requestConversationCommand(.delete)
@@ -112,8 +115,15 @@ struct AppCommands: Commands {
             }
             .disabled(navigation?.selectedConversation == nil)
 
-            Divider()
+        }
 
+        CommandGroup(after: .windowSize) {
+            Button("Zoom") {
+                WindowActions.zoom()
+            }
+        }
+
+        CommandGroup(after: .windowArrangement) {
             Button("Previous Conversation") {
                 navigation?.selectAdjacentConversation(forward: false)
             }
@@ -125,15 +135,9 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut(.downArrow, modifiers: .command)
             .disabled(navigation?.selectedConversationID == nil)
-        }
 
-        CommandGroup(after: .windowSize) {
-            Button("Zoom") {
-                WindowActions.zoom()
-            }
-        }
+            Divider()
 
-        CommandGroup(after: .windowArrangement) {
             Button("Show Mixin") {
                 WindowActions.show()
             }

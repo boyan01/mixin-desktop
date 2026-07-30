@@ -16,9 +16,9 @@ import 'error.dart';
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart';
 import 'third_party/mixin_desktop_api/access.dart';
-import 'third_party/mixin_desktop_api/dto.dart';
 import 'third_party/mixin_desktop_api/error.dart';
 import 'third_party/mixin_desktop_api/model.dart';
+import 'third_party/mixin_desktop_core/runtime/model.dart';
 
 abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RustLibApiImplPlatform({

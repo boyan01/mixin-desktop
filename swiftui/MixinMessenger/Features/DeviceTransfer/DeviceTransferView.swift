@@ -76,15 +76,14 @@ private struct DeviceTransferSetupView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider()
             page
-                .frame(minHeight: 300)
         }
-        .frame(width: 440)
+        .frame(maxWidth: 400)
+        .background(Color.clear)
     }
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 0) {
             if controller.setupPage != .choices {
                 Button {
                     controller.goBack()
@@ -99,19 +98,21 @@ private struct DeviceTransferSetupView: View {
 
             Spacer()
             Text(title)
-                .font(.headline)
+                .font(.system(size: 16, weight: .semibold))
             Spacer()
 
             Button {
                 controller.dismissSetup()
             } label: {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: "xmark")
+                    .frame(width: 40, height: 40)
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close")
         }
-        .padding(18)
+        .frame(height: 64)
+        .padding(.horizontal, 8)
     }
 
     @ViewBuilder
@@ -130,153 +131,184 @@ private struct DeviceTransferSetupView: View {
         switch controller.setupPage {
         case .choices:
             "Chat Backup and Restore"
-        case let .explanation(direction), let .waiting(direction):
+        case let .explanation(direction):
             direction.title
+        case let .waiting(direction):
+            direction == .restore
+                ? "restore from other device"
+                : "backup to other device"
         }
     }
 
     private var choices: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 0) {
+            Spacer().frame(height: 20)
             transferChoice(
-                direction: .restore,
-                description: "Receive chat history from another signed-in device."
+                direction: .restore
             )
-            transferChoice(
-                direction: .backup,
-                description: "Send this Mac's chat history to another signed-in device."
-            )
+            Spacer().frame(height: 16)
+            transferChoice(direction: .backup)
+            Spacer().frame(height: 32)
         }
-        .padding(24)
     }
 
     private func transferChoice(
-        direction: DeviceTransferDirection,
-        description: String
+        direction: DeviceTransferDirection
     ) -> some View {
         Button {
             controller.showExplanation(direction)
         } label: {
-            HStack(spacing: 16) {
-                Image(systemName: direction.symbolName)
-                    .font(.title2)
-                    .frame(width: 36)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(direction.title)
-                        .font(.headline)
-                    Text(description)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.leading)
-                }
+            HStack {
+                Text(direction == .restore
+                    ? "sync from other device"
+                    : "sync to other device")
+                    .font(.system(size: 16))
                 Spacer()
                 Image(systemName: "chevron.right")
                     .foregroundStyle(.tertiary)
             }
-            .padding(16)
+            .padding(.leading, 16)
+            .padding(.trailing, 10)
+            .padding(.vertical, 17)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 20)
     }
 
     private func explanation(_ direction: DeviceTransferDirection) -> some View {
-        VStack(spacing: 22) {
-            Image(systemName: "arrow.left.arrow.right.circle")
-                .font(.system(size: 64))
-                .foregroundStyle(.secondary)
-
+        VStack(spacing: 0) {
+            Spacer().frame(height: 32)
+            Image("DeviceTransfer")
+                .resizable()
+                .frame(width: 74, height: 87)
+            Spacer().frame(height: 20)
             Text(explanationText(direction))
+                .font(.system(size: 14))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 340)
-
-            Button(direction == .restore ? "Restore Chats" : "Back Up Chats") {
+                .padding(.horizontal, 36)
+            Spacer().frame(height: 40)
+            Button(direction == .restore ? "restore chat" : "backup chat") {
                 controller.begin(direction)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.plain)
+            .font(.system(size: 16))
+            .foregroundStyle(Color.accentColor)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 16)
+            .padding(.vertical, 17)
+            .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+            .padding(.horizontal, 16)
             .disabled(controller.commandInFlight)
+            Spacer().frame(height: 40)
         }
-        .padding(32)
     }
 
     private func waiting(_ direction: DeviceTransferDirection) -> some View {
-        VStack(spacing: 22) {
-            ProgressView()
-                .controlSize(.large)
-
-            Text("Waiting for the other device to connect…")
-                .font(.headline)
-
+        VStack(spacing: 0) {
+            Spacer().frame(height: 32)
+            Image(
+                direction == .restore
+                    ? "TransferFromPhone"
+                    : "TransferToPhone"
+            )
+                .resizable()
+                .frame(
+                    width: direction == .restore ? 72 : 69,
+                    height: direction == .restore ? 72 : 70
+                )
+            Spacer().frame(height: 20)
             Text(waitingText(direction))
+                .font(.system(size: 14))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 340)
-
+                .padding(.horizontal, 36)
+            Spacer().frame(height: 40)
             Button("Cancel", role: .cancel) {
                 controller.dismissSetup()
             }
+            Spacer().frame(height: 40)
         }
-        .padding(32)
     }
 
     private func explanationText(_ direction: DeviceTransferDirection) -> String {
         switch direction {
         case .restore:
-            "Keep both devices online. Existing chats on this Mac will be updated with the history sent by your other device."
+            "restore chat tip"
         case .backup:
-            "Keep both devices online. This Mac will prepare its chat history and securely send it to your other device."
+            "tips for backup to other device"
         }
     }
 
     private func waitingText(_ direction: DeviceTransferDirection) -> String {
         switch direction {
         case .restore:
-            "On the other device, choose to sync chats to this Mac and approve the request."
+            "waiting other device connection"
         case .backup:
-            "On the other device, choose to sync chats from this Mac and approve the request."
+            "restore waiting other device"
         }
     }
 }
 
 private struct DeviceTransferProgressView: View {
-    @Bindable var controller: DeviceTransferController
-    let direction: DeviceTransferDirection
+  @Bindable var controller: DeviceTransferController
+  let direction: DeviceTransferDirection
+  @Environment(\.mixinTheme) private var theme
 
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: direction.symbolName)
-                .font(.system(size: 58))
-                .foregroundStyle(.secondary)
+  var body: some View {
+        VStack(spacing: 0) {
+            Spacer().frame(height: 40)
+            Image(
+                direction == .restore
+                    ? "TransferFromPhone"
+                    : "TransferToPhone"
+            )
+                .resizable()
+                .renderingMode(.template)
+                .foregroundStyle(theme.secondaryText)
+                .frame(
+                    width: direction == .restore ? 72 : 69,
+                    height: direction == .restore ? 72 : 70
+                )
 
-            Text("Transferring Chats")
-                .font(.title3.weight(.semibold))
+            Spacer().frame(height: 38)
+            HStack(spacing: 2) {
+                Text("Transferring Chats")
+                if controller.progress > 0 {
+                    Text(String(format: "(%.2f%%)", controller.progress))
+                }
+            }
+            .font(.system(size: 18))
+            .foregroundStyle(theme.text)
 
-            Text(String(format: "%.2f%%", controller.progress))
-                .font(.system(.title2, design: .rounded).monospacedDigit())
-
-            ProgressView(value: controller.progress, total: 100)
-                .frame(width: 320)
-
+            Spacer().frame(height: 16)
+            Text(
+                "Please do not turn off the screen and keep the Mixin running "
+                    + "in the foreground while syncing."
+            )
+                .font(.system(size: 14))
+                .foregroundStyle(theme.secondaryText)
+                .multilineTextAlignment(.center)
+            Spacer().frame(height: 18)
             Text(
                 DeviceTransferController.formatNetworkSpeed(
                     controller.bytesPerSecond
                 )
             )
-            .font(.subheadline.monospacedDigit())
-            .foregroundStyle(.secondary)
+            .font(.system(size: 14))
+            .foregroundStyle(theme.secondaryText)
 
-            Text("Keep Mixin open and both devices connected until the transfer finishes.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 340)
-
-            Button("Cancel Transfer", role: .cancel) {
+            Spacer().frame(height: 32)
+            Button("Cancel", role: .cancel) {
                 controller.cancelTransfer(direction)
             }
+            .font(.system(size: 14))
+            .foregroundStyle(theme.accent)
         }
-        .padding(40)
-        .frame(width: 440)
+        .padding(.horizontal, 40)
+        .padding(.vertical, 20)
+        .frame(width: 420)
     }
 }

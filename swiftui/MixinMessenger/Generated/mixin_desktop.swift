@@ -655,6 +655,10 @@ public protocol SwiftAccountHandleProtocol: AnyObject, Sendable {
 
     func addContact(userId: String, fullName: String) async throws
 
+    func addSticker(stickerId: String) async throws
+
+    func addStickerFromFile(messageId: String) async throws
+
     func addStickerFromPath(path: String) async throws
 
     func attachmentProgress(messageId: String)  -> Double
@@ -671,7 +675,7 @@ public protocol SwiftAccountHandleProtocol: AnyObject, Sendable {
 
     func circleChanges()  -> SwiftCircleSubscription
 
-    func circles() async throws  -> [SwiftCircleItem]
+    func circles() async throws  -> [CircleItem]
 
     func clearConversation(conversationId: String) async throws
 
@@ -683,17 +687,17 @@ public protocol SwiftAccountHandleProtocol: AnyObject, Sendable {
 
     func conversationChanges()  -> SwiftConversationSubscription
 
-    func conversationDetail(conversationId: String) async throws  -> SwiftConversationDetailItem
+    func conversationDetail(conversationId: String) async throws  -> ConversationDetailItem
 
-    func conversationItemsByIds(conversationIds: [String]) async throws  -> [SwiftConversationListItem]
+    func conversationItemsByIds(conversationIds: [String]) async throws  -> [ConversationListData]
 
-    func conversationParticipants(conversationId: String) async throws  -> [SwiftConversationParticipantItem]
+    func conversationParticipants(conversationId: String) async throws  -> [ConversationParticipantItem]
 
-    func conversationStorageUsage(conversationId: String) async throws  -> [SwiftStorageCategoryUsage]
+    func conversationStorageUsage(conversationId: String) async throws  -> [StorageCategoryUsage]
 
-    func conversations(category: String, circleId: String?, keyword: String, unseenOnly: Bool, limit: Int64, offset: Int64) async throws  -> [SwiftConversationListItem]
+    func conversations(category: String, circleId: String?, keyword: String, unseenOnly: Bool, limit: Int64, offset: Int64) async throws  -> [ConversationListData]
 
-    func createCircle(name: String) async throws  -> SwiftCircleItem
+    func createCircle(name: String) async throws  -> CircleItem
 
     func createGroup(name: String, userIds: [String]) async throws  -> String
 
@@ -705,7 +709,7 @@ public protocol SwiftAccountHandleProtocol: AnyObject, Sendable {
 
     func deleteMessages(conversationId: String, messageIds: [String]) async throws
 
-    func deviceTransferCommand(command: SwiftDeviceTransferCommand) async throws
+    func deviceTransferCommand(command: DeviceTransferCommand) async throws
 
     func deviceTransferEvents()  -> SwiftDeviceTransferSubscription
 
@@ -721,15 +725,15 @@ public protocol SwiftAccountHandleProtocol: AnyObject, Sendable {
 
     func forwardMessages(targetConversationId: String, sourceMessageIds: [String]) async throws  -> [String]
 
-    func groupsInCommon(userId: String) async throws  -> [SwiftGroupConversationItem]
+    func groupsInCommon(userId: String) async throws  -> [GroupConversationItem]
 
-    func imageMessagesAround(conversationId: String, targetMessageId: String, before: Int64, after: Int64) async throws  -> [SwiftImageMessageItem]
+    func imageMessagesAround(conversationId: String, targetMessageId: String, before: Int64, after: Int64) async throws  -> [ImageMessageView]
 
     func joinGroup(code: String) async throws  -> String
 
-    func localConversationDetail(conversationId: String) async throws  -> SwiftConversationDetailItem
+    func localConversationDetail(conversationId: String) async throws  -> ConversationDetailItem
 
-    func localSharedApps(userId: String) async throws  -> [SwiftSharedAppItem]
+    func localSharedApps(userId: String) async throws  -> [SharedAppItem]
 
     func markAudioRead(messageId: String) async throws
 
@@ -743,31 +747,31 @@ public protocol SwiftAccountHandleProtocol: AnyObject, Sendable {
 
     func messageChanges()  -> SwiftMessageSubscription
 
-    func messageItemsByIds(messageIds: [String]) async throws  -> [SwiftMessageItem]
+    func messageItemsByIds(messageIds: [String]) async throws  -> [MessageItem]
 
-    func messages(conversationId: String, beforeCreatedAtMicros: Int64?, beforeMessageId: String?, limit: Int64) async throws  -> [SwiftMessageItem]
+    func messages(conversationId: String, beforeCreatedAtMicros: Int64?, beforeMessageId: String?, limit: Int64) async throws  -> [MessageItem]
 
-    func messagesAround(conversationId: String, targetMessageId: String, before: Int64, after: Int64) async throws  -> [SwiftMessageItem]
+    func messagesAround(conversationId: String, targetMessageId: String, before: Int64, after: Int64) async throws  -> [MessageItem]
 
     func notificationEvents()  -> SwiftNotificationSubscription
 
     func openUserConversation(userId: String) async throws  -> String
 
-    func pinnedMessages(conversationId: String) async throws  -> [SwiftMessageItem]
+    func pinnedMessages(conversationId: String) async throws  -> [MessageItem]
 
-    func profile()  -> SwiftAccountProfile
+    func profile()  -> AccountProfile
 
     func recallMessages(conversationId: String, messageIds: [String]) async throws
 
     func refreshAccountHealth() async throws
 
-    func refreshProfile() async throws  -> SwiftAccountProfile
+    func refreshProfile() async throws  -> AccountProfile
 
     func refreshSticker(stickerId: String) async throws
 
     func refreshStickers() async throws  -> Bool
 
-    func refreshUserProfile(userId: String) async throws  -> SwiftUserItem?
+    func refreshUserProfile(userId: String) async throws  -> UserProfileItem?
 
     func removeContact(userId: String) async throws
 
@@ -777,7 +781,7 @@ public protocol SwiftAccountHandleProtocol: AnyObject, Sendable {
 
     func reportUser(userId: String) async throws
 
-    func resolveCode(code: String) async throws  -> SwiftCodeResult
+    func resolveCode(code: String) async throws  -> CodeResult
 
     func retryAttachment(messageId: String) async throws
 
@@ -787,17 +791,23 @@ public protocol SwiftAccountHandleProtocol: AnyObject, Sendable {
 
     func rotateGroupInvite(conversationId: String) async throws
 
-    func safeSnapshotById(snapshotId: String) async throws  -> SwiftSnapshotDetailItem
+    func safeSnapshotById(snapshotId: String) async throws  -> SnapshotDetailItem
 
-    func searchBotGroupUsers(conversationId: String, keyword: String) async throws  -> [SwiftConversationParticipantItem]
+    func searchBotGroupUsers(conversationId: String, keyword: String) async throws  -> [ConversationParticipantItem]
 
-    func searchGroupUsers(conversationId: String, keyword: String) async throws  -> [SwiftConversationParticipantItem]
+    func searchGlobalMessages(query: String, anchorMessageId: String?, limit: UInt32) async throws  -> [MessageItem]
 
-    func searchMessages(conversationId: String, query: String, senderId: String?, categories: [String], anchorMessageId: String?, limit: UInt32) async throws  -> [SwiftMessageItem]
+    func searchGroupUsers(conversationId: String, keyword: String) async throws  -> [ConversationParticipantItem]
 
-    func searchUser(query: String) async throws  -> SwiftUserItem
+    func searchLocalUsers(query: String, category: String, limit: Int64) async throws  -> [UserProfileItem]
 
-    func selectableUsers() async throws  -> [SwiftUserItem]
+    func searchMaoUser(query: String) async throws  -> UserProfileItem?
+
+    func searchMessages(conversationId: String, query: String, senderId: String?, categories: [String], anchorMessageId: String?, limit: UInt32) async throws  -> [MessageItem]
+
+    func searchUser(query: String) async throws  -> UserProfileItem
+
+    func selectableUsers() async throws  -> [UserProfileItem]
 
     func sendAppCard(conversationId: String, content: String) async throws  -> String
 
@@ -827,27 +837,27 @@ public protocol SwiftAccountHandleProtocol: AnyObject, Sendable {
 
     func setStickerAlbumOrder(albumIds: [String]) async throws
 
-    func sharedApps(userId: String) async throws  -> [SwiftSharedAppItem]
+    func sharedApps(userId: String) async throws  -> [SharedAppItem]
 
-    func sharedMessages(conversationId: String, kind: String, offset: UInt32, limit: UInt32) async throws  -> [SwiftMessageItem]
+    func sharedMessages(conversationId: String, kind: String, offset: UInt32, limit: UInt32) async throws  -> [MessageItem]
 
     func shutdown() async
 
     func signOut() async throws
 
-    func snapshotById(snapshotId: String) async throws  -> SwiftSnapshotDetailItem
+    func snapshotById(snapshotId: String) async throws  -> SnapshotDetailItem
 
-    func snapshotByTrace(traceId: String) async throws  -> SwiftSnapshotDetailItem
+    func snapshotByTrace(traceId: String) async throws  -> SnapshotDetailItem
 
-    func stickerDetail(stickerId: String) async throws  -> SwiftStickerDetailItem
+    func stickerDetail(stickerId: String) async throws  -> StickerDetailItem
 
-    func stickerLibrary() async throws  -> SwiftStickerLibrary
+    func stickerLibrary() async throws  -> StickerLibrary
 
-    func stickerStore() async throws  -> [SwiftStickerAlbumSection]
+    func stickerStore() async throws  -> [StickerAlbumSection]
 
-    func storageUsage() async throws  -> [SwiftConversationStorageUsage]
+    func storageUsage() async throws  -> [ConversationStorageUsage]
 
-    func transcriptMessages(transcriptId: String) async throws  -> [SwiftMessageItem]
+    func transcriptMessages(transcriptId: String) async throws  -> [MessageItem]
 
     func unblockUser(userId: String) async throws
 
@@ -857,19 +867,19 @@ public protocol SwiftAccountHandleProtocol: AnyObject, Sendable {
 
     func unseenMessageCountChanges()  -> SwiftUnseenMessageCountSubscription
 
-    func updateAvatar(avatarBase64: String) async throws  -> SwiftAccountProfile
+    func updateAvatar(avatarBase64: String) async throws  -> AccountProfile
 
     func updateCircle(circleId: String, name: String) async throws
 
     func updateDraft(conversationId: String, draft: String) async throws
 
-    func updateParticipants(conversationId: String, action: SwiftParticipantAction, userIds: [String]) async throws
+    func updateParticipants(conversationId: String, action: ParticipantAction, userIds: [String]) async throws
 
-    func updateProfile(fullName: String, biography: String) async throws  -> SwiftAccountProfile
+    func updateProfile(fullName: String, biography: String) async throws  -> AccountProfile
 
-    func userProfile(userId: String) async throws  -> SwiftUserItem?
+    func userProfile(userId: String) async throws  -> UserProfileItem?
 
-    func usersByIdentityNumbers(identityNumbers: [String]) async throws  -> [SwiftUserItem]
+    func usersByIdentityNumbers(identityNumbers: [String]) async throws  -> [UserProfileItem]
 
 }
 open class SwiftAccountHandle: SwiftAccountHandleProtocol, @unchecked Sendable {
@@ -940,6 +950,38 @@ open func addContact(userId: String, fullName: String)async throws   {
             rustFutureFunc: {
                 uniffi_mixin_desktop_fn_method_swiftaccounthandle_add_contact(
                         self.uniffiCloneHandle(),FfiConverterString.lower(userId),FfiConverterString.lower(fullName)
+                )
+            },
+            pollFunc: ffi_mixin_desktop_rust_future_poll_void,
+            completeFunc: ffi_mixin_desktop_rust_future_complete_void,
+            freeFunc: ffi_mixin_desktop_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeSwiftClientError_lift
+        )
+}
+
+open func addSticker(stickerId: String)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_mixin_desktop_fn_method_swiftaccounthandle_add_sticker(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(stickerId)
+                )
+            },
+            pollFunc: ffi_mixin_desktop_rust_future_poll_void,
+            completeFunc: ffi_mixin_desktop_rust_future_complete_void,
+            freeFunc: ffi_mixin_desktop_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeSwiftClientError_lift
+        )
+}
+
+open func addStickerFromFile(messageId: String)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_mixin_desktop_fn_method_swiftaccounthandle_add_sticker_from_file(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(messageId)
                 )
             },
             pollFunc: ffi_mixin_desktop_rust_future_poll_void,
@@ -1065,7 +1107,7 @@ open func circleChanges() -> SwiftCircleSubscription  {
 })
 }
 
-open func circles()async throws  -> [SwiftCircleItem]  {
+open func circles()async throws  -> [CircleItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1076,7 +1118,7 @@ open func circles()async throws  -> [SwiftCircleItem]  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftCircleItem.lift,
+            liftFunc: FfiConverterSequenceTypeCircleItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -1147,7 +1189,7 @@ open func conversationChanges() -> SwiftConversationSubscription  {
 })
 }
 
-open func conversationDetail(conversationId: String)async throws  -> SwiftConversationDetailItem  {
+open func conversationDetail(conversationId: String)async throws  -> ConversationDetailItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1158,12 +1200,12 @@ open func conversationDetail(conversationId: String)async throws  -> SwiftConver
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftConversationDetailItem_lift,
+            liftFunc: FfiConverterTypeConversationDetailItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func conversationItemsByIds(conversationIds: [String])async throws  -> [SwiftConversationListItem]  {
+open func conversationItemsByIds(conversationIds: [String])async throws  -> [ConversationListData]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1174,12 +1216,12 @@ open func conversationItemsByIds(conversationIds: [String])async throws  -> [Swi
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftConversationListItem.lift,
+            liftFunc: FfiConverterSequenceTypeConversationListData.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func conversationParticipants(conversationId: String)async throws  -> [SwiftConversationParticipantItem]  {
+open func conversationParticipants(conversationId: String)async throws  -> [ConversationParticipantItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1190,12 +1232,12 @@ open func conversationParticipants(conversationId: String)async throws  -> [Swif
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftConversationParticipantItem.lift,
+            liftFunc: FfiConverterSequenceTypeConversationParticipantItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func conversationStorageUsage(conversationId: String)async throws  -> [SwiftStorageCategoryUsage]  {
+open func conversationStorageUsage(conversationId: String)async throws  -> [StorageCategoryUsage]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1206,12 +1248,12 @@ open func conversationStorageUsage(conversationId: String)async throws  -> [Swif
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftStorageCategoryUsage.lift,
+            liftFunc: FfiConverterSequenceTypeStorageCategoryUsage.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func conversations(category: String, circleId: String?, keyword: String, unseenOnly: Bool, limit: Int64, offset: Int64)async throws  -> [SwiftConversationListItem]  {
+open func conversations(category: String, circleId: String?, keyword: String, unseenOnly: Bool, limit: Int64, offset: Int64)async throws  -> [ConversationListData]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1222,12 +1264,12 @@ open func conversations(category: String, circleId: String?, keyword: String, un
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftConversationListItem.lift,
+            liftFunc: FfiConverterSequenceTypeConversationListData.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func createCircle(name: String)async throws  -> SwiftCircleItem  {
+open func createCircle(name: String)async throws  -> CircleItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1238,7 +1280,7 @@ open func createCircle(name: String)async throws  -> SwiftCircleItem  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftCircleItem_lift,
+            liftFunc: FfiConverterTypeCircleItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -1323,12 +1365,12 @@ open func deleteMessages(conversationId: String, messageIds: [String])async thro
         )
 }
 
-open func deviceTransferCommand(command: SwiftDeviceTransferCommand)async throws   {
+open func deviceTransferCommand(command: DeviceTransferCommand)async throws   {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_mixin_desktop_fn_method_swiftaccounthandle_device_transfer_command(
-                        self.uniffiCloneHandle(),FfiConverterTypeSwiftDeviceTransferCommand_lower(command)
+                        self.uniffiCloneHandle(),FfiConverterTypeDeviceTransferCommand_lower(command)
                 )
             },
             pollFunc: ffi_mixin_desktop_rust_future_poll_void,
@@ -1444,7 +1486,7 @@ open func forwardMessages(targetConversationId: String, sourceMessageIds: [Strin
         )
 }
 
-open func groupsInCommon(userId: String)async throws  -> [SwiftGroupConversationItem]  {
+open func groupsInCommon(userId: String)async throws  -> [GroupConversationItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1455,12 +1497,12 @@ open func groupsInCommon(userId: String)async throws  -> [SwiftGroupConversation
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftGroupConversationItem.lift,
+            liftFunc: FfiConverterSequenceTypeGroupConversationItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func imageMessagesAround(conversationId: String, targetMessageId: String, before: Int64, after: Int64)async throws  -> [SwiftImageMessageItem]  {
+open func imageMessagesAround(conversationId: String, targetMessageId: String, before: Int64, after: Int64)async throws  -> [ImageMessageView]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1471,7 +1513,7 @@ open func imageMessagesAround(conversationId: String, targetMessageId: String, b
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftImageMessageItem.lift,
+            liftFunc: FfiConverterSequenceTypeImageMessageView.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -1492,7 +1534,7 @@ open func joinGroup(code: String)async throws  -> String  {
         )
 }
 
-open func localConversationDetail(conversationId: String)async throws  -> SwiftConversationDetailItem  {
+open func localConversationDetail(conversationId: String)async throws  -> ConversationDetailItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1503,12 +1545,12 @@ open func localConversationDetail(conversationId: String)async throws  -> SwiftC
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftConversationDetailItem_lift,
+            liftFunc: FfiConverterTypeConversationDetailItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func localSharedApps(userId: String)async throws  -> [SwiftSharedAppItem]  {
+open func localSharedApps(userId: String)async throws  -> [SharedAppItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1519,7 +1561,7 @@ open func localSharedApps(userId: String)async throws  -> [SwiftSharedAppItem]  
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftSharedAppItem.lift,
+            liftFunc: FfiConverterSequenceTypeSharedAppItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -1606,7 +1648,7 @@ open func messageChanges() -> SwiftMessageSubscription  {
 })
 }
 
-open func messageItemsByIds(messageIds: [String])async throws  -> [SwiftMessageItem]  {
+open func messageItemsByIds(messageIds: [String])async throws  -> [MessageItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1617,12 +1659,12 @@ open func messageItemsByIds(messageIds: [String])async throws  -> [SwiftMessageI
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftMessageItem.lift,
+            liftFunc: FfiConverterSequenceTypeMessageItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func messages(conversationId: String, beforeCreatedAtMicros: Int64?, beforeMessageId: String?, limit: Int64)async throws  -> [SwiftMessageItem]  {
+open func messages(conversationId: String, beforeCreatedAtMicros: Int64?, beforeMessageId: String?, limit: Int64)async throws  -> [MessageItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1633,12 +1675,12 @@ open func messages(conversationId: String, beforeCreatedAtMicros: Int64?, before
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftMessageItem.lift,
+            liftFunc: FfiConverterSequenceTypeMessageItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func messagesAround(conversationId: String, targetMessageId: String, before: Int64, after: Int64)async throws  -> [SwiftMessageItem]  {
+open func messagesAround(conversationId: String, targetMessageId: String, before: Int64, after: Int64)async throws  -> [MessageItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1649,7 +1691,7 @@ open func messagesAround(conversationId: String, targetMessageId: String, before
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftMessageItem.lift,
+            liftFunc: FfiConverterSequenceTypeMessageItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -1679,7 +1721,7 @@ open func openUserConversation(userId: String)async throws  -> String  {
         )
 }
 
-open func pinnedMessages(conversationId: String)async throws  -> [SwiftMessageItem]  {
+open func pinnedMessages(conversationId: String)async throws  -> [MessageItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1690,13 +1732,13 @@ open func pinnedMessages(conversationId: String)async throws  -> [SwiftMessageIt
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftMessageItem.lift,
+            liftFunc: FfiConverterSequenceTypeMessageItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func profile() -> SwiftAccountProfile  {
-    return try!  FfiConverterTypeSwiftAccountProfile_lift(try! rustCall() {
+open func profile() -> AccountProfile  {
+    return try!  FfiConverterTypeAccountProfile_lift(try! rustCall() {
         uniffiCallStatus in
     uniffi_mixin_desktop_fn_method_swiftaccounthandle_profile(
             self.uniffiCloneHandle(),uniffiCallStatus
@@ -1736,7 +1778,7 @@ open func refreshAccountHealth()async throws   {
         )
 }
 
-open func refreshProfile()async throws  -> SwiftAccountProfile  {
+open func refreshProfile()async throws  -> AccountProfile  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1747,7 +1789,7 @@ open func refreshProfile()async throws  -> SwiftAccountProfile  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftAccountProfile_lift,
+            liftFunc: FfiConverterTypeAccountProfile_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -1784,7 +1826,7 @@ open func refreshStickers()async throws  -> Bool  {
         )
 }
 
-open func refreshUserProfile(userId: String)async throws  -> SwiftUserItem?  {
+open func refreshUserProfile(userId: String)async throws  -> UserProfileItem?  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1795,7 +1837,7 @@ open func refreshUserProfile(userId: String)async throws  -> SwiftUserItem?  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeSwiftUserItem.lift,
+            liftFunc: FfiConverterOptionTypeUserProfileItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -1864,7 +1906,7 @@ open func reportUser(userId: String)async throws   {
         )
 }
 
-open func resolveCode(code: String)async throws  -> SwiftCodeResult  {
+open func resolveCode(code: String)async throws  -> CodeResult  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1875,7 +1917,7 @@ open func resolveCode(code: String)async throws  -> SwiftCodeResult  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftCodeResult_lift,
+            liftFunc: FfiConverterTypeCodeResult_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -1936,7 +1978,7 @@ open func rotateGroupInvite(conversationId: String)async throws   {
         )
 }
 
-open func safeSnapshotById(snapshotId: String)async throws  -> SwiftSnapshotDetailItem  {
+open func safeSnapshotById(snapshotId: String)async throws  -> SnapshotDetailItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1947,12 +1989,12 @@ open func safeSnapshotById(snapshotId: String)async throws  -> SwiftSnapshotDeta
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftSnapshotDetailItem_lift,
+            liftFunc: FfiConverterTypeSnapshotDetailItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func searchBotGroupUsers(conversationId: String, keyword: String)async throws  -> [SwiftConversationParticipantItem]  {
+open func searchBotGroupUsers(conversationId: String, keyword: String)async throws  -> [ConversationParticipantItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1963,12 +2005,28 @@ open func searchBotGroupUsers(conversationId: String, keyword: String)async thro
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftConversationParticipantItem.lift,
+            liftFunc: FfiConverterSequenceTypeConversationParticipantItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func searchGroupUsers(conversationId: String, keyword: String)async throws  -> [SwiftConversationParticipantItem]  {
+open func searchGlobalMessages(query: String, anchorMessageId: String?, limit: UInt32)async throws  -> [MessageItem]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_mixin_desktop_fn_method_swiftaccounthandle_search_global_messages(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(query),FfiConverterOptionString.lower(anchorMessageId),FfiConverterUInt32.lower(limit)
+                )
+            },
+            pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
+            completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
+            freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeMessageItem.lift,
+            errorHandler: FfiConverterTypeSwiftClientError_lift
+        )
+}
+
+open func searchGroupUsers(conversationId: String, keyword: String)async throws  -> [ConversationParticipantItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1979,12 +2037,44 @@ open func searchGroupUsers(conversationId: String, keyword: String)async throws 
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftConversationParticipantItem.lift,
+            liftFunc: FfiConverterSequenceTypeConversationParticipantItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func searchMessages(conversationId: String, query: String, senderId: String?, categories: [String], anchorMessageId: String?, limit: UInt32)async throws  -> [SwiftMessageItem]  {
+open func searchLocalUsers(query: String, category: String, limit: Int64)async throws  -> [UserProfileItem]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_mixin_desktop_fn_method_swiftaccounthandle_search_local_users(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(query),FfiConverterString.lower(category),FfiConverterInt64.lower(limit)
+                )
+            },
+            pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
+            completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
+            freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeUserProfileItem.lift,
+            errorHandler: FfiConverterTypeSwiftClientError_lift
+        )
+}
+
+open func searchMaoUser(query: String)async throws  -> UserProfileItem?  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_mixin_desktop_fn_method_swiftaccounthandle_search_mao_user(
+                        self.uniffiCloneHandle(),FfiConverterString.lower(query)
+                )
+            },
+            pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
+            completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
+            freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeUserProfileItem.lift,
+            errorHandler: FfiConverterTypeSwiftClientError_lift
+        )
+}
+
+open func searchMessages(conversationId: String, query: String, senderId: String?, categories: [String], anchorMessageId: String?, limit: UInt32)async throws  -> [MessageItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -1995,12 +2085,12 @@ open func searchMessages(conversationId: String, query: String, senderId: String
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftMessageItem.lift,
+            liftFunc: FfiConverterSequenceTypeMessageItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func searchUser(query: String)async throws  -> SwiftUserItem  {
+open func searchUser(query: String)async throws  -> UserProfileItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2011,12 +2101,12 @@ open func searchUser(query: String)async throws  -> SwiftUserItem  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftUserItem_lift,
+            liftFunc: FfiConverterTypeUserProfileItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func selectableUsers()async throws  -> [SwiftUserItem]  {
+open func selectableUsers()async throws  -> [UserProfileItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2027,7 +2117,7 @@ open func selectableUsers()async throws  -> [SwiftUserItem]  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftUserItem.lift,
+            liftFunc: FfiConverterSequenceTypeUserProfileItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -2256,7 +2346,7 @@ open func setStickerAlbumOrder(albumIds: [String])async throws   {
         )
 }
 
-open func sharedApps(userId: String)async throws  -> [SwiftSharedAppItem]  {
+open func sharedApps(userId: String)async throws  -> [SharedAppItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2267,12 +2357,12 @@ open func sharedApps(userId: String)async throws  -> [SwiftSharedAppItem]  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftSharedAppItem.lift,
+            liftFunc: FfiConverterSequenceTypeSharedAppItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func sharedMessages(conversationId: String, kind: String, offset: UInt32, limit: UInt32)async throws  -> [SwiftMessageItem]  {
+open func sharedMessages(conversationId: String, kind: String, offset: UInt32, limit: UInt32)async throws  -> [MessageItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2283,7 +2373,7 @@ open func sharedMessages(conversationId: String, kind: String, offset: UInt32, l
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftMessageItem.lift,
+            liftFunc: FfiConverterSequenceTypeMessageItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -2321,7 +2411,7 @@ open func signOut()async throws   {
         )
 }
 
-open func snapshotById(snapshotId: String)async throws  -> SwiftSnapshotDetailItem  {
+open func snapshotById(snapshotId: String)async throws  -> SnapshotDetailItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2332,12 +2422,12 @@ open func snapshotById(snapshotId: String)async throws  -> SwiftSnapshotDetailIt
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftSnapshotDetailItem_lift,
+            liftFunc: FfiConverterTypeSnapshotDetailItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func snapshotByTrace(traceId: String)async throws  -> SwiftSnapshotDetailItem  {
+open func snapshotByTrace(traceId: String)async throws  -> SnapshotDetailItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2348,12 +2438,12 @@ open func snapshotByTrace(traceId: String)async throws  -> SwiftSnapshotDetailIt
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftSnapshotDetailItem_lift,
+            liftFunc: FfiConverterTypeSnapshotDetailItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func stickerDetail(stickerId: String)async throws  -> SwiftStickerDetailItem  {
+open func stickerDetail(stickerId: String)async throws  -> StickerDetailItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2364,12 +2454,12 @@ open func stickerDetail(stickerId: String)async throws  -> SwiftStickerDetailIte
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftStickerDetailItem_lift,
+            liftFunc: FfiConverterTypeStickerDetailItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func stickerLibrary()async throws  -> SwiftStickerLibrary  {
+open func stickerLibrary()async throws  -> StickerLibrary  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2380,12 +2470,12 @@ open func stickerLibrary()async throws  -> SwiftStickerLibrary  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftStickerLibrary_lift,
+            liftFunc: FfiConverterTypeStickerLibrary_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func stickerStore()async throws  -> [SwiftStickerAlbumSection]  {
+open func stickerStore()async throws  -> [StickerAlbumSection]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2396,12 +2486,12 @@ open func stickerStore()async throws  -> [SwiftStickerAlbumSection]  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftStickerAlbumSection.lift,
+            liftFunc: FfiConverterSequenceTypeStickerAlbumSection.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func storageUsage()async throws  -> [SwiftConversationStorageUsage]  {
+open func storageUsage()async throws  -> [ConversationStorageUsage]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2412,12 +2502,12 @@ open func storageUsage()async throws  -> [SwiftConversationStorageUsage]  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftConversationStorageUsage.lift,
+            liftFunc: FfiConverterSequenceTypeConversationStorageUsage.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func transcriptMessages(transcriptId: String)async throws  -> [SwiftMessageItem]  {
+open func transcriptMessages(transcriptId: String)async throws  -> [MessageItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2428,7 +2518,7 @@ open func transcriptMessages(transcriptId: String)async throws  -> [SwiftMessage
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftMessageItem.lift,
+            liftFunc: FfiConverterSequenceTypeMessageItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -2483,7 +2573,7 @@ open func unseenMessageCountChanges() -> SwiftUnseenMessageCountSubscription  {
 })
 }
 
-open func updateAvatar(avatarBase64: String)async throws  -> SwiftAccountProfile  {
+open func updateAvatar(avatarBase64: String)async throws  -> AccountProfile  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2494,7 +2584,7 @@ open func updateAvatar(avatarBase64: String)async throws  -> SwiftAccountProfile
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftAccountProfile_lift,
+            liftFunc: FfiConverterTypeAccountProfile_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -2531,12 +2621,12 @@ open func updateDraft(conversationId: String, draft: String)async throws   {
         )
 }
 
-open func updateParticipants(conversationId: String, action: SwiftParticipantAction, userIds: [String])async throws   {
+open func updateParticipants(conversationId: String, action: ParticipantAction, userIds: [String])async throws   {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_mixin_desktop_fn_method_swiftaccounthandle_update_participants(
-                        self.uniffiCloneHandle(),FfiConverterString.lower(conversationId),FfiConverterTypeSwiftParticipantAction_lower(action),FfiConverterSequenceString.lower(userIds)
+                        self.uniffiCloneHandle(),FfiConverterString.lower(conversationId),FfiConverterTypeParticipantAction_lower(action),FfiConverterSequenceString.lower(userIds)
                 )
             },
             pollFunc: ffi_mixin_desktop_rust_future_poll_void,
@@ -2547,7 +2637,7 @@ open func updateParticipants(conversationId: String, action: SwiftParticipantAct
         )
 }
 
-open func updateProfile(fullName: String, biography: String)async throws  -> SwiftAccountProfile  {
+open func updateProfile(fullName: String, biography: String)async throws  -> AccountProfile  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2558,12 +2648,12 @@ open func updateProfile(fullName: String, biography: String)async throws  -> Swi
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftAccountProfile_lift,
+            liftFunc: FfiConverterTypeAccountProfile_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func userProfile(userId: String)async throws  -> SwiftUserItem?  {
+open func userProfile(userId: String)async throws  -> UserProfileItem?  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2574,12 +2664,12 @@ open func userProfile(userId: String)async throws  -> SwiftUserItem?  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeSwiftUserItem.lift,
+            liftFunc: FfiConverterOptionTypeUserProfileItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func usersByIdentityNumbers(identityNumbers: [String])async throws  -> [SwiftUserItem]  {
+open func usersByIdentityNumbers(identityNumbers: [String])async throws  -> [UserProfileItem]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2590,7 +2680,7 @@ open func usersByIdentityNumbers(identityNumbers: [String])async throws  -> [Swi
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceTypeSwiftUserItem.lift,
+            liftFunc: FfiConverterSequenceTypeUserProfileItem.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -2784,7 +2874,7 @@ public protocol SwiftCircleSubscriptionProtocol: AnyObject, Sendable {
 
     func cancel()
 
-    func next() async  -> [SwiftCircleItem]?
+    func next() async  -> [CircleItem]?
 
 }
 open class SwiftCircleSubscription: SwiftCircleSubscriptionProtocol, @unchecked Sendable {
@@ -2848,7 +2938,7 @@ open func cancel()  {try! rustCall() {
 }
 }
 
-open func next()async  -> [SwiftCircleItem]?  {
+open func next()async  -> [CircleItem]?  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -2859,7 +2949,7 @@ open func next()async  -> [SwiftCircleItem]?  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionSequenceTypeSwiftCircleItem.lift,
+            liftFunc: FfiConverterOptionSequenceTypeCircleItem.lift,
             errorHandler: nil
 
         )
@@ -3054,7 +3144,7 @@ public protocol SwiftConversationSubscriptionProtocol: AnyObject, Sendable {
 
     func cancel()
 
-    func next() async  -> SwiftConversationChangeEvent?
+    func next() async  -> ConversationChangeEvent?
 
 }
 open class SwiftConversationSubscription: SwiftConversationSubscriptionProtocol, @unchecked Sendable {
@@ -3118,7 +3208,7 @@ open func cancel()  {try! rustCall() {
 }
 }
 
-open func next()async  -> SwiftConversationChangeEvent?  {
+open func next()async  -> ConversationChangeEvent?  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -3129,7 +3219,7 @@ open func next()async  -> SwiftConversationChangeEvent?  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeSwiftConversationChangeEvent.lift,
+            liftFunc: FfiConverterOptionTypeConversationChangeEvent.lift,
             errorHandler: nil
 
         )
@@ -3193,19 +3283,19 @@ public protocol SwiftDesktopHandleProtocol: AnyObject, Sendable {
 
     func fileAutoDownload() async throws  -> Bool
 
-    func httpRequest(method: String, url: String, headers: [String: String], body: Data?, timeoutMillis: UInt64?, maxResponseBytes: UInt64?) async throws  -> SwiftHttpResponse
+    func httpRequest(method: String, url: String, headers: [String: String], body: Data?, timeoutMillis: UInt64?, maxResponseBytes: UInt64?) async throws  -> HttpResponseItem
 
     func logDirectory() throws  -> String
 
-    func mcpServerStatus() async throws  -> SwiftMcpServerStatus
+    func mcpServerStatus() async throws  -> McpServerStatusItem
 
-    func mcpSettings() async throws  -> SwiftMcpSettings
+    func mcpSettings() async throws  -> McpSettingsItem
 
     func media()  -> SwiftMediaHandle
 
     func photoAutoDownload() async throws  -> Bool
 
-    func proxySettings() async throws  -> SwiftProxySettings
+    func proxySettings() async throws  -> ProxySettingsItem
 
     func recreateAccountDatabase() async throws
 
@@ -3215,7 +3305,7 @@ public protocol SwiftDesktopHandleProtocol: AnyObject, Sendable {
 
     func setPhotoAutoDownload(value: Bool) async throws
 
-    func setProxySettings(settings: SwiftProxySettings) async throws
+    func setProxySettings(settings: ProxySettingsItem) async throws
 
     func setSetting(key: String, value: String?) async throws
 
@@ -3223,7 +3313,7 @@ public protocol SwiftDesktopHandleProtocol: AnyObject, Sendable {
 
     func setting(key: String) async throws  -> String?
 
-    func updateMcpSettings(settings: SwiftMcpSettings) async throws  -> SwiftMcpServerStatus
+    func updateMcpSettings(settings: McpSettingsItem) async throws  -> McpServerStatusItem
 
     func videoAutoDownload() async throws  -> Bool
 
@@ -3329,7 +3419,7 @@ open func fileAutoDownload()async throws  -> Bool  {
         )
 }
 
-open func httpRequest(method: String, url: String, headers: [String: String], body: Data?, timeoutMillis: UInt64?, maxResponseBytes: UInt64?)async throws  -> SwiftHttpResponse  {
+open func httpRequest(method: String, url: String, headers: [String: String], body: Data?, timeoutMillis: UInt64?, maxResponseBytes: UInt64?)async throws  -> HttpResponseItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -3340,7 +3430,7 @@ open func httpRequest(method: String, url: String, headers: [String: String], bo
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftHttpResponse_lift,
+            liftFunc: FfiConverterTypeHttpResponseItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -3354,7 +3444,7 @@ open func logDirectory()throws  -> String  {
 })
 }
 
-open func mcpServerStatus()async throws  -> SwiftMcpServerStatus  {
+open func mcpServerStatus()async throws  -> McpServerStatusItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -3365,12 +3455,12 @@ open func mcpServerStatus()async throws  -> SwiftMcpServerStatus  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftMcpServerStatus_lift,
+            liftFunc: FfiConverterTypeMcpServerStatusItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
 
-open func mcpSettings()async throws  -> SwiftMcpSettings  {
+open func mcpSettings()async throws  -> McpSettingsItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -3381,7 +3471,7 @@ open func mcpSettings()async throws  -> SwiftMcpSettings  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftMcpSettings_lift,
+            liftFunc: FfiConverterTypeMcpSettingsItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -3411,7 +3501,7 @@ open func photoAutoDownload()async throws  -> Bool  {
         )
 }
 
-open func proxySettings()async throws  -> SwiftProxySettings  {
+open func proxySettings()async throws  -> ProxySettingsItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -3422,7 +3512,7 @@ open func proxySettings()async throws  -> SwiftProxySettings  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftProxySettings_lift,
+            liftFunc: FfiConverterTypeProxySettingsItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -3491,12 +3581,12 @@ open func setPhotoAutoDownload(value: Bool)async throws   {
         )
 }
 
-open func setProxySettings(settings: SwiftProxySettings)async throws   {
+open func setProxySettings(settings: ProxySettingsItem)async throws   {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_mixin_desktop_fn_method_swiftdesktophandle_set_proxy_settings(
-                        self.uniffiCloneHandle(),FfiConverterTypeSwiftProxySettings_lower(settings)
+                        self.uniffiCloneHandle(),FfiConverterTypeProxySettingsItem_lower(settings)
                 )
             },
             pollFunc: ffi_mixin_desktop_rust_future_poll_void,
@@ -3555,18 +3645,18 @@ open func setting(key: String)async throws  -> String?  {
         )
 }
 
-open func updateMcpSettings(settings: SwiftMcpSettings)async throws  -> SwiftMcpServerStatus  {
+open func updateMcpSettings(settings: McpSettingsItem)async throws  -> McpServerStatusItem  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_mixin_desktop_fn_method_swiftdesktophandle_update_mcp_settings(
-                        self.uniffiCloneHandle(),FfiConverterTypeSwiftMcpSettings_lower(settings)
+                        self.uniffiCloneHandle(),FfiConverterTypeMcpSettingsItem_lower(settings)
                 )
             },
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftMcpServerStatus_lift,
+            liftFunc: FfiConverterTypeMcpServerStatusItem_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -3641,7 +3731,7 @@ public protocol SwiftDeviceTransferSubscriptionProtocol: AnyObject, Sendable {
 
     func cancel()
 
-    func next() async  -> SwiftDeviceTransferEvent?
+    func next() async  -> DeviceTransferEventItem?
 
 }
 open class SwiftDeviceTransferSubscription: SwiftDeviceTransferSubscriptionProtocol, @unchecked Sendable {
@@ -3705,7 +3795,7 @@ open func cancel()  {try! rustCall() {
 }
 }
 
-open func next()async  -> SwiftDeviceTransferEvent?  {
+open func next()async  -> DeviceTransferEventItem?  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -3716,7 +3806,7 @@ open func next()async  -> SwiftDeviceTransferEvent?  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeSwiftDeviceTransferEvent.lift,
+            liftFunc: FfiConverterOptionTypeDeviceTransferEventItem.lift,
             errorHandler: nil
 
         )
@@ -3919,13 +4009,13 @@ public func FfiConverterTypeSwiftLoginHandle_lower(_ value: SwiftLoginHandle) ->
 
 public protocol SwiftMediaHandleProtocol: AnyObject, Sendable {
 
-    func audioPlaybackSnapshot()  -> SwiftMediaPlaybackSnapshot
+    func audioPlaybackSnapshot()  -> AudioPlaybackSnapshot
 
     func cancelVoiceRecording() async throws
 
     func pauseAudio() async throws
 
-    func playAudio(playlist: [SwiftMediaAudioItem], startIndex: UInt64) async throws
+    func playAudio(playlist: [AudioPlaybackItem], startIndex: UInt64) async throws
 
     func resumeAudio() async throws
 
@@ -3937,13 +4027,13 @@ public protocol SwiftMediaHandleProtocol: AnyObject, Sendable {
 
     func stopAudio()
 
-    func stopVoiceRecording() async throws  -> SwiftMediaVoiceRecording
+    func stopVoiceRecording() async throws  -> VoiceRecording
 
     func subscribeAudioPlayback()  -> SwiftMediaPlaybackSubscription
 
     func subscribeVoiceRecorder()  -> SwiftMediaRecorderSubscription
 
-    func voiceRecorderSnapshot()  -> SwiftMediaRecorderSnapshot
+    func voiceRecorderSnapshot()  -> VoiceRecorderSnapshot
 
 }
 open class SwiftMediaHandle: SwiftMediaHandleProtocol, @unchecked Sendable {
@@ -3999,8 +4089,8 @@ open class SwiftMediaHandle: SwiftMediaHandleProtocol, @unchecked Sendable {
 
 
 
-open func audioPlaybackSnapshot() -> SwiftMediaPlaybackSnapshot  {
-    return try!  FfiConverterTypeSwiftMediaPlaybackSnapshot_lift(try! rustCall() {
+open func audioPlaybackSnapshot() -> AudioPlaybackSnapshot  {
+    return try!  FfiConverterTypeAudioPlaybackSnapshot_lift(try! rustCall() {
         uniffiCallStatus in
     uniffi_mixin_desktop_fn_method_swiftmediahandle_audio_playback_snapshot(
             self.uniffiCloneHandle(),uniffiCallStatus
@@ -4040,12 +4130,12 @@ open func pauseAudio()async throws   {
         )
 }
 
-open func playAudio(playlist: [SwiftMediaAudioItem], startIndex: UInt64)async throws   {
+open func playAudio(playlist: [AudioPlaybackItem], startIndex: UInt64)async throws   {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_mixin_desktop_fn_method_swiftmediahandle_play_audio(
-                        self.uniffiCloneHandle(),FfiConverterSequenceTypeSwiftMediaAudioItem.lower(playlist),FfiConverterUInt64.lower(startIndex)
+                        self.uniffiCloneHandle(),FfiConverterSequenceTypeAudioPlaybackItem.lower(playlist),FfiConverterUInt64.lower(startIndex)
                 )
             },
             pollFunc: ffi_mixin_desktop_rust_future_poll_void,
@@ -4121,7 +4211,7 @@ open func stopAudio()  {try! rustCall() {
 }
 }
 
-open func stopVoiceRecording()async throws  -> SwiftMediaVoiceRecording  {
+open func stopVoiceRecording()async throws  -> VoiceRecording  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -4132,7 +4222,7 @@ open func stopVoiceRecording()async throws  -> SwiftMediaVoiceRecording  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterTypeSwiftMediaVoiceRecording_lift,
+            liftFunc: FfiConverterTypeVoiceRecording_lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -4155,8 +4245,8 @@ open func subscribeVoiceRecorder() -> SwiftMediaRecorderSubscription  {
 })
 }
 
-open func voiceRecorderSnapshot() -> SwiftMediaRecorderSnapshot  {
-    return try!  FfiConverterTypeSwiftMediaRecorderSnapshot_lift(try! rustCall() {
+open func voiceRecorderSnapshot() -> VoiceRecorderSnapshot  {
+    return try!  FfiConverterTypeVoiceRecorderSnapshot_lift(try! rustCall() {
         uniffiCallStatus in
     uniffi_mixin_desktop_fn_method_swiftmediahandle_voice_recorder_snapshot(
             self.uniffiCloneHandle(),uniffiCallStatus
@@ -4218,7 +4308,7 @@ public protocol SwiftMediaPlaybackSubscriptionProtocol: AnyObject, Sendable {
 
     func cancel()
 
-    func next() async  -> SwiftMediaPlaybackEvent?
+    func next() async  -> MediaPlaybackEvent?
 
 }
 open class SwiftMediaPlaybackSubscription: SwiftMediaPlaybackSubscriptionProtocol, @unchecked Sendable {
@@ -4282,7 +4372,7 @@ open func cancel()  {try! rustCall() {
 }
 }
 
-open func next()async  -> SwiftMediaPlaybackEvent?  {
+open func next()async  -> MediaPlaybackEvent?  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -4293,7 +4383,7 @@ open func next()async  -> SwiftMediaPlaybackEvent?  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeSwiftMediaPlaybackEvent.lift,
+            liftFunc: FfiConverterOptionTypeMediaPlaybackEvent.lift,
             errorHandler: nil
 
         )
@@ -4353,7 +4443,7 @@ public protocol SwiftMediaRecorderSubscriptionProtocol: AnyObject, Sendable {
 
     func cancel()
 
-    func next() async  -> SwiftMediaRecorderEvent?
+    func next() async  -> MediaRecorderEvent?
 
 }
 open class SwiftMediaRecorderSubscription: SwiftMediaRecorderSubscriptionProtocol, @unchecked Sendable {
@@ -4417,7 +4507,7 @@ open func cancel()  {try! rustCall() {
 }
 }
 
-open func next()async  -> SwiftMediaRecorderEvent?  {
+open func next()async  -> MediaRecorderEvent?  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -4428,7 +4518,7 @@ open func next()async  -> SwiftMediaRecorderEvent?  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeSwiftMediaRecorderEvent.lift,
+            liftFunc: FfiConverterOptionTypeMediaRecorderEvent.lift,
             errorHandler: nil
 
         )
@@ -4623,7 +4713,7 @@ public protocol SwiftNotificationSubscriptionProtocol: AnyObject, Sendable {
 
     func cancel()
 
-    func next() async throws  -> SwiftNotificationEvent?
+    func next() async throws  -> NotificationEvent?
 
 }
 open class SwiftNotificationSubscription: SwiftNotificationSubscriptionProtocol, @unchecked Sendable {
@@ -4687,7 +4777,7 @@ open func cancel()  {try! rustCall() {
 }
 }
 
-open func next()async throws  -> SwiftNotificationEvent?  {
+open func next()async throws  -> NotificationEvent?  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -4698,7 +4788,7 @@ open func next()async throws  -> SwiftNotificationEvent?  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeSwiftNotificationEvent.lift,
+            liftFunc: FfiConverterOptionTypeNotificationEvent.lift,
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
@@ -4757,7 +4847,7 @@ public protocol SwiftUnseenCountSubscriptionProtocol: AnyObject, Sendable {
 
     func cancel()
 
-    func next() async  -> [SwiftConversationUnseenCount]?
+    func next() async  -> [ConversationUnseenCount]?
 
 }
 open class SwiftUnseenCountSubscription: SwiftUnseenCountSubscriptionProtocol, @unchecked Sendable {
@@ -4821,7 +4911,7 @@ open func cancel()  {try! rustCall() {
 }
 }
 
-open func next()async  -> [SwiftConversationUnseenCount]?  {
+open func next()async  -> [ConversationUnseenCount]?  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -4832,7 +4922,7 @@ open func next()async  -> [SwiftConversationUnseenCount]?  {
             pollFunc: ffi_mixin_desktop_rust_future_poll_rust_buffer,
             completeFunc: ffi_mixin_desktop_rust_future_complete_rust_buffer,
             freeFunc: ffi_mixin_desktop_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionSequenceTypeSwiftConversationUnseenCount.lift,
+            liftFunc: FfiConverterOptionSequenceTypeConversationUnseenCount.lift,
             errorHandler: nil
 
         )
@@ -5021,7 +5111,7 @@ public func FfiConverterTypeSwiftUnseenMessageCountSubscription_lower(_ value: S
 
 
 
-public struct SwiftAccountProfile: Equatable, Hashable {
+public struct AccountProfile: Equatable, Hashable {
     public var userId: String
     public var fullName: String
     public var avatarUrl: String
@@ -5054,16 +5144,16 @@ public struct SwiftAccountProfile: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftAccountProfile: Sendable {}
+extension AccountProfile: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftAccountProfile: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftAccountProfile {
+public struct FfiConverterTypeAccountProfile: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AccountProfile {
         return
-            try SwiftAccountProfile(
+            try AccountProfile(
                 userId: FfiConverterString.read(from: &buf),
                 fullName: FfiConverterString.read(from: &buf),
                 avatarUrl: FfiConverterString.read(from: &buf),
@@ -5077,7 +5167,7 @@ public struct FfiConverterTypeSwiftAccountProfile: FfiConverterRustBuffer {
         )
     }
 
-    public static func write(_ value: SwiftAccountProfile, into buf: inout [UInt8]) {
+    public static func write(_ value: AccountProfile, into buf: inout [UInt8]) {
         FfiConverterString.write(value.userId, into: &buf)
         FfiConverterString.write(value.fullName, into: &buf)
         FfiConverterString.write(value.avatarUrl, into: &buf)
@@ -5095,19 +5185,143 @@ public struct FfiConverterTypeSwiftAccountProfile: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftAccountProfile_lift(_ buf: RustBuffer) throws -> SwiftAccountProfile {
-    return try FfiConverterTypeSwiftAccountProfile.lift(buf)
+public func FfiConverterTypeAccountProfile_lift(_ buf: RustBuffer) throws -> AccountProfile {
+    return try FfiConverterTypeAccountProfile.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftAccountProfile_lower(_ value: SwiftAccountProfile) -> RustBuffer {
-    return FfiConverterTypeSwiftAccountProfile.lower(value)
+public func FfiConverterTypeAccountProfile_lower(_ value: AccountProfile) -> RustBuffer {
+    return FfiConverterTypeAccountProfile.lower(value)
 }
 
 
-public struct SwiftCircleItem: Equatable, Hashable {
+public struct AudioPlaybackItem: Equatable, Hashable {
+    public var id: String
+    public var path: String
+    public var durationMillis: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, path: String, durationMillis: UInt64) {
+        self.id = id
+        self.path = path
+        self.durationMillis = durationMillis
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension AudioPlaybackItem: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAudioPlaybackItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AudioPlaybackItem {
+        return
+            try AudioPlaybackItem(
+                id: FfiConverterString.read(from: &buf),
+                path: FfiConverterString.read(from: &buf),
+                durationMillis: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AudioPlaybackItem, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.path, into: &buf)
+        FfiConverterUInt64.write(value.durationMillis, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAudioPlaybackItem_lift(_ buf: RustBuffer) throws -> AudioPlaybackItem {
+    return try FfiConverterTypeAudioPlaybackItem.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAudioPlaybackItem_lower(_ value: AudioPlaybackItem) -> RustBuffer {
+    return FfiConverterTypeAudioPlaybackItem.lower(value)
+}
+
+
+public struct AudioPlaybackSnapshot: Equatable, Hashable {
+    public var status: AudioPlaybackStatus
+    public var item: AudioPlaybackItem?
+    public var positionMillis: UInt64
+    public var durationMillis: UInt64
+    public var speed: Double
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(status: AudioPlaybackStatus, item: AudioPlaybackItem?, positionMillis: UInt64, durationMillis: UInt64, speed: Double) {
+        self.status = status
+        self.item = item
+        self.positionMillis = positionMillis
+        self.durationMillis = durationMillis
+        self.speed = speed
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension AudioPlaybackSnapshot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAudioPlaybackSnapshot: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AudioPlaybackSnapshot {
+        return
+            try AudioPlaybackSnapshot(
+                status: FfiConverterTypeAudioPlaybackStatus.read(from: &buf),
+                item: FfiConverterOptionTypeAudioPlaybackItem.read(from: &buf),
+                positionMillis: FfiConverterUInt64.read(from: &buf),
+                durationMillis: FfiConverterUInt64.read(from: &buf),
+                speed: FfiConverterDouble.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AudioPlaybackSnapshot, into buf: inout [UInt8]) {
+        FfiConverterTypeAudioPlaybackStatus.write(value.status, into: &buf)
+        FfiConverterOptionTypeAudioPlaybackItem.write(value.item, into: &buf)
+        FfiConverterUInt64.write(value.positionMillis, into: &buf)
+        FfiConverterUInt64.write(value.durationMillis, into: &buf)
+        FfiConverterDouble.write(value.speed, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAudioPlaybackSnapshot_lift(_ buf: RustBuffer) throws -> AudioPlaybackSnapshot {
+    return try FfiConverterTypeAudioPlaybackSnapshot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAudioPlaybackSnapshot_lower(_ value: AudioPlaybackSnapshot) -> RustBuffer {
+    return FfiConverterTypeAudioPlaybackSnapshot.lower(value)
+}
+
+
+public struct CircleItem: Equatable, Hashable {
     public var circleId: String
     public var name: String
     public var conversationCount: Int64
@@ -5126,23 +5340,23 @@ public struct SwiftCircleItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftCircleItem: Sendable {}
+extension CircleItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftCircleItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftCircleItem {
+public struct FfiConverterTypeCircleItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CircleItem {
         return
-            try SwiftCircleItem(
+            try CircleItem(
                 circleId: FfiConverterString.read(from: &buf),
                 name: FfiConverterString.read(from: &buf),
                 conversationCount: FfiConverterInt64.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftCircleItem, into buf: inout [UInt8]) {
+    public static func write(_ value: CircleItem, into buf: inout [UInt8]) {
         FfiConverterString.write(value.circleId, into: &buf)
         FfiConverterString.write(value.name, into: &buf)
         FfiConverterInt64.write(value.conversationCount, into: &buf)
@@ -5153,26 +5367,27 @@ public struct FfiConverterTypeSwiftCircleItem: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftCircleItem_lift(_ buf: RustBuffer) throws -> SwiftCircleItem {
-    return try FfiConverterTypeSwiftCircleItem.lift(buf)
+public func FfiConverterTypeCircleItem_lift(_ buf: RustBuffer) throws -> CircleItem {
+    return try FfiConverterTypeCircleItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftCircleItem_lower(_ value: SwiftCircleItem) -> RustBuffer {
-    return FfiConverterTypeSwiftCircleItem.lower(value)
+public func FfiConverterTypeCircleItem_lower(_ value: CircleItem) -> RustBuffer {
+    return FfiConverterTypeCircleItem.lower(value)
 }
 
 
-public struct SwiftCodeResult: Equatable, Hashable {
+public struct CodeResult: Equatable, Hashable {
     public var kind: String
     public var userId: String?
     public var conversationId: String?
     public var conversationName: String?
     public var participantCount: Int64
-    public var participantAvatars: [SwiftGroupAvatar]
+    public var participantAvatars: [GroupAvatar]
     public var alreadyMember: Bool
+    public var assetId: String?
     public var assetSymbol: String?
     public var assetIconUrl: String?
     public var chainIconUrl: String?
@@ -5185,7 +5400,7 @@ public struct SwiftCodeResult: Equatable, Hashable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(kind: String, userId: String?, conversationId: String?, conversationName: String?, participantCount: Int64, participantAvatars: [SwiftGroupAvatar], alreadyMember: Bool, assetSymbol: String?, assetIconUrl: String?, chainIconUrl: String?, amount: String?, senders: [String], receivers: [String], threshold: Int64, state: String?, action: String?) {
+    public init(kind: String, userId: String?, conversationId: String?, conversationName: String?, participantCount: Int64, participantAvatars: [GroupAvatar], alreadyMember: Bool, assetId: String?, assetSymbol: String?, assetIconUrl: String?, chainIconUrl: String?, amount: String?, senders: [String], receivers: [String], threshold: Int64, state: String?, action: String?) {
         self.kind = kind
         self.userId = userId
         self.conversationId = conversationId
@@ -5193,6 +5408,7 @@ public struct SwiftCodeResult: Equatable, Hashable {
         self.participantCount = participantCount
         self.participantAvatars = participantAvatars
         self.alreadyMember = alreadyMember
+        self.assetId = assetId
         self.assetSymbol = assetSymbol
         self.assetIconUrl = assetIconUrl
         self.chainIconUrl = chainIconUrl
@@ -5210,23 +5426,24 @@ public struct SwiftCodeResult: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftCodeResult: Sendable {}
+extension CodeResult: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftCodeResult: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftCodeResult {
+public struct FfiConverterTypeCodeResult: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CodeResult {
         return
-            try SwiftCodeResult(
+            try CodeResult(
                 kind: FfiConverterString.read(from: &buf),
                 userId: FfiConverterOptionString.read(from: &buf),
                 conversationId: FfiConverterOptionString.read(from: &buf),
                 conversationName: FfiConverterOptionString.read(from: &buf),
                 participantCount: FfiConverterInt64.read(from: &buf),
-                participantAvatars: FfiConverterSequenceTypeSwiftGroupAvatar.read(from: &buf),
+                participantAvatars: FfiConverterSequenceTypeGroupAvatar.read(from: &buf),
                 alreadyMember: FfiConverterBool.read(from: &buf),
+                assetId: FfiConverterOptionString.read(from: &buf),
                 assetSymbol: FfiConverterOptionString.read(from: &buf),
                 assetIconUrl: FfiConverterOptionString.read(from: &buf),
                 chainIconUrl: FfiConverterOptionString.read(from: &buf),
@@ -5239,14 +5456,15 @@ public struct FfiConverterTypeSwiftCodeResult: FfiConverterRustBuffer {
         )
     }
 
-    public static func write(_ value: SwiftCodeResult, into buf: inout [UInt8]) {
+    public static func write(_ value: CodeResult, into buf: inout [UInt8]) {
         FfiConverterString.write(value.kind, into: &buf)
         FfiConverterOptionString.write(value.userId, into: &buf)
         FfiConverterOptionString.write(value.conversationId, into: &buf)
         FfiConverterOptionString.write(value.conversationName, into: &buf)
         FfiConverterInt64.write(value.participantCount, into: &buf)
-        FfiConverterSequenceTypeSwiftGroupAvatar.write(value.participantAvatars, into: &buf)
+        FfiConverterSequenceTypeGroupAvatar.write(value.participantAvatars, into: &buf)
         FfiConverterBool.write(value.alreadyMember, into: &buf)
+        FfiConverterOptionString.write(value.assetId, into: &buf)
         FfiConverterOptionString.write(value.assetSymbol, into: &buf)
         FfiConverterOptionString.write(value.assetIconUrl, into: &buf)
         FfiConverterOptionString.write(value.chainIconUrl, into: &buf)
@@ -5263,19 +5481,19 @@ public struct FfiConverterTypeSwiftCodeResult: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftCodeResult_lift(_ buf: RustBuffer) throws -> SwiftCodeResult {
-    return try FfiConverterTypeSwiftCodeResult.lift(buf)
+public func FfiConverterTypeCodeResult_lift(_ buf: RustBuffer) throws -> CodeResult {
+    return try FfiConverterTypeCodeResult.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftCodeResult_lower(_ value: SwiftCodeResult) -> RustBuffer {
-    return FfiConverterTypeSwiftCodeResult.lower(value)
+public func FfiConverterTypeCodeResult_lower(_ value: CodeResult) -> RustBuffer {
+    return FfiConverterTypeCodeResult.lower(value)
 }
 
 
-public struct SwiftConversationChangeEvent: Equatable, Hashable {
+public struct ConversationChangeEvent: Equatable, Hashable {
     public var conversationIds: [String]
     public var reloadAll: Bool
 
@@ -5292,22 +5510,22 @@ public struct SwiftConversationChangeEvent: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftConversationChangeEvent: Sendable {}
+extension ConversationChangeEvent: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftConversationChangeEvent: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftConversationChangeEvent {
+public struct FfiConverterTypeConversationChangeEvent: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConversationChangeEvent {
         return
-            try SwiftConversationChangeEvent(
+            try ConversationChangeEvent(
                 conversationIds: FfiConverterSequenceString.read(from: &buf),
                 reloadAll: FfiConverterBool.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftConversationChangeEvent, into buf: inout [UInt8]) {
+    public static func write(_ value: ConversationChangeEvent, into buf: inout [UInt8]) {
         FfiConverterSequenceString.write(value.conversationIds, into: &buf)
         FfiConverterBool.write(value.reloadAll, into: &buf)
     }
@@ -5317,19 +5535,19 @@ public struct FfiConverterTypeSwiftConversationChangeEvent: FfiConverterRustBuff
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftConversationChangeEvent_lift(_ buf: RustBuffer) throws -> SwiftConversationChangeEvent {
-    return try FfiConverterTypeSwiftConversationChangeEvent.lift(buf)
+public func FfiConverterTypeConversationChangeEvent_lift(_ buf: RustBuffer) throws -> ConversationChangeEvent {
+    return try FfiConverterTypeConversationChangeEvent.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftConversationChangeEvent_lower(_ value: SwiftConversationChangeEvent) -> RustBuffer {
-    return FfiConverterTypeSwiftConversationChangeEvent.lower(value)
+public func FfiConverterTypeConversationChangeEvent_lower(_ value: ConversationChangeEvent) -> RustBuffer {
+    return FfiConverterTypeConversationChangeEvent.lower(value)
 }
 
 
-public struct SwiftConversationDetailItem: Equatable, Hashable {
+public struct ConversationDetailItem: Equatable, Hashable {
     public var conversationId: String
     public var name: String
     public var announcement: String
@@ -5356,16 +5574,16 @@ public struct SwiftConversationDetailItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftConversationDetailItem: Sendable {}
+extension ConversationDetailItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftConversationDetailItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftConversationDetailItem {
+public struct FfiConverterTypeConversationDetailItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConversationDetailItem {
         return
-            try SwiftConversationDetailItem(
+            try ConversationDetailItem(
                 conversationId: FfiConverterString.read(from: &buf),
                 name: FfiConverterString.read(from: &buf),
                 announcement: FfiConverterString.read(from: &buf),
@@ -5376,7 +5594,7 @@ public struct FfiConverterTypeSwiftConversationDetailItem: FfiConverterRustBuffe
         )
     }
 
-    public static func write(_ value: SwiftConversationDetailItem, into buf: inout [UInt8]) {
+    public static func write(_ value: ConversationDetailItem, into buf: inout [UInt8]) {
         FfiConverterString.write(value.conversationId, into: &buf)
         FfiConverterString.write(value.name, into: &buf)
         FfiConverterString.write(value.announcement, into: &buf)
@@ -5391,26 +5609,27 @@ public struct FfiConverterTypeSwiftConversationDetailItem: FfiConverterRustBuffe
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftConversationDetailItem_lift(_ buf: RustBuffer) throws -> SwiftConversationDetailItem {
-    return try FfiConverterTypeSwiftConversationDetailItem.lift(buf)
+public func FfiConverterTypeConversationDetailItem_lift(_ buf: RustBuffer) throws -> ConversationDetailItem {
+    return try FfiConverterTypeConversationDetailItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftConversationDetailItem_lower(_ value: SwiftConversationDetailItem) -> RustBuffer {
-    return FfiConverterTypeSwiftConversationDetailItem.lower(value)
+public func FfiConverterTypeConversationDetailItem_lower(_ value: ConversationDetailItem) -> RustBuffer {
+    return FfiConverterTypeConversationDetailItem.lower(value)
 }
 
 
-public struct SwiftConversationListItem: Equatable, Hashable {
+public struct ConversationListData: Equatable, Hashable {
     public var conversationId: String
     public var ownerId: String
-    public var category: String
     public var name: String
-    public var iconUrl: String
+    public var avatarUrl: String
+    public var category: String
     public var draft: String
     public var status: Int32
+    public var lastReadMessageId: String?
     public var lastMessage: String
     public var lastMessageCategory: String?
     public var lastMessageStatus: String?
@@ -5419,34 +5638,34 @@ public struct SwiftConversationListItem: Equatable, Hashable {
     public var lastMessageAction: String?
     public var lastMessageParticipantId: String?
     public var lastMessageParticipantName: String?
-    public var lastReadMessageId: String?
+    public var updatedAtMillis: Int64
     public var unseenCount: Int64
     public var mentionCount: Int64
-    public var isPinned: Bool
-    public var pinTimeMillis: Int64
     public var isMuted: Bool
     public var isVerified: Bool
+    public var isScam: Bool
     public var isBot: Bool
     public var isBotGroup: Bool
-    public var isScam: Bool
     public var membership: String?
+    public var isPinned: Bool
+    public var pinTimeMillis: Int64
     public var relationship: String
     public var identityNumber: String
     public var circleIds: [String]
     public var participantCount: Int64
-    public var groupAvatars: [SwiftGroupAvatar]
-    public var updatedAtMillis: Int64
+    public var groupAvatars: [GroupAvatar]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(conversationId: String, ownerId: String, category: String, name: String, iconUrl: String, draft: String, status: Int32, lastMessage: String, lastMessageCategory: String?, lastMessageStatus: String?, lastMessageSenderId: String?, lastMessageSenderName: String?, lastMessageAction: String?, lastMessageParticipantId: String?, lastMessageParticipantName: String?, lastReadMessageId: String?, unseenCount: Int64, mentionCount: Int64, isPinned: Bool, pinTimeMillis: Int64, isMuted: Bool, isVerified: Bool, isBot: Bool, isBotGroup: Bool, isScam: Bool, membership: String?, relationship: String, identityNumber: String, circleIds: [String], participantCount: Int64, groupAvatars: [SwiftGroupAvatar], updatedAtMillis: Int64) {
+    public init(conversationId: String, ownerId: String, name: String, avatarUrl: String, category: String, draft: String, status: Int32, lastReadMessageId: String?, lastMessage: String, lastMessageCategory: String?, lastMessageStatus: String?, lastMessageSenderId: String?, lastMessageSenderName: String?, lastMessageAction: String?, lastMessageParticipantId: String?, lastMessageParticipantName: String?, updatedAtMillis: Int64, unseenCount: Int64, mentionCount: Int64, isMuted: Bool, isVerified: Bool, isScam: Bool, isBot: Bool, isBotGroup: Bool, membership: String?, isPinned: Bool, pinTimeMillis: Int64, relationship: String, identityNumber: String, circleIds: [String], participantCount: Int64, groupAvatars: [GroupAvatar]) {
         self.conversationId = conversationId
         self.ownerId = ownerId
-        self.category = category
         self.name = name
-        self.iconUrl = iconUrl
+        self.avatarUrl = avatarUrl
+        self.category = category
         self.draft = draft
         self.status = status
+        self.lastReadMessageId = lastReadMessageId
         self.lastMessage = lastMessage
         self.lastMessageCategory = lastMessageCategory
         self.lastMessageStatus = lastMessageStatus
@@ -5455,23 +5674,22 @@ public struct SwiftConversationListItem: Equatable, Hashable {
         self.lastMessageAction = lastMessageAction
         self.lastMessageParticipantId = lastMessageParticipantId
         self.lastMessageParticipantName = lastMessageParticipantName
-        self.lastReadMessageId = lastReadMessageId
+        self.updatedAtMillis = updatedAtMillis
         self.unseenCount = unseenCount
         self.mentionCount = mentionCount
-        self.isPinned = isPinned
-        self.pinTimeMillis = pinTimeMillis
         self.isMuted = isMuted
         self.isVerified = isVerified
+        self.isScam = isScam
         self.isBot = isBot
         self.isBotGroup = isBotGroup
-        self.isScam = isScam
         self.membership = membership
+        self.isPinned = isPinned
+        self.pinTimeMillis = pinTimeMillis
         self.relationship = relationship
         self.identityNumber = identityNumber
         self.circleIds = circleIds
         self.participantCount = participantCount
         self.groupAvatars = groupAvatars
-        self.updatedAtMillis = updatedAtMillis
     }
 
 
@@ -5480,23 +5698,24 @@ public struct SwiftConversationListItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftConversationListItem: Sendable {}
+extension ConversationListData: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftConversationListItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftConversationListItem {
+public struct FfiConverterTypeConversationListData: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConversationListData {
         return
-            try SwiftConversationListItem(
+            try ConversationListData(
                 conversationId: FfiConverterString.read(from: &buf),
                 ownerId: FfiConverterString.read(from: &buf),
-                category: FfiConverterString.read(from: &buf),
                 name: FfiConverterString.read(from: &buf),
-                iconUrl: FfiConverterString.read(from: &buf),
+                avatarUrl: FfiConverterString.read(from: &buf),
+                category: FfiConverterString.read(from: &buf),
                 draft: FfiConverterString.read(from: &buf),
                 status: FfiConverterInt32.read(from: &buf),
+                lastReadMessageId: FfiConverterOptionString.read(from: &buf),
                 lastMessage: FfiConverterString.read(from: &buf),
                 lastMessageCategory: FfiConverterOptionString.read(from: &buf),
                 lastMessageStatus: FfiConverterOptionString.read(from: &buf),
@@ -5505,34 +5724,34 @@ public struct FfiConverterTypeSwiftConversationListItem: FfiConverterRustBuffer 
                 lastMessageAction: FfiConverterOptionString.read(from: &buf),
                 lastMessageParticipantId: FfiConverterOptionString.read(from: &buf),
                 lastMessageParticipantName: FfiConverterOptionString.read(from: &buf),
-                lastReadMessageId: FfiConverterOptionString.read(from: &buf),
+                updatedAtMillis: FfiConverterInt64.read(from: &buf),
                 unseenCount: FfiConverterInt64.read(from: &buf),
                 mentionCount: FfiConverterInt64.read(from: &buf),
-                isPinned: FfiConverterBool.read(from: &buf),
-                pinTimeMillis: FfiConverterInt64.read(from: &buf),
                 isMuted: FfiConverterBool.read(from: &buf),
                 isVerified: FfiConverterBool.read(from: &buf),
+                isScam: FfiConverterBool.read(from: &buf),
                 isBot: FfiConverterBool.read(from: &buf),
                 isBotGroup: FfiConverterBool.read(from: &buf),
-                isScam: FfiConverterBool.read(from: &buf),
                 membership: FfiConverterOptionString.read(from: &buf),
+                isPinned: FfiConverterBool.read(from: &buf),
+                pinTimeMillis: FfiConverterInt64.read(from: &buf),
                 relationship: FfiConverterString.read(from: &buf),
                 identityNumber: FfiConverterString.read(from: &buf),
                 circleIds: FfiConverterSequenceString.read(from: &buf),
                 participantCount: FfiConverterInt64.read(from: &buf),
-                groupAvatars: FfiConverterSequenceTypeSwiftGroupAvatar.read(from: &buf),
-                updatedAtMillis: FfiConverterInt64.read(from: &buf)
+                groupAvatars: FfiConverterSequenceTypeGroupAvatar.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftConversationListItem, into buf: inout [UInt8]) {
+    public static func write(_ value: ConversationListData, into buf: inout [UInt8]) {
         FfiConverterString.write(value.conversationId, into: &buf)
         FfiConverterString.write(value.ownerId, into: &buf)
-        FfiConverterString.write(value.category, into: &buf)
         FfiConverterString.write(value.name, into: &buf)
-        FfiConverterString.write(value.iconUrl, into: &buf)
+        FfiConverterString.write(value.avatarUrl, into: &buf)
+        FfiConverterString.write(value.category, into: &buf)
         FfiConverterString.write(value.draft, into: &buf)
         FfiConverterInt32.write(value.status, into: &buf)
+        FfiConverterOptionString.write(value.lastReadMessageId, into: &buf)
         FfiConverterString.write(value.lastMessage, into: &buf)
         FfiConverterOptionString.write(value.lastMessageCategory, into: &buf)
         FfiConverterOptionString.write(value.lastMessageStatus, into: &buf)
@@ -5541,23 +5760,22 @@ public struct FfiConverterTypeSwiftConversationListItem: FfiConverterRustBuffer 
         FfiConverterOptionString.write(value.lastMessageAction, into: &buf)
         FfiConverterOptionString.write(value.lastMessageParticipantId, into: &buf)
         FfiConverterOptionString.write(value.lastMessageParticipantName, into: &buf)
-        FfiConverterOptionString.write(value.lastReadMessageId, into: &buf)
+        FfiConverterInt64.write(value.updatedAtMillis, into: &buf)
         FfiConverterInt64.write(value.unseenCount, into: &buf)
         FfiConverterInt64.write(value.mentionCount, into: &buf)
-        FfiConverterBool.write(value.isPinned, into: &buf)
-        FfiConverterInt64.write(value.pinTimeMillis, into: &buf)
         FfiConverterBool.write(value.isMuted, into: &buf)
         FfiConverterBool.write(value.isVerified, into: &buf)
+        FfiConverterBool.write(value.isScam, into: &buf)
         FfiConverterBool.write(value.isBot, into: &buf)
         FfiConverterBool.write(value.isBotGroup, into: &buf)
-        FfiConverterBool.write(value.isScam, into: &buf)
         FfiConverterOptionString.write(value.membership, into: &buf)
+        FfiConverterBool.write(value.isPinned, into: &buf)
+        FfiConverterInt64.write(value.pinTimeMillis, into: &buf)
         FfiConverterString.write(value.relationship, into: &buf)
         FfiConverterString.write(value.identityNumber, into: &buf)
         FfiConverterSequenceString.write(value.circleIds, into: &buf)
         FfiConverterInt64.write(value.participantCount, into: &buf)
-        FfiConverterSequenceTypeSwiftGroupAvatar.write(value.groupAvatars, into: &buf)
-        FfiConverterInt64.write(value.updatedAtMillis, into: &buf)
+        FfiConverterSequenceTypeGroupAvatar.write(value.groupAvatars, into: &buf)
     }
 }
 
@@ -5565,19 +5783,19 @@ public struct FfiConverterTypeSwiftConversationListItem: FfiConverterRustBuffer 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftConversationListItem_lift(_ buf: RustBuffer) throws -> SwiftConversationListItem {
-    return try FfiConverterTypeSwiftConversationListItem.lift(buf)
+public func FfiConverterTypeConversationListData_lift(_ buf: RustBuffer) throws -> ConversationListData {
+    return try FfiConverterTypeConversationListData.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftConversationListItem_lower(_ value: SwiftConversationListItem) -> RustBuffer {
-    return FfiConverterTypeSwiftConversationListItem.lower(value)
+public func FfiConverterTypeConversationListData_lower(_ value: ConversationListData) -> RustBuffer {
+    return FfiConverterTypeConversationListData.lower(value)
 }
 
 
-public struct SwiftConversationParticipantItem: Equatable, Hashable {
+public struct ConversationParticipantItem: Equatable, Hashable {
     public var userId: String
     public var role: String?
     public var createdAtMillis: Int64
@@ -5612,16 +5830,16 @@ public struct SwiftConversationParticipantItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftConversationParticipantItem: Sendable {}
+extension ConversationParticipantItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftConversationParticipantItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftConversationParticipantItem {
+public struct FfiConverterTypeConversationParticipantItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConversationParticipantItem {
         return
-            try SwiftConversationParticipantItem(
+            try ConversationParticipantItem(
                 userId: FfiConverterString.read(from: &buf),
                 role: FfiConverterOptionString.read(from: &buf),
                 createdAtMillis: FfiConverterInt64.read(from: &buf),
@@ -5636,7 +5854,7 @@ public struct FfiConverterTypeSwiftConversationParticipantItem: FfiConverterRust
         )
     }
 
-    public static func write(_ value: SwiftConversationParticipantItem, into buf: inout [UInt8]) {
+    public static func write(_ value: ConversationParticipantItem, into buf: inout [UInt8]) {
         FfiConverterString.write(value.userId, into: &buf)
         FfiConverterOptionString.write(value.role, into: &buf)
         FfiConverterInt64.write(value.createdAtMillis, into: &buf)
@@ -5655,25 +5873,25 @@ public struct FfiConverterTypeSwiftConversationParticipantItem: FfiConverterRust
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftConversationParticipantItem_lift(_ buf: RustBuffer) throws -> SwiftConversationParticipantItem {
-    return try FfiConverterTypeSwiftConversationParticipantItem.lift(buf)
+public func FfiConverterTypeConversationParticipantItem_lift(_ buf: RustBuffer) throws -> ConversationParticipantItem {
+    return try FfiConverterTypeConversationParticipantItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftConversationParticipantItem_lower(_ value: SwiftConversationParticipantItem) -> RustBuffer {
-    return FfiConverterTypeSwiftConversationParticipantItem.lower(value)
+public func FfiConverterTypeConversationParticipantItem_lower(_ value: ConversationParticipantItem) -> RustBuffer {
+    return FfiConverterTypeConversationParticipantItem.lower(value)
 }
 
 
-public struct SwiftConversationStorageUsage: Equatable, Hashable {
-    public var conversation: SwiftConversationListItem
+public struct ConversationStorageUsage: Equatable, Hashable {
+    public var conversation: ConversationListData
     public var sizeBytes: Int64
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(conversation: SwiftConversationListItem, sizeBytes: Int64) {
+    public init(conversation: ConversationListData, sizeBytes: Int64) {
         self.conversation = conversation
         self.sizeBytes = sizeBytes
     }
@@ -5684,23 +5902,23 @@ public struct SwiftConversationStorageUsage: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftConversationStorageUsage: Sendable {}
+extension ConversationStorageUsage: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftConversationStorageUsage: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftConversationStorageUsage {
+public struct FfiConverterTypeConversationStorageUsage: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConversationStorageUsage {
         return
-            try SwiftConversationStorageUsage(
-                conversation: FfiConverterTypeSwiftConversationListItem.read(from: &buf),
+            try ConversationStorageUsage(
+                conversation: FfiConverterTypeConversationListData.read(from: &buf),
                 sizeBytes: FfiConverterInt64.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftConversationStorageUsage, into buf: inout [UInt8]) {
-        FfiConverterTypeSwiftConversationListItem.write(value.conversation, into: &buf)
+    public static func write(_ value: ConversationStorageUsage, into buf: inout [UInt8]) {
+        FfiConverterTypeConversationListData.write(value.conversation, into: &buf)
         FfiConverterInt64.write(value.sizeBytes, into: &buf)
     }
 }
@@ -5709,19 +5927,19 @@ public struct FfiConverterTypeSwiftConversationStorageUsage: FfiConverterRustBuf
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftConversationStorageUsage_lift(_ buf: RustBuffer) throws -> SwiftConversationStorageUsage {
-    return try FfiConverterTypeSwiftConversationStorageUsage.lift(buf)
+public func FfiConverterTypeConversationStorageUsage_lift(_ buf: RustBuffer) throws -> ConversationStorageUsage {
+    return try FfiConverterTypeConversationStorageUsage.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftConversationStorageUsage_lower(_ value: SwiftConversationStorageUsage) -> RustBuffer {
-    return FfiConverterTypeSwiftConversationStorageUsage.lower(value)
+public func FfiConverterTypeConversationStorageUsage_lower(_ value: ConversationStorageUsage) -> RustBuffer {
+    return FfiConverterTypeConversationStorageUsage.lower(value)
 }
 
 
-public struct SwiftConversationUnseenCount: Equatable, Hashable {
+public struct ConversationUnseenCount: Equatable, Hashable {
     public var category: String
     public var circleId: String?
     public var count: Int64
@@ -5742,16 +5960,16 @@ public struct SwiftConversationUnseenCount: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftConversationUnseenCount: Sendable {}
+extension ConversationUnseenCount: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftConversationUnseenCount: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftConversationUnseenCount {
+public struct FfiConverterTypeConversationUnseenCount: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConversationUnseenCount {
         return
-            try SwiftConversationUnseenCount(
+            try ConversationUnseenCount(
                 category: FfiConverterString.read(from: &buf),
                 circleId: FfiConverterOptionString.read(from: &buf),
                 count: FfiConverterInt64.read(from: &buf),
@@ -5759,7 +5977,7 @@ public struct FfiConverterTypeSwiftConversationUnseenCount: FfiConverterRustBuff
         )
     }
 
-    public static func write(_ value: SwiftConversationUnseenCount, into buf: inout [UInt8]) {
+    public static func write(_ value: ConversationUnseenCount, into buf: inout [UInt8]) {
         FfiConverterString.write(value.category, into: &buf)
         FfiConverterOptionString.write(value.circleId, into: &buf)
         FfiConverterInt64.write(value.count, into: &buf)
@@ -5771,19 +5989,19 @@ public struct FfiConverterTypeSwiftConversationUnseenCount: FfiConverterRustBuff
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftConversationUnseenCount_lift(_ buf: RustBuffer) throws -> SwiftConversationUnseenCount {
-    return try FfiConverterTypeSwiftConversationUnseenCount.lift(buf)
+public func FfiConverterTypeConversationUnseenCount_lift(_ buf: RustBuffer) throws -> ConversationUnseenCount {
+    return try FfiConverterTypeConversationUnseenCount.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftConversationUnseenCount_lower(_ value: SwiftConversationUnseenCount) -> RustBuffer {
-    return FfiConverterTypeSwiftConversationUnseenCount.lower(value)
+public func FfiConverterTypeConversationUnseenCount_lower(_ value: ConversationUnseenCount) -> RustBuffer {
+    return FfiConverterTypeConversationUnseenCount.lower(value)
 }
 
 
-public struct SwiftGroupAvatar: Equatable, Hashable {
+public struct GroupAvatar: Equatable, Hashable {
     public var userId: String
     public var name: String
     public var avatarUrl: String
@@ -5802,23 +6020,23 @@ public struct SwiftGroupAvatar: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftGroupAvatar: Sendable {}
+extension GroupAvatar: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftGroupAvatar: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftGroupAvatar {
+public struct FfiConverterTypeGroupAvatar: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> GroupAvatar {
         return
-            try SwiftGroupAvatar(
+            try GroupAvatar(
                 userId: FfiConverterString.read(from: &buf),
                 name: FfiConverterString.read(from: &buf),
                 avatarUrl: FfiConverterString.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftGroupAvatar, into buf: inout [UInt8]) {
+    public static func write(_ value: GroupAvatar, into buf: inout [UInt8]) {
         FfiConverterString.write(value.userId, into: &buf)
         FfiConverterString.write(value.name, into: &buf)
         FfiConverterString.write(value.avatarUrl, into: &buf)
@@ -5829,19 +6047,19 @@ public struct FfiConverterTypeSwiftGroupAvatar: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftGroupAvatar_lift(_ buf: RustBuffer) throws -> SwiftGroupAvatar {
-    return try FfiConverterTypeSwiftGroupAvatar.lift(buf)
+public func FfiConverterTypeGroupAvatar_lift(_ buf: RustBuffer) throws -> GroupAvatar {
+    return try FfiConverterTypeGroupAvatar.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftGroupAvatar_lower(_ value: SwiftGroupAvatar) -> RustBuffer {
-    return FfiConverterTypeSwiftGroupAvatar.lower(value)
+public func FfiConverterTypeGroupAvatar_lower(_ value: GroupAvatar) -> RustBuffer {
+    return FfiConverterTypeGroupAvatar.lower(value)
 }
 
 
-public struct SwiftGroupConversationItem: Equatable, Hashable {
+public struct GroupConversationItem: Equatable, Hashable {
     public var conversationId: String
     public var name: String
     public var avatarUrl: String
@@ -5862,16 +6080,16 @@ public struct SwiftGroupConversationItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftGroupConversationItem: Sendable {}
+extension GroupConversationItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftGroupConversationItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftGroupConversationItem {
+public struct FfiConverterTypeGroupConversationItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> GroupConversationItem {
         return
-            try SwiftGroupConversationItem(
+            try GroupConversationItem(
                 conversationId: FfiConverterString.read(from: &buf),
                 name: FfiConverterString.read(from: &buf),
                 avatarUrl: FfiConverterString.read(from: &buf),
@@ -5879,7 +6097,7 @@ public struct FfiConverterTypeSwiftGroupConversationItem: FfiConverterRustBuffer
         )
     }
 
-    public static func write(_ value: SwiftGroupConversationItem, into buf: inout [UInt8]) {
+    public static func write(_ value: GroupConversationItem, into buf: inout [UInt8]) {
         FfiConverterString.write(value.conversationId, into: &buf)
         FfiConverterString.write(value.name, into: &buf)
         FfiConverterString.write(value.avatarUrl, into: &buf)
@@ -5891,19 +6109,19 @@ public struct FfiConverterTypeSwiftGroupConversationItem: FfiConverterRustBuffer
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftGroupConversationItem_lift(_ buf: RustBuffer) throws -> SwiftGroupConversationItem {
-    return try FfiConverterTypeSwiftGroupConversationItem.lift(buf)
+public func FfiConverterTypeGroupConversationItem_lift(_ buf: RustBuffer) throws -> GroupConversationItem {
+    return try FfiConverterTypeGroupConversationItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftGroupConversationItem_lower(_ value: SwiftGroupConversationItem) -> RustBuffer {
-    return FfiConverterTypeSwiftGroupConversationItem.lower(value)
+public func FfiConverterTypeGroupConversationItem_lower(_ value: GroupConversationItem) -> RustBuffer {
+    return FfiConverterTypeGroupConversationItem.lower(value)
 }
 
 
-public struct SwiftHttpResponse: Equatable, Hashable {
+public struct HttpResponseItem: Equatable, Hashable {
     public var statusCode: UInt16
     public var headers: [String: String]
     public var body: Data
@@ -5922,23 +6140,23 @@ public struct SwiftHttpResponse: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftHttpResponse: Sendable {}
+extension HttpResponseItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftHttpResponse: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftHttpResponse {
+public struct FfiConverterTypeHttpResponseItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> HttpResponseItem {
         return
-            try SwiftHttpResponse(
+            try HttpResponseItem(
                 statusCode: FfiConverterUInt16.read(from: &buf),
                 headers: FfiConverterDictionaryStringString.read(from: &buf),
                 body: FfiConverterData.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftHttpResponse, into buf: inout [UInt8]) {
+    public static func write(_ value: HttpResponseItem, into buf: inout [UInt8]) {
         FfiConverterUInt16.write(value.statusCode, into: &buf)
         FfiConverterDictionaryStringString.write(value.headers, into: &buf)
         FfiConverterData.write(value.body, into: &buf)
@@ -5949,19 +6167,19 @@ public struct FfiConverterTypeSwiftHttpResponse: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftHttpResponse_lift(_ buf: RustBuffer) throws -> SwiftHttpResponse {
-    return try FfiConverterTypeSwiftHttpResponse.lift(buf)
+public func FfiConverterTypeHttpResponseItem_lift(_ buf: RustBuffer) throws -> HttpResponseItem {
+    return try FfiConverterTypeHttpResponseItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftHttpResponse_lower(_ value: SwiftHttpResponse) -> RustBuffer {
-    return FfiConverterTypeSwiftHttpResponse.lower(value)
+public func FfiConverterTypeHttpResponseItem_lower(_ value: HttpResponseItem) -> RustBuffer {
+    return FfiConverterTypeHttpResponseItem.lower(value)
 }
 
 
-public struct SwiftImageMessageItem: Equatable, Hashable {
+public struct ImageMessageView: Equatable, Hashable {
     public var messageId: String
     public var createdAtMicros: Int64
     public var mediaUrl: String
@@ -5994,16 +6212,16 @@ public struct SwiftImageMessageItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftImageMessageItem: Sendable {}
+extension ImageMessageView: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftImageMessageItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftImageMessageItem {
+public struct FfiConverterTypeImageMessageView: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ImageMessageView {
         return
-            try SwiftImageMessageItem(
+            try ImageMessageView(
                 messageId: FfiConverterString.read(from: &buf),
                 createdAtMicros: FfiConverterInt64.read(from: &buf),
                 mediaUrl: FfiConverterString.read(from: &buf),
@@ -6017,7 +6235,7 @@ public struct FfiConverterTypeSwiftImageMessageItem: FfiConverterRustBuffer {
         )
     }
 
-    public static func write(_ value: SwiftImageMessageItem, into buf: inout [UInt8]) {
+    public static func write(_ value: ImageMessageView, into buf: inout [UInt8]) {
         FfiConverterString.write(value.messageId, into: &buf)
         FfiConverterInt64.write(value.createdAtMicros, into: &buf)
         FfiConverterString.write(value.mediaUrl, into: &buf)
@@ -6035,19 +6253,19 @@ public struct FfiConverterTypeSwiftImageMessageItem: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftImageMessageItem_lift(_ buf: RustBuffer) throws -> SwiftImageMessageItem {
-    return try FfiConverterTypeSwiftImageMessageItem.lift(buf)
+public func FfiConverterTypeImageMessageView_lift(_ buf: RustBuffer) throws -> ImageMessageView {
+    return try FfiConverterTypeImageMessageView.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftImageMessageItem_lower(_ value: SwiftImageMessageItem) -> RustBuffer {
-    return FfiConverterTypeSwiftImageMessageItem.lower(value)
+public func FfiConverterTypeImageMessageView_lower(_ value: ImageMessageView) -> RustBuffer {
+    return FfiConverterTypeImageMessageView.lower(value)
 }
 
 
-public struct SwiftMcpServerStatus: Equatable, Hashable {
+public struct McpServerStatusItem: Equatable, Hashable {
     public var running: Bool
     public var endpoint: String?
     public var lastError: String?
@@ -6066,23 +6284,23 @@ public struct SwiftMcpServerStatus: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftMcpServerStatus: Sendable {}
+extension McpServerStatusItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftMcpServerStatus: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftMcpServerStatus {
+public struct FfiConverterTypeMcpServerStatusItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> McpServerStatusItem {
         return
-            try SwiftMcpServerStatus(
+            try McpServerStatusItem(
                 running: FfiConverterBool.read(from: &buf),
                 endpoint: FfiConverterOptionString.read(from: &buf),
                 lastError: FfiConverterOptionString.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftMcpServerStatus, into buf: inout [UInt8]) {
+    public static func write(_ value: McpServerStatusItem, into buf: inout [UInt8]) {
         FfiConverterBool.write(value.running, into: &buf)
         FfiConverterOptionString.write(value.endpoint, into: &buf)
         FfiConverterOptionString.write(value.lastError, into: &buf)
@@ -6093,19 +6311,19 @@ public struct FfiConverterTypeSwiftMcpServerStatus: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftMcpServerStatus_lift(_ buf: RustBuffer) throws -> SwiftMcpServerStatus {
-    return try FfiConverterTypeSwiftMcpServerStatus.lift(buf)
+public func FfiConverterTypeMcpServerStatusItem_lift(_ buf: RustBuffer) throws -> McpServerStatusItem {
+    return try FfiConverterTypeMcpServerStatusItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftMcpServerStatus_lower(_ value: SwiftMcpServerStatus) -> RustBuffer {
-    return FfiConverterTypeSwiftMcpServerStatus.lower(value)
+public func FfiConverterTypeMcpServerStatusItem_lower(_ value: McpServerStatusItem) -> RustBuffer {
+    return FfiConverterTypeMcpServerStatusItem.lower(value)
 }
 
 
-public struct SwiftMcpSettings: Equatable, Hashable {
+public struct McpSettingsItem: Equatable, Hashable {
     public var enabled: Bool
     public var token: String
     public var draftToolsEnabled: Bool
@@ -6126,16 +6344,16 @@ public struct SwiftMcpSettings: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftMcpSettings: Sendable {}
+extension McpSettingsItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftMcpSettings: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftMcpSettings {
+public struct FfiConverterTypeMcpSettingsItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> McpSettingsItem {
         return
-            try SwiftMcpSettings(
+            try McpSettingsItem(
                 enabled: FfiConverterBool.read(from: &buf),
                 token: FfiConverterString.read(from: &buf),
                 draftToolsEnabled: FfiConverterBool.read(from: &buf),
@@ -6143,7 +6361,7 @@ public struct FfiConverterTypeSwiftMcpSettings: FfiConverterRustBuffer {
         )
     }
 
-    public static func write(_ value: SwiftMcpSettings, into buf: inout [UInt8]) {
+    public static func write(_ value: McpSettingsItem, into buf: inout [UInt8]) {
         FfiConverterBool.write(value.enabled, into: &buf)
         FfiConverterString.write(value.token, into: &buf)
         FfiConverterBool.write(value.draftToolsEnabled, into: &buf)
@@ -6155,255 +6373,19 @@ public struct FfiConverterTypeSwiftMcpSettings: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftMcpSettings_lift(_ buf: RustBuffer) throws -> SwiftMcpSettings {
-    return try FfiConverterTypeSwiftMcpSettings.lift(buf)
+public func FfiConverterTypeMcpSettingsItem_lift(_ buf: RustBuffer) throws -> McpSettingsItem {
+    return try FfiConverterTypeMcpSettingsItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftMcpSettings_lower(_ value: SwiftMcpSettings) -> RustBuffer {
-    return FfiConverterTypeSwiftMcpSettings.lower(value)
+public func FfiConverterTypeMcpSettingsItem_lower(_ value: McpSettingsItem) -> RustBuffer {
+    return FfiConverterTypeMcpSettingsItem.lower(value)
 }
 
 
-public struct SwiftMediaAudioItem: Equatable, Hashable {
-    public var id: String
-    public var path: String
-    public var durationMillis: UInt64
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(id: String, path: String, durationMillis: UInt64) {
-        self.id = id
-        self.path = path
-        self.durationMillis = durationMillis
-    }
-
-
-
-
-}
-
-#if compiler(>=6)
-extension SwiftMediaAudioItem: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeSwiftMediaAudioItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftMediaAudioItem {
-        return
-            try SwiftMediaAudioItem(
-                id: FfiConverterString.read(from: &buf),
-                path: FfiConverterString.read(from: &buf),
-                durationMillis: FfiConverterUInt64.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: SwiftMediaAudioItem, into buf: inout [UInt8]) {
-        FfiConverterString.write(value.id, into: &buf)
-        FfiConverterString.write(value.path, into: &buf)
-        FfiConverterUInt64.write(value.durationMillis, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaAudioItem_lift(_ buf: RustBuffer) throws -> SwiftMediaAudioItem {
-    return try FfiConverterTypeSwiftMediaAudioItem.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaAudioItem_lower(_ value: SwiftMediaAudioItem) -> RustBuffer {
-    return FfiConverterTypeSwiftMediaAudioItem.lower(value)
-}
-
-
-public struct SwiftMediaPlaybackSnapshot: Equatable, Hashable {
-    public var status: SwiftMediaPlaybackStatus
-    public var item: SwiftMediaAudioItem?
-    public var positionMillis: UInt64
-    public var durationMillis: UInt64
-    public var speed: Double
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(status: SwiftMediaPlaybackStatus, item: SwiftMediaAudioItem?, positionMillis: UInt64, durationMillis: UInt64, speed: Double) {
-        self.status = status
-        self.item = item
-        self.positionMillis = positionMillis
-        self.durationMillis = durationMillis
-        self.speed = speed
-    }
-
-
-
-
-}
-
-#if compiler(>=6)
-extension SwiftMediaPlaybackSnapshot: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeSwiftMediaPlaybackSnapshot: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftMediaPlaybackSnapshot {
-        return
-            try SwiftMediaPlaybackSnapshot(
-                status: FfiConverterTypeSwiftMediaPlaybackStatus.read(from: &buf),
-                item: FfiConverterOptionTypeSwiftMediaAudioItem.read(from: &buf),
-                positionMillis: FfiConverterUInt64.read(from: &buf),
-                durationMillis: FfiConverterUInt64.read(from: &buf),
-                speed: FfiConverterDouble.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: SwiftMediaPlaybackSnapshot, into buf: inout [UInt8]) {
-        FfiConverterTypeSwiftMediaPlaybackStatus.write(value.status, into: &buf)
-        FfiConverterOptionTypeSwiftMediaAudioItem.write(value.item, into: &buf)
-        FfiConverterUInt64.write(value.positionMillis, into: &buf)
-        FfiConverterUInt64.write(value.durationMillis, into: &buf)
-        FfiConverterDouble.write(value.speed, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaPlaybackSnapshot_lift(_ buf: RustBuffer) throws -> SwiftMediaPlaybackSnapshot {
-    return try FfiConverterTypeSwiftMediaPlaybackSnapshot.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaPlaybackSnapshot_lower(_ value: SwiftMediaPlaybackSnapshot) -> RustBuffer {
-    return FfiConverterTypeSwiftMediaPlaybackSnapshot.lower(value)
-}
-
-
-public struct SwiftMediaRecorderSnapshot: Equatable, Hashable {
-    public var status: SwiftMediaRecorderStatus
-    public var recording: SwiftMediaVoiceRecording?
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(status: SwiftMediaRecorderStatus, recording: SwiftMediaVoiceRecording?) {
-        self.status = status
-        self.recording = recording
-    }
-
-
-
-
-}
-
-#if compiler(>=6)
-extension SwiftMediaRecorderSnapshot: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeSwiftMediaRecorderSnapshot: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftMediaRecorderSnapshot {
-        return
-            try SwiftMediaRecorderSnapshot(
-                status: FfiConverterTypeSwiftMediaRecorderStatus.read(from: &buf),
-                recording: FfiConverterOptionTypeSwiftMediaVoiceRecording.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: SwiftMediaRecorderSnapshot, into buf: inout [UInt8]) {
-        FfiConverterTypeSwiftMediaRecorderStatus.write(value.status, into: &buf)
-        FfiConverterOptionTypeSwiftMediaVoiceRecording.write(value.recording, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaRecorderSnapshot_lift(_ buf: RustBuffer) throws -> SwiftMediaRecorderSnapshot {
-    return try FfiConverterTypeSwiftMediaRecorderSnapshot.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaRecorderSnapshot_lower(_ value: SwiftMediaRecorderSnapshot) -> RustBuffer {
-    return FfiConverterTypeSwiftMediaRecorderSnapshot.lower(value)
-}
-
-
-public struct SwiftMediaVoiceRecording: Equatable, Hashable {
-    public var path: String
-    public var durationMillis: UInt64
-    public var waveform: Data
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(path: String, durationMillis: UInt64, waveform: Data) {
-        self.path = path
-        self.durationMillis = durationMillis
-        self.waveform = waveform
-    }
-
-
-
-
-}
-
-#if compiler(>=6)
-extension SwiftMediaVoiceRecording: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeSwiftMediaVoiceRecording: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftMediaVoiceRecording {
-        return
-            try SwiftMediaVoiceRecording(
-                path: FfiConverterString.read(from: &buf),
-                durationMillis: FfiConverterUInt64.read(from: &buf),
-                waveform: FfiConverterData.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: SwiftMediaVoiceRecording, into buf: inout [UInt8]) {
-        FfiConverterString.write(value.path, into: &buf)
-        FfiConverterUInt64.write(value.durationMillis, into: &buf)
-        FfiConverterData.write(value.waveform, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaVoiceRecording_lift(_ buf: RustBuffer) throws -> SwiftMediaVoiceRecording {
-    return try FfiConverterTypeSwiftMediaVoiceRecording.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaVoiceRecording_lower(_ value: SwiftMediaVoiceRecording) -> RustBuffer {
-    return FfiConverterTypeSwiftMediaVoiceRecording.lower(value)
-}
-
-
-public struct SwiftMessageItem: Equatable, Hashable {
+public struct MessageItem: Equatable, Hashable {
     public var messageId: String
     public var conversationId: String
     public var senderId: String
@@ -6413,6 +6395,8 @@ public struct SwiftMessageItem: Equatable, Hashable {
     public var senderRelationship: String
     public var senderAppId: String?
     public var senderIsBot: Bool
+    public var senderIsVerified: Bool
+    public var senderMembership: String?
     public var senderParticipantId: String?
     public var senderRole: String?
     public var conversationOwnerId: String?
@@ -6473,7 +6457,7 @@ public struct SwiftMessageItem: Equatable, Hashable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(messageId: String, conversationId: String, senderId: String, senderName: String, senderIdentityNumber: String?, senderAvatarUrl: String, senderRelationship: String, senderAppId: String?, senderIsBot: Bool, senderParticipantId: String?, senderRole: String?, conversationOwnerId: String?, conversationCategory: String?, category: String, content: String, status: String, createdAtMicros: Int64, mediaUrl: String?, mediaMimeType: String?, mediaSize: Int64?, mediaDuration: String, mediaWidth: Int32?, mediaHeight: Int32?, thumbImage: String?, thumbUrl: String?, mediaStatus: String, mediaName: String?, mediaWaveform: String?, caption: String?, quoteMessageId: String?, quoteContent: String?, action: String?, participantFullName: String?, snapshotId: String?, snapshotType: String?, snapshotAmount: String?, snapshotMemo: String?, snapshotAssetSymbol: String?, snapshotAssetIconUrl: String?, snapshotChainIconUrl: String?, snapshotOpponentId: String?, snapshotTransactionHash: String?, snapshotCreatedAt: String?, inscriptionHash: String?, inscriptionCollectionHash: String?, inscriptionSequence: Int64?, inscriptionContentType: String?, inscriptionContentUrl: String?, inscriptionName: String?, inscriptionIconUrl: String?, sharedUserFullName: String?, sharedUserIdentityNumber: String?, sharedUserId: String?, sharedUserAvatarUrl: String?, sharedUserIsVerified: Bool, sharedUserMembership: String?, sharedUserAppId: String?, stickerId: String?, stickerAssetUrl: String?, stickerAssetWidth: Int32?, stickerAssetHeight: Int32?, stickerAssetName: String?, stickerAssetType: String?, hyperlink: String?, pinned: Bool, expireIn: Int64?) {
+    public init(messageId: String, conversationId: String, senderId: String, senderName: String, senderIdentityNumber: String?, senderAvatarUrl: String, senderRelationship: String, senderAppId: String?, senderIsBot: Bool, senderIsVerified: Bool, senderMembership: String?, senderParticipantId: String?, senderRole: String?, conversationOwnerId: String?, conversationCategory: String?, category: String, content: String, status: String, createdAtMicros: Int64, mediaUrl: String?, mediaMimeType: String?, mediaSize: Int64?, mediaDuration: String, mediaWidth: Int32?, mediaHeight: Int32?, thumbImage: String?, thumbUrl: String?, mediaStatus: String, mediaName: String?, mediaWaveform: String?, caption: String?, quoteMessageId: String?, quoteContent: String?, action: String?, participantFullName: String?, snapshotId: String?, snapshotType: String?, snapshotAmount: String?, snapshotMemo: String?, snapshotAssetSymbol: String?, snapshotAssetIconUrl: String?, snapshotChainIconUrl: String?, snapshotOpponentId: String?, snapshotTransactionHash: String?, snapshotCreatedAt: String?, inscriptionHash: String?, inscriptionCollectionHash: String?, inscriptionSequence: Int64?, inscriptionContentType: String?, inscriptionContentUrl: String?, inscriptionName: String?, inscriptionIconUrl: String?, sharedUserFullName: String?, sharedUserIdentityNumber: String?, sharedUserId: String?, sharedUserAvatarUrl: String?, sharedUserIsVerified: Bool, sharedUserMembership: String?, sharedUserAppId: String?, stickerId: String?, stickerAssetUrl: String?, stickerAssetWidth: Int32?, stickerAssetHeight: Int32?, stickerAssetName: String?, stickerAssetType: String?, hyperlink: String?, pinned: Bool, expireIn: Int64?) {
         self.messageId = messageId
         self.conversationId = conversationId
         self.senderId = senderId
@@ -6483,6 +6467,8 @@ public struct SwiftMessageItem: Equatable, Hashable {
         self.senderRelationship = senderRelationship
         self.senderAppId = senderAppId
         self.senderIsBot = senderIsBot
+        self.senderIsVerified = senderIsVerified
+        self.senderMembership = senderMembership
         self.senderParticipantId = senderParticipantId
         self.senderRole = senderRole
         self.conversationOwnerId = conversationOwnerId
@@ -6548,16 +6534,16 @@ public struct SwiftMessageItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftMessageItem: Sendable {}
+extension MessageItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftMessageItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftMessageItem {
+public struct FfiConverterTypeMessageItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MessageItem {
         return
-            try SwiftMessageItem(
+            try MessageItem(
                 messageId: FfiConverterString.read(from: &buf),
                 conversationId: FfiConverterString.read(from: &buf),
                 senderId: FfiConverterString.read(from: &buf),
@@ -6567,6 +6553,8 @@ public struct FfiConverterTypeSwiftMessageItem: FfiConverterRustBuffer {
                 senderRelationship: FfiConverterString.read(from: &buf),
                 senderAppId: FfiConverterOptionString.read(from: &buf),
                 senderIsBot: FfiConverterBool.read(from: &buf),
+                senderIsVerified: FfiConverterBool.read(from: &buf),
+                senderMembership: FfiConverterOptionString.read(from: &buf),
                 senderParticipantId: FfiConverterOptionString.read(from: &buf),
                 senderRole: FfiConverterOptionString.read(from: &buf),
                 conversationOwnerId: FfiConverterOptionString.read(from: &buf),
@@ -6627,7 +6615,7 @@ public struct FfiConverterTypeSwiftMessageItem: FfiConverterRustBuffer {
         )
     }
 
-    public static func write(_ value: SwiftMessageItem, into buf: inout [UInt8]) {
+    public static func write(_ value: MessageItem, into buf: inout [UInt8]) {
         FfiConverterString.write(value.messageId, into: &buf)
         FfiConverterString.write(value.conversationId, into: &buf)
         FfiConverterString.write(value.senderId, into: &buf)
@@ -6637,6 +6625,8 @@ public struct FfiConverterTypeSwiftMessageItem: FfiConverterRustBuffer {
         FfiConverterString.write(value.senderRelationship, into: &buf)
         FfiConverterOptionString.write(value.senderAppId, into: &buf)
         FfiConverterBool.write(value.senderIsBot, into: &buf)
+        FfiConverterBool.write(value.senderIsVerified, into: &buf)
+        FfiConverterOptionString.write(value.senderMembership, into: &buf)
         FfiConverterOptionString.write(value.senderParticipantId, into: &buf)
         FfiConverterOptionString.write(value.senderRole, into: &buf)
         FfiConverterOptionString.write(value.conversationOwnerId, into: &buf)
@@ -6701,19 +6691,19 @@ public struct FfiConverterTypeSwiftMessageItem: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftMessageItem_lift(_ buf: RustBuffer) throws -> SwiftMessageItem {
-    return try FfiConverterTypeSwiftMessageItem.lift(buf)
+public func FfiConverterTypeMessageItem_lift(_ buf: RustBuffer) throws -> MessageItem {
+    return try FfiConverterTypeMessageItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftMessageItem_lower(_ value: SwiftMessageItem) -> RustBuffer {
-    return FfiConverterTypeSwiftMessageItem.lower(value)
+public func FfiConverterTypeMessageItem_lower(_ value: MessageItem) -> RustBuffer {
+    return FfiConverterTypeMessageItem.lower(value)
 }
 
 
-public struct SwiftNotificationEvent: Equatable, Hashable {
+public struct NotificationEvent: Equatable, Hashable {
     public var messageId: String
     public var conversationId: String
     public var senderName: String
@@ -6744,16 +6734,16 @@ public struct SwiftNotificationEvent: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftNotificationEvent: Sendable {}
+extension NotificationEvent: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftNotificationEvent: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftNotificationEvent {
+public struct FfiConverterTypeNotificationEvent: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NotificationEvent {
         return
-            try SwiftNotificationEvent(
+            try NotificationEvent(
                 messageId: FfiConverterString.read(from: &buf),
                 conversationId: FfiConverterString.read(from: &buf),
                 senderName: FfiConverterString.read(from: &buf),
@@ -6766,7 +6756,7 @@ public struct FfiConverterTypeSwiftNotificationEvent: FfiConverterRustBuffer {
         )
     }
 
-    public static func write(_ value: SwiftNotificationEvent, into buf: inout [UInt8]) {
+    public static func write(_ value: NotificationEvent, into buf: inout [UInt8]) {
         FfiConverterString.write(value.messageId, into: &buf)
         FfiConverterString.write(value.conversationId, into: &buf)
         FfiConverterString.write(value.senderName, into: &buf)
@@ -6783,19 +6773,19 @@ public struct FfiConverterTypeSwiftNotificationEvent: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftNotificationEvent_lift(_ buf: RustBuffer) throws -> SwiftNotificationEvent {
-    return try FfiConverterTypeSwiftNotificationEvent.lift(buf)
+public func FfiConverterTypeNotificationEvent_lift(_ buf: RustBuffer) throws -> NotificationEvent {
+    return try FfiConverterTypeNotificationEvent.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftNotificationEvent_lower(_ value: SwiftNotificationEvent) -> RustBuffer {
-    return FfiConverterTypeSwiftNotificationEvent.lower(value)
+public func FfiConverterTypeNotificationEvent_lower(_ value: NotificationEvent) -> RustBuffer {
+    return FfiConverterTypeNotificationEvent.lower(value)
 }
 
 
-public struct SwiftProxyItem: Equatable, Hashable {
+public struct ProxyItem: Equatable, Hashable {
     public var id: String
     public var kind: String
     public var host: String
@@ -6820,16 +6810,16 @@ public struct SwiftProxyItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftProxyItem: Sendable {}
+extension ProxyItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftProxyItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftProxyItem {
+public struct FfiConverterTypeProxyItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ProxyItem {
         return
-            try SwiftProxyItem(
+            try ProxyItem(
                 id: FfiConverterString.read(from: &buf),
                 kind: FfiConverterString.read(from: &buf),
                 host: FfiConverterString.read(from: &buf),
@@ -6839,7 +6829,7 @@ public struct FfiConverterTypeSwiftProxyItem: FfiConverterRustBuffer {
         )
     }
 
-    public static func write(_ value: SwiftProxyItem, into buf: inout [UInt8]) {
+    public static func write(_ value: ProxyItem, into buf: inout [UInt8]) {
         FfiConverterString.write(value.id, into: &buf)
         FfiConverterString.write(value.kind, into: &buf)
         FfiConverterString.write(value.host, into: &buf)
@@ -6853,26 +6843,26 @@ public struct FfiConverterTypeSwiftProxyItem: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftProxyItem_lift(_ buf: RustBuffer) throws -> SwiftProxyItem {
-    return try FfiConverterTypeSwiftProxyItem.lift(buf)
+public func FfiConverterTypeProxyItem_lift(_ buf: RustBuffer) throws -> ProxyItem {
+    return try FfiConverterTypeProxyItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftProxyItem_lower(_ value: SwiftProxyItem) -> RustBuffer {
-    return FfiConverterTypeSwiftProxyItem.lower(value)
+public func FfiConverterTypeProxyItem_lower(_ value: ProxyItem) -> RustBuffer {
+    return FfiConverterTypeProxyItem.lower(value)
 }
 
 
-public struct SwiftProxySettings: Equatable, Hashable {
+public struct ProxySettingsItem: Equatable, Hashable {
     public var enabled: Bool
     public var selectedProxyId: String?
-    public var proxies: [SwiftProxyItem]
+    public var proxies: [ProxyItem]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(enabled: Bool, selectedProxyId: String?, proxies: [SwiftProxyItem]) {
+    public init(enabled: Bool, selectedProxyId: String?, proxies: [ProxyItem]) {
         self.enabled = enabled
         self.selectedProxyId = selectedProxyId
         self.proxies = proxies
@@ -6884,26 +6874,26 @@ public struct SwiftProxySettings: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftProxySettings: Sendable {}
+extension ProxySettingsItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftProxySettings: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftProxySettings {
+public struct FfiConverterTypeProxySettingsItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ProxySettingsItem {
         return
-            try SwiftProxySettings(
+            try ProxySettingsItem(
                 enabled: FfiConverterBool.read(from: &buf),
                 selectedProxyId: FfiConverterOptionString.read(from: &buf),
-                proxies: FfiConverterSequenceTypeSwiftProxyItem.read(from: &buf)
+                proxies: FfiConverterSequenceTypeProxyItem.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftProxySettings, into buf: inout [UInt8]) {
+    public static func write(_ value: ProxySettingsItem, into buf: inout [UInt8]) {
         FfiConverterBool.write(value.enabled, into: &buf)
         FfiConverterOptionString.write(value.selectedProxyId, into: &buf)
-        FfiConverterSequenceTypeSwiftProxyItem.write(value.proxies, into: &buf)
+        FfiConverterSequenceTypeProxyItem.write(value.proxies, into: &buf)
     }
 }
 
@@ -6911,19 +6901,19 @@ public struct FfiConverterTypeSwiftProxySettings: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftProxySettings_lift(_ buf: RustBuffer) throws -> SwiftProxySettings {
-    return try FfiConverterTypeSwiftProxySettings.lift(buf)
+public func FfiConverterTypeProxySettingsItem_lift(_ buf: RustBuffer) throws -> ProxySettingsItem {
+    return try FfiConverterTypeProxySettingsItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftProxySettings_lower(_ value: SwiftProxySettings) -> RustBuffer {
-    return FfiConverterTypeSwiftProxySettings.lower(value)
+public func FfiConverterTypeProxySettingsItem_lower(_ value: ProxySettingsItem) -> RustBuffer {
+    return FfiConverterTypeProxySettingsItem.lower(value)
 }
 
 
-public struct SwiftSharedAppItem: Equatable, Hashable {
+public struct SharedAppItem: Equatable, Hashable {
     public var appId: String
     public var name: String
     public var iconUrl: String
@@ -6946,16 +6936,16 @@ public struct SwiftSharedAppItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftSharedAppItem: Sendable {}
+extension SharedAppItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftSharedAppItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftSharedAppItem {
+public struct FfiConverterTypeSharedAppItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SharedAppItem {
         return
-            try SwiftSharedAppItem(
+            try SharedAppItem(
                 appId: FfiConverterString.read(from: &buf),
                 name: FfiConverterString.read(from: &buf),
                 iconUrl: FfiConverterString.read(from: &buf),
@@ -6964,7 +6954,7 @@ public struct FfiConverterTypeSwiftSharedAppItem: FfiConverterRustBuffer {
         )
     }
 
-    public static func write(_ value: SwiftSharedAppItem, into buf: inout [UInt8]) {
+    public static func write(_ value: SharedAppItem, into buf: inout [UInt8]) {
         FfiConverterString.write(value.appId, into: &buf)
         FfiConverterString.write(value.name, into: &buf)
         FfiConverterString.write(value.iconUrl, into: &buf)
@@ -6977,24 +6967,26 @@ public struct FfiConverterTypeSwiftSharedAppItem: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftSharedAppItem_lift(_ buf: RustBuffer) throws -> SwiftSharedAppItem {
-    return try FfiConverterTypeSwiftSharedAppItem.lift(buf)
+public func FfiConverterTypeSharedAppItem_lift(_ buf: RustBuffer) throws -> SharedAppItem {
+    return try FfiConverterTypeSharedAppItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftSharedAppItem_lower(_ value: SwiftSharedAppItem) -> RustBuffer {
-    return FfiConverterTypeSwiftSharedAppItem.lower(value)
+public func FfiConverterTypeSharedAppItem_lower(_ value: SharedAppItem) -> RustBuffer {
+    return FfiConverterTypeSharedAppItem.lower(value)
 }
 
 
-public struct SwiftSnapshotDetailItem: Equatable, Hashable {
+public struct SnapshotDetailItem: Equatable, Hashable {
     public var snapshotId: String
     public var traceId: String?
     public var snapshotType: String
+    public var assetId: String
     public var amount: String
     public var createdAtMillis: Int64
+    public var opponentId: String?
     public var opponentName: String?
     public var transactionHash: String?
     public var sender: String?
@@ -7021,12 +7013,14 @@ public struct SwiftSnapshotDetailItem: Equatable, Hashable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(snapshotId: String, traceId: String?, snapshotType: String, amount: String, createdAtMillis: Int64, opponentName: String?, transactionHash: String?, sender: String?, receiver: String?, memo: String?, confirmations: Int32?, snapshotHash: String?, openingBalance: String?, closingBalance: String?, symbol: String, assetName: String, assetIconUrl: String, chainIconUrl: String, assetConfirmations: Int64, assetTag: String?, currentUserName: String, isSafe: Bool, priceUsd: String?, fiatRate: Double?, tickerPriceUsd: String?, depositHash: String?, withdrawalHash: String?, withdrawalReceiver: String?) {
+    public init(snapshotId: String, traceId: String?, snapshotType: String, assetId: String, amount: String, createdAtMillis: Int64, opponentId: String?, opponentName: String?, transactionHash: String?, sender: String?, receiver: String?, memo: String?, confirmations: Int32?, snapshotHash: String?, openingBalance: String?, closingBalance: String?, symbol: String, assetName: String, assetIconUrl: String, chainIconUrl: String, assetConfirmations: Int64, assetTag: String?, currentUserName: String, isSafe: Bool, priceUsd: String?, fiatRate: Double?, tickerPriceUsd: String?, depositHash: String?, withdrawalHash: String?, withdrawalReceiver: String?) {
         self.snapshotId = snapshotId
         self.traceId = traceId
         self.snapshotType = snapshotType
+        self.assetId = assetId
         self.amount = amount
         self.createdAtMillis = createdAtMillis
+        self.opponentId = opponentId
         self.opponentName = opponentName
         self.transactionHash = transactionHash
         self.sender = sender
@@ -7058,21 +7052,23 @@ public struct SwiftSnapshotDetailItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftSnapshotDetailItem: Sendable {}
+extension SnapshotDetailItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftSnapshotDetailItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftSnapshotDetailItem {
+public struct FfiConverterTypeSnapshotDetailItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SnapshotDetailItem {
         return
-            try SwiftSnapshotDetailItem(
+            try SnapshotDetailItem(
                 snapshotId: FfiConverterString.read(from: &buf),
                 traceId: FfiConverterOptionString.read(from: &buf),
                 snapshotType: FfiConverterString.read(from: &buf),
+                assetId: FfiConverterString.read(from: &buf),
                 amount: FfiConverterString.read(from: &buf),
                 createdAtMillis: FfiConverterInt64.read(from: &buf),
+                opponentId: FfiConverterOptionString.read(from: &buf),
                 opponentName: FfiConverterOptionString.read(from: &buf),
                 transactionHash: FfiConverterOptionString.read(from: &buf),
                 sender: FfiConverterOptionString.read(from: &buf),
@@ -7099,12 +7095,14 @@ public struct FfiConverterTypeSwiftSnapshotDetailItem: FfiConverterRustBuffer {
         )
     }
 
-    public static func write(_ value: SwiftSnapshotDetailItem, into buf: inout [UInt8]) {
+    public static func write(_ value: SnapshotDetailItem, into buf: inout [UInt8]) {
         FfiConverterString.write(value.snapshotId, into: &buf)
         FfiConverterOptionString.write(value.traceId, into: &buf)
         FfiConverterString.write(value.snapshotType, into: &buf)
+        FfiConverterString.write(value.assetId, into: &buf)
         FfiConverterString.write(value.amount, into: &buf)
         FfiConverterInt64.write(value.createdAtMillis, into: &buf)
+        FfiConverterOptionString.write(value.opponentId, into: &buf)
         FfiConverterOptionString.write(value.opponentName, into: &buf)
         FfiConverterOptionString.write(value.transactionHash, into: &buf)
         FfiConverterOptionString.write(value.sender, into: &buf)
@@ -7135,19 +7133,19 @@ public struct FfiConverterTypeSwiftSnapshotDetailItem: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftSnapshotDetailItem_lift(_ buf: RustBuffer) throws -> SwiftSnapshotDetailItem {
-    return try FfiConverterTypeSwiftSnapshotDetailItem.lift(buf)
+public func FfiConverterTypeSnapshotDetailItem_lift(_ buf: RustBuffer) throws -> SnapshotDetailItem {
+    return try FfiConverterTypeSnapshotDetailItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftSnapshotDetailItem_lower(_ value: SwiftSnapshotDetailItem) -> RustBuffer {
-    return FfiConverterTypeSwiftSnapshotDetailItem.lower(value)
+public func FfiConverterTypeSnapshotDetailItem_lower(_ value: SnapshotDetailItem) -> RustBuffer {
+    return FfiConverterTypeSnapshotDetailItem.lower(value)
 }
 
 
-public struct SwiftStickerAlbumItem: Equatable, Hashable {
+public struct StickerAlbumItem: Equatable, Hashable {
     public var albumId: String
     public var name: String
     public var iconUrl: String
@@ -7176,16 +7174,16 @@ public struct SwiftStickerAlbumItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftStickerAlbumItem: Sendable {}
+extension StickerAlbumItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftStickerAlbumItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftStickerAlbumItem {
+public struct FfiConverterTypeStickerAlbumItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StickerAlbumItem {
         return
-            try SwiftStickerAlbumItem(
+            try StickerAlbumItem(
                 albumId: FfiConverterString.read(from: &buf),
                 name: FfiConverterString.read(from: &buf),
                 iconUrl: FfiConverterString.read(from: &buf),
@@ -7197,7 +7195,7 @@ public struct FfiConverterTypeSwiftStickerAlbumItem: FfiConverterRustBuffer {
         )
     }
 
-    public static func write(_ value: SwiftStickerAlbumItem, into buf: inout [UInt8]) {
+    public static func write(_ value: StickerAlbumItem, into buf: inout [UInt8]) {
         FfiConverterString.write(value.albumId, into: &buf)
         FfiConverterString.write(value.name, into: &buf)
         FfiConverterString.write(value.iconUrl, into: &buf)
@@ -7213,25 +7211,25 @@ public struct FfiConverterTypeSwiftStickerAlbumItem: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftStickerAlbumItem_lift(_ buf: RustBuffer) throws -> SwiftStickerAlbumItem {
-    return try FfiConverterTypeSwiftStickerAlbumItem.lift(buf)
+public func FfiConverterTypeStickerAlbumItem_lift(_ buf: RustBuffer) throws -> StickerAlbumItem {
+    return try FfiConverterTypeStickerAlbumItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftStickerAlbumItem_lower(_ value: SwiftStickerAlbumItem) -> RustBuffer {
-    return FfiConverterTypeSwiftStickerAlbumItem.lower(value)
+public func FfiConverterTypeStickerAlbumItem_lower(_ value: StickerAlbumItem) -> RustBuffer {
+    return FfiConverterTypeStickerAlbumItem.lower(value)
 }
 
 
-public struct SwiftStickerAlbumSection: Equatable, Hashable {
-    public var album: SwiftStickerAlbumItem
-    public var stickers: [SwiftStickerItem]
+public struct StickerAlbumSection: Equatable, Hashable {
+    public var album: StickerAlbumItem
+    public var stickers: [StickerItem]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(album: SwiftStickerAlbumItem, stickers: [SwiftStickerItem]) {
+    public init(album: StickerAlbumItem, stickers: [StickerItem]) {
         self.album = album
         self.stickers = stickers
     }
@@ -7242,24 +7240,24 @@ public struct SwiftStickerAlbumSection: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftStickerAlbumSection: Sendable {}
+extension StickerAlbumSection: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftStickerAlbumSection: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftStickerAlbumSection {
+public struct FfiConverterTypeStickerAlbumSection: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StickerAlbumSection {
         return
-            try SwiftStickerAlbumSection(
-                album: FfiConverterTypeSwiftStickerAlbumItem.read(from: &buf),
-                stickers: FfiConverterSequenceTypeSwiftStickerItem.read(from: &buf)
+            try StickerAlbumSection(
+                album: FfiConverterTypeStickerAlbumItem.read(from: &buf),
+                stickers: FfiConverterSequenceTypeStickerItem.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftStickerAlbumSection, into buf: inout [UInt8]) {
-        FfiConverterTypeSwiftStickerAlbumItem.write(value.album, into: &buf)
-        FfiConverterSequenceTypeSwiftStickerItem.write(value.stickers, into: &buf)
+    public static func write(_ value: StickerAlbumSection, into buf: inout [UInt8]) {
+        FfiConverterTypeStickerAlbumItem.write(value.album, into: &buf)
+        FfiConverterSequenceTypeStickerItem.write(value.stickers, into: &buf)
     }
 }
 
@@ -7267,27 +7265,27 @@ public struct FfiConverterTypeSwiftStickerAlbumSection: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftStickerAlbumSection_lift(_ buf: RustBuffer) throws -> SwiftStickerAlbumSection {
-    return try FfiConverterTypeSwiftStickerAlbumSection.lift(buf)
+public func FfiConverterTypeStickerAlbumSection_lift(_ buf: RustBuffer) throws -> StickerAlbumSection {
+    return try FfiConverterTypeStickerAlbumSection.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftStickerAlbumSection_lower(_ value: SwiftStickerAlbumSection) -> RustBuffer {
-    return FfiConverterTypeSwiftStickerAlbumSection.lower(value)
+public func FfiConverterTypeStickerAlbumSection_lower(_ value: StickerAlbumSection) -> RustBuffer {
+    return FfiConverterTypeStickerAlbumSection.lower(value)
 }
 
 
-public struct SwiftStickerDetailItem: Equatable, Hashable {
-    public var sticker: SwiftStickerItem
-    public var album: SwiftStickerAlbumItem?
-    public var albumStickers: [SwiftStickerItem]
+public struct StickerDetailItem: Equatable, Hashable {
+    public var sticker: StickerItem
+    public var album: StickerAlbumItem?
+    public var albumStickers: [StickerItem]
     public var isPersonal: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(sticker: SwiftStickerItem, album: SwiftStickerAlbumItem?, albumStickers: [SwiftStickerItem], isPersonal: Bool) {
+    public init(sticker: StickerItem, album: StickerAlbumItem?, albumStickers: [StickerItem], isPersonal: Bool) {
         self.sticker = sticker
         self.album = album
         self.albumStickers = albumStickers
@@ -7300,27 +7298,27 @@ public struct SwiftStickerDetailItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftStickerDetailItem: Sendable {}
+extension StickerDetailItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftStickerDetailItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftStickerDetailItem {
+public struct FfiConverterTypeStickerDetailItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StickerDetailItem {
         return
-            try SwiftStickerDetailItem(
-                sticker: FfiConverterTypeSwiftStickerItem.read(from: &buf),
-                album: FfiConverterOptionTypeSwiftStickerAlbumItem.read(from: &buf),
-                albumStickers: FfiConverterSequenceTypeSwiftStickerItem.read(from: &buf),
+            try StickerDetailItem(
+                sticker: FfiConverterTypeStickerItem.read(from: &buf),
+                album: FfiConverterOptionTypeStickerAlbumItem.read(from: &buf),
+                albumStickers: FfiConverterSequenceTypeStickerItem.read(from: &buf),
                 isPersonal: FfiConverterBool.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftStickerDetailItem, into buf: inout [UInt8]) {
-        FfiConverterTypeSwiftStickerItem.write(value.sticker, into: &buf)
-        FfiConverterOptionTypeSwiftStickerAlbumItem.write(value.album, into: &buf)
-        FfiConverterSequenceTypeSwiftStickerItem.write(value.albumStickers, into: &buf)
+    public static func write(_ value: StickerDetailItem, into buf: inout [UInt8]) {
+        FfiConverterTypeStickerItem.write(value.sticker, into: &buf)
+        FfiConverterOptionTypeStickerAlbumItem.write(value.album, into: &buf)
+        FfiConverterSequenceTypeStickerItem.write(value.albumStickers, into: &buf)
         FfiConverterBool.write(value.isPersonal, into: &buf)
     }
 }
@@ -7329,19 +7327,19 @@ public struct FfiConverterTypeSwiftStickerDetailItem: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftStickerDetailItem_lift(_ buf: RustBuffer) throws -> SwiftStickerDetailItem {
-    return try FfiConverterTypeSwiftStickerDetailItem.lift(buf)
+public func FfiConverterTypeStickerDetailItem_lift(_ buf: RustBuffer) throws -> StickerDetailItem {
+    return try FfiConverterTypeStickerDetailItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftStickerDetailItem_lower(_ value: SwiftStickerDetailItem) -> RustBuffer {
-    return FfiConverterTypeSwiftStickerDetailItem.lower(value)
+public func FfiConverterTypeStickerDetailItem_lower(_ value: StickerDetailItem) -> RustBuffer {
+    return FfiConverterTypeStickerDetailItem.lower(value)
 }
 
 
-public struct SwiftStickerItem: Equatable, Hashable {
+public struct StickerItem: Equatable, Hashable {
     public var stickerId: String
     public var albumId: String?
     public var name: String
@@ -7349,10 +7347,12 @@ public struct SwiftStickerItem: Equatable, Hashable {
     public var assetWidth: Int32
     public var assetHeight: Int32
     public var assetType: String
+    public var createdAtMillis: Int64
+    public var lastUseAtMillis: Int64?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(stickerId: String, albumId: String?, name: String, assetUrl: String, assetWidth: Int32, assetHeight: Int32, assetType: String) {
+    public init(stickerId: String, albumId: String?, name: String, assetUrl: String, assetWidth: Int32, assetHeight: Int32, assetType: String, createdAtMillis: Int64, lastUseAtMillis: Int64?) {
         self.stickerId = stickerId
         self.albumId = albumId
         self.name = name
@@ -7360,6 +7360,8 @@ public struct SwiftStickerItem: Equatable, Hashable {
         self.assetWidth = assetWidth
         self.assetHeight = assetHeight
         self.assetType = assetType
+        self.createdAtMillis = createdAtMillis
+        self.lastUseAtMillis = lastUseAtMillis
     }
 
 
@@ -7368,27 +7370,29 @@ public struct SwiftStickerItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftStickerItem: Sendable {}
+extension StickerItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftStickerItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftStickerItem {
+public struct FfiConverterTypeStickerItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StickerItem {
         return
-            try SwiftStickerItem(
+            try StickerItem(
                 stickerId: FfiConverterString.read(from: &buf),
                 albumId: FfiConverterOptionString.read(from: &buf),
                 name: FfiConverterString.read(from: &buf),
                 assetUrl: FfiConverterString.read(from: &buf),
                 assetWidth: FfiConverterInt32.read(from: &buf),
                 assetHeight: FfiConverterInt32.read(from: &buf),
-                assetType: FfiConverterString.read(from: &buf)
+                assetType: FfiConverterString.read(from: &buf),
+                createdAtMillis: FfiConverterInt64.read(from: &buf),
+                lastUseAtMillis: FfiConverterOptionInt64.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftStickerItem, into buf: inout [UInt8]) {
+    public static func write(_ value: StickerItem, into buf: inout [UInt8]) {
         FfiConverterString.write(value.stickerId, into: &buf)
         FfiConverterOptionString.write(value.albumId, into: &buf)
         FfiConverterString.write(value.name, into: &buf)
@@ -7396,6 +7400,8 @@ public struct FfiConverterTypeSwiftStickerItem: FfiConverterRustBuffer {
         FfiConverterInt32.write(value.assetWidth, into: &buf)
         FfiConverterInt32.write(value.assetHeight, into: &buf)
         FfiConverterString.write(value.assetType, into: &buf)
+        FfiConverterInt64.write(value.createdAtMillis, into: &buf)
+        FfiConverterOptionInt64.write(value.lastUseAtMillis, into: &buf)
     }
 }
 
@@ -7403,26 +7409,26 @@ public struct FfiConverterTypeSwiftStickerItem: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftStickerItem_lift(_ buf: RustBuffer) throws -> SwiftStickerItem {
-    return try FfiConverterTypeSwiftStickerItem.lift(buf)
+public func FfiConverterTypeStickerItem_lift(_ buf: RustBuffer) throws -> StickerItem {
+    return try FfiConverterTypeStickerItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftStickerItem_lower(_ value: SwiftStickerItem) -> RustBuffer {
-    return FfiConverterTypeSwiftStickerItem.lower(value)
+public func FfiConverterTypeStickerItem_lower(_ value: StickerItem) -> RustBuffer {
+    return FfiConverterTypeStickerItem.lower(value)
 }
 
 
-public struct SwiftStickerLibrary: Equatable, Hashable {
-    public var recent: [SwiftStickerItem]
-    public var personal: [SwiftStickerItem]
-    public var albums: [SwiftStickerAlbumSection]
+public struct StickerLibrary: Equatable, Hashable {
+    public var recent: [StickerItem]
+    public var personal: [StickerItem]
+    public var albums: [StickerAlbumSection]
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(recent: [SwiftStickerItem], personal: [SwiftStickerItem], albums: [SwiftStickerAlbumSection]) {
+    public init(recent: [StickerItem], personal: [StickerItem], albums: [StickerAlbumSection]) {
         self.recent = recent
         self.personal = personal
         self.albums = albums
@@ -7434,26 +7440,26 @@ public struct SwiftStickerLibrary: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftStickerLibrary: Sendable {}
+extension StickerLibrary: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftStickerLibrary: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftStickerLibrary {
+public struct FfiConverterTypeStickerLibrary: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StickerLibrary {
         return
-            try SwiftStickerLibrary(
-                recent: FfiConverterSequenceTypeSwiftStickerItem.read(from: &buf),
-                personal: FfiConverterSequenceTypeSwiftStickerItem.read(from: &buf),
-                albums: FfiConverterSequenceTypeSwiftStickerAlbumSection.read(from: &buf)
+            try StickerLibrary(
+                recent: FfiConverterSequenceTypeStickerItem.read(from: &buf),
+                personal: FfiConverterSequenceTypeStickerItem.read(from: &buf),
+                albums: FfiConverterSequenceTypeStickerAlbumSection.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftStickerLibrary, into buf: inout [UInt8]) {
-        FfiConverterSequenceTypeSwiftStickerItem.write(value.recent, into: &buf)
-        FfiConverterSequenceTypeSwiftStickerItem.write(value.personal, into: &buf)
-        FfiConverterSequenceTypeSwiftStickerAlbumSection.write(value.albums, into: &buf)
+    public static func write(_ value: StickerLibrary, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeStickerItem.write(value.recent, into: &buf)
+        FfiConverterSequenceTypeStickerItem.write(value.personal, into: &buf)
+        FfiConverterSequenceTypeStickerAlbumSection.write(value.albums, into: &buf)
     }
 }
 
@@ -7461,19 +7467,19 @@ public struct FfiConverterTypeSwiftStickerLibrary: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftStickerLibrary_lift(_ buf: RustBuffer) throws -> SwiftStickerLibrary {
-    return try FfiConverterTypeSwiftStickerLibrary.lift(buf)
+public func FfiConverterTypeStickerLibrary_lift(_ buf: RustBuffer) throws -> StickerLibrary {
+    return try FfiConverterTypeStickerLibrary.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftStickerLibrary_lower(_ value: SwiftStickerLibrary) -> RustBuffer {
-    return FfiConverterTypeSwiftStickerLibrary.lower(value)
+public func FfiConverterTypeStickerLibrary_lower(_ value: StickerLibrary) -> RustBuffer {
+    return FfiConverterTypeStickerLibrary.lower(value)
 }
 
 
-public struct SwiftStorageCategoryUsage: Equatable, Hashable {
+public struct StorageCategoryUsage: Equatable, Hashable {
     public var category: String
     public var sizeBytes: Int64
 
@@ -7490,22 +7496,22 @@ public struct SwiftStorageCategoryUsage: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftStorageCategoryUsage: Sendable {}
+extension StorageCategoryUsage: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftStorageCategoryUsage: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftStorageCategoryUsage {
+public struct FfiConverterTypeStorageCategoryUsage: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StorageCategoryUsage {
         return
-            try SwiftStorageCategoryUsage(
+            try StorageCategoryUsage(
                 category: FfiConverterString.read(from: &buf),
                 sizeBytes: FfiConverterInt64.read(from: &buf)
         )
     }
 
-    public static func write(_ value: SwiftStorageCategoryUsage, into buf: inout [UInt8]) {
+    public static func write(_ value: StorageCategoryUsage, into buf: inout [UInt8]) {
         FfiConverterString.write(value.category, into: &buf)
         FfiConverterInt64.write(value.sizeBytes, into: &buf)
     }
@@ -7515,19 +7521,19 @@ public struct FfiConverterTypeSwiftStorageCategoryUsage: FfiConverterRustBuffer 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftStorageCategoryUsage_lift(_ buf: RustBuffer) throws -> SwiftStorageCategoryUsage {
-    return try FfiConverterTypeSwiftStorageCategoryUsage.lift(buf)
+public func FfiConverterTypeStorageCategoryUsage_lift(_ buf: RustBuffer) throws -> StorageCategoryUsage {
+    return try FfiConverterTypeStorageCategoryUsage.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftStorageCategoryUsage_lower(_ value: SwiftStorageCategoryUsage) -> RustBuffer {
-    return FfiConverterTypeSwiftStorageCategoryUsage.lower(value)
+public func FfiConverterTypeStorageCategoryUsage_lower(_ value: StorageCategoryUsage) -> RustBuffer {
+    return FfiConverterTypeStorageCategoryUsage.lower(value)
 }
 
 
-public struct SwiftUserItem: Equatable, Hashable {
+public struct UserProfileItem: Equatable, Hashable {
     public var userId: String
     public var identityNumber: String
     public var fullName: String
@@ -7560,16 +7566,16 @@ public struct SwiftUserItem: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftUserItem: Sendable {}
+extension UserProfileItem: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftUserItem: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftUserItem {
+public struct FfiConverterTypeUserProfileItem: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UserProfileItem {
         return
-            try SwiftUserItem(
+            try UserProfileItem(
                 userId: FfiConverterString.read(from: &buf),
                 identityNumber: FfiConverterString.read(from: &buf),
                 fullName: FfiConverterString.read(from: &buf),
@@ -7583,7 +7589,7 @@ public struct FfiConverterTypeSwiftUserItem: FfiConverterRustBuffer {
         )
     }
 
-    public static func write(_ value: SwiftUserItem, into buf: inout [UInt8]) {
+    public static func write(_ value: UserProfileItem, into buf: inout [UInt8]) {
         FfiConverterString.write(value.userId, into: &buf)
         FfiConverterString.write(value.identityNumber, into: &buf)
         FfiConverterString.write(value.fullName, into: &buf)
@@ -7601,16 +7607,782 @@ public struct FfiConverterTypeSwiftUserItem: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftUserItem_lift(_ buf: RustBuffer) throws -> SwiftUserItem {
-    return try FfiConverterTypeSwiftUserItem.lift(buf)
+public func FfiConverterTypeUserProfileItem_lift(_ buf: RustBuffer) throws -> UserProfileItem {
+    return try FfiConverterTypeUserProfileItem.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftUserItem_lower(_ value: SwiftUserItem) -> RustBuffer {
-    return FfiConverterTypeSwiftUserItem.lower(value)
+public func FfiConverterTypeUserProfileItem_lower(_ value: UserProfileItem) -> RustBuffer {
+    return FfiConverterTypeUserProfileItem.lower(value)
 }
+
+
+public struct VoiceRecorderSnapshot: Equatable, Hashable {
+    public var status: VoiceRecorderStatus
+    public var recording: VoiceRecording?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(status: VoiceRecorderStatus, recording: VoiceRecording?) {
+        self.status = status
+        self.recording = recording
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension VoiceRecorderSnapshot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeVoiceRecorderSnapshot: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VoiceRecorderSnapshot {
+        return
+            try VoiceRecorderSnapshot(
+                status: FfiConverterTypeVoiceRecorderStatus.read(from: &buf),
+                recording: FfiConverterOptionTypeVoiceRecording.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: VoiceRecorderSnapshot, into buf: inout [UInt8]) {
+        FfiConverterTypeVoiceRecorderStatus.write(value.status, into: &buf)
+        FfiConverterOptionTypeVoiceRecording.write(value.recording, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeVoiceRecorderSnapshot_lift(_ buf: RustBuffer) throws -> VoiceRecorderSnapshot {
+    return try FfiConverterTypeVoiceRecorderSnapshot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeVoiceRecorderSnapshot_lower(_ value: VoiceRecorderSnapshot) -> RustBuffer {
+    return FfiConverterTypeVoiceRecorderSnapshot.lower(value)
+}
+
+
+public struct VoiceRecording: Equatable, Hashable {
+    public var path: String
+    public var durationMillis: UInt64
+    public var waveform: Data
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(path: String, durationMillis: UInt64, waveform: Data) {
+        self.path = path
+        self.durationMillis = durationMillis
+        self.waveform = waveform
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension VoiceRecording: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeVoiceRecording: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VoiceRecording {
+        return
+            try VoiceRecording(
+                path: FfiConverterString.read(from: &buf),
+                durationMillis: FfiConverterUInt64.read(from: &buf),
+                waveform: FfiConverterData.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: VoiceRecording, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.path, into: &buf)
+        FfiConverterUInt64.write(value.durationMillis, into: &buf)
+        FfiConverterData.write(value.waveform, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeVoiceRecording_lift(_ buf: RustBuffer) throws -> VoiceRecording {
+    return try FfiConverterTypeVoiceRecording.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeVoiceRecording_lower(_ value: VoiceRecording) -> RustBuffer {
+    return FfiConverterTypeVoiceRecording.lower(value)
+}
+
+
+
+public enum AudioPlaybackStatus: Equatable, Hashable {
+
+    case idle
+    case playing
+    case paused
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension AudioPlaybackStatus: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAudioPlaybackStatus: FfiConverterRustBuffer {
+    typealias SwiftType = AudioPlaybackStatus
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AudioPlaybackStatus {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .idle
+
+        case 2: return .playing
+
+        case 3: return .paused
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AudioPlaybackStatus, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case .idle:
+            writeInt(&buf, Int32(1))
+
+
+        case .playing:
+            writeInt(&buf, Int32(2))
+
+
+        case .paused:
+            writeInt(&buf, Int32(3))
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAudioPlaybackStatus_lift(_ buf: RustBuffer) throws -> AudioPlaybackStatus {
+    return try FfiConverterTypeAudioPlaybackStatus.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAudioPlaybackStatus_lower(_ value: AudioPlaybackStatus) -> RustBuffer {
+    return FfiConverterTypeAudioPlaybackStatus.lower(value)
+}
+
+
+
+
+public enum ConnectionFailedReasonItem: Equatable, Hashable {
+
+    case versionNotMatched
+    case unknown
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ConnectionFailedReasonItem: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeConnectionFailedReasonItem: FfiConverterRustBuffer {
+    typealias SwiftType = ConnectionFailedReasonItem
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ConnectionFailedReasonItem {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .versionNotMatched
+
+        case 2: return .unknown
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ConnectionFailedReasonItem, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case .versionNotMatched:
+            writeInt(&buf, Int32(1))
+
+
+        case .unknown:
+            writeInt(&buf, Int32(2))
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeConnectionFailedReasonItem_lift(_ buf: RustBuffer) throws -> ConnectionFailedReasonItem {
+    return try FfiConverterTypeConnectionFailedReasonItem.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeConnectionFailedReasonItem_lower(_ value: ConnectionFailedReasonItem) -> RustBuffer {
+    return FfiConverterTypeConnectionFailedReasonItem.lower(value)
+}
+
+
+
+
+public enum DeviceTransferCommand: Equatable, Hashable {
+
+    case pullToRemote
+    case pushToRemote
+    case cancelRestore
+    case cancelBackup
+    case cancelBackupRequest
+    case cancelRestoreRequest
+    case confirmRestore
+    case confirmBackup
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension DeviceTransferCommand: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDeviceTransferCommand: FfiConverterRustBuffer {
+    typealias SwiftType = DeviceTransferCommand
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DeviceTransferCommand {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .pullToRemote
+
+        case 2: return .pushToRemote
+
+        case 3: return .cancelRestore
+
+        case 4: return .cancelBackup
+
+        case 5: return .cancelBackupRequest
+
+        case 6: return .cancelRestoreRequest
+
+        case 7: return .confirmRestore
+
+        case 8: return .confirmBackup
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: DeviceTransferCommand, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case .pullToRemote:
+            writeInt(&buf, Int32(1))
+
+
+        case .pushToRemote:
+            writeInt(&buf, Int32(2))
+
+
+        case .cancelRestore:
+            writeInt(&buf, Int32(3))
+
+
+        case .cancelBackup:
+            writeInt(&buf, Int32(4))
+
+
+        case .cancelBackupRequest:
+            writeInt(&buf, Int32(5))
+
+
+        case .cancelRestoreRequest:
+            writeInt(&buf, Int32(6))
+
+
+        case .confirmRestore:
+            writeInt(&buf, Int32(7))
+
+
+        case .confirmBackup:
+            writeInt(&buf, Int32(8))
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceTransferCommand_lift(_ buf: RustBuffer) throws -> DeviceTransferCommand {
+    return try FfiConverterTypeDeviceTransferCommand.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceTransferCommand_lower(_ value: DeviceTransferCommand) -> RustBuffer {
+    return FfiConverterTypeDeviceTransferCommand.lower(value)
+}
+
+
+
+
+public enum DeviceTransferEventItem: Equatable, Hashable {
+
+    case restoreConnected
+    case restoreStart
+    case restoreSucceed
+    case restoreFailed
+    case backupServerCreated
+    case backupStart
+    case backupSucceed
+    case backupFailed
+    case restoreProgress(value: Double
+    )
+    case backupProgress(value: Double
+    )
+    case restoreNetworkSpeed(bytesPerSecond: Double
+    )
+    case backupNetworkSpeed(bytesPerSecond: Double
+    )
+    case backupRequestReceived
+    case restoreRequestReceived
+    case connectionFailed(reason: ConnectionFailedReasonItem
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension DeviceTransferEventItem: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDeviceTransferEventItem: FfiConverterRustBuffer {
+    typealias SwiftType = DeviceTransferEventItem
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DeviceTransferEventItem {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .restoreConnected
+
+        case 2: return .restoreStart
+
+        case 3: return .restoreSucceed
+
+        case 4: return .restoreFailed
+
+        case 5: return .backupServerCreated
+
+        case 6: return .backupStart
+
+        case 7: return .backupSucceed
+
+        case 8: return .backupFailed
+
+        case 9: return .restoreProgress(value: try FfiConverterDouble.read(from: &buf)
+        )
+
+        case 10: return .backupProgress(value: try FfiConverterDouble.read(from: &buf)
+        )
+
+        case 11: return .restoreNetworkSpeed(bytesPerSecond: try FfiConverterDouble.read(from: &buf)
+        )
+
+        case 12: return .backupNetworkSpeed(bytesPerSecond: try FfiConverterDouble.read(from: &buf)
+        )
+
+        case 13: return .backupRequestReceived
+
+        case 14: return .restoreRequestReceived
+
+        case 15: return .connectionFailed(reason: try FfiConverterTypeConnectionFailedReasonItem.read(from: &buf)
+        )
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: DeviceTransferEventItem, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case .restoreConnected:
+            writeInt(&buf, Int32(1))
+
+
+        case .restoreStart:
+            writeInt(&buf, Int32(2))
+
+
+        case .restoreSucceed:
+            writeInt(&buf, Int32(3))
+
+
+        case .restoreFailed:
+            writeInt(&buf, Int32(4))
+
+
+        case .backupServerCreated:
+            writeInt(&buf, Int32(5))
+
+
+        case .backupStart:
+            writeInt(&buf, Int32(6))
+
+
+        case .backupSucceed:
+            writeInt(&buf, Int32(7))
+
+
+        case .backupFailed:
+            writeInt(&buf, Int32(8))
+
+
+        case let .restoreProgress(value):
+            writeInt(&buf, Int32(9))
+            FfiConverterDouble.write(value, into: &buf)
+
+
+        case let .backupProgress(value):
+            writeInt(&buf, Int32(10))
+            FfiConverterDouble.write(value, into: &buf)
+
+
+        case let .restoreNetworkSpeed(bytesPerSecond):
+            writeInt(&buf, Int32(11))
+            FfiConverterDouble.write(bytesPerSecond, into: &buf)
+
+
+        case let .backupNetworkSpeed(bytesPerSecond):
+            writeInt(&buf, Int32(12))
+            FfiConverterDouble.write(bytesPerSecond, into: &buf)
+
+
+        case .backupRequestReceived:
+            writeInt(&buf, Int32(13))
+
+
+        case .restoreRequestReceived:
+            writeInt(&buf, Int32(14))
+
+
+        case let .connectionFailed(reason):
+            writeInt(&buf, Int32(15))
+            FfiConverterTypeConnectionFailedReasonItem.write(reason, into: &buf)
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceTransferEventItem_lift(_ buf: RustBuffer) throws -> DeviceTransferEventItem {
+    return try FfiConverterTypeDeviceTransferEventItem.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceTransferEventItem_lower(_ value: DeviceTransferEventItem) -> RustBuffer {
+    return FfiConverterTypeDeviceTransferEventItem.lower(value)
+}
+
+
+
+
+public enum MediaPlaybackEvent: Equatable, Hashable {
+
+    case changed(snapshot: AudioPlaybackSnapshot
+    )
+    case finished(id: String
+    )
+    case failed(id: String?, message: String
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension MediaPlaybackEvent: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMediaPlaybackEvent: FfiConverterRustBuffer {
+    typealias SwiftType = MediaPlaybackEvent
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MediaPlaybackEvent {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .changed(snapshot: try FfiConverterTypeAudioPlaybackSnapshot.read(from: &buf)
+        )
+
+        case 2: return .finished(id: try FfiConverterString.read(from: &buf)
+        )
+
+        case 3: return .failed(id: try FfiConverterOptionString.read(from: &buf), message: try FfiConverterString.read(from: &buf)
+        )
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: MediaPlaybackEvent, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case let .changed(snapshot):
+            writeInt(&buf, Int32(1))
+            FfiConverterTypeAudioPlaybackSnapshot.write(snapshot, into: &buf)
+
+
+        case let .finished(id):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(id, into: &buf)
+
+
+        case let .failed(id,message):
+            writeInt(&buf, Int32(3))
+            FfiConverterOptionString.write(id, into: &buf)
+            FfiConverterString.write(message, into: &buf)
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMediaPlaybackEvent_lift(_ buf: RustBuffer) throws -> MediaPlaybackEvent {
+    return try FfiConverterTypeMediaPlaybackEvent.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMediaPlaybackEvent_lower(_ value: MediaPlaybackEvent) -> RustBuffer {
+    return FfiConverterTypeMediaPlaybackEvent.lower(value)
+}
+
+
+
+
+public enum MediaRecorderEvent: Equatable, Hashable {
+
+    case changed(snapshot: VoiceRecorderSnapshot
+    )
+    case failed(message: String
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension MediaRecorderEvent: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMediaRecorderEvent: FfiConverterRustBuffer {
+    typealias SwiftType = MediaRecorderEvent
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MediaRecorderEvent {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .changed(snapshot: try FfiConverterTypeVoiceRecorderSnapshot.read(from: &buf)
+        )
+
+        case 2: return .failed(message: try FfiConverterString.read(from: &buf)
+        )
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: MediaRecorderEvent, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case let .changed(snapshot):
+            writeInt(&buf, Int32(1))
+            FfiConverterTypeVoiceRecorderSnapshot.write(snapshot, into: &buf)
+
+
+        case let .failed(message):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(message, into: &buf)
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMediaRecorderEvent_lift(_ buf: RustBuffer) throws -> MediaRecorderEvent {
+    return try FfiConverterTypeMediaRecorderEvent.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMediaRecorderEvent_lower(_ value: MediaRecorderEvent) -> RustBuffer {
+    return FfiConverterTypeMediaRecorderEvent.lower(value)
+}
+
+
+
+
+public enum ParticipantAction: Equatable, Hashable {
+
+    case add
+    case remove
+    case makeAdmin
+    case dismissAdmin
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension ParticipantAction: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeParticipantAction: FfiConverterRustBuffer {
+    typealias SwiftType = ParticipantAction
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParticipantAction {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .add
+
+        case 2: return .remove
+
+        case 3: return .makeAdmin
+
+        case 4: return .dismissAdmin
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: ParticipantAction, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case .add:
+            writeInt(&buf, Int32(1))
+
+
+        case .remove:
+            writeInt(&buf, Int32(2))
+
+
+        case .makeAdmin:
+            writeInt(&buf, Int32(3))
+
+
+        case .dismissAdmin:
+            writeInt(&buf, Int32(4))
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParticipantAction_lift(_ buf: RustBuffer) throws -> ParticipantAction {
+    return try FfiConverterTypeParticipantAction.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParticipantAction_lower(_ value: ParticipantAction) -> RustBuffer {
+    return FfiConverterTypeParticipantAction.lower(value)
+}
+
 
 
 public
@@ -7717,581 +8489,7 @@ public func FfiConverterTypeSwiftClientError_lower(_ value: SwiftClientError) ->
 
 
 
-public enum SwiftConnectionFailedReason: Equatable, Hashable {
-
-    case versionNotMatched
-    case unknown
-
-
-
-
-
-}
-
-#if compiler(>=6)
-extension SwiftConnectionFailedReason: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeSwiftConnectionFailedReason: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftConnectionFailedReason
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftConnectionFailedReason {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-
-        case 1: return .versionNotMatched
-
-        case 2: return .unknown
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: SwiftConnectionFailedReason, into buf: inout [UInt8]) {
-        switch value {
-
-
-        case .versionNotMatched:
-            writeInt(&buf, Int32(1))
-
-
-        case .unknown:
-            writeInt(&buf, Int32(2))
-
-        }
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftConnectionFailedReason_lift(_ buf: RustBuffer) throws -> SwiftConnectionFailedReason {
-    return try FfiConverterTypeSwiftConnectionFailedReason.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftConnectionFailedReason_lower(_ value: SwiftConnectionFailedReason) -> RustBuffer {
-    return FfiConverterTypeSwiftConnectionFailedReason.lower(value)
-}
-
-
-
-
-public enum SwiftDeviceTransferCommand: Equatable, Hashable {
-
-    case pullToRemote
-    case pushToRemote
-    case cancelRestore
-    case cancelBackup
-    case cancelBackupRequest
-    case cancelRestoreRequest
-    case confirmRestore
-    case confirmBackup
-
-
-
-
-
-}
-
-#if compiler(>=6)
-extension SwiftDeviceTransferCommand: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeSwiftDeviceTransferCommand: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftDeviceTransferCommand
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftDeviceTransferCommand {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-
-        case 1: return .pullToRemote
-
-        case 2: return .pushToRemote
-
-        case 3: return .cancelRestore
-
-        case 4: return .cancelBackup
-
-        case 5: return .cancelBackupRequest
-
-        case 6: return .cancelRestoreRequest
-
-        case 7: return .confirmRestore
-
-        case 8: return .confirmBackup
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: SwiftDeviceTransferCommand, into buf: inout [UInt8]) {
-        switch value {
-
-
-        case .pullToRemote:
-            writeInt(&buf, Int32(1))
-
-
-        case .pushToRemote:
-            writeInt(&buf, Int32(2))
-
-
-        case .cancelRestore:
-            writeInt(&buf, Int32(3))
-
-
-        case .cancelBackup:
-            writeInt(&buf, Int32(4))
-
-
-        case .cancelBackupRequest:
-            writeInt(&buf, Int32(5))
-
-
-        case .cancelRestoreRequest:
-            writeInt(&buf, Int32(6))
-
-
-        case .confirmRestore:
-            writeInt(&buf, Int32(7))
-
-
-        case .confirmBackup:
-            writeInt(&buf, Int32(8))
-
-        }
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftDeviceTransferCommand_lift(_ buf: RustBuffer) throws -> SwiftDeviceTransferCommand {
-    return try FfiConverterTypeSwiftDeviceTransferCommand.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftDeviceTransferCommand_lower(_ value: SwiftDeviceTransferCommand) -> RustBuffer {
-    return FfiConverterTypeSwiftDeviceTransferCommand.lower(value)
-}
-
-
-
-
-public enum SwiftDeviceTransferEvent: Equatable, Hashable {
-
-    case restoreConnected
-    case restoreStart
-    case restoreSucceed
-    case restoreFailed
-    case backupServerCreated
-    case backupStart
-    case backupSucceed
-    case backupFailed
-    case restoreProgress(value: Double
-    )
-    case backupProgress(value: Double
-    )
-    case restoreNetworkSpeed(bytesPerSecond: Double
-    )
-    case backupNetworkSpeed(bytesPerSecond: Double
-    )
-    case backupRequestReceived
-    case restoreRequestReceived
-    case connectionFailed(reason: SwiftConnectionFailedReason
-    )
-
-
-
-
-
-}
-
-#if compiler(>=6)
-extension SwiftDeviceTransferEvent: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeSwiftDeviceTransferEvent: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftDeviceTransferEvent
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftDeviceTransferEvent {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-
-        case 1: return .restoreConnected
-
-        case 2: return .restoreStart
-
-        case 3: return .restoreSucceed
-
-        case 4: return .restoreFailed
-
-        case 5: return .backupServerCreated
-
-        case 6: return .backupStart
-
-        case 7: return .backupSucceed
-
-        case 8: return .backupFailed
-
-        case 9: return .restoreProgress(value: try FfiConverterDouble.read(from: &buf)
-        )
-
-        case 10: return .backupProgress(value: try FfiConverterDouble.read(from: &buf)
-        )
-
-        case 11: return .restoreNetworkSpeed(bytesPerSecond: try FfiConverterDouble.read(from: &buf)
-        )
-
-        case 12: return .backupNetworkSpeed(bytesPerSecond: try FfiConverterDouble.read(from: &buf)
-        )
-
-        case 13: return .backupRequestReceived
-
-        case 14: return .restoreRequestReceived
-
-        case 15: return .connectionFailed(reason: try FfiConverterTypeSwiftConnectionFailedReason.read(from: &buf)
-        )
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: SwiftDeviceTransferEvent, into buf: inout [UInt8]) {
-        switch value {
-
-
-        case .restoreConnected:
-            writeInt(&buf, Int32(1))
-
-
-        case .restoreStart:
-            writeInt(&buf, Int32(2))
-
-
-        case .restoreSucceed:
-            writeInt(&buf, Int32(3))
-
-
-        case .restoreFailed:
-            writeInt(&buf, Int32(4))
-
-
-        case .backupServerCreated:
-            writeInt(&buf, Int32(5))
-
-
-        case .backupStart:
-            writeInt(&buf, Int32(6))
-
-
-        case .backupSucceed:
-            writeInt(&buf, Int32(7))
-
-
-        case .backupFailed:
-            writeInt(&buf, Int32(8))
-
-
-        case let .restoreProgress(value):
-            writeInt(&buf, Int32(9))
-            FfiConverterDouble.write(value, into: &buf)
-
-
-        case let .backupProgress(value):
-            writeInt(&buf, Int32(10))
-            FfiConverterDouble.write(value, into: &buf)
-
-
-        case let .restoreNetworkSpeed(bytesPerSecond):
-            writeInt(&buf, Int32(11))
-            FfiConverterDouble.write(bytesPerSecond, into: &buf)
-
-
-        case let .backupNetworkSpeed(bytesPerSecond):
-            writeInt(&buf, Int32(12))
-            FfiConverterDouble.write(bytesPerSecond, into: &buf)
-
-
-        case .backupRequestReceived:
-            writeInt(&buf, Int32(13))
-
-
-        case .restoreRequestReceived:
-            writeInt(&buf, Int32(14))
-
-
-        case let .connectionFailed(reason):
-            writeInt(&buf, Int32(15))
-            FfiConverterTypeSwiftConnectionFailedReason.write(reason, into: &buf)
-
-        }
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftDeviceTransferEvent_lift(_ buf: RustBuffer) throws -> SwiftDeviceTransferEvent {
-    return try FfiConverterTypeSwiftDeviceTransferEvent.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftDeviceTransferEvent_lower(_ value: SwiftDeviceTransferEvent) -> RustBuffer {
-    return FfiConverterTypeSwiftDeviceTransferEvent.lower(value)
-}
-
-
-
-
-public enum SwiftMediaPlaybackEvent: Equatable, Hashable {
-
-    case changed(snapshot: SwiftMediaPlaybackSnapshot
-    )
-    case finished(id: String
-    )
-    case failed(id: String?, message: String
-    )
-
-
-
-
-
-}
-
-#if compiler(>=6)
-extension SwiftMediaPlaybackEvent: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeSwiftMediaPlaybackEvent: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftMediaPlaybackEvent
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftMediaPlaybackEvent {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-
-        case 1: return .changed(snapshot: try FfiConverterTypeSwiftMediaPlaybackSnapshot.read(from: &buf)
-        )
-
-        case 2: return .finished(id: try FfiConverterString.read(from: &buf)
-        )
-
-        case 3: return .failed(id: try FfiConverterOptionString.read(from: &buf), message: try FfiConverterString.read(from: &buf)
-        )
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: SwiftMediaPlaybackEvent, into buf: inout [UInt8]) {
-        switch value {
-
-
-        case let .changed(snapshot):
-            writeInt(&buf, Int32(1))
-            FfiConverterTypeSwiftMediaPlaybackSnapshot.write(snapshot, into: &buf)
-
-
-        case let .finished(id):
-            writeInt(&buf, Int32(2))
-            FfiConverterString.write(id, into: &buf)
-
-
-        case let .failed(id,message):
-            writeInt(&buf, Int32(3))
-            FfiConverterOptionString.write(id, into: &buf)
-            FfiConverterString.write(message, into: &buf)
-
-        }
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaPlaybackEvent_lift(_ buf: RustBuffer) throws -> SwiftMediaPlaybackEvent {
-    return try FfiConverterTypeSwiftMediaPlaybackEvent.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaPlaybackEvent_lower(_ value: SwiftMediaPlaybackEvent) -> RustBuffer {
-    return FfiConverterTypeSwiftMediaPlaybackEvent.lower(value)
-}
-
-
-
-
-public enum SwiftMediaPlaybackStatus: Equatable, Hashable {
-
-    case idle
-    case playing
-    case paused
-
-
-
-
-
-}
-
-#if compiler(>=6)
-extension SwiftMediaPlaybackStatus: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeSwiftMediaPlaybackStatus: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftMediaPlaybackStatus
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftMediaPlaybackStatus {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-
-        case 1: return .idle
-
-        case 2: return .playing
-
-        case 3: return .paused
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: SwiftMediaPlaybackStatus, into buf: inout [UInt8]) {
-        switch value {
-
-
-        case .idle:
-            writeInt(&buf, Int32(1))
-
-
-        case .playing:
-            writeInt(&buf, Int32(2))
-
-
-        case .paused:
-            writeInt(&buf, Int32(3))
-
-        }
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaPlaybackStatus_lift(_ buf: RustBuffer) throws -> SwiftMediaPlaybackStatus {
-    return try FfiConverterTypeSwiftMediaPlaybackStatus.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaPlaybackStatus_lower(_ value: SwiftMediaPlaybackStatus) -> RustBuffer {
-    return FfiConverterTypeSwiftMediaPlaybackStatus.lower(value)
-}
-
-
-
-
-public enum SwiftMediaRecorderEvent: Equatable, Hashable {
-
-    case changed(snapshot: SwiftMediaRecorderSnapshot
-    )
-    case failed(message: String
-    )
-
-
-
-
-
-}
-
-#if compiler(>=6)
-extension SwiftMediaRecorderEvent: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeSwiftMediaRecorderEvent: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftMediaRecorderEvent
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftMediaRecorderEvent {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-
-        case 1: return .changed(snapshot: try FfiConverterTypeSwiftMediaRecorderSnapshot.read(from: &buf)
-        )
-
-        case 2: return .failed(message: try FfiConverterString.read(from: &buf)
-        )
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: SwiftMediaRecorderEvent, into buf: inout [UInt8]) {
-        switch value {
-
-
-        case let .changed(snapshot):
-            writeInt(&buf, Int32(1))
-            FfiConverterTypeSwiftMediaRecorderSnapshot.write(snapshot, into: &buf)
-
-
-        case let .failed(message):
-            writeInt(&buf, Int32(2))
-            FfiConverterString.write(message, into: &buf)
-
-        }
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaRecorderEvent_lift(_ buf: RustBuffer) throws -> SwiftMediaRecorderEvent {
-    return try FfiConverterTypeSwiftMediaRecorderEvent.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftMediaRecorderEvent_lower(_ value: SwiftMediaRecorderEvent) -> RustBuffer {
-    return FfiConverterTypeSwiftMediaRecorderEvent.lower(value)
-}
-
-
-
-
-public enum SwiftMediaRecorderStatus: Equatable, Hashable {
+public enum VoiceRecorderStatus: Equatable, Hashable {
 
     case idle
     case recording
@@ -8304,16 +8502,16 @@ public enum SwiftMediaRecorderStatus: Equatable, Hashable {
 }
 
 #if compiler(>=6)
-extension SwiftMediaRecorderStatus: Sendable {}
+extension VoiceRecorderStatus: Sendable {}
 #endif
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeSwiftMediaRecorderStatus: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftMediaRecorderStatus
+public struct FfiConverterTypeVoiceRecorderStatus: FfiConverterRustBuffer {
+    typealias SwiftType = VoiceRecorderStatus
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftMediaRecorderStatus {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> VoiceRecorderStatus {
         let variant: Int32 = try readInt(&buf)
         switch variant {
 
@@ -8327,7 +8525,7 @@ public struct FfiConverterTypeSwiftMediaRecorderStatus: FfiConverterRustBuffer {
         }
     }
 
-    public static func write(_ value: SwiftMediaRecorderStatus, into buf: inout [UInt8]) {
+    public static func write(_ value: VoiceRecorderStatus, into buf: inout [UInt8]) {
         switch value {
 
 
@@ -8350,95 +8548,15 @@ public struct FfiConverterTypeSwiftMediaRecorderStatus: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftMediaRecorderStatus_lift(_ buf: RustBuffer) throws -> SwiftMediaRecorderStatus {
-    return try FfiConverterTypeSwiftMediaRecorderStatus.lift(buf)
+public func FfiConverterTypeVoiceRecorderStatus_lift(_ buf: RustBuffer) throws -> VoiceRecorderStatus {
+    return try FfiConverterTypeVoiceRecorderStatus.lift(buf)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeSwiftMediaRecorderStatus_lower(_ value: SwiftMediaRecorderStatus) -> RustBuffer {
-    return FfiConverterTypeSwiftMediaRecorderStatus.lower(value)
-}
-
-
-
-
-public enum SwiftParticipantAction: Equatable, Hashable {
-
-    case add
-    case remove
-    case makeAdmin
-    case dismissAdmin
-
-
-
-
-
-}
-
-#if compiler(>=6)
-extension SwiftParticipantAction: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeSwiftParticipantAction: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftParticipantAction
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftParticipantAction {
-        let variant: Int32 = try readInt(&buf)
-        switch variant {
-
-        case 1: return .add
-
-        case 2: return .remove
-
-        case 3: return .makeAdmin
-
-        case 4: return .dismissAdmin
-
-        default: throw UniffiInternalError.unexpectedEnumCase
-        }
-    }
-
-    public static func write(_ value: SwiftParticipantAction, into buf: inout [UInt8]) {
-        switch value {
-
-
-        case .add:
-            writeInt(&buf, Int32(1))
-
-
-        case .remove:
-            writeInt(&buf, Int32(2))
-
-
-        case .makeAdmin:
-            writeInt(&buf, Int32(3))
-
-
-        case .dismissAdmin:
-            writeInt(&buf, Int32(4))
-
-        }
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftParticipantAction_lift(_ buf: RustBuffer) throws -> SwiftParticipantAction {
-    return try FfiConverterTypeSwiftParticipantAction.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSwiftParticipantAction_lower(_ value: SwiftParticipantAction) -> RustBuffer {
-    return FfiConverterTypeSwiftParticipantAction.lower(value)
+public func FfiConverterTypeVoiceRecorderStatus_lower(_ value: VoiceRecorderStatus) -> RustBuffer {
+    return FfiConverterTypeVoiceRecorderStatus.lower(value)
 }
 
 
@@ -8613,8 +8731,8 @@ fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionTypeSwiftConversationChangeEvent: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftConversationChangeEvent?
+fileprivate struct FfiConverterOptionTypeAudioPlaybackItem: FfiConverterRustBuffer {
+    typealias SwiftType = AudioPlaybackItem?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -8622,13 +8740,13 @@ fileprivate struct FfiConverterOptionTypeSwiftConversationChangeEvent: FfiConver
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterTypeSwiftConversationChangeEvent.write(value, into: &buf)
+        FfiConverterTypeAudioPlaybackItem.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterTypeSwiftConversationChangeEvent.read(from: &buf)
+        case 1: return try FfiConverterTypeAudioPlaybackItem.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -8637,8 +8755,8 @@ fileprivate struct FfiConverterOptionTypeSwiftConversationChangeEvent: FfiConver
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionTypeSwiftMediaAudioItem: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftMediaAudioItem?
+fileprivate struct FfiConverterOptionTypeConversationChangeEvent: FfiConverterRustBuffer {
+    typealias SwiftType = ConversationChangeEvent?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -8646,13 +8764,13 @@ fileprivate struct FfiConverterOptionTypeSwiftMediaAudioItem: FfiConverterRustBu
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterTypeSwiftMediaAudioItem.write(value, into: &buf)
+        FfiConverterTypeConversationChangeEvent.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterTypeSwiftMediaAudioItem.read(from: &buf)
+        case 1: return try FfiConverterTypeConversationChangeEvent.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -8661,8 +8779,8 @@ fileprivate struct FfiConverterOptionTypeSwiftMediaAudioItem: FfiConverterRustBu
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionTypeSwiftMediaVoiceRecording: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftMediaVoiceRecording?
+fileprivate struct FfiConverterOptionTypeNotificationEvent: FfiConverterRustBuffer {
+    typealias SwiftType = NotificationEvent?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -8670,13 +8788,13 @@ fileprivate struct FfiConverterOptionTypeSwiftMediaVoiceRecording: FfiConverterR
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterTypeSwiftMediaVoiceRecording.write(value, into: &buf)
+        FfiConverterTypeNotificationEvent.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterTypeSwiftMediaVoiceRecording.read(from: &buf)
+        case 1: return try FfiConverterTypeNotificationEvent.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -8685,8 +8803,8 @@ fileprivate struct FfiConverterOptionTypeSwiftMediaVoiceRecording: FfiConverterR
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionTypeSwiftNotificationEvent: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftNotificationEvent?
+fileprivate struct FfiConverterOptionTypeStickerAlbumItem: FfiConverterRustBuffer {
+    typealias SwiftType = StickerAlbumItem?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -8694,13 +8812,13 @@ fileprivate struct FfiConverterOptionTypeSwiftNotificationEvent: FfiConverterRus
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterTypeSwiftNotificationEvent.write(value, into: &buf)
+        FfiConverterTypeStickerAlbumItem.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterTypeSwiftNotificationEvent.read(from: &buf)
+        case 1: return try FfiConverterTypeStickerAlbumItem.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -8709,8 +8827,8 @@ fileprivate struct FfiConverterOptionTypeSwiftNotificationEvent: FfiConverterRus
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionTypeSwiftStickerAlbumItem: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftStickerAlbumItem?
+fileprivate struct FfiConverterOptionTypeUserProfileItem: FfiConverterRustBuffer {
+    typealias SwiftType = UserProfileItem?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -8718,13 +8836,13 @@ fileprivate struct FfiConverterOptionTypeSwiftStickerAlbumItem: FfiConverterRust
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterTypeSwiftStickerAlbumItem.write(value, into: &buf)
+        FfiConverterTypeUserProfileItem.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterTypeSwiftStickerAlbumItem.read(from: &buf)
+        case 1: return try FfiConverterTypeUserProfileItem.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -8733,8 +8851,8 @@ fileprivate struct FfiConverterOptionTypeSwiftStickerAlbumItem: FfiConverterRust
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionTypeSwiftUserItem: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftUserItem?
+fileprivate struct FfiConverterOptionTypeVoiceRecording: FfiConverterRustBuffer {
+    typealias SwiftType = VoiceRecording?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -8742,13 +8860,13 @@ fileprivate struct FfiConverterOptionTypeSwiftUserItem: FfiConverterRustBuffer {
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterTypeSwiftUserItem.write(value, into: &buf)
+        FfiConverterTypeVoiceRecording.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterTypeSwiftUserItem.read(from: &buf)
+        case 1: return try FfiConverterTypeVoiceRecording.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -8757,8 +8875,8 @@ fileprivate struct FfiConverterOptionTypeSwiftUserItem: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionTypeSwiftDeviceTransferEvent: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftDeviceTransferEvent?
+fileprivate struct FfiConverterOptionTypeDeviceTransferEventItem: FfiConverterRustBuffer {
+    typealias SwiftType = DeviceTransferEventItem?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -8766,13 +8884,13 @@ fileprivate struct FfiConverterOptionTypeSwiftDeviceTransferEvent: FfiConverterR
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterTypeSwiftDeviceTransferEvent.write(value, into: &buf)
+        FfiConverterTypeDeviceTransferEventItem.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterTypeSwiftDeviceTransferEvent.read(from: &buf)
+        case 1: return try FfiConverterTypeDeviceTransferEventItem.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -8781,8 +8899,8 @@ fileprivate struct FfiConverterOptionTypeSwiftDeviceTransferEvent: FfiConverterR
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionTypeSwiftMediaPlaybackEvent: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftMediaPlaybackEvent?
+fileprivate struct FfiConverterOptionTypeMediaPlaybackEvent: FfiConverterRustBuffer {
+    typealias SwiftType = MediaPlaybackEvent?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -8790,13 +8908,13 @@ fileprivate struct FfiConverterOptionTypeSwiftMediaPlaybackEvent: FfiConverterRu
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterTypeSwiftMediaPlaybackEvent.write(value, into: &buf)
+        FfiConverterTypeMediaPlaybackEvent.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterTypeSwiftMediaPlaybackEvent.read(from: &buf)
+        case 1: return try FfiConverterTypeMediaPlaybackEvent.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -8805,8 +8923,8 @@ fileprivate struct FfiConverterOptionTypeSwiftMediaPlaybackEvent: FfiConverterRu
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionTypeSwiftMediaRecorderEvent: FfiConverterRustBuffer {
-    typealias SwiftType = SwiftMediaRecorderEvent?
+fileprivate struct FfiConverterOptionTypeMediaRecorderEvent: FfiConverterRustBuffer {
+    typealias SwiftType = MediaRecorderEvent?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -8814,13 +8932,13 @@ fileprivate struct FfiConverterOptionTypeSwiftMediaRecorderEvent: FfiConverterRu
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterTypeSwiftMediaRecorderEvent.write(value, into: &buf)
+        FfiConverterTypeMediaRecorderEvent.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterTypeSwiftMediaRecorderEvent.read(from: &buf)
+        case 1: return try FfiConverterTypeMediaRecorderEvent.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -8829,8 +8947,8 @@ fileprivate struct FfiConverterOptionTypeSwiftMediaRecorderEvent: FfiConverterRu
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionSequenceTypeSwiftCircleItem: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftCircleItem]?
+fileprivate struct FfiConverterOptionSequenceTypeCircleItem: FfiConverterRustBuffer {
+    typealias SwiftType = [CircleItem]?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -8838,13 +8956,13 @@ fileprivate struct FfiConverterOptionSequenceTypeSwiftCircleItem: FfiConverterRu
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterSequenceTypeSwiftCircleItem.write(value, into: &buf)
+        FfiConverterSequenceTypeCircleItem.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterSequenceTypeSwiftCircleItem.read(from: &buf)
+        case 1: return try FfiConverterSequenceTypeCircleItem.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -8853,8 +8971,8 @@ fileprivate struct FfiConverterOptionSequenceTypeSwiftCircleItem: FfiConverterRu
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionSequenceTypeSwiftConversationUnseenCount: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftConversationUnseenCount]?
+fileprivate struct FfiConverterOptionSequenceTypeConversationUnseenCount: FfiConverterRustBuffer {
+    typealias SwiftType = [ConversationUnseenCount]?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -8862,13 +8980,13 @@ fileprivate struct FfiConverterOptionSequenceTypeSwiftConversationUnseenCount: F
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterSequenceTypeSwiftConversationUnseenCount.write(value, into: &buf)
+        FfiConverterSequenceTypeConversationUnseenCount.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterSequenceTypeSwiftConversationUnseenCount.read(from: &buf)
+        case 1: return try FfiConverterSequenceTypeConversationUnseenCount.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -8902,23 +9020,23 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftCircleItem: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftCircleItem]
+fileprivate struct FfiConverterSequenceTypeAudioPlaybackItem: FfiConverterRustBuffer {
+    typealias SwiftType = [AudioPlaybackItem]
 
-    public static func write(_ value: [SwiftCircleItem], into buf: inout [UInt8]) {
+    public static func write(_ value: [AudioPlaybackItem], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftCircleItem.write(item, into: &buf)
+            FfiConverterTypeAudioPlaybackItem.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftCircleItem] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [AudioPlaybackItem] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftCircleItem]()
+        var seq = [AudioPlaybackItem]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftCircleItem.read(from: &buf))
+            seq.append(try FfiConverterTypeAudioPlaybackItem.read(from: &buf))
         }
         return seq
     }
@@ -8927,23 +9045,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftCircleItem: FfiConverterRustBuff
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftConversationListItem: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftConversationListItem]
+fileprivate struct FfiConverterSequenceTypeCircleItem: FfiConverterRustBuffer {
+    typealias SwiftType = [CircleItem]
 
-    public static func write(_ value: [SwiftConversationListItem], into buf: inout [UInt8]) {
+    public static func write(_ value: [CircleItem], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftConversationListItem.write(item, into: &buf)
+            FfiConverterTypeCircleItem.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftConversationListItem] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [CircleItem] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftConversationListItem]()
+        var seq = [CircleItem]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftConversationListItem.read(from: &buf))
+            seq.append(try FfiConverterTypeCircleItem.read(from: &buf))
         }
         return seq
     }
@@ -8952,23 +9070,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftConversationListItem: FfiConvert
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftConversationParticipantItem: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftConversationParticipantItem]
+fileprivate struct FfiConverterSequenceTypeConversationListData: FfiConverterRustBuffer {
+    typealias SwiftType = [ConversationListData]
 
-    public static func write(_ value: [SwiftConversationParticipantItem], into buf: inout [UInt8]) {
+    public static func write(_ value: [ConversationListData], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftConversationParticipantItem.write(item, into: &buf)
+            FfiConverterTypeConversationListData.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftConversationParticipantItem] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ConversationListData] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftConversationParticipantItem]()
+        var seq = [ConversationListData]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftConversationParticipantItem.read(from: &buf))
+            seq.append(try FfiConverterTypeConversationListData.read(from: &buf))
         }
         return seq
     }
@@ -8977,23 +9095,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftConversationParticipantItem: Ffi
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftConversationStorageUsage: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftConversationStorageUsage]
+fileprivate struct FfiConverterSequenceTypeConversationParticipantItem: FfiConverterRustBuffer {
+    typealias SwiftType = [ConversationParticipantItem]
 
-    public static func write(_ value: [SwiftConversationStorageUsage], into buf: inout [UInt8]) {
+    public static func write(_ value: [ConversationParticipantItem], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftConversationStorageUsage.write(item, into: &buf)
+            FfiConverterTypeConversationParticipantItem.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftConversationStorageUsage] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ConversationParticipantItem] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftConversationStorageUsage]()
+        var seq = [ConversationParticipantItem]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftConversationStorageUsage.read(from: &buf))
+            seq.append(try FfiConverterTypeConversationParticipantItem.read(from: &buf))
         }
         return seq
     }
@@ -9002,23 +9120,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftConversationStorageUsage: FfiCon
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftConversationUnseenCount: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftConversationUnseenCount]
+fileprivate struct FfiConverterSequenceTypeConversationStorageUsage: FfiConverterRustBuffer {
+    typealias SwiftType = [ConversationStorageUsage]
 
-    public static func write(_ value: [SwiftConversationUnseenCount], into buf: inout [UInt8]) {
+    public static func write(_ value: [ConversationStorageUsage], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftConversationUnseenCount.write(item, into: &buf)
+            FfiConverterTypeConversationStorageUsage.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftConversationUnseenCount] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ConversationStorageUsage] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftConversationUnseenCount]()
+        var seq = [ConversationStorageUsage]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftConversationUnseenCount.read(from: &buf))
+            seq.append(try FfiConverterTypeConversationStorageUsage.read(from: &buf))
         }
         return seq
     }
@@ -9027,23 +9145,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftConversationUnseenCount: FfiConv
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftGroupAvatar: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftGroupAvatar]
+fileprivate struct FfiConverterSequenceTypeConversationUnseenCount: FfiConverterRustBuffer {
+    typealias SwiftType = [ConversationUnseenCount]
 
-    public static func write(_ value: [SwiftGroupAvatar], into buf: inout [UInt8]) {
+    public static func write(_ value: [ConversationUnseenCount], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftGroupAvatar.write(item, into: &buf)
+            FfiConverterTypeConversationUnseenCount.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftGroupAvatar] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ConversationUnseenCount] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftGroupAvatar]()
+        var seq = [ConversationUnseenCount]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftGroupAvatar.read(from: &buf))
+            seq.append(try FfiConverterTypeConversationUnseenCount.read(from: &buf))
         }
         return seq
     }
@@ -9052,23 +9170,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftGroupAvatar: FfiConverterRustBuf
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftGroupConversationItem: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftGroupConversationItem]
+fileprivate struct FfiConverterSequenceTypeGroupAvatar: FfiConverterRustBuffer {
+    typealias SwiftType = [GroupAvatar]
 
-    public static func write(_ value: [SwiftGroupConversationItem], into buf: inout [UInt8]) {
+    public static func write(_ value: [GroupAvatar], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftGroupConversationItem.write(item, into: &buf)
+            FfiConverterTypeGroupAvatar.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftGroupConversationItem] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [GroupAvatar] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftGroupConversationItem]()
+        var seq = [GroupAvatar]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftGroupConversationItem.read(from: &buf))
+            seq.append(try FfiConverterTypeGroupAvatar.read(from: &buf))
         }
         return seq
     }
@@ -9077,23 +9195,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftGroupConversationItem: FfiConver
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftImageMessageItem: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftImageMessageItem]
+fileprivate struct FfiConverterSequenceTypeGroupConversationItem: FfiConverterRustBuffer {
+    typealias SwiftType = [GroupConversationItem]
 
-    public static func write(_ value: [SwiftImageMessageItem], into buf: inout [UInt8]) {
+    public static func write(_ value: [GroupConversationItem], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftImageMessageItem.write(item, into: &buf)
+            FfiConverterTypeGroupConversationItem.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftImageMessageItem] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [GroupConversationItem] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftImageMessageItem]()
+        var seq = [GroupConversationItem]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftImageMessageItem.read(from: &buf))
+            seq.append(try FfiConverterTypeGroupConversationItem.read(from: &buf))
         }
         return seq
     }
@@ -9102,23 +9220,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftImageMessageItem: FfiConverterRu
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftMediaAudioItem: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftMediaAudioItem]
+fileprivate struct FfiConverterSequenceTypeImageMessageView: FfiConverterRustBuffer {
+    typealias SwiftType = [ImageMessageView]
 
-    public static func write(_ value: [SwiftMediaAudioItem], into buf: inout [UInt8]) {
+    public static func write(_ value: [ImageMessageView], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftMediaAudioItem.write(item, into: &buf)
+            FfiConverterTypeImageMessageView.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftMediaAudioItem] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ImageMessageView] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftMediaAudioItem]()
+        var seq = [ImageMessageView]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftMediaAudioItem.read(from: &buf))
+            seq.append(try FfiConverterTypeImageMessageView.read(from: &buf))
         }
         return seq
     }
@@ -9127,23 +9245,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftMediaAudioItem: FfiConverterRust
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftMessageItem: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftMessageItem]
+fileprivate struct FfiConverterSequenceTypeMessageItem: FfiConverterRustBuffer {
+    typealias SwiftType = [MessageItem]
 
-    public static func write(_ value: [SwiftMessageItem], into buf: inout [UInt8]) {
+    public static func write(_ value: [MessageItem], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftMessageItem.write(item, into: &buf)
+            FfiConverterTypeMessageItem.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftMessageItem] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [MessageItem] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftMessageItem]()
+        var seq = [MessageItem]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftMessageItem.read(from: &buf))
+            seq.append(try FfiConverterTypeMessageItem.read(from: &buf))
         }
         return seq
     }
@@ -9152,23 +9270,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftMessageItem: FfiConverterRustBuf
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftProxyItem: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftProxyItem]
+fileprivate struct FfiConverterSequenceTypeProxyItem: FfiConverterRustBuffer {
+    typealias SwiftType = [ProxyItem]
 
-    public static func write(_ value: [SwiftProxyItem], into buf: inout [UInt8]) {
+    public static func write(_ value: [ProxyItem], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftProxyItem.write(item, into: &buf)
+            FfiConverterTypeProxyItem.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftProxyItem] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ProxyItem] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftProxyItem]()
+        var seq = [ProxyItem]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftProxyItem.read(from: &buf))
+            seq.append(try FfiConverterTypeProxyItem.read(from: &buf))
         }
         return seq
     }
@@ -9177,23 +9295,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftProxyItem: FfiConverterRustBuffe
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftSharedAppItem: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftSharedAppItem]
+fileprivate struct FfiConverterSequenceTypeSharedAppItem: FfiConverterRustBuffer {
+    typealias SwiftType = [SharedAppItem]
 
-    public static func write(_ value: [SwiftSharedAppItem], into buf: inout [UInt8]) {
+    public static func write(_ value: [SharedAppItem], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftSharedAppItem.write(item, into: &buf)
+            FfiConverterTypeSharedAppItem.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftSharedAppItem] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SharedAppItem] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftSharedAppItem]()
+        var seq = [SharedAppItem]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftSharedAppItem.read(from: &buf))
+            seq.append(try FfiConverterTypeSharedAppItem.read(from: &buf))
         }
         return seq
     }
@@ -9202,23 +9320,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftSharedAppItem: FfiConverterRustB
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftStickerAlbumSection: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftStickerAlbumSection]
+fileprivate struct FfiConverterSequenceTypeStickerAlbumSection: FfiConverterRustBuffer {
+    typealias SwiftType = [StickerAlbumSection]
 
-    public static func write(_ value: [SwiftStickerAlbumSection], into buf: inout [UInt8]) {
+    public static func write(_ value: [StickerAlbumSection], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftStickerAlbumSection.write(item, into: &buf)
+            FfiConverterTypeStickerAlbumSection.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftStickerAlbumSection] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [StickerAlbumSection] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftStickerAlbumSection]()
+        var seq = [StickerAlbumSection]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftStickerAlbumSection.read(from: &buf))
+            seq.append(try FfiConverterTypeStickerAlbumSection.read(from: &buf))
         }
         return seq
     }
@@ -9227,23 +9345,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftStickerAlbumSection: FfiConverte
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftStickerItem: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftStickerItem]
+fileprivate struct FfiConverterSequenceTypeStickerItem: FfiConverterRustBuffer {
+    typealias SwiftType = [StickerItem]
 
-    public static func write(_ value: [SwiftStickerItem], into buf: inout [UInt8]) {
+    public static func write(_ value: [StickerItem], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftStickerItem.write(item, into: &buf)
+            FfiConverterTypeStickerItem.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftStickerItem] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [StickerItem] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftStickerItem]()
+        var seq = [StickerItem]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftStickerItem.read(from: &buf))
+            seq.append(try FfiConverterTypeStickerItem.read(from: &buf))
         }
         return seq
     }
@@ -9252,23 +9370,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftStickerItem: FfiConverterRustBuf
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftStorageCategoryUsage: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftStorageCategoryUsage]
+fileprivate struct FfiConverterSequenceTypeStorageCategoryUsage: FfiConverterRustBuffer {
+    typealias SwiftType = [StorageCategoryUsage]
 
-    public static func write(_ value: [SwiftStorageCategoryUsage], into buf: inout [UInt8]) {
+    public static func write(_ value: [StorageCategoryUsage], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftStorageCategoryUsage.write(item, into: &buf)
+            FfiConverterTypeStorageCategoryUsage.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftStorageCategoryUsage] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [StorageCategoryUsage] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftStorageCategoryUsage]()
+        var seq = [StorageCategoryUsage]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftStorageCategoryUsage.read(from: &buf))
+            seq.append(try FfiConverterTypeStorageCategoryUsage.read(from: &buf))
         }
         return seq
     }
@@ -9277,23 +9395,23 @@ fileprivate struct FfiConverterSequenceTypeSwiftStorageCategoryUsage: FfiConvert
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeSwiftUserItem: FfiConverterRustBuffer {
-    typealias SwiftType = [SwiftUserItem]
+fileprivate struct FfiConverterSequenceTypeUserProfileItem: FfiConverterRustBuffer {
+    typealias SwiftType = [UserProfileItem]
 
-    public static func write(_ value: [SwiftUserItem], into buf: inout [UInt8]) {
+    public static func write(_ value: [UserProfileItem], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
-            FfiConverterTypeSwiftUserItem.write(item, into: &buf)
+            FfiConverterTypeUserProfileItem.write(item, into: &buf)
         }
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [SwiftUserItem] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [UserProfileItem] {
         let len: Int32 = try readInt(&buf)
-        var seq = [SwiftUserItem]()
+        var seq = [UserProfileItem]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeSwiftUserItem.read(from: &buf))
+            seq.append(try FfiConverterTypeUserProfileItem.read(from: &buf))
         }
         return seq
     }
@@ -9386,6 +9504,14 @@ public func openDesktop()async throws  -> SwiftDesktopHandle  {
             errorHandler: FfiConverterTypeSwiftClientError_lift
         )
 }
+public func logSwift(level: String, message: String)  {try! rustCall() {
+        uniffiCallStatus in
+    uniffi_mixin_desktop_fn_func_log_swift(
+        FfiConverterString.lower(level),
+        FfiConverterString.lower(message),uniffiCallStatus
+    )
+}
+}
 
 private enum InitializationResult {
     case ok
@@ -9405,10 +9531,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_func_open_desktop() != 1347) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_mixin_desktop_checksum_func_log_swift() != 29398) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_account_health() != 18851) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_add_contact() != 32928) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_add_sticker() != 56178) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_add_sticker_from_file() != 39134) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_add_sticker_from_path() != 45458) {
@@ -9435,7 +9570,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_circle_changes() != 54987) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_circles() != 58505) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_circles() != 8834) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_clear_conversation() != 62553) {
@@ -9453,22 +9588,22 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_conversation_changes() != 18964) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_conversation_detail() != 48743) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_conversation_detail() != 64972) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_conversation_items_by_ids() != 49690) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_conversation_items_by_ids() != 26629) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_conversation_participants() != 10686) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_conversation_participants() != 13663) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_conversation_storage_usage() != 50644) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_conversation_storage_usage() != 9605) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_conversations() != 4874) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_conversations() != 48391) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_create_circle() != 15317) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_create_circle() != 32790) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_create_group() != 19258) {
@@ -9486,7 +9621,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_delete_messages() != 35965) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_device_transfer_command() != 61332) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_device_transfer_command() != 15467) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_device_transfer_events() != 11728) {
@@ -9510,19 +9645,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_forward_messages() != 38477) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_groups_in_common() != 48634) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_groups_in_common() != 1820) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_image_messages_around() != 19873) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_image_messages_around() != 41181) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_join_group() != 13682) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_local_conversation_detail() != 56761) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_local_conversation_detail() != 55595) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_local_shared_apps() != 40666) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_local_shared_apps() != 52330) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_mark_audio_read() != 47242) {
@@ -9543,13 +9678,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_message_changes() != 15209) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_message_items_by_ids() != 9215) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_message_items_by_ids() != 44485) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_messages() != 64907) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_messages() != 10120) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_messages_around() != 57517) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_messages_around() != 29913) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_notification_events() != 50634) {
@@ -9558,10 +9693,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_open_user_conversation() != 8805) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_pinned_messages() != 4945) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_pinned_messages() != 38381) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_profile() != 11322) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_profile() != 51436) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_recall_messages() != 64966) {
@@ -9570,7 +9705,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_refresh_account_health() != 17963) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_refresh_profile() != 39334) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_refresh_profile() != 64741) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_refresh_sticker() != 62894) {
@@ -9579,7 +9714,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_refresh_stickers() != 25716) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_refresh_user_profile() != 61244) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_refresh_user_profile() != 16257) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_remove_contact() != 21975) {
@@ -9594,7 +9729,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_report_user() != 50569) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_resolve_code() != 9324) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_resolve_code() != 56866) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_retry_attachment() != 9432) {
@@ -9609,22 +9744,31 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_rotate_group_invite() != 3425) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_safe_snapshot_by_id() != 42468) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_safe_snapshot_by_id() != 53415) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_search_bot_group_users() != 61950) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_search_bot_group_users() != 28279) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_search_group_users() != 52764) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_search_global_messages() != 14696) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_search_messages() != 64847) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_search_group_users() != 11402) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_search_user() != 23839) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_search_local_users() != 7387) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_selectable_users() != 38346) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_search_mao_user() != 5769) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_search_messages() != 35246) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_search_user() != 17004) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_selectable_users() != 52078) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_send_app_card() != 61578) {
@@ -9669,10 +9813,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_set_sticker_album_order() != 29726) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_shared_apps() != 36462) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_shared_apps() != 13234) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_shared_messages() != 56399) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_shared_messages() != 37914) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_shutdown() != 55226) {
@@ -9681,25 +9825,25 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_sign_out() != 37106) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_snapshot_by_id() != 61475) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_snapshot_by_id() != 15560) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_snapshot_by_trace() != 47927) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_snapshot_by_trace() != 5379) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_sticker_detail() != 63760) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_sticker_detail() != 32254) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_sticker_library() != 45991) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_sticker_library() != 6417) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_sticker_store() != 47417) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_sticker_store() != 24971) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_storage_usage() != 44900) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_storage_usage() != 8165) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_transcript_messages() != 47590) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_transcript_messages() != 4565) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_unblock_user() != 61510) {
@@ -9714,7 +9858,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_unseen_message_count_changes() != 29650) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_update_avatar() != 29302) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_update_avatar() != 54793) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_update_circle() != 60714) {
@@ -9723,16 +9867,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_update_draft() != 53184) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_update_participants() != 1080) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_update_participants() != 56050) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_update_profile() != 20461) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_update_profile() != 24386) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_user_profile() != 62776) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_user_profile() != 62634) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_users_by_identity_numbers() != 12995) {
+    if (uniffi_mixin_desktop_checksum_method_swiftaccounthandle_users_by_identity_numbers() != 31662) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftaccounthealthsubscription_cancel() != 17874) {
@@ -9744,7 +9888,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftcirclesubscription_cancel() != 7529) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftcirclesubscription_next() != 5537) {
+    if (uniffi_mixin_desktop_checksum_method_swiftcirclesubscription_next() != 25750) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftconnectionsubscription_cancel() != 23233) {
@@ -9756,13 +9900,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftconversationsubscription_cancel() != 26693) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftconversationsubscription_next() != 56454) {
+    if (uniffi_mixin_desktop_checksum_method_swiftconversationsubscription_next() != 50509) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftdevicetransfersubscription_cancel() != 36723) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftdevicetransfersubscription_next() != 31659) {
+    if (uniffi_mixin_desktop_checksum_method_swiftdevicetransfersubscription_next() != 49998) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftmessagesubscription_cancel() != 51142) {
@@ -9774,13 +9918,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftnotificationsubscription_cancel() != 57837) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftnotificationsubscription_next() != 23624) {
+    if (uniffi_mixin_desktop_checksum_method_swiftnotificationsubscription_next() != 38121) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftunseencountsubscription_cancel() != 3617) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftunseencountsubscription_next() != 49490) {
+    if (uniffi_mixin_desktop_checksum_method_swiftunseencountsubscription_next() != 44666) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftunseenmessagecountsubscription_cancel() != 7634) {
@@ -9798,16 +9942,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_file_auto_download() != 21558) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_http_request() != 19250) {
+    if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_http_request() != 16970) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_log_directory() != 33412) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_mcp_server_status() != 30258) {
+    if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_mcp_server_status() != 11607) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_mcp_settings() != 60635) {
+    if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_mcp_settings() != 33326) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_media() != 48674) {
@@ -9816,7 +9960,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_photo_auto_download() != 56112) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_proxy_settings() != 63982) {
+    if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_proxy_settings() != 38928) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_recreate_account_database() != 25738) {
@@ -9831,7 +9975,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_set_photo_auto_download() != 47826) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_set_proxy_settings() != 38524) {
+    if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_set_proxy_settings() != 48711) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_set_setting() != 50162) {
@@ -9843,7 +9987,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_setting() != 36024) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_update_mcp_settings() != 62635) {
+    if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_update_mcp_settings() != 17967) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftdesktophandle_video_auto_download() != 11151) {
@@ -9858,7 +10002,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftloginhandle_wait() != 47698) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_audio_playback_snapshot() != 36452) {
+    if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_audio_playback_snapshot() != 29370) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_cancel_voice_recording() != 17909) {
@@ -9867,7 +10011,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_pause_audio() != 60787) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_play_audio() != 27552) {
+    if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_play_audio() != 15593) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_resume_audio() != 2970) {
@@ -9885,7 +10029,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_stop_audio() != 47951) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_stop_voice_recording() != 13974) {
+    if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_stop_voice_recording() != 61814) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_subscribe_audio_playback() != 58912) {
@@ -9894,19 +10038,19 @@ private let initializationResult: InitializationResult = {
     if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_subscribe_voice_recorder() != 64976) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_voice_recorder_snapshot() != 9303) {
+    if (uniffi_mixin_desktop_checksum_method_swiftmediahandle_voice_recorder_snapshot() != 45218) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftmediaplaybacksubscription_cancel() != 26979) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftmediaplaybacksubscription_next() != 54120) {
+    if (uniffi_mixin_desktop_checksum_method_swiftmediaplaybacksubscription_next() != 40425) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_mixin_desktop_checksum_method_swiftmediarecordersubscription_cancel() != 47086) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_mixin_desktop_checksum_method_swiftmediarecordersubscription_next() != 41849) {
+    if (uniffi_mixin_desktop_checksum_method_swiftmediarecordersubscription_next() != 43441) {
         return InitializationResult.apiChecksumMismatch
     }
 

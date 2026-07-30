@@ -21,8 +21,10 @@ enum GiphyConfiguration {
 }
 
 struct GiphyPickerView: View {
+    @Environment(\.mixinTheme) private var theme
     @State private var model: GiphyPickerModel
     @State private var query = ""
+    @FocusState private var queryFocused: Bool
     let onSelect: (GiphyItem) async -> Void
 
     init(
@@ -35,51 +37,26 @@ struct GiphyPickerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 7) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search GIFs", text: $query)
-                    .textFieldStyle(.plain)
-                if !query.isEmpty {
-                    Button {
-                        query = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 12)
-            .frame(height: 47)
+            MixinSearchField(
+                text: $query,
+                focus: $queryFocused,
+                placeholder: "Search"
+            )
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .frame(height: 48)
 
-            Divider()
+            Divider().overlay(theme.divider)
+            Spacer().frame(height: 12)
 
             Group {
-                if model.loading, model.items.isEmpty {
-                    ProgressView("Loading GIFs…")
-                } else if let error = model.error, model.items.isEmpty {
-                    ContentUnavailableView {
-                        Label("Unable to load GIFs", systemImage: "exclamationmark.triangle")
-                    } description: {
-                        Text(error)
-                    } actions: {
-                        Button("Retry") {
-                            Task {
-                                await model.reload(query: query)
-                            }
-                        }
-                    }
-                } else if model.items.isEmpty {
-                    ContentUnavailableView.search(text: query)
+                if model.items.isEmpty {
+                    ProgressView()
                 } else {
                     gifGrid
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .task {
-            await model.reload(query: "")
         }
         .task(id: query) {
             try? await Task.sleep(for: .seconds(1))
@@ -91,7 +68,7 @@ struct GiphyPickerView: View {
     }
 
     private var gifGrid: some View {
-        ScrollView {
+        AppScrollView {
             LazyVGrid(
                 columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4),
                 spacing: 8
@@ -109,17 +86,14 @@ struct GiphyPickerView: View {
                                     .resizable()
                                     .scaledToFill()
                             case .failure:
-                                Image(systemName: "photo")
-                                    .foregroundStyle(.secondary)
+                                theme.secondaryText
                             case .empty:
-                                ProgressView()
-                                    .controlSize(.small)
+                                theme.secondaryText
                             }
                         }
-                        .frame(height: 90)
                         .frame(maxWidth: .infinity)
-                        .background(Color.secondary.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                        .aspectRatio(1, contentMode: .fit)
+                        .clipped()
                     }
                     .buttonStyle(.plain)
                     .onAppear {
@@ -137,7 +111,6 @@ struct GiphyPickerView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 12)
         }
     }
 }

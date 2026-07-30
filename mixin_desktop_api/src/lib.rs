@@ -19,7 +19,7 @@ pub use dto::{
     StickerDetailItem, StickerItem, StorageCategoryUsage, UserProfileItem,
 };
 pub use error::{ClientError, ClientResult};
-pub use logging::{init_logging, log_directory};
+pub use logging::{init_logging, log_directory, write_log, LogLevel};
 pub use login::LoginClient;
 pub use media::MediaClient;
 pub use mixin_desktop_media::{

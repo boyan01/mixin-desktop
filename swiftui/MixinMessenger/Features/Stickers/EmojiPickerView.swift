@@ -4,78 +4,146 @@ import SwiftUI
 struct EmojiPickerView: View {
     let recent: [String]
     let onSelect: (String) -> Void
-    @State private var selectedCategory: EmojiCategory = .smileys
+    @State private var selectedCategory: EmojiCategory = .recent
+    @State private var scrollTarget: EmojiCategory?
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView(.horizontal) {
-                HStack(spacing: 5) {
-                    if !recent.isEmpty {
-                        categoryButton(.recent)
-                    }
-                    ForEach(EmojiCategory.catalogCases) { category in
+            AppScrollView(.horizontal) {
+                HStack(spacing: 0) {
+                    ForEach(EmojiCategory.allCases) { category in
                         categoryButton(category)
                     }
                 }
                 .padding(.horizontal, 12)
-                .frame(height: 47)
+                .frame(height: 48)
             }
             Divider()
-            emojiGrid
+            Spacer().frame(height: 8)
+            GeometryReader { proxy in
+                emojiGrid(
+                    columnCount: columnCount(for: proxy.size.width),
+                    layoutWidth: proxy.size.width
+                )
+            }
         }
     }
 
-    private var emojiGrid: some View {
-        ScrollView {
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 9),
-                spacing: 0
-            ) {
-                ForEach(emojis, id: \.self) { emoji in
-                    Button {
-                        onSelect(emoji)
-                    } label: {
-                        Text(emoji)
-                            .font(.system(size: 25))
-                            .frame(maxWidth: .infinity, minHeight: 39)
-                            .contentShape(Rectangle())
+    private func emojiGrid(columnCount: Int, layoutWidth: CGFloat) -> some View {
+        ScrollViewReader { proxy in
+            AppScrollView(onVerticalOffset: { offset in
+                let category = selectedCategory(for: offset, layoutWidth: layoutWidth, columnCount: columnCount)
+                if category != selectedCategory {
+                    selectedCategory = category
+                }
+            }) {
+                LazyVStack(spacing: 0) {
+                    ForEach(EmojiCategory.allCases) { category in
+                        VStack(spacing: 0) {
+                            if category != .recent {
+                                Text(category.title)
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.leading, 20)
+                                    .padding(.top, 12)
+                                    .frame(height: 40, alignment: .topLeading)
+                            }
+                            LazyVGrid(
+                                columns: Array(
+                                    repeating: GridItem(.flexible(), spacing: 0),
+                                    count: columnCount
+                                ),
+                                spacing: 0
+                            ) {
+                                ForEach(emojis(in: category), id: \.self) { emoji in
+                                    Button {
+                                        onSelect(emoji)
+                                    } label: {
+                                        Text(emoji)
+                                            .font(.system(size: 26))
+                                            .frame(maxWidth: .infinity)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .padding(2)
+                                    .background(Color.secondary.opacity(0.001))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .aspectRatio(1, contentMode: .fit)
+                                }
+                            }
+                        }
+                        .id(category)
                     }
-                    .buttonStyle(.plain)
-                    .background(Color.secondary.opacity(0.001))
-                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                }
+                .padding(.horizontal, 14)
+            }
+            .onChange(of: scrollTarget) { _, category in
+                guard let category else {
+                    return
+                }
+                withAnimation {
+                    proxy.scrollTo(category, anchor: .top)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-        }
-        .overlay {
-            if emojis.isEmpty {
-                ContentUnavailableView("No Recent Emoji", systemImage: "clock")
+            .onAppear {
+                scrollTarget = selectedCategory
             }
         }
     }
 
-    private var emojis: [String] {
-        selectedCategory == .recent
+    private func columnCount(for width: CGFloat) -> Int {
+        for count in stride(from: 10, through: 8, by: -1) {
+            if (width - 28) / CGFloat(count) >= 40 {
+                return count
+            }
+        }
+        return 8
+    }
+
+    private func selectedCategory(
+        for offset: CGFloat,
+        layoutWidth: CGFloat,
+        columnCount: Int
+    ) -> EmojiCategory {
+        let itemSize = (layoutWidth - 28) / CGFloat(columnCount)
+        var groupOffset: CGFloat = 0
+        var selected = EmojiCategory.recent
+        for category in EmojiCategory.allCases {
+            if offset >= groupOffset {
+                selected = category
+            } else {
+                break
+            }
+            if category != .recent {
+                groupOffset += 40
+            }
+            groupOffset += ceil(CGFloat(emojis(in: category).count) / CGFloat(columnCount)) * itemSize
+        }
+        return selected
+    }
+
+    private func emojis(in category: EmojiCategory) -> [String] {
+        category == .recent
             ? recent
-            : EmojiCatalog.groups[selectedCategory, default: []]
+            : EmojiCatalog.groups[category, default: []]
     }
 
     private func categoryButton(_ category: EmojiCategory) -> some View {
         Button {
             selectedCategory = category
+            scrollTarget = category
         } label: {
-            Image(systemName: category.icon)
-                .frame(width: 30, height: 30)
+            Image(category.asset)
+                .resizable()
+                .renderingMode(.template)
+                .frame(width: 24, height: 24)
+                .frame(width: 32, height: 32)
                 .foregroundStyle(selectedCategory == category ? Color.accentColor : .secondary)
-                .background(
-                    selectedCategory == category
-                        ? Color.accentColor.opacity(0.12)
-                        : Color.clear
-                )
                 .clipShape(RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
+        .padding(.horizontal, 4)
         .help(category.title)
     }
 }
@@ -109,17 +177,17 @@ private enum EmojiCategory: String, CaseIterable, Identifiable {
         }
     }
 
-    var icon: String {
+    var asset: String {
         switch self {
-        case .recent: "clock"
-        case .smileys: "face.smiling"
-        case .animals: "pawprint"
-        case .food: "fork.knife"
-        case .travel: "car"
-        case .activities: "sportscourt"
-        case .objects: "lightbulb"
-        case .symbols: "heart"
-        case .flags: "flag"
+        case .recent: "EmojiRecent"
+        case .smileys: "EmojiFace"
+        case .animals: "EmojiAnimal"
+        case .food: "EmojiFood"
+        case .travel: "EmojiTravel"
+        case .activities: "EmojiSports"
+        case .objects: "EmojiObjects"
+        case .symbols: "EmojiSymbol"
+        case .flags: "EmojiFlags"
         }
     }
 }

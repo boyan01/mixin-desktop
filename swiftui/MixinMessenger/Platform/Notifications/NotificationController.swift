@@ -95,7 +95,6 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate {
                     conversationName: conversationName
                 )
             } else if let conversationID {
-                self?.navigation?.section = .chats
                 self?.navigation?.selectConversation(
                     conversationID,
                     name: conversationName
@@ -106,7 +105,7 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func handle(
-        _ event: SwiftNotificationEvent,
+        _ event: NotificationEvent,
         center: UNUserNotificationCenter
     ) async {
         if let dismissMessageID = event.dismissMessageId {
@@ -151,7 +150,11 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    private func notificationPreview(_ event: SwiftNotificationEvent) -> String {
+    private func notificationPreview(_ event: NotificationEvent) -> String {
+        if event.category == "MESSAGE_PIN" {
+            let pinned = pinnedContentPreview(event.content)
+            return "\(event.senderName) pinned \(pinned)"
+        }
         let content = contentPreview(category: event.category, content: event.content)
         return event.conversationCategory == "GROUP"
             ? "\(event.senderName): \(content)"
@@ -159,14 +162,6 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate {
     }
 
     private func contentPreview(category: String, content: String) -> String {
-        if category == "MESSAGE_PIN",
-           let data = content.data(using: .utf8),
-           let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let pinnedCategory = value["category"] as? String
-        {
-            let pinnedContent = value["content"] as? String ?? ""
-            return "\(contentPreview(category: pinnedCategory, content: pinnedContent)) was pinned"
-        }
         if category.contains("TEXT") {
             return content.trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -185,6 +180,18 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate {
         if category.contains("CONTACT") { return "[Contact]" }
         if category.contains("TRANSCRIPT") { return "[Transcript]" }
         if category.contains("INSCRIPTION") { return "[Collectible]" }
+        if category == "APP_BUTTON_GROUP" {
+            guard let data = content.data(using: .utf8),
+                  let buttons = try? JSONSerialization.jsonObject(
+                    with: data
+                  ) as? [[String: Any]]
+            else {
+                return ""
+            }
+            return buttons.map {
+                "[\($0["label"] as? String ?? "")]"
+            }.joined()
+        }
         if category == "APP_CARD",
            let data = content.data(using: .utf8),
            let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -192,5 +199,20 @@ final class NotificationController: NSObject, UNUserNotificationCenterDelegate {
             return "[\(value["title"] as? String ?? "Card")]"
         }
         return "Unsupported message"
+    }
+
+    private func pinnedContentPreview(_ content: String) -> String {
+        guard let data = content.data(using: .utf8),
+              let value = try? JSONSerialization.jsonObject(
+                with: data
+              ) as? [String: Any],
+              let category = value["category"] as? String
+        else {
+            return "A message"
+        }
+        return contentPreview(
+            category: category,
+            content: value["content"] as? String ?? ""
+        )
     }
 }

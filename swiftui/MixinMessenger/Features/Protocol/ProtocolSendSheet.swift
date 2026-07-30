@@ -6,6 +6,8 @@ struct ProtocolSendSheet: View {
     @Environment(AccountSession.self) private var session
     @Environment(HomeNavigationModel.self) private var navigation
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.mixinTheme) private var theme
     @State private var model = ProtocolSendModel()
 
     let request: ProtocolSendRequest
@@ -19,10 +21,10 @@ struct ProtocolSendSheet: View {
                     payloadConfirmation
                 }
             }
-            .frame(minWidth: 480, minHeight: 560)
+            .frame(width: 480)
             .navigationTitle(
                 model.selectingDestination
-                    ? "Choose Destination"
+                    ? "Forward"
                     : "Share \(request.payload.category.displayName)"
             )
             .toolbar {
@@ -43,20 +45,32 @@ struct ProtocolSendSheet: View {
     }
 
     private var payloadConfirmation: some View {
-        VStack(spacing: 28) {
-            Spacer(minLength: 12)
+        VStack(spacing: 0) {
+            Spacer().frame(height: 12)
             payloadPreview
+                .padding(
+                    request.payload.category == .appCard
+                        ? EdgeInsets()
+                        : EdgeInsets(
+                            top: 34,
+                            leading: 34,
+                            bottom: 34,
+                            trailing: 34
+                        )
+                )
                 .frame(width: 340, height: 340)
-                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .background(previewBackground, in: RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             if let error = model.error {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 340)
+                    .padding(.top, 12)
             }
-            Button(request.conversationID == nil ? "Choose Destination" : "Send") {
+            Spacer().frame(height: 54)
+            Button(request.conversationID == nil ? "Forward" : "Send") {
                 if let conversationID = request.conversationID {
                     send(to: .conversationID(conversationID))
                 } else {
@@ -66,12 +80,21 @@ struct ProtocolSendSheet: View {
                     }
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(.white)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(theme.accent, in: RoundedRectangle(cornerRadius: 5))
             .disabled(model.sending || model.previewLoading)
-            Spacer(minLength: 18)
+            Spacer().frame(height: 56)
         }
-        .padding()
+        .frame(maxWidth: .infinity)
+    }
+
+    private var previewBackground: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.08)
+            : Color(red: 245 / 255, green: 247 / 255, blue: 250 / 255)
     }
 
     @ViewBuilder
@@ -80,12 +103,17 @@ struct ProtocolSendSheet: View {
             ProgressView()
         } else {
             switch request.payload.category {
-            case .text, .post:
-                ScrollView {
+            case .text:
+                AppScrollView {
                     Text(request.payload.content)
+                        .font(.system(size: 16))
+                        .foregroundStyle(theme.text)
                         .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(28)
+                        .padding(8)
+                        .background(
+                            incomingBubbleColor,
+                            in: RoundedRectangle(cornerRadius: 8)
+                        )
                 }
             case .image:
                 MixinAsyncImage(url: URL(string: request.payload.content)) { phase in
@@ -101,7 +129,6 @@ struct ProtocolSendSheet: View {
                         ProgressView()
                     }
                 }
-                .padding(18)
             case .sticker:
                 if let sticker = model.sticker {
                     MixinRemoteImage(url: URL(string: sticker.assetUrl)) { image in
@@ -109,35 +136,57 @@ struct ProtocolSendSheet: View {
                     } placeholder: {
                         ProgressView()
                     }
-                    .padding(28)
+                    .padding(45)
                 } else {
                     ContentUnavailableView("Sticker unavailable", systemImage: "face.smiling")
                 }
             case .contact:
                 if let user = model.contact {
-                    VStack(spacing: 14) {
-                        MixinRemoteImage(url: URL(string: user.avatarUrl)) { image in
-                            image.resizable().scaledToFill()
-                        } placeholder: {
-                            Image(systemName: "person.crop.circle.fill")
-                                .resizable()
-                                .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        UserAvatar(
+                            userID: user.userId,
+                            name: user.fullName,
+                            url: user.avatarUrl,
+                            size: 40
+                        )
+                        VStack(alignment: .leading, spacing: 0) {
+                            HStack(spacing: 3) {
+                                Text(user.fullName)
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(theme.text)
+                                    .lineLimit(1)
+                                ProfileIdentityBadge(
+                                    isVerified: user.isVerified,
+                                    isBot: user.isBot,
+                                    membership: nil
+                                )
+                            }
+                            Text(user.identityNumber)
+                                .font(.system(size: 14))
+                                .foregroundStyle(theme.secondaryText)
+                                .lineLimit(1)
                         }
-                        .frame(width: 88, height: 88)
-                        .clipShape(Circle())
-                        Text(user.fullName)
-                            .font(.title3.weight(.semibold))
-                        Text("Mixin ID \(user.identityNumber)")
-                            .foregroundStyle(.secondary)
                     }
+                    .padding(8)
+                    .background(
+                        incomingBubbleColor,
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
                 } else {
                     ContentUnavailableView("Contact unavailable", systemImage: "person.crop.circle")
                 }
+            case .post:
+                ProtocolPostPreview(content: request.payload.content)
             case .appCard:
                 ProtocolAppCardPreview(content: request.payload.content)
-                    .padding(24)
             }
         }
+    }
+
+    private var incomingBubbleColor: Color {
+        colorScheme == .dark
+            ? Color(red: 52 / 255, green: 59 / 255, blue: 67 / 255)
+            : .white
     }
 
     private var destinationList: some View {
@@ -164,24 +213,31 @@ struct ProtocolSendSheet: View {
                 case .ready where model.filteredDestinations.isEmpty:
                     ContentUnavailableView.search(text: model.query)
                 case .ready:
-                    List(model.filteredDestinations) { destination in
+                    AppListView(model.filteredDestinations) { destination in
                         Button {
                             send(to: destination)
                         } label: {
-                            HStack(spacing: 12) {
-                                MixinRemoteImage(url: URL(string: destination.iconURL)) { image in
-                                    image.resizable().scaledToFill()
-                                } placeholder: {
-                                    Image(systemName: destination.isGroup
-                                        ? "person.3.fill"
-                                        : "person.crop.circle.fill")
-                                        .foregroundStyle(.secondary)
+                            HStack(spacing: 0) {
+                                Group {
+                                    if destination.isGroup {
+                                        GroupAvatarPuzzle(avatars: Array(destination.groupAvatars.prefix(4)))
+                                    } else {
+                                        MixinRemoteImage(url: URL(string: destination.iconURL)) { image in
+                                            image.resizable().scaledToFill()
+                                        } placeholder: {
+                                            AvatarPlaceholder(userID: destination.ownerID, name: destination.name)
+                                        }
+                                    }
                                 }
-                                .frame(width: 42, height: 42)
+                                .frame(width: 50, height: 50)
                                 .clipShape(Circle())
+                                Spacer().frame(width: 16)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(destination.name)
-                                        .foregroundStyle(.primary)
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(theme.text)
+                                    ProfileIdentityBadge(isVerified: destination.isVerified, isBot: destination.isBot, membership: destination.membership)
+                                        .padding(.horizontal, 4)
                                     if !destination.subtitle.isEmpty {
                                         Text(destination.subtitle)
                                             .font(.caption)
@@ -195,14 +251,22 @@ struct ProtocolSendSheet: View {
                                         .controlSize(.small)
                                 }
                             }
+                            .frame(height: 70)
+                            .padding(.leading, 14)
+                            .padding(.trailing, 10)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(MixinRowButtonStyle(selected: false))
                         .disabled(model.sending)
                     }
                 }
             }
         }
         .searchable(text: $model.query, prompt: "Search conversations and contacts")
+        .onChange(of: model.query) {
+            if model.query.count > 200 {
+                model.query = String(model.query.prefix(200))
+            }
+        }
     }
 
     private func send(to destination: ProtocolSendDestination) {
@@ -214,7 +278,6 @@ struct ProtocolSendSheet: View {
             ) else {
                 return
             }
-            navigation.section = .chats
             navigation.selectConversation(outcome.conversationID, name: outcome.name)
             dismiss()
         }
@@ -324,8 +387,8 @@ final class ProtocolSendModel {
     }
 
     private(set) var previewLoading = false
-    private(set) var sticker: SwiftStickerItem?
-    private(set) var contact: SwiftUserItem?
+    private(set) var sticker: StickerItem?
+    private(set) var contact: UserProfileItem?
     private(set) var destinationState = DestinationState.loading
     private(set) var destinations: [ProtocolSendDestination] = []
     private(set) var sending = false
@@ -375,11 +438,11 @@ final class ProtocolSendModel {
         }
         destinationState = .loading
         do {
-            var conversations: [SwiftConversationListItem] = []
+            var conversations: [ConversationListData] = []
             var offset: Int64 = 0
             while true {
                 let page = try await account.conversations(
-                    category: "all",
+                    category: "chats",
                     circleId: nil,
                     keyword: "",
                     unseenOnly: false,
@@ -458,8 +521,13 @@ struct ProtocolSendDestination: Identifiable {
     let kind: Kind
     let name: String
     let iconURL: String
+    let ownerID: String
     let subtitle: String
     let isGroup: Bool
+    let isVerified: Bool
+    let isBot: Bool
+    let membership: String?
+    let groupAvatars: [GroupAvatar]
 
     var id: String {
         switch kind {
@@ -470,13 +538,15 @@ struct ProtocolSendDestination: Identifiable {
         }
     }
 
-    static func conversation(_ item: SwiftConversationListItem) -> Self {
+    static func conversation(_ item: ConversationListData) -> Self {
         Self(
             kind: .conversation(item.conversationId),
             name: item.name,
-            iconURL: item.iconUrl,
+            iconURL: item.avatarUrl,
+            ownerID: item.ownerId,
             subtitle: item.lastMessage,
             isGroup: item.category == "GROUP"
+            , isVerified: item.isVerified, isBot: item.isBot, membership: item.membership, groupAvatars: item.groupAvatars
         )
     }
 
@@ -485,65 +555,178 @@ struct ProtocolSendDestination: Identifiable {
             kind: .conversation(id),
             name: "",
             iconURL: "",
+            ownerID: "",
             subtitle: "",
             isGroup: false
+            , isVerified: false, isBot: false, membership: nil, groupAvatars: []
         )
     }
 
-    static func user(_ item: SwiftUserItem) -> Self {
+    static func user(_ item: UserProfileItem) -> Self {
         Self(
             kind: .user(item.userId),
             name: item.fullName,
             iconURL: item.avatarUrl,
+            ownerID: item.userId,
             subtitle: item.identityNumber,
             isGroup: false
+            , isVerified: item.isVerified, isBot: item.isBot, membership: item.membership, groupAvatars: []
         )
     }
 }
 
-private struct ProtocolAppCardPreview: View {
+private struct ProtocolPostPreview: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.mixinTheme) private var theme
+
     let content: String
 
-    private var card: [String: Any] {
-        guard let data = content.data(using: .utf8),
-              let value = try? JSONSerialization.jsonObject(with: data)
-        else {
-            return [:]
-        }
-        return value as? [String: Any] ?? [:]
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let icon = card["icon_url"] as? String {
-                MixinRemoteImage(url: URL(string: icon)) { image in
-                    image.resizable().scaledToFit()
-                } placeholder: {
-                    ProgressView()
-                }
-                .frame(width: 64, height: 64)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+        ZStack(alignment: .topTrailing) {
+            AppScrollView {
+                Text(attributedContent)
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Text(nonEmpty(card["title"] as? String) ?? "App Card")
-                .font(.title3.weight(.semibold))
-            if let description = nonEmpty(card["description"] as? String) {
-                Text(description)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(6)
-            }
-            Spacer()
-            if let action = nonEmpty(card["action"] as? String) {
-                Text(action)
-                    .font(.caption)
-                    .foregroundStyle(.tint)
-                    .lineLimit(1)
-            }
+            Image("PostDetail")
+                .resizable()
+                .frame(width: 20, height: 20)
+                .background(.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .padding(8)
+        .frame(minWidth: 128, maxHeight: 400)
+        .background(incomingBubbleColor, in: RoundedRectangle(cornerRadius: 8))
+        .padding(36)
     }
 
-    private func nonEmpty(_ value: String?) -> String? {
-        let value = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return value.isEmpty ? nil : value
+    private var attributedContent: AttributedString {
+        (try? AttributedString(
+            markdown: content,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )) ?? AttributedString(content)
+    }
+
+    private var incomingBubbleColor: Color {
+        colorScheme == .dark
+            ? Color(red: 52 / 255, green: 59 / 255, blue: 67 / 255)
+            : .white
+    }
+}
+
+private struct ProtocolAppCardPreview: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.mixinTheme) private var theme
+
+    let content: String
+
+    private var card: AppCardContent? {
+        try? JSONDecoder().decode(
+            AppCardContent.self,
+            from: Data(content.utf8)
+        )
+    }
+
+    @ViewBuilder
+    var body: some View {
+        if let card {
+            if card.action.isEmpty {
+                actionsCard(card)
+            } else {
+                compactCard(card)
+            }
+        } else {
+            UnsupportedMessageView(category: "APP_CARD")
+        }
+    }
+
+    private func compactCard(_ card: AppCardContent) -> some View {
+        HStack(spacing: 8) {
+            MixinRemoteImage(url: URL(string: card.iconURL)) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                Rectangle().fill(theme.background)
+            }
+            .frame(width: 40, height: 40)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text(card.title)
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.text)
+                    .lineLimit(1)
+                Text(
+                    card.description.split(
+                        separator: "\n",
+                        omittingEmptySubsequences: false
+                    ).first.map(String.init) ?? ""
+                )
+                .font(.system(size: 12))
+                .foregroundStyle(theme.secondaryText)
+                .lineLimit(1)
+            }
+        }
+        .padding(34)
+        .background(incomingBubbleColor, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func actionsCard(_ card: AppCardContent) -> some View {
+        VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
+                if let coverURL = URL(string: card.resolvedCoverURL),
+                   !card.resolvedCoverURL.isEmpty
+                {
+                    MixinRemoteImage(url: coverURL) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Rectangle().fill(theme.background)
+                    }
+                    .frame(width: 320, height: coverHeight(card))
+                    .clipped()
+                } else {
+                    Spacer().frame(height: 10)
+                }
+                Text(card.title)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(theme.text)
+                    .padding(.horizontal, 12)
+                    .padding(.top, card.resolvedCoverURL.isEmpty ? 0 : 10)
+                Text(card.description)
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.text)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                Spacer().frame(height: 10)
+            }
+            .frame(width: 320, alignment: .leading)
+            .background(incomingBubbleColor, in: RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            AppActionButtonLayout {
+                ForEach(Array(card.actions.enumerated()), id: \.offset) { _, action in
+                    Text(action.label)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color(hex: action.color) ?? theme.accent)
+                        .padding(.horizontal, 14)
+                        .frame(height: 30)
+                        .background(theme.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            }
+            .frame(width: 320)
+        }
+    }
+
+    private func coverHeight(_ card: AppCardContent) -> CGFloat {
+        guard let cover = card.cover, cover.width > 0, cover.height > 0 else {
+            return 320
+        }
+        return 320 / max(CGFloat(cover.width) / CGFloat(cover.height), 1.5)
+    }
+
+    private var incomingBubbleColor: Color {
+        colorScheme == .dark
+            ? Color(red: 52 / 255, green: 59 / 255, blue: 67 / 255)
+            : .white
     }
 }

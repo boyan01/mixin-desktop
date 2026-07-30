@@ -5,6 +5,7 @@ import SwiftUI
 struct MessageUserProfileView: View {
     @Environment(AccountSession.self) private var session
     @Environment(HomeNavigationModel.self) private var navigation
+    @Environment(\.mixinTheme) private var theme
     @State private var model = MessageUserProfileModel()
     @State private var sharePresented = false
 
@@ -60,17 +61,14 @@ struct MessageUserProfileView: View {
     @ViewBuilder
     private var profileContent: some View {
         if let user = model.user {
-            ScrollView {
-                VStack(spacing: 16) {
-                    MixinRemoteImage(url: URL(string: user.avatarUrl)) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        Image(systemName: "person.crop.circle.fill")
-                            .resizable()
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(width: 90, height: 90)
-                    .clipShape(Circle())
+            AppScrollView {
+                VStack(spacing: 0) {
+                    UserAvatar(
+                        userID: user.userId,
+                        name: user.fullName,
+                        url: user.avatarUrl,
+                        size: 90
+                    )
                     .contentShape(Circle())
                     .onTapGesture {
                         guard NSEvent.modifierFlags.contains(.option) else {
@@ -84,9 +82,13 @@ struct MessageUserProfileView: View {
                     }
                     .help("Option-click to copy the user link")
 
+                    Spacer()
+                        .frame(height: 8)
+
                     HStack(spacing: 5) {
                         Text(user.fullName)
-                            .font(.title3.weight(.semibold))
+                            .font(.system(size: 16))
+                            .foregroundStyle(theme.text)
                             .textSelection(.enabled)
                         if user.identityNumber != "0" {
                             ProfileIdentityBadge(
@@ -96,85 +98,118 @@ struct MessageUserProfileView: View {
                             )
                         }
                     }
+                    .padding(.horizontal, 32)
 
                     if user.identityNumber != "0" {
                         Text("Mixin ID: \(user.identityNumber)")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme.secondaryText)
                             .textSelection(.enabled)
+                            .padding(.top, 4)
                     }
 
                     if user.identityNumber != "0",
                        user.relationship == "STRANGER"
                     {
-                        Button(user.isBot ? "Add Bot" : "Add Contact") {
+                        Button {
                             Task {
                                 await model.updateRelationship(
                                     account: session.handle
                                 )
                             }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "plus")
+                                Text(user.isBot ? "Add Bot" : "Add Contact")
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.accent)
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 7)
+                        .background(theme.accent.opacity(0.1), in: Capsule())
+                        .padding(.top, 8)
                     }
 
                     if let biography = user.biography.nonEmpty {
-                        Text(biography)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                            .padding(.horizontal, 18)
+                        AppScrollView {
+                            ExpandableInfoText(text: biography)
+                                .lineSpacing(7)
+                                .padding(.horizontal, 36)
+                        }
+                        .frame(minWidth: 160, maxHeight: 120)
+                        .padding(.top, 20)
                     }
 
                     if user.identityNumber != "0" {
-                        HStack(spacing: 28) {
-                            profileAction(
-                                "Share",
-                                systemImage: "square.and.arrow.up"
-                            ) {
-                                sharePresented = true
-                            }
-
-                            if user.userId != session.profile.userId {
-                                profileAction(
-                                    "Chat",
-                                    systemImage: "message"
-                                ) {
-                                    openConversation(showInfo: false)
+                        Group {
+                            if user.userId == session.profile.userId {
+                                profileAction(assetName: "InviteShare") {
+                                    sharePresented = true
                                 }
-                                profileAction(
-                                    "Information",
-                                    systemImage: "info.circle"
-                                ) {
-                                    openConversation(showInfo: true)
+                                .contextMenu {
+                                    copyLinkButton(user.codeUrl)
+                                }
+                                .frame(maxWidth: .infinity)
+                            } else {
+                                HStack {
+                                    profileAction(assetName: "InviteShare") {
+                                        sharePresented = true
+                                    }
+                                    .contextMenu {
+                                        copyLinkButton(user.codeUrl)
+                                    }
+                                    Spacer()
+                                    profileAction(assetName: "ChatSmall") {
+                                        openConversation(showInfo: false)
+                                    }
+                                    Spacer()
+                                    profileAction(assetName: "Information") {
+                                        openConversation(showInfo: true)
+                                    }
                                 }
                             }
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 45)
+                        .padding(.top, 24)
                     }
 
                     if model.updating {
                         ProgressView()
                             .controlSize(.small)
                     }
+
+                    Spacer()
+                        .frame(height: 56)
                 }
-                .padding(20)
+                .frame(maxWidth: 340)
+                .frame(maxWidth: .infinity)
             }
         }
     }
 
     private func profileAction(
-        _ title: String,
-        systemImage: String,
+        assetName: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            VStack(spacing: 5) {
-                Image(systemName: systemImage)
-                    .font(.title3)
-                Text(title)
-                    .font(.caption)
-            }
+            Image(assetName)
+                .resizable()
+                .renderingMode(.template)
+                .foregroundStyle(theme.icon)
+                .frame(width: 30, height: 30)
         }
         .buttonStyle(.borderless)
         .disabled(model.updating)
+    }
+
+    private func copyLinkButton(_ link: String) -> some View {
+        Button("Copy Link", systemImage: "doc.on.doc") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(link, forType: .string)
+        }
     }
 
     private func openConversation(showInfo: Bool) {
@@ -213,7 +248,7 @@ final class MessageUserProfileModel {
     }
 
     private(set) var state = State.loading
-    private(set) var user: SwiftUserItem?
+    private(set) var user: UserProfileItem?
     private(set) var updating = false
     var operationError: String?
 
@@ -237,6 +272,11 @@ final class MessageUserProfileModel {
             }
             self.user = user
             state = .ready
+            if let refreshed = try? await account.refreshUserProfile(
+                userId: userID
+            ), version == requestVersion, !Task.isCancelled {
+                self.user = refreshed
+            }
         } catch {
             guard version == requestVersion, !Task.isCancelled else {
                 return

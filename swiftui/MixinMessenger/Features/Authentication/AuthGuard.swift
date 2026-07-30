@@ -31,7 +31,7 @@ struct AuthGuard<Content: View>: View {
     private var guardedContent: some View {
         ZStack {
             content()
-                .blur(radius: security.isLocked ? 18 : 0)
+                .blur(radius: security.isLocked ? 20 : 0)
                 .allowsHitTesting(!security.isLocked)
                 .accessibilityHidden(security.isLocked)
 
@@ -61,6 +61,7 @@ struct AuthGuard<Content: View>: View {
 }
 
 private struct UnlockOverlay: View {
+    @Environment(\.mixinTheme) private var theme
     @Bindable var security: SecurityService
     @State private var passcode = ""
     @State private var hasError = false
@@ -70,7 +71,7 @@ private struct UnlockOverlay: View {
     var body: some View {
         ZStack {
             Rectangle()
-                .fill(.ultraThinMaterial)
+                .fill(.clear)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -78,12 +79,15 @@ private struct UnlockOverlay: View {
                 }
 
             VStack(spacing: 0) {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 60, weight: .medium))
-                    .foregroundStyle(.secondary)
+                Image("AuthLock")
+                    .resizable()
+                    .renderingMode(.template)
+                    .foregroundStyle(theme.icon)
+                    .frame(width: 68, height: 68)
 
                 Text("Unlock with Passcode")
-                    .font(.title3.weight(.semibold))
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(theme.text)
                     .padding(.top, 24)
 
                 SixDigitPasscodeField(
@@ -92,11 +96,12 @@ private struct UnlockOverlay: View {
                 ) { candidate in
                     verify(candidate)
                 }
-                .padding(.top, 36)
+                .padding(.top, 40)
 
                 Text(hasError ? "Passcode incorrect" : " ")
-                    .foregroundStyle(.red)
-                    .padding(.top, 20)
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.destructive)
+                    .padding(.top, 28)
 
                 if security.biometricEnabled {
                     Button {
@@ -112,6 +117,7 @@ private struct UnlockOverlay: View {
                     .buttonStyle(.link)
                     .disabled(biometricInProgress)
                     .padding(.top, 12)
+                    .padding(24)
                 }
             }
             .padding(40)

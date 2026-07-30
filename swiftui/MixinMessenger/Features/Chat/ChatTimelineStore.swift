@@ -10,17 +10,17 @@ struct ChatTimelineRow: Identifiable, Equatable {
 }
 
 struct ChatTimelineStore {
-  private(set) var messages: [SwiftMessageItem] = []
+  private(set) var messages: [MessageItem] = []
   private(set) var rows: [ChatTimelineRow] = []
-  private(set) var imageMessages: [SwiftMessageItem] = []
-  private(set) var audioMessages: [SwiftMessageItem] = []
+  private(set) var imageMessages: [MessageItem] = []
+  private(set) var audioMessages: [MessageItem] = []
   private(set) var mediaRevision = 0
   private(set) var mentionContents = Set<String>()
   private(set) var mutableMessageIDs = Set<String>()
 
   private var indicesByID: [String: Int] = [:]
 
-  func message(id: String) -> SwiftMessageItem? {
+  func message(id: String) -> MessageItem? {
     guard let index = indicesByID[id] else {
       return nil
     }
@@ -48,7 +48,7 @@ struct ChatTimelineStore {
   }
 
   @discardableResult
-  mutating func reset(with items: [SwiftMessageItem]) -> Bool {
+  mutating func reset(with items: [MessageItem]) -> Bool {
     let items = Self.deduplicated(items)
     guard items != messages else {
       return false
@@ -67,23 +67,23 @@ struct ChatTimelineStore {
   }
 
   @discardableResult
-  mutating func prepend(_ items: [SwiftMessageItem]) -> Bool {
+  mutating func prepend(_ items: [MessageItem]) -> Bool {
     insert(items, atStart: true)
   }
 
   @discardableResult
-  mutating func append(_ items: [SwiftMessageItem]) -> Bool {
+  mutating func append(_ items: [MessageItem]) -> Bool {
     insert(items, atStart: false)
   }
 
   @discardableResult
   mutating func update(
-    _ items: [SwiftMessageItem],
+    _ items: [MessageItem],
     removingIDs: Set<String> = []
   ) -> Bool {
     var affected = Set<Int>()
     var mediaChanged = false
-    var changedMessages: [SwiftMessageItem] = []
+    var changedMessages: [MessageItem] = []
 
     for item in Self.deduplicated(items) {
       guard let index = indicesByID[item.messageId],
@@ -134,7 +134,7 @@ struct ChatTimelineStore {
   }
 
   private mutating func insert(
-    _ items: [SwiftMessageItem],
+    _ items: [MessageItem],
     atStart: Bool
   ) -> Bool {
     let items = Self.deduplicated(items)
@@ -142,8 +142,8 @@ struct ChatTimelineStore {
       return false
     }
 
-    var inserted: [SwiftMessageItem] = []
-    var updates: [SwiftMessageItem] = []
+    var inserted: [MessageItem] = []
+    var updates: [MessageItem] = []
     for item in items {
       if indicesByID[item.messageId] == nil {
         inserted.append(item)
@@ -249,7 +249,7 @@ struct ChatTimelineStore {
     mediaRevision += 1
   }
 
-  private mutating func updateMutableIndex(for message: SwiftMessageItem) {
+  private mutating func updateMutableIndex(for message: MessageItem) {
     if Self.isMutable(message) {
       mutableMessageIDs.insert(message.messageId)
     } else {
@@ -258,7 +258,7 @@ struct ChatTimelineStore {
   }
 
   private mutating func indexMentionContents(
-    in changedMessages: [SwiftMessageItem]
+    in changedMessages: [MessageItem]
   ) {
     for content
       in changedMessages
@@ -273,14 +273,14 @@ struct ChatTimelineStore {
   }
 
   private static func deduplicated(
-    _ items: [SwiftMessageItem]
-  ) -> [SwiftMessageItem] {
+    _ items: [MessageItem]
+  ) -> [MessageItem] {
     var seen = Set<String>()
     return items.filter { seen.insert($0.messageId).inserted }
   }
 
   nonisolated private static func isImage(
-    _ message: SwiftMessageItem
+    _ message: MessageItem
   ) -> Bool {
     message.category.hasSuffix("_IMAGE")
       && message.mediaStatus.isComplete
@@ -288,13 +288,13 @@ struct ChatTimelineStore {
   }
 
   nonisolated private static func isAudio(
-    _ message: SwiftMessageItem
+    _ message: MessageItem
   ) -> Bool {
     message.category.hasSuffix("_AUDIO")
       && ["DONE", "READ"].contains(message.mediaStatus.uppercased())
   }
 
-  private static func isMutable(_ message: SwiftMessageItem) -> Bool {
+  private static func isMutable(_ message: MessageItem) -> Bool {
     message.mediaStatus.uppercased() == "PENDING"
       || (message.presentationKind == .sticker
         && message.presentationImageURL == nil)

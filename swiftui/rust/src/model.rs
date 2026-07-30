@@ -4,30 +4,21 @@ use mixin_desktop_api::{
     AccountProfile, CircleItem, CodeResult, ConnectionFailedReason, ConversationChangeEvent,
     ConversationDetailItem, ConversationListData, ConversationParticipantItem,
     ConversationStorageUsage, ConversationUnseenCount, DeviceTransferCommand, DeviceTransferEvent,
-    GroupAvatar, ImageMessageView, McpServerStatusItem, McpSettingsItem, MessageListView,
-    NotificationEvent, ProxyItem, ProxySettingsItem, SharedAppItem, SnapshotDetailItem,
-    StickerAlbumItem, StickerDetailItem, StickerItem, StorageCategoryUsage, UserProfileItem,
+    GroupAvatar, GroupConversationItem, HttpResponseItem, ImageMessageView, McpServerStatusItem,
+    McpSettingsItem, MessageListView, NotificationEvent, ProxyItem, ProxySettingsItem,
+    SharedAppItem, SnapshotDetailItem, StickerAlbumItem, StickerDetailItem, StickerItem,
+    StorageCategoryUsage, UserProfileItem,
 };
 
-#[derive(uniffi::Record)]
-pub struct SwiftHttpResponse {
+#[uniffi::remote(Record)]
+pub struct HttpResponseItem {
     pub status_code: u16,
     pub headers: HashMap<String, String>,
     pub body: Vec<u8>,
 }
 
-impl From<mixin_desktop_api::HttpResponseItem> for SwiftHttpResponse {
-    fn from(value: mixin_desktop_api::HttpResponseItem) -> Self {
-        Self {
-            status_code: value.status_code,
-            headers: value.headers,
-            body: value.body,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftImageMessageItem {
+#[uniffi::remote(Record)]
+pub struct ImageMessageView {
     pub message_id: String,
     pub created_at_micros: i64,
     pub media_url: String,
@@ -40,25 +31,8 @@ pub struct SwiftImageMessageItem {
     pub avatar_url: String,
 }
 
-impl From<ImageMessageView> for SwiftImageMessageItem {
-    fn from(value: ImageMessageView) -> Self {
-        Self {
-            message_id: value.message_id,
-            created_at_micros: value.created_at_micros,
-            media_url: value.media_url,
-            media_name: value.media_name,
-            thumb_image: value.thumb_image,
-            can_forward: value.can_forward,
-            user_id: value.user_id,
-            user_full_name: value.user_full_name,
-            user_identity_number: value.user_identity_number,
-            avatar_url: value.avatar_url,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftAccountProfile {
+#[uniffi::remote(Record)]
+pub struct AccountProfile {
     pub user_id: String,
     pub full_name: String,
     pub avatar_url: String,
@@ -71,8 +45,8 @@ pub struct SwiftAccountProfile {
     pub membership: Option<String>,
 }
 
-#[derive(uniffi::Record)]
-pub struct SwiftNotificationEvent {
+#[uniffi::remote(Record)]
+pub struct NotificationEvent {
     pub message_id: String,
     pub conversation_id: String,
     pub sender_name: String,
@@ -84,30 +58,14 @@ pub struct SwiftNotificationEvent {
     pub dismiss_message_id: Option<String>,
 }
 
-impl From<NotificationEvent> for SwiftNotificationEvent {
-    fn from(value: NotificationEvent) -> Self {
-        Self {
-            message_id: value.message_id,
-            conversation_id: value.conversation_id,
-            sender_name: value.sender_name,
-            category: value.category,
-            content: value.content,
-            created_at_micros: value.created_at_micros,
-            conversation_name: value.conversation_name,
-            conversation_category: value.conversation_category,
-            dismiss_message_id: value.dismiss_message_id,
-        }
-    }
-}
-
 #[derive(uniffi::Enum)]
-pub enum SwiftConnectionFailedReason {
+pub enum ConnectionFailedReasonItem {
     VersionNotMatched,
     Unknown,
 }
 
 #[derive(uniffi::Enum)]
-pub enum SwiftDeviceTransferEvent {
+pub enum DeviceTransferEventItem {
     RestoreConnected,
     RestoreStart,
     RestoreSucceed,
@@ -122,10 +80,10 @@ pub enum SwiftDeviceTransferEvent {
     BackupNetworkSpeed { bytes_per_second: f64 },
     BackupRequestReceived,
     RestoreRequestReceived,
-    ConnectionFailed { reason: SwiftConnectionFailedReason },
+    ConnectionFailed { reason: ConnectionFailedReasonItem },
 }
 
-impl From<DeviceTransferEvent> for SwiftDeviceTransferEvent {
+impl From<DeviceTransferEvent> for DeviceTransferEventItem {
     fn from(value: DeviceTransferEvent) -> Self {
         match value {
             DeviceTransferEvent::RestoreConnected => Self::RestoreConnected,
@@ -149,17 +107,17 @@ impl From<DeviceTransferEvent> for SwiftDeviceTransferEvent {
             DeviceTransferEvent::ConnectionFailed(reason) => Self::ConnectionFailed {
                 reason: match reason {
                     ConnectionFailedReason::VersionNotMatched => {
-                        SwiftConnectionFailedReason::VersionNotMatched
+                        ConnectionFailedReasonItem::VersionNotMatched
                     }
-                    ConnectionFailedReason::Unknown => SwiftConnectionFailedReason::Unknown,
+                    ConnectionFailedReason::Unknown => ConnectionFailedReasonItem::Unknown,
                 },
             },
         }
     }
 }
 
-#[derive(uniffi::Enum)]
-pub enum SwiftDeviceTransferCommand {
+#[uniffi::remote(Enum)]
+pub enum DeviceTransferCommand {
     PullToRemote,
     PushToRemote,
     CancelRestore,
@@ -170,174 +128,65 @@ pub enum SwiftDeviceTransferCommand {
     ConfirmBackup,
 }
 
-impl From<SwiftDeviceTransferCommand> for DeviceTransferCommand {
-    fn from(value: SwiftDeviceTransferCommand) -> Self {
-        match value {
-            SwiftDeviceTransferCommand::PullToRemote => Self::PullToRemote,
-            SwiftDeviceTransferCommand::PushToRemote => Self::PushToRemote,
-            SwiftDeviceTransferCommand::CancelRestore => Self::CancelRestore,
-            SwiftDeviceTransferCommand::CancelBackup => Self::CancelBackup,
-            SwiftDeviceTransferCommand::CancelBackupRequest => Self::CancelBackupRequest,
-            SwiftDeviceTransferCommand::CancelRestoreRequest => Self::CancelRestoreRequest,
-            SwiftDeviceTransferCommand::ConfirmRestore => Self::ConfirmRestore,
-            SwiftDeviceTransferCommand::ConfirmBackup => Self::ConfirmBackup,
-        }
-    }
-}
-
 #[cfg(test)]
 mod device_transfer_tests {
-    use mixin_desktop_api::{ConnectionFailedReason, DeviceTransferCommand, DeviceTransferEvent};
+    use mixin_desktop_api::{ConnectionFailedReason, DeviceTransferEvent};
 
-    use super::{
-        SwiftConnectionFailedReason, SwiftDeviceTransferCommand, SwiftDeviceTransferEvent,
-    };
+    use super::{ConnectionFailedReasonItem, DeviceTransferEventItem};
 
     #[test]
     fn device_transfer_events_preserve_payloads_and_failure_reason() {
         assert!(matches!(
-            SwiftDeviceTransferEvent::from(DeviceTransferEvent::RestoreProgress(42.5)),
-            SwiftDeviceTransferEvent::RestoreProgress { value } if value == 42.5
+            DeviceTransferEventItem::from(DeviceTransferEvent::RestoreProgress(42.5)),
+            DeviceTransferEventItem::RestoreProgress { value } if value == 42.5
         ));
         assert!(matches!(
-            SwiftDeviceTransferEvent::from(DeviceTransferEvent::BackupNetworkSpeed(2048.0)),
-            SwiftDeviceTransferEvent::BackupNetworkSpeed { bytes_per_second }
+            DeviceTransferEventItem::from(DeviceTransferEvent::BackupNetworkSpeed(2048.0)),
+            DeviceTransferEventItem::BackupNetworkSpeed { bytes_per_second }
                 if bytes_per_second == 2048.0
         ));
         assert!(matches!(
-            SwiftDeviceTransferEvent::from(DeviceTransferEvent::ConnectionFailed(
+            DeviceTransferEventItem::from(DeviceTransferEvent::ConnectionFailed(
                 ConnectionFailedReason::VersionNotMatched
             )),
-            SwiftDeviceTransferEvent::ConnectionFailed {
-                reason: SwiftConnectionFailedReason::VersionNotMatched
+            DeviceTransferEventItem::ConnectionFailed {
+                reason: ConnectionFailedReasonItem::VersionNotMatched
             }
         ));
     }
-
-    #[test]
-    fn device_transfer_commands_map_to_the_public_account_api() {
-        let cases = [
-            (
-                SwiftDeviceTransferCommand::PullToRemote,
-                DeviceTransferCommand::PullToRemote,
-            ),
-            (
-                SwiftDeviceTransferCommand::PushToRemote,
-                DeviceTransferCommand::PushToRemote,
-            ),
-            (
-                SwiftDeviceTransferCommand::CancelRestore,
-                DeviceTransferCommand::CancelRestore,
-            ),
-            (
-                SwiftDeviceTransferCommand::CancelBackup,
-                DeviceTransferCommand::CancelBackup,
-            ),
-            (
-                SwiftDeviceTransferCommand::CancelBackupRequest,
-                DeviceTransferCommand::CancelBackupRequest,
-            ),
-            (
-                SwiftDeviceTransferCommand::CancelRestoreRequest,
-                DeviceTransferCommand::CancelRestoreRequest,
-            ),
-            (
-                SwiftDeviceTransferCommand::ConfirmRestore,
-                DeviceTransferCommand::ConfirmRestore,
-            ),
-            (
-                SwiftDeviceTransferCommand::ConfirmBackup,
-                DeviceTransferCommand::ConfirmBackup,
-            ),
-        ];
-
-        for (swift, expected) in cases {
-            let actual: DeviceTransferCommand = swift.into();
-            assert_eq!(
-                std::mem::discriminant(&actual),
-                std::mem::discriminant(&expected)
-            );
-        }
-    }
 }
 
-impl From<AccountProfile> for SwiftAccountProfile {
-    fn from(value: AccountProfile) -> Self {
-        Self {
-            user_id: value.user_id,
-            full_name: value.full_name,
-            avatar_url: value.avatar_url,
-            identity_number: value.identity_number,
-            biography: value.biography,
-            phone: value.phone,
-            created_at: value.created_at,
-            is_verified: value.is_verified,
-            fiat_currency: value.fiat_currency,
-            membership: value.membership,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftCircleItem {
+#[uniffi::remote(Record)]
+pub struct CircleItem {
     pub circle_id: String,
     pub name: String,
     pub conversation_count: i64,
 }
 
-impl From<CircleItem> for SwiftCircleItem {
-    fn from(value: CircleItem) -> Self {
-        Self {
-            circle_id: value.circle_id,
-            name: value.name,
-            conversation_count: value.conversation_count,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftConversationUnseenCount {
+#[uniffi::remote(Record)]
+pub struct ConversationUnseenCount {
     pub category: String,
     pub circle_id: Option<String>,
     pub count: i64,
     pub muted_count: i64,
 }
 
-impl From<ConversationUnseenCount> for SwiftConversationUnseenCount {
-    fn from(value: ConversationUnseenCount) -> Self {
-        Self {
-            category: value.category,
-            circle_id: value.circle_id,
-            count: value.count,
-            muted_count: value.muted_count,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftConversationChangeEvent {
+#[uniffi::remote(Record)]
+pub struct ConversationChangeEvent {
     pub conversation_ids: Vec<String>,
     pub reload_all: bool,
 }
 
-impl From<ConversationChangeEvent> for SwiftConversationChangeEvent {
-    fn from(value: ConversationChangeEvent) -> Self {
-        Self {
-            conversation_ids: value.conversation_ids,
-            reload_all: value.reload_all,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftConversationListItem {
+#[uniffi::remote(Record)]
+pub struct ConversationListData {
     pub conversation_id: String,
     pub owner_id: String,
-    pub category: String,
     pub name: String,
-    pub icon_url: String,
+    pub avatar_url: String,
+    pub category: String,
     pub draft: String,
     pub status: i32,
+    pub last_read_message_id: Option<String>,
     pub last_message: String,
     pub last_message_category: Option<String>,
     pub last_message_status: Option<String>,
@@ -346,109 +195,49 @@ pub struct SwiftConversationListItem {
     pub last_message_action: Option<String>,
     pub last_message_participant_id: Option<String>,
     pub last_message_participant_name: Option<String>,
-    pub last_read_message_id: Option<String>,
+    pub updated_at_millis: i64,
     pub unseen_count: i64,
     pub mention_count: i64,
-    pub is_pinned: bool,
-    pub pin_time_millis: i64,
     pub is_muted: bool,
     pub is_verified: bool,
+    pub is_scam: bool,
     pub is_bot: bool,
     pub is_bot_group: bool,
-    pub is_scam: bool,
     pub membership: Option<String>,
+    pub is_pinned: bool,
+    pub pin_time_millis: i64,
     pub relationship: String,
     pub identity_number: String,
     pub circle_ids: Vec<String>,
     pub participant_count: i64,
-    pub group_avatars: Vec<SwiftGroupAvatar>,
-    pub updated_at_millis: i64,
+    pub group_avatars: Vec<GroupAvatar>,
 }
 
-impl From<ConversationListData> for SwiftConversationListItem {
-    fn from(value: ConversationListData) -> Self {
-        Self {
-            conversation_id: value.conversation_id,
-            owner_id: value.owner_id,
-            category: value.category,
-            name: value.name,
-            icon_url: value.avatar_url,
-            draft: value.draft,
-            status: value.status,
-            last_message: value.last_message,
-            last_message_category: value.last_message_category,
-            last_message_status: value.last_message_status,
-            last_message_sender_id: value.last_message_sender_id,
-            last_message_sender_name: value.last_message_sender_name,
-            last_message_action: value.last_message_action,
-            last_message_participant_id: value.last_message_participant_id,
-            last_message_participant_name: value.last_message_participant_name,
-            last_read_message_id: value.last_read_message_id,
-            unseen_count: value.unseen_count,
-            mention_count: value.mention_count,
-            is_pinned: value.is_pinned,
-            pin_time_millis: value.pin_time_millis,
-            is_muted: value.is_muted,
-            is_verified: value.is_verified,
-            is_bot: value.is_bot,
-            is_bot_group: value.is_bot_group,
-            is_scam: value.is_scam,
-            membership: value.membership,
-            relationship: value.relationship,
-            identity_number: value.identity_number,
-            circle_ids: value.circle_ids,
-            participant_count: value.participant_count,
-            group_avatars: value.group_avatars.into_iter().map(Into::into).collect(),
-            updated_at_millis: value.updated_at_millis,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftGroupConversationItem {
+#[uniffi::remote(Record)]
+pub struct GroupConversationItem {
     pub conversation_id: String,
     pub name: String,
     pub avatar_url: String,
     pub participant_count: i64,
 }
 
-impl From<mixin_desktop_api::GroupConversationItem> for SwiftGroupConversationItem {
-    fn from(value: mixin_desktop_api::GroupConversationItem) -> Self {
-        Self {
-            conversation_id: value.conversation_id,
-            name: value.name,
-            avatar_url: value.avatar_url,
-            participant_count: value.participant_count,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftGroupAvatar {
+#[uniffi::remote(Record)]
+pub struct GroupAvatar {
     pub user_id: String,
     pub name: String,
     pub avatar_url: String,
 }
 
-impl From<GroupAvatar> for SwiftGroupAvatar {
-    fn from(value: GroupAvatar) -> Self {
-        Self {
-            user_id: value.user_id,
-            name: value.name,
-            avatar_url: value.avatar_url,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftCodeResult {
+#[uniffi::remote(Record)]
+pub struct CodeResult {
     pub kind: String,
     pub user_id: Option<String>,
     pub conversation_id: Option<String>,
     pub conversation_name: Option<String>,
     pub participant_count: i64,
-    pub participant_avatars: Vec<SwiftGroupAvatar>,
+    pub participant_avatars: Vec<GroupAvatar>,
     pub already_member: bool,
+    pub asset_id: Option<String>,
     pub asset_symbol: Option<String>,
     pub asset_icon_url: Option<String>,
     pub chain_icon_url: Option<String>,
@@ -460,40 +249,15 @@ pub struct SwiftCodeResult {
     pub action: Option<String>,
 }
 
-impl From<CodeResult> for SwiftCodeResult {
-    fn from(value: CodeResult) -> Self {
-        Self {
-            kind: value.kind,
-            user_id: value.user_id,
-            conversation_id: value.conversation_id,
-            conversation_name: value.conversation_name,
-            participant_count: value.participant_count,
-            participant_avatars: value
-                .participant_avatars
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            already_member: value.already_member,
-            asset_symbol: value.asset_symbol,
-            asset_icon_url: value.asset_icon_url,
-            chain_icon_url: value.chain_icon_url,
-            amount: value.amount,
-            senders: value.senders,
-            receivers: value.receivers,
-            threshold: value.threshold,
-            state: value.state,
-            action: value.action,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftSnapshotDetailItem {
+#[uniffi::remote(Record)]
+pub struct SnapshotDetailItem {
     pub snapshot_id: String,
     pub trace_id: Option<String>,
     pub snapshot_type: String,
+    pub asset_id: String,
     pub amount: String,
     pub created_at_millis: i64,
+    pub opponent_id: Option<String>,
     pub opponent_name: Option<String>,
     pub transaction_hash: Option<String>,
     pub sender: Option<String>,
@@ -519,43 +283,8 @@ pub struct SwiftSnapshotDetailItem {
     pub withdrawal_receiver: Option<String>,
 }
 
-impl From<SnapshotDetailItem> for SwiftSnapshotDetailItem {
-    fn from(value: SnapshotDetailItem) -> Self {
-        Self {
-            snapshot_id: value.snapshot_id,
-            trace_id: value.trace_id,
-            snapshot_type: value.snapshot_type,
-            amount: value.amount,
-            created_at_millis: value.created_at_millis,
-            opponent_name: value.opponent_name,
-            transaction_hash: value.transaction_hash,
-            sender: value.sender,
-            receiver: value.receiver,
-            memo: value.memo,
-            confirmations: value.confirmations,
-            snapshot_hash: value.snapshot_hash,
-            opening_balance: value.opening_balance,
-            closing_balance: value.closing_balance,
-            symbol: value.symbol,
-            asset_name: value.asset_name,
-            asset_icon_url: value.asset_icon_url,
-            chain_icon_url: value.chain_icon_url,
-            asset_confirmations: value.asset_confirmations,
-            asset_tag: value.asset_tag,
-            current_user_name: value.current_user_name,
-            is_safe: value.is_safe,
-            price_usd: value.price_usd,
-            fiat_rate: value.fiat_rate,
-            ticker_price_usd: value.ticker_price_usd,
-            deposit_hash: value.deposit_hash,
-            withdrawal_hash: value.withdrawal_hash,
-            withdrawal_receiver: value.withdrawal_receiver,
-        }
-    }
-}
-
 #[derive(uniffi::Record)]
-pub struct SwiftMessageItem {
+pub struct MessageItem {
     pub message_id: String,
     pub conversation_id: String,
     pub sender_id: String,
@@ -565,6 +294,8 @@ pub struct SwiftMessageItem {
     pub sender_relationship: String,
     pub sender_app_id: Option<String>,
     pub sender_is_bot: bool,
+    pub sender_is_verified: bool,
+    pub sender_membership: Option<String>,
     pub sender_participant_id: Option<String>,
     pub sender_role: Option<String>,
     pub conversation_owner_id: Option<String>,
@@ -624,7 +355,7 @@ pub struct SwiftMessageItem {
     pub expire_in: Option<i64>,
 }
 
-impl From<MessageListView> for SwiftMessageItem {
+impl From<MessageListView> for MessageItem {
     fn from(value: MessageListView) -> Self {
         Self {
             message_id: value.message_id,
@@ -636,6 +367,8 @@ impl From<MessageListView> for SwiftMessageItem {
             sender_relationship: value.sender_relationship,
             sender_app_id: value.sender_app_id,
             sender_is_bot: value.sender_is_bot,
+            sender_is_verified: value.sender_is_verified,
+            sender_membership: value.sender_membership,
             sender_participant_id: value.sender_participant_id,
             sender_role: value.sender_role,
             conversation_owner_id: value.conversation_owner_id,
@@ -697,8 +430,8 @@ impl From<MessageListView> for SwiftMessageItem {
     }
 }
 
-#[derive(Clone, uniffi::Record)]
-pub struct SwiftSharedAppItem {
+#[uniffi::remote(Record)]
+pub struct SharedAppItem {
     pub app_id: String,
     pub name: String,
     pub icon_url: String,
@@ -706,42 +439,8 @@ pub struct SwiftSharedAppItem {
     pub home_uri: String,
 }
 
-impl From<SharedAppItem> for SwiftSharedAppItem {
-    fn from(value: SharedAppItem) -> Self {
-        Self {
-            app_id: value.app_id,
-            name: value.name,
-            icon_url: value.icon_url,
-            description: value.description,
-            home_uri: value.home_uri,
-        }
-    }
-}
-
-#[cfg(test)]
-mod shared_app_tests {
-    use super::*;
-
-    #[test]
-    fn shared_app_conversion_preserves_launch_and_presentation_fields() {
-        let item = SwiftSharedAppItem::from(SharedAppItem {
-            app_id: "app-id".to_owned(),
-            name: "Shared App".to_owned(),
-            icon_url: "https://example.com/icon.png".to_owned(),
-            description: "Description".to_owned(),
-            home_uri: "https://example.com/home".to_owned(),
-        });
-
-        assert_eq!(item.app_id, "app-id");
-        assert_eq!(item.name, "Shared App");
-        assert_eq!(item.icon_url, "https://example.com/icon.png");
-        assert_eq!(item.description, "Description");
-        assert_eq!(item.home_uri, "https://example.com/home");
-    }
-}
-
-#[derive(Clone, uniffi::Record)]
-pub struct SwiftStickerItem {
+#[uniffi::remote(Record)]
+pub struct StickerItem {
     pub sticker_id: String,
     pub album_id: Option<String>,
     pub name: String,
@@ -749,24 +448,12 @@ pub struct SwiftStickerItem {
     pub asset_width: i32,
     pub asset_height: i32,
     pub asset_type: String,
+    pub created_at_millis: i64,
+    pub last_use_at_millis: Option<i64>,
 }
 
-impl From<StickerItem> for SwiftStickerItem {
-    fn from(value: StickerItem) -> Self {
-        Self {
-            sticker_id: value.sticker_id,
-            album_id: value.album_id,
-            name: value.name,
-            asset_url: value.asset_url,
-            asset_width: value.asset_width,
-            asset_height: value.asset_height,
-            asset_type: value.asset_type,
-        }
-    }
-}
-
-#[derive(Clone, uniffi::Record)]
-pub struct SwiftStickerAlbumItem {
+#[uniffi::remote(Record)]
+pub struct StickerAlbumItem {
     pub album_id: String,
     pub name: String,
     pub icon_url: String,
@@ -777,99 +464,29 @@ pub struct SwiftStickerAlbumItem {
     pub is_verified: bool,
 }
 
-impl From<StickerAlbumItem> for SwiftStickerAlbumItem {
-    fn from(value: StickerAlbumItem) -> Self {
-        Self {
-            album_id: value.album_id,
-            name: value.name,
-            icon_url: value.icon_url,
-            category: value.category,
-            description: value.description,
-            banner: value.banner,
-            added: value.added,
-            is_verified: value.is_verified,
-        }
-    }
+#[derive(uniffi::Record)]
+pub struct StickerAlbumSection {
+    pub album: StickerAlbumItem,
+    pub stickers: Vec<StickerItem>,
 }
 
 #[derive(uniffi::Record)]
-pub struct SwiftStickerAlbumSection {
-    pub album: SwiftStickerAlbumItem,
-    pub stickers: Vec<SwiftStickerItem>,
+pub struct StickerLibrary {
+    pub recent: Vec<StickerItem>,
+    pub personal: Vec<StickerItem>,
+    pub albums: Vec<StickerAlbumSection>,
 }
 
-#[derive(uniffi::Record)]
-pub struct SwiftStickerLibrary {
-    pub recent: Vec<SwiftStickerItem>,
-    pub personal: Vec<SwiftStickerItem>,
-    pub albums: Vec<SwiftStickerAlbumSection>,
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftStickerDetailItem {
-    pub sticker: SwiftStickerItem,
-    pub album: Option<SwiftStickerAlbumItem>,
-    pub album_stickers: Vec<SwiftStickerItem>,
+#[uniffi::remote(Record)]
+pub struct StickerDetailItem {
+    pub sticker: StickerItem,
+    pub album: Option<StickerAlbumItem>,
+    pub album_stickers: Vec<StickerItem>,
     pub is_personal: bool,
 }
 
-impl From<StickerDetailItem> for SwiftStickerDetailItem {
-    fn from(value: StickerDetailItem) -> Self {
-        Self {
-            sticker: value.sticker.into(),
-            album: value.album.map(Into::into),
-            album_stickers: value.album_stickers.into_iter().map(Into::into).collect(),
-            is_personal: value.is_personal,
-        }
-    }
-}
-
-#[cfg(test)]
-mod sticker_tests {
-    use mixin_desktop_api::{StickerAlbumItem, StickerDetailItem, StickerItem};
-
-    use super::SwiftStickerDetailItem;
-
-    #[test]
-    fn sticker_detail_conversion_preserves_album_and_media_contract() {
-        let sticker = StickerItem {
-            sticker_id: "sticker-id".to_string(),
-            album_id: Some("album-id".to_string()),
-            name: "Wave".to_string(),
-            asset_url: "https://example.com/wave.webp".to_string(),
-            asset_width: 256,
-            asset_height: 128,
-            asset_type: "webp".to_string(),
-            created_at_millis: 42,
-            last_use_at_millis: Some(84),
-        };
-        let detail = SwiftStickerDetailItem::from(StickerDetailItem {
-            sticker: sticker.clone(),
-            album: Some(StickerAlbumItem {
-                album_id: "album-id".to_string(),
-                name: "Greetings".to_string(),
-                icon_url: "https://example.com/icon.png".to_string(),
-                category: "SYSTEM".to_string(),
-                description: "Greeting stickers".to_string(),
-                banner: None,
-                added: true,
-                is_verified: true,
-            }),
-            album_stickers: vec![sticker],
-            is_personal: false,
-        });
-
-        assert_eq!(detail.sticker.sticker_id, "sticker-id");
-        assert_eq!(detail.sticker.asset_type, "webp");
-        assert_eq!(detail.sticker.asset_width, 256);
-        assert_eq!(detail.album.as_ref().map(|album| album.added), Some(true));
-        assert_eq!(detail.album_stickers.len(), 1);
-        assert!(!detail.is_personal);
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftUserItem {
+#[uniffi::remote(Record)]
+pub struct UserProfileItem {
     pub user_id: String,
     pub identity_number: String,
     pub full_name: String,
@@ -882,25 +499,8 @@ pub struct SwiftUserItem {
     pub membership: Option<String>,
 }
 
-impl From<UserProfileItem> for SwiftUserItem {
-    fn from(value: UserProfileItem) -> Self {
-        Self {
-            user_id: value.user_id,
-            identity_number: value.identity_number,
-            full_name: value.full_name,
-            avatar_url: value.avatar_url,
-            biography: value.biography,
-            is_verified: value.is_verified,
-            is_bot: value.is_bot,
-            relationship: value.relationship,
-            code_url: value.code_url,
-            membership: value.membership,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftConversationDetailItem {
+#[uniffi::remote(Record)]
+pub struct ConversationDetailItem {
     pub conversation_id: String,
     pub name: String,
     pub announcement: String,
@@ -910,22 +510,8 @@ pub struct SwiftConversationDetailItem {
     pub expire_in: i64,
 }
 
-impl From<ConversationDetailItem> for SwiftConversationDetailItem {
-    fn from(value: ConversationDetailItem) -> Self {
-        Self {
-            conversation_id: value.conversation_id,
-            name: value.name,
-            announcement: value.announcement,
-            code_url: value.code_url,
-            created_at_millis: value.created_at_millis,
-            mute_until_millis: value.mute_until_millis,
-            expire_in: value.expire_in,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftConversationParticipantItem {
+#[uniffi::remote(Record)]
+pub struct ConversationParticipantItem {
     pub user_id: String,
     pub role: Option<String>,
     pub created_at_millis: i64,
@@ -939,33 +525,15 @@ pub struct SwiftConversationParticipantItem {
     pub membership: Option<String>,
 }
 
-impl From<ConversationParticipantItem> for SwiftConversationParticipantItem {
-    fn from(value: ConversationParticipantItem) -> Self {
-        Self {
-            user_id: value.user_id,
-            role: value.role,
-            created_at_millis: value.created_at_millis,
-            identity_number: value.identity_number,
-            full_name: value.full_name,
-            avatar_url: value.avatar_url,
-            biography: value.biography,
-            is_verified: value.is_verified,
-            is_bot: value.is_bot,
-            relationship: value.relationship,
-            membership: value.membership,
-        }
-    }
-}
-
 #[derive(uniffi::Enum)]
-pub enum SwiftParticipantAction {
+pub enum ParticipantAction {
     Add,
     Remove,
     MakeAdmin,
     DismissAdmin,
 }
 
-impl SwiftParticipantAction {
+impl ParticipantAction {
     pub(crate) fn api_update(&self) -> (&'static str, Option<&'static str>) {
         match self {
             Self::Add => ("ADD", None),
@@ -978,15 +546,15 @@ impl SwiftParticipantAction {
 
 #[cfg(test)]
 mod participant_action_tests {
-    use super::SwiftParticipantAction;
+    use super::ParticipantAction;
 
     #[test]
     fn participant_actions_map_to_supported_api_updates() {
         let cases = [
-            (SwiftParticipantAction::Add, "ADD", None),
-            (SwiftParticipantAction::Remove, "REMOVE", None),
-            (SwiftParticipantAction::MakeAdmin, "ROLE", Some("ADMIN")),
-            (SwiftParticipantAction::DismissAdmin, "ROLE", None),
+            (ParticipantAction::Add, "ADD", None),
+            (ParticipantAction::Remove, "REMOVE", None),
+            (ParticipantAction::MakeAdmin, "ROLE", Some("ADMIN")),
+            (ParticipantAction::DismissAdmin, "ROLE", None),
         ];
 
         for (action, expected_action, expected_role) in cases {
@@ -997,38 +565,20 @@ mod participant_action_tests {
     }
 }
 
-#[derive(uniffi::Record)]
-pub struct SwiftConversationStorageUsage {
-    pub conversation: SwiftConversationListItem,
+#[uniffi::remote(Record)]
+pub struct ConversationStorageUsage {
+    pub conversation: ConversationListData,
     pub size_bytes: i64,
 }
 
-impl From<ConversationStorageUsage> for SwiftConversationStorageUsage {
-    fn from(value: ConversationStorageUsage) -> Self {
-        Self {
-            conversation: value.conversation.into(),
-            size_bytes: value.size_bytes,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftStorageCategoryUsage {
+#[uniffi::remote(Record)]
+pub struct StorageCategoryUsage {
     pub category: String,
     pub size_bytes: i64,
 }
 
-impl From<StorageCategoryUsage> for SwiftStorageCategoryUsage {
-    fn from(value: StorageCategoryUsage) -> Self {
-        Self {
-            category: value.category,
-            size_bytes: value.size_bytes,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftProxyItem {
+#[uniffi::remote(Record)]
+pub struct ProxyItem {
     pub id: String,
     pub kind: String,
     pub host: String,
@@ -1037,181 +587,24 @@ pub struct SwiftProxyItem {
     pub password: Option<String>,
 }
 
-impl From<ProxyItem> for SwiftProxyItem {
-    fn from(value: ProxyItem) -> Self {
-        Self {
-            id: value.id,
-            kind: value.kind,
-            host: value.host,
-            port: value.port,
-            username: value.username,
-            password: value.password,
-        }
-    }
-}
-
-impl From<SwiftProxyItem> for ProxyItem {
-    fn from(value: SwiftProxyItem) -> Self {
-        Self {
-            id: value.id,
-            kind: value.kind,
-            host: value.host,
-            port: value.port,
-            username: value.username,
-            password: value.password,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftProxySettings {
+#[uniffi::remote(Record)]
+pub struct ProxySettingsItem {
     pub enabled: bool,
     pub selected_proxy_id: Option<String>,
-    pub proxies: Vec<SwiftProxyItem>,
+    pub proxies: Vec<ProxyItem>,
 }
 
-impl From<ProxySettingsItem> for SwiftProxySettings {
-    fn from(value: ProxySettingsItem) -> Self {
-        Self {
-            enabled: value.enabled,
-            selected_proxy_id: value.selected_proxy_id,
-            proxies: value.proxies.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-impl From<SwiftProxySettings> for ProxySettingsItem {
-    fn from(value: SwiftProxySettings) -> Self {
-        Self {
-            enabled: value.enabled,
-            selected_proxy_id: value.selected_proxy_id,
-            proxies: value.proxies.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftMcpSettings {
+#[uniffi::remote(Record)]
+pub struct McpSettingsItem {
     pub enabled: bool,
     pub token: String,
     pub draft_tools_enabled: bool,
     pub circle_management_enabled: bool,
 }
 
-impl From<McpSettingsItem> for SwiftMcpSettings {
-    fn from(value: McpSettingsItem) -> Self {
-        Self {
-            enabled: value.enabled,
-            token: value.token,
-            draft_tools_enabled: value.draft_tools_enabled,
-            circle_management_enabled: value.circle_management_enabled,
-        }
-    }
-}
-
-impl From<SwiftMcpSettings> for McpSettingsItem {
-    fn from(value: SwiftMcpSettings) -> Self {
-        Self {
-            enabled: value.enabled,
-            token: value.token,
-            draft_tools_enabled: value.draft_tools_enabled,
-            circle_management_enabled: value.circle_management_enabled,
-        }
-    }
-}
-
-#[derive(uniffi::Record)]
-pub struct SwiftMcpServerStatus {
+#[uniffi::remote(Record)]
+pub struct McpServerStatusItem {
     pub running: bool,
     pub endpoint: Option<String>,
     pub last_error: Option<String>,
-}
-
-impl From<McpServerStatusItem> for SwiftMcpServerStatus {
-    fn from(value: McpServerStatusItem) -> Self {
-        Self {
-            running: value.running,
-            endpoint: value.endpoint,
-            last_error: value.last_error,
-        }
-    }
-}
-
-#[cfg(test)]
-mod mcp_tests {
-    use mixin_desktop_api::McpSettingsItem;
-
-    use super::SwiftMcpSettings;
-
-    #[test]
-    fn mcp_settings_round_trip_preserves_server_and_permission_state() {
-        let source = McpSettingsItem {
-            enabled: true,
-            token: "bearer-token".to_string(),
-            draft_tools_enabled: true,
-            circle_management_enabled: false,
-        };
-
-        let restored = McpSettingsItem::from(SwiftMcpSettings::from(source));
-
-        assert!(restored.enabled);
-        assert_eq!(restored.token, "bearer-token");
-        assert!(restored.draft_tools_enabled);
-        assert!(!restored.circle_management_enabled);
-    }
-}
-
-#[cfg(test)]
-mod proxy_tests {
-    use mixin_desktop_api::{ProxyItem, ProxySettingsItem};
-
-    use super::{SwiftProxyItem, SwiftProxySettings};
-
-    #[test]
-    fn proxy_settings_round_trip_preserves_credentials_and_selection() {
-        let source = ProxySettingsItem {
-            enabled: true,
-            selected_proxy_id: Some("proxy-id".to_string()),
-            proxies: vec![ProxyItem {
-                id: "proxy-id".to_string(),
-                kind: "socks5".to_string(),
-                host: "127.0.0.1".to_string(),
-                port: 1080,
-                username: Some("user".to_string()),
-                password: Some("secret".to_string()),
-            }],
-        };
-
-        let swift = SwiftProxySettings::from(source);
-        let restored = ProxySettingsItem::from(swift);
-
-        assert!(restored.enabled);
-        assert_eq!(restored.selected_proxy_id.as_deref(), Some("proxy-id"));
-        let proxy = restored.proxies.into_iter().next().unwrap();
-        assert_eq!(proxy.id, "proxy-id");
-        assert_eq!(proxy.kind, "socks5");
-        assert_eq!(proxy.host, "127.0.0.1");
-        assert_eq!(proxy.port, 1080);
-        assert_eq!(proxy.username.as_deref(), Some("user"));
-        assert_eq!(proxy.password.as_deref(), Some("secret"));
-    }
-
-    #[test]
-    fn swift_proxy_item_converts_to_public_api_item() {
-        let item = SwiftProxyItem {
-            id: "proxy-id".to_string(),
-            kind: "http".to_string(),
-            host: "localhost".to_string(),
-            port: 8080,
-            username: None,
-            password: None,
-        };
-
-        let item = ProxyItem::from(item);
-
-        assert_eq!(item.id, "proxy-id");
-        assert_eq!(item.kind, "http");
-        assert_eq!(item.host, "localhost");
-        assert_eq!(item.port, 8080);
-    }
 }

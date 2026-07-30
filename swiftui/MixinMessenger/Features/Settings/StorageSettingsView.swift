@@ -2,6 +2,7 @@ import Observation
 import SwiftUI
 
 struct DataStorageSettingsView: View {
+  @Environment(\.mixinTheme) private var theme
   let desktop: SwiftDesktopHandle
   let account: SwiftAccountHandle
   @State private var model: DataStorageSettingsModel
@@ -14,64 +15,105 @@ struct DataStorageSettingsView: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section {
-          Toggle(
-            "Photos",
-            isOn: Binding(
-              get: { model.photoAutoDownload },
-              set: { model.setPhotoAutoDownload($0) }
-            ))
-          Toggle(
-            "Videos",
-            isOn: Binding(
-              get: { model.videoAutoDownload },
-              set: { model.setVideoAutoDownload($0) }
-            ))
-          Toggle(
-            "Files",
-            isOn: Binding(
-              get: { model.fileAutoDownload },
-              set: { model.setFileAutoDownload($0) }
-            ))
-        } header: {
-          Text("Automatic Media Download")
-        } footer: {
-          Text("Choose which media types are downloaded automatically.")
-        }
-
-        Section {
-          NavigationLink {
-            StorageUsageListView(account: account)
-          } label: {
-            Text("Storage Usage")
+      AppScrollView {
+        VStack(alignment: .leading, spacing: 0) {
+          Spacer().frame(height: 40)
+          storageGroup {
+            VStack(spacing: 0) {
+              downloadCell("Photos", value: Binding(
+                get: { model.photoAutoDownload }, set: { model.setPhotoAutoDownload($0) }
+              ))
+              downloadCell("Videos", value: Binding(
+                get: { model.videoAutoDownload }, set: { model.setVideoAutoDownload($0) }
+              ))
+              downloadCell("Files", value: Binding(
+                get: { model.fileAutoDownload }, set: { model.setFileAutoDownload($0) }
+              ))
+            }
           }
-          .accessibilityIdentifier("settings-storage-usage")
-        }
-
-        if let error = model.error {
-          Section {
-            Text(error)
-              .foregroundStyle(.red)
-            Button("Retry") {
-              Task {
-                await model.load()
+          Text("Choose which media types are downloaded automatically.")
+            .font(.system(size: 14))
+            .foregroundStyle(theme.secondaryText)
+            .padding(.leading, 20)
+            .padding(.top, 10)
+            .padding(.bottom, 14)
+            .frame(maxWidth: 600, alignment: .leading)
+          storageGroup {
+            NavigationLink {
+              StorageUsageListView(account: account)
+            } label: {
+              HStack(spacing: 4) {
+                Text("Storage Usage")
+                  .font(.system(size: 16))
+                  .foregroundStyle(theme.text)
+                Spacer(minLength: 0)
+                Image("SettingsArrow")
+                  .resizable()
+                  .renderingMode(.template)
+                  .foregroundStyle(theme.secondaryText)
+                  .frame(width: 30, height: 30)
               }
+              .padding(.leading, 16)
+              .padding(.trailing, 10)
+              .padding(.vertical, 17)
+              .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("settings-storage-usage")
+          }
+          if let error = model.error {
+            storageGroup {
+              HStack(spacing: 12) {
+                Text(error)
+                  .font(.system(size: 14))
+                  .foregroundStyle(theme.destructive)
+                Spacer()
+                Button("Retry") { Task { await model.load() } }
+                  .font(.system(size: 14))
+              }
+              .padding(.horizontal, 16)
+              .padding(.vertical, 17)
             }
           }
         }
       }
-      .formStyle(.grouped)
-      .settingsFormLayout()
+      .background(theme.background)
       .navigationTitle("Data and Storage")
       .task {
         await model.load()
       }
     }
   }
+
+  private func storageGroup<Content: View>(
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    content()
+      .background(theme.settingCellBackground)
+      .clipShape(RoundedRectangle(cornerRadius: 8))
+      .padding(.horizontal, 10)
+      .padding(.bottom, 10)
+      .frame(maxWidth: 600)
+  }
+
+  private func downloadCell(_ title: String, value: Binding<Bool>) -> some View {
+    HStack {
+      Text(title)
+        .font(.system(size: 16))
+        .foregroundStyle(theme.text)
+      Spacer(minLength: 4)
+      Toggle(title, isOn: value)
+        .labelsHidden()
+        .scaleEffect(0.7)
+    }
+    .padding(.leading, 16)
+    .padding(.trailing, 10)
+    .padding(.vertical, 17)
+  }
 }
 
 private struct StorageUsageListView: View {
+  @Environment(\.mixinTheme) private var theme
   let account: SwiftAccountHandle
   @State private var model: StorageUsageListModel
 
@@ -85,36 +127,28 @@ private struct StorageUsageListView: View {
       switch model.state {
       case .loading:
         ProgressView("Calculating storage usage…")
-      case .failed(let message):
-        ContentUnavailableView {
-          Label("Storage Usage Unavailable", systemImage: "exclamationmark.triangle")
-        } description: {
-          Text(message)
-        } actions: {
-          Button("Retry") {
-            Task {
-              await model.load()
-            }
-          }
-        }
+      case .failed:
+        Color.clear
       case .loaded(let entries):
         if entries.isEmpty {
-          ContentUnavailableView(
-            "No Cached Media",
-            systemImage: "internaldrive",
-            description: Text("Downloaded media will appear here.")
-          )
+          Color.clear
         } else {
-          List(entries, id: \.conversation.conversationId) { entry in
-            NavigationLink {
-              StorageUsageDetailView(
-                account: account,
-                conversationId: entry.conversation.conversationId,
-                name: entry.conversation.name
-              )
-            } label: {
-              StorageConversationRow(entry: entry)
+          AppScrollView {
+            LazyVStack(spacing: 10) {
+              ForEach(entries, id: \.conversation.conversationId) { entry in
+                NavigationLink {
+                  StorageUsageDetailView(
+                    account: account,
+                    conversationId: entry.conversation.conversationId,
+                    name: entry.conversation.name
+                  )
+                } label: {
+                  StorageConversationRow(entry: entry)
+                }
+                .buttonStyle(.plain)
+              }
             }
+            .padding(.vertical, 40)
           }
         }
       }
@@ -130,22 +164,17 @@ private struct StorageUsageListView: View {
 }
 
 private struct StorageConversationRow: View {
-  let entry: SwiftConversationStorageUsage
+  @Environment(\.mixinTheme) private var theme
+  let entry: ConversationStorageUsage
 
   var body: some View {
-    HStack(spacing: 12) {
-      MixinRemoteImage(url: URL(string: entry.conversation.iconUrl)) { image in
-        image.resizable().scaledToFill()
-      } placeholder: {
-        Image(systemName: "person.2.circle.fill")
-          .resizable()
-          .foregroundStyle(.secondary)
-      }
-      .frame(width: 44, height: 44)
-      .clipShape(Circle())
+    HStack(spacing: 8) {
+      ConversationAvatar(conversation: entry.conversation, size: 50)
 
       VStack(alignment: .leading, spacing: 3) {
         Text(entry.conversation.name)
+          .font(.system(size: 16))
+          .foregroundStyle(theme.text)
           .lineLimit(1)
         Text(
           ByteCountFormatter.string(
@@ -153,17 +182,28 @@ private struct StorageConversationRow: View {
             countStyle: .file
           )
         )
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .font(.system(size: 14))
+        .foregroundStyle(theme.secondaryText)
       }
+      Spacer(minLength: 4)
+      Image("SettingsArrow")
+        .resizable()
+        .renderingMode(.template)
+        .foregroundStyle(theme.secondaryText)
+        .frame(width: 30, height: 30)
     }
-    .padding(.vertical, 3)
+    .padding(.leading, 16)
+    .padding(.trailing, 10)
+    .padding(.vertical, 17)
+    .background(theme.settingCellBackground)
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .frame(maxWidth: 600)
   }
 }
 
 private struct StorageUsageDetailView: View {
+  @Environment(\.mixinTheme) private var theme
   @State private var model: StorageUsageDetailModel
-  @State private var confirmClear = false
 
   init(account: SwiftAccountHandle, conversationId: String, name: String) {
     _model = State(
@@ -175,73 +215,77 @@ private struct StorageUsageDetailView: View {
   }
 
   var body: some View {
-    Form {
-      Section {
-        ForEach(model.categories, id: \.category) { item in
-          Button {
-            model.toggle(item.category)
-          } label: {
-            HStack {
-              Image(
-                systemName: model.selectedCategories.contains(item.category)
-                  ? "checkmark.circle.fill"
-                  : "circle"
-              )
-              .foregroundStyle(
-                model.selectedCategories.contains(item.category)
-                  ? Color.accentColor
-                  : Color.secondary)
-              Text(model.label(for: item.category))
-              Spacer()
-              Text(
-                ByteCountFormatter.string(
-                  fromByteCount: item.sizeBytes,
-                  countStyle: .file
-                )
-              )
-              .foregroundStyle(.secondary)
+    AppScrollView {
+      VStack(alignment: .leading, spacing: 0) {
+        Spacer().frame(height: 40)
+        categoryGroup {
+          VStack(spacing: 0) {
+            ForEach(model.categories, id: \.category) { item in
+              Button {
+                model.toggle(item.category)
+              } label: {
+                HStack(spacing: 0) {
+                  let selected = model.selectedCategories.contains(item.category)
+                  ZStack {
+                    Circle().fill(selected ? theme.accent : theme.secondaryText)
+                    if selected {
+                      Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                    }
+                  }
+                  .frame(width: 16, height: 16)
+                  Spacer().frame(width: 30)
+                  Text(model.label(for: item.category))
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.text)
+                  Spacer(minLength: 4)
+                  Text(ByteCountFormatter.string(
+                    fromByteCount: item.sizeBytes,
+                    countStyle: .file
+                  ))
+                  .font(.system(size: 14))
+                  .foregroundStyle(theme.secondaryText)
+                }
+                .padding(.leading, 16)
+                .padding(.trailing, 10)
+                .padding(.vertical, 17)
+                .contentShape(Rectangle())
+              }
+              .buttonStyle(.plain)
             }
-            .contentShape(Rectangle())
           }
-          .buttonStyle(.plain)
         }
-      }
-
-      if let error = model.error {
-        Section {
-          Text(error)
-            .foregroundStyle(.red)
-          Button("Retry") {
-            Task {
-              await model.load()
+        if let error = model.error {
+          categoryGroup {
+            HStack(spacing: 12) {
+              Text(error)
+                .font(.system(size: 14))
+                .foregroundStyle(theme.destructive)
+              Spacer()
+              Button("Retry") { Task { await model.load() } }
+                .font(.system(size: 14))
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 17)
           }
         }
       }
     }
-    .formStyle(.grouped)
+    .background(theme.background)
     .navigationTitle(model.name)
     .toolbar {
       ToolbarItem {
-        Button("Clear", role: .destructive) {
-          confirmClear = true
+        Button {
+          Task { await model.clearSelected() }
+        } label: {
+          Text("Clear")
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(theme.accent)
         }
         .disabled(model.selectedCategories.isEmpty || model.isClearing)
         .accessibilityIdentifier("storage-clear")
       }
-    }
-    .confirmationDialog(
-      "Clear selected cached media?",
-      isPresented: $confirmClear
-    ) {
-      Button("Clear", role: .destructive) {
-        Task {
-          await model.clearSelected()
-        }
-      }
-      Button("Cancel", role: .cancel) {}
-    } message: {
-      Text("The media can be downloaded again from the conversation.")
     }
     .task {
       await model.start()
@@ -249,6 +293,17 @@ private struct StorageUsageDetailView: View {
     .onDisappear {
       model.stop()
     }
+  }
+
+  private func categoryGroup<Content: View>(
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    content()
+      .background(theme.settingCellBackground)
+      .clipShape(RoundedRectangle(cornerRadius: 8))
+      .padding(.horizontal, 10)
+      .padding(.bottom, 10)
+      .frame(maxWidth: 600)
   }
 }
 
@@ -332,7 +387,7 @@ private final class DataStorageSettingsModel {
 private final class StorageUsageListModel {
   enum State {
     case loading
-    case loaded([SwiftConversationStorageUsage])
+    case loaded([ConversationStorageUsage])
     case failed(String)
   }
 
@@ -380,7 +435,7 @@ private final class StorageUsageDetailModel {
   private let account: SwiftAccountHandle
   private let conversationId: String
   let name: String
-  private(set) var categories: [SwiftStorageCategoryUsage] =
+  private(set) var categories: [StorageCategoryUsage] =
     StorageUsageDetailModel.emptyCategories
   private(set) var selectedCategories: Set<String> = []
   private(set) var error: String?
@@ -388,10 +443,10 @@ private final class StorageUsageDetailModel {
   private var monitor: StorageDirectoryMonitor?
 
   private static let emptyCategories = [
-    SwiftStorageCategoryUsage(category: "photos", sizeBytes: 0),
-    SwiftStorageCategoryUsage(category: "videos", sizeBytes: 0),
-    SwiftStorageCategoryUsage(category: "audio", sizeBytes: 0),
-    SwiftStorageCategoryUsage(category: "files", sizeBytes: 0),
+    StorageCategoryUsage(category: "photos", sizeBytes: 0),
+    StorageCategoryUsage(category: "videos", sizeBytes: 0),
+    StorageCategoryUsage(category: "audio", sizeBytes: 0),
+    StorageCategoryUsage(category: "files", sizeBytes: 0),
   ]
 
   init(account: SwiftAccountHandle, conversationId: String, name: String) {

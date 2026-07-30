@@ -3,6 +3,7 @@ import Observation
 import SwiftUI
 
 struct McpSettingsView: View {
+  @Environment(\.mixinTheme) private var theme
   @State private var model: McpSettingsModel
   @State private var copiedValue: CopiedValue?
 
@@ -13,49 +14,17 @@ struct McpSettingsView: View {
   var body: some View {
     Group {
       if let settings = model.settings {
-        Form {
-          statusSection
-          serverSection(settings)
-          if settings.enabled {
-            connectionSection(settings)
-            permissionsSection(settings)
-          }
-          Section {
-            Text(
-              "Local clients must use the bearer token. MCP can read account data, "
-                + "while write operations remain limited to the permissions enabled here."
-            )
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          }
-          if let error = model.error {
-            Section {
-              Label(error, systemImage: "exclamationmark.triangle")
-                .foregroundStyle(.red)
-              Button("Reload") {
-                Task {
-                  await model.load()
-                }
-              }
-            }
-          }
-        }
-        .formStyle(.grouped)
-        .settingsFormLayout()
+        settingsContent(settings)
       } else if let error = model.error {
-        ContentUnavailableView {
-          Label("MCP Settings Unavailable", systemImage: "exclamationmark.triangle")
-        } description: {
-          Text(error)
-        } actions: {
-          Button("Retry") {
-            Task {
-              await model.load()
-            }
-          }
-        }
+        Text("Failed to load MCP settings: \(error)")
+          .font(.system(size: 16))
+          .foregroundStyle(theme.text)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .background(theme.background)
       } else {
-        ProgressView("Loading MCP settings…")
+        ProgressView()
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .background(theme.background)
       }
     }
     .navigationTitle("Local MCP Server")
@@ -76,96 +45,121 @@ struct McpSettingsView: View {
     .animation(.easeInOut(duration: 0.18), value: copiedValue)
   }
 
-  private var statusSection: some View {
-    Section("Status") {
-      HStack {
-        Circle()
-          .fill(model.status?.running == true ? Color.green : Color.secondary)
-          .frame(width: 9, height: 9)
+  private func settingsContent(_ settings: McpSettingsItem) -> some View {
+    AppScrollView {
+      VStack(spacing: 0) {
         Text(model.statusText)
-        Spacer()
-        if model.updating {
-          ProgressView()
-            .controlSize(.small)
+          .font(.system(size: 14))
+          .foregroundStyle(theme.secondaryText)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, 20)
+          .padding(.top, 20)
+
+        Spacer().frame(height: 12)
+
+        mcpGroup {
+          VStack(spacing: 0) {
+            switchCell("Server", value: Binding(
+              get: { settings.enabled },
+              set: { enabled in Task { await model.update(enabled: enabled) } }
+            ))
+            if settings.enabled {
+              Divider()
+              valueCell(
+                "Endpoint",
+                label: model.status?.endpoint ?? "Not running",
+                value: model.status?.endpoint,
+                copied: .endpoint
+              )
+              Divider()
+              valueCell(
+                "Access Token",
+                label: masked(settings.token),
+                value: settings.token,
+                copied: .token
+              )
+              Divider()
+              switchCell("Draft Editing", value: Binding(
+                get: { settings.draftToolsEnabled },
+                set: { enabled in Task { await model.update(draftToolsEnabled: enabled) } }
+              ))
+              Divider()
+              switchCell("Circle Management", value: Binding(
+                get: { settings.circleManagementEnabled },
+                set: { enabled in Task { await model.update(circleManagementEnabled: enabled) } }
+              ))
+            }
+          }
+        }
+
+        Text("Local clients must use the bearer token. MCP never sends messages or changes account data.")
+          .font(.system(size: 14))
+          .foregroundStyle(theme.secondaryText)
+          .frame(maxWidth: 600, alignment: .leading)
+          .padding(.horizontal, 20)
+          .padding(.top, 12)
+
+        if let error = model.error {
+          Text(error)
+            .font(.system(size: 14))
+            .foregroundStyle(theme.destructive)
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
         }
       }
     }
+    .background(theme.background)
   }
 
-  private func serverSection(_ settings: SwiftMcpSettings) -> some View {
-    Section {
-      Toggle(
-        "Server",
-        isOn: Binding(
-          get: { settings.enabled },
-          set: { enabled in
-            Task {
-              await model.update(enabled: enabled)
-            }
-          }
-        )
-      )
-      .disabled(model.updating)
-    } footer: {
-      Text("The server only listens on localhost.")
+  private func mcpGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    content()
+      .background(theme.settingCellBackground)
+      .clipShape(RoundedRectangle(cornerRadius: 8))
+      .padding(.horizontal, 10)
+      .frame(maxWidth: 600)
+  }
+
+  private func switchCell(_ title: String, value: Binding<Bool>) -> some View {
+    HStack {
+      Text(title)
+        .font(.system(size: 16))
+        .foregroundStyle(theme.text)
+      Spacer(minLength: 4)
+      Toggle(title, isOn: value)
+        .labelsHidden()
+        .scaleEffect(0.75)
+        .disabled(model.updating)
     }
+    .padding(.leading, 16)
+    .padding(.trailing, 10)
+    .padding(.vertical, 17)
   }
 
-  private func connectionSection(_ settings: SwiftMcpSettings) -> some View {
-    Section("Connection") {
-      LabeledContent("Endpoint") {
-        copyableValue(
-          model.status?.endpoint ?? "Not running",
-          value: model.status?.endpoint,
-          copied: .endpoint
-        )
-      }
-      LabeledContent("Access Token") {
-        copyableValue(
-          masked(settings.token),
-          value: settings.token,
-          copied: .token
-        )
-      }
-    }
-  }
-
-  private func permissionsSection(_ settings: SwiftMcpSettings) -> some View {
-    Section("Write Permissions") {
-      Toggle(
-        "Draft Editing",
-        isOn: Binding(
-          get: { settings.draftToolsEnabled },
-          set: { enabled in
-            Task {
-              await model.update(draftToolsEnabled: enabled)
-            }
-          }
-        ))
-      Toggle(
-        "Circle Management",
-        isOn: Binding(
-          get: { settings.circleManagementEnabled },
-          set: { enabled in
-            Task {
-              await model.update(circleManagementEnabled: enabled)
-            }
-          }
-        ))
-    }
-    .disabled(model.updating)
-  }
-
-  private func copyableValue(
-    _ label: String,
+  private func valueCell(
+    _ title: String,
+    label: String,
     value: String?,
     copied: CopiedValue
   ) -> some View {
     HStack(spacing: 8) {
-      Text(label)
-        .foregroundStyle(.secondary)
-        .textSelection(.enabled)
-      Button {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(title)
+          .font(.system(size: 16))
+          .foregroundStyle(theme.text)
+        Text(label)
+          .font(.system(size: 14))
+          .foregroundStyle(theme.secondaryText)
+      }
+      Spacer(minLength: 4)
+      copyButton(value: value, copied: copied)
+    }
+    .padding(.leading, 16)
+    .padding(.trailing, 10)
+    .padding(.vertical, 10)
+  }
+
+  private func copyButton(value: String?, copied: CopiedValue) -> some View {
+    Button {
         guard let value else {
           return
         }
@@ -178,13 +172,13 @@ struct McpSettingsView: View {
             copiedValue = nil
           }
         }
-      } label: {
-        Image(systemName: "doc.on.doc")
-      }
-      .buttonStyle(.borderless)
-      .disabled(value == nil)
-      .help("Copy \(copied.rawValue)")
+    } label: {
+      Image(systemName: "doc.on.doc")
+        .font(.system(size: 20))
     }
+    .buttonStyle(.plain)
+    .disabled(value == nil)
+    .help("Copy \(copied.rawValue)")
   }
 
   private func masked(_ token: String) -> String {
@@ -205,8 +199,8 @@ private enum CopiedValue: String {
 private final class McpSettingsModel {
   private let desktop: SwiftDesktopHandle
 
-  private(set) var settings: SwiftMcpSettings?
-  private(set) var status: SwiftMcpServerStatus?
+  private(set) var settings: McpSettingsItem?
+  private(set) var status: McpServerStatusItem?
   private(set) var updating = false
   private(set) var error: String?
 
@@ -245,7 +239,7 @@ private final class McpSettingsModel {
     error = nil
     defer { updating = false }
 
-    let next = SwiftMcpSettings(
+    let next = McpSettingsItem(
       enabled: enabled ?? current.enabled,
       token: current.token,
       draftToolsEnabled: draftToolsEnabled ?? current.draftToolsEnabled,

@@ -3,8 +3,10 @@ import SwiftUI
 struct ContactMessageView: View {
     @Environment(AccountSession.self) private var session
     @Environment(HomeNavigationModel.self) private var navigation
+    @Environment(SettingsPreferencesModel.self) private var preferences
+    @Environment(\.mixinTheme) private var theme
 
-    let message: SwiftMessageItem
+    let message: MessageItem
 
     var body: some View {
         Button {
@@ -23,33 +25,39 @@ struct ContactMessageView: View {
                 ) { image in
                     image.resizable().scaledToFill()
                 } placeholder: {
-                    Image(systemName: "person.crop.circle.fill")
-                        .resizable()
-                        .foregroundStyle(.secondary)
+                    AvatarPlaceholder(
+                        userID: message.sharedUserId ?? "",
+                        name: message.sharedUserFullName ?? ""
+                    )
                 }
                 .frame(width: 40, height: 40)
                 .clipShape(Circle())
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 4) {
                         Text(message.sharedUserFullName ?? "Contact")
+                            .font(
+                                .system(
+                                    size: 16
+                                        + preferences.chatFontSizeDelta
+                                )
+                            )
+                            .foregroundStyle(theme.text)
                             .lineLimit(1)
-                        if message.sharedUserIsVerified {
-                            Image(systemName: "checkmark.seal.fill")
-                                .foregroundStyle(.blue)
-                        }
-                        if message.sharedUserAppId != nil {
-                            Image(systemName: "bolt.circle.fill")
-                                .foregroundStyle(.orange)
-                        }
-                        if message.sharedUserMembership != nil {
-                            Image(systemName: "star.circle.fill")
-                                .foregroundStyle(.yellow)
-                        }
+                        ProfileIdentityBadge(
+                            isVerified: message.sharedUserIsVerified,
+                            isBot: message.sharedUserAppId != nil,
+                            membership: message.sharedUserMembership
+                        )
                     }
                     Text(message.sharedUserIdentityNumber ?? "")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
+                        .font(
+                            .system(
+                                size: 14
+                                    + preferences.chatFontSizeDelta
+                            )
+                        )
+                        .foregroundStyle(theme.secondaryText)
                 }
             }
         }

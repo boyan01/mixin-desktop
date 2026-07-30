@@ -15,6 +15,7 @@ struct AttachmentPreviewSheet: View {
     }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.mixinTheme) private var theme
     @State private var urls: [URL]
     @State private var mode: Mode
     @State private var caption = ""
@@ -22,6 +23,7 @@ struct AttachmentPreviewSheet: View {
     @State private var progress = 0
     @State private var error: String?
     @State private var zipPassword = ""
+    @State private var zipPasswordHidden = true
     @State private var editTarget: EditableAttachment?
     let onSend: (AttachmentSendRequest) async -> Bool
     let onComplete: () -> Void
@@ -38,89 +40,114 @@ struct AttachmentPreviewSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        ZStack(alignment: .topTrailing) {
             VStack(spacing: 0) {
-                Picker("Send as", selection: $mode) {
-                    ForEach(availableModes) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
+                Spacer().frame(height: 20)
+                HStack(spacing: 0) {
+                    previewTab(
+                        mode: .media,
+                        asset: "FilePreviewImages",
+                        help: "Send quickly",
+                        visible: urls.contains(where: \.isVisualMedia)
+                    )
+                    previewTab(
+                        mode: .files,
+                        asset: "FilePreviewFiles",
+                        help: "Send without compression",
+                        visible: true
+                    )
+                    previewTab(
+                        mode: .zip,
+                        asset: "FilePreviewZip",
+                        help: "Send archived",
+                        visible: urls.count > 1
+                    )
                 }
-                .pickerStyle(.segmented)
-                .padding()
+                .padding(.leading, 15)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer().frame(height: 4)
 
                 if mode == .zip {
                     zipPage
                 } else {
-                    List {
-                        ForEach(urls, id: \.path) { url in
-                            AttachmentPreviewRow(
-                                url: url,
-                                mode: mode,
-                                onEdit: url.contentType?.conforms(to: .image) == true
-                                    ? { editTarget = EditableAttachment(url: url) }
-                                    : nil
-                            ) {
-                                urls.removeAll { $0 == url }
-                                normalizeMode()
-                                if urls.isEmpty {
-                                    dismiss()
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(urls, id: \.path) { url in
+                                AttachmentPreviewRow(
+                                    url: url,
+                                    mode: mode,
+                                    onEdit: url.contentType?.conforms(to: .image) == true
+                                        ? { editTarget = EditableAttachment(url: url) }
+                                        : nil
+                                ) {
+                                    urls.removeAll { $0 == url }
+                                    normalizeMode()
+                                    if urls.isEmpty {
+                                        dismiss()
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
+                Spacer().frame(height: 16)
                 if supportsCaption {
                     TextField("Caption", text: $caption, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(1 ... 4)
-                        .padding()
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 14))
+                        .foregroundStyle(theme.text)
+                        .lineLimit(1 ... 3)
+                        .padding(.leading, 8)
+                        .padding(.vertical, 8)
+                        .frame(minHeight: 40)
+                        .background(captionBackground, in: RoundedRectangle(cornerRadius: 4))
+                        .padding(.horizontal, 30)
                 }
 
                 if let error {
                     Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .padding(.horizontal)
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.destructive)
+                        .padding(.top, 8)
                 }
+                Spacer().frame(height: 16)
+
+                Button("SEND") {
+                    send(silent: false)
+                }
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 18)
+                .background(theme.accent, in: RoundedRectangle(cornerRadius: 5))
+                .disabled(urls.isEmpty || sending)
+                .contextMenu {
+                    Button("Send Silently") {
+                        send(silent: true)
+                    }
+                }
+
+                Spacer().frame(height: 24)
+                Text("Press Return to send")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.gray)
+                Spacer().frame(height: 24)
             }
-            .navigationTitle("Send Attachments")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(sending)
-                }
-                ToolbarItem {
-                    Button {
-                        addFiles()
-                    } label: {
-                        Label("Add Files", systemImage: "plus")
-                    }
-                    .disabled(sending)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Menu {
-                        Button("Send") {
-                            send(silent: false)
-                        }
-                        Button("Send Silently") {
-                            send(silent: true)
-                        }
-                    } label: {
-                        if sending {
-                            ProgressView(value: Double(progress), total: Double(max(urls.count, 1)))
-                                .frame(width: 70)
-                        } else {
-                            Text("Send")
-                        }
-                    }
-                    .disabled(urls.isEmpty || sending)
-                }
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
             }
+            .buttonStyle(MixinActionButtonStyle())
+            .padding(22)
         }
-        .frame(minWidth: 520, minHeight: 500)
+        .frame(width: 480, height: 600)
+        .background(theme.popUp)
+        .dropDestination(for: URL.self) { dropped, _ in
+            addFiles(dropped)
+            return !dropped.isEmpty
+        }
         .sheet(item: $editTarget) { target in
             AttachmentImageEditor(url: target.url) { editedURL in
                 guard let index = urls.firstIndex(of: target.url) else {
@@ -132,43 +159,109 @@ struct AttachmentPreviewSheet: View {
     }
 
     private var supportsCaption: Bool {
-        mode == .media && urls.count == 1 && urls[0].contentType?.conforms(to: .image) == true
+        urls.count == 1
+            && urls[0].contentType?.conforms(to: .image) == true
     }
 
     private var availableModes: [Mode] {
         urls.count > 1 ? Mode.allCases : [.media, .files]
     }
 
+    private var captionBackground: Color {
+        switch NSApp.effectiveAppearance.name {
+        case .darkAqua, .vibrantDark:
+            Color.white.opacity(0.08)
+        default:
+            Color(red: 245 / 255, green: 247 / 255, blue: 250 / 255)
+        }
+    }
+
+    @ViewBuilder
+    private func previewTab(
+        mode tab: Mode,
+        asset: String,
+        help: String,
+        visible: Bool
+    ) -> some View {
+        if visible {
+            Button {
+                mode = tab
+            } label: {
+                Image(asset)
+                    .resizable()
+                    .renderingMode(.template)
+                    .foregroundStyle(mode == tab ? theme.accent : theme.icon)
+                    .frame(width: 24, height: 24)
+                    .frame(width: 54, height: 54)
+            }
+            .buttonStyle(.plain)
+            .help(help)
+        }
+    }
+
     private var zipPage: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Spacer().frame(width: 30)
+                Text("ZIP")
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.secondaryText)
+                    .frame(width: 50, height: 50)
+                    .background(theme.statusBackground, in: Circle())
+                Spacer().frame(width: 16)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Archive.zip")
+                        .font(.system(size: 16))
+                        .foregroundStyle(theme.text)
+                    Text("Archived folder")
+                        .font(.system(size: 14))
+                        .foregroundStyle(theme.secondaryText)
+                }
+                Spacer()
+                Spacer().frame(width: 30)
+            }
             Spacer()
-            Image(systemName: "doc.zipper")
-                .font(.system(size: 64))
-                .foregroundStyle(.secondary)
-            Text("Archive.zip")
-                .font(.title3.weight(.medium))
-            Text("\(urls.count) files will be sent as one archive.")
-                .foregroundStyle(.secondary)
-            SecureField("Password (optional)", text: $zipPassword)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 300)
-            Text("ZIP password protection uses the format supported by the Flutter client.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
+            HStack(spacing: 8) {
+                Image(systemName: "lock")
+                    .font(.system(size: 18))
+                    .foregroundStyle(
+                        zipPassword.isEmpty ? theme.secondaryText : theme.text
+                    )
+                if zipPasswordHidden {
+                    SecureField("Encrypt ZIP file with password", text: $zipPassword)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 14))
+                        .foregroundStyle(theme.text)
+                } else {
+                    TextField("Encrypt ZIP file with password", text: $zipPassword)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 14))
+                        .foregroundStyle(theme.text)
+                }
+                Button {
+                    zipPasswordHidden.toggle()
+                } label: {
+                    Image(systemName: zipPasswordHidden ? "eye.slash" : "eye")
+                        .font(.system(size: 20))
+                        .foregroundStyle(
+                            zipPassword.isEmpty ? theme.secondaryText : theme.text
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .frame(width: 300, height: 36)
+            .background(captionBackground, in: Capsule())
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func addFiles() {
-        Task {
-            let selected = await AttachmentFilePicker.select()
-            let existing = Set(urls.map(\.standardizedFileURL))
-            urls.append(contentsOf: selected.filter {
-                !existing.contains($0.standardizedFileURL)
-            })
-            normalizeMode()
-        }
+    private func addFiles(_ selected: [URL]) {
+        let existing = Set(urls.map(\.standardizedFileURL))
+        urls.append(contentsOf: selected.filter {
+            !existing.contains($0.standardizedFileURL)
+        })
+        normalizeMode()
     }
 
     private func send(silent: Bool) {
@@ -306,12 +399,60 @@ struct AttachmentSendRequest {
 }
 
 private struct AttachmentPreviewRow: View {
+    @Environment(\.mixinTheme) private var theme
     let url: URL
     let mode: AttachmentPreviewSheet.Mode
     let onEdit: (() -> Void)?
     let onRemove: () -> Void
 
     var body: some View {
+        if mode == .files || !url.isVisualMedia {
+            normalFileRow
+        } else if url.contentType?.conforms(to: .image) == true,
+                  let image = NSImage(contentsOf: url)
+        {
+            imageRow(image)
+        } else if url.contentType?.conforms(to: .movie) == true {
+            videoRow
+        } else {
+            mediaRow
+        }
+    }
+
+    private var normalFileRow: some View {
+        HStack(spacing: 0) {
+            Spacer().frame(width: 30)
+            Text(fileExtension)
+                .font(.system(size: 16))
+                .foregroundStyle(theme.secondaryText)
+                .frame(width: 50, height: 50)
+                .background(theme.statusBackground, in: Circle())
+            Spacer().frame(width: 16)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(url.lastPathComponent)
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.text)
+                    .lineLimit(1)
+                    .lineSpacing(8)
+                Text(formattedFileSize)
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.secondaryText)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: onRemove) {
+                Image("Delete")
+                    .resizable()
+                    .renderingMode(.template)
+                    .foregroundStyle(theme.secondaryText)
+                    .frame(width: 24, height: 24)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            Spacer().frame(width: 10)
+        }
+    }
+
+    private var mediaRow: some View {
         HStack(spacing: 12) {
             preview
                 .frame(width: 64, height: 54)
@@ -339,6 +480,72 @@ private struct AttachmentPreviewRow: View {
             .buttonStyle(.borderless)
         }
         .padding(.vertical, 5)
+    }
+
+    private func imageRow(_ image: NSImage) -> some View {
+        ZStack(alignment: .bottomTrailing) {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 420)
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.28)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 50)
+            HStack(spacing: 0) {
+                Spacer()
+                if let onEdit {
+                    Button(action: onEdit) {
+                        Image("EditImage")
+                            .resizable()
+                            .renderingMode(.template)
+                            .foregroundStyle(.white)
+                            .frame(width: 24, height: 24)
+                            .frame(width: 44, height: 50)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Edit Image")
+                }
+                Button(action: onRemove) {
+                    Image("Delete")
+                        .resizable()
+                        .frame(width: 24, height: 24)
+                        .frame(width: 44, height: 50)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 30)
+        .padding(.vertical, 15)
+    }
+
+    private var videoRow: some View {
+        ZStack(alignment: .bottomTrailing) {
+            AttachmentPreviewVideo(url: url)
+                .frame(width: 420, height: 200)
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.28)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 50)
+            HStack {
+                Spacer()
+                Button(action: onRemove) {
+                    Image("Delete")
+                        .resizable()
+                        .frame(width: 24, height: 24)
+                        .frame(width: 44, height: 50)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 30)
+        .padding(.vertical, 15)
     }
 
     @ViewBuilder
@@ -370,6 +577,95 @@ private struct AttachmentPreviewRow: View {
             mode == .media && url.isVisualMedia ? "Media" : "File",
             ByteCountFormatter.string(fromByteCount: size, countStyle: .file),
         ].joined(separator: " · ")
+    }
+
+    private var fileExtension: String {
+        let value = url.pathExtension.uppercased()
+        return value.isEmpty ? "FILE" : value
+    }
+
+    private var formattedFileSize: String {
+        let values = try? url.resourceValues(forKeys: [.fileSizeKey])
+        let bytes = Int64(values?.fileSize ?? 0)
+        if bytes < 1_024 {
+            return "\(bytes) B"
+        }
+        if bytes < 1_024 * 1_024 {
+            return String(format: "%.1f KB", Double(bytes) / 1_024)
+        }
+        if bytes < 1_024 * 1_024 * 1_024 {
+            return String(format: "%.1f MB", Double(bytes) / (1_024 * 1_024))
+        }
+        return String(format: "%.1f GB", Double(bytes) / (1_024 * 1_024 * 1_024))
+    }
+
+}
+
+private struct AttachmentPreviewVideo: View {
+    @State private var playback: AttachmentPreviewPlayback
+
+    init(url: URL) {
+        _playback = State(initialValue: AttachmentPreviewPlayback(url: url))
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Color.black
+            VideoPlayer(player: playback.player)
+            TimelineView(.periodic(from: .now, by: 0.5)) { _ in
+                if let remaining = playback.remainingText {
+                    Text(remaining)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white)
+                        .padding(4)
+                        .background(
+                            .black.opacity(0.3),
+                            in: RoundedRectangle(cornerRadius: 5)
+                        )
+                        .padding(6)
+                }
+            }
+        }
+        .onAppear {
+            playback.play()
+        }
+        .onDisappear {
+            playback.pause()
+        }
+    }
+}
+
+@MainActor
+private final class AttachmentPreviewPlayback {
+    let player: AVQueuePlayer
+    private let looper: AVPlayerLooper
+
+    init(url: URL) {
+        let item = AVPlayerItem(url: url)
+        let player = AVQueuePlayer()
+        self.player = player
+        looper = AVPlayerLooper(player: player, templateItem: item)
+        player.isMuted = true
+    }
+
+    var remainingText: String? {
+        guard let duration = player.currentItem?.duration.seconds,
+              duration.isFinite,
+              duration > 0
+        else {
+            return nil
+        }
+        let position = player.currentTime().seconds
+        let seconds = max(Int((duration - position).rounded(.down)), 0)
+        return "\(seconds / 60):\(String(format: "%02d", seconds % 60))"
+    }
+
+    func play() {
+        player.play()
+    }
+
+    func pause() {
+        player.pause()
     }
 }
 

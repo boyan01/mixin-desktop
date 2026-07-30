@@ -6,54 +6,46 @@ struct GroupParticipantsView: View {
     @Environment(AccountSession.self) private var session
     @Environment(HomeNavigationModel.self) private var navigation
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.mixinTheme) private var theme
     @State private var model = GroupParticipantsModel()
     @State private var query = ""
+    @FocusState private var searchFocused: Bool
     @State private var addPresented = false
     @State private var invitePresented = false
-    @State private var pendingRemoval: SwiftConversationParticipantItem?
-    let conversation: SwiftConversationListItem
+    @State private var pendingRemoval: ConversationParticipantItem?
+    let conversation: ConversationListData
 
     var body: some View {
-        Group {
-                switch model.state {
-                case .loading:
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case let .failed(message):
-                    ContentUnavailableView(
-                        "Unable to load participants",
-                        systemImage: "person.3.sequence",
-                        description: Text(message)
-                    )
-                case .ready:
-                    if model.currentParticipant == nil {
-                        ContentUnavailableView(
-                            "You are no longer a member",
-                            systemImage: "person.3"
-                        )
-                    } else {
-                        participantList
-                    }
-                }
+        VStack(spacing: 0) {
+            MixinSearchField(
+                text: $query,
+                focus: $searchFocused,
+                placeholder: "Search name or Mixin ID"
+            )
+            .padding(.horizontal, 16)
+
+            if model.currentParticipant != nil {
+                participantList
             }
-            .navigationTitle("Participants")
-            .searchable(text: $query, prompt: "Search name or Mixin ID")
-            .toolbar {
-                if model.canManage {
-                    ToolbarItem(placement: .primaryAction) {
-                        Menu {
-                            Button("Add Participants", systemImage: "person.badge.plus") {
-                                addPresented = true
-                            }
-                            Button("Invite via Link", systemImage: "link") {
-                                invitePresented = true
-                            }
-                        } label: {
-                            Image(systemName: "plus")
+        }
+        .background(theme.primary)
+        .navigationTitle("Participants")
+        .toolbar {
+            if model.canManage {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button("Add Participants", systemImage: "person.badge.plus") {
+                            addPresented = true
                         }
+                        Button("Invite via Link", systemImage: "link") {
+                            invitePresented = true
+                        }
+                    } label: {
+                        Image(systemName: "plus")
                     }
                 }
             }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: conversation.conversationId) {
             await model.start(
@@ -114,7 +106,7 @@ struct GroupParticipantsView: View {
     }
 
     private var participantList: some View {
-        List(model.filteredParticipants(query: query), id: \.userId) { participant in
+        AppListView(model.filteredParticipants(query: query), id: \.userId) { participant in
             Button {
                 navigation.pushInspector(
                     .userProfile(userID: participant.userId)
@@ -123,86 +115,87 @@ struct GroupParticipantsView: View {
                 participantRow(participant)
             }
             .buttonStyle(.plain)
+            .listRowInsets(.init())
+            .listRowBackground(Color.clear)
             .contextMenu {
-                Button("Message \(participant.fullName)") {
-                    Task {
-                        guard let conversationID = await model.openConversation(
-                            account: session.handle,
-                            participant: participant
-                        ) else {
-                            return
-                        }
-                        dismiss()
-                        navigation.infoPresented = false
-                        navigation.selectConversation(
-                            conversationID,
-                            name: participant.fullName
-                        )
-                    }
-                }
-                if model.canChangeRole(of: participant) {
-                    Divider()
-                    Button(participant.role == "ADMIN"
-                        ? "Dismiss as Admin"
-                        : "Make Group Admin")
-                    {
+                if participant.userId != session.profile.userId {
+                    Button("Message \(participant.fullName)") {
                         Task {
-                            await model.update(
+                            guard let conversationID = await model.openConversation(
                                 account: session.handle,
-                                action: participant.role == "ADMIN"
-                                    ? .dismissAdmin
-                                    : .makeAdmin,
                                 participant: participant
+                            ) else {
+                                return
+                            }
+                            dismiss()
+                            navigation.infoPresented = false
+                            navigation.selectConversation(
+                                conversationID,
+                                name: participant.fullName
                             )
                         }
                     }
-                }
-                if model.canRemove(participant) {
-                    Divider()
-                    Button("Remove from Group", role: .destructive) {
-                        pendingRemoval = participant
+                    if model.canChangeRole(of: participant) {
+                        Divider()
+                        Button(participant.role == "ADMIN"
+                            ? "Dismiss as Admin"
+                            : "Make Group Admin")
+                        {
+                            Task {
+                                await model.update(
+                                    account: session.handle,
+                                    action: participant.role == "ADMIN"
+                                        ? .dismissAdmin
+                                        : .makeAdmin,
+                                    participant: participant
+                                )
+                            }
+                        }
+                    }
+                    if model.canRemove(participant) {
+                        Divider()
+                        Button("Remove from Group", role: .destructive) {
+                            pendingRemoval = participant
+                        }
                     }
                 }
             }
         }
-        .overlay {
-            if model.participants.isEmpty {
-                ContentUnavailableView(
-                    "No participants",
-                    systemImage: "person.3"
-                )
-            } else if model.filteredParticipants(query: query).isEmpty {
-                ContentUnavailableView.search(text: query)
-            }
-        }
+        .padding(.top, 8)
     }
 
     private func participantRow(
-        _ participant: SwiftConversationParticipantItem
+        _ participant: ConversationParticipantItem
     ) -> some View {
         HStack(spacing: 12) {
-            MixinRemoteImage(url: URL(string: participant.avatarUrl)) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                Image(systemName: "person.crop.circle.fill")
-                    .resizable()
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: 44, height: 44)
-            .clipShape(Circle())
+            UserAvatar(
+                userID: participant.userId,
+                name: participant.fullName,
+                url: participant.avatarUrl,
+                size: 50
+            )
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(participant.fullName.isEmpty ? "Unknown" : participant.fullName)
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 4) {
+                    ParticipantNameText(
+                        name: participant.fullName,
+                        query: query
+                    )
+                    ProfileIdentityBadge(
+                        isVerified: participant.isVerified,
+                        isBot: participant.isBot,
+                        membership: participant.membership
+                    )
+                }
                 Text(participant.identityNumber)
-                    .font(.caption)
+                    .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
             Spacer()
-            if let role = participant.role {
-                Text(role.capitalized)
-                    .font(.caption)
+            if participant.role == "OWNER" || participant.role == "ADMIN" {
+                Text(participant.role == "OWNER" ? "Owner" : "Admin")
+                    .font(.system(size: 14))
                     .foregroundStyle(.secondary)
             }
             if model.actingUserIDs.contains(participant.userId) {
@@ -211,99 +204,226 @@ struct GroupParticipantsView: View {
             }
         }
         .contentShape(Rectangle())
-        .padding(.vertical, 4)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+    }
+}
+
+private struct ParticipantNameText: View {
+    @Environment(\.mixinTheme) private var theme
+    let name: String
+    let query: String
+
+    var body: some View {
+        highlightedName
+            .font(.system(size: 16))
+            .lineLimit(1)
+    }
+
+    private var highlightedName: Text {
+        let value = name.isEmpty ? "?" : name
+        let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !keyword.isEmpty else {
+            return Text(value).foregroundColor(theme.text)
+        }
+
+        var result = Text("")
+        var remainder = value[...]
+        while let range = remainder.range(
+            of: keyword,
+            options: [.caseInsensitive, .diacriticInsensitive]
+        ) {
+            result = result + Text(remainder[..<range.lowerBound])
+                .foregroundColor(theme.text)
+            result = result + Text(remainder[range])
+                .foregroundColor(theme.accent)
+            remainder = remainder[range.upperBound...]
+        }
+        return result + Text(remainder).foregroundColor(theme.text)
     }
 }
 
 private struct AddGroupParticipantsSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.mixinTheme) private var theme
     @Bindable var model: GroupParticipantsModel
     let account: SwiftAccountHandle
     @State private var query = ""
     @State private var selectedUserIDs = Set<String>()
+    @FocusState private var queryFocused: Bool
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if model.loadingCandidates {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    List(model.filteredCandidates(query: query), id: \.userId) { user in
-                        Button {
-                            if selectedUserIDs.remove(user.userId) == nil {
-                                selectedUserIDs.insert(user.userId)
-                            }
-                        } label: {
-                            HStack(spacing: 12) {
-                                MixinRemoteImage(url: URL(string: user.avatarUrl)) { image in
-                                    image.resizable().scaledToFill()
-                                } placeholder: {
-                                    Image(systemName: "person.crop.circle.fill")
-                                        .resizable()
-                                        .foregroundStyle(.secondary)
-                                }
-                                .frame(width: 40, height: 40)
-                                .clipShape(Circle())
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(user.fullName)
-                                    Text(user.identityNumber)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if selectedUserIDs.contains(user.userId) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(Color.accentColor)
-                                }
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .overlay {
-                        if model.candidates.isEmpty {
-                            ContentUnavailableView(
-                                "No contacts to add",
-                                systemImage: "person.badge.plus"
-                            )
-                        } else if model.filteredCandidates(query: query).isEmpty {
-                            ContentUnavailableView.search(text: query)
+        VStack(spacing: 0) {
+            HStack {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .frame(width: 40, height: 40)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(theme.icon)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(spacing: 0) {
+                    Text("Add Participants")
+                        .font(.system(size: 16))
+                        .foregroundStyle(theme.text)
+                    Text("\(selectedUserIDs.count) / \(model.candidates.count)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.secondaryText)
+                }
+                .frame(maxWidth: .infinity)
+                Button("Next") {
+                    Task {
+                        if await model.add(account: account, userIDs: Array(selectedUserIDs)) {
+                            dismiss()
                         }
                     }
                 }
+                .buttonStyle(.plain)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(theme.accent)
+                .disabled(selectedUserIDs.isEmpty || model.acting)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .navigationTitle("Add Participants")
-            .searchable(text: $query, prompt: "Search")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        Task {
-                            if await model.add(
-                                account: account,
-                                userIDs: Array(selectedUserIDs)
-                            ) {
-                                dismiss()
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(theme.secondaryText)
+                TextField("Search", text: $query)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.text)
+                    .focused($queryFocused)
+            }
+            .padding(.horizontal, 16)
+            .frame(height: 32)
+            .background(theme.background, in: Capsule())
+            .padding(.top, 8)
+            .padding(.horizontal, 24)
+
+            if selectedUserIDs.isEmpty {
+                Spacer().frame(height: 8)
+            } else {
+                AppScrollView(.horizontal, showsIndicator: false) {
+                    HStack(spacing: 4) {
+                        ForEach(selectedUsers, id: \.userId) { user in
+                            VStack(spacing: 10) {
+                                ZStack(alignment: .topTrailing) {
+                                    avatar(user, size: 50)
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(theme.secondaryText)
+                                        .background(theme.popUp, in: Circle())
+                                        .offset(x: 4, y: -4)
+                                }
+                                Text(user.fullName)
+                                    .font(.system(size: 14))
+                                    .foregroundStyle(theme.text)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.center)
+                            }
+                            .frame(width: 66)
+                            .onTapGesture {
+                                selectedUserIDs.remove(user.userId)
                             }
                         }
                     }
-                    .disabled(
-                        selectedUserIDs.isEmpty
-                            || model.acting
-                            || selectedUserIDs.count > model.remainingCapacity
-                    )
+                    .padding(.horizontal, 24)
+                }
+                .frame(height: 120)
+            }
+
+            if model.loadingCandidates {
+                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                AppScrollView {
+                    LazyVStack(spacing: 0) {
+                        candidateSection("Contacts", users: contacts)
+                        candidateSection("Bots", users: bots)
+                    }
+                    .padding(.horizontal, 16)
                 }
             }
         }
-        .frame(minWidth: 480, minHeight: 560)
+        .background(theme.popUp)
+        .frame(width: 480, height: 600)
         .task {
             await model.loadCandidates(account: account)
         }
+    }
+
+    private var filtered: [UserProfileItem] { model.filteredCandidates(query: query) }
+    private var contacts: [UserProfileItem] { filtered.filter { !$0.isBot } }
+    private var bots: [UserProfileItem] { filtered.filter(\.isBot) }
+    private var selectedUsers: [UserProfileItem] {
+        model.candidates.filter { selectedUserIDs.contains($0.userId) }
+    }
+
+    @ViewBuilder
+    private func candidateSection(_ title: String, users: [UserProfileItem]) -> some View {
+        if !users.isEmpty {
+            Text(title)
+                .font(.system(size: 16))
+                .foregroundStyle(theme.text)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: 42)
+                .padding(.leading, 14)
+            ForEach(users, id: \.userId) { user in
+                Button {
+                    if selectedUserIDs.remove(user.userId) == nil,
+                        selectedUserIDs.count < model.remainingCapacity
+                    {
+                        selectedUserIDs.insert(user.userId)
+                    }
+                } label: {
+                    HStack(spacing: 0) {
+                        Circle()
+                            .fill(selectedUserIDs.contains(user.userId) ? theme.accent : theme.secondaryText)
+                            .frame(width: 16, height: 16)
+                            .overlay {
+                                if selectedUserIDs.contains(user.userId) {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(.white)
+                                }
+                            }
+                            .padding(.trailing, 20)
+                        avatar(user, size: 50)
+                        Text(user.fullName.isEmpty ? "?" : user.fullName)
+                            .font(.system(size: 16))
+                            .foregroundStyle(theme.text)
+                            .lineLimit(1)
+                            .padding(.leading, 16)
+                        ProfileIdentityBadge(
+                            isVerified: user.isVerified,
+                            isBot: user.isBot,
+                            membership: user.membership
+                        )
+                        Spacer()
+                    }
+                    .frame(height: 70)
+                    .padding(.leading, 14)
+                    .padding(.trailing, 10)
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func avatar(_ user: UserProfileItem, size: CGFloat) -> some View {
+        MixinRemoteImage(url: URL(string: user.avatarUrl)) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            Image(systemName: "person.crop.circle.fill")
+                .resizable()
+                .foregroundStyle(theme.secondaryText)
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
     }
 }
 
@@ -311,78 +431,108 @@ private struct GroupInviteSheet: View {
     @Environment(AccountSession.self) private var session
     @Environment(\.dismiss) private var dismiss
     @State private var model = GroupInviteModel()
-    @State private var resetConfirmationPresented = false
-    let conversation: SwiftConversationListItem
+    @Environment(\.mixinTheme) private var theme
+    let conversation: ConversationListData
 
     var body: some View {
-        VStack(spacing: 18) {
-            HStack {
-                Spacer()
-                Button("Close") {
-                    dismiss()
+        ZStack(alignment: .top) {
+            if let detail = model.detail {
+                VStack(spacing: 0) {
+                    Spacer().frame(height: 120)
+                    ConversationAvatar(conversation: conversation, size: 90)
+                    Spacer().frame(height: 16)
+                    Text(detail.name)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(theme.text)
+                        .lineLimit(1)
+                    Spacer().frame(height: 12)
+                    Text(detail.codeUrl)
+                        .font(.system(size: 14))
+                        .foregroundStyle(theme.text)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(7)
+                        .textSelection(.enabled)
+                        .frame(width: 320)
+                    Spacer().frame(height: 8)
+                    Text("Anyone with this link can request to join the group. Reset it if the link was shared unexpectedly.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(6)
+                        .frame(width: 338)
+                    Spacer().frame(height: 61)
+                    HStack(spacing: 0) {
+                        GroupInviteActionButton(
+                            label: "Share Link",
+                            systemImage: "square.and.arrow.up"
+                        ) {
+                            ShareLink(item: detail.codeUrl) {
+                                EmptyView()
+                            }
+                        }
+                        .disabled(detail.codeUrl.isEmpty)
+                        Spacer()
+                        GroupInviteActionButton(
+                            label: "Copy Invite",
+                            systemImage: "doc.on.doc"
+                        ) {
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(
+                                    detail.codeUrl,
+                                    forType: .string
+                                )
+                            } label: {
+                                EmptyView()
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .disabled(detail.codeUrl.isEmpty)
+                        Spacer()
+                        GroupInviteActionButton(
+                            label: "Reset Link",
+                            systemImage: "arrow.clockwise"
+                        ) {
+                            Button {
+                                Task {
+                                    await model.rotate(
+                                        account: session.handle,
+                                        conversationID: conversation.conversationId
+                                    )
+                                }
+                            } label: {
+                                EmptyView()
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .disabled(model.acting)
+                    }
+                    .padding(.horizontal, 72)
                 }
             }
-
-            Image(systemName: "person.3.fill")
-                .font(.system(size: 58))
-                .foregroundStyle(.secondary)
-            Text(model.detail?.name.nonEmpty ?? conversation.name)
-                .font(.title3.weight(.semibold))
-            if let codeURL = model.detail?.codeUrl.nonEmpty {
-                Text(codeURL)
-                    .font(.callout)
-                    .multilineTextAlignment(.center)
-                    .textSelection(.enabled)
-
-                HStack(spacing: 18) {
-                    ShareLink(item: codeURL) {
-                        Label("Share Link", systemImage: "square.and.arrow.up")
-                    }
-                    Button("Copy Link", systemImage: "doc.on.doc") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(codeURL, forType: .string)
-                    }
-                    Button("Reset Link", systemImage: "arrow.clockwise") {
-                        resetConfirmationPresented = true
-                    }
-                    .disabled(model.acting)
-                }
-            } else if model.loading {
-                ProgressView()
-            } else {
-                ContentUnavailableView(
-                    "Invite link unavailable",
-                    systemImage: "link.badge.plus"
-                )
+            Text("Invite to Group via Link")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(theme.text)
+                .padding(.top, 30)
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .frame(width: 40, height: 40)
             }
-            Text("Anyone with this link can request to join the group. Reset it if the link was shared unexpectedly.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            .buttonStyle(.plain)
+            .foregroundStyle(theme.icon)
+            .padding(.top, 12)
+            .padding(.trailing, 10)
+            .frame(maxWidth: .infinity, alignment: .topTrailing)
         }
-        .padding(28)
-        .frame(width: 520, height: 430)
+        .background(theme.popUp)
+        .frame(width: 480, height: 600)
         .task(id: conversation.conversationId) {
             await model.load(
                 account: session.handle,
                 conversationID: conversation.conversationId
             )
-        }
-        .confirmationDialog(
-            "Reset this invite link?",
-            isPresented: $resetConfirmationPresented
-        ) {
-            Button("Reset Link", role: .destructive) {
-                Task {
-                    await model.rotate(
-                        account: session.handle,
-                        conversationID: conversation.conversationId
-                    )
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The current link will stop working.")
         }
         .alert(
             "Unable to update invite link",
@@ -400,6 +550,30 @@ private struct GroupInviteSheet: View {
     }
 }
 
+private struct GroupInviteActionButton<Content: View>: View {
+    @Environment(\.mixinTheme) private var theme
+    let label: String
+    let systemImage: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .overlay {
+                VStack(spacing: 15) {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 24))
+                        .foregroundStyle(theme.icon)
+                    Text(label)
+                        .font(.system(size: 14))
+                        .foregroundStyle(theme.text)
+                }
+                .padding(8)
+                .allowsHitTesting(false)
+            }
+            .frame(minWidth: 72, minHeight: 63)
+    }
+}
+
 @MainActor
 @Observable
 final class GroupParticipantsModel {
@@ -410,8 +584,8 @@ final class GroupParticipantsModel {
     }
 
     private(set) var state: State = .loading
-    private(set) var participants: [SwiftConversationParticipantItem] = []
-    private(set) var candidates: [SwiftUserItem] = []
+    private(set) var participants: [ConversationParticipantItem] = []
+    private(set) var candidates: [UserProfileItem] = []
     private(set) var loadingCandidates = false
     private(set) var actingUserIDs = Set<String>()
     private(set) var operationError: String?
@@ -425,7 +599,7 @@ final class GroupParticipantsModel {
         !actingUserIDs.isEmpty
     }
 
-    var currentParticipant: SwiftConversationParticipantItem? {
+    var currentParticipant: ConversationParticipantItem? {
         participants.first { $0.userId == currentUserID }
     }
 
@@ -479,7 +653,7 @@ final class GroupParticipantsModel {
         }
     }
 
-    func filteredParticipants(query: String) -> [SwiftConversationParticipantItem] {
+    func filteredParticipants(query: String) -> [ConversationParticipantItem] {
         let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !keyword.isEmpty else {
             return participants
@@ -490,7 +664,7 @@ final class GroupParticipantsModel {
         }
     }
 
-    func filteredCandidates(query: String) -> [SwiftUserItem] {
+    func filteredCandidates(query: String) -> [UserProfileItem] {
         let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !keyword.isEmpty else {
             return candidates
@@ -543,13 +717,13 @@ final class GroupParticipantsModel {
         }
     }
 
-    func canChangeRole(of participant: SwiftConversationParticipantItem) -> Bool {
+    func canChangeRole(of participant: ConversationParticipantItem) -> Bool {
         currentParticipant?.role == "OWNER"
             && participant.userId != currentUserID
             && participant.role != "OWNER"
     }
 
-    func canRemove(_ participant: SwiftConversationParticipantItem) -> Bool {
+    func canRemove(_ participant: ConversationParticipantItem) -> Bool {
         guard participant.userId != currentUserID else {
             return false
         }
@@ -561,8 +735,8 @@ final class GroupParticipantsModel {
 
     func update(
         account: SwiftAccountHandle,
-        action: SwiftParticipantAction,
-        participant: SwiftConversationParticipantItem
+        action: ParticipantAction,
+        participant: ConversationParticipantItem
     ) async {
         switch action {
         case .add:
@@ -596,7 +770,7 @@ final class GroupParticipantsModel {
 
     func openConversation(
         account: SwiftAccountHandle,
-        participant: SwiftConversationParticipantItem
+        participant: ConversationParticipantItem
     ) async -> String? {
         do {
             return try await account.openUserConversation(userId: participant.userId)
@@ -633,7 +807,7 @@ final class GroupParticipantsModel {
 @MainActor
 @Observable
 private final class GroupInviteModel {
-    private(set) var detail: SwiftConversationDetailItem?
+    private(set) var detail: ConversationDetailItem?
     private(set) var loading = false
     private(set) var acting = false
     var error: String?

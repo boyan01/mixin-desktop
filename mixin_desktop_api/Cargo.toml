@@ -8,6 +8,7 @@ anyhow = "1"
 async-stream = "0.3"
 chrono = "0.4"
 futures = "0.3"
+log = "0.4"
 mixin_desktop_core = { path = "../mixin_desktop_core" }
 mixin_desktop_media = { path = "../mixin_desktop_media" }
 sdk = { path = "../mixin-bot-sdk", package = "mixin-bot-sdk" }

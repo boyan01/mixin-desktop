@@ -2410,6 +2410,7 @@ dependencies = [
  "async-stream",
  "chrono",
  "futures",
+ "log",
  "mixin-bot-sdk",
  "mixin_desktop_core",
  "mixin_desktop_media",
@@ -2485,6 +2486,7 @@ dependencies = [
  "futures",
  "log",
  "mixin_desktop_api",
+ "mixin_desktop_core",
  "thiserror 2.0.18",
 ]
 

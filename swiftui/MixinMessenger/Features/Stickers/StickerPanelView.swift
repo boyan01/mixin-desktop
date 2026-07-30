@@ -5,6 +5,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct StickerPanelView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.mixinTheme) private var theme
     @State private var model: StickerPanelModel
     @State private var selectedTab: StickerPanelTab = .emoji
     @State private var storePresented = false
@@ -41,10 +43,16 @@ struct StickerPanelView: View {
         VStack(spacing: 0) {
             panelContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Divider()
             tabBar
         }
         .frame(width: 464, height: 407)
+        .background(
+            colorScheme == .dark
+                ? Color(red: 62 / 255, green: 65 / 255, blue: 72 / 255)
+                : .white
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 11))
+        .shadow(radius: 5)
         .task {
             await model.load()
         }
@@ -137,7 +145,7 @@ struct StickerPanelView: View {
     }
 
     private var tabBar: some View {
-        ScrollView(.horizontal) {
+        AppScrollView(.horizontal, showsIndicator: false) {
             HStack(spacing: 4) {
                 Button {
                     Task {
@@ -145,24 +153,23 @@ struct StickerPanelView: View {
                         storePresented = true
                     }
                 } label: {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "storefront")
-                        if model.hasNewAlbum {
-                            Circle()
-                                .fill(.red)
-                                .frame(width: 7, height: 7)
-                        }
-                    }
-                    .frame(width: 36, height: 34)
+                    Image(
+                        model.hasNewAlbum
+                            ? "StickerStoreRedDot"
+                            : "StickerStore"
+                    )
+                    .resizable()
+                    .frame(width: 24, height: 24)
+                    .frame(width: 48, height: 48)
                 }
                 .buttonStyle(.plain)
                 .help("Sticker Store")
 
-                tabButton(.emoji, icon: "face.smiling")
-                tabButton(.recent, icon: "clock")
-                tabButton(.favorite, icon: "heart")
+                tabButton(.emoji, asset: "EmojiSticker")
+                tabButton(.recent, asset: "RecentSticker")
+                tabButton(.favorite, asset: "PersonalSticker")
                 if gifAPIKey != nil {
-                    tabButton(.gif, title: "GIF")
+                    tabButton(.gif, asset: "GIFSticker")
                 }
                 ForEach(model.library?.albums ?? [], id: \.album.albumId) { section in
                     Button {
@@ -173,10 +180,10 @@ struct StickerPanelView: View {
                             assetType: nil
                         )
                         .frame(width: 28, height: 28)
-                        .padding(3)
+                        .padding(10)
                         .background(
                             selectedTab == .album(section.album.albumId)
-                                ? Color.accentColor.opacity(0.14)
+                                ? tabSelectionBackground
                                 : Color.clear
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 7))
@@ -185,33 +192,37 @@ struct StickerPanelView: View {
                     .help(section.album.name)
                 }
             }
-            .padding(.horizontal, 8)
-            .frame(height: 49)
+            .frame(height: 50)
         }
-        .background(Color.secondary.opacity(0.06))
+        .background(colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.05))
     }
 
     private func tabButton(
         _ tab: StickerPanelTab,
-        icon: String? = nil,
-        title: String? = nil
+        asset: String
     ) -> some View {
         Button {
             selectedTab = tab
         } label: {
-            Group {
-                if let icon {
-                    Image(systemName: icon)
-                } else {
-                    Text(title ?? "")
-                        .font(.caption.bold())
-                }
-            }
-            .frame(width: 36, height: 34)
-            .background(selectedTab == tab ? Color.accentColor.opacity(0.14) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 7))
+            Image(asset)
+                .resizable()
+                .renderingMode(.template)
+                .foregroundStyle(theme.secondaryText)
+                .frame(width: 24, height: 24)
+                .frame(width: 38, height: 38)
+                .background(
+                    selectedTab == tab
+                        ? tabSelectionBackground
+                        : Color.clear
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .frame(width: 48, height: 48)
         }
         .buttonStyle(.plain)
+    }
+
+    private var tabSelectionBackground: Color {
+        colorScheme == .dark ? Color.white.opacity(0.06) : theme.divider
     }
 
     private func useEmoji(_ emoji: String) {
@@ -242,8 +253,8 @@ private enum StickerPanelTab: Hashable {
 @MainActor
 @Observable
 final class StickerPanelModel {
-    private(set) var library: SwiftStickerLibrary?
-    private(set) var store: [SwiftStickerAlbumSection] = []
+    private(set) var library: StickerLibrary?
+    private(set) var store: [StickerAlbumSection] = []
     private(set) var recentEmojis: [String] = []
     private(set) var hasNewAlbum = false
     private(set) var loading = false
@@ -442,7 +453,9 @@ final class StickerPanelModel {
 }
 
 private struct StickerGrid: View {
-    let stickers: [SwiftStickerItem]
+    @Environment(\.mixinTheme) private var theme
+
+    let stickers: [StickerItem]
     let emptyTitle: String
     var includesAddButton = false
     var onAdd: (() -> Void)?
@@ -451,58 +464,75 @@ private struct StickerGrid: View {
     let onDetail: (String) -> Void
 
     var body: some View {
-        if stickers.isEmpty, !includesAddButton {
-            ContentUnavailableView(emptyTitle, systemImage: "face.smiling")
-        } else {
-            ScrollView {
-                LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4),
-                    spacing: 8
-                ) {
-                    if includesAddButton {
-                        Button {
-                            onAdd?()
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 28))
-                                .frame(maxWidth: .infinity, minHeight: 82)
-                        }
-                        .buttonStyle(.plain)
-                        .background(Color.secondary.opacity(0.06))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .help("Add Sticker")
+        AppScrollView {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4),
+                spacing: 8
+            ) {
+                if includesAddButton {
+                    Button {
+                        onAdd?()
+                    } label: {
+                        Image("AddSticker")
+                            .resizable()
+                            .renderingMode(.template)
+                            .foregroundStyle(theme.secondaryText)
+                            .frame(width: 78, height: 78)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
-                    ForEach(stickers, id: \.stickerId) { sticker in
-                        Button {
-                            onSelect(sticker.stickerId)
-                        } label: {
-                            StickerImage(
-                                urlString: sticker.assetUrl,
-                                assetType: sticker.assetType,
-                                stickerID: sticker.stickerId
-                            )
-                            .frame(maxWidth: .infinity, minHeight: 82, maxHeight: 82)
-                            .padding(5)
-                        }
-                        .buttonStyle(.plain)
-                        .background(Color.secondary.opacity(0.001))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .contextMenu {
-                            Button("Details") {
-                                onDetail(sticker.stickerId)
-                            }
-                            if let onDelete {
-                                Button("Delete", role: .destructive) {
-                                    onDelete(sticker.stickerId)
-                                }
-                            }
-                        }
-                        .help(sticker.name)
-                    }
+                    .buttonStyle(StickerGridButtonStyle())
+                    .help("Add Sticker")
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
+                ForEach(stickers, id: \.stickerId) { sticker in
+                    Button {
+                        onSelect(sticker.stickerId)
+                    } label: {
+                        StickerImage(
+                            urlString: sticker.assetUrl,
+                            assetType: sticker.assetType,
+                            stickerID: sticker.stickerId
+                        )
+                        .padding(8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .buttonStyle(StickerGridButtonStyle())
+                    .contextMenu {
+                        Button("Details") {
+                            onDetail(sticker.stickerId)
+                        }
+                        if let onDelete {
+                            Button("Delete", role: .destructive) {
+                                onDelete(sticker.stickerId)
+                            }
+                        }
+                    }
+                    .help(sticker.name)
+                }
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
         }
+    }
+}
+
+private struct StickerGridButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var hovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .aspectRatio(1, contentMode: .fit)
+            .contentShape(Rectangle())
+            .background(
+                hovering || configuration.isPressed
+                    ? (
+                        colorScheme == .dark
+                            ? Color.white.opacity(0.06)
+                            : Color(red: 229 / 255, green: 231 / 255, blue: 235 / 255)
+                    )
+                    : .clear,
+                in: RoundedRectangle(cornerRadius: 8)
+            )
+            .onHover { hovering = $0 }
     }
 }

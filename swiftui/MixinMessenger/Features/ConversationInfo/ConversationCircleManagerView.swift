@@ -3,11 +3,12 @@ import SwiftUI
 
 struct ConversationCircleManagerView: View {
     @Environment(AccountSession.self) private var session
+    @Environment(\.mixinTheme) private var theme
     @State private var model: ConversationCircleManagerModel
     @State private var creating = false
     @State private var circleName = ""
 
-    init(conversation: SwiftConversationListItem) {
+    init(conversation: ConversationListData) {
         _model = State(
             initialValue: ConversationCircleManagerModel(
                 conversation: conversation
@@ -16,69 +17,33 @@ struct ConversationCircleManagerView: View {
     }
 
     var body: some View {
-        Group {
-            switch model.state {
-            case .loading:
-                ProgressView()
-            case let .failed(message):
-                ContentUnavailableView(
-                    "Unable to Load Circles",
-                    systemImage: "circle.grid.2x2",
-                    description: Text(message)
-                )
-            case .ready where model.circles.isEmpty:
-                ContentUnavailableView(
-                    "No Circles",
-                    systemImage: "circle.grid.2x2",
-                    description: Text("Create a circle to organize this conversation.")
-                )
-            case .ready:
-                List(model.sortedCircles, id: \.circleId) { circle in
-                    Button {
-                        Task {
-                            await model.toggle(
-                                circle,
-                                account: session.handle
-                            )
-                        }
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: model.selectedIDs.contains(circle.circleId)
-                                ? "minus.circle.fill"
-                                : "plus.circle.fill")
-                                .foregroundStyle(model.selectedIDs.contains(circle.circleId)
-                                    ? .red
-                                    : Color.accentColor)
-                            Image(systemName: "circle.grid.2x2.fill")
-                                .font(.title2)
-                                .foregroundStyle(.secondary)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(circle.name)
-                                    .foregroundStyle(.primary)
-                                Text("\(circle.conversationCount) conversations")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if model.updatingID == circle.circleId {
-                                ProgressView()
-                                    .controlSize(.small)
-                            }
-                        }
-                        .padding(.vertical, 5)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(model.updatingID != nil)
+        AppScrollView {
+            VStack(spacing: 0) {
+                circleRows(selected: true)
+                if !model.selectedCircles.isEmpty,
+                   !model.unselectedCircles.isEmpty
+                {
+                    Spacer()
+                        .frame(height: 10)
                 }
+                circleRows(selected: false)
             }
         }
+        .background(theme.background)
         .navigationTitle("Circles")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button("Add Circle", systemImage: "plus") {
+                Button {
                     circleName = ""
                     creating = true
+                } label: {
+                    Image("GenericAdd")
+                        .resizable()
+                        .renderingMode(.template)
+                        .foregroundStyle(theme.icon)
+                        .frame(width: 24, height: 24)
                 }
+                .buttonStyle(MixinActionButtonStyle())
             }
         }
         .task {
@@ -136,6 +101,124 @@ struct ConversationCircleManagerView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private func circleRows(selected: Bool) -> some View {
+        ForEach(
+            selected ? model.selectedCircles : model.unselectedCircles,
+            id: \.circleId
+        ) { circle in
+            CircleManagerRow(
+                circle: circle,
+                selected: selected
+            ) {
+                Task {
+                    await model.toggle(circle, account: session.handle)
+                }
+            }
+            .disabled(model.updatingID != nil)
+        }
+    }
+}
+
+private struct CircleManagerRow: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.mixinTheme) private var theme
+
+    let circle: CircleItem
+    let selected: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Button(action: onToggle) {
+                Image(selected ? "CircleRemove" : "CircleAdd")
+                    .resizable()
+                    .frame(width: 16, height: 16)
+                    .frame(width: 48, height: 80)
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+                .frame(width: 4)
+
+            Circle()
+                .fill(
+                    colorScheme == .dark
+                        ? Color(red: 245 / 255, green: 247 / 255, blue: 250 / 255)
+                        : Color(red: 246 / 255, green: 247 / 255, blue: 250 / 255)
+                )
+                .overlay {
+                    Image("CircleGlyph")
+                        .resizable()
+                        .renderingMode(.template)
+                        .foregroundStyle(circle.color)
+                        .frame(width: 24, height: 24)
+                }
+                .frame(width: 50, height: 50)
+
+            Spacer()
+                .frame(width: 8)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(circle.name)
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.text)
+                Text("\(circle.conversationCount) conversations")
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.secondaryText)
+            }
+        }
+        .frame(height: 80)
+        .background(theme.primary)
+    }
+}
+
+private extension CircleItem {
+    var color: Color {
+        let palette: [Color] = [
+            circleColor(0x8E7BFF), circleColor(0x657CFB), circleColor(0xA739C2),
+            circleColor(0xBD6DDA), circleColor(0xFD89F1), circleColor(0xFA7B95),
+            circleColor(0xE94156), circleColor(0xFA9652), circleColor(0xF1D22B),
+            circleColor(0xBAE361), circleColor(0x5EDD5E), circleColor(0x4BE6FF),
+            circleColor(0x45B7FE), circleColor(0x00ECD0), circleColor(0xFFCCC0),
+            circleColor(0xCEA06B),
+        ]
+        return palette[circleColorIndex(circleId, paletteCount: palette.count)]
+    }
+}
+
+private func circleColor(_ value: UInt) -> Color {
+    Color(
+        red: Double((value >> 16) & 0xFF) / 255,
+        green: Double((value >> 8) & 0xFF) / 255,
+        blue: Double(value & 0xFF) / 255
+    )
+}
+
+private func circleColorIndex(_ id: String, paletteCount: Int) -> Int {
+    let components = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        .split(separator: "-")
+    if components.count == 5,
+       let first = UInt64(components[0], radix: 16),
+       let second = UInt64(components[1], radix: 16),
+       let third = UInt64(components[2], radix: 16),
+       let fourth = UInt64(components[3], radix: 16),
+       let fifth = UInt64(components[4], radix: 16)
+    {
+        let high = (first << 32) | (second << 16) | third
+        let low = (fourth << 48) | fifth
+        let hilo = high ^ low
+        let upper = Int64(hilo >> 32)
+        let signedLower = Int64(
+            Int32(bitPattern: UInt32(truncatingIfNeeded: hilo))
+        )
+        let hash = upper ^ signedLower
+        return Int(hash.magnitude % UInt64(paletteCount))
+    }
+
+    let hash = id.utf8.reduce(0) { ($0 &* 31) &+ Int($1) }
+    return Int(hash.magnitude % UInt(paletteCount))
 }
 
 @MainActor
@@ -147,28 +230,24 @@ final class ConversationCircleManagerModel {
         case failed(String)
     }
 
-    let conversation: SwiftConversationListItem
+    let conversation: ConversationListData
     private(set) var state = State.loading
-    private(set) var circles: [SwiftCircleItem] = []
+    private(set) var circles: [CircleItem] = []
     private(set) var selectedIDs: Set<String>
     private(set) var updatingID: String?
     var operationError: String?
 
-    init(conversation: SwiftConversationListItem) {
+    init(conversation: ConversationListData) {
         self.conversation = conversation
         selectedIDs = Set(conversation.circleIds)
     }
 
-    var sortedCircles: [SwiftCircleItem] {
-        circles.sorted {
-            let lhsSelected = selectedIDs.contains($0.circleId)
-            let rhsSelected = selectedIDs.contains($1.circleId)
-            if lhsSelected != rhsSelected {
-                return lhsSelected
-            }
-            return $0.name.localizedCaseInsensitiveCompare($1.name)
-                == .orderedAscending
-        }
+    var selectedCircles: [CircleItem] {
+        circles.filter { selectedIDs.contains($0.circleId) }
+    }
+
+    var unselectedCircles: [CircleItem] {
+        circles.filter { !selectedIDs.contains($0.circleId) }
     }
 
     func load(account: SwiftAccountHandle) async {
@@ -182,7 +261,7 @@ final class ConversationCircleManagerModel {
     }
 
     func toggle(
-        _ circle: SwiftCircleItem,
+        _ circle: CircleItem,
         account: SwiftAccountHandle
     ) async {
         guard updatingID == nil else {

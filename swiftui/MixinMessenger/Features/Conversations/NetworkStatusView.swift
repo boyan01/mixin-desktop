@@ -2,32 +2,38 @@ import SwiftUI
 
 struct NetworkStatusView: View {
     @Environment(AccountSession.self) private var session
+    @Environment(\.mixinTheme) private var theme
 
     var body: some View {
         VStack(spacing: 0) {
             if !session.connected, session.connectedBefore {
                 HStack(spacing: 12) {
                     Image(systemName: "exclamationmark")
-                        .font(.caption.bold())
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 20, height: 20)
-                        .background(.orange, in: Circle())
+                        .background(theme.warning, in: Circle())
                     Text("Network connection failed")
+                        .font(.system(size: 14))
+                        .foregroundStyle(theme.text)
                     Spacer()
                     Button("Retry") {
                         session.retryConnection()
                     }
-                    .buttonStyle(.link)
+                    .buttonStyle(.plain)
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.accent)
                 }
                 .padding(.horizontal, 22)
-                .frame(height: 48)
-                .background(.orange.opacity(0.16))
+                .padding(.vertical, 14)
+                .background(theme.warning.opacity(0.2))
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
             if !session.connected {
                 ProgressView()
                     .progressViewStyle(.linear)
                     .controlSize(.small)
+                    .tint(theme.accent)
                     .frame(height: 2)
             }
         }

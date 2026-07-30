@@ -1,7 +1,7 @@
 import Foundation
 
 struct MessageActionPolicy: Equatable {
-    let message: SwiftMessageItem
+    let message: MessageItem
     let currentUserID: String
     let currentUserRole: String?
     let now: Date
@@ -18,10 +18,90 @@ struct MessageActionPolicy: Equatable {
         allowsMessageActions
     }
 
+    var canForward: Bool {
+        guard message.status.isCompletedMessageStatus else {
+            return false
+        }
+        let category = message.category
+        if category == "APP_CARD" {
+            return message.jsonShareable(fallback: false)
+        }
+        let finishedAttachment =
+            (category.isImage
+                || category.hasSuffix("_VIDEO")
+                || category.hasSuffix("_AUDIO")
+                || category.hasSuffix("_DATA"))
+            && ["DONE", "READ"].contains(message.mediaStatus.uppercased())
+            && message.mediaUrl?.isEmpty == false
+            && message.jsonShareable(fallback: true)
+        return category.isText
+            || finishedAttachment
+            || category.hasSuffix("_STICKER")
+            || category.hasSuffix("_CONTACT")
+            || (category.hasSuffix("_LIVE")
+                && message.jsonShareable(fallback: false))
+            || category.isPost
+            || category.hasSuffix("_LOCATION")
+            || (category.hasSuffix("_TRANSCRIPT")
+                && (message.mediaSize ?? 0) <= 0)
+    }
+
+    var canCombineForward: Bool {
+        guard message.status.isCompletedMessageStatus,
+              !message.category.hasSuffix("_TRANSCRIPT")
+        else {
+            return false
+        }
+        let category = message.category
+        if category == "APP_CARD" {
+            return message.jsonShareable(fallback: false)
+        }
+        let attachment = category.isImage
+            || category.hasSuffix("_VIDEO")
+            || category.hasSuffix("_AUDIO")
+            || category.hasSuffix("_DATA")
+        if attachment {
+            guard ["DONE", "READ"].contains(
+                message.mediaStatus.uppercased()
+            ) else {
+                return false
+            }
+            return !category.hasSuffix("_AUDIO")
+                || message.jsonShareable(fallback: true)
+        }
+        return category.isText
+            || category.hasSuffix("_STICKER")
+            || category.hasSuffix("_CONTACT")
+            || category.hasSuffix("_LIVE")
+            || category.isPost
+            || category.hasSuffix("_LOCATION")
+    }
+
     var canPin: Bool {
         message.category.canReply
             && message.status.isCompletedMessageStatus
             && currentUserRole != nil
+    }
+
+    var canSave: Bool {
+        message.mediaStatus.uppercased() == "DONE"
+            && message.mediaUrl?.isEmpty == false
+            && (
+                message.category.isImage
+                    || message.category.hasSuffix("_VIDEO")
+                    || message.category.hasSuffix("_AUDIO")
+                    || message.category.hasSuffix("_DATA")
+            )
+    }
+
+    var canAddSticker: Bool {
+        message.category.hasSuffix("_STICKER")
+    }
+
+    var canAddImageAsSticker: Bool {
+        message.category.isImage
+            && ["DONE", "READ"].contains(message.mediaStatus.uppercased())
+            && message.mediaUrl?.isEmpty == false
     }
 
     var canRecall: Bool {
@@ -121,8 +201,19 @@ private extension String {
     }
 }
 
-private extension SwiftMessageItem {
+private extension MessageItem {
     var createdAt: Date {
         Date(timeIntervalSince1970: Double(createdAtMicros) / 1_000_000)
+    }
+
+    func jsonShareable(fallback: Bool) -> Bool {
+        guard let data = content.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let values = object as? [String: Any],
+              let shareable = values["shareable"] as? Bool
+        else {
+            return fallback
+        }
+        return shareable
     }
 }

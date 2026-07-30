@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
 
 import '../constants/assets.dart';
@@ -103,11 +104,11 @@ Future<MessageUserDialogResult?> showMessageUserDialog(
   if (!context.mounted) return null;
   return showMixinDialog<MessageUserDialogResult>(
     context: context,
-    child: MessageUserDialog(account: account, profile: Future.value(profile)),
+    child: MessageUserDialog(account: account, profile: profile),
   );
 }
 
-class MessageUserDialog extends StatelessWidget {
+class MessageUserDialog extends HookWidget {
   const MessageUserDialog({
     required this.account,
     required this.profile,
@@ -115,37 +116,46 @@ class MessageUserDialog extends StatelessWidget {
   });
 
   final rust.AccountHandle account;
-  final Future<rust.UserProfileItem?> profile;
+  final rust.UserProfileItem profile;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 340,
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Align(
-          alignment: Alignment.centerRight,
-          child: Padding(
-            padding: EdgeInsets.only(right: 8, top: 8),
-            child: MixinCloseButton(
-              key: Key('message-user-dialog-close'),
+  Widget build(BuildContext context) {
+    final currentProfile = useState(profile);
+
+    useEffect(() {
+      var disposed = false;
+      unawaited(() async {
+        try {
+          final refreshed = await account.user().refreshUserProfile(
+            userId: profile.userId,
+          );
+          if (!disposed && refreshed != null) currentProfile.value = refreshed;
+        } on Object catch (error, stackTrace) {
+          e('Refresh message user profile failed', error, stackTrace);
+        }
+      }());
+      return () => disposed = true;
+    }, [account, profile.userId]);
+
+    return SizedBox(
+      width: 340,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: EdgeInsets.only(right: 8, top: 8),
+              child: MixinCloseButton(
+                key: Key('message-user-dialog-close'),
+              ),
             ),
           ),
-        ),
-        FutureBuilder<rust.UserProfileItem?>(
-          future: profile,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const SizedBox();
-            }
-            final profile = snapshot.data;
-            if (snapshot.hasError || profile == null) return const SizedBox();
-            return _ProfileBody(account: account, profile: profile);
-          },
-        ),
-      ],
-    ),
-  );
+          _ProfileBody(account: account, profile: currentProfile.value),
+        ],
+      ),
+    );
+  }
 }
 
 class _ProfileBody extends StatefulWidget {

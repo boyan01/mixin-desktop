@@ -162,7 +162,7 @@ class _SearchUserDialog extends HookWidget {
       child: profile.value != null
           ? MessageUserDialog(
               account: account,
-              profile: Future.value(profile.value),
+              profile: profile.value!,
             )
           : Stack(
               children: [

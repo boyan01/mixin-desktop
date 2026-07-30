@@ -1,3 +1,8 @@
+enum HomePage: Hashable {
+    case chats
+    case settings
+}
+
 enum HomeSection: Hashable {
     case chats
     case contacts
@@ -5,7 +10,6 @@ enum HomeSection: Hashable {
     case bots
     case strangers
     case circle(String)
-    case settings
 
     var conversationFilter: (category: String, circleID: String?) {
         switch self {
@@ -21,8 +25,12 @@ enum HomeSection: Hashable {
             ("strangers", nil)
         case let .circle(circleID):
             ("chats", circleID)
-        case .settings:
-            ("chats", nil)
         }
     }
+}
+
+enum HomeRoute: Hashable {
+    case chat(String)
+    case chatInfo
+    case settings(SettingsDestination)
 }

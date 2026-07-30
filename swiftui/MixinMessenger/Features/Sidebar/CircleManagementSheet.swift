@@ -5,12 +5,12 @@ struct CircleNameSheet: View {
     @State private var name: String
     @State private var saving = false
     @State private var failurePresented = false
-    let circle: SwiftCircleItem
+    let circle: CircleItem
     let onCancel: () -> Void
     let onSave: (String) async -> Bool
 
     init(
-        circle: SwiftCircleItem,
+        circle: CircleItem,
         onCancel: @escaping () -> Void,
         onSave: @escaping (String) async -> Bool
     ) {
@@ -76,7 +76,7 @@ struct CircleConversationsSheet: View {
     @State private var query = ""
     let onDismiss: () -> Void
 
-    init(circle: SwiftCircleItem, onDismiss: @escaping () -> Void) {
+    init(circle: CircleItem, onDismiss: @escaping () -> Void) {
         _model = State(initialValue: CircleConversationsModel(circle: circle))
         self.onDismiss = onDismiss
     }
@@ -102,13 +102,13 @@ struct CircleConversationsSheet: View {
                         }
                     }
                 case .ready:
-                    List(model.filteredConversations(query: query), id: \.conversationId) {
+                    AppListView(model.filteredConversations(query: query), id: \.conversationId) {
                         conversation in
                         Button {
                             model.toggle(conversation.conversationId)
                         } label: {
                             HStack(spacing: 12) {
-                                MixinRemoteImage(url: URL(string: conversation.iconUrl)) { image in
+                                MixinRemoteImage(url: URL(string: conversation.avatarUrl)) { image in
                                     image.resizable().scaledToFill()
                                 } placeholder: {
                                     Image(systemName: conversation.category == "GROUP"
@@ -185,14 +185,14 @@ final class CircleConversationsModel {
         case failed(String)
     }
 
-    let circle: SwiftCircleItem
+    let circle: CircleItem
     private(set) var state: State = .loading
-    private(set) var conversations: [SwiftConversationListItem] = []
+    private(set) var conversations: [ConversationListData] = []
     private(set) var selectedIDs = Set<String>()
     private(set) var saving = false
     private var initialIDs = Set<String>()
 
-    init(circle: SwiftCircleItem) {
+    init(circle: CircleItem) {
         self.circle = circle
     }
 
@@ -224,7 +224,7 @@ final class CircleConversationsModel {
         }
     }
 
-    func filteredConversations(query: String) -> [SwiftConversationListItem] {
+    func filteredConversations(query: String) -> [ConversationListData] {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !query.isEmpty else {
             return conversations
@@ -266,9 +266,9 @@ final class CircleConversationsModel {
         account: SwiftAccountHandle,
         category: String,
         circleID: String?
-    ) async throws -> [SwiftConversationListItem] {
+    ) async throws -> [ConversationListData] {
         var offset: Int64 = 0
-        var result: [SwiftConversationListItem] = []
+        var result: [ConversationListData] = []
         while true {
             let page = try await account.conversations(
                 category: category,

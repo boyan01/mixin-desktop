@@ -50,6 +50,7 @@ final class SettingsPreferencesModel {
             loaded = true
             loadError = nil
         } catch {
+            AppLogger.error("Load settings preferences failed", error: error)
             loadError = MixinErrorPresenter.message(for: error)
             noticeCenter.show(error: error)
         }
@@ -87,6 +88,9 @@ final class SettingsPreferencesModel {
 
     private func persist(key: String, value: String) {
         guard let desktop else {
+            AppLogger.error(
+                "Persist setting failed: desktop handle unavailable key=\(key)"
+            )
             return
         }
         Task {
@@ -94,6 +98,10 @@ final class SettingsPreferencesModel {
                 try await desktop.setSetting(key: key, value: value)
                 loadError = nil
             } catch {
+                AppLogger.error(
+                    "Persist setting failed: key=\(key)",
+                    error: error
+                )
                 loadError = MixinErrorPresenter.message(for: error)
                 noticeCenter.show(error: error)
             }

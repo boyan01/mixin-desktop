@@ -1,3 +1,4 @@
+#[derive(Clone, Debug)]
 pub struct ConversationListData {
     pub conversation_id: String,
     pub owner_id: String,
@@ -33,7 +34,7 @@ pub struct ConversationListData {
     pub group_avatars: Vec<GroupAvatar>,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConversationUnseenCount {
     pub category: String,
     pub circle_id: Option<String>,
@@ -41,28 +42,33 @@ pub struct ConversationUnseenCount {
     pub muted_count: i64,
 }
 
+#[derive(Clone, Debug)]
 pub struct GroupAvatar {
     pub user_id: String,
     pub name: String,
     pub avatar_url: String,
 }
 
+#[derive(Clone, Debug)]
 pub struct PinMessagePreviewItem {
     pub message_id: String,
     pub content: String,
     pub sender_name: String,
 }
 
+#[derive(Clone, Debug)]
 pub struct ConversationStorageUsage {
     pub conversation: ConversationListData,
     pub size_bytes: i64,
 }
 
+#[derive(Clone, Debug)]
 pub struct StorageCategoryUsage {
     pub category: String,
     pub size_bytes: i64,
 }
 
+#[derive(Clone, Debug)]
 pub struct UserProfileItem {
     pub user_id: String,
     pub identity_number: String,
@@ -76,13 +82,14 @@ pub struct UserProfileItem {
     pub membership: Option<String>,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CircleItem {
     pub circle_id: String,
     pub name: String,
     pub conversation_count: i64,
 }
 
+#[derive(Clone, Debug)]
 pub struct ConversationDetailItem {
     pub conversation_id: String,
     pub name: String,
@@ -93,6 +100,7 @@ pub struct ConversationDetailItem {
     pub expire_in: i64,
 }
 
+#[derive(Clone, Debug)]
 pub struct CodeResult {
     pub kind: String,
     pub user_id: Option<String>,
@@ -113,6 +121,7 @@ pub struct CodeResult {
     pub action: Option<String>,
 }
 
+#[derive(Clone, Debug)]
 pub struct SnapshotDetailItem {
     pub snapshot_id: String,
     pub trace_id: Option<String>,
@@ -247,6 +256,7 @@ impl SnapshotDetailItem {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct GroupConversationItem {
     pub conversation_id: String,
     pub name: String,
@@ -254,6 +264,7 @@ pub struct GroupConversationItem {
     pub participant_count: i64,
 }
 
+#[derive(Clone, Debug)]
 pub struct SharedAppItem {
     pub app_id: String,
     pub name: String,
@@ -262,6 +273,7 @@ pub struct SharedAppItem {
     pub home_uri: String,
 }
 
+#[derive(Clone, Debug)]
 pub struct ConversationParticipantItem {
     pub user_id: String,
     pub role: Option<String>,
@@ -276,6 +288,7 @@ pub struct ConversationParticipantItem {
     pub membership: Option<String>,
 }
 
+#[derive(Clone, Debug)]
 pub struct StickerItem {
     pub sticker_id: String,
     pub album_id: Option<String>,
@@ -288,6 +301,7 @@ pub struct StickerItem {
     pub last_use_at_millis: Option<i64>,
 }
 
+#[derive(Clone, Debug)]
 pub struct StickerAlbumItem {
     pub album_id: String,
     pub name: String,
@@ -299,6 +313,7 @@ pub struct StickerAlbumItem {
     pub is_verified: bool,
 }
 
+#[derive(Clone, Debug)]
 pub struct StickerDetailItem {
     pub sticker: StickerItem,
     pub album: Option<StickerAlbumItem>,
@@ -306,7 +321,7 @@ pub struct StickerDetailItem {
     pub is_personal: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MessageListView {
     pub message_id: String,
     pub conversation_id: String,
@@ -384,12 +399,14 @@ pub struct MessageListView {
     pub expire_in: Option<i64>,
 }
 
+#[derive(Clone, Debug)]
 pub struct MessageOrderInfoView {
     pub message_id: String,
     pub row_id: i64,
     pub created_at_micros: i64,
 }
 
+#[derive(Clone, Debug)]
 pub struct NotificationEvent {
     pub message_id: String,
     pub conversation_id: String,
@@ -402,6 +419,7 @@ pub struct NotificationEvent {
     pub dismiss_message_id: Option<String>,
 }
 
+#[derive(Clone, Debug)]
 pub struct NotificationEventBatch {
     pub events: Vec<NotificationEvent>,
     pub next_created_at_micros: i64,
@@ -459,6 +477,7 @@ fn mentions_identity(content: &str, identity_number: &str) -> bool {
     })
 }
 
+#[derive(Clone, Debug)]
 pub struct ImageMessageView {
     pub message_id: String,
     pub created_at_micros: i64,

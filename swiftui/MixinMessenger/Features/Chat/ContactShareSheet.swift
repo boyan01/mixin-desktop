@@ -2,97 +2,149 @@ import SwiftUI
 
 struct ContactShareSheet: View {
     @Environment(AccountSession.self) private var session
+    @Environment(MixinNoticeCenter.self) private var noticeCenter
     @Environment(\.dismiss) private var dismiss
-    @State private var users: [SwiftUserItem] = []
+    @Environment(\.mixinTheme) private var theme
+    @State private var users: [UserProfileItem] = []
     @State private var query = ""
-    @State private var loading = true
     @State private var sendingUserID: String?
-    @State private var error: String?
+    @FocusState private var searchFocused: Bool
     let onSend: (String) async -> Bool
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if loading {
-                    ProgressView("Loading contacts…")
-                } else if users.isEmpty, let error {
-                    ContentUnavailableView(
-                        "Unable to load contacts",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(error)
-                    )
-                } else {
-                    List(filteredUsers, id: \.userId) { user in
-                        Button {
-                            send(user.userId)
-                        } label: {
-                            HStack(spacing: 12) {
-                                MixinRemoteImage(url: URL(string: user.avatarUrl)) { image in
-                                    image.resizable().scaledToFill()
-                                } placeholder: {
-                                    Image(systemName: "person.crop.circle.fill")
-                                        .resizable()
-                                        .foregroundStyle(.secondary)
-                                }
-                                .frame(width: 42, height: 42)
-                                .clipShape(Circle())
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(MixinActionButtonStyle())
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(user.fullName)
-                                        .foregroundStyle(.primary)
-                                    Text(user.identityNumber)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if sendingUserID == user.userId {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                }
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(sendingUserID != nil)
-                    }
-                    .overlay {
-                        if filteredUsers.isEmpty {
-                            ContentUnavailableView.search(text: query)
-                        }
-                    }
-                }
+                Text("Select")
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.text)
+                    .frame(maxWidth: .infinity)
+
+                Color.clear
+                    .frame(width: 36, height: 36)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .navigationTitle("Share Contact")
-            .searchable(text: $query, prompt: "Search contacts")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .disabled(sendingUserID != nil)
+            .padding(.horizontal, 16)
+
+            MixinSearchField(
+                text: $query,
+                focus: $searchFocused,
+                placeholder: "Search"
+            )
+            .frame(height: 32)
+            .padding(.top, 8)
+            .padding(.horizontal, 24)
+
+            Spacer().frame(height: 8)
+
+            AppScrollView {
+                LazyVStack(spacing: 0) {
+                    contactSection(
+                        title: "Contacts",
+                        users: filteredUsers.filter { !$0.isBot }
+                    )
+                    contactSection(
+                        title: "Bots",
+                        users: filteredUsers.filter(\.isBot)
+                    )
                 }
-            }
-            .task {
-                await load()
-            }
-            .alert(
-                "Unable to Share Contact",
-                isPresented: Binding(
-                    get: { error != nil && !users.isEmpty },
-                    set: { if !$0 { error = nil } }
-                )
-            ) {
-                Button("OK") {
-                    error = nil
-                }
-            } message: {
-                Text(error ?? "")
+                .padding(.horizontal, 16)
             }
         }
-        .frame(minWidth: 460, minHeight: 560)
+        .padding(.top, 16)
+        .frame(width: 480, height: 600)
+        .background(theme.popUp)
+        .task {
+            await load()
+            searchFocused = true
+        }
     }
 
-    private var filteredUsers: [SwiftUserItem] {
+    @ViewBuilder
+    private func contactSection(
+        title: String,
+        users: [UserProfileItem]
+    ) -> some View {
+        if !users.isEmpty {
+            Text(title)
+                .font(.system(size: 16))
+                .foregroundStyle(theme.text)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: 42,
+                    alignment: .leading
+                )
+                .padding(.leading, 14)
+                .background(theme.popUp)
+
+            ForEach(users, id: \.userId) { user in
+                Button {
+                    send(user.userId)
+                } label: {
+                    HStack(spacing: 16) {
+                        UserAvatar(
+                            userID: user.userId,
+                            name: user.fullName,
+                            url: user.avatarUrl,
+                            size: 50
+                        )
+                        HStack(spacing: 0) {
+                            highlightedName(user.fullName)
+                            ProfileIdentityBadge(
+                                isVerified: user.isVerified,
+                                isBot: user.isBot,
+                                membership: user.membership
+                            )
+                            .padding(.horizontal, 4)
+                        }
+                        Spacer()
+                        if sendingUserID == user.userId {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
+                    .padding(.top, 10)
+                    .padding(.bottom, 10)
+                    .padding(.leading, 14)
+                    .padding(.trailing, 10)
+                    .frame(height: 70)
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(MixinRowButtonStyle(selected: false))
+                .disabled(sendingUserID != nil)
+            }
+        }
+    }
+
+    private func highlightedName(_ name: String) -> Text {
+        let keyword = query.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard !keyword.isEmpty,
+              let range = name.range(
+                of: keyword,
+                options: [.caseInsensitive]
+              )
+        else {
+            return Text(name)
+                .foregroundColor(theme.text)
+        }
+        return Text(String(name[..<range.lowerBound]))
+            .foregroundColor(theme.text)
+            + Text(String(name[range]))
+            .foregroundColor(theme.accent)
+            + Text(String(name[range.upperBound...]))
+            .foregroundColor(theme.text)
+    }
+
+    private var filteredUsers: [UserProfileItem] {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         guard !query.isEmpty else {
@@ -105,24 +157,23 @@ struct ContactShareSheet: View {
     }
 
     private func load() async {
-        loading = true
-        error = nil
         do {
             users = try await session.handle.selectableUsers()
         } catch {
-            self.error = MixinErrorPresenter.message(for: error)
+            AppLogger.error("Load contacts failed", error: error)
         }
-        loading = false
     }
 
     private func send(_ userID: String) {
         sendingUserID = userID
-        error = nil
         Task {
             if await onSend(userID) {
                 dismiss()
             } else {
-                error = "The contact could not be shared."
+                noticeCenter.show(
+                    "The contact could not be shared.",
+                    kind: .failure
+                )
                 sendingUserID = nil
             }
         }

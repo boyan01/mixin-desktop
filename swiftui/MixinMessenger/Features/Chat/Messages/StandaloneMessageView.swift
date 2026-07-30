@@ -2,8 +2,12 @@ import AppKit
 import MapKit
 import SwiftUI
 
+private let unsupportedMessageHelpURL = URL(
+    string: "https://support.mixin.one/en/article/how-to-do-when-you-receive-a-message-like-this-this-type-of-message-is-not-supported-please-upgrade-mixin-17j1t3p"
+)!
+
 struct SpecialMessageContentView: View {
-    let message: SwiftMessageItem
+    let message: MessageItem
     let mentionNames: [String: String]
     let onStrangerAction: (String) async -> Bool
 
@@ -35,35 +39,53 @@ struct SpecialMessageContentView: View {
 
 struct WaitingMessageView: View {
     let subject: String
-
-    private let helpURL = URL(
-        string: "https://support.mixin.one/en/article/how-to-do-when-you-receive-a-message-like-this-this-type-of-message-is-not-supported-please-upgrade-mixin-17j1t3p"
-    )!
+    @Environment(\.mixinTheme) private var theme
+    @Environment(SettingsPreferencesModel.self) private var preferences
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(
-                "Waiting for \(subject) to get online and establish an encrypted session."
-            )
+        Text(attributedText)
+            .font(.system(size: 16 + preferences.chatFontSizeDelta))
+            .tint(theme.accent)
             .fixedSize(horizontal: false, vertical: true)
-
-            Link("Learn More", destination: helpURL)
-                .foregroundStyle(Color.accentColor)
-        }
         .accessibilityElement(children: .combine)
+    }
+
+    private var attributedText: AttributedString {
+        var text = AttributedString(
+            "Waiting for \(subject) to get online and establish an encrypted session."
+        )
+        text.foregroundColor = theme.text
+        var link = AttributedString("Learn More")
+        link.foregroundColor = theme.accent
+        link.link = unsupportedMessageHelpURL
+        text.append(link)
+        return text
     }
 }
 
 struct UnsupportedMessageView: View {
     let category: String
+    @Environment(\.mixinTheme) private var theme
+    @Environment(SettingsPreferencesModel.self) private var preferences
 
     var body: some View {
-        Label(
-            "This type of message is not supported. Update Mixin to the latest version.",
-            systemImage: "exclamationmark.bubble"
+        Text(attributedText)
+            .font(.system(size: 16 + preferences.chatFontSizeDelta))
+            .tint(theme.accent)
+            .fixedSize(horizontal: false, vertical: true)
+            .help(category)
+    }
+
+    private var attributedText: AttributedString {
+        var text = AttributedString(
+            "This type of message is not supported, please upgrade Mixin to the latest version. "
         )
-        .foregroundStyle(.secondary)
-        .help(category)
+        text.foregroundColor = theme.text
+        var link = AttributedString("Learn More")
+        link.foregroundColor = theme.accent
+        link.link = unsupportedMessageHelpURL
+        text.append(link)
+        return text
     }
 }
 
@@ -80,28 +102,20 @@ private struct SpecialLocationMessageView: View {
                         initialPosition: .region(location.region),
                         interactionModes: []
                     ) {
-                        Marker(location.label, coordinate: location.coordinate)
+                        Annotation(
+                            location.label,
+                            coordinate: location.coordinate,
+                            anchor: .bottom
+                        ) {
+                            Image("LocationMark")
+                                .resizable()
+                                .frame(width: 22, height: 33)
+                        }
                     }
                     .allowsHitTesting(false)
 
-                    if !location.label.isEmpty {
-                        Text(location.label)
-                            .font(.caption.weight(.medium))
-                            .lineLimit(2)
-                            .foregroundStyle(.primary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 7)
-                            .background(.regularMaterial)
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
-                            .padding(8)
-                    }
                 }
                 .frame(width: 260, height: 180)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(.separator.opacity(0.5), lineWidth: 1)
-                }
             }
             .buttonStyle(.plain)
             .help("Open in Google Maps")
@@ -117,19 +131,16 @@ private struct SpecialLocationMessageView: View {
 }
 
 private struct SpecialSecretMessageView: View {
+    @Environment(SettingsPreferencesModel.self) private var preferences
     private let url = URL(string: "https://mixin.one/pages/1000007")!
 
     var body: some View {
         Button {
             NSWorkspace.shared.open(url)
         } label: {
-            Label(
-                "Messages in this conversation are end-to-end encrypted. Tap for more info.",
-                systemImage: "lock.fill"
-            )
-            .font(.callout)
+            Text("Messages are end-to-end encrypted")
+            .font(.system(size: 14 + preferences.chatFontSizeDelta))
             .foregroundStyle(Color.black.opacity(0.82))
-            .multilineTextAlignment(.center)
             .padding(10)
             .background(
                 Color(red: 1, green: 247 / 255, blue: 173 / 255),
@@ -138,18 +149,20 @@ private struct SpecialSecretMessageView: View {
         }
         .buttonStyle(.plain)
         .help("Learn about end-to-end encryption")
+        .frame(maxWidth: .infinity)
     }
 }
 
 private struct SpecialPinMessageView: View {
+    @Environment(SettingsPreferencesModel.self) private var preferences
     let senderName: String
     let content: String
     let mentionNames: [String: String]
 
     var body: some View {
         Text(summary)
-            .font(.callout)
-            .foregroundStyle(Color.black.opacity(0.82))
+            .font(.system(size: 14 + preferences.chatFontSizeDelta))
+            .foregroundStyle(.black)
             .lineLimit(1)
             .truncationMode(.tail)
             .padding(.horizontal, 10)
@@ -160,6 +173,7 @@ private struct SpecialPinMessageView: View {
                 in: RoundedRectangle(cornerRadius: 10)
             )
             .accessibilityLabel(summary)
+            .frame(maxWidth: .infinity)
     }
 
     private var summary: String {
@@ -173,8 +187,9 @@ private struct SpecialPinMessageView: View {
 }
 
 private struct SpecialStrangerMessageView: View {
-    let message: SwiftMessageItem
+    let message: MessageItem
     let onAction: (String) async -> Bool
+    @Environment(\.mixinTheme) private var theme
 
     @State private var resolved = false
     @State private var pendingAction: String?
@@ -184,14 +199,15 @@ private struct SpecialStrangerMessageView: View {
             VStack(spacing: 10) {
                 Text(
                     message.senderIsBot
-                        ? "Tap the button to interact with the bot"
-                        : "This sender is not in your contacts"
+                        ? "Tap to interact with the bot"
+                        : "This person is not in your contacts"
                 )
-                .multilineTextAlignment(.center)
+                .font(.system(size: 16))
+                .foregroundStyle(theme.text)
 
                 HStack(spacing: 16) {
                     actionButton(
-                        message.senderIsBot ? "Open Homepage" : "Block",
+                        message.senderIsBot ? "Open Home Page" : "Block",
                         action: message.senderIsBot ? "open_home" : "block"
                     )
                     actionButton(
@@ -226,8 +242,13 @@ private struct SpecialStrangerMessageView: View {
                 }
                 Text(title)
             }
-            .frame(minWidth: 94)
+            .font(.system(size: 16))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .frame(minWidth: 162, maxHeight: 36)
+            .background(theme.primary, in: RoundedRectangle(cornerRadius: 8))
         }
+        .buttonStyle(.plain)
         .disabled(pendingAction != nil)
     }
 }

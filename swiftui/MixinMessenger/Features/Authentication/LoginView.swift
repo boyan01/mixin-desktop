@@ -3,6 +3,8 @@ import SwiftUI
 
 struct LoginView: View {
     @Environment(AppModel.self) private var appModel
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.mixinTheme) private var theme
     @State private var model: LoginModel
 
     init(desktop: SwiftDesktopHandle) {
@@ -11,17 +13,19 @@ struct LoginView: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            Color(nsColor: .underPageBackgroundColor)
+            (colorScheme == .dark
+                ? Color(red: 35 / 255, green: 39 / 255, blue: 43 / 255)
+                : Color(red: 229 / 255, green: 229 / 255, blue: 229 / 255))
                 .ignoresSafeArea()
             loginCard
                 .frame(width: 520, height: 418)
-                .background(.background)
+                .background(theme.popUp)
                 .clipShape(RoundedRectangle(cornerRadius: 13))
                 .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             Text(versionText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 14))
+                .foregroundStyle(theme.secondaryText)
                 .padding(16)
         }
         .task {
@@ -36,43 +40,28 @@ struct LoginView: View {
     private var loginCard: some View {
         switch model.state {
         case .loading:
-            ProgressView("Preparing QR code…")
-                .controlSize(.large)
+            LoginLoadingContent(title: "Initializing…")
         case let .ready(authURL):
-            VStack(spacing: 20) {
-                QRCodeView(value: authURL)
-                    .frame(width: 220, height: 220)
-                Text("Scan with Mixin Messenger")
-                    .font(.title3.weight(.semibold))
-                Text("Open Mixin on your phone and scan this code to sign in.")
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+            VStack {
+                Spacer()
+                LoginQRCodeContent(authURL: authURL)
+                Spacer()
             }
-            .padding(36)
-        case let .provisioning(authURL):
-            VStack(spacing: 20) {
-                QRCodeView(value: authURL)
-                    .frame(width: 220, height: 220)
-                    .opacity(0.35)
-                    .overlay {
-                        ProgressView()
-                            .controlSize(.large)
-                    }
-                Text("Finishing sign in…")
-                    .font(.title3.weight(.semibold))
-            }
+        case .provisioning:
+            LoginLoadingContent(title: "Loading...")
         case let .failed(message):
-            ContentUnavailableView {
-                Label("QR Code Unavailable", systemImage: "qrcode")
-            } description: {
-                Text(message)
-            } actions: {
-                Button("Try Again") {
-                    Task {
-                        await authenticate()
+            VStack {
+                Spacer()
+                LoginQRCodeContent(
+                    authURL: nil,
+                    error: message,
+                    onRetry: {
+                        Task {
+                            await authenticate()
+                        }
                     }
-                }
-                .keyboardShortcut(.defaultAction)
+                )
+                Spacer()
             }
         }
     }
@@ -82,7 +71,7 @@ struct LoginView: View {
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
         return switch (version, build) {
         case let (version?, build?):
-            "\(version) (\(build))"
+            "\(version)(\(build))"
         case let (version?, nil):
             version
         case let (nil, build?):
@@ -103,6 +92,91 @@ struct LoginView: View {
     }
 }
 
+private struct LoginQRCodeContent: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.mixinTheme) private var theme
+
+    let authURL: String?
+    var error: String?
+    var onRetry: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                if let authURL {
+                    QRCodeView(value: authURL)
+                }
+                if let error, let onRetry {
+                    Button(action: onRetry) {
+                        VStack(spacing: 14) {
+                            Image("LoginRetry")
+                                .resizable()
+                                .frame(width: 40, height: 40)
+                            Text("Click to reload the QR code")
+                                .font(.system(size: 14))
+                                .multilineTextAlignment(.center)
+                        }
+                        .foregroundStyle(.white.opacity(0.9))
+                        .padding(.horizontal, 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(.black.opacity(0.86))
+                    }
+                    .buttonStyle(.plain)
+                    .help(error)
+                }
+            }
+            .frame(width: 160, height: 160)
+            .clipShape(RoundedRectangle(cornerRadius: 11))
+
+            Spacer().frame(height: 16)
+            Text("Log in to Mixin Messenger with a QR code")
+                .font(.system(size: 16))
+                .foregroundStyle(theme.text)
+            Spacer().frame(height: 16)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("1. Open Mixin Messenger on your phone.")
+                Text("2. Scan the QR code on the screen and confirm your sign-in.")
+            }
+            .font(.system(size: 14))
+            .foregroundStyle(
+                colorScheme == .dark
+                    ? Color.white.opacity(0.4)
+                    : Color(red: 187 / 255, green: 190 / 255, blue: 195 / 255)
+            )
+            .frame(width: 375, alignment: .leading)
+            .padding(.horizontal, 20)
+        }
+    }
+}
+
+private struct LoginLoadingContent: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.mixinTheme) private var theme
+
+    let title: String
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ProgressView()
+                .tint(theme.text)
+            Spacer().frame(height: 24)
+            Text(title)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(theme.text)
+            Spacer().frame(height: 8)
+            Text("End-to-end encrypted")
+                .font(.system(size: 16))
+                .foregroundStyle(
+                    colorScheme == .dark
+                        ? Color.white.opacity(0.4)
+                        : Color(red: 188 / 255, green: 190 / 255, blue: 195 / 255)
+                )
+        }
+        .frame(width: 375)
+    }
+}
+
 private struct QRCodeView: View {
     let value: String
 
@@ -118,9 +192,8 @@ private struct QRCodeView: View {
                     .scaledToFit()
                     .frame(width: 36, height: 36)
             }
-            .padding(10)
+            .padding(8)
             .background(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 11))
             .accessibilityLabel("Login QR code")
         } else {
             ContentUnavailableView("Unable to render QR code", systemImage: "qrcode")

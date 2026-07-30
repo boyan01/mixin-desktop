@@ -5,6 +5,7 @@ struct GroupsInCommonView: View {
     @Environment(AccountSession.self) private var session
     @Environment(HomeNavigationModel.self) private var navigation
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.mixinTheme) private var theme
     @State private var model = GroupsInCommonModel()
     let userID: String
 
@@ -13,19 +14,28 @@ struct GroupsInCommonView: View {
                 switch model.state {
                 case .loading:
                     ProgressView()
-                case let .failed(message):
-                    ContentUnavailableView(
-                        "Unable to load groups",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(message)
-                    )
+                        .controlSize(.small)
+                        .frame(width: 24, height: 24)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .failed:
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(width: 24, height: 24)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .ready where model.groups.isEmpty:
-                    ContentUnavailableView(
-                        "No Results",
-                        systemImage: "person.3"
-                    )
+                    VStack(spacing: 0) {
+                        Image("EmptyFile")
+                            .resizable()
+                            .renderingMode(.template)
+                            .foregroundStyle(theme.secondaryText)
+                            .frame(width: 80, height: 80)
+                        Spacer().frame(height: 20)
+                        Text("No Results")
+                            .foregroundStyle(theme.secondaryText)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .ready:
-                    List(model.groups, id: \.conversationId) { group in
+                    AppListView(model.groups, id: \.conversationId) { group in
                         Button {
                             navigation.infoPresented = false
                             navigation.selectConversation(
@@ -35,45 +45,40 @@ struct GroupsInCommonView: View {
                             dismiss()
                         } label: {
                             HStack(spacing: 12) {
-                                MixinRemoteImage(url: URL(string: group.avatarUrl)) { image in
-                                    image.resizable().scaledToFill()
-                                } placeholder: {
-                                    Image(systemName: "person.3.fill")
-                                        .foregroundStyle(.secondary)
-                                }
-                                .frame(width: 50, height: 50)
-                                .clipShape(Circle())
-                                VStack(alignment: .leading, spacing: 4) {
+                                UserAvatar(
+                                    userID: group.conversationId,
+                                    name: group.name,
+                                    url: group.avatarUrl,
+                                    size: 50
+                                )
+                                VStack(alignment: .leading, spacing: 0) {
                                     Text(group.name)
-                                        .foregroundStyle(.primary)
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(theme.text)
                                         .lineLimit(1)
+                                    Spacer()
                                     Text("\(group.participantCount) participants")
-                                        .font(.callout)
-                                        .foregroundStyle(.secondary)
+                                        .font(.system(size: 14))
+                                        .foregroundStyle(theme.secondaryText)
+                                        .lineLimit(1)
+                                        .frame(height: 20, alignment: .top)
                                 }
+                                .padding(.vertical, 16)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .frame(minHeight: 62)
+                            .padding(.horizontal, 12)
+                            .frame(height: 78)
+                            .padding(.horizontal, 8)
                         }
                         .buttonStyle(.plain)
+                        .listRowInsets(.init())
+                        .listRowBackground(Color.clear)
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(theme.primary)
             .navigationTitle("Groups in Common")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        Task {
-                            await model.load(
-                                account: session.handle,
-                                userID: userID
-                            )
-                        }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-            }
         .task(id: userID) {
             await model.load(account: session.handle, userID: userID)
         }
@@ -90,7 +95,7 @@ final class GroupsInCommonModel {
     }
 
     private(set) var state = State.loading
-    private(set) var groups: [SwiftGroupConversationItem] = []
+    private(set) var groups: [GroupConversationItem] = []
     private var requestVersion = 0
 
     func load(account: SwiftAccountHandle, userID: String) async {

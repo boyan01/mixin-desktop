@@ -55,6 +55,7 @@ final class AppModel {
             guard version == requestVersion else {
                 return
             }
+            AppLogger.error("App startup failed", error: error)
             phase = .recovery(recovery(for: error))
         }
     }
@@ -81,6 +82,7 @@ final class AppModel {
             presentedError = nil
             phase = .signedOut
         } catch {
+            AppLogger.error("Abort saved login failed", error: error)
             presentedError = displayMessage(for: error)
         }
     }
@@ -95,6 +97,7 @@ final class AppModel {
             try await desktop.recreateAccountDatabase()
             await start()
         } catch {
+            AppLogger.error("Recreate account database failed", error: error)
             phase = .recovery(recovery(for: error))
         }
     }
@@ -107,6 +110,7 @@ final class AppModel {
         do {
             try await session.signOut()
         } catch {
+            AppLogger.error("Sign out failed", error: error)
             presentedError = displayMessage(for: error)
             await session.shutdown()
         }
@@ -124,6 +128,7 @@ final class AppModel {
 
     private func makeSession(handle: SwiftAccountHandle) -> AccountSession {
         guard let desktop else {
+            AppLogger.error("Create account session failed: desktop handle unavailable")
             preconditionFailure("A desktop handle must exist before creating an account session")
         }
         let session = AccountSession(handle: handle, desktop: desktop)

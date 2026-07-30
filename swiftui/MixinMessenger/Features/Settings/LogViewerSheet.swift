@@ -26,17 +26,18 @@ struct LogViewerSheet: View {
                     )
                 } else {
                     ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 3) {
+                        AppScrollView {
+                            LazyVStack(alignment: .leading, spacing: 0) {
                                 ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                                     Text(line)
-                                        .font(.system(.caption, design: .monospaced))
+                                        .font(.system(size: 14))
                                         .textSelection(.enabled)
                                         .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 2)
                                         .id(index)
                                 }
                             }
-                            .padding()
                         }
                         .onAppear {
                             if let last = lines.indices.last {
@@ -46,11 +47,14 @@ struct LogViewerSheet: View {
                     }
                 }
             }
-            .navigationTitle("Logs")
+            .navigationTitle("")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
+                    Button {
                         dismiss()
+                    }
+                    label: {
+                        Image(systemName: "xmark")
                     }
                 }
                 ToolbarItem {

@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use mixin_desktop_api::DesktopClient;
+use mixin_desktop_api::{
+    DesktopClient, HttpResponseItem, McpServerStatusItem, McpSettingsItem, ProxySettingsItem,
+};
 
 use crate::{
-    account::SwiftAccountHandle,
-    error::SwiftClientError,
-    login::SwiftLoginHandle,
+    account::SwiftAccountHandle, error::SwiftClientError, login::SwiftLoginHandle,
     media::SwiftMediaHandle,
-    model::{SwiftHttpResponse, SwiftMcpServerStatus, SwiftMcpSettings, SwiftProxySettings},
 };
 
 #[derive(uniffi::Object)]
@@ -36,7 +35,7 @@ impl SwiftDesktopHandle {
         body: Option<Vec<u8>>,
         timeout_millis: Option<u64>,
         max_response_bytes: Option<u64>,
-    ) -> Result<SwiftHttpResponse, SwiftClientError> {
+    ) -> Result<HttpResponseItem, SwiftClientError> {
         Ok(self
             .client
             .http_request(
@@ -47,8 +46,7 @@ impl SwiftDesktopHandle {
                 timeout_millis,
                 max_response_bytes,
             )
-            .await?
-            .into())
+            .await?)
     }
 
     pub async fn restore_account(&self) -> Result<SwiftAccountHandle, SwiftClientError> {
@@ -113,39 +111,30 @@ impl SwiftDesktopHandle {
         Ok(self.client.settings().set_file_auto_download(value).await?)
     }
 
-    pub async fn proxy_settings(&self) -> Result<SwiftProxySettings, SwiftClientError> {
-        Ok(self.client.settings().proxy_settings().await?.into())
+    pub async fn proxy_settings(&self) -> Result<ProxySettingsItem, SwiftClientError> {
+        Ok(self.client.settings().proxy_settings().await?)
     }
 
     pub async fn set_proxy_settings(
         &self,
-        settings: SwiftProxySettings,
+        settings: ProxySettingsItem,
     ) -> Result<(), SwiftClientError> {
-        Ok(self
-            .client
-            .settings()
-            .set_proxy_settings(settings.into())
-            .await?)
+        Ok(self.client.settings().set_proxy_settings(settings).await?)
     }
 
-    pub async fn mcp_settings(&self) -> Result<SwiftMcpSettings, SwiftClientError> {
-        Ok(self.client.settings().mcp_settings().await?.into())
+    pub async fn mcp_settings(&self) -> Result<McpSettingsItem, SwiftClientError> {
+        Ok(self.client.settings().mcp_settings().await?)
     }
 
     pub async fn update_mcp_settings(
         &self,
-        settings: SwiftMcpSettings,
-    ) -> Result<SwiftMcpServerStatus, SwiftClientError> {
-        Ok(self
-            .client
-            .settings()
-            .update_mcp_settings(settings.into())
-            .await?
-            .into())
+        settings: McpSettingsItem,
+    ) -> Result<McpServerStatusItem, SwiftClientError> {
+        Ok(self.client.settings().update_mcp_settings(settings).await?)
     }
 
-    pub async fn mcp_server_status(&self) -> Result<SwiftMcpServerStatus, SwiftClientError> {
-        Ok(self.client.settings().mcp_server_status().await?.into())
+    pub async fn mcp_server_status(&self) -> Result<McpServerStatusItem, SwiftClientError> {
+        Ok(self.client.settings().mcp_server_status().await?)
     }
 
     pub fn log_directory(&self) -> Result<String, SwiftClientError> {

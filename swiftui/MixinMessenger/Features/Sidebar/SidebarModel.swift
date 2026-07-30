@@ -5,8 +5,8 @@ import SwiftUI
 @MainActor
 @Observable
 final class SidebarModel {
-    private(set) var circles: [SwiftCircleItem] = []
-    private(set) var unseenCounts: [SwiftConversationUnseenCount] = []
+    private(set) var circles: [CircleItem] = []
+    private(set) var unseenCounts: [ConversationUnseenCount] = []
     private(set) var errorMessage: String?
 
     private var circleSubscription: SwiftCircleSubscription?
@@ -60,7 +60,7 @@ final class SidebarModel {
     }
 
     func updateCircle(
-        _ circle: SwiftCircleItem,
+        _ circle: CircleItem,
         name: String,
         account: SwiftAccountHandle
     ) async -> Bool {
@@ -77,7 +77,7 @@ final class SidebarModel {
     }
 
     func deleteCircle(
-        _ circle: SwiftCircleItem,
+        _ circle: CircleItem,
         account: SwiftAccountHandle
     ) async -> Bool {
         do {
@@ -128,8 +128,6 @@ final class SidebarModel {
                 item.category == "strangers" && item.circleId == nil
             case let .circle(circleID):
                 item.circleId == circleID
-            case .settings:
-                false
             }
         }
         return (item?.count ?? 0, item?.mutedCount ?? 0)

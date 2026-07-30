@@ -29,14 +29,6 @@ struct HomeView: View {
       dockBadge.stop()
       notifications.stop()
     }
-    .inspector(isPresented: $navigation.infoPresented) {
-      if navigation.infoPresented,
-        let conversation = navigation.selectedConversation
-      {
-        ConversationInfoView(conversation: conversation)
-          .environment(navigation)
-      }
-    }
     .onOpenURL { url in
       Task {
         await navigation.open(url, account: session.handle)
@@ -101,7 +93,6 @@ struct HomeView: View {
     .sheet(isPresented: $navigation.commandPalettePresented) {
       CommandPaletteSheet { conversationID, name in
         navigation.commandPalettePresented = false
-        navigation.section = .chats
         navigation.selectConversation(conversationID, name: name)
       }
     }
@@ -110,6 +101,7 @@ struct HomeView: View {
 
 private struct ResponsiveHomeShell: View {
   @Environment(HomeNavigationModel.self) private var navigation
+  @Environment(\.mixinTheme) private var theme
   @State private var userCollapsed = false
   @State private var drawerPresented = false
 
@@ -122,8 +114,8 @@ private struct ResponsiveHomeShell: View {
       HStack(spacing: 0) {
         if !layout.hasDrawer {
           HomeSidebarView(
-            collapsed: layout.collapsed,
-            showCollapseControl: !layout.autoCollapse,
+            collapsed: layout.sidebarCollapsed,
+            showCollapseControl: layout.showCollapseControl,
             onToggleCollapsed: {
               withAnimation(.easeInOut(duration: 0.2)) {
                 userCollapsed.toggle()
@@ -131,15 +123,14 @@ private struct ResponsiveHomeShell: View {
             }
           )
           .frame(width: layout.sidebarWidth)
-          Divider()
         }
 
-        mainContent(routeMode: layout.routeMode)
+        mainContent(layout: layout)
       }
       .overlay(alignment: .leading) {
         if layout.hasDrawer, drawerPresented {
           ZStack(alignment: .leading) {
-            Color.black.opacity(0.2)
+            Color.black.opacity(0.54)
               .contentShape(Rectangle())
               .onTapGesture {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -148,38 +139,16 @@ private struct ResponsiveHomeShell: View {
               }
             HomeSidebarView()
               .frame(width: HomeShellLayout.fullSidebarWidth)
-              .background(.background)
-              .shadow(radius: 12)
+              .background(theme.primary)
+              .shadow(color: .black.opacity(0.32), radius: 16)
           }
           .transition(.opacity.combined(with: .move(edge: .leading)))
         }
       }
-      .toolbar {
-        ToolbarItemGroup(placement: .navigation) {
-          if layout.hasDrawer {
-            Button {
-              withAnimation(.easeInOut(duration: 0.2)) {
-                drawerPresented.toggle()
-              }
-            } label: {
-              Label("Show Sidebar", systemImage: "sidebar.left")
-            }
-            .help("Show Sidebar")
-          }
-          if navigation.section != .settings,
-            layout.routeMode,
-            navigation.selectedConversationID != nil
-          {
-            Button {
-              navigation.clearConversationSelection()
-            } label: {
-              Label("Back to Conversations", systemImage: "chevron.left")
-            }
-            .help("Back to Conversations")
-          }
-        }
-      }
       .onChange(of: navigation.section) {
+        drawerPresented = false
+      }
+      .onChange(of: navigation.page) {
         drawerPresented = false
       }
       .onChange(of: proxy.size.width) {
@@ -191,52 +160,163 @@ private struct ResponsiveHomeShell: View {
   }
 
   @ViewBuilder
-  private func mainContent(routeMode: Bool) -> some View {
-    if navigation.section == .settings {
-      SettingsView()
-    } else if routeMode {
-      if navigation.selectedConversationID == nil {
-        conversationList
-      } else {
-        chatDetail
-      }
+  private func mainContent(layout: HomeShellLayout) -> some View {
+    if layout.routeMode {
+      RoutedHomeContent(
+        onShowSidebar: layout.hasDrawer ? { showSidebar() } : nil
+      )
     } else {
-      HStack(spacing: 0) {
-        conversationList
-          .frame(width: HomeShellLayout.conversationListWidth)
-        Divider()
-        chatDetail
-      }
+      wideContent
     }
-  }
-
-  private var conversationList: some View {
-    ConversationListView()
   }
 
   @ViewBuilder
-  private var chatDetail: some View {
-    if let conversationID = navigation.selectedConversationID {
-      ChatTimelineView(
-        conversationID: conversationID,
-        conversationName: navigation.selectedConversationName,
-        conversationCategory: navigation.selectedConversation?.category,
-        conversationOwnerID: navigation.selectedConversation?.ownerId,
-        conversationIsBot: navigation.selectedConversation?.isBot ?? false,
-        conversationIsScam: navigation.selectedConversation?.isScam ?? false,
-        participantCount: navigation.selectedConversation?.participantCount ?? 0,
-        lastReadMessageID: navigation.selectedConversation?.lastReadMessageId,
-        unseenCount: navigation.selectedConversation?.unseenCount ?? 0,
-        initialDraft: navigation.selectedConversationDraft
-      )
-      .id(conversationID)
-    } else {
-      ContentUnavailableView(
-        "Pick a conversation",
-        systemImage: "bubble.left.and.bubble.right"
-      )
+  private var wideContent: some View {
+    switch navigation.page {
+    case .settings:
+      SettingsView(routeMode: false)
+    case .chats:
+      HStack(spacing: 0) {
+        ConversationListView()
+          .frame(width: HomeShellLayout.conversationListWidth)
+          .contentShape(.interaction, Rectangle())
+          .clipped()
+          .zIndex(1)
+        Divider()
+        chatDetailWithInfo
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .contentShape(.interaction, Rectangle())
+          .clipped()
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
   }
+
+  private func showSidebar() {
+    withAnimation(.easeInOut(duration: 0.2)) {
+      drawerPresented = true
+    }
+  }
+
+  @ViewBuilder
+  private var chatDetailWithInfo: some View {
+    HStack(spacing: 0) {
+      if let conversationID = navigation.selectedConversationID {
+        ConversationChatDetail(conversationID: conversationID)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .clipped()
+      } else {
+        emptyChat
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      }
+
+      if navigation.infoPresented,
+        let conversation = navigation.selectedConversation
+      {
+        Divider()
+        ConversationInfoView(conversation: conversation)
+          .frame(width: HomeShellLayout.chatInfoWidth)
+      }
+    }
+  }
+
+  private var emptyChat: some View {
+    Text("Pick a conversation")
+      .foregroundStyle(theme.secondaryText)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .background(theme.chatBackground)
+  }
+}
+
+private struct RoutedHomeContent: View {
+  @Environment(HomeNavigationModel.self) private var navigation
+
+  let onShowSidebar: (() -> Void)?
+
+  init(onShowSidebar: (() -> Void)?) {
+    self.onShowSidebar = onShowSidebar
+  }
+
+  var body: some View {
+    Group {
+      if let route = navigation.routePath.last {
+        destination(route)
+          .id(route)
+      } else {
+        root
+      }
+    }
+    .toolbar {
+      if !navigation.routePath.isEmpty {
+        ToolbarItem(placement: .navigation) {
+          Button {
+            navigation.routePath.removeLast()
+          } label: {
+            Image(systemName: "chevron.backward")
+          }
+          .help("Back")
+          .accessibilityLabel("Back")
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var root: some View {
+    switch navigation.page {
+    case .settings:
+      SettingsView(
+        routeMode: true,
+        onShowSidebar: onShowSidebar
+      )
+    case .chats:
+      ConversationListView(onShowSidebar: onShowSidebar)
+    }
+  }
+
+  @ViewBuilder
+  private func destination(_ route: HomeRoute) -> some View {
+    switch route {
+    case .chat(let conversationID):
+      ConversationChatDetail(conversationID: conversationID)
+    case .chatInfo:
+      if let conversation = navigation.selectedConversation {
+        ConversationInfoView(conversation: conversation)
+      }
+    case .settings(let destination):
+      SettingsDetailView(destination: destination)
+    }
+  }
+}
+
+private struct ConversationChatDetail: View {
+  @Environment(HomeNavigationModel.self) private var navigation
+
+  let conversationID: String
+
+  var body: some View {
+    ChatTimelineView(
+      conversationID: conversationID,
+      conversationName: navigation.selectedConversationName,
+      conversationCategory: navigation.selectedConversation?.category,
+      conversationOwnerID: navigation.selectedConversation?.ownerId,
+      conversationIsBot: navigation.selectedConversation?.isBot ?? false,
+      conversationIsBotGroup:
+        navigation.selectedConversation?.isBotGroup ?? false,
+      conversationIsScam: navigation.selectedConversation?.isScam ?? false,
+      participantCount: navigation.selectedConversation?.participantCount ?? 0,
+      lastReadMessageID: navigation.selectedConversation?.lastReadMessageId,
+      unseenCount: navigation.selectedConversation?.unseenCount ?? 0,
+      initialDraft: navigation.selectedConversationDraft
+    )
+    .id(conversationID)
+  }
+}
+
+private enum HomeSidebarMode {
+  case drawer
+  case compactRail
+  case fullRail
 }
 
 private struct HomeShellLayout {
@@ -244,33 +324,59 @@ private struct HomeShellLayout {
   static let fullSidebarWidth = 176.0
   static let responsiveNavigationMinWidth = 320.0
   static let conversationListWidth = 300.0
+  static let chatInfoWidth = 300.0
   static let mainRouteSwitchWidth =
     responsiveNavigationMinWidth + conversationListWidth
 
+  let sidebarMode: HomeSidebarMode
   let sidebarWidth: Double
-  let collapsed: Bool
   let autoCollapse: Bool
-  let hasDrawer: Bool
   let routeMode: Bool
 
-  static func resolve(maxWidth: Double, userCollapsed: Bool) -> HomeShellLayout {
+  var hasDrawer: Bool {
+    sidebarMode == .drawer
+  }
+
+  var sidebarCollapsed: Bool {
+    sidebarMode != .fullRail
+  }
+
+  var showCollapseControl: Bool {
+    !autoCollapse
+  }
+
+  static func resolve(
+    maxWidth: Double,
+    userCollapsed: Bool
+  ) -> HomeShellLayout {
     let availableSidebarWidth = min(
       fullSidebarWidth,
-      max(compactSidebarWidth, maxWidth - responsiveNavigationMinWidth)
+      max(
+        compactSidebarWidth,
+        maxWidth - responsiveNavigationMinWidth
+      )
     )
     let autoCollapse = availableSidebarWidth < fullSidebarWidth
-    let collapsed = userCollapsed || autoCollapse
-    let hasDrawer =
-      availableSidebarWidth <= compactSidebarWidth
-    let sidebarWidth =
-      hasDrawer
-      ? 0
-      : collapsed ? compactSidebarWidth : fullSidebarWidth
+    let sidebarMode: HomeSidebarMode
+    if availableSidebarWidth <= compactSidebarWidth {
+      sidebarMode = .drawer
+    } else if userCollapsed || autoCollapse {
+      sidebarMode = .compactRail
+    } else {
+      sidebarMode = .fullRail
+    }
+    let sidebarWidth: Double = switch sidebarMode {
+    case .drawer:
+      0
+    case .compactRail:
+      compactSidebarWidth
+    case .fullRail:
+      fullSidebarWidth
+    }
     return HomeShellLayout(
+      sidebarMode: sidebarMode,
       sidebarWidth: sidebarWidth,
-      collapsed: collapsed,
       autoCollapse: autoCollapse,
-      hasDrawer: hasDrawer,
       routeMode: maxWidth - sidebarWidth < mainRouteSwitchWidth
     )
   }

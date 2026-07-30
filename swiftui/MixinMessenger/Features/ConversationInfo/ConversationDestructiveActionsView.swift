@@ -1,57 +1,64 @@
 import Observation
 import SwiftUI
 
-struct ConversationDestructiveActionsView: View {
-    enum PendingAction: String, Identifiable {
-        case clear
-        case exit
-        case delete
+enum ConversationDestructivePendingAction: String, Identifiable {
+    case clear
+    case exit
+    case delete
 
-        var id: String { rawValue }
+    var id: String { rawValue }
 
-        var title: String {
-            switch self {
-            case .clear:
-                "Clear Chat"
-            case .exit:
-                "Exit Group"
-            case .delete:
-                "Delete Group"
-            }
-        }
-
-        var message: String {
-            switch self {
-            case .clear:
-                "Delete all messages in this chat from this Mac?"
-            case .exit:
-                "Exit this group and remove its local conversation?"
-            case .delete:
-                "Delete this exited group and its local chat history?"
-            }
+    var title: String {
+        switch self {
+        case .clear:
+            "Clear Chat"
+        case .exit:
+            "Exit Group"
+        case .delete:
+            "Delete Group"
         }
     }
+
+}
+
+struct ConversationDestructiveActionsView<RelationshipActions: View>: View {
 
     @Environment(AccountSession.self) private var session
     @Environment(\.mixinTheme) private var theme
     @State private var model = ConversationDestructiveActionsModel()
-    @State private var pendingAction: PendingAction?
+    @State private var pendingAction: ConversationDestructivePendingAction?
 
     let conversationID: String
     let isGroup: Bool
     let isExited: Bool
+    let relationshipActions: RelationshipActions
     let onConversationDeleted: () -> Void
+
+    init(
+        conversationID: String,
+        isGroup: Bool,
+        isExited: Bool,
+        @ViewBuilder relationshipActions: () -> RelationshipActions,
+        onConversationDeleted: @escaping () -> Void
+    ) {
+        self.conversationID = conversationID
+        self.isGroup = isGroup
+        self.isExited = isExited
+        self.relationshipActions = relationshipActions()
+        self.onConversationDeleted = onConversationDeleted
+    }
 
     var body: some View {
         VStack(spacing: 0) {
+            relationshipActions
+
             Button("Clear Chat", role: .destructive) {
                 pendingAction = .clear
             }
-            .frame(
-                maxWidth: .infinity,
-                minHeight: 64,
-                alignment: .leading
-            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 16)
+            .padding(.trailing, 10)
+            .padding(.vertical, 17)
             .buttonStyle(.plain)
 
             if isGroup {
@@ -61,17 +68,15 @@ struct ConversationDestructiveActionsView: View {
                 ) {
                     pendingAction = isExited ? .delete : .exit
                 }
-                .frame(
-                    maxWidth: .infinity,
-                    minHeight: 64,
-                    alignment: .leading
-                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 16)
+                .padding(.trailing, 10)
+                .padding(.vertical, 17)
                 .buttonStyle(.plain)
             }
         }
         .font(.system(size: 16))
         .foregroundStyle(theme.destructive)
-        .padding(.horizontal, 16)
         .background(theme.listSelected)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .padding(.horizontal, 10)
@@ -95,7 +100,7 @@ struct ConversationDestructiveActionsView: View {
             titleVisibility: .visible
         ) {
             if let pendingAction {
-                Button(pendingAction.title, role: .destructive) {
+                Button("Confirm") {
                     Task {
                         let removed = await model.perform(
                             pendingAction,
@@ -109,8 +114,6 @@ struct ConversationDestructiveActionsView: View {
                 }
             }
             Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(pendingAction?.message ?? "")
         }
         .alert(
             "Unable to update conversation",
@@ -135,7 +138,7 @@ final class ConversationDestructiveActionsModel {
     private(set) var errorMessage: String?
 
     func perform(
-        _ action: ConversationDestructiveActionsView.PendingAction,
+        _ action: ConversationDestructivePendingAction,
         account: SwiftAccountHandle,
         conversationID: String
     ) async -> Bool {

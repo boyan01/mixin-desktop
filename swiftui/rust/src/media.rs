@@ -18,81 +18,70 @@ pub struct SwiftMediaHandle {
     client: Arc<MediaClient>,
 }
 
-#[derive(Clone, uniffi::Record)]
-pub struct SwiftMediaAudioItem {
+#[uniffi::remote(Record)]
+pub struct AudioPlaybackItem {
     pub id: String,
     pub path: String,
     pub duration_millis: u64,
 }
 
-#[derive(Clone, uniffi::Record)]
-pub struct SwiftMediaVoiceRecording {
+#[uniffi::remote(Record)]
+pub struct VoiceRecording {
     pub path: String,
     pub duration_millis: u64,
     pub waveform: Vec<u8>,
 }
 
-#[derive(Clone, uniffi::Enum)]
-pub enum SwiftMediaRecorderStatus {
+#[uniffi::remote(Enum)]
+pub enum VoiceRecorderStatus {
     Idle,
     Recording,
     Recorded,
 }
 
-#[derive(Clone, uniffi::Record)]
-pub struct SwiftMediaRecorderSnapshot {
-    pub status: SwiftMediaRecorderStatus,
-    pub recording: Option<SwiftMediaVoiceRecording>,
+#[uniffi::remote(Record)]
+pub struct VoiceRecorderSnapshot {
+    pub status: VoiceRecorderStatus,
+    pub recording: Option<VoiceRecording>,
 }
 
 #[derive(Clone, uniffi::Enum)]
-pub enum SwiftMediaRecorderEvent {
-    Changed {
-        snapshot: SwiftMediaRecorderSnapshot,
-    },
-    Failed {
-        message: String,
-    },
+pub enum MediaRecorderEvent {
+    Changed { snapshot: VoiceRecorderSnapshot },
+    Failed { message: String },
 }
 
-#[derive(Clone, uniffi::Enum)]
-pub enum SwiftMediaPlaybackStatus {
+#[uniffi::remote(Enum)]
+pub enum AudioPlaybackStatus {
     Idle,
     Playing,
     Paused,
 }
 
-#[derive(Clone, uniffi::Record)]
-pub struct SwiftMediaPlaybackSnapshot {
-    pub status: SwiftMediaPlaybackStatus,
-    pub item: Option<SwiftMediaAudioItem>,
+#[uniffi::remote(Record)]
+pub struct AudioPlaybackSnapshot {
+    pub status: AudioPlaybackStatus,
+    pub item: Option<AudioPlaybackItem>,
     pub position_millis: u64,
     pub duration_millis: u64,
     pub speed: f64,
 }
 
 #[derive(Clone, uniffi::Enum)]
-pub enum SwiftMediaPlaybackEvent {
-    Changed {
-        snapshot: SwiftMediaPlaybackSnapshot,
-    },
-    Finished {
-        id: String,
-    },
-    Failed {
-        id: Option<String>,
-        message: String,
-    },
+pub enum MediaPlaybackEvent {
+    Changed { snapshot: AudioPlaybackSnapshot },
+    Finished { id: String },
+    Failed { id: Option<String>, message: String },
 }
 
 #[derive(uniffi::Object)]
 pub struct SwiftMediaRecorderSubscription {
-    inner: CancellableStream<SwiftMediaRecorderEvent>,
+    inner: CancellableStream<MediaRecorderEvent>,
 }
 
 #[derive(uniffi::Object)]
 pub struct SwiftMediaPlaybackSubscription {
-    inner: CancellableStream<SwiftMediaPlaybackEvent>,
+    inner: CancellableStream<MediaPlaybackEvent>,
 }
 
 struct CancellableStream<T> {
@@ -139,16 +128,16 @@ impl SwiftMediaHandle {
         Ok(self.client.start_voice_recording().await?)
     }
 
-    pub async fn stop_voice_recording(&self) -> Result<SwiftMediaVoiceRecording, SwiftClientError> {
-        Ok(self.client.stop_voice_recording().await?.into())
+    pub async fn stop_voice_recording(&self) -> Result<VoiceRecording, SwiftClientError> {
+        Ok(self.client.stop_voice_recording().await?)
     }
 
     pub async fn cancel_voice_recording(&self) -> Result<(), SwiftClientError> {
         Ok(self.client.cancel_voice_recording().await?)
     }
 
-    pub fn voice_recorder_snapshot(&self) -> SwiftMediaRecorderSnapshot {
-        self.client.voice_recorder_snapshot().into()
+    pub fn voice_recorder_snapshot(&self) -> VoiceRecorderSnapshot {
+        self.client.voice_recorder_snapshot()
     }
 
     pub fn subscribe_voice_recorder(&self) -> SwiftMediaRecorderSubscription {
@@ -160,13 +149,10 @@ impl SwiftMediaHandle {
 
     pub async fn play_audio(
         &self,
-        playlist: Vec<SwiftMediaAudioItem>,
+        playlist: Vec<AudioPlaybackItem>,
         start_index: u64,
     ) -> Result<(), SwiftClientError> {
-        Ok(self
-            .client
-            .play_audio(playlist.into_iter().map(Into::into).collect(), start_index)
-            .await?)
+        Ok(self.client.play_audio(playlist, start_index).await?)
     }
 
     pub async fn pause_audio(&self) -> Result<(), SwiftClientError> {
@@ -189,8 +175,8 @@ impl SwiftMediaHandle {
         self.client.stop_audio();
     }
 
-    pub fn audio_playback_snapshot(&self) -> SwiftMediaPlaybackSnapshot {
-        self.client.audio_playback_snapshot().into()
+    pub fn audio_playback_snapshot(&self) -> AudioPlaybackSnapshot {
+        self.client.audio_playback_snapshot()
     }
 
     pub fn subscribe_audio_playback(&self) -> SwiftMediaPlaybackSubscription {
@@ -203,7 +189,7 @@ impl SwiftMediaHandle {
 
 #[uniffi::export(async_runtime = "tokio")]
 impl SwiftMediaRecorderSubscription {
-    pub async fn next(&self) -> Option<SwiftMediaRecorderEvent> {
+    pub async fn next(&self) -> Option<MediaRecorderEvent> {
         self.inner.next().await
     }
 
@@ -214,7 +200,7 @@ impl SwiftMediaRecorderSubscription {
 
 #[uniffi::export(async_runtime = "tokio")]
 impl SwiftMediaPlaybackSubscription {
-    pub async fn next(&self) -> Option<SwiftMediaPlaybackEvent> {
+    pub async fn next(&self) -> Option<MediaPlaybackEvent> {
         self.inner.next().await
     }
 
@@ -223,94 +209,19 @@ impl SwiftMediaPlaybackSubscription {
     }
 }
 
-impl From<SwiftMediaAudioItem> for AudioPlaybackItem {
-    fn from(value: SwiftMediaAudioItem) -> Self {
-        Self {
-            id: value.id,
-            path: value.path,
-            duration_millis: value.duration_millis,
-        }
-    }
-}
-
-impl From<AudioPlaybackItem> for SwiftMediaAudioItem {
-    fn from(value: AudioPlaybackItem) -> Self {
-        Self {
-            id: value.id,
-            path: value.path,
-            duration_millis: value.duration_millis,
-        }
-    }
-}
-
-impl From<VoiceRecording> for SwiftMediaVoiceRecording {
-    fn from(value: VoiceRecording) -> Self {
-        Self {
-            path: value.path,
-            duration_millis: value.duration_millis,
-            waveform: value.waveform,
-        }
-    }
-}
-
-impl From<VoiceRecorderStatus> for SwiftMediaRecorderStatus {
-    fn from(value: VoiceRecorderStatus) -> Self {
-        match value {
-            VoiceRecorderStatus::Idle => Self::Idle,
-            VoiceRecorderStatus::Recording => Self::Recording,
-            VoiceRecorderStatus::Recorded => Self::Recorded,
-        }
-    }
-}
-
-impl From<VoiceRecorderSnapshot> for SwiftMediaRecorderSnapshot {
-    fn from(value: VoiceRecorderSnapshot) -> Self {
-        Self {
-            status: value.status.into(),
-            recording: value.recording.map(Into::into),
-        }
-    }
-}
-
-impl From<VoiceRecorderEvent> for SwiftMediaRecorderEvent {
+impl From<VoiceRecorderEvent> for MediaRecorderEvent {
     fn from(value: VoiceRecorderEvent) -> Self {
         match value {
-            VoiceRecorderEvent::Changed(snapshot) => Self::Changed {
-                snapshot: snapshot.into(),
-            },
+            VoiceRecorderEvent::Changed(snapshot) => Self::Changed { snapshot },
             VoiceRecorderEvent::Failed(message) => Self::Failed { message },
         }
     }
 }
 
-impl From<AudioPlaybackStatus> for SwiftMediaPlaybackStatus {
-    fn from(value: AudioPlaybackStatus) -> Self {
-        match value {
-            AudioPlaybackStatus::Idle => Self::Idle,
-            AudioPlaybackStatus::Playing => Self::Playing,
-            AudioPlaybackStatus::Paused => Self::Paused,
-        }
-    }
-}
-
-impl From<AudioPlaybackSnapshot> for SwiftMediaPlaybackSnapshot {
-    fn from(value: AudioPlaybackSnapshot) -> Self {
-        Self {
-            status: value.status.into(),
-            item: value.item.map(Into::into),
-            position_millis: value.position_millis,
-            duration_millis: value.duration_millis,
-            speed: value.speed,
-        }
-    }
-}
-
-impl From<AudioPlaybackEvent> for SwiftMediaPlaybackEvent {
+impl From<AudioPlaybackEvent> for MediaPlaybackEvent {
     fn from(value: AudioPlaybackEvent) -> Self {
         match value {
-            AudioPlaybackEvent::Changed(snapshot) => Self::Changed {
-                snapshot: snapshot.into(),
-            },
+            AudioPlaybackEvent::Changed(snapshot) => Self::Changed { snapshot },
             AudioPlaybackEvent::Finished(id) => Self::Finished { id },
             AudioPlaybackEvent::Failed { id, message } => Self::Failed { id, message },
         }

@@ -79,28 +79,22 @@ impl AccountClient {
     }
 
     pub async fn storage_usage(&self) -> ClientResult<Vec<ConversationStorageUsage>> {
-        Ok(self
-            .runtime
-            .storage_usage()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.runtime.storage_usage().await?)
     }
 
     pub async fn snapshot_by_trace(&self, trace_id: String) -> ClientResult<SnapshotDetailItem> {
-        Ok(self.runtime.snapshot_by_trace(trace_id).await?.into())
+        Ok(self.runtime.snapshot_by_trace(trace_id).await?)
     }
 
     pub async fn snapshot_by_id(&self, snapshot_id: String) -> ClientResult<SnapshotDetailItem> {
-        Ok(self.runtime.snapshot_by_id(snapshot_id).await?.into())
+        Ok(self.runtime.snapshot_by_id(snapshot_id).await?)
     }
 
     pub async fn safe_snapshot_by_id(
         &self,
         snapshot_id: String,
     ) -> ClientResult<SnapshotDetailItem> {
-        Ok(self.runtime.safe_snapshot_by_id(snapshot_id).await?.into())
+        Ok(self.runtime.safe_snapshot_by_id(snapshot_id).await?)
     }
 
     pub fn media_directory(&self) -> ClientResult<String> {
@@ -118,10 +112,7 @@ impl AccountClient {
         Ok(self
             .runtime
             .conversation_storage_usage(conversation_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn clear_conversation_storage(
@@ -202,7 +193,7 @@ impl AccountClient {
         stream! {
             futures::pin_mut!(changes);
             while let Some(circles) = futures::StreamExt::next(&mut changes).await {
-                yield circles.into_iter().map(Into::into).collect();
+                yield circles;
             }
         }
     }
@@ -217,7 +208,7 @@ impl AccountClient {
         stream! {
             futures::pin_mut!(changes);
             while let Some(counts) = futures::StreamExt::next(&mut changes).await {
-                yield counts.into_iter().map(Into::into).collect();
+                yield counts;
             }
         }
     }
@@ -284,7 +275,7 @@ impl AccountClient {
                     created_at_micros = batch.next_created_at_micros;
                     row_id = batch.next_row_id;
                     for event in batch.events {
-                        yield Ok(event.into());
+                        yield Ok(event);
                     }
                     if !batch.has_more {
                         break;

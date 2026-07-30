@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-struct AudioPlaybackItem: Hashable {
+struct AudioQueueItem: Hashable {
     let messageID: String
     let conversationID: String?
     let conversationName: String?
@@ -43,7 +43,7 @@ final class AudioPlaybackCoordinator {
     private var subscription: SwiftMediaPlaybackSubscription?
     private var subscriptionTask: Task<Void, Never>?
     private var positionTask: Task<Void, Never>?
-    private var playlistByID: [String: AudioPlaybackItem] = [:]
+    private var playlistByID: [String: AudioQueueItem] = [:]
     private var onMarkRead: ((String) -> Void)?
     private var markedRead = Set<String>()
     private var anchorPositionMillis: Int64 = 0
@@ -71,8 +71,8 @@ final class AudioPlaybackCoordinator {
     }
 
     func play(
-        _ item: AudioPlaybackItem,
-        playlist: [AudioPlaybackItem] = [],
+        _ item: AudioQueueItem,
+        playlist: [AudioQueueItem] = [],
         onMarkRead: ((String) -> Void)? = nil
     ) async throws {
         guard let media else {
@@ -90,7 +90,7 @@ final class AudioPlaybackCoordinator {
         self.onMarkRead = onMarkRead
         markedRead.removeAll()
         try await media.playAudio(
-            playlist: items.map(\.swiftMediaItem),
+            playlist: items.map(\.mediaItem),
             startIndex: UInt64(startIndex ?? 0)
         )
     }
@@ -100,7 +100,7 @@ final class AudioPlaybackCoordinator {
         url: URL,
         durationMillis: Int64
     ) async throws {
-        try await play(AudioPlaybackItem(
+        try await play(AudioQueueItem(
             messageID: id,
             url: url,
             durationMillis: durationMillis,
@@ -109,8 +109,8 @@ final class AudioPlaybackCoordinator {
     }
 
     func toggle(
-        _ item: AudioPlaybackItem,
-        playlist: [AudioPlaybackItem],
+        _ item: AudioQueueItem,
+        playlist: [AudioQueueItem],
         onMarkRead: ((String) -> Void)? = nil
     ) async throws {
         if currentID == item.messageID {
@@ -170,7 +170,7 @@ final class AudioPlaybackCoordinator {
         clearPlayback()
     }
 
-    private func handle(_ event: SwiftMediaPlaybackEvent) {
+    private func handle(_ event: MediaPlaybackEvent) {
         switch event {
         case let .changed(snapshot):
             apply(snapshot)
@@ -184,7 +184,7 @@ final class AudioPlaybackCoordinator {
         }
     }
 
-    private func apply(_ snapshot: SwiftMediaPlaybackSnapshot) {
+    private func apply(_ snapshot: AudioPlaybackSnapshot) {
         let item = snapshot.item.flatMap { playlistByID[$0.id] }
         currentID = snapshot.item?.id
         currentConversationID = item?.conversationID
@@ -232,9 +232,9 @@ final class AudioPlaybackCoordinator {
     }
 }
 
-private extension AudioPlaybackItem {
-    var swiftMediaItem: SwiftMediaAudioItem {
-        SwiftMediaAudioItem(
+private extension AudioQueueItem {
+    var mediaItem: AudioPlaybackItem {
+        AudioPlaybackItem(
             id: messageID,
             path: url.path,
             durationMillis: UInt64(max(0, durationMillis))

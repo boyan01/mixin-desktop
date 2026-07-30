@@ -4,9 +4,9 @@ import Observation
 import SwiftUI
 
 enum ProtocolPresentation: Identifiable {
-    case snapshot(SwiftSnapshotDetailItem)
-    case payment(SwiftCodeResult, URL)
-    case group(SwiftCodeResult, String)
+    case snapshot(SnapshotDetailItem)
+    case payment(CodeResult, URL)
+    case group(CodeResult, String)
 
     var id: String {
         switch self {
@@ -42,7 +42,7 @@ private struct GroupCodeDialog: View {
     @State private var joining = false
     @State private var error: String?
 
-    let result: SwiftCodeResult
+    let result: CodeResult
     let code: String
 
     var body: some View {
@@ -99,7 +99,7 @@ private struct GroupCodeDialog: View {
 }
 
 private struct ParticipantAvatarStack: View {
-    let avatars: [SwiftGroupAvatar]
+    let avatars: [GroupAvatar]
 
     var body: some View {
         HStack(spacing: -12) {
@@ -120,9 +120,11 @@ private struct ParticipantAvatarStack: View {
 }
 
 struct SpecialSnapshotMessageCard: View {
-    let message: SwiftMessageItem
+    let message: MessageItem
 
     @State private var presented = false
+    @Environment(\.mixinTheme) private var theme
+    @Environment(SettingsPreferencesModel.self) private var preferences
 
     var body: some View {
         Button {
@@ -143,44 +145,129 @@ struct SpecialSnapshotMessageCard: View {
     @ViewBuilder
     private var card: some View {
         if message.category == "SYSTEM_SAFE_INSCRIPTION" {
-            HStack(spacing: 10) {
+            HStack(spacing: 0) {
                 InscriptionContentView(
                     contentType: message.inscriptionContentType,
                     contentURL: message.inscriptionContentUrl,
                     iconURL: message.inscriptionIconUrl,
                     large: false
                 )
-                .frame(width: 64, height: 64)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .frame(width: 112, height: 112)
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 0) {
                     Text(message.inscriptionName?.specialNonEmpty ?? "Collectible")
-                        .font(.headline)
+                        .font(.system(size: 14))
+                        .foregroundStyle(theme.text)
                         .lineLimit(1)
-                    Text(message.inscriptionHash?.specialNonEmpty ?? "Details unavailable")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                    Spacer().frame(height: 4)
+                    Text(message.inscriptionSequence.map { "#\($0)" } ?? "")
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.secondaryText)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    HStack(spacing: 10) {
+                        ColoredHashView(value: message.inscriptionHash ?? "")
+                            .frame(width: 22, height: 22)
+                        MixinRemoteImage(
+                            url: message.inscriptionIconUrl.flatMap(URL.init(string:))
+                        ) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            Image(systemName: "seal.fill")
+                                .foregroundStyle(theme.secondaryText)
+                        }
+                        .frame(width: 22, height: 22)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    }
+                    Spacer().frame(height: 2)
                 }
+                .padding(10)
             }
-            .frame(maxWidth: 280, alignment: .leading)
+            .frame(width: 260, height: 112, alignment: .leading)
+        } else if message.category == "SYSTEM_SAFE_SNAPSHOT" {
+            safeSnapshotCard
         } else {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 AssetIcon(
                     assetURL: message.snapshotAssetIconUrl,
                     chainURL: message.snapshotChainIconUrl,
-                    size: 42
+                    size: 40
                 )
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 0) {
                     Text(message.snapshotDisplayAmount)
-                        .font(.title3.weight(.semibold))
-                    Text(message.snapshotMemo?.decodedHexText.specialNonEmpty ?? "Transaction")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 14 + preferences.chatFontSizeDelta))
+                        .foregroundStyle(theme.text)
+                    Text(message.snapshotAssetSymbol ?? SnapshotMessageFallback(raw: message.content).symbol)
+                        .font(.system(size: 12 + preferences.chatFontSizeDelta))
+                        .foregroundStyle(theme.secondaryText)
                         .lineLimit(1)
                 }
             }
-            .frame(minWidth: 190, alignment: .leading)
+        }
+    }
+
+    private var safeSnapshotCard: some View {
+        let fallback = SnapshotMessageFallback(raw: message.content)
+        let rawAmount = message.snapshotAmount ?? fallback.amount
+        let amount = rawAmount.formattedDecimal
+        let symbol = message.snapshotAssetSymbol ?? fallback.symbol
+        let memo = (message.snapshotMemo ?? "").decodedHexText
+
+        return ZStack(alignment: .topTrailing) {
+            Image("SnapshotBackground")
+                .resizable()
+                .frame(width: 86, height: 67)
+
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 4) {
+                    if let iconURL = message.snapshotAssetIconUrl?.specialNonEmpty {
+                        MixinRemoteImage(url: URL(string: iconURL)) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            Color.clear
+                        }
+                        .frame(width: 16, height: 16)
+                        .clipShape(Circle())
+                    } else {
+                        Color.clear.frame(width: 16, height: 16)
+                    }
+                    Text(symbol)
+                        .font(.system(size: 13))
+                        .foregroundStyle(theme.text)
+                        .lineLimit(1)
+                }
+
+                Spacer().frame(height: 16)
+
+                Text(amount)
+                    .font(.system(size: 36, weight: .regular, design: .rounded))
+                    .foregroundStyle(theme.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(24.0 / 36.0)
+
+                if !memo.isEmpty {
+                    Spacer().frame(height: 10)
+                    Text(memo)
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.secondaryText)
+                        .lineLimit(1)
+                    Spacer().frame(height: 2)
+                } else {
+                    Spacer().frame(height: 6)
+                }
+            }
+            .padding(4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(width: safeSnapshotWidth(for: rawAmount), alignment: .leading)
+    }
+
+    private func safeSnapshotWidth(for amount: String) -> CGFloat {
+        switch amount.count {
+        case ..<10: 174
+        case ..<15: 190
+        case ..<25: 216
+        default: 232
         }
     }
 }
@@ -190,11 +277,11 @@ struct SnapshotDetailDialog: View {
     @Environment(AccountSession.self) private var session
     @State private var model: SnapshotDetailModel
 
-    init(message: SwiftMessageItem) {
+    init(message: MessageItem) {
         _model = State(initialValue: SnapshotDetailModel(message: message))
     }
 
-    init(snapshot: SwiftSnapshotDetailItem) {
+    init(snapshot: SnapshotDetailItem) {
         _model = State(initialValue: SnapshotDetailModel(snapshot: snapshot))
     }
 
@@ -275,17 +362,17 @@ final class SnapshotDetailModel {
     private var loaded = false
 
     private enum Source {
-        case message(SwiftMessageItem)
-        case snapshot(SwiftSnapshotDetailItem)
+        case message(MessageItem)
+        case snapshot(SnapshotDetailItem)
     }
 
-    init(message: SwiftMessageItem) {
+    init(message: MessageItem) {
         let initial = SnapshotPresentation(message: message)
         source = .message(message)
         state = .content(initial, refreshing: initial.requiresRemoteDetail)
     }
 
-    init(snapshot: SwiftSnapshotDetailItem) {
+    init(snapshot: SnapshotDetailItem) {
         source = .snapshot(snapshot)
         state = .content(SnapshotPresentation(snapshot: snapshot), refreshing: false)
     }
@@ -388,7 +475,7 @@ struct SnapshotPresentation {
         !inscription
     }
 
-    init(message: SwiftMessageItem) {
+    init(message: MessageItem) {
         let fallback = SnapshotMessageFallback(raw: message.content)
         id = message.snapshotId ?? fallback.id ?? ""
         traceID = ""
@@ -429,7 +516,7 @@ struct SnapshotPresentation {
         withdrawalReceiver = ""
     }
 
-    init(snapshot: SwiftSnapshotDetailItem, fiatCurrency: String = "") {
+    init(snapshot: SnapshotDetailItem, fiatCurrency: String = "") {
         id = snapshot.snapshotId
         traceID = snapshot.traceId ?? ""
         type = snapshot.snapshotType
@@ -482,7 +569,7 @@ private struct SnapshotDetailContent: View {
         if snapshot.inscription {
             inscriptionContent
         } else {
-            ScrollView {
+            AppScrollView {
                 VStack(spacing: 0) {
                     transactionHeader
                     if let valuesDescription {
@@ -695,7 +782,7 @@ private struct SnapshotDetailContent: View {
     private var inscriptionContent: some View {
         ZStack {
             Color.black.opacity(0.92)
-            ScrollView {
+            AppScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     InscriptionContentView(
                         contentType: snapshot.inscriptionContentType,
@@ -902,14 +989,14 @@ private struct AssetIcon: View {
 
 struct MultisigPaymentDialog: View {
     @Environment(\.dismiss) private var dismiss
-    let result: SwiftCodeResult
+    let result: CodeResult
     let url: URL
 
     private var done: Bool {
         ["signed", "unlocked", "paid"].contains(result.state?.lowercased() ?? "")
     }
 
-    private var users: [String: SwiftGroupAvatar] {
+    private var users: [String: GroupAvatar] {
         Dictionary(uniqueKeysWithValues: result.participantAvatars.map { ($0.userId, $0) })
     }
 
@@ -996,7 +1083,7 @@ struct MultisigPaymentDialog: View {
 
 private struct ParticipantStack: View {
     let ids: [String]
-    let users: [String: SwiftGroupAvatar]
+    let users: [String: GroupAvatar]
 
     var body: some View {
         HStack(spacing: -7) {
@@ -1098,7 +1185,7 @@ private struct SnapshotMessageFallback {
     }
 }
 
-private extension SwiftMessageItem {
+private extension MessageItem {
     var canOpenSnapshotDetail: Bool {
         if category == "SYSTEM_SAFE_INSCRIPTION" {
             return inscriptionHash?.specialNonEmpty != nil

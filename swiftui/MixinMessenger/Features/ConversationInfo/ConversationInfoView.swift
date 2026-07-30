@@ -5,12 +5,13 @@ import SwiftUI
 struct ConversationInfoView: View {
     @Environment(AccountSession.self) private var session
     @Environment(HomeNavigationModel.self) private var navigation
+    @Environment(\.mixinTheme) private var theme
     @State private var model = ConversationInfoModel()
     @State private var shareContactPresented = false
     @State private var editTarget: ConversationEditTarget?
     @State private var pendingUserAction: ConversationInfoModel.RelationshipAction?
     @State private var mutePresented = false
-    let conversation: SwiftConversationListItem
+    let conversation: ConversationListData
 
     var body: some View {
         @Bindable var navigation = navigation
@@ -30,7 +31,7 @@ struct ConversationInfoView: View {
                     infoContent
                 }
             }
-            .navigationTitle("Chat Info")
+            .navigationTitle("")
             .navigationDestination(for: ChatInspectorRoute.self) {
                 inspectorDestination($0)
             }
@@ -42,6 +43,9 @@ struct ConversationInfoView: View {
                 conversation: conversation,
                 currentUserID: session.profile.userId
             )
+        }
+        .onDisappear {
+            model.stop()
         }
         .sheet(isPresented: $shareContactPresented) {
             ForwardConversationSheet(
@@ -147,7 +151,8 @@ struct ConversationInfoView: View {
         case .sharedApps:
             ConversationSharedAppsView(
                 conversationID: conversation.conversationId,
-                userID: conversation.ownerId
+                userID: conversation.ownerId,
+                isGroup: conversation.category == "GROUP"
             )
         case let .groupsInCommon(userID):
             GroupsInCommonView(userID: userID)
@@ -167,7 +172,7 @@ struct ConversationInfoView: View {
     }
 
     private var infoContent: some View {
-        ScrollView {
+        AppScrollView {
             VStack(spacing: 0) {
                 profileHeader
 
@@ -181,7 +186,24 @@ struct ConversationInfoView: View {
                 ConversationDestructiveActionsView(
                     conversationID: conversation.conversationId,
                     isGroup: conversation.category == "GROUP",
-                    isExited: model.isGroupExited
+                    isExited: model.isGroupExited,
+                    relationshipActions: {
+                        if let user = model.user,
+                           conversation.category != "GROUP"
+                        {
+                            if user.relationship == "BLOCKED" {
+                                relationshipButton("Unblock", action: .unblock)
+                            }
+                            if user.relationship != "STRANGER" {
+                                relationshipButton(
+                                    user.isBot ? "Remove Bot" : "Remove Contact",
+                                    action: .remove
+                                )
+                            } else {
+                                relationshipButton("Block", action: .block)
+                            }
+                        }
+                    }
                 ) {
                     navigation.conversationDeleted(conversation.conversationId)
                 }
@@ -192,7 +214,9 @@ struct ConversationInfoView: View {
                     }
                 }
 
-                if let createdAt = model.detail?.createdAtMillis {
+                if conversation.category == "GROUP",
+                   let createdAt = model.detail?.createdAtMillis
+                {
                     Text("Created \(createdAt.formattedDate)")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
@@ -206,17 +230,7 @@ struct ConversationInfoView: View {
 
     private var profileHeader: some View {
         VStack(spacing: 0) {
-            MixinRemoteImage(url: URL(string: conversation.iconUrl)) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                Image(systemName: conversation.category == "GROUP"
-                    ? "person.3.fill"
-                    : "person.crop.circle.fill")
-                    .resizable()
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: 90, height: 90)
-            .clipShape(Circle())
+            ConversationAvatar(conversation: conversation, size: 90)
             .onTapGesture {
                 guard NSEvent.modifierFlags.contains(.option) else {
                     return
@@ -248,7 +262,7 @@ struct ConversationInfoView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             } else if let identity = model.user?.identityNumber {
-                Text(identity)
+                Text("Mixin ID: \(identity)")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
@@ -273,15 +287,14 @@ struct ConversationInfoView: View {
                 .disabled(model.editing)
             }
 
+            Spacer()
+                .frame(height: 12)
+
             if let biography = model.user?.biography.nonEmpty
                 ?? model.detail?.announcement.nonEmpty
             {
-                Text(biography)
-                    .font(.system(size: 14))
-                    .multilineTextAlignment(.center)
-                    .textSelection(.enabled)
+                ExpandableInfoText(text: biography)
                     .padding(.horizontal, 36)
-                    .padding(.top, 12)
             }
         }
         .padding(.bottom, 32)
@@ -290,12 +303,44 @@ struct ConversationInfoView: View {
     @ViewBuilder
     private var userDetails: some View {
         InfoGroup {
-            Button {
-                shareContactPresented = true
-            } label: {
-                InfoRow(title: "Share Contact")
+            HStack(spacing: 0) {
+                Button {
+                    shareContactPresented = true
+                } label: {
+                    Text("Share Contact")
+                        .font(.system(size: 16))
+                        .foregroundStyle(theme.text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 16)
+                        .padding(.vertical, 17)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Menu {
+                    Button("Copy Link", systemImage: "doc.on.doc") {
+                        guard let shareURL = model.shareURL else {
+                            return
+                        }
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(
+                            shareURL,
+                            forType: .string
+                        )
+                    }
+                } label: {
+                    Image("InviteShare")
+                        .resizable()
+                        .renderingMode(.template)
+                        .foregroundStyle(theme.icon)
+                        .frame(width: 30, height: 30)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .padding(.trailing, 10)
+                .disabled(model.shareURL == nil)
             }
-            .buttonStyle(.plain)
         }
     }
 
@@ -332,8 +377,7 @@ struct ConversationInfoView: View {
                         } label: {
                             InfoRow(
                                 title: "Shared Apps",
-                                value: "\(model.sharedApps.count)",
-                                showsArrow: true
+                                sharedApps: model.sharedApps
                             )
                         }
                         .buttonStyle(.plain)
@@ -400,6 +444,10 @@ struct ConversationInfoView: View {
                         } label: {
                             InfoRow(
                                 title: model.isMuted ? "Unmute" : "Mute",
+                                value: model.isMuted
+                                    ? model.detail?.muteUntilMillis
+                                        .formattedMuteUntil
+                                    : nil,
                                 showsArrow: false
                             )
                         }
@@ -458,24 +506,6 @@ struct ConversationInfoView: View {
                 }
                 .buttonStyle(.plain)
             }
-
-            if let user = model.user {
-                InfoGroup {
-                    VStack(spacing: 0) {
-                        if user.relationship == "BLOCKED" {
-                            relationshipButton("Unblock", action: .unblock)
-                        }
-                        if user.relationship != "STRANGER" {
-                            relationshipButton(
-                                user.isBot ? "Remove Bot" : "Remove Contact",
-                                action: .remove
-                            )
-                        } else {
-                            relationshipButton("Block", action: .block)
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -515,6 +545,67 @@ struct ConversationInfoView: View {
     }
 }
 
+struct ExpandableInfoText: View {
+    @Environment(\.mixinTheme) private var theme
+    @State private var expanded = false
+    @State private var availableWidth: CGFloat = 0
+
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 14))
+            .foregroundStyle(theme.text)
+            .multilineTextAlignment(.center)
+            .lineLimit(expanded ? nil : 6)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity)
+            .overlay(alignment: .bottomTrailing) {
+                if overflows, !expanded {
+                    Button("...More") {
+                        expanded = true
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.accent)
+                    .padding(.leading, 8)
+                    .background(
+                        LinearGradient(
+                            colors: [theme.primary.opacity(0), theme.primary],
+                            startPoint: .leading,
+                            endPoint: .center
+                        )
+                    )
+                }
+            }
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { width in
+                availableWidth = width
+            }
+            .onChange(of: text) {
+                expanded = false
+            }
+    }
+
+    private var overflows: Bool {
+        guard availableWidth > 0 else {
+            return false
+        }
+        let font = NSFont.systemFont(ofSize: 14)
+        let bounds = (text as NSString).boundingRect(
+            with: CGSize(
+                width: availableWidth,
+                height: .greatestFiniteMagnitude
+            ),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font]
+        )
+        let lineHeight = font.ascender - font.descender + font.leading
+        return bounds.height > lineHeight * 6 + 0.5
+    }
+}
+
 private struct InfoGroup<Content: View>: View {
     @Environment(\.mixinTheme) private var theme
 
@@ -536,6 +627,7 @@ private struct InfoRow: View {
 
     let title: String
     var value: String?
+    var sharedApps: [SharedAppItem] = []
     var showsArrow = true
     var destructive = false
 
@@ -550,6 +642,9 @@ private struct InfoRow: View {
                     .font(.system(size: 14))
                     .foregroundStyle(theme.secondaryText)
             }
+            if !sharedApps.isEmpty {
+                SharedAppIconStack(apps: sharedApps)
+            }
             if showsArrow {
                 Image("SettingsArrow")
                     .resizable()
@@ -560,9 +655,32 @@ private struct InfoRow: View {
         }
         .padding(.leading, 16)
         .padding(.trailing, 10)
-        .padding(.vertical, 12)
-        .frame(minHeight: 64)
+        .padding(.vertical, 17)
         .contentShape(Rectangle())
+    }
+}
+
+private struct SharedAppIconStack: View {
+    @Environment(\.mixinTheme) private var theme
+
+    let apps: [SharedAppItem]
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            ForEach(Array(apps.enumerated().reversed()), id: \.element.appId) { index, app in
+                MixinRemoteImage(url: URL(string: app.iconUrl)) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Color.clear
+                }
+                .frame(width: 24, height: 24)
+                .background(theme.listSelected)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(theme.popUp, lineWidth: 2))
+                .offset(x: CGFloat(index * 14))
+            }
+        }
+        .frame(width: 24 + CGFloat(max(0, apps.count - 1) * 14), height: 24)
     }
 }
 
@@ -576,10 +694,10 @@ final class ConversationInfoModel {
     }
 
     private(set) var state: State = .loading
-    private(set) var detail: SwiftConversationDetailItem?
-    private(set) var user: SwiftUserItem?
-    private(set) var participants: [SwiftConversationParticipantItem] = []
-    private(set) var sharedApps: [SwiftSharedAppItem] = []
+    private(set) var detail: ConversationDetailItem?
+    private(set) var user: UserProfileItem?
+    private(set) var participants: [ConversationParticipantItem] = []
+    private(set) var sharedApps: [SharedAppItem] = []
     private(set) var developerID: String?
     private(set) var operationError: String?
     private(set) var currentUserID = ""
@@ -587,6 +705,8 @@ final class ConversationInfoModel {
     private(set) var isMuted = false
     private(set) var participantsLoaded = false
     private var requestVersion = 0
+    private var subscription: SwiftConversationSubscription?
+    private var subscriptionTask: Task<Void, Never>?
 
     var shareURL: String? {
         if let codeURL = detail?.codeUrl.nonEmpty {
@@ -612,9 +732,10 @@ final class ConversationInfoModel {
 
     func start(
         account: SwiftAccountHandle,
-        conversation: SwiftConversationListItem,
+        conversation: ConversationListData,
         currentUserID: String
     ) async {
+        stop()
         requestVersion += 1
         let version = requestVersion
         self.currentUserID = currentUserID
@@ -626,6 +747,27 @@ final class ConversationInfoModel {
         developerID = nil
         isMuted = conversation.isMuted
         participantsLoaded = false
+        let subscription = account.conversationChanges()
+        self.subscription = subscription
+        subscriptionTask = Task { [weak self] in
+            while !Task.isCancelled,
+                  let event = await subscription.next()
+            {
+                guard let self,
+                      event.reloadAll
+                        || event.conversationIds.contains(
+                            conversation.conversationId
+                        )
+                else {
+                    continue
+                }
+                await reloadConversationState(
+                    account: account,
+                    conversation: conversation,
+                    version: version
+                )
+            }
+        }
 
         do {
             detail = try await account.localConversationDetail(
@@ -634,6 +776,7 @@ final class ConversationInfoModel {
             guard version == requestVersion else {
                 return
             }
+            updateMutedState()
             state = .ready
 
             if conversation.category == "GROUP" {
@@ -657,6 +800,7 @@ final class ConversationInfoModel {
                 conversationId: conversation.conversationId
             ), version == requestVersion {
                 detail = refreshed
+                updateMutedState()
             }
             if conversation.category != "GROUP",
                let remoteApps = try? await account.sharedApps(
@@ -672,6 +816,52 @@ final class ConversationInfoModel {
             }
             state = .failed(MixinErrorPresenter.message(for: error))
         }
+    }
+
+    func stop() {
+        requestVersion += 1
+        subscriptionTask?.cancel()
+        subscriptionTask = nil
+        subscription = nil
+    }
+
+    private func reloadConversationState(
+        account: SwiftAccountHandle,
+        conversation: ConversationListData,
+        version: Int
+    ) async {
+        do {
+            let loadedDetail = try await account.localConversationDetail(
+                conversationId: conversation.conversationId
+            )
+            let loadedParticipants =
+                if conversation.category == "GROUP" {
+                    try await account.conversationParticipants(
+                        conversationId: conversation.conversationId
+                    )
+                } else {
+                    participants
+                }
+            guard version == requestVersion else {
+                return
+            }
+            detail = loadedDetail
+            participants = loadedParticipants
+            participantsLoaded = conversation.category == "GROUP"
+                || participantsLoaded
+            updateMutedState()
+        } catch {
+            operationError = MixinErrorPresenter.message(for: error)
+        }
+    }
+
+    private func updateMutedState() {
+        guard let detail else {
+            return
+        }
+        isMuted =
+            detail.muteUntilMillis
+            > Int64(Date().timeIntervalSince1970 * 1_000)
     }
 
     func edit(
@@ -850,7 +1040,7 @@ final class ConversationInfoModel {
 
     func setMuted(
         account: SwiftAccountHandle,
-        conversation: SwiftConversationListItem,
+        conversation: ConversationListData,
         duration: Int64
     ) async {
         guard !editing else {
@@ -865,7 +1055,10 @@ final class ConversationInfoModel {
                 category: conversation.category,
                 durationSeconds: duration
             )
-            isMuted = duration > 0
+            detail = try await account.localConversationDetail(
+                conversationId: conversation.conversationId
+            )
+            updateMutedState()
         } catch {
             operationError = MixinErrorPresenter.message(for: error)
         }
@@ -883,9 +1076,9 @@ private struct DisappearingMessagesView: View {
     ]
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.mixinTheme) private var theme
     @State private var selectedSeconds: Int64
-    @State private var customValue = 1
-    @State private var customUnit = CustomUnit.day
+    @State private var customPresented = false
     @State private var saving = false
     let onSelect: (Int64) async -> Bool
 
@@ -898,52 +1091,61 @@ private struct DisappearingMessagesView: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "timer")
-                .font(.system(size: 48))
-                .foregroundStyle(.tint)
-            Text("Disappearing Messages")
-                .font(.title3.weight(.semibold))
-            Text("New messages disappear after they have been read for the selected duration.")
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        ScrollView {
+            VStack(spacing: 0) {
+                Spacer()
+                    .frame(height: 30)
 
-            List {
+            Image("DisappearingMessage")
+                .resizable()
+                .frame(width: 70, height: 70)
+
+            Spacer()
+                .frame(height: 16)
+
+            Text(disappearingHint)
+                .font(.system(size: 14))
+                .tint(theme.accent)
+                .multilineTextAlignment(.center)
+                .lineSpacing(7)
+                .padding(.horizontal, 20)
+
+            Spacer()
+                .frame(height: 40)
+
+            InfoGroup {
                 ForEach(Self.presets, id: \.1) { label, seconds in
                     Button {
                         save(seconds)
                     } label: {
                         HStack {
-                            Text(label)
-                            Spacer()
+                            InfoRow(title: label, showsArrow: false)
                             if selectedSeconds == seconds {
                                 Image(systemName: "checkmark")
+                                    .font(.system(size: 24, weight: .medium))
+                                    .foregroundStyle(theme.accent)
                             }
                         }
                     }
                     .buttonStyle(.plain)
+                    .disabled(selectedSeconds == seconds)
                 }
 
-                HStack {
-                    TextField("Value", value: $customValue, format: .number)
-                        .frame(width: 70)
-                    Picker("Unit", selection: $customUnit) {
-                        ForEach(CustomUnit.allCases) { unit in
-                            Text(unit.rawValue).tag(unit)
-                        }
-                    }
-                    Button("Set Custom") {
-                        save(customUnit.seconds * Int64(max(customValue, 1)))
-                    }
+                Button {
+                    customPresented = true
+                } label: {
+                    InfoRow(title: "Custom Time")
                 }
+                .buttonStyle(.plain)
             }
-            .frame(height: 300)
-            Button("Done") {
-                dismiss()
             }
         }
-        .padding(24)
-        .frame(width: 420)
+        .navigationTitle("Disappearing Messages")
+        .sheet(isPresented: $customPresented) {
+            CustomDisappearingDurationSheet { seconds in
+                save(seconds)
+            }
+        }
         .disabled(saving)
     }
 
@@ -957,6 +1159,92 @@ private struct DisappearingMessagesView: View {
         }
     }
 
+    private var disappearingHint: AttributedString {
+        var text = AttributedString(
+            "When enabled, new messages sent and received in this chat will disappear after they have been seen. Read the document to "
+        )
+        text.foregroundColor = theme.secondaryText
+        var link = AttributedString("learn more")
+        link.foregroundColor = theme.accent
+        link.link = URL(
+            string: "https://support.mixin.one/en/article/how-to-enable-disappearing-messages-2nzaz8/"
+        )
+        text.append(link)
+        var suffix = AttributedString(".")
+        suffix.foregroundColor = theme.secondaryText
+        text.append(suffix)
+        return text
+    }
+
+}
+
+private struct CustomDisappearingDurationSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.mixinTheme) private var theme
+    @State private var value = 1
+    @State private var unit = CustomUnit.second
+
+    let onSet: (Int64) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Text("Custom Time")
+                    .font(.system(size: 16, weight: .semibold))
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .frame(width: 40, height: 40)
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(height: 64)
+
+            Spacer()
+                .frame(height: 16)
+
+            HStack(spacing: 16) {
+                TextField("", value: $value, format: .number)
+                    .textFieldStyle(.plain)
+                    .multilineTextAlignment(.center)
+                    .font(.system(size: 16))
+                    .frame(width: 64, height: 46)
+                    .background(theme.sidebarSelected, in: RoundedRectangle(cornerRadius: 8))
+                    .onChange(of: value) {
+                        value = min(max(value, 0), 99)
+                    }
+
+                Picker("", selection: $unit) {
+                    ForEach(CustomUnit.allCases) { option in
+                        Text(option.rawValue).tag(option)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 160, height: 46)
+                .background(theme.sidebarSelected, in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            Spacer()
+                .frame(height: 28)
+
+            Button("Set") {
+                guard value > 0, value <= unit.maximumValue else {
+                    return
+                }
+                onSet(unit.seconds * Int64(value))
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+
+            Spacer()
+                .frame(height: 24)
+        }
+        .frame(width: 320)
+    }
+
     private enum CustomUnit: String, CaseIterable, Identifiable {
         case second = "Seconds"
         case minute = "Minutes"
@@ -965,6 +1253,14 @@ private struct DisappearingMessagesView: View {
         case week = "Weeks"
 
         var id: String { rawValue }
+        var maximumValue: Int {
+            switch self {
+            case .second, .minute: 59
+            case .hour: 23
+            case .day: 6
+            case .week: 4
+            }
+        }
         var seconds: Int64 {
             switch self {
             case .second: 1
@@ -1141,5 +1437,13 @@ private extension Int64 {
         default:
             return "\(self / 86_400) days"
         }
+    }
+
+    var formattedMuteUntil: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy/MM/dd, hh:mm a"
+        return formatter.string(
+            from: Date(timeIntervalSince1970: TimeInterval(self) / 1_000)
+        )
     }
 }

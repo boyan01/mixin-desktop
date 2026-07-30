@@ -3,11 +3,12 @@ import SwiftUI
 
 struct MessageSearchSenderSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.mixinTheme) private var theme
     @State private var model = MessageSearchSenderModel()
     let account: SwiftAccountHandle
     let conversationID: String
     let isBot: Bool
-    let onSelect: (SwiftConversationParticipantItem?) -> Void
+    let onSelect: (ConversationParticipantItem?) -> Void
 
     var body: some View {
         NavigationStack {
@@ -21,7 +22,7 @@ struct MessageSearchSenderSheet: View {
                         description: Text(error)
                     )
                 } else {
-                    List {
+                    AppListView {
                         Button {
                             onSelect(nil)
                             dismiss()
@@ -33,23 +34,28 @@ struct MessageSearchSenderSheet: View {
                                 onSelect(user)
                                 dismiss()
                             } label: {
-                                HStack(spacing: 12) {
+                                HStack(spacing: 16) {
                                     MixinRemoteImage(url: URL(string: user.avatarUrl)) { image in
                                         image.resizable().scaledToFill()
                                     } placeholder: {
-                                        Image(systemName: "person.crop.circle.fill")
-                                            .foregroundStyle(.secondary)
+                                        AvatarPlaceholder(userID: user.userId, name: user.fullName)
                                     }
                                     .frame(width: 38, height: 38)
                                     .clipShape(Circle())
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(user.fullName)
-                                            .foregroundStyle(.primary)
-                                        Text(user.identityNumber)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
+                                    Text(user.fullName)
+                                        .font(.system(size: 16))
+                                        .foregroundStyle(theme.text)
+                                        .lineLimit(1)
+                                    ProfileIdentityBadge(
+                                        isVerified: user.isVerified,
+                                        isBot: user.isBot,
+                                        membership: user.membership
+                                    )
+                                    .padding(.horizontal, 4)
+                                    Spacer()
                                 }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 6)
                             }
                             .buttonStyle(.plain)
                         }
@@ -84,14 +90,14 @@ struct MessageSearchSenderSheet: View {
 @MainActor
 @Observable
 final class MessageSearchSenderModel {
-    private(set) var users: [SwiftConversationParticipantItem] = []
+    private(set) var users: [ConversationParticipantItem] = []
     private(set) var loading = false
     private(set) var error: String?
     var query = ""
     private var loadedGroup = false
     private var requestVersion = 0
 
-    var filtered: [SwiftConversationParticipantItem] {
+    var filtered: [ConversationParticipantItem] {
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else {
             return users

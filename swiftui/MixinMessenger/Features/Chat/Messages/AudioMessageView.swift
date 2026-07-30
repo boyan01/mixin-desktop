@@ -1,10 +1,12 @@
 import SwiftUI
 
 struct AudioMessageView: View {
+    @Environment(\.mixinTheme) private var theme
+    @Environment(SettingsPreferencesModel.self) private var preferences
     @State private var coordinator = AudioPlaybackCoordinator.shared
 
-    let message: SwiftMessageItem
-    let playlist: [SwiftMessageItem]
+    let message: MessageItem
+    let playlist: [MessageItem]
     let mediaDirectory: URL?
     let conversationName: String?
     let outgoing: Bool
@@ -14,8 +16,7 @@ struct AudioMessageView: View {
     let onMarkRead: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
+        HStack(spacing: 8) {
                 Button(action: primaryAction) {
                     statusImage
                         .frame(width: 20, height: 20)
@@ -23,42 +24,26 @@ struct AudioMessageView: View {
                 .buttonStyle(.plain)
                 .help(actionHelp)
 
-                AudioWaveformView(
-                    samples: message.decodedWaveform,
-                    progress: playbackProgress
-                )
-                .frame(width: 220, height: 18)
-
-                Text(Self.format(durationMillis))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-
-            if isCurrent {
-                HStack(spacing: 8) {
-                    Slider(
-                        value: Binding(
-                            get: { playbackProgress },
-                            set: { coordinator.seek(to: $0) }
-                        ),
-                        in: 0 ... 1
+                VStack(alignment: .leading, spacing: 8) {
+                    AudioWaveformView(
+                        samples: message.decodedWaveform,
+                        progress: playbackProgress,
+                        backgroundColor: waveformBackgroundColor,
+                        foregroundColor: waveformForegroundColor
                     )
-                    .controlSize(.small)
+                    .frame(width: 238, height: 12)
 
-                    Text(Self.format(coordinator.positionMillis))
-                        .font(.caption2.monospacedDigit())
+                    Text(Self.format(durationMillis))
+                        .font(
+                            .system(
+                                size: 12 + preferences.chatFontSizeDelta
+                            )
+                            .monospacedDigit()
+                        )
                         .foregroundStyle(.secondary)
-
-                    Button("\(Int(coordinator.speed))×") {
-                        coordinator.toggleSpeed()
-                    }
-                    .buttonStyle(.borderless)
-                    .font(.caption.weight(.semibold))
-                    .help("Toggle playback speed")
                 }
             }
-        }
-        .frame(maxWidth: 280)
+        .frame(maxWidth: 266, alignment: .leading)
     }
 
     @ViewBuilder
@@ -74,7 +59,7 @@ struct AudioMessageView: View {
                 .foregroundStyle(.orange)
         default:
             Image(systemName: isCurrent && coordinator.isPlaying
-                ? "pause.circle.fill"
+                ? "stop.circle.fill"
                 : "play.circle.fill")
         }
     }
@@ -88,7 +73,7 @@ struct AudioMessageView: View {
         case "EXPIRED":
             "Audio expired"
         default:
-            isCurrent && coordinator.isPlaying ? "Pause audio" : "Play audio"
+            isCurrent && coordinator.isPlaying ? "Stop audio" : "Play audio"
         }
     }
 
@@ -112,6 +97,22 @@ struct AudioMessageView: View {
                     / Double(coordinator.durationMillis)
             )
         )
+    }
+
+    private var usesReadWaveform: Bool {
+        outgoing || message.mediaStatus.uppercased() == "READ"
+    }
+
+    private var waveformBackgroundColor: Color {
+        usesReadWaveform
+            ? Color(red: 221 / 255, green: 221 / 255, blue: 221 / 255)
+            : theme.accent
+    }
+
+    private var waveformForegroundColor: Color {
+        usesReadWaveform
+            ? Color(red: 155 / 255, green: 155 / 255, blue: 155 / 255)
+            : theme.accent
     }
 
     private func primaryAction() {
@@ -142,7 +143,10 @@ struct AudioMessageView: View {
         }
         Task {
             do {
-                try await coordinator.toggle(
+                if isCurrent {
+                    coordinator.stop()
+                }
+                try await coordinator.play(
                     item,
                     playlist: items,
                     onMarkRead: onMarkRead
@@ -160,37 +164,54 @@ struct AudioMessageView: View {
 }
 
 struct VoiceRecordingPreview: View {
+    @Environment(\.mixinTheme) private var theme
     @State private var coordinator = AudioPlaybackCoordinator.shared
 
-    let recording: VoiceRecording
+    let recording: VoiceRecordingDraft
 
     private var previewID: String {
         "voice-preview-\(recording.url.path)"
     }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
+            Spacer()
+                .frame(width: 2)
+
             Button {
                 togglePlayback()
             } label: {
-                Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                Image(systemName: isPlaying ? "stop.fill" : "play.fill")
+                    .font(.system(size: 16, weight: .medium))
+                    .frame(width: 24, height: 24)
             }
             .buttonStyle(.plain)
+            .frame(width: 40, height: 40)
+
+            Spacer()
+                .frame(width: 2)
 
             AudioWaveformView(
                 samples: recording.waveform,
-                progress: progress
+                progress: progress,
+                backgroundColor: theme.secondaryText.opacity(0.35),
+                foregroundColor: theme.accent
             )
-            .frame(height: 18)
+            .frame(height: 20)
 
-            Text(AudioMessageView.format(recording.durationMillis))
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
+            Spacer()
+                .frame(width: 10)
+
+            Text(durationText)
+                .font(.system(size: 14))
+                .foregroundStyle(theme.text)
+
+            Spacer()
+                .frame(width: 12)
         }
-        .padding(.horizontal, 10)
-        .frame(height: 34)
-        .background(Color(nsColor: .selectedContentBackgroundColor).opacity(0.18))
-        .clipShape(Capsule())
+        .frame(height: 32)
+        .background(theme.listSelected)
+        .clipShape(RoundedRectangle(cornerRadius: 15))
         .onDisappear {
             if coordinator.currentID == previewID {
                 coordinator.stop()
@@ -200,6 +221,11 @@ struct VoiceRecordingPreview: View {
 
     private var isPlaying: Bool {
         coordinator.currentID == previewID && coordinator.isPlaying
+    }
+
+    private var durationText: String {
+        let seconds = max(0, recording.durationMillis / 1_000)
+        return String(format: "%lld:%02lld", seconds / 60, seconds % 60)
     }
 
     private var progress: Double {
@@ -236,27 +262,29 @@ struct VoiceRecordingPreview: View {
 private struct AudioWaveformView: View {
     let samples: [UInt8]
     let progress: Double
+    let backgroundColor: Color
+    let foregroundColor: Color
 
     var body: some View {
         GeometryReader { geometry in
             let displaySamples = reducedSamples(for: geometry.size.width)
-            HStack(alignment: .center, spacing: 2) {
+            HStack(alignment: .bottom, spacing: 2) {
                 ForEach(Array(displaySamples.enumerated()), id: \.offset) { index, sample in
                     Capsule()
                         .fill(
                             Double(index) / Double(max(1, displaySamples.count - 1)) <= progress
-                                ? Color.accentColor
-                                : Color.secondary.opacity(0.35)
+                                ? foregroundColor
+                                : backgroundColor
                         )
                         .frame(
                             maxHeight: max(
-                                3,
+                                2,
                                 geometry.size.height * CGFloat(max(16, sample)) / 255
                             )
                         )
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
         .accessibilityLabel("Audio waveform")
         .accessibilityValue("\(Int(progress * 100)) percent")
@@ -264,9 +292,9 @@ private struct AudioWaveformView: View {
 
     private func reducedSamples(for width: CGFloat) -> [UInt8] {
         let source = samples.isEmpty
-            ? Array(repeating: UInt8(80), count: 40)
+            ? Array(repeating: UInt8(0), count: 60)
             : samples
-        let count = min(source.count, max(1, Int(width / 4)))
+        let count = min(source.count, max(1, Int((width + 2) / 4)))
         return (0 ..< count).map { index in
             let lower = index * source.count / count
             let upper = max(lower + 1, (index + 1) * source.count / count)
@@ -275,7 +303,7 @@ private struct AudioWaveformView: View {
     }
 }
 
-extension SwiftMessageItem {
+extension MessageItem {
     var decodedWaveform: [UInt8] {
         guard let mediaWaveform,
               let data = Data(base64Encoded: mediaWaveform)
@@ -288,14 +316,14 @@ extension SwiftMessageItem {
     func audioPlaybackItem(
         mediaDirectory: URL?,
         conversationName: String?
-    ) -> AudioPlaybackItem? {
+    ) -> AudioQueueItem? {
         guard let url = localMediaURL(mediaDirectory: mediaDirectory),
               FileManager.default.fileExists(atPath: url.path),
               ["DONE", "READ"].contains(mediaStatus.uppercased())
         else {
             return nil
         }
-        return AudioPlaybackItem(
+        return AudioQueueItem(
             messageID: messageId,
             conversationID: conversationId,
             conversationName: conversationName,

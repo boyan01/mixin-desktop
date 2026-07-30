@@ -3,9 +3,9 @@ import Observation
 import SwiftUI
 
 struct ProxySettingsView: View {
+  @Environment(\.mixinTheme) private var theme
   @State private var model: ProxySettingsModel
   @State private var editorRequest: ProxyEditorRequest?
-  @State private var pendingDeletion: SwiftProxyItem?
 
   init(desktop: SwiftDesktopHandle) {
     _model = State(initialValue: ProxySettingsModel(desktop: desktop))
@@ -34,17 +34,6 @@ struct ProxySettingsView: View {
         }
       }
       .navigationTitle("Proxy")
-      .toolbar {
-        ToolbarItem {
-          Button {
-            editorRequest = ProxyEditorRequest(proxy: nil)
-          } label: {
-            Label("Add Proxy", systemImage: "plus")
-          }
-          .disabled(model.isSaving)
-          .accessibilityIdentifier("proxy-add")
-        }
-      }
       .task {
         await model.load()
       }
@@ -53,95 +42,88 @@ struct ProxySettingsView: View {
           await model.save(proxy)
         }
       }
-      .confirmationDialog(
-        "Delete this proxy?",
-        isPresented: deletionPresented,
-        presenting: pendingDeletion
-      ) { proxy in
-        Button("Delete \(proxy.host):\(proxy.port)", role: .destructive) {
-          Task {
-            await model.delete(proxy.id)
-          }
-        }
-        Button("Cancel", role: .cancel) {}
-      } message: { proxy in
-        Text(
-          model.isSelected(proxy.id)
-            ? "The active proxy will be disabled."
-            : "This proxy configuration will be removed.")
-      }
     }
   }
 
   private var proxyForm: some View {
-    Form {
-      Section {
-        Toggle(
-          "Use Proxy",
-          isOn: Binding(
-            get: { model.enabled },
-            set: { value in
-              Task {
-                await model.setEnabled(value)
-              }
-            }
-          )
-        )
-        .disabled(model.proxies.isEmpty || model.isSaving)
-        .accessibilityIdentifier("proxy-enabled")
-      } footer: {
-        if model.proxies.isEmpty {
-          Text("Add a proxy before enabling network proxying.")
-        } else {
-          Text("Mixin network requests use the selected proxy while this is enabled.")
+    AppScrollView {
+      VStack(spacing: 0) {
+        Spacer().frame(height: 40)
+        proxyGroup {
+          HStack {
+            Text("Proxy")
+              .font(.system(size: 16))
+              .foregroundStyle(theme.text)
+            Spacer(minLength: 4)
+            Toggle("Use Proxy", isOn: Binding(
+              get: { model.enabled },
+              set: { value in Task { await model.setEnabled(value) } }
+            ))
+            .labelsHidden()
+            .scaleEffect(0.7)
+            .disabled(model.proxies.isEmpty || model.isSaving)
+            .accessibilityIdentifier("proxy-enabled")
+          }
+          .padding(.leading, 16)
+          .padding(.trailing, 10)
+          .padding(.vertical, 17)
         }
-      }
-
-      Section("Proxy Servers") {
-        if model.proxies.isEmpty {
-          Text("No proxy servers configured.")
-            .foregroundStyle(.secondary)
-        } else {
-          ForEach(model.proxies, id: \.id) { proxy in
-            ProxyRow(
-              proxy: proxy,
-              selected: model.isSelected(proxy.id),
-              disabled: model.isSaving,
-              onSelect: {
-                Task {
-                  await model.select(proxy.id)
-                }
-              },
-              onEdit: {
-                editorRequest = ProxyEditorRequest(proxy: proxy)
-              },
-              onDelete: {
-                pendingDeletion = proxy
+        proxyGroup {
+          VStack(spacing: 0) {
+            Button {
+              editorRequest = ProxyEditorRequest(proxy: nil)
+            } label: {
+              HStack(spacing: 8) {
+                Image(systemName: "plus")
+                  .font(.system(size: 24))
+                  .foregroundStyle(theme.icon)
+                  .frame(width: 24, height: 24)
+                Text("Add Proxy")
+                  .font(.system(size: 16))
+                  .foregroundStyle(theme.text)
+                Spacer(minLength: 0)
               }
-            )
+              .padding(.leading, 16)
+              .padding(.trailing, 10)
+              .padding(.vertical, 17)
+              .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(model.isSaving)
+            .accessibilityIdentifier("proxy-add")
+
+            Divider().padding(.leading, 56)
+            ForEach(model.proxies, id: \.id) { proxy in
+              ProxyRow(
+                proxy: proxy,
+                selected: model.isSelected(proxy.id),
+                disabled: model.isSaving,
+                onSelect: { Task { await model.select(proxy.id) } },
+                onDelete: { Task { await model.delete(proxy.id) } }
+              )
+            }
           }
         }
-      }
 
-      if let message = model.operationError {
-        Section {
-          Label(message, systemImage: "exclamationmark.triangle")
-            .foregroundStyle(.red)
-          HStack {
-            Button("Dismiss") {
-              model.dismissError()
-            }
-            Button("Reload") {
-              Task {
-                await model.load()
+        if let message = model.operationError {
+          proxyGroup {
+            VStack(alignment: .leading, spacing: 10) {
+              Label(message, systemImage: "exclamationmark.triangle")
+                .font(.system(size: 14))
+                .foregroundStyle(theme.destructive)
+              HStack(spacing: 16) {
+                Button("Dismiss") { model.dismissError() }
+                Button("Reload") { Task { await model.load() } }
               }
+              .font(.system(size: 14))
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 17)
           }
         }
       }
     }
-    .formStyle(.grouped)
-    .settingsFormLayout()
+    .background(theme.background)
     .overlay {
       if model.isSaving {
         ProgressView()
@@ -152,32 +134,35 @@ struct ProxySettingsView: View {
     }
   }
 
-  private var deletionPresented: Binding<Bool> {
-    Binding(
-      get: { pendingDeletion != nil },
-      set: { presented in
-        if !presented {
-          pendingDeletion = nil
-        }
-      }
-    )
+  private func proxyGroup<Content: View>(
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    content()
+      .background(theme.settingCellBackground)
+      .clipShape(RoundedRectangle(cornerRadius: 8))
+      .padding(.horizontal, 10)
+      .padding(.bottom, 10)
+      .frame(maxWidth: 600)
   }
+
 }
 
 private struct ProxyRow: View {
-  let proxy: SwiftProxyItem
+  @Environment(\.mixinTheme) private var theme
+  let proxy: ProxyItem
   let selected: Bool
   let disabled: Bool
   let onSelect: () -> Void
-  let onEdit: () -> Void
   let onDelete: () -> Void
 
   var body: some View {
-    HStack(spacing: 12) {
+    HStack(spacing: 8) {
       Button(action: onSelect) {
-        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-          .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-          .frame(width: 20)
+        Image(systemName: "checkmark")
+          .font(.system(size: 20))
+          .foregroundStyle(theme.icon)
+          .opacity(selected ? 1 : 0)
+          .frame(width: 20, height: 20)
       }
       .buttonStyle(.plain)
       .disabled(disabled || selected)
@@ -186,10 +171,11 @@ private struct ProxyRow: View {
       Button(action: onSelect) {
         VStack(alignment: .leading, spacing: 3) {
           Text("\(proxy.host):\(proxy.port)")
-            .foregroundStyle(.primary)
-          Text(proxy.kind.uppercased())
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(.system(size: 16))
+            .foregroundStyle(theme.text)
+          Text(proxy.kind)
+            .font(.system(size: 14))
+            .foregroundStyle(theme.secondaryText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -197,21 +183,21 @@ private struct ProxyRow: View {
       .buttonStyle(.plain)
       .disabled(disabled || selected)
 
-      Button(action: onEdit) {
-        Image(systemName: "pencil")
-      }
-      .buttonStyle(.borderless)
-      .disabled(disabled)
-      .help("Edit Proxy")
-
       Button(role: .destructive, action: onDelete) {
-        Image(systemName: "trash")
+        Image("Delete")
+          .resizable()
+          .renderingMode(.template)
+          .foregroundStyle(theme.icon)
+          .frame(width: 24, height: 24)
+          .frame(width: 30, height: 30)
       }
       .buttonStyle(.borderless)
       .disabled(disabled)
       .help("Delete Proxy")
     }
-    .padding(.vertical, 4)
+    .padding(.leading, 16)
+    .padding(.trailing, 10)
+    .padding(.vertical, 17)
     .accessibilityElement(children: .contain)
     .accessibilityIdentifier("proxy-\(proxy.id)")
   }
@@ -219,16 +205,13 @@ private struct ProxyRow: View {
 
 private struct ProxyEditorRequest: Identifiable {
   let id = UUID()
-  let proxy: SwiftProxyItem?
+  let proxy: ProxyItem?
 }
 
 private struct ProxyEditorView: View {
   @Environment(\.dismiss) private var dismiss
-  private let proxyId: String
-  private let editing: Bool
-  private let onSave: (SwiftProxyItem) async -> Bool
+  private let onSave: (ProxyItem) async -> Bool
 
-  @State private var kind: String
   @State private var host: String
   @State private var port: String
   @State private var username: String
@@ -237,13 +220,10 @@ private struct ProxyEditorView: View {
   @State private var saving = false
 
   init(
-    proxy: SwiftProxyItem?,
-    onSave: @escaping (SwiftProxyItem) async -> Bool
+    proxy: ProxyItem?,
+    onSave: @escaping (ProxyItem) async -> Bool
   ) {
-    proxyId = proxy?.id ?? UUID().uuidString.lowercased()
-    editing = proxy != nil
     self.onSave = onSave
-    _kind = State(initialValue: proxy?.kind.lowercased() ?? "http")
     _host = State(initialValue: proxy?.host ?? "")
     _port = State(initialValue: proxy.map { String($0.port) } ?? "")
     _username = State(initialValue: proxy?.username ?? "")
@@ -252,46 +232,42 @@ private struct ProxyEditorView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
-      Text(editing ? "Edit Proxy" : "Add Proxy")
-        .font(.title2.bold())
+      Text("Add Proxy")
+        .font(.system(size: 18, weight: .semibold))
 
-      Form {
-        Section("Proxy Type") {
-          Picker("Type", selection: $kind) {
-            Text("HTTP").tag("http")
-            Text("SOCKS5").tag("socks5")
+      proxyLabel("Proxy Type")
+      HStack {
+        Text("HTTP")
+          .font(.system(size: 14))
+        Spacer()
+        Image(systemName: "checkmark")
+          .font(.system(size: 24))
+      }
+      .foregroundStyle(.primary)
+      .padding(.horizontal, 16)
+      .frame(height: 52)
+      .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+
+      proxyLabel("Proxy Connection")
+      proxyInputGroup(
+        first: TextField("Host", text: $host)
+          .textContentType(.URL),
+        second: TextField("Port", text: $port)
+          .onChange(of: port) {
+            port = String(port.filter(\.isNumber).prefix(5))
           }
-          .pickerStyle(.segmented)
-        }
+      )
 
-        Section("Connection") {
-          TextField("Host", text: $host)
-            .textContentType(.URL)
-          TextField("Port", text: $port)
-            .onChange(of: port) {
-              port = String(port.filter(\.isNumber).prefix(5))
-            }
-        }
+      proxyLabel("Proxy Authentication")
+      proxyInputGroup(
+        first: TextField("Username", text: $username),
+        second: SecureField("Password", text: $password)
+      )
 
-        Section("Authentication (Optional)") {
-          TextField("Username", text: $username)
-          SecureField("Password", text: $password)
-        }
-
-        if let validationError {
-          Text(validationError)
-            .foregroundStyle(.red)
-        }
-      }
-      .formStyle(.grouped)
-      .onChange(of: host) {
-        host = String(host.prefix(200))
-      }
-      .onChange(of: username) {
-        username = String(username.prefix(200))
-      }
-      .onChange(of: password) {
-        password = String(password.prefix(200))
+      if let validationError {
+        Text(validationError)
+          .font(.system(size: 14))
+          .foregroundStyle(.red)
       }
 
       HStack {
@@ -300,7 +276,7 @@ private struct ProxyEditorView: View {
           dismiss()
         }
         .keyboardShortcut(.cancelAction)
-        Button(editing ? "Save" : "Add") {
+        Button("Add") {
           save()
         }
         .keyboardShortcut(.defaultAction)
@@ -308,7 +284,7 @@ private struct ProxyEditorView: View {
       }
     }
     .padding(24)
-    .frame(width: 440, height: 500)
+    .frame(width: 420)
     .interactiveDismissDisabled(saving)
   }
 
@@ -322,16 +298,11 @@ private struct ProxyEditorView: View {
       validationError = "Port must be between 1 and 65535."
       return
     }
-    guard kind == "http" || kind == "socks5" else {
-      validationError = "Proxy type is invalid."
-      return
-    }
-
     validationError = nil
     saving = true
-    let item = SwiftProxyItem(
-      id: proxyId,
-      kind: kind,
+    let item = ProxyItem(
+      id: UUID().uuidString.lowercased(),
+      kind: "http",
       host: trimmedHost,
       port: parsedPort,
       username: nilIfEmpty(username),
@@ -351,6 +322,33 @@ private struct ProxyEditorView: View {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed
   }
+
+  private func proxyLabel(_ title: String) -> some View {
+    Text(title)
+      .font(.system(size: 14))
+      .foregroundStyle(.secondary)
+      .padding(.bottom, -12)
+  }
+
+  private func proxyInputGroup<First: View, Second: View>(
+    first: First,
+    second: Second
+  ) -> some View {
+    VStack(spacing: 0) {
+      first
+        .textFieldStyle(.plain)
+        .font(.system(size: 14))
+        .padding(.horizontal, 16)
+        .frame(height: 52)
+      Divider()
+      second
+        .textFieldStyle(.plain)
+        .font(.system(size: 14))
+        .padding(.horizontal, 16)
+        .frame(height: 52)
+    }
+    .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+  }
 }
 
 @MainActor
@@ -363,7 +361,7 @@ private final class ProxySettingsModel {
   }
 
   private let desktop: SwiftDesktopHandle
-  private var settings: SwiftProxySettings?
+  private var settings: ProxySettingsItem?
   private(set) var state: State = .loading
   private(set) var isSaving = false
   private(set) var operationError: String?
@@ -372,7 +370,7 @@ private final class ProxySettingsModel {
     settings?.enabled ?? false
   }
 
-  var proxies: [SwiftProxyItem] {
+  var proxies: [ProxyItem] {
     settings?.proxies ?? []
   }
 
@@ -407,7 +405,7 @@ private final class ProxySettingsModel {
     }
     let selected = settings.selectedProxyId ?? settings.proxies.first?.id
     await persist(
-      SwiftProxySettings(
+      ProxySettingsItem(
         enabled: enabled && selected != nil,
         selectedProxyId: selected,
         proxies: settings.proxies
@@ -422,14 +420,14 @@ private final class ProxySettingsModel {
       return
     }
     await persist(
-      SwiftProxySettings(
+      ProxySettingsItem(
         enabled: settings.enabled,
         selectedProxyId: id,
         proxies: settings.proxies
       ))
   }
 
-  func save(_ proxy: SwiftProxyItem) async -> Bool {
+  func save(_ proxy: ProxyItem) async -> Bool {
     guard let settings, !isSaving else {
       return false
     }
@@ -440,7 +438,7 @@ private final class ProxySettingsModel {
       proxies.append(proxy)
     }
     return await persist(
-      SwiftProxySettings(
+      ProxySettingsItem(
         enabled: settings.enabled,
         selectedProxyId: settings.selectedProxyId,
         proxies: proxies
@@ -455,7 +453,7 @@ private final class ProxySettingsModel {
     let selected = settings.selectedProxyId ?? settings.proxies.first?.id
     let deletedSelected = selected == id
     await persist(
-      SwiftProxySettings(
+      ProxySettingsItem(
         enabled: !deletedSelected && !proxies.isEmpty && settings.enabled,
         selectedProxyId: deletedSelected ? nil : settings.selectedProxyId,
         proxies: proxies
@@ -467,7 +465,7 @@ private final class ProxySettingsModel {
   }
 
   @discardableResult
-  private func persist(_ next: SwiftProxySettings) async -> Bool {
+  private func persist(_ next: ProxySettingsItem) async -> Bool {
     isSaving = true
     operationError = nil
     defer {

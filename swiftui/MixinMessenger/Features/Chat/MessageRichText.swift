@@ -7,6 +7,7 @@ struct MessageRichText: View {
     private let presentation: MessageRichTextPresentation
     private let color: Color
     private let lineLimit: Int?
+    private let selectable: Bool
     private let onOpenURL: ((URL) -> Void)?
 
     init(
@@ -16,6 +17,7 @@ struct MessageRichText: View {
         lineLimit: Int? = nil,
         mentionNames: [String: String] = [:],
         highlight: String = "",
+        selectable: Bool = true,
         onOpenURL: ((URL) -> Void)? = nil
     ) {
         presentation = MessageRichTextPresentation(
@@ -26,15 +28,25 @@ struct MessageRichText: View {
         )
         self.color = color
         self.lineLimit = lineLimit
+        self.selectable = selectable
         self.onOpenURL = onOpenURL
     }
 
+    @ViewBuilder
     var body: some View {
+        if selectable {
+            text
+                .textSelection(.enabled)
+        } else {
+            text
+        }
+    }
+
+    private var text: some View {
         Text(presentation.attributedText)
             .font(.system(size: presentation.fontSize))
             .foregroundStyle(color)
             .lineLimit(lineLimit)
-            .textSelection(.enabled)
             .environment(
                 \.openURL,
                 OpenURLAction { url in

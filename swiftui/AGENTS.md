@@ -162,20 +162,29 @@ Use typed, value-based navigation. Route enums must be `Hashable`, contain stabl
 ```text
 Wide window
 ┌──────────────┬─────────────────────┬──────────────────────────┬───────────────┐
-│ Sidebar      │ Conversation list   │ Chat / settings detail   │ Inspector     │
-│ profile      │ search + filters    │ timeline + composer      │ info/search/  │
-│ circles      │ or settings list    │ or selected setting      │ pins/media    │
+│ Sidebar      │ Conversation list   │ Chat timeline + composer │ Chat info     │
+│ expanded or  │ or settings list    │ or settings detail       │ when visible  │
+│ collapsed    │ fixed width         │ flexible width           │ fixed width   │
 └──────────────┴─────────────────────┴──────────────────────────┴───────────────┘
 
-Narrow window
+Routed content
+┌───────────────────┬──────────────────────────────────────────────────────────┐
+│ Sidebar follows   │ Route stack: list → detail → contextual destination     │
+│ its own width rule│ Settings: B → C; Chats: D → E → G                       │
+└───────────────────┴──────────────────────────────────────────────────────────┘
+
+Minimum window
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ NavigationStack: sidebar → list → detail → contextual destination           │
+│ Route stack with a top-bar menu that presents the sidebar as an overlay     │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- Build the main shell with a three-column `NavigationSplitView`: sidebar, content list, and detail. Use a native inspector or a nested typed route for chat information pages.
-- Let SwiftUI manage column collapse and restoration first. Add custom width or compact-mode logic only for a verified interaction requirement.
-- `HomeNavigationModel` owns `HomeSection`, selected conversation ID, detail path, inspector path, and sheet presentation. Feature models do not push global routes directly; they return an outcome or call a typed navigation intent.
+- Match the repository-local Flutter shell constants and decisions: sidebar widths are 64/176 points, it becomes a drawer at 384 points or below, and it is automatically collapsed between 384 and 496 points. User collapse remains available at 496 points and above.
+- Resolve the sidebar and main content independently. After subtracting the resolved sidebar width, settings B/C and chats D/E switch to one route when the main content is below 620 points.
+- In wide mode, settings renders a fixed-width settings list beside a flexible detail. Chats renders a fixed-width conversation list beside a flexible chat detail; chat info is an optional fixed-width column inside the chat detail.
+- In routed content, settings list/detail and conversation list/chat/chat-info share one typed route path, so each destination covers the previous route. Do not bind this top-level path to macOS `NavigationStack`; changing the responsive container while the bound path is active can trigger `NavigationColumnState` assertions.
+- In minimum mode, remove the sidebar from the layout. A menu button in the conversation-list or settings-list top bar presents the expanded sidebar as a leading overlay.
+- `HomeNavigationModel` separately owns the root page, conversation filter, selected conversation ID, compact route path, inspector path, and sheet presentation. Feature models do not push global routes directly; they return an outcome or call a typed navigation intent.
 - Use `NavigationStack` inside settings, chat inspector, and modal workflows that need their own path.
 - Deep links, notification clicks, menu commands, and command-palette actions must resolve into the same typed navigation intents.
 - Use `FocusedValues` and `Commands` for actions that target the active window or conversation. Keep business commands on the feature/session model.
@@ -301,24 +310,14 @@ cargo clippy --workspace --all-targets -- -D warnings
 - Swift bridge and app baseline:
 
 ```sh
-cargo build -p mixin_desktop_swift
-xcodebuild \
-  -project swiftui/MixinMessenger.xcodeproj \
-  -scheme MixinMessenger \
-  -configuration Debug \
-  -derivedDataPath /tmp/mixin-messenger-swift-derived \
-  CODE_SIGNING_ALLOWED=NO \
-  build
+./build-swiftui.sh
 ```
 
 - Run the relevant `xcodebuild test` destinations after test targets exist.
-- For a UniFFI-visible change, regenerate all bindings using `swiftui/README.md`, then run Rust tests, Swift model tests, and the Xcode Debug build.
+- For a UniFFI-visible change, regenerate all bindings using `swiftui/README.md`, then run Rust tests, Swift model tests, and `./build-swiftui.sh`.
 - For changes to the shared public API that also touch `flutter/`, run `flutter analyze`, relevant `flutter test` targets, and `flutter build macos --debug` when generated bindings, plugins, or native build behavior changed.
 - Run a live app smoke test for startup, restore/login, Blaze/Signal, real event streams, notifications, media, file access, protocol links, and visual interaction changes.
-- Use a temporary `-derivedDataPath` only for isolated compile validation. A build with `CODE_SIGNING_ALLOWED=NO` must not be launched for live verification because it does not preserve the app's Sandbox container and data-directory behavior.
-- For live smoke tests, visual checks, and performance profiling, build and launch the signed app from the existing Xcode DerivedData location. Omit the temporary `-derivedDataPath`, or explicitly reuse the DerivedData path of the active Xcode project.
-- Resolve the actual live product path from Xcode build settings when needed. Do not assume that a newly created `/tmp` product has the same credentials, container, persisted state, or runtime behavior as the existing development app.
-- Do not use `open -na` to launch a temporary copy for stateful verification. Launch the signed product associated with the existing project so account data, window state, permissions, and Sandbox paths remain consistent.
+- Build the app with `./build-swiftui.sh` and use the product path printed by the script for live smoke tests, visual checks, and performance profiling.
 - Do not claim visual or behavioral parity without running the relevant flow.
 - Run `git diff --check`, inspect the final diff, and separate repository failures from local Xcode, CocoaPods, signing, or cache failures.
 

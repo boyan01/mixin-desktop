@@ -21,7 +21,7 @@ impl From<CoreConversationAccess> for ConversationAccess {
 
 impl ConversationAccess {
     pub async fn resolve_code(&self, code: String) -> Result<model::CodeResult, ClientError> {
-        Ok(self.inner.resolve_code(code).await?.into())
+        Ok(self.inner.resolve_code(code).await?)
     }
 
     pub async fn join_group(&self, code: String) -> Result<String, ClientError> {
@@ -35,13 +35,7 @@ impl ConversationAccess {
     pub async fn conversation_items(
         &self,
     ) -> Result<Vec<model::ConversationListData>, ClientError> {
-        Ok(self
-            .inner
-            .conversation_items()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.conversation_items().await?)
     }
 
     pub async fn conversation_items_by_ids(
@@ -51,10 +45,7 @@ impl ConversationAccess {
         Ok(self
             .inner
             .conversation_items_by_ids(conversation_ids)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn is_bot_group(&self, conversation_id: String) -> Result<bool, ClientError> {
@@ -86,10 +77,7 @@ impl ConversationAccess {
         Ok(self
             .inner
             .conversations(category, circle_id, keyword, unseen_only, limit, offset)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn current_user_role(
@@ -106,10 +94,7 @@ impl ConversationAccess {
         Ok(self
             .inner
             .conversation_participants(conversation_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn search_bot_group_users(
@@ -120,10 +105,7 @@ impl ConversationAccess {
         Ok(self
             .inner
             .search_bot_group_users(conversation_id, keyword)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn search_group_users(
@@ -134,21 +116,14 @@ impl ConversationAccess {
         Ok(self
             .inner
             .search_group_users(conversation_id, keyword)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn conversation_detail(
         &self,
         conversation_id: String,
     ) -> Result<model::ConversationDetailItem, ClientError> {
-        Ok(self
-            .inner
-            .conversation_detail(conversation_id)
-            .await?
-            .into())
+        Ok(self.inner.conversation_detail(conversation_id).await?)
     }
 
     pub async fn local_conversation_detail(
@@ -158,21 +133,14 @@ impl ConversationAccess {
         Ok(self
             .inner
             .local_conversation_detail(conversation_id)
-            .await?
-            .into())
+            .await?)
     }
 
     pub async fn groups_in_common(
         &self,
         user_id: String,
     ) -> Result<Vec<model::GroupConversationItem>, ClientError> {
-        Ok(self
-            .inner
-            .groups_in_common(user_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.groups_in_common(user_id).await?)
     }
 
     pub async fn update_participants(
@@ -208,7 +176,7 @@ impl ConversationAccess {
     }
 
     pub async fn create_circle(&self, name: String) -> Result<model::CircleItem, ClientError> {
-        Ok(self.inner.create_circle(name).await?.into())
+        Ok(self.inner.create_circle(name).await?)
     }
 
     pub async fn update_circle(&self, circle_id: String, name: String) -> Result<(), ClientError> {
@@ -256,13 +224,7 @@ impl ConversationAccess {
     }
 
     pub async fn circles(&self) -> Result<Vec<model::CircleItem>, ClientError> {
-        Ok(self
-            .inner
-            .circles()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.circles().await?)
     }
 
     pub async fn set_pinned(
@@ -356,34 +318,21 @@ impl MessageAccess {
                 before_message_id,
                 limit,
             )
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn message_items_by_ids(
         &self,
         message_ids: Vec<String>,
     ) -> Result<Vec<model::MessageListView>, ClientError> {
-        Ok(self
-            .inner
-            .message_items_by_ids(message_ids)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.message_items_by_ids(message_ids).await?)
     }
 
     pub async fn message_order_info(
         &self,
         message_id: String,
     ) -> Result<Option<model::MessageOrderInfoView>, ClientError> {
-        Ok(self
-            .inner
-            .message_order_info(message_id)
-            .await?
-            .map(Into::into))
+        Ok(self.inner.message_order_info(message_id).await?)
     }
 
     pub async fn message_ids_before(
@@ -441,10 +390,7 @@ impl MessageAccess {
                 anchor_message_id,
                 limit,
             )
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn search_global_messages(
@@ -456,10 +402,7 @@ impl MessageAccess {
         Ok(self
             .inner
             .search_global_messages(query, anchor_message_id, limit)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn shared_messages(
@@ -472,10 +415,7 @@ impl MessageAccess {
         Ok(self
             .inner
             .shared_messages(conversation_id, kind, offset, limit)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn messages_around(
@@ -488,10 +428,7 @@ impl MessageAccess {
         Ok(self
             .inner
             .messages_around(conversation_id, target_message_id, before, after)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn image_messages_around(
@@ -504,23 +441,14 @@ impl MessageAccess {
         Ok(self
             .inner
             .image_messages_around(conversation_id, target_message_id, before, after)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn pinned_messages(
         &self,
         conversation_id: String,
     ) -> Result<Vec<model::MessageListView>, ClientError> {
-        Ok(self
-            .inner
-            .pinned_messages(conversation_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.pinned_messages(conversation_id).await?)
     }
 
     pub async fn pinned_message_ids(
@@ -534,24 +462,14 @@ impl MessageAccess {
         &self,
         conversation_id: String,
     ) -> Result<Option<model::PinMessagePreviewItem>, ClientError> {
-        Ok(self
-            .inner
-            .pin_message_preview(conversation_id)
-            .await?
-            .map(Into::into))
+        Ok(self.inner.pin_message_preview(conversation_id).await?)
     }
 
     pub async fn transcript_messages(
         &self,
         transcript_id: String,
     ) -> Result<Vec<model::MessageListView>, ClientError> {
-        Ok(self
-            .inner
-            .transcript_messages(transcript_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.transcript_messages(transcript_id).await?)
     }
 
     pub async fn send_text(
@@ -850,56 +768,26 @@ impl StickerAccess {
     }
 
     pub async fn recent_stickers(&self) -> Result<Vec<model::StickerItem>, ClientError> {
-        Ok(self
-            .inner
-            .recent_stickers()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.recent_stickers().await?)
     }
 
     pub async fn personal_stickers(&self) -> Result<Vec<model::StickerItem>, ClientError> {
-        Ok(self
-            .inner
-            .personal_stickers()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.personal_stickers().await?)
     }
 
     pub async fn sticker_albums(&self) -> Result<Vec<model::StickerAlbumItem>, ClientError> {
-        Ok(self
-            .inner
-            .sticker_albums()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.sticker_albums().await?)
     }
 
     pub async fn sticker_store_albums(&self) -> Result<Vec<model::StickerAlbumItem>, ClientError> {
-        Ok(self
-            .inner
-            .sticker_store_albums()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.sticker_store_albums().await?)
     }
 
     pub async fn album_stickers(
         &self,
         album_id: String,
     ) -> Result<Vec<model::StickerItem>, ClientError> {
-        Ok(self
-            .inner
-            .album_stickers(album_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.album_stickers(album_id).await?)
     }
 
     pub async fn set_sticker_album_added(
@@ -918,7 +806,7 @@ impl StickerAccess {
         &self,
         sticker_id: String,
     ) -> Result<model::StickerDetailItem, ClientError> {
-        Ok(self.inner.sticker_detail(sticker_id).await?.into())
+        Ok(self.inner.sticker_detail(sticker_id).await?)
     }
 
     pub async fn add_sticker_from_file(&self, message_id: String) -> Result<(), ClientError> {
@@ -945,17 +833,11 @@ impl UserAccess {
         &self,
         query: String,
     ) -> Result<Option<model::UserProfileItem>, ClientError> {
-        Ok(self.inner.search_mao_user(query).await?.map(Into::into))
+        Ok(self.inner.search_mao_user(query).await?)
     }
 
     pub async fn selectable_users(&self) -> Result<Vec<model::UserProfileItem>, ClientError> {
-        Ok(self
-            .inner
-            .selectable_users()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.selectable_users().await?)
     }
 
     pub async fn search_local_users(
@@ -967,40 +849,25 @@ impl UserAccess {
         Ok(self
             .inner
             .search_local_users(query, category, limit)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn search_user(&self, query: String) -> Result<model::UserProfileItem, ClientError> {
-        Ok(self.inner.search_user(query).await?.into())
+        Ok(self.inner.search_user(query).await?)
     }
 
     pub async fn local_shared_apps(
         &self,
         user_id: String,
     ) -> Result<Vec<model::SharedAppItem>, ClientError> {
-        Ok(self
-            .inner
-            .local_shared_apps(user_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.local_shared_apps(user_id).await?)
     }
 
     pub async fn shared_apps(
         &self,
         user_id: String,
     ) -> Result<Vec<model::SharedAppItem>, ClientError> {
-        Ok(self
-            .inner
-            .shared_apps(user_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        Ok(self.inner.shared_apps(user_id).await?)
     }
 
     pub async fn bot_creator_id(&self, user_id: String) -> Result<Option<String>, ClientError> {
@@ -1012,22 +879,14 @@ impl UserAccess {
         user_id: Option<String>,
         identity_number: Option<String>,
     ) -> Result<Option<model::UserProfileItem>, ClientError> {
-        Ok(self
-            .inner
-            .user_profile(user_id, identity_number)
-            .await?
-            .map(Into::into))
+        Ok(self.inner.user_profile(user_id, identity_number).await?)
     }
 
     pub async fn refresh_user_profile(
         &self,
         user_id: String,
     ) -> Result<Option<model::UserProfileItem>, ClientError> {
-        Ok(self
-            .inner
-            .refresh_user_profile(user_id)
-            .await?
-            .map(Into::into))
+        Ok(self.inner.refresh_user_profile(user_id).await?)
     }
 
     pub async fn users_by_identity_numbers(
@@ -1037,10 +896,7 @@ impl UserAccess {
         Ok(self
             .inner
             .users_by_identity_numbers(identity_numbers)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn replace_mentions(

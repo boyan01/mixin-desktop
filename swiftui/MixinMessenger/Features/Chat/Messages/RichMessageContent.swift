@@ -4,15 +4,16 @@ import Nuke
 import SwiftUI
 
 struct RichMessageContent: View {
-    let message: SwiftMessageItem
+    let message: MessageItem
     var mentionNames: [String: String] = [:]
     let outgoing: Bool
-    let imageMessages: [SwiftMessageItem]
-    let loadImageWindow: (String) async throws -> [SwiftImageMessageItem]
+    let imageMessages: [MessageItem]
+    let loadImageWindow: (String) async throws -> [ImageMessageView]
     let progress: () -> Double
     let onAttachmentAction: () -> Void
-    let loadTranscript: () async throws -> [SwiftMessageItem]
-    let onTranscriptAttachmentAction: (SwiftMessageItem) async -> Void
+    var onForward: () -> Void = {}
+    let loadTranscript: () async throws -> [MessageItem]
+    let onTranscriptAttachmentAction: (MessageItem) async -> Void
     var onAppAction: (String, String) -> Void = { action, _ in
         guard let url = URL(string: action),
               ["http", "https", "mixin"].contains(url.scheme?.lowercased() ?? "")
@@ -32,10 +33,14 @@ struct RichMessageContent: View {
                     ImageMessagePreview(
                         messages: imageMessages,
                         initialMessageID: message.messageId,
-                        loadWindow: loadImageWindow
+                        loadWindow: loadImageWindow,
+                        onForward: onForward
                     )
                 case .video:
-                    VideoMessagePreview(message: message)
+                    VideoMessagePreview(
+                        message: message,
+                        onForward: onForward
+                    )
                 case .post:
                     PostMessagePreview(message: message)
                 case .transcript:
@@ -58,7 +63,7 @@ struct RichMessageContent: View {
                 preview = .transcript
             }
         } else if message.category.hasSuffix("_IMAGE") {
-            ImageMessageView(
+            ImageMessageContentView(
                 message: message,
                 mentionNames: mentionNames,
                 outgoing: outgoing,
@@ -98,7 +103,7 @@ struct RichMessageContent: View {
 }
 
 enum MessageMediaInteraction {
-    static func copyImage(_ message: SwiftMessageItem) {
+    static func copyImage(_ message: MessageItem) {
         guard let url = message.localMediaURL,
               let image = NSImage(contentsOf: url)
         else {
@@ -108,21 +113,21 @@ enum MessageMediaInteraction {
         NSPasteboard.general.writeObjects([image])
     }
 
-    static func open(_ message: SwiftMessageItem) {
+    static func open(_ message: MessageItem) {
         guard let url = message.localMediaURL else {
             return
         }
         NSWorkspace.shared.open(url)
     }
 
-    static func reveal(_ message: SwiftMessageItem) {
+    static func reveal(_ message: MessageItem) {
         guard let url = message.localMediaURL else {
             return
         }
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
-    static func save(_ message: SwiftMessageItem) {
+    static func save(_ message: MessageItem) {
         guard let url = message.localMediaURL else {
             return
         }
@@ -145,7 +150,7 @@ private enum RichMessagePreview: String, Identifiable {
 }
 
 struct AttachmentStatusOverlay: View {
-    let message: SwiftMessageItem
+    let message: MessageItem
     let outgoing: Bool
     let progress: () -> Double
     let completedSymbol: String?
@@ -241,10 +246,12 @@ struct MessageMediaImage: View {
     }
 }
 
-private struct ImageMessagePreview: View {
+struct ImageMessagePreview: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.mixinTheme) private var theme
     @State private var messages: [ImagePreviewItem]
-    let loadWindow: (String) async throws -> [SwiftImageMessageItem]
+    let loadWindow: (String) async throws -> [ImageMessageView]
+    let onForward: () -> Void
 
     @State private var index: Int
     @State private var zoom = 1.0
@@ -252,13 +259,15 @@ private struct ImageMessagePreview: View {
     @State private var image: NSImage?
 
     init(
-        messages: [SwiftMessageItem],
+        messages: [MessageItem],
         initialMessageID: String,
-        loadWindow: @escaping (String) async throws -> [SwiftImageMessageItem]
+        loadWindow: @escaping (String) async throws -> [ImageMessageView],
+        onForward: @escaping () -> Void = {}
     ) {
         let items = messages.map(ImagePreviewItem.init)
         _messages = State(initialValue: items)
         self.loadWindow = loadWindow
+        self.onForward = onForward
         _index = State(initialValue:
             items.firstIndex(where: { $0.messageID == initialMessageID }) ?? 0
         )
@@ -270,76 +279,49 @@ private struct ImageMessagePreview: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text(message?.senderName ?? "Image")
-                    .font(.headline)
-                Spacer()
-                Button {
-                    select(index - 1)
-                } label: {
-                    Image(systemName: "chevron.left")
-                }
-                .disabled(index == 0)
-                Button {
-                    select(index + 1)
-                } label: {
-                    Image(systemName: "chevron.right")
-                }
-                .disabled(index + 1 >= messages.count)
-                Button {
-                    zoom = max(0.5, zoom * 0.8)
-                } label: {
-                    Image(systemName: "minus.magnifyingglass")
-                }
-                Button {
-                    zoom = min(5, zoom * 1.25)
-                } label: {
-                    Image(systemName: "plus.magnifyingglass")
-                }
-                Button {
-                    rotation += .degrees(90)
-                } label: {
-                    Image(systemName: "rotate.right")
-                }
-                Button {
-                    copy()
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                }
-                .disabled(image == nil)
-                Button {
-                    save()
-                } label: {
-                    Image(systemName: "square.and.arrow.down")
-                }
-                .disabled(message?.mediaURL.localFileURL == nil)
-                Button("Done") {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
-            }
-            .buttonStyle(.borderless)
-            .padding()
+            previewBar
 
-            Divider()
+            ZStack {
+                AppScrollView([.horizontal, .vertical]) {
+                    Group {
+                        if let image {
+                            Image(nsImage: image)
+                                .resizable()
+                                .scaledToFit()
+                        } else {
+                            ProgressView()
+                        }
+                    }
+                    .scaleEffect(zoom)
+                    .rotationEffect(rotation)
+                    .frame(minWidth: 600, minHeight: 440)
+                }
+                .background(theme.background)
 
-            ScrollView([.horizontal, .vertical]) {
-                Group {
-                    if let image {
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFit()
-                    } else {
-                        ProgressView()
+                HStack {
+                    if index > 0 {
+                        PreviewAssetButton(
+                            assetName: "PreviewPrevious",
+                            size: 36
+                        ) {
+                            select(index - 1)
+                        }
+                    }
+                    Spacer()
+                    if index + 1 < messages.count {
+                        PreviewAssetButton(
+                            assetName: "PreviewNext",
+                            size: 36
+                        ) {
+                            select(index + 1)
+                        }
                     }
                 }
-                .scaleEffect(zoom)
-                .rotationEffect(rotation)
-                .frame(minWidth: 600, minHeight: 440)
+                .padding(.horizontal, 30)
             }
-            .background(Color.black.opacity(0.88))
         }
         .frame(minWidth: 720, minHeight: 540)
+        .background(theme.background)
         .task(id: message?.messageID) {
             image = nil
             guard let message else {
@@ -350,11 +332,79 @@ private struct ImageMessagePreview: View {
             {
                 merge(expanded.map(ImagePreviewItem.init), keeping: message.messageID)
             }
-            guard let url = message.mediaURL.localFileURL else {
+            guard let url = message.mediaURL.localFileURL
+                ?? message.mediaURL.httpURL
+            else {
                 return
             }
             image = try? await ImagePipeline.shared.image(for: url)
         }
+        .onExitCommand {
+            dismiss()
+        }
+    }
+
+    private var previewBar: some View {
+        HStack(spacing: 0) {
+            Spacer().frame(width: 100)
+            if let message {
+                UserAvatar(
+                    userID: message.userID,
+                    name: message.senderName,
+                    url: message.avatarURL,
+                    size: 36
+                )
+                Spacer().frame(width: 10)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(message.senderName)
+                        .font(.system(size: 16))
+                        .foregroundStyle(theme.text)
+                        .lineLimit(1)
+                    Text(message.userIdentityNumber)
+                        .font(.system(size: 14))
+                        .foregroundStyle(theme.secondaryText)
+                        .lineLimit(1)
+                }
+            }
+            Spacer().frame(width: 14)
+            Spacer()
+            PreviewAssetButton(assetName: "PreviewZoomIn") {
+                zoom = min(5, zoom * 1.25)
+            }
+            Spacer().frame(width: 14)
+            PreviewAssetButton(assetName: "PreviewZoomOut") {
+                zoom = max(0.5, zoom * 0.8)
+            }
+            Spacer().frame(width: 14)
+            PreviewAssetButton(assetName: "PreviewRotate") {
+                rotation += .degrees(90)
+            }
+            if message?.canForward == true {
+                Spacer().frame(width: 14)
+                PreviewAssetButton(assetName: "PreviewShare") {
+                    onForward()
+                }
+            }
+            Spacer().frame(width: 14)
+            PreviewAssetButton(
+                assetName: "PreviewCopy",
+                enabled: image != nil,
+                action: copy
+            )
+            Spacer().frame(width: 14)
+            PreviewAssetButton(
+                assetName: "PreviewDownload",
+                enabled: message?.mediaURL.localFileURL != nil,
+                action: save
+            )
+            Spacer().frame(width: 14)
+            PreviewAssetButton(assetName: "PreviewClose") {
+                dismiss()
+            }
+            Spacer().frame(width: 24)
+        }
+        .frame(height: 70)
+        .background(theme.primary)
     }
 
     private func select(_ nextIndex: Int) {
@@ -407,92 +457,434 @@ private struct ImagePreviewItem {
     let mediaURL: String
     let mediaName: String?
     let senderName: String
+    let canForward: Bool
+    let userID: String
+    let userIdentityNumber: String
+    let avatarURL: String
 
-    nonisolated init(_ message: SwiftMessageItem) {
+    nonisolated init(_ message: MessageItem) {
         messageID = message.messageId
         createdAtMicros = message.createdAtMicros
         mediaURL = message.mediaUrl ?? ""
         mediaName = message.mediaName
         senderName = message.senderName
+        canForward = ["SENT", "DELIVERED", "READ"].contains(
+            message.status.uppercased()
+        )
+            && ["DONE", "READ"].contains(message.mediaStatus.uppercased())
+            && message.mediaUrl?.isEmpty == false
+        userID = message.senderId
+        userIdentityNumber = message.senderIdentityNumber ?? ""
+        avatarURL = message.senderAvatarUrl
     }
 
-    nonisolated init(_ message: SwiftImageMessageItem) {
+    nonisolated init(_ message: ImageMessageView) {
         messageID = message.messageId
         createdAtMicros = message.createdAtMicros
         mediaURL = message.mediaUrl
         mediaName = message.mediaName
         senderName = message.userFullName
+        canForward = message.canForward
+        userID = message.userId
+        userIdentityNumber = message.userIdentityNumber
+        avatarURL = message.avatarUrl
     }
 }
 
-private struct VideoMessagePreview: View {
+struct VideoMessagePreview: View {
     @Environment(\.dismiss) private var dismiss
-    let message: SwiftMessageItem
+    @Environment(\.mixinTheme) private var theme
+    let message: MessageItem
+    var isTranscriptPage = false
+    var onForward: () -> Void = {}
     @State private var player: AVPlayer?
+    @State private var timeObserver: Any?
+    @State private var currentSeconds = 0.0
+    @State private var durationSeconds = 0.0
+    @State private var volume = 1.0
+    @State private var lastAudibleVolume = 1.0
+    @State private var isPlaying = false
+    @State private var controlsVisible = true
+    @State private var hideControlsTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text(message.mediaName ?? "Video")
-                    .font(.headline)
+            HStack(spacing: 0) {
+                Spacer().frame(width: 100)
+                UserAvatar(
+                    userID: message.senderId,
+                    name: message.senderName,
+                    url: message.senderAvatarUrl,
+                    size: 36
+                )
+                Spacer().frame(width: 10)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(message.senderName)
+                        .font(.system(size: 16))
+                        .foregroundStyle(theme.text)
+                        .lineLimit(1)
+                    Text(message.senderIdentityNumber ?? "")
+                        .font(.system(size: 14))
+                        .foregroundStyle(theme.secondaryText)
+                        .lineLimit(1)
+                }
+                Spacer().frame(width: 14)
                 Spacer()
-                Button("Done") {
+                if !isTranscriptPage && message.previewCanForward {
+                    PreviewAssetButton(assetName: "PreviewShare") {
+                        onForward()
+                    }
+                    Spacer().frame(width: 14)
+                }
+                PreviewAssetButton(
+                    assetName: "PreviewCopy",
+                    enabled: message.resolvedMediaURL?.isFileURL == true
+                ) {
+                    copy()
+                }
+                Spacer().frame(width: 14)
+                PreviewAssetButton(
+                    assetName: "PreviewDownload",
+                    enabled: message.resolvedMediaURL?.isFileURL == true
+                ) {
+                    save()
+                }
+                Spacer().frame(width: 14)
+                PreviewAssetButton(assetName: "PreviewClose") {
                     dismiss()
                 }
-                .keyboardShortcut(.cancelAction)
+                Spacer().frame(width: 24)
             }
-            .padding()
-            Divider()
-            if let player {
-                VideoPlayer(player: player)
-                    .onAppear {
-                        player.play()
+            .frame(height: 70)
+            .background(theme.primary)
+
+            ZStack {
+                theme.background
+                if let player {
+                    PreviewPlayerView(player: player)
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onHover { hovering in
+                            if hovering {
+                                showControlsTemporarily()
+                            }
+                        }
+                    if controlsVisible {
+                        VStack {
+                            Spacer()
+                            videoOperationBar(player)
+                                .padding(.bottom, 20)
+                        }
+                        .transition(.opacity)
                     }
-            } else {
-                ContentUnavailableView(
-                    "Video unavailable",
-                    systemImage: "play.slash",
-                    description: Text("The local media file could not be resolved.")
-                )
+                } else {
+                    ContentUnavailableView(
+                        "Video unavailable",
+                        systemImage: "play.slash",
+                        description: Text("The local media file could not be resolved.")
+                    )
+                }
             }
         }
         .frame(minWidth: 720, minHeight: 500)
+        .background(theme.background)
         .task {
             if let url = message.resolvedMediaURL {
-                player = AVPlayer(url: url)
+                let player = AVPlayer(url: url)
+                player.volume = Float(volume)
+                self.player = player
+                installTimeObserver(on: player)
+                player.play()
+                isPlaying = true
+                showControlsTemporarily()
             }
         }
         .onDisappear {
+            hideControlsTask?.cancel()
+            if let timeObserver, let player {
+                player.removeTimeObserver(timeObserver)
+            }
+            timeObserver = nil
             player?.pause()
         }
+        .onExitCommand {
+            dismiss()
+        }
+    }
+
+    private func copy() {
+        guard let url = message.resolvedMediaURL, url.isFileURL else {
+            return
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([url as NSURL])
+    }
+
+    private func save() {
+        guard let url = message.resolvedMediaURL, url.isFileURL else {
+            return
+        }
+        Task {
+            await FileInteraction.save(
+                source: url,
+                suggestedName:
+                    message.mediaName ?? url.lastPathComponent
+            )
+        }
+    }
+
+    private func installTimeObserver(on player: AVPlayer) {
+        timeObserver = player.addPeriodicTimeObserver(
+            forInterval: CMTime(seconds: 0.2, preferredTimescale: 600),
+            queue: .main
+        ) { time in
+            currentSeconds = time.seconds.isFinite ? max(0, time.seconds) : 0
+            let duration = player.currentItem?.duration.seconds ?? 0
+            durationSeconds = duration.isFinite ? max(0, duration) : 0
+            isPlaying = player.timeControlStatus == .playing
+        }
+    }
+
+    private func showControlsTemporarily() {
+        controlsVisible = true
+        hideControlsTask?.cancel()
+        hideControlsTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else {
+                return
+            }
+            controlsVisible = false
+        }
+    }
+
+    private func togglePlayback(_ player: AVPlayer) {
+        if isPlaying {
+            player.pause()
+        } else {
+            player.play()
+        }
+        isPlaying.toggle()
+        showControlsTemporarily()
+    }
+
+    private func seek(_ offset: Double, player: AVPlayer) {
+        let target = min(max(currentSeconds + offset, 0), durationSeconds)
+        player.seek(to: CMTime(seconds: target, preferredTimescale: 600))
+        currentSeconds = target
+        showControlsTemporarily()
+    }
+
+    private func setVolume(_ value: Double, player: AVPlayer) {
+        volume = min(max(value, 0), 1)
+        if volume > 0 {
+            lastAudibleVolume = volume
+        }
+        player.volume = Float(volume)
+        showControlsTemporarily()
+    }
+
+    private func toggleMute(_ player: AVPlayer) {
+        setVolume(volume > 0 ? 0 : lastAudibleVolume, player: player)
+    }
+
+    private func seekToProgress(_ value: Double, player: AVPlayer) {
+        currentSeconds = value
+        player.seek(to: CMTime(seconds: value, preferredTimescale: 600))
+        showControlsTemporarily()
+    }
+
+    private func videoOperationBar(_ player: AVPlayer) -> some View {
+        let foreground = Color(red: 200 / 255, green: 200 / 255, blue: 200 / 255)
+        return VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Button {
+                    toggleMute(player)
+                } label: {
+                    Image(systemName: volumeIcon)
+                        .font(.system(size: 18))
+                        .foregroundStyle(foreground)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                Spacer().frame(width: 8)
+                Slider(
+                    value: Binding(
+                        get: { volume },
+                        set: { setVolume($0, player: player) }
+                    ),
+                    in: 0 ... 1
+                )
+                .tint(theme.accent)
+                .frame(width: 80)
+                Spacer()
+                Button {
+                    seek(-15, player: player)
+                } label: {
+                    Image(systemName: "gobackward.15")
+                        .font(.system(size: 24))
+                        .foregroundStyle(foreground)
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+                Spacer().frame(width: 8)
+                PreviewAssetButton(
+                    assetName: isPlaying ? "PlayerPause" : "PlayerPlay",
+                    size: 32
+                ) {
+                    togglePlayback(player)
+                }
+                Spacer().frame(width: 8)
+                Button {
+                    seek(15, player: player)
+                } label: {
+                    Image(systemName: "goforward.15")
+                        .font(.system(size: 24))
+                        .foregroundStyle(foreground)
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            Spacer().frame(height: 8)
+            HStack(spacing: 12) {
+                Text(formatPlayerDuration(currentSeconds))
+                    .font(.system(size: 12))
+                    .foregroundStyle(foreground)
+                Slider(
+                    value: Binding(
+                        get: { min(currentSeconds, max(durationSeconds, 0)) },
+                        set: { seekToProgress($0, player: player) }
+                    ),
+                    in: 0 ... max(durationSeconds, 0.01)
+                )
+                .tint(theme.accent)
+                Text(formatPlayerDuration(durationSeconds))
+                    .font(.system(size: 12))
+                    .foregroundStyle(foreground)
+            }
+            Spacer().frame(height: 8)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .frame(minWidth: 300, maxWidth: 500)
+        .background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var volumeIcon: String {
+        switch volume {
+        case 0:
+            "speaker.slash"
+        case ..<0.25:
+            "speaker"
+        case ..<0.5:
+            "speaker.wave.1"
+        case ..<0.75:
+            "speaker.wave.2"
+        default:
+            "speaker.wave.3"
+        }
+    }
+
+    private func formatPlayerDuration(_ seconds: Double) -> String {
+        let total = max(0, Int(seconds))
+        let hours = total / 3_600
+        let minutes = total / 60 % 60
+        let seconds = total % 60
+        if hours > 0 {
+            return "\(hours):\(String(format: "%02d", minutes)):"
+                + String(format: "%02d", seconds)
+        }
+        return "\(minutes):\(String(format: "%02d", seconds))"
     }
 }
 
-private struct PostMessagePreview: View {
+private struct PreviewPlayerView: NSViewRepresentable {
+    let player: AVPlayer
+
+    func makeNSView(context: Context) -> AVPlayerView {
+        let view = AVPlayerView()
+        view.player = player
+        view.controlsStyle = .none
+        view.videoGravity = .resizeAspect
+        return view
+    }
+
+    func updateNSView(_ view: AVPlayerView, context: Context) {
+        view.player = player
+    }
+}
+
+private struct PreviewAssetButton: View {
+    @Environment(\.mixinTheme) private var theme
+    let assetName: String
+    var size: CGFloat = 20
+    var enabled = true
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(assetName)
+                .resizable()
+                .renderingMode(.template)
+                .foregroundStyle(theme.icon)
+                .frame(width: size, height: size)
+                .frame(width: 36, height: 36)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.4)
+    }
+}
+
+private extension MessageItem {
+    var previewCanForward: Bool {
+        ["SENT", "DELIVERED", "READ"].contains(status.uppercased())
+            && ["DONE", "READ"].contains(mediaStatus.uppercased())
+            && mediaUrl?.isEmpty == false
+    }
+}
+
+struct PostMessagePreview: View {
     @Environment(\.dismiss) private var dismiss
-    let message: SwiftMessageItem
+    @Environment(\.mixinTheme) private var theme
+    @Environment(SettingsPreferencesModel.self) private var preferences
+    let message: MessageItem
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text(message.senderName)
-                    .font(.headline)
+            HStack(spacing: 0) {
+                Color.clear.frame(width: 36, height: 36)
                 Spacer()
-                Button("Done") {
+                PreviewAssetButton(assetName: "PreviewClose") {
                     dismiss()
                 }
-                .keyboardShortcut(.cancelAction)
+                .padding(.trailing, 14)
             }
-            .padding()
-            Divider()
-            ScrollView {
+            .frame(height: 64)
+            .background(theme.primary)
+
+            AppScrollView {
                 Text(message.postAttributedText)
+                    .font(
+                        .system(
+                            size:
+                                16
+                                + preferences.chatFontSizeDelta
+                        )
+                    )
+                    .foregroundStyle(theme.text)
                     .textSelection(.enabled)
                     .frame(maxWidth: 640, alignment: .leading)
-                    .padding(32)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 8)
             }
         }
         .frame(minWidth: 680, minHeight: 520)
+        .background(theme.background)
+        .onExitCommand {
+            dismiss()
+        }
     }
 }
 
@@ -501,8 +893,8 @@ private struct TranscriptMessagePreview: View {
     let title: String
     let sentByCurrentUser: Bool
     let mentionNames: [String: String]
-    let load: () async throws -> [SwiftMessageItem]
-    let onAttachmentAction: (SwiftMessageItem) async -> Void
+    let load: () async throws -> [MessageItem]
+    let onAttachmentAction: (MessageItem) async -> Void
     let onAppAction: (String, String) -> Void
 
     @State private var state = TranscriptLoadState.loading
@@ -548,7 +940,7 @@ private struct TranscriptMessagePreview: View {
                 ContentUnavailableView("Empty transcript", systemImage: "text.bubble")
             } else {
                 ScrollViewReader { proxy in
-                    ScrollView {
+                    AppScrollView {
                         LazyVStack(alignment: .leading, spacing: 12) {
                             ForEach(messages, id: \.messageId) { item in
                                 VStack(alignment: .leading, spacing: 5) {
@@ -626,13 +1018,13 @@ private struct TranscriptMessagePreview: View {
 
 private enum TranscriptLoadState {
     case loading
-    case ready([SwiftMessageItem])
+    case ready([MessageItem])
     case failed(String)
 }
 
 private struct TranscriptRowContent: View {
-    let message: SwiftMessageItem
-    let messages: [SwiftMessageItem]
+    let message: MessageItem
+    let messages: [MessageItem]
     let sentByCurrentUser: Bool
     let mentionNames: [String: String]
     let onLocate: (String) -> Void
@@ -680,7 +1072,10 @@ private struct TranscriptRowContent: View {
                         loadWindow: { _ in [] }
                     )
                 case .video:
-                    VideoMessagePreview(message: message)
+                    VideoMessagePreview(
+                        message: message,
+                        isTranscriptPage: true
+                    )
                 case .post:
                     PostMessagePreview(message: message)
                 }
@@ -873,7 +1268,7 @@ enum FileInteraction {
     }
 }
 
-extension SwiftMessageItem {
+extension MessageItem {
     var localMediaURL: URL? {
         mediaUrl?.localFileURL
     }
@@ -891,7 +1286,7 @@ extension SwiftMessageItem {
     }
 
     var postAttributedText: AttributedString {
-        (try? AttributedString(markdown: content)) ?? AttributedString(content)
+        (try? AttributedString(markdown: postPreview)) ?? AttributedString(postPreview)
     }
 
     var transcriptPreviewLines: [String] {

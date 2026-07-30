@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SixDigitPasscodeField: View {
+    @Environment(\.mixinTheme) private var theme
     @Binding var value: String
     let isFocused: FocusState<Bool>.Binding
     let onComplete: (String) -> Void
@@ -16,15 +17,15 @@ struct SixDigitPasscodeField: View {
                     submitIfComplete()
                 }
 
-            HStack(spacing: 18) {
+            HStack(spacing: 22.8) {
                 ForEach(0 ..< 6, id: \.self) { index in
                     Circle()
-                        .fill(index < value.count ? Color.primary : Color.clear)
+                        .fill(index < value.count ? theme.text : Color.clear)
                         .overlay {
                             Circle()
-                                .stroke(Color.primary, lineWidth: 1.5)
+                                .stroke(theme.text, lineWidth: 1)
                         }
-                        .frame(width: 12, height: 12)
+                        .frame(width: 15, height: 15)
                 }
             }
             .contentShape(Rectangle())

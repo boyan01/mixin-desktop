@@ -11,12 +11,16 @@ struct MixinSearchField: View {
   var onExit: (() -> Void)?
 
   var body: some View {
-    HStack(spacing: 8) {
+    HStack(spacing: 0) {
       Image(systemName: "magnifyingglass")
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
         .foregroundStyle(theme.secondaryText)
 
       TextField(placeholder, text: $text)
         .textFieldStyle(.plain)
+        .font(.system(size: 14))
+        .foregroundStyle(theme.text)
         .focused(focus)
         .onSubmit(onSubmit)
         .onExitCommand {
@@ -31,7 +35,7 @@ struct MixinSearchField: View {
 
       if text.isEmpty, !focus.wrappedValue, let shortcutHint {
         Text(shortcutHint)
-          .font(.caption)
+          .font(.system(size: 14))
           .foregroundStyle(theme.secondaryText)
           .transition(.opacity)
       }
@@ -40,23 +44,22 @@ struct MixinSearchField: View {
         Button {
           text = ""
         } label: {
-          Image(systemName: "xmark.circle.fill")
+          Image(systemName: "xmark")
+            .font(.system(size: 16))
             .foregroundStyle(theme.secondaryText)
         }
         .buttonStyle(.plain)
+        .padding(.leading, 8)
+        .padding(.trailing, 16)
         .help("Clear")
         .transition(.scale.combined(with: .opacity))
+      } else {
+        Spacer()
+          .frame(width: 40)
       }
     }
-    .padding(.horizontal, 14)
     .frame(height: 36)
-    .background(theme.background, in: Capsule())
-    .overlay {
-      if focus.wrappedValue {
-        Capsule()
-          .stroke(theme.accent.opacity(0.55), lineWidth: 1)
-      }
-    }
+    .background(theme.searchFieldBackground, in: Capsule())
     .contentShape(Capsule())
     .onTapGesture {
       focus.wrappedValue = true

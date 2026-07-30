@@ -67,6 +67,11 @@ struct ChatScrollGeometry: Equatable {
   }
 }
 
+struct ChatStickyDayAnchor: Equatable {
+  let messageID: String
+  let offset: CGFloat
+}
+
 enum ChatPaginationDirection {
   case older
   case newer
@@ -95,6 +100,7 @@ final class ChatScrollCoordinator {
   private(set) var showJumpToLatest = false
   private(set) var newMessageCount = 0
   private(set) var highlightedMessageID: String?
+  private(set) var stickyDayAnchor: ChatStickyDayAnchor?
 
   @ObservationIgnored private var active = false
   @ObservationIgnored private var conversationID: String?
@@ -102,6 +108,8 @@ final class ChatScrollCoordinator {
   @ObservationIgnored private var phase: ScrollPhase = .idle
   @ObservationIgnored private var visibleMessageIDs: [String] = []
   @ObservationIgnored private var rowFrames: [String: CGRect] = [:]
+  @ObservationIgnored private var orderedMessageIDs: [String] = []
+  @ObservationIgnored private var dayStartMessageIDs = Set<String>()
   @ObservationIgnored private var pendingPrepend: PendingPrepend?
   @ObservationIgnored private var pendingMessageAnchor: PendingMessageAnchor?
   @ObservationIgnored private var blockedUntilUserScroll = false
@@ -116,10 +124,13 @@ final class ChatScrollCoordinator {
     showJumpToLatest = false
     newMessageCount = 0
     highlightedMessageID = nil
+    stickyDayAnchor = nil
     geometry = nil
     phase = .idle
     visibleMessageIDs = []
     rowFrames = [:]
+    orderedMessageIDs = []
+    dayStartMessageIDs = []
     pendingPrepend = nil
     pendingMessageAnchor = nil
     blockedUntilUserScroll = false
@@ -284,11 +295,18 @@ final class ChatScrollCoordinator {
     }
   }
 
-  func updateVisibleMessageIDs(_ ids: [String]) {
+  func updateVisibleMessageIDs(
+    _ ids: [String],
+    orderedMessageIDs: [String],
+    dayStartMessageIDs: Set<String>
+  ) {
     guard active else {
       return
     }
     visibleMessageIDs = ids
+    self.orderedMessageIDs = orderedMessageIDs
+    self.dayStartMessageIDs = dayStartMessageIDs
+    updateStickyDayAnchor()
   }
 
   func updateRowFrame(
@@ -300,6 +318,7 @@ final class ChatScrollCoordinator {
       return
     }
     rowFrames[messageID] = frame
+    updateStickyDayAnchor()
     if let geometry {
       pruneRowFrames(using: geometry)
       restoreMessageAnchorIfNeeded(
@@ -428,6 +447,40 @@ final class ChatScrollCoordinator {
       retained.contains(messageID)
         || (frame.maxY >= -margin
           && frame.minY <= geometry.containerHeight + margin)
+    }
+  }
+
+  private func updateStickyDayAnchor() {
+    guard
+      let firstVisibleID = visibleMessageIDs.first,
+      let firstIndex = orderedMessageIDs.firstIndex(of: firstVisibleID),
+      let dayStartIndex = orderedMessageIDs[...firstIndex]
+        .lastIndex(where: { dayStartMessageIDs.contains($0) })
+    else {
+      stickyDayAnchor = nil
+      return
+    }
+    let dayStartID = orderedMessageIDs[dayStartIndex]
+    if dayStartID == firstVisibleID,
+      let frame = rowFrames[dayStartID],
+      frame.minY >= 0
+    {
+      stickyDayAnchor = nil
+      return
+    }
+    let nextDayStartID = orderedMessageIDs
+      .dropFirst(dayStartIndex + 1)
+      .first(where: { dayStartMessageIDs.contains($0) })
+    let offset = nextDayStartID
+      .flatMap { rowFrames[$0]?.minY }
+      .map { min(0, max(-60, $0 - 47)) }
+      ?? 0
+    let updated = ChatStickyDayAnchor(
+      messageID: dayStartID,
+      offset: offset
+    )
+    if stickyDayAnchor != updated {
+      stickyDayAnchor = updated
     }
   }
 

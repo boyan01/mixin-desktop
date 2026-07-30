@@ -4,19 +4,20 @@ struct MessageContentView: View {
     @Environment(AccountSession.self) private var session
     @Environment(SettingsPreferencesModel.self) private var preferences
 
-    let message: SwiftMessageItem
+    let message: MessageItem
     let mentionNames: [String: String]
-    let audioPlaylist: [SwiftMessageItem]
+    let audioPlaylist: [MessageItem]
     let mediaDirectory: URL?
     let conversationName: String?
     let outgoing: Bool
     let recalledText: String?
-    let imageMessages: [SwiftMessageItem]
-    let loadImageWindow: (String) async throws -> [SwiftImageMessageItem]
+    let imageMessages: [MessageItem]
+    let loadImageWindow: (String) async throws -> [ImageMessageView]
     let attachmentProgress: Double
     let onAttachmentAction: () -> Void
-    let loadTranscript: () async throws -> [SwiftMessageItem]
-    let onTranscriptAttachmentAction: (SwiftMessageItem) async -> Void
+    let onForward: () -> Void
+    let loadTranscript: () async throws -> [MessageItem]
+    let onTranscriptAttachmentAction: (MessageItem) async -> Void
     let onReedit: (String) -> Void
     let onMarkAudioRead: (String) -> Void
     let onShowStickerDetail: (String) -> Void
@@ -62,7 +63,11 @@ struct MessageContentView: View {
                 onStrangerAction: onStrangerAction
             )
         } else if category == "APP_CARD" || category == "APP_BUTTON_GROUP" {
-            AppMessageView(message: message, onAction: onAppAction)
+            AppMessageView(
+                message: message,
+                outgoing: outgoing,
+                onAction: onAppAction
+            )
         } else if message.isRichContent {
             RichMessageContent(
                 message: message,
@@ -72,6 +77,7 @@ struct MessageContentView: View {
                 loadImageWindow: loadImageWindow,
                 progress: { attachmentProgress },
                 onAttachmentAction: onAttachmentAction,
+                onForward: onForward,
                 loadTranscript: loadTranscript,
                 onTranscriptAttachmentAction: onTranscriptAttachmentAction,
                 onAppAction: onAppAction

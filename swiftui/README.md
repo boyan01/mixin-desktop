@@ -10,16 +10,15 @@ App Sandbox container. Build the runnable Debug app with code signing enabled
 so `NSDocumentDirectory` resolves to the existing container:
 
 ```sh
-xcodebuild \
-  -project swiftui/MixinMessenger.xcodeproj \
-  -scheme MixinMessenger \
-  -configuration Debug \
-  -destination 'platform=macOS' \
-  -derivedDataPath /tmp/mixin-messenger-swift-derived \
-  build
+./build-swiftui.sh
 
-'/tmp/mixin-messenger-swift-derived/Build/Products/Debug/Mixin Messenger.app/Contents/MacOS/Mixin Messenger'
+'./Build/Products/Debug/Mixin Messenger.app/Contents/MacOS/Mixin Messenger'
 ```
+
+Pass `Release` as the first argument to create a Release build. Xcode and
+SwiftPM build products and intermediates are kept under the repository-level
+`Build/` directory. The Rust bridge keeps using the same Cargo `target/`
+directory as Xcode.
 
 `CODE_SIGNING_ALLOWED=NO` is suitable for compile-only validation. Do not run
 that product: an unsigned process resolves the data directory outside the app

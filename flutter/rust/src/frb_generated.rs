@@ -288,7 +288,7 @@ fn wire__crate__api__account__AccountHandle_circle_changes_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                Vec<mixin_desktop_api::dto::CircleItem>,
+                Vec<mixin_desktop_core::runtime::model::CircleItem>,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -649,7 +649,7 @@ fn wire__crate__api__account__AccountHandle_desktop_notification_events_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                mixin_desktop_api::dto::NotificationEvent,
+                mixin_desktop_core::runtime::model::NotificationEvent,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -1668,7 +1668,7 @@ fn wire__crate__api__account__AccountHandle_unseen_count_changes_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AccountHandle>,
             >>::sse_decode(&mut deserializer);
             let api_sink = <StreamSink<
-                Vec<mixin_desktop_api::dto::ConversationUnseenCount>,
+                Vec<mixin_desktop_core::runtime::model::ConversationUnseenCount>,
                 flutter_rust_bridge::for_generated::SseCodec,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
@@ -10418,19 +10418,20 @@ const _: fn() = || {
         let _: Option<String> = AccountProfile.membership;
     }
     {
-        let CircleItem = None::<mixin_desktop_api::dto::CircleItem>.unwrap();
+        let CircleItem = None::<mixin_desktop_core::runtime::model::CircleItem>.unwrap();
         let _: String = CircleItem.circle_id;
         let _: String = CircleItem.name;
         let _: i64 = CircleItem.conversation_count;
     }
     {
-        let CodeResult = None::<mixin_desktop_api::dto::CodeResult>.unwrap();
+        let CodeResult = None::<mixin_desktop_core::runtime::model::CodeResult>.unwrap();
         let _: String = CodeResult.kind;
         let _: Option<String> = CodeResult.user_id;
         let _: Option<String> = CodeResult.conversation_id;
         let _: Option<String> = CodeResult.conversation_name;
         let _: i64 = CodeResult.participant_count;
-        let _: Vec<mixin_desktop_api::dto::GroupAvatar> = CodeResult.participant_avatars;
+        let _: Vec<mixin_desktop_core::runtime::model::GroupAvatar> =
+            CodeResult.participant_avatars;
         let _: bool = CodeResult.already_member;
         let _: Option<String> = CodeResult.asset_id;
         let _: Option<String> = CodeResult.asset_symbol;
@@ -10451,7 +10452,7 @@ const _: fn() = || {
     }
     {
         let ConversationDetailItem =
-            None::<mixin_desktop_api::dto::ConversationDetailItem>.unwrap();
+            None::<mixin_desktop_core::runtime::model::ConversationDetailItem>.unwrap();
         let _: String = ConversationDetailItem.conversation_id;
         let _: String = ConversationDetailItem.name;
         let _: String = ConversationDetailItem.announcement;
@@ -10461,7 +10462,8 @@ const _: fn() = || {
         let _: i64 = ConversationDetailItem.expire_in;
     }
     {
-        let ConversationListData = None::<mixin_desktop_api::dto::ConversationListData>.unwrap();
+        let ConversationListData =
+            None::<mixin_desktop_core::runtime::model::ConversationListData>.unwrap();
         let _: String = ConversationListData.conversation_id;
         let _: String = ConversationListData.owner_id;
         let _: String = ConversationListData.name;
@@ -10493,11 +10495,12 @@ const _: fn() = || {
         let _: String = ConversationListData.identity_number;
         let _: Vec<String> = ConversationListData.circle_ids;
         let _: i64 = ConversationListData.participant_count;
-        let _: Vec<mixin_desktop_api::dto::GroupAvatar> = ConversationListData.group_avatars;
+        let _: Vec<mixin_desktop_core::runtime::model::GroupAvatar> =
+            ConversationListData.group_avatars;
     }
     {
         let ConversationParticipantItem =
-            None::<mixin_desktop_api::dto::ConversationParticipantItem>.unwrap();
+            None::<mixin_desktop_core::runtime::model::ConversationParticipantItem>.unwrap();
         let _: String = ConversationParticipantItem.user_id;
         let _: Option<String> = ConversationParticipantItem.role;
         let _: i64 = ConversationParticipantItem.created_at_millis;
@@ -10512,26 +10515,28 @@ const _: fn() = || {
     }
     {
         let ConversationStorageUsage =
-            None::<mixin_desktop_api::dto::ConversationStorageUsage>.unwrap();
-        let _: mixin_desktop_api::dto::ConversationListData = ConversationStorageUsage.conversation;
+            None::<mixin_desktop_core::runtime::model::ConversationStorageUsage>.unwrap();
+        let _: mixin_desktop_core::runtime::model::ConversationListData =
+            ConversationStorageUsage.conversation;
         let _: i64 = ConversationStorageUsage.size_bytes;
     }
     {
         let ConversationUnseenCount =
-            None::<mixin_desktop_api::dto::ConversationUnseenCount>.unwrap();
+            None::<mixin_desktop_core::runtime::model::ConversationUnseenCount>.unwrap();
         let _: String = ConversationUnseenCount.category;
         let _: Option<String> = ConversationUnseenCount.circle_id;
         let _: i64 = ConversationUnseenCount.count;
         let _: i64 = ConversationUnseenCount.muted_count;
     }
     {
-        let GroupAvatar = None::<mixin_desktop_api::dto::GroupAvatar>.unwrap();
+        let GroupAvatar = None::<mixin_desktop_core::runtime::model::GroupAvatar>.unwrap();
         let _: String = GroupAvatar.user_id;
         let _: String = GroupAvatar.name;
         let _: String = GroupAvatar.avatar_url;
     }
     {
-        let GroupConversationItem = None::<mixin_desktop_api::dto::GroupConversationItem>.unwrap();
+        let GroupConversationItem =
+            None::<mixin_desktop_core::runtime::model::GroupConversationItem>.unwrap();
         let _: String = GroupConversationItem.conversation_id;
         let _: String = GroupConversationItem.name;
         let _: String = GroupConversationItem.avatar_url;
@@ -10544,7 +10549,8 @@ const _: fn() = || {
         let _: Vec<u8> = HttpResponseItem.body;
     }
     {
-        let ImageMessageView = None::<mixin_desktop_api::dto::ImageMessageView>.unwrap();
+        let ImageMessageView =
+            None::<mixin_desktop_core::runtime::model::ImageMessageView>.unwrap();
         let _: String = ImageMessageView.message_id;
         let _: i64 = ImageMessageView.created_at_micros;
         let _: String = ImageMessageView.media_url;
@@ -10570,7 +10576,7 @@ const _: fn() = || {
         let _: bool = McpSettingsItem.circle_management_enabled;
     }
     {
-        let MessageListView = None::<mixin_desktop_api::dto::MessageListView>.unwrap();
+        let MessageListView = None::<mixin_desktop_core::runtime::model::MessageListView>.unwrap();
         let _: String = MessageListView.message_id;
         let _: String = MessageListView.conversation_id;
         let _: String = MessageListView.sender_id;
@@ -10647,13 +10653,15 @@ const _: fn() = || {
         let _: Option<i64> = MessageListView.expire_in;
     }
     {
-        let MessageOrderInfoView = None::<mixin_desktop_api::dto::MessageOrderInfoView>.unwrap();
+        let MessageOrderInfoView =
+            None::<mixin_desktop_core::runtime::model::MessageOrderInfoView>.unwrap();
         let _: String = MessageOrderInfoView.message_id;
         let _: i64 = MessageOrderInfoView.row_id;
         let _: i64 = MessageOrderInfoView.created_at_micros;
     }
     {
-        let NotificationEvent = None::<mixin_desktop_api::dto::NotificationEvent>.unwrap();
+        let NotificationEvent =
+            None::<mixin_desktop_core::runtime::model::NotificationEvent>.unwrap();
         let _: String = NotificationEvent.message_id;
         let _: String = NotificationEvent.conversation_id;
         let _: String = NotificationEvent.sender_name;
@@ -10665,7 +10673,8 @@ const _: fn() = || {
         let _: Option<String> = NotificationEvent.dismiss_message_id;
     }
     {
-        let PinMessagePreviewItem = None::<mixin_desktop_api::dto::PinMessagePreviewItem>.unwrap();
+        let PinMessagePreviewItem =
+            None::<mixin_desktop_core::runtime::model::PinMessagePreviewItem>.unwrap();
         let _: String = PinMessagePreviewItem.message_id;
         let _: String = PinMessagePreviewItem.content;
         let _: String = PinMessagePreviewItem.sender_name;
@@ -10686,7 +10695,7 @@ const _: fn() = || {
         let _: Vec<mixin_desktop_api::model::ProxyItem> = ProxySettingsItem.proxies;
     }
     {
-        let SharedAppItem = None::<mixin_desktop_api::dto::SharedAppItem>.unwrap();
+        let SharedAppItem = None::<mixin_desktop_core::runtime::model::SharedAppItem>.unwrap();
         let _: String = SharedAppItem.app_id;
         let _: String = SharedAppItem.name;
         let _: String = SharedAppItem.icon_url;
@@ -10694,7 +10703,8 @@ const _: fn() = || {
         let _: String = SharedAppItem.home_uri;
     }
     {
-        let SnapshotDetailItem = None::<mixin_desktop_api::dto::SnapshotDetailItem>.unwrap();
+        let SnapshotDetailItem =
+            None::<mixin_desktop_core::runtime::model::SnapshotDetailItem>.unwrap();
         let _: String = SnapshotDetailItem.snapshot_id;
         let _: Option<String> = SnapshotDetailItem.trace_id;
         let _: String = SnapshotDetailItem.snapshot_type;
@@ -10727,7 +10737,8 @@ const _: fn() = || {
         let _: Option<String> = SnapshotDetailItem.withdrawal_receiver;
     }
     {
-        let StickerAlbumItem = None::<mixin_desktop_api::dto::StickerAlbumItem>.unwrap();
+        let StickerAlbumItem =
+            None::<mixin_desktop_core::runtime::model::StickerAlbumItem>.unwrap();
         let _: String = StickerAlbumItem.album_id;
         let _: String = StickerAlbumItem.name;
         let _: String = StickerAlbumItem.icon_url;
@@ -10738,14 +10749,17 @@ const _: fn() = || {
         let _: bool = StickerAlbumItem.is_verified;
     }
     {
-        let StickerDetailItem = None::<mixin_desktop_api::dto::StickerDetailItem>.unwrap();
-        let _: mixin_desktop_api::dto::StickerItem = StickerDetailItem.sticker;
-        let _: Option<mixin_desktop_api::dto::StickerAlbumItem> = StickerDetailItem.album;
-        let _: Vec<mixin_desktop_api::dto::StickerItem> = StickerDetailItem.album_stickers;
+        let StickerDetailItem =
+            None::<mixin_desktop_core::runtime::model::StickerDetailItem>.unwrap();
+        let _: mixin_desktop_core::runtime::model::StickerItem = StickerDetailItem.sticker;
+        let _: Option<mixin_desktop_core::runtime::model::StickerAlbumItem> =
+            StickerDetailItem.album;
+        let _: Vec<mixin_desktop_core::runtime::model::StickerItem> =
+            StickerDetailItem.album_stickers;
         let _: bool = StickerDetailItem.is_personal;
     }
     {
-        let StickerItem = None::<mixin_desktop_api::dto::StickerItem>.unwrap();
+        let StickerItem = None::<mixin_desktop_core::runtime::model::StickerItem>.unwrap();
         let _: String = StickerItem.sticker_id;
         let _: Option<String> = StickerItem.album_id;
         let _: String = StickerItem.name;
@@ -10757,12 +10771,13 @@ const _: fn() = || {
         let _: Option<i64> = StickerItem.last_use_at_millis;
     }
     {
-        let StorageCategoryUsage = None::<mixin_desktop_api::dto::StorageCategoryUsage>.unwrap();
+        let StorageCategoryUsage =
+            None::<mixin_desktop_core::runtime::model::StorageCategoryUsage>.unwrap();
         let _: String = StorageCategoryUsage.category;
         let _: i64 = StorageCategoryUsage.size_bytes;
     }
     {
-        let UserProfileItem = None::<mixin_desktop_api::dto::UserProfileItem>.unwrap();
+        let UserProfileItem = None::<mixin_desktop_core::runtime::model::UserProfileItem>.unwrap();
         let _: String = UserProfileItem.user_id;
         let _: String = UserProfileItem.identity_number;
         let _: String = UserProfileItem.full_name;
@@ -11115,7 +11130,7 @@ impl SseDecode for StreamSink<i64, flutter_rust_bridge::for_generated::SseCodec>
 
 impl SseDecode
     for StreamSink<
-        Vec<mixin_desktop_api::dto::CircleItem>,
+        Vec<mixin_desktop_core::runtime::model::CircleItem>,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -11128,7 +11143,7 @@ impl SseDecode
 
 impl SseDecode
     for StreamSink<
-        Vec<mixin_desktop_api::dto::ConversationUnseenCount>,
+        Vec<mixin_desktop_core::runtime::model::ConversationUnseenCount>,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -11167,7 +11182,7 @@ impl SseDecode
 
 impl SseDecode
     for StreamSink<
-        mixin_desktop_api::dto::NotificationEvent,
+        mixin_desktop_core::runtime::model::NotificationEvent,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -11237,13 +11252,13 @@ impl SseDecode for bool {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::CircleItem {
+impl SseDecode for mixin_desktop_core::runtime::model::CircleItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_circleId = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_conversationCount = <i64>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::CircleItem {
+        return mixin_desktop_core::runtime::model::CircleItem {
             circle_id: var_circleId,
             name: var_name,
             conversation_count: var_conversationCount,
@@ -11251,7 +11266,7 @@ impl SseDecode for mixin_desktop_api::dto::CircleItem {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::CodeResult {
+impl SseDecode for mixin_desktop_core::runtime::model::CodeResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_kind = <String>::sse_decode(deserializer);
@@ -11260,7 +11275,7 @@ impl SseDecode for mixin_desktop_api::dto::CodeResult {
         let mut var_conversationName = <Option<String>>::sse_decode(deserializer);
         let mut var_participantCount = <i64>::sse_decode(deserializer);
         let mut var_participantAvatars =
-            <Vec<mixin_desktop_api::dto::GroupAvatar>>::sse_decode(deserializer);
+            <Vec<mixin_desktop_core::runtime::model::GroupAvatar>>::sse_decode(deserializer);
         let mut var_alreadyMember = <bool>::sse_decode(deserializer);
         let mut var_assetId = <Option<String>>::sse_decode(deserializer);
         let mut var_assetSymbol = <Option<String>>::sse_decode(deserializer);
@@ -11272,7 +11287,7 @@ impl SseDecode for mixin_desktop_api::dto::CodeResult {
         let mut var_threshold = <i64>::sse_decode(deserializer);
         let mut var_state = <Option<String>>::sse_decode(deserializer);
         let mut var_action = <Option<String>>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::CodeResult {
+        return mixin_desktop_core::runtime::model::CodeResult {
             kind: var_kind,
             user_id: var_userId,
             conversation_id: var_conversationId,
@@ -11318,7 +11333,7 @@ impl SseDecode for mixin_desktop_api::model::ConversationChangeEvent {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::ConversationDetailItem {
+impl SseDecode for mixin_desktop_core::runtime::model::ConversationDetailItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_conversationId = <String>::sse_decode(deserializer);
@@ -11328,7 +11343,7 @@ impl SseDecode for mixin_desktop_api::dto::ConversationDetailItem {
         let mut var_createdAtMillis = <i64>::sse_decode(deserializer);
         let mut var_muteUntilMillis = <i64>::sse_decode(deserializer);
         let mut var_expireIn = <i64>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::ConversationDetailItem {
+        return mixin_desktop_core::runtime::model::ConversationDetailItem {
             conversation_id: var_conversationId,
             name: var_name,
             announcement: var_announcement,
@@ -11340,7 +11355,7 @@ impl SseDecode for mixin_desktop_api::dto::ConversationDetailItem {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::ConversationListData {
+impl SseDecode for mixin_desktop_core::runtime::model::ConversationListData {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_conversationId = <String>::sse_decode(deserializer);
@@ -11375,8 +11390,8 @@ impl SseDecode for mixin_desktop_api::dto::ConversationListData {
         let mut var_circleIds = <Vec<String>>::sse_decode(deserializer);
         let mut var_participantCount = <i64>::sse_decode(deserializer);
         let mut var_groupAvatars =
-            <Vec<mixin_desktop_api::dto::GroupAvatar>>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::ConversationListData {
+            <Vec<mixin_desktop_core::runtime::model::GroupAvatar>>::sse_decode(deserializer);
+        return mixin_desktop_core::runtime::model::ConversationListData {
             conversation_id: var_conversationId,
             owner_id: var_ownerId,
             name: var_name,
@@ -11413,7 +11428,7 @@ impl SseDecode for mixin_desktop_api::dto::ConversationListData {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::ConversationParticipantItem {
+impl SseDecode for mixin_desktop_core::runtime::model::ConversationParticipantItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_userId = <String>::sse_decode(deserializer);
@@ -11427,7 +11442,7 @@ impl SseDecode for mixin_desktop_api::dto::ConversationParticipantItem {
         let mut var_isBot = <bool>::sse_decode(deserializer);
         let mut var_relationship = <String>::sse_decode(deserializer);
         let mut var_membership = <Option<String>>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::ConversationParticipantItem {
+        return mixin_desktop_core::runtime::model::ConversationParticipantItem {
             user_id: var_userId,
             role: var_role,
             created_at_millis: var_createdAtMillis,
@@ -11443,27 +11458,27 @@ impl SseDecode for mixin_desktop_api::dto::ConversationParticipantItem {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::ConversationStorageUsage {
+impl SseDecode for mixin_desktop_core::runtime::model::ConversationStorageUsage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_conversation =
-            <mixin_desktop_api::dto::ConversationListData>::sse_decode(deserializer);
+            <mixin_desktop_core::runtime::model::ConversationListData>::sse_decode(deserializer);
         let mut var_sizeBytes = <i64>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::ConversationStorageUsage {
+        return mixin_desktop_core::runtime::model::ConversationStorageUsage {
             conversation: var_conversation,
             size_bytes: var_sizeBytes,
         };
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::ConversationUnseenCount {
+impl SseDecode for mixin_desktop_core::runtime::model::ConversationUnseenCount {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_category = <String>::sse_decode(deserializer);
         let mut var_circleId = <Option<String>>::sse_decode(deserializer);
         let mut var_count = <i64>::sse_decode(deserializer);
         let mut var_mutedCount = <i64>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::ConversationUnseenCount {
+        return mixin_desktop_core::runtime::model::ConversationUnseenCount {
             category: var_category,
             circle_id: var_circleId,
             count: var_count,
@@ -11603,13 +11618,13 @@ impl SseDecode for f64 {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::GroupAvatar {
+impl SseDecode for mixin_desktop_core::runtime::model::GroupAvatar {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_userId = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_avatarUrl = <String>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::GroupAvatar {
+        return mixin_desktop_core::runtime::model::GroupAvatar {
             user_id: var_userId,
             name: var_name,
             avatar_url: var_avatarUrl,
@@ -11617,14 +11632,14 @@ impl SseDecode for mixin_desktop_api::dto::GroupAvatar {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::GroupConversationItem {
+impl SseDecode for mixin_desktop_core::runtime::model::GroupConversationItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_conversationId = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_avatarUrl = <String>::sse_decode(deserializer);
         let mut var_participantCount = <i64>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::GroupConversationItem {
+        return mixin_desktop_core::runtime::model::GroupConversationItem {
             conversation_id: var_conversationId,
             name: var_name,
             avatar_url: var_avatarUrl,
@@ -11661,7 +11676,7 @@ impl SseDecode for i64 {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::ImageMessageView {
+impl SseDecode for mixin_desktop_core::runtime::model::ImageMessageView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_messageId = <String>::sse_decode(deserializer);
@@ -11674,7 +11689,7 @@ impl SseDecode for mixin_desktop_api::dto::ImageMessageView {
         let mut var_userFullName = <String>::sse_decode(deserializer);
         let mut var_userIdentityNumber = <String>::sse_decode(deserializer);
         let mut var_avatarUrl = <String>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::ImageMessageView {
+        return mixin_desktop_core::runtime::model::ImageMessageView {
             message_id: var_messageId,
             created_at_micros: var_createdAtMicros,
             media_url: var_mediaUrl,
@@ -11701,109 +11716,119 @@ impl SseDecode for Vec<String> {
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::CircleItem> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::CircleItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::CircleItem>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(<mixin_desktop_core::runtime::model::CircleItem>::sse_decode(deserializer));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::ConversationListData> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::ConversationListData>::sse_decode(
-                deserializer,
-            ));
-        }
-        return ans_;
-    }
-}
-
-impl SseDecode for Vec<mixin_desktop_api::dto::ConversationParticipantItem> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::ConversationListData> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(
-                <mixin_desktop_api::dto::ConversationParticipantItem>::sse_decode(deserializer),
+                <mixin_desktop_core::runtime::model::ConversationListData>::sse_decode(
+                    deserializer,
+                ),
             );
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::ConversationStorageUsage> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::ConversationParticipantItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::ConversationStorageUsage>::sse_decode(deserializer));
+            ans_.push(
+                <mixin_desktop_core::runtime::model::ConversationParticipantItem>::sse_decode(
+                    deserializer,
+                ),
+            );
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::ConversationUnseenCount> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::ConversationStorageUsage> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::ConversationUnseenCount>::sse_decode(deserializer));
+            ans_.push(
+                <mixin_desktop_core::runtime::model::ConversationStorageUsage>::sse_decode(
+                    deserializer,
+                ),
+            );
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::GroupAvatar> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::ConversationUnseenCount> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::GroupAvatar>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(
+                <mixin_desktop_core::runtime::model::ConversationUnseenCount>::sse_decode(
+                    deserializer,
+                ),
+            );
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::GroupConversationItem> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::GroupAvatar> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::GroupConversationItem>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(<mixin_desktop_core::runtime::model::GroupAvatar>::sse_decode(deserializer));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::ImageMessageView> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::GroupConversationItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::ImageMessageView>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(
+                <mixin_desktop_core::runtime::model::GroupConversationItem>::sse_decode(
+                    deserializer,
+                ),
+            );
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::ImageMessageView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(
+                <mixin_desktop_core::runtime::model::ImageMessageView>::sse_decode(deserializer),
+            );
         }
         return ans_;
     }
@@ -11823,15 +11848,15 @@ impl SseDecode for Vec<crate::api::media::MediaAudioItem> {
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::MessageListView> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::MessageListView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::MessageListView>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(
+                <mixin_desktop_core::runtime::model::MessageListView>::sse_decode(deserializer),
+            );
         }
         return ans_;
     }
@@ -11875,71 +11900,71 @@ impl SseDecode for Vec<(String, String)> {
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::SharedAppItem> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::SharedAppItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::SharedAppItem>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(
+                <mixin_desktop_core::runtime::model::SharedAppItem>::sse_decode(deserializer),
+            );
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::StickerAlbumItem> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::StickerAlbumItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::StickerAlbumItem>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(
+                <mixin_desktop_core::runtime::model::StickerAlbumItem>::sse_decode(deserializer),
+            );
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::StickerItem> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::StickerItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::StickerItem>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(<mixin_desktop_core::runtime::model::StickerItem>::sse_decode(deserializer));
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::StorageCategoryUsage> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::StorageCategoryUsage> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::StorageCategoryUsage>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(
+                <mixin_desktop_core::runtime::model::StorageCategoryUsage>::sse_decode(
+                    deserializer,
+                ),
+            );
         }
         return ans_;
     }
 }
 
-impl SseDecode for Vec<mixin_desktop_api::dto::UserProfileItem> {
+impl SseDecode for Vec<mixin_desktop_core::runtime::model::UserProfileItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut len_ = <i32>::sse_decode(deserializer);
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
-            ans_.push(<mixin_desktop_api::dto::UserProfileItem>::sse_decode(
-                deserializer,
-            ));
+            ans_.push(
+                <mixin_desktop_core::runtime::model::UserProfileItem>::sse_decode(deserializer),
+            );
         }
         return ans_;
     }
@@ -12116,7 +12141,7 @@ impl SseDecode for crate::api::media::MediaVoiceRecording {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::MessageListView {
+impl SseDecode for mixin_desktop_core::runtime::model::MessageListView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_messageId = <String>::sse_decode(deserializer);
@@ -12193,7 +12218,7 @@ impl SseDecode for mixin_desktop_api::dto::MessageListView {
         let mut var_mentionRead = <Option<bool>>::sse_decode(deserializer);
         let mut var_pinned = <bool>::sse_decode(deserializer);
         let mut var_expireIn = <Option<i64>>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::MessageListView {
+        return mixin_desktop_core::runtime::model::MessageListView {
             message_id: var_messageId,
             conversation_id: var_conversationId,
             sender_id: var_senderId,
@@ -12272,13 +12297,13 @@ impl SseDecode for mixin_desktop_api::dto::MessageListView {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::MessageOrderInfoView {
+impl SseDecode for mixin_desktop_core::runtime::model::MessageOrderInfoView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_messageId = <String>::sse_decode(deserializer);
         let mut var_rowId = <i64>::sse_decode(deserializer);
         let mut var_createdAtMicros = <i64>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::MessageOrderInfoView {
+        return mixin_desktop_core::runtime::model::MessageOrderInfoView {
             message_id: var_messageId,
             row_id: var_rowId,
             created_at_micros: var_createdAtMicros,
@@ -12286,7 +12311,7 @@ impl SseDecode for mixin_desktop_api::dto::MessageOrderInfoView {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::NotificationEvent {
+impl SseDecode for mixin_desktop_core::runtime::model::NotificationEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_messageId = <String>::sse_decode(deserializer);
@@ -12298,7 +12323,7 @@ impl SseDecode for mixin_desktop_api::dto::NotificationEvent {
         let mut var_conversationName = <String>::sse_decode(deserializer);
         let mut var_conversationCategory = <String>::sse_decode(deserializer);
         let mut var_dismissMessageId = <Option<String>>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::NotificationEvent {
+        return mixin_desktop_core::runtime::model::NotificationEvent {
             message_id: var_messageId,
             conversation_id: var_conversationId,
             sender_name: var_senderName,
@@ -12393,39 +12418,43 @@ impl SseDecode for Option<crate::api::media::MediaVoiceRecording> {
     }
 }
 
-impl SseDecode for Option<mixin_desktop_api::dto::MessageOrderInfoView> {
+impl SseDecode for Option<mixin_desktop_core::runtime::model::MessageOrderInfoView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<mixin_desktop_api::dto::MessageOrderInfoView>::sse_decode(
-                deserializer,
-            ));
+            return Some(
+                <mixin_desktop_core::runtime::model::MessageOrderInfoView>::sse_decode(
+                    deserializer,
+                ),
+            );
         } else {
             return None;
         }
     }
 }
 
-impl SseDecode for Option<mixin_desktop_api::dto::PinMessagePreviewItem> {
+impl SseDecode for Option<mixin_desktop_core::runtime::model::PinMessagePreviewItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<mixin_desktop_api::dto::PinMessagePreviewItem>::sse_decode(
-                deserializer,
-            ));
+            return Some(
+                <mixin_desktop_core::runtime::model::PinMessagePreviewItem>::sse_decode(
+                    deserializer,
+                ),
+            );
         } else {
             return None;
         }
     }
 }
 
-impl SseDecode for Option<mixin_desktop_api::dto::StickerAlbumItem> {
+impl SseDecode for Option<mixin_desktop_core::runtime::model::StickerAlbumItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<mixin_desktop_api::dto::StickerAlbumItem>::sse_decode(
-                deserializer,
-            ));
+            return Some(
+                <mixin_desktop_core::runtime::model::StickerAlbumItem>::sse_decode(deserializer),
+            );
         } else {
             return None;
         }
@@ -12443,13 +12472,13 @@ impl SseDecode for Option<u64> {
     }
 }
 
-impl SseDecode for Option<mixin_desktop_api::dto::UserProfileItem> {
+impl SseDecode for Option<mixin_desktop_core::runtime::model::UserProfileItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(<mixin_desktop_api::dto::UserProfileItem>::sse_decode(
-                deserializer,
-            ));
+            return Some(
+                <mixin_desktop_core::runtime::model::UserProfileItem>::sse_decode(deserializer),
+            );
         } else {
             return None;
         }
@@ -12467,13 +12496,13 @@ impl SseDecode for Option<Vec<u8>> {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::PinMessagePreviewItem {
+impl SseDecode for mixin_desktop_core::runtime::model::PinMessagePreviewItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_messageId = <String>::sse_decode(deserializer);
         let mut var_content = <String>::sse_decode(deserializer);
         let mut var_senderName = <String>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::PinMessagePreviewItem {
+        return mixin_desktop_core::runtime::model::PinMessagePreviewItem {
             message_id: var_messageId,
             content: var_content,
             sender_name: var_senderName,
@@ -12524,7 +12553,7 @@ impl SseDecode for (String, String) {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::SharedAppItem {
+impl SseDecode for mixin_desktop_core::runtime::model::SharedAppItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_appId = <String>::sse_decode(deserializer);
@@ -12532,7 +12561,7 @@ impl SseDecode for mixin_desktop_api::dto::SharedAppItem {
         let mut var_iconUrl = <String>::sse_decode(deserializer);
         let mut var_description = <String>::sse_decode(deserializer);
         let mut var_homeUri = <String>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::SharedAppItem {
+        return mixin_desktop_core::runtime::model::SharedAppItem {
             app_id: var_appId,
             name: var_name,
             icon_url: var_iconUrl,
@@ -12542,7 +12571,7 @@ impl SseDecode for mixin_desktop_api::dto::SharedAppItem {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::SnapshotDetailItem {
+impl SseDecode for mixin_desktop_core::runtime::model::SnapshotDetailItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_snapshotId = <String>::sse_decode(deserializer);
@@ -12575,7 +12604,7 @@ impl SseDecode for mixin_desktop_api::dto::SnapshotDetailItem {
         let mut var_depositHash = <Option<String>>::sse_decode(deserializer);
         let mut var_withdrawalHash = <Option<String>>::sse_decode(deserializer);
         let mut var_withdrawalReceiver = <Option<String>>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::SnapshotDetailItem {
+        return mixin_desktop_core::runtime::model::SnapshotDetailItem {
             snapshot_id: var_snapshotId,
             trace_id: var_traceId,
             snapshot_type: var_snapshotType,
@@ -12610,7 +12639,7 @@ impl SseDecode for mixin_desktop_api::dto::SnapshotDetailItem {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::StickerAlbumItem {
+impl SseDecode for mixin_desktop_core::runtime::model::StickerAlbumItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_albumId = <String>::sse_decode(deserializer);
@@ -12621,7 +12650,7 @@ impl SseDecode for mixin_desktop_api::dto::StickerAlbumItem {
         let mut var_banner = <Option<String>>::sse_decode(deserializer);
         let mut var_added = <bool>::sse_decode(deserializer);
         let mut var_isVerified = <bool>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::StickerAlbumItem {
+        return mixin_desktop_core::runtime::model::StickerAlbumItem {
             album_id: var_albumId,
             name: var_name,
             icon_url: var_iconUrl,
@@ -12634,16 +12663,19 @@ impl SseDecode for mixin_desktop_api::dto::StickerAlbumItem {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::StickerDetailItem {
+impl SseDecode for mixin_desktop_core::runtime::model::StickerDetailItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_sticker = <mixin_desktop_api::dto::StickerItem>::sse_decode(deserializer);
+        let mut var_sticker =
+            <mixin_desktop_core::runtime::model::StickerItem>::sse_decode(deserializer);
         let mut var_album =
-            <Option<mixin_desktop_api::dto::StickerAlbumItem>>::sse_decode(deserializer);
+            <Option<mixin_desktop_core::runtime::model::StickerAlbumItem>>::sse_decode(
+                deserializer,
+            );
         let mut var_albumStickers =
-            <Vec<mixin_desktop_api::dto::StickerItem>>::sse_decode(deserializer);
+            <Vec<mixin_desktop_core::runtime::model::StickerItem>>::sse_decode(deserializer);
         let mut var_isPersonal = <bool>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::StickerDetailItem {
+        return mixin_desktop_core::runtime::model::StickerDetailItem {
             sticker: var_sticker,
             album: var_album,
             album_stickers: var_albumStickers,
@@ -12652,7 +12684,7 @@ impl SseDecode for mixin_desktop_api::dto::StickerDetailItem {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::StickerItem {
+impl SseDecode for mixin_desktop_core::runtime::model::StickerItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_stickerId = <String>::sse_decode(deserializer);
@@ -12664,7 +12696,7 @@ impl SseDecode for mixin_desktop_api::dto::StickerItem {
         let mut var_assetType = <String>::sse_decode(deserializer);
         let mut var_createdAtMillis = <i64>::sse_decode(deserializer);
         let mut var_lastUseAtMillis = <Option<i64>>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::StickerItem {
+        return mixin_desktop_core::runtime::model::StickerItem {
             sticker_id: var_stickerId,
             album_id: var_albumId,
             name: var_name,
@@ -12678,12 +12710,12 @@ impl SseDecode for mixin_desktop_api::dto::StickerItem {
     }
 }
 
-impl SseDecode for mixin_desktop_api::dto::StorageCategoryUsage {
+impl SseDecode for mixin_desktop_core::runtime::model::StorageCategoryUsage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_category = <String>::sse_decode(deserializer);
         let mut var_sizeBytes = <i64>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::StorageCategoryUsage {
+        return mixin_desktop_core::runtime::model::StorageCategoryUsage {
             category: var_category,
             size_bytes: var_sizeBytes,
         };
@@ -12723,7 +12755,7 @@ impl SseDecode for () {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {}
 }
 
-impl SseDecode for mixin_desktop_api::dto::UserProfileItem {
+impl SseDecode for mixin_desktop_core::runtime::model::UserProfileItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_userId = <String>::sse_decode(deserializer);
@@ -12736,7 +12768,7 @@ impl SseDecode for mixin_desktop_api::dto::UserProfileItem {
         let mut var_relationship = <String>::sse_decode(deserializer);
         let mut var_codeUrl = <String>::sse_decode(deserializer);
         let mut var_membership = <Option<String>>::sse_decode(deserializer);
-        return mixin_desktop_api::dto::UserProfileItem {
+        return mixin_desktop_core::runtime::model::UserProfileItem {
             user_id: var_userId,
             identity_number: var_identityNumber,
             full_name: var_fullName,
@@ -13961,7 +13993,7 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::model::Acco
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::CircleItem> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_core::runtime::model::CircleItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.circle_id.into_into_dart().into_dart(),
@@ -13972,18 +14004,18 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Circle
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::CircleItem>
+    for FrbWrapper<mixin_desktop_core::runtime::model::CircleItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::CircleItem>>
-    for mixin_desktop_api::dto::CircleItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_core::runtime::model::CircleItem>>
+    for mixin_desktop_core::runtime::model::CircleItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::CircleItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::CircleItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::CodeResult> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_core::runtime::model::CodeResult> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.kind.into_into_dart().into_dart(),
@@ -14008,13 +14040,13 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::CodeRe
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::CodeResult>
+    for FrbWrapper<mixin_desktop_core::runtime::model::CodeResult>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::CodeResult>>
-    for mixin_desktop_api::dto::CodeResult
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_core::runtime::model::CodeResult>>
+    for mixin_desktop_core::runtime::model::CodeResult
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::CodeResult> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::CodeResult> {
         self.into()
     }
 }
@@ -14064,7 +14096,9 @@ impl
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::ConversationDetailItem> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationDetailItem>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.conversation_id.into_into_dart().into_dart(),
@@ -14079,18 +14113,24 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Conver
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::ConversationDetailItem>
+    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationDetailItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::ConversationDetailItem>>
-    for mixin_desktop_api::dto::ConversationDetailItem
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::ConversationDetailItem>,
+    > for mixin_desktop_core::runtime::model::ConversationDetailItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::ConversationDetailItem> {
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<mixin_desktop_core::runtime::model::ConversationDetailItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::ConversationListData> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationListData>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.conversation_id.into_into_dart().into_dart(),
@@ -14136,19 +14176,23 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Conver
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::ConversationListData>
+    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationListData>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::ConversationListData>>
-    for mixin_desktop_api::dto::ConversationListData
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::ConversationListData>,
+    > for mixin_desktop_core::runtime::model::ConversationListData
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::ConversationListData> {
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<mixin_desktop_core::runtime::model::ConversationListData> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_api::dto::ConversationParticipantItem>
+    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationParticipantItem>
 {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -14168,21 +14212,23 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::ConversationParticipantItem>
+    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationParticipantItem>
 {
 }
 impl
     flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<mixin_desktop_api::dto::ConversationParticipantItem>,
-    > for mixin_desktop_api::dto::ConversationParticipantItem
+        FrbWrapper<mixin_desktop_core::runtime::model::ConversationParticipantItem>,
+    > for mixin_desktop_core::runtime::model::ConversationParticipantItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::ConversationParticipantItem> {
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<mixin_desktop_core::runtime::model::ConversationParticipantItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<mixin_desktop_api::dto::ConversationStorageUsage>
+    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationStorageUsage>
 {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -14193,18 +14239,24 @@ impl flutter_rust_bridge::IntoDart
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::ConversationStorageUsage>
+    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationStorageUsage>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::ConversationStorageUsage>>
-    for mixin_desktop_api::dto::ConversationStorageUsage
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::ConversationStorageUsage>,
+    > for mixin_desktop_core::runtime::model::ConversationStorageUsage
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::ConversationStorageUsage> {
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<mixin_desktop_core::runtime::model::ConversationStorageUsage> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::ConversationUnseenCount> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationUnseenCount>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.category.into_into_dart().into_dart(),
@@ -14216,13 +14268,17 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Conver
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::ConversationUnseenCount>
+    for FrbWrapper<mixin_desktop_core::runtime::model::ConversationUnseenCount>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::ConversationUnseenCount>>
-    for mixin_desktop_api::dto::ConversationUnseenCount
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::ConversationUnseenCount>,
+    > for mixin_desktop_core::runtime::model::ConversationUnseenCount
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::ConversationUnseenCount> {
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<mixin_desktop_core::runtime::model::ConversationUnseenCount> {
         self.into()
     }
 }
@@ -14345,7 +14401,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::device_transfer::DeviceTransf
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::GroupAvatar> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_core::runtime::model::GroupAvatar> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.user_id.into_into_dart().into_dart(),
@@ -14356,18 +14412,20 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::GroupA
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::GroupAvatar>
+    for FrbWrapper<mixin_desktop_core::runtime::model::GroupAvatar>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::GroupAvatar>>
-    for mixin_desktop_api::dto::GroupAvatar
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_core::runtime::model::GroupAvatar>>
+    for mixin_desktop_core::runtime::model::GroupAvatar
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::GroupAvatar> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::GroupAvatar> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::GroupConversationItem> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::GroupConversationItem>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.conversation_id.into_into_dart().into_dart(),
@@ -14379,13 +14437,17 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::GroupC
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::GroupConversationItem>
+    for FrbWrapper<mixin_desktop_core::runtime::model::GroupConversationItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::GroupConversationItem>>
-    for mixin_desktop_api::dto::GroupConversationItem
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::GroupConversationItem>,
+    > for mixin_desktop_core::runtime::model::GroupConversationItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::GroupConversationItem> {
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<mixin_desktop_core::runtime::model::GroupConversationItem> {
         self.into()
     }
 }
@@ -14412,7 +14474,9 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::model::Http
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::ImageMessageView> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::ImageMessageView>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.message_id.into_into_dart().into_dart(),
@@ -14430,13 +14494,15 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::ImageM
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::ImageMessageView>
+    for FrbWrapper<mixin_desktop_core::runtime::model::ImageMessageView>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::ImageMessageView>>
-    for mixin_desktop_api::dto::ImageMessageView
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::ImageMessageView>,
+    > for mixin_desktop_core::runtime::model::ImageMessageView
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::ImageMessageView> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::ImageMessageView> {
         self.into()
     }
 }
@@ -14682,7 +14748,9 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::media::MediaVoiceRecording>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::MessageListView> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::MessageListView>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.message_id.into_into_dart().into_dart(),
@@ -14773,18 +14841,22 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Messag
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::MessageListView>
+    for FrbWrapper<mixin_desktop_core::runtime::model::MessageListView>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::MessageListView>>
-    for mixin_desktop_api::dto::MessageListView
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::MessageListView>,
+    > for mixin_desktop_core::runtime::model::MessageListView
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::MessageListView> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::MessageListView> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::MessageOrderInfoView> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::MessageOrderInfoView>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.message_id.into_into_dart().into_dart(),
@@ -14795,18 +14867,24 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Messag
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::MessageOrderInfoView>
+    for FrbWrapper<mixin_desktop_core::runtime::model::MessageOrderInfoView>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::MessageOrderInfoView>>
-    for mixin_desktop_api::dto::MessageOrderInfoView
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::MessageOrderInfoView>,
+    > for mixin_desktop_core::runtime::model::MessageOrderInfoView
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::MessageOrderInfoView> {
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<mixin_desktop_core::runtime::model::MessageOrderInfoView> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::NotificationEvent> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::NotificationEvent>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.message_id.into_into_dart().into_dart(),
@@ -14823,18 +14901,22 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Notifi
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::NotificationEvent>
+    for FrbWrapper<mixin_desktop_core::runtime::model::NotificationEvent>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::NotificationEvent>>
-    for mixin_desktop_api::dto::NotificationEvent
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::NotificationEvent>,
+    > for mixin_desktop_core::runtime::model::NotificationEvent
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::NotificationEvent> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::NotificationEvent> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::PinMessagePreviewItem> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::PinMessagePreviewItem>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.message_id.into_into_dart().into_dart(),
@@ -14845,13 +14927,17 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::PinMes
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::PinMessagePreviewItem>
+    for FrbWrapper<mixin_desktop_core::runtime::model::PinMessagePreviewItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::PinMessagePreviewItem>>
-    for mixin_desktop_api::dto::PinMessagePreviewItem
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::PinMessagePreviewItem>,
+    > for mixin_desktop_core::runtime::model::PinMessagePreviewItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::PinMessagePreviewItem> {
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<mixin_desktop_core::runtime::model::PinMessagePreviewItem> {
         self.into()
     }
 }
@@ -14903,7 +14989,9 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::model::Prox
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::SharedAppItem> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::SharedAppItem>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.app_id.into_into_dart().into_dart(),
@@ -14916,18 +15004,21 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Shared
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::SharedAppItem>
+    for FrbWrapper<mixin_desktop_core::runtime::model::SharedAppItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::SharedAppItem>>
-    for mixin_desktop_api::dto::SharedAppItem
+impl
+    flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_core::runtime::model::SharedAppItem>>
+    for mixin_desktop_core::runtime::model::SharedAppItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::SharedAppItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::SharedAppItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::SnapshotDetailItem> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::SnapshotDetailItem>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.snapshot_id.into_into_dart().into_dart(),
@@ -14965,18 +15056,22 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Snapsh
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::SnapshotDetailItem>
+    for FrbWrapper<mixin_desktop_core::runtime::model::SnapshotDetailItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::SnapshotDetailItem>>
-    for mixin_desktop_api::dto::SnapshotDetailItem
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::SnapshotDetailItem>,
+    > for mixin_desktop_core::runtime::model::SnapshotDetailItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::SnapshotDetailItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::SnapshotDetailItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::StickerAlbumItem> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::StickerAlbumItem>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.album_id.into_into_dart().into_dart(),
@@ -14992,18 +15087,22 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Sticke
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::StickerAlbumItem>
+    for FrbWrapper<mixin_desktop_core::runtime::model::StickerAlbumItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::StickerAlbumItem>>
-    for mixin_desktop_api::dto::StickerAlbumItem
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::StickerAlbumItem>,
+    > for mixin_desktop_core::runtime::model::StickerAlbumItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::StickerAlbumItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::StickerAlbumItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::StickerDetailItem> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::StickerDetailItem>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.sticker.into_into_dart().into_dart(),
@@ -15015,18 +15114,20 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Sticke
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::StickerDetailItem>
+    for FrbWrapper<mixin_desktop_core::runtime::model::StickerDetailItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::StickerDetailItem>>
-    for mixin_desktop_api::dto::StickerDetailItem
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::StickerDetailItem>,
+    > for mixin_desktop_core::runtime::model::StickerDetailItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::StickerDetailItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::StickerDetailItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::StickerItem> {
+impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_core::runtime::model::StickerItem> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.sticker_id.into_into_dart().into_dart(),
@@ -15043,18 +15144,20 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Sticke
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::StickerItem>
+    for FrbWrapper<mixin_desktop_core::runtime::model::StickerItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::StickerItem>>
-    for mixin_desktop_api::dto::StickerItem
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_core::runtime::model::StickerItem>>
+    for mixin_desktop_core::runtime::model::StickerItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::StickerItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::StickerItem> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::StorageCategoryUsage> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::StorageCategoryUsage>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.category.into_into_dart().into_dart(),
@@ -15064,18 +15167,24 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::Storag
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::StorageCategoryUsage>
+    for FrbWrapper<mixin_desktop_core::runtime::model::StorageCategoryUsage>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::StorageCategoryUsage>>
-    for mixin_desktop_api::dto::StorageCategoryUsage
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::StorageCategoryUsage>,
+    > for mixin_desktop_core::runtime::model::StorageCategoryUsage
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::StorageCategoryUsage> {
+    fn into_into_dart(
+        self,
+    ) -> FrbWrapper<mixin_desktop_core::runtime::model::StorageCategoryUsage> {
         self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::UserProfileItem> {
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<mixin_desktop_core::runtime::model::UserProfileItem>
+{
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.0.user_id.into_into_dart().into_dart(),
@@ -15093,13 +15202,15 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<mixin_desktop_api::dto::UserPr
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<mixin_desktop_api::dto::UserProfileItem>
+    for FrbWrapper<mixin_desktop_core::runtime::model::UserProfileItem>
 {
 }
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<mixin_desktop_api::dto::UserProfileItem>>
-    for mixin_desktop_api::dto::UserProfileItem
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<mixin_desktop_core::runtime::model::UserProfileItem>,
+    > for mixin_desktop_core::runtime::model::UserProfileItem
 {
-    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_api::dto::UserProfileItem> {
+    fn into_into_dart(self) -> FrbWrapper<mixin_desktop_core::runtime::model::UserProfileItem> {
         self.into()
     }
 }
@@ -15375,7 +15486,7 @@ impl SseEncode for StreamSink<i64, flutter_rust_bridge::for_generated::SseCodec>
 
 impl SseEncode
     for StreamSink<
-        Vec<mixin_desktop_api::dto::CircleItem>,
+        Vec<mixin_desktop_core::runtime::model::CircleItem>,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -15387,7 +15498,7 @@ impl SseEncode
 
 impl SseEncode
     for StreamSink<
-        Vec<mixin_desktop_api::dto::ConversationUnseenCount>,
+        Vec<mixin_desktop_core::runtime::model::ConversationUnseenCount>,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -15423,7 +15534,7 @@ impl SseEncode
 
 impl SseEncode
     for StreamSink<
-        mixin_desktop_api::dto::NotificationEvent,
+        mixin_desktop_core::runtime::model::NotificationEvent,
         flutter_rust_bridge::for_generated::SseCodec,
     >
 {
@@ -15477,7 +15588,7 @@ impl SseEncode for bool {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::CircleItem {
+impl SseEncode for mixin_desktop_core::runtime::model::CircleItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.circle_id, serializer);
@@ -15486,7 +15597,7 @@ impl SseEncode for mixin_desktop_api::dto::CircleItem {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::CodeResult {
+impl SseEncode for mixin_desktop_core::runtime::model::CodeResult {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.kind, serializer);
@@ -15494,7 +15605,7 @@ impl SseEncode for mixin_desktop_api::dto::CodeResult {
         <Option<String>>::sse_encode(self.conversation_id, serializer);
         <Option<String>>::sse_encode(self.conversation_name, serializer);
         <i64>::sse_encode(self.participant_count, serializer);
-        <Vec<mixin_desktop_api::dto::GroupAvatar>>::sse_encode(
+        <Vec<mixin_desktop_core::runtime::model::GroupAvatar>>::sse_encode(
             self.participant_avatars,
             serializer,
         );
@@ -15536,7 +15647,7 @@ impl SseEncode for mixin_desktop_api::model::ConversationChangeEvent {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::ConversationDetailItem {
+impl SseEncode for mixin_desktop_core::runtime::model::ConversationDetailItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.conversation_id, serializer);
@@ -15549,7 +15660,7 @@ impl SseEncode for mixin_desktop_api::dto::ConversationDetailItem {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::ConversationListData {
+impl SseEncode for mixin_desktop_core::runtime::model::ConversationListData {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.conversation_id, serializer);
@@ -15583,11 +15694,14 @@ impl SseEncode for mixin_desktop_api::dto::ConversationListData {
         <String>::sse_encode(self.identity_number, serializer);
         <Vec<String>>::sse_encode(self.circle_ids, serializer);
         <i64>::sse_encode(self.participant_count, serializer);
-        <Vec<mixin_desktop_api::dto::GroupAvatar>>::sse_encode(self.group_avatars, serializer);
+        <Vec<mixin_desktop_core::runtime::model::GroupAvatar>>::sse_encode(
+            self.group_avatars,
+            serializer,
+        );
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::ConversationParticipantItem {
+impl SseEncode for mixin_desktop_core::runtime::model::ConversationParticipantItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.user_id, serializer);
@@ -15604,15 +15718,18 @@ impl SseEncode for mixin_desktop_api::dto::ConversationParticipantItem {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::ConversationStorageUsage {
+impl SseEncode for mixin_desktop_core::runtime::model::ConversationStorageUsage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <mixin_desktop_api::dto::ConversationListData>::sse_encode(self.conversation, serializer);
+        <mixin_desktop_core::runtime::model::ConversationListData>::sse_encode(
+            self.conversation,
+            serializer,
+        );
         <i64>::sse_encode(self.size_bytes, serializer);
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::ConversationUnseenCount {
+impl SseEncode for mixin_desktop_core::runtime::model::ConversationUnseenCount {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.category, serializer);
@@ -15742,7 +15859,7 @@ impl SseEncode for f64 {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::GroupAvatar {
+impl SseEncode for mixin_desktop_core::runtime::model::GroupAvatar {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.user_id, serializer);
@@ -15751,7 +15868,7 @@ impl SseEncode for mixin_desktop_api::dto::GroupAvatar {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::GroupConversationItem {
+impl SseEncode for mixin_desktop_core::runtime::model::GroupConversationItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.conversation_id, serializer);
@@ -15784,7 +15901,7 @@ impl SseEncode for i64 {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::ImageMessageView {
+impl SseEncode for mixin_desktop_core::runtime::model::ImageMessageView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.message_id, serializer);
@@ -15810,82 +15927,92 @@ impl SseEncode for Vec<String> {
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::CircleItem> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::CircleItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::CircleItem>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::CircleItem>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::ConversationListData> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::ConversationListData> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::ConversationListData>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::ConversationListData>::sse_encode(
+                item, serializer,
+            );
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::ConversationParticipantItem> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::ConversationParticipantItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::ConversationParticipantItem>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::ConversationParticipantItem>::sse_encode(
+                item, serializer,
+            );
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::ConversationStorageUsage> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::ConversationStorageUsage> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::ConversationStorageUsage>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::ConversationStorageUsage>::sse_encode(
+                item, serializer,
+            );
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::ConversationUnseenCount> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::ConversationUnseenCount> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::ConversationUnseenCount>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::ConversationUnseenCount>::sse_encode(
+                item, serializer,
+            );
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::GroupAvatar> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::GroupAvatar> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::GroupAvatar>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::GroupAvatar>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::GroupConversationItem> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::GroupConversationItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::GroupConversationItem>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::GroupConversationItem>::sse_encode(
+                item, serializer,
+            );
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::ImageMessageView> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::ImageMessageView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::ImageMessageView>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::ImageMessageView>::sse_encode(item, serializer);
         }
     }
 }
@@ -15900,12 +16027,12 @@ impl SseEncode for Vec<crate::api::media::MediaAudioItem> {
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::MessageListView> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::MessageListView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::MessageListView>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::MessageListView>::sse_encode(item, serializer);
         }
     }
 }
@@ -15940,52 +16067,54 @@ impl SseEncode for Vec<(String, String)> {
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::SharedAppItem> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::SharedAppItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::SharedAppItem>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::SharedAppItem>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::StickerAlbumItem> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::StickerAlbumItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::StickerAlbumItem>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::StickerAlbumItem>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::StickerItem> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::StickerItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::StickerItem>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::StickerItem>::sse_encode(item, serializer);
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::StorageCategoryUsage> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::StorageCategoryUsage> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::StorageCategoryUsage>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::StorageCategoryUsage>::sse_encode(
+                item, serializer,
+            );
         }
     }
 }
 
-impl SseEncode for Vec<mixin_desktop_api::dto::UserProfileItem> {
+impl SseEncode for Vec<mixin_desktop_core::runtime::model::UserProfileItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
-            <mixin_desktop_api::dto::UserProfileItem>::sse_encode(item, serializer);
+            <mixin_desktop_core::runtime::model::UserProfileItem>::sse_encode(item, serializer);
         }
     }
 }
@@ -16123,7 +16252,7 @@ impl SseEncode for crate::api::media::MediaVoiceRecording {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::MessageListView {
+impl SseEncode for mixin_desktop_core::runtime::model::MessageListView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.message_id, serializer);
@@ -16203,7 +16332,7 @@ impl SseEncode for mixin_desktop_api::dto::MessageListView {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::MessageOrderInfoView {
+impl SseEncode for mixin_desktop_core::runtime::model::MessageOrderInfoView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.message_id, serializer);
@@ -16212,7 +16341,7 @@ impl SseEncode for mixin_desktop_api::dto::MessageOrderInfoView {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::NotificationEvent {
+impl SseEncode for mixin_desktop_core::runtime::model::NotificationEvent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.message_id, serializer);
@@ -16297,32 +16426,36 @@ impl SseEncode for Option<crate::api::media::MediaVoiceRecording> {
     }
 }
 
-impl SseEncode for Option<mixin_desktop_api::dto::MessageOrderInfoView> {
+impl SseEncode for Option<mixin_desktop_core::runtime::model::MessageOrderInfoView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <mixin_desktop_api::dto::MessageOrderInfoView>::sse_encode(value, serializer);
+            <mixin_desktop_core::runtime::model::MessageOrderInfoView>::sse_encode(
+                value, serializer,
+            );
         }
     }
 }
 
-impl SseEncode for Option<mixin_desktop_api::dto::PinMessagePreviewItem> {
+impl SseEncode for Option<mixin_desktop_core::runtime::model::PinMessagePreviewItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <mixin_desktop_api::dto::PinMessagePreviewItem>::sse_encode(value, serializer);
+            <mixin_desktop_core::runtime::model::PinMessagePreviewItem>::sse_encode(
+                value, serializer,
+            );
         }
     }
 }
 
-impl SseEncode for Option<mixin_desktop_api::dto::StickerAlbumItem> {
+impl SseEncode for Option<mixin_desktop_core::runtime::model::StickerAlbumItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <mixin_desktop_api::dto::StickerAlbumItem>::sse_encode(value, serializer);
+            <mixin_desktop_core::runtime::model::StickerAlbumItem>::sse_encode(value, serializer);
         }
     }
 }
@@ -16337,12 +16470,12 @@ impl SseEncode for Option<u64> {
     }
 }
 
-impl SseEncode for Option<mixin_desktop_api::dto::UserProfileItem> {
+impl SseEncode for Option<mixin_desktop_core::runtime::model::UserProfileItem> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <mixin_desktop_api::dto::UserProfileItem>::sse_encode(value, serializer);
+            <mixin_desktop_core::runtime::model::UserProfileItem>::sse_encode(value, serializer);
         }
     }
 }
@@ -16357,7 +16490,7 @@ impl SseEncode for Option<Vec<u8>> {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::PinMessagePreviewItem {
+impl SseEncode for mixin_desktop_core::runtime::model::PinMessagePreviewItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.message_id, serializer);
@@ -16395,7 +16528,7 @@ impl SseEncode for (String, String) {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::SharedAppItem {
+impl SseEncode for mixin_desktop_core::runtime::model::SharedAppItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.app_id, serializer);
@@ -16406,7 +16539,7 @@ impl SseEncode for mixin_desktop_api::dto::SharedAppItem {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::SnapshotDetailItem {
+impl SseEncode for mixin_desktop_core::runtime::model::SnapshotDetailItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.snapshot_id, serializer);
@@ -16442,7 +16575,7 @@ impl SseEncode for mixin_desktop_api::dto::SnapshotDetailItem {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::StickerAlbumItem {
+impl SseEncode for mixin_desktop_core::runtime::model::StickerAlbumItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.album_id, serializer);
@@ -16456,17 +16589,22 @@ impl SseEncode for mixin_desktop_api::dto::StickerAlbumItem {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::StickerDetailItem {
+impl SseEncode for mixin_desktop_core::runtime::model::StickerDetailItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <mixin_desktop_api::dto::StickerItem>::sse_encode(self.sticker, serializer);
-        <Option<mixin_desktop_api::dto::StickerAlbumItem>>::sse_encode(self.album, serializer);
-        <Vec<mixin_desktop_api::dto::StickerItem>>::sse_encode(self.album_stickers, serializer);
+        <mixin_desktop_core::runtime::model::StickerItem>::sse_encode(self.sticker, serializer);
+        <Option<mixin_desktop_core::runtime::model::StickerAlbumItem>>::sse_encode(
+            self.album, serializer,
+        );
+        <Vec<mixin_desktop_core::runtime::model::StickerItem>>::sse_encode(
+            self.album_stickers,
+            serializer,
+        );
         <bool>::sse_encode(self.is_personal, serializer);
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::StickerItem {
+impl SseEncode for mixin_desktop_core::runtime::model::StickerItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.sticker_id, serializer);
@@ -16481,7 +16619,7 @@ impl SseEncode for mixin_desktop_api::dto::StickerItem {
     }
 }
 
-impl SseEncode for mixin_desktop_api::dto::StorageCategoryUsage {
+impl SseEncode for mixin_desktop_core::runtime::model::StorageCategoryUsage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.category, serializer);
@@ -16522,7 +16660,7 @@ impl SseEncode for () {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {}
 }
 
-impl SseEncode for mixin_desktop_api::dto::UserProfileItem {
+impl SseEncode for mixin_desktop_core::runtime::model::UserProfileItem {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.user_id, serializer);

@@ -27,6 +27,7 @@ struct AccountHealthView<Content: View>: View {
 }
 
 private struct ProfileSetupView: View {
+    @Environment(\.mixinTheme) private var theme
     let session: AccountSession
     @State private var fullName = ""
     @State private var isSaving = false
@@ -35,15 +36,21 @@ private struct ProfileSetupView: View {
 
     var body: some View {
         ZStack {
-            Color(nsColor: .windowBackgroundColor)
+            theme.background
                 .ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 18) {
-                Text("Set Your Name")
-                    .font(.title2.weight(.semibold))
-                Text("A name is required before you can continue.")
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Edit Name")
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.text)
+                Spacer().frame(height: 48)
                 TextField("Name", text: $fullName)
-                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(theme.text)
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                    .frame(minHeight: 48)
+                    .background(theme.background, in: RoundedRectangle(cornerRadius: 5))
                     .focused($isFocused)
                     .onChange(of: fullName) {
                         if fullName.count > 40 {
@@ -53,23 +60,22 @@ private struct ProfileSetupView: View {
                     .onSubmit {
                         save()
                     }
+                Spacer().frame(height: 30)
                 HStack {
-                    Text("\(fullName.count)/40")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     Spacer()
-                    Button("Continue") {
-                        save()
-                    }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(trimmedName.isEmpty || isSaving)
+                    Button("Confirm") { save() }
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.white)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 16)
+                        .background(theme.accent, in: RoundedRectangle(cornerRadius: 5))
+                        .disabled(trimmedName.isEmpty || isSaving)
+                        .opacity(trimmedName.isEmpty || isSaving ? 0.4 : 1)
+                        .keyboardShortcut(.defaultAction)
                 }
             }
-            .padding(28)
-            .frame(width: 400)
-            .background(.regularMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .shadow(radius: 18, y: 8)
+            .padding(30)
+            .frame(minWidth: 400, minHeight: 210)
         }
         .onAppear {
             isFocused = true
@@ -117,15 +123,19 @@ private struct ProfileSetupView: View {
 }
 
 private struct LocalTimeErrorView: View {
+    @Environment(\.mixinTheme) private var theme
     let session: AccountSession
     @State private var isRefreshing = false
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 0) {
             Text("Synchronizing time…")
-                .font(.title3.weight(.medium))
+                .font(.system(size: 16))
+                .foregroundStyle(theme.text)
+            Spacer().frame(height: 24)
             if isRefreshing {
                 ProgressView()
+                    .tint(theme.accent)
             } else {
                 Button("Continue") {
                     isRefreshing = true
@@ -137,30 +147,74 @@ private struct LocalTimeErrorView: View {
                     }
                 }
                 .keyboardShortcut(.defaultAction)
+                .buttonStyle(HealthActionButtonStyle())
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(theme.background)
     }
 }
 
 private struct RequiredUpdateView: View {
+    @Environment(\.mixinTheme) private var theme
+
     var body: some View {
-        VStack(spacing: 14) {
-            Text("Update Mixin")
-                .font(.title2.weight(.semibold))
-            Text("This version is no longer supported. Update Mixin to continue.")
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Button("Download Update") {
-                if let url = URL(string: "https://mixin.one/messenger") {
-                    NSWorkspace.shared.open(url)
+        ZStack(alignment: .bottomTrailing) {
+            VStack(spacing: 0) {
+                Text("Update Mixin")
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.text)
+                Spacer().frame(height: 10)
+                Text(
+                    "The current version (\(shortVersion)) is no longer available!\n"
+                        + "Please click \"Update\" below to update to the latest version."
+                )
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.text)
+                    .multilineTextAlignment(.center)
+                Spacer().frame(height: 32)
+                Button("Upgrade") {
+                    if let url = URL(string: "https://mixin.one/messenger") {
+                        NSWorkspace.shared.open(url)
+                    }
                 }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(HealthActionButtonStyle())
             }
-            .keyboardShortcut(.defaultAction)
+            Text(versionText)
+                .font(.system(size: 12))
+                .foregroundStyle(theme.secondaryText)
+                .padding(16)
         }
-        .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(theme.background)
+    }
+
+    private var versionText: String {
+        let version = shortVersion
+        let build = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleVersion"
+        ) as? String ?? ""
+        return version.isEmpty ? "" : "\(version)+\(build)"
+    }
+
+    private var shortVersion: String {
+        Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String ?? ""
+    }
+}
+
+private struct HealthActionButtonStyle: ButtonStyle {
+    @Environment(\.mixinTheme) private var theme
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(.white)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(theme.accent, in: RoundedRectangle(cornerRadius: 5))
+            .opacity(configuration.isPressed ? 0.8 : 1)
     }
 }

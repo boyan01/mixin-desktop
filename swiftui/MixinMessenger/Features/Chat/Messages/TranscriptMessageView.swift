@@ -1,27 +1,37 @@
 import SwiftUI
 
 struct TranscriptMessageView: View {
-    let message: SwiftMessageItem
+    @Environment(SettingsPreferencesModel.self) private var preferences
+    let message: MessageItem
     let onOpen: () -> Void
+    @Environment(\.mixinTheme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label("Transcript", systemImage: "text.bubble")
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                Spacer().frame(width: 4)
+                Text("Transcript")
+                    .font(.system(size: 16 + preferences.chatFontSizeDelta))
+                    .foregroundStyle(theme.text)
                 Spacer()
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .foregroundStyle(.secondary)
+                Image("PostDetail")
+                    .resizable()
+                    .frame(width: 20, height: 20)
+                    .background(.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
             }
+            .padding(.leading, 4)
+            .padding(.bottom, 4)
             VStack(alignment: .leading, spacing: 3) {
                 ForEach(message.transcriptPreviewLines.prefix(4), id: \.self) { line in
                     Text(line)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12 + preferences.chatFontSizeDelta))
+                        .foregroundStyle(theme.secondaryText)
                         .lineLimit(1)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(7)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
             .background(.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
         }
         .frame(width: 260)
@@ -30,7 +40,7 @@ struct TranscriptMessageView: View {
     }
 }
 
-extension SwiftMessageItem {
+extension MessageItem {
     func scaledMediaSize(
         maximum: CGSize,
         minimumWidth: CGFloat

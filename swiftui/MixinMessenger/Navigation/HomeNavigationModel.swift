@@ -54,22 +54,28 @@ enum ChatInspectorRoute: Hashable {
 @MainActor
 @Observable
 final class HomeNavigationModel {
+    var page: HomePage = .chats
     var section: HomeSection = .chats {
         didSet {
             if oldValue != section {
-                selectedConversationID = nil
-                selectedConversationName = nil
-                selectedConversationDraft = ""
-                selectedConversation = nil
+                clearConversationSelection()
+            }
+        }
+    }
+    var routePath: [HomeRoute] = [] {
+        didSet {
+            if !routePath.contains(.chatInfo) {
                 infoPresented = false
                 inspectorPath = []
             }
         }
     }
+    private(set) var settingsDestination: SettingsDestination = .profile
     var selectedConversationID: String?
     private(set) var selectedConversationName: String?
     private(set) var selectedConversationDraft = ""
-    private(set) var selectedConversation: SwiftConversationListItem?
+    private(set) var selectedConversation: ConversationListData?
+    private(set) var recentConversationIDs: [String] = []
     var infoPresented = false
     var inspectorPath: [ChatInspectorRoute] = []
     var protocolNotice: ProtocolNotice?
@@ -84,7 +90,7 @@ final class HomeNavigationModel {
     private var conversationIDs: [String] = []
     private var conversationNames: [String: String] = [:]
     private var conversationDrafts: [String: String] = [:]
-    private var conversationItems: [String: SwiftConversationListItem] = [:]
+    private var conversationItems: [String: ConversationListData] = [:]
     private var chatViewportPositions: [String: ChatViewportPosition] = [:]
     private(set) var conversationCommandRequest: ConversationCommandRequest?
     private var conversationCommandRevision = 0
@@ -94,27 +100,48 @@ final class HomeNavigationModel {
         name: String? = nil,
         draft: String? = nil
     ) {
+        page = .chats
         if selectedConversationID != conversationID {
             inspectorPath = []
+            infoPresented = false
         }
         selectedConversationID = conversationID
+        recordRecentConversation(conversationID)
         selectedConversationName = name ?? conversationNames[conversationID]
         selectedConversationDraft = draft ?? conversationDrafts[conversationID] ?? ""
         selectedConversation = conversationItems[conversationID]
+        routePath = [.chat(conversationID)]
     }
 
-    func selectConversation(_ conversation: SwiftConversationListItem) {
+    func selectConversation(_ conversation: ConversationListData) {
+        page = .chats
         if selectedConversationID != conversation.conversationId {
             inspectorPath = []
+            infoPresented = false
         }
         selectedConversationID = conversation.conversationId
+        recordRecentConversation(conversation.conversationId)
         selectedConversationName = conversation.name
         selectedConversationDraft = conversation.draft
         selectedConversation = conversation
+        routePath = [.chat(conversation.conversationId)]
     }
 
     func showSettings() {
-        section = .settings
+        page = .settings
+        routePath = []
+    }
+
+    func showChats(section: HomeSection = .chats) {
+        page = .chats
+        self.section = section
+        routePath = []
+    }
+
+    func showSettingsDestination(_ destination: SettingsDestination) {
+        page = .settings
+        settingsDestination = destination
+        routePath = [.settings(destination)]
     }
 
     func focusConversationSearch() {
@@ -137,7 +164,6 @@ final class HomeNavigationModel {
         messageID: String,
         conversationName: String? = nil
     ) {
-        section = .chats
         selectConversation(conversationID, name: conversationName)
         infoPresented = false
         inspectorPath = []
@@ -174,8 +200,11 @@ final class HomeNavigationModel {
             return
         }
         infoPresented.toggle()
-        if !infoPresented {
+        if infoPresented {
+            presentChatInfoRoute()
+        } else {
             inspectorPath = []
+            routePath.removeAll { $0 == .chatInfo }
         }
     }
 
@@ -185,6 +214,7 @@ final class HomeNavigationModel {
         }
         infoPresented = true
         inspectorPath = route.map { [$0] } ?? []
+        presentChatInfoRoute()
     }
 
     func pushInspector(_ route: ChatInspectorRoute) {
@@ -199,7 +229,6 @@ final class HomeNavigationModel {
         conversationID: String,
         name: String? = nil
     ) {
-        section = .chats
         selectConversation(conversationID, name: name)
         openInspector()
     }
@@ -234,6 +263,7 @@ final class HomeNavigationModel {
         selectedConversation = nil
         infoPresented = false
         inspectorPath = []
+        routePath = []
     }
 
     func clearConversationSelection() {
@@ -243,9 +273,10 @@ final class HomeNavigationModel {
         selectedConversation = nil
         infoPresented = false
         inspectorPath = []
+        routePath = []
     }
 
-    func updateConversationOrder(_ conversations: [SwiftConversationListItem]) {
+    func updateConversationOrder(_ conversations: [ConversationListData]) {
         let updatedIDs = conversations.map(\.conversationId)
         let updatedNames = Dictionary(
             uniqueKeysWithValues: conversations.map {
@@ -303,20 +334,36 @@ final class HomeNavigationModel {
             return
         }
         self.selectedConversationID = conversationIDs[nextIndex]
+        recordRecentConversation(conversationIDs[nextIndex])
         selectedConversationName = conversationNames[conversationIDs[nextIndex]]
         selectedConversationDraft = conversationDrafts[conversationIDs[nextIndex]] ?? ""
         selectedConversation = conversationItems[conversationIDs[nextIndex]]
+        infoPresented = false
         inspectorPath = []
+        routePath = [.chat(conversationIDs[nextIndex])]
+    }
+
+    private func recordRecentConversation(_ conversationID: String) {
+        recentConversationIDs.removeAll { $0 == conversationID }
+        recentConversationIDs.insert(conversationID, at: 0)
+        if recentConversationIDs.count > 5 {
+            recentConversationIDs.removeLast(
+                recentConversationIDs.count - 5
+            )
+        }
+    }
+
+    private func presentChatInfoRoute() {
+        guard let selectedConversationID else {
+            return
+        }
+        routePath = [.chat(selectedConversationID), .chatInfo]
     }
 
     func open(_ url: URL, account: SwiftAccountHandle) async {
         switch MixinDeepLink(url: url) {
         case let .conversation(id, start):
-            section = .chats
-            selectedConversationID = id
-            selectedConversationName = nil
-            selectedConversationDraft = ""
-            selectedConversation = nil
+            selectConversation(id)
             if let start {
                 do {
                     _ = try await account.sendText(
@@ -326,6 +373,10 @@ final class HomeNavigationModel {
                         silent: false
                     )
                 } catch {
+                    AppLogger.error(
+                        "Open conversation link start message failed: conversation_id=\(id)",
+                        error: error
+                    )
                     protocolNotice = ProtocolNotice(
                         title: "Unable to Send Message",
                         message: MixinErrorPresenter.message(for: error)
@@ -352,10 +403,13 @@ final class HomeNavigationModel {
                 let conversationID = try await account.openUserConversation(
                     userId: user.userId
                 )
-                section = .chats
                 selectConversation(conversationID, name: user.fullName)
                 openInspector()
             } catch {
+                AppLogger.error(
+                    "Open user link failed: identity_number=\(identityNumber)",
+                    error: error
+                )
                 protocolNotice = ProtocolNotice(
                     title: "Unable to Open User",
                     message: MixinErrorPresenter.message(for: error)
@@ -374,7 +428,6 @@ final class HomeNavigationModel {
                     let conversationID = try await account.openUserConversation(
                         userId: app.userId
                     )
-                    section = .chats
                     selectConversation(conversationID, name: app.fullName)
                     openInspector()
                     return
@@ -407,6 +460,10 @@ final class HomeNavigationModel {
                     currency: account.profile().fiatCurrency
                 )
             } catch {
+                AppLogger.error(
+                    "Open bot link failed: app_id=\(id)",
+                    error: error
+                )
                 protocolNotice = ProtocolNotice(
                     title: "Unable to Open Bot",
                     message: MixinErrorPresenter.message(for: error)
@@ -421,7 +478,6 @@ final class HomeNavigationModel {
                     let conversationID = try await account.openUserConversation(
                         userId: user.userId
                     )
-                    section = .chats
                     selectConversation(conversationID, name: user.fullName)
                     openInspector()
                 } else if result.kind == "conversation",
@@ -437,6 +493,7 @@ final class HomeNavigationModel {
                     )
                 }
             } catch {
+                AppLogger.error("Resolve code link failed", error: error)
                 protocolNotice = ProtocolNotice(
                     title: "Unable to Resolve Code",
                     message: MixinErrorPresenter.message(for: error)
@@ -447,6 +504,10 @@ final class HomeNavigationModel {
                 let snapshot = try await account.snapshotByTrace(traceId: traceID)
                 protocolPresentation = .snapshot(snapshot)
             } catch {
+                AppLogger.error(
+                    "Open snapshot link failed: trace_id=\(traceID)",
+                    error: error
+                )
                 protocolNotice = ProtocolNotice(
                     title: "Unable to Load Transaction",
                     message: MixinErrorPresenter.message(for: error)
@@ -464,9 +525,12 @@ final class HomeNavigationModel {
                         to: conversationID,
                         account: account
                     )
-                    section = .chats
                     selectConversation(conversationID, name: user?.fullName)
                 } catch {
+                    AppLogger.error(
+                        "Send deep link message failed: user_id=\(userID)",
+                        error: error
+                    )
                     protocolNotice = ProtocolNotice(
                         title: "Unable to Send Message",
                         message: MixinErrorPresenter.message(for: error)
@@ -483,6 +547,10 @@ final class HomeNavigationModel {
                         account: account
                     )
                 } catch {
+                    AppLogger.error(
+                        "Send deep link message failed: conversation_id=\(selectedConversationID)",
+                        error: error
+                    )
                     protocolNotice = ProtocolNotice(
                         title: "Unable to Send Message",
                         message: MixinErrorPresenter.message(for: error)

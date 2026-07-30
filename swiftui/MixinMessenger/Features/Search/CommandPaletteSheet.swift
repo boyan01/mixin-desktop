@@ -3,7 +3,9 @@ import SwiftUI
 
 struct CommandPaletteSheet: View {
   @Environment(AccountSession.self) private var session
+  @Environment(HomeNavigationModel.self) private var navigation
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.mixinTheme) private var theme
   @State private var model = CommandPaletteModel()
   @State private var query = ""
   @State private var selection: CommandPaletteItem.ID?
@@ -16,7 +18,7 @@ struct CommandPaletteSheet: View {
         MixinSearchField(
           text: $query,
           focus: $searchFocused,
-          placeholder: "Search conversations and people",
+          placeholder: "Search",
           onSubmit: selectCurrent,
           onExit: { dismiss() }
         )
@@ -28,9 +30,9 @@ struct CommandPaletteSheet: View {
         .buttonStyle(MixinActionButtonStyle())
         .help("Close")
       }
-      .padding(16)
-
-      Divider()
+      .padding(.top, 20)
+      .padding(.bottom, 10)
+      .padding(.horizontal, 20)
 
       switch model.state {
       case .loading:
@@ -43,15 +45,25 @@ struct CommandPaletteSheet: View {
           description: Text(message)
         )
       case .ready:
-        let items = model.filtered(query: query)
+        let items = model.items
         if items.isEmpty {
-          ContentUnavailableView.search(text: query)
+          VStack(spacing: 0) {
+            Image("EmptyFile")
+              .resizable()
+              .renderingMode(.template)
+              .foregroundStyle(theme.secondaryText)
+              .frame(width: 80, height: 80)
+            Spacer().frame(height: 20)
+            Text("No Results")
+              .foregroundStyle(theme.secondaryText)
+          }
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-          List(items, selection: $selection) { item in
-            CommandPaletteRow(item: item)
+          AppListView(items, selection: $selection) { item in
+            CommandPaletteRow(item: item, query: query)
               .tag(item.id)
               .contentShape(Rectangle())
-              .onTapGesture(count: 2) {
+              .onTapGesture {
                 select(item)
               }
           }
@@ -70,11 +82,23 @@ struct CommandPaletteSheet: View {
           .padding(10)
       }
     }
-    .frame(minWidth: 460, idealWidth: 520, minHeight: 420, idealHeight: 560)
+    .frame(minWidth: 400, idealWidth: 480, maxWidth: 480, minHeight: 400, maxHeight: 600)
+    .background(theme.popUp)
+    .clipShape(RoundedRectangle(cornerRadius: 11))
     .task {
-      await model.load(account: session.handle)
-      selection = model.filtered(query: "").first?.id
       searchFocused = true
+    }
+    .task(id: query) {
+      try? await Task.sleep(for: .milliseconds(100))
+      guard !Task.isCancelled else {
+        return
+      }
+      await model.search(
+        account: session.handle,
+        query: query,
+        recentConversationIDs: navigation.recentConversationIDs
+      )
+      selection = model.items.first?.id
     }
     .alert(
       "Unable to Open Conversation",
@@ -92,7 +116,7 @@ struct CommandPaletteSheet: View {
   }
 
   private func selectCurrent() {
-    let items = model.filtered(query: query)
+    let items = model.items
     guard let item = items.first(where: { $0.id == selection }) ?? items.first else {
       return
     }
@@ -112,37 +136,35 @@ struct CommandPaletteSheet: View {
 
 private struct CommandPaletteRow: View {
   let item: CommandPaletteItem
+  let query: String
 
   var body: some View {
     HStack(spacing: 12) {
-      MixinRemoteImage(url: URL(string: item.avatarURL)) { image in
-        image.resizable().scaledToFill()
-      } placeholder: {
-        Image(
-          systemName: item.kind == .conversation
-            ? "bubble.left.fill"
-            : "person.crop.circle.fill"
-        )
-        .resizable()
-        .foregroundStyle(.secondary)
+      Group {
+        if item.isGroup {
+          GroupAvatarPuzzle(avatars: Array(item.groupAvatars.prefix(4)))
+        } else {
+          UserAvatar(
+            userID: item.ownerID,
+            name: item.name,
+            url: item.avatarURL,
+            size: 40
+          )
+        }
       }
-      .frame(width: 42, height: 42)
+      .frame(width: 40, height: 40)
       .clipShape(Circle())
 
-      VStack(alignment: .leading, spacing: 3) {
-        Text(item.name)
-          .font(.headline)
-          .lineLimit(1)
-        Text(item.subtitle)
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-      }
+      CommandPaletteHighlightedText(text: item.name, query: query)
+      ProfileIdentityBadge(
+        isVerified: item.isVerified,
+        isBot: item.isBot,
+        membership: item.membership
+      )
       Spacer()
-      Image(systemName: item.kind == .conversation ? "bubble.left" : "person")
-        .foregroundStyle(.tertiary)
     }
-    .padding(.vertical, 5)
+    .padding(.horizontal, 14)
+    .frame(height: 72)
   }
 }
 
@@ -157,6 +179,14 @@ private struct CommandPaletteItem: Identifiable {
   let name: String
   let subtitle: String
   let avatarURL: String
+  let ownerID: String
+  let identityNumber: String
+  let isGroup: Bool
+  let groupAvatars: [GroupAvatar]
+  let isVerified: Bool
+  let isBot: Bool
+  let membership: String?
+  let matchScore: Int
 }
 
 @MainActor
@@ -174,64 +204,72 @@ private final class CommandPaletteModel {
   }
 
   private(set) var state: State = .loading
+  private(set) var items: [CommandPaletteItem] = []
   private(set) var opening = false
   var openError: String?
   private var account: SwiftAccountHandle?
-  private var conversations: [SwiftConversationListItem] = []
-  private var users: [SwiftUserItem] = []
+  private var requestVersion = 0
 
-  func load(account: SwiftAccountHandle) async {
+  func search(
+    account: SwiftAccountHandle,
+    query: String,
+    recentConversationIDs: [String]
+  ) async {
     self.account = account
-    state = .loading
+    requestVersion += 1
+    let version = requestVersion
+    if items.isEmpty {
+      state = .loading
+    }
+    let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines)
     do {
-      conversations = try await account.conversations(
+      let conversations = try await account.conversations(
         category: "chats",
         circleId: nil,
-        keyword: "",
+        keyword: keyword,
         unseenOnly: false,
-        limit: 100,
+        limit: keyword.isEmpty ? 200 : 100,
         offset: 0
       )
-      users = try await account.selectableUsers()
+      let users = keyword.isEmpty
+        ? []
+        : try await account.searchLocalUsers(
+          query: keyword,
+          category: "chats",
+          limit: 100
+        )
+      guard version == requestVersion, !Task.isCancelled else {
+        return
+      }
+      let visibleConversations: [ConversationListData]
+      if keyword.isEmpty {
+        let byID = Dictionary(
+          uniqueKeysWithValues: conversations.map {
+            ($0.conversationId, $0)
+          }
+        )
+        visibleConversations = recentConversationIDs.compactMap {
+          byID[$0]
+        }
+      } else {
+        visibleConversations = conversations
+      }
+      let conversationItems = visibleConversations.map {
+        makeConversationItem($0, query: keyword)
+      }
+      let userItems = users.map {
+        makeUserItem($0, query: keyword)
+      }
+      items = (conversationItems + userItems).sorted {
+        $0.matchScore > $1.matchScore
+      }
       state = .ready
     } catch {
+      guard version == requestVersion, !Task.isCancelled else {
+        return
+      }
       state = .failed(MixinErrorPresenter.message(for: error))
     }
-  }
-
-  func filtered(query: String) -> [CommandPaletteItem] {
-    let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    let conversationItems =
-      conversations
-      .filter { keyword.isEmpty || $0.name.lowercased().contains(keyword) }
-      .prefix(50)
-      .map {
-        CommandPaletteItem(
-          id: "conversation:\($0.conversationId)",
-          kind: .conversation,
-          name: $0.name,
-          subtitle: $0.lastMessage.isEmpty ? "Conversation" : $0.lastMessage,
-          avatarURL: $0.iconUrl
-        )
-      }
-    let userItems =
-      users
-      .filter {
-        keyword.isEmpty
-          || $0.fullName.lowercased().contains(keyword)
-          || $0.identityNumber.contains(keyword)
-      }
-      .prefix(50)
-      .map {
-        CommandPaletteItem(
-          id: "user:\($0.userId)",
-          kind: .user,
-          name: $0.fullName,
-          subtitle: "Mixin ID: \($0.identityNumber)",
-          avatarURL: $0.avatarUrl
-        )
-      }
-    return Array(conversationItems + userItems)
   }
 
   func open(_ item: CommandPaletteItem) async -> OpenResult? {
@@ -254,6 +292,108 @@ private final class CommandPaletteModel {
         openError = MixinErrorPresenter.message(for: error)
         return nil
       }
+    }
+  }
+
+  private func makeConversationItem(
+    _ conversation: ConversationListData,
+    query: String
+  ) -> CommandPaletteItem {
+    CommandPaletteItem(
+      id: "conversation:\(conversation.conversationId)",
+      kind: .conversation,
+      name: conversation.name,
+      subtitle: conversation.lastMessage,
+      avatarURL: conversation.avatarUrl,
+      ownerID: conversation.ownerId,
+      identityNumber: conversation.identityNumber,
+      isGroup: conversation.category == "GROUP",
+      groupAvatars: conversation.groupAvatars,
+      isVerified: conversation.isVerified,
+      isBot: conversation.isBot,
+      membership: conversation.membership,
+      matchScore: Self.matchScore(
+        query: query,
+        name: conversation.name,
+        identityNumber: conversation.identityNumber
+      )
+    )
+  }
+
+  private func makeUserItem(
+    _ user: UserProfileItem,
+    query: String
+  ) -> CommandPaletteItem {
+    CommandPaletteItem(
+      id: "user:\(user.userId)",
+      kind: .user,
+      name: user.fullName,
+      subtitle: "",
+      avatarURL: user.avatarUrl,
+      ownerID: user.userId,
+      identityNumber: user.identityNumber,
+      isGroup: false,
+      groupAvatars: [],
+      isVerified: user.isVerified,
+      isBot: user.isBot,
+      membership: user.membership,
+      matchScore: Self.matchScore(
+        query: query,
+        name: user.fullName,
+        identityNumber: user.identityNumber
+      )
+    )
+  }
+
+  private static func matchScore(
+    query: String,
+    name: String,
+    identityNumber: String
+  ) -> Int {
+    let query = query.lowercased()
+    guard !query.isEmpty else {
+      return 0
+    }
+    let name = name.lowercased()
+    let identityNumber = identityNumber.lowercased()
+    if name == query || identityNumber == query {
+      return 100
+    }
+    if name.hasPrefix(query) || identityNumber.hasPrefix(query) {
+      return 80
+    }
+    return name.contains(query) || identityNumber.contains(query)
+      ? 60
+      : 0
+  }
+}
+
+private struct CommandPaletteHighlightedText: View {
+  @Environment(\.mixinTheme) private var theme
+  let text: String
+  let query: String
+
+  var body: some View {
+    let range = text.range(
+      of: query.trimmingCharacters(in: .whitespacesAndNewlines),
+      options: [.caseInsensitive]
+    )
+    if let range, !query.isEmpty {
+      (
+        Text(String(text[..<range.lowerBound]))
+          .foregroundColor(theme.text)
+          + Text(String(text[range]))
+          .foregroundColor(theme.accent)
+          + Text(String(text[range.upperBound...]))
+          .foregroundColor(theme.text)
+      )
+      .font(.system(size: 16))
+      .lineLimit(1)
+    } else {
+      Text(text)
+        .font(.system(size: 16))
+        .foregroundStyle(theme.text)
+        .lineLimit(1)
     }
   }
 }

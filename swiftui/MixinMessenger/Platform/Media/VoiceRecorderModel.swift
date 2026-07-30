@@ -1,7 +1,7 @@
 import AVFoundation
 import Observation
 
-struct VoiceRecording: Sendable {
+struct VoiceRecordingDraft: Sendable {
     let url: URL
     let durationMillis: Int64
     let waveform: [UInt8]
@@ -19,7 +19,7 @@ final class VoiceRecorderModel {
 
     private(set) var status: Status = .idle
     private(set) var elapsedMillis: Int64 = 0
-    private(set) var recording: VoiceRecording?
+    private(set) var recording: VoiceRecordingDraft?
     private(set) var errorMessage: String?
 
     private var media: SwiftMediaHandle?
@@ -89,7 +89,7 @@ final class VoiceRecorderModel {
     }
 
     func send(
-        _ operation: (VoiceRecording) async -> Bool
+        _ operation: (VoiceRecordingDraft) async -> Bool
     ) async -> Bool {
         if status == .recording {
             await stop()
@@ -160,8 +160,8 @@ final class VoiceRecorderModel {
         }
     }
 
-    private func apply(_ result: SwiftMediaVoiceRecording) {
-        let recording = VoiceRecording(
+    private func apply(_ result: VoiceRecording) {
+        let recording = VoiceRecordingDraft(
             url: URL(fileURLWithPath: result.path),
             durationMillis: Int64(clamping: result.durationMillis),
             waveform: Array(result.waveform)

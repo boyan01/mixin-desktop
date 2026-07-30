@@ -1,14 +1,8 @@
 import Foundation
 import Observation
-import OSLog
 import SwiftUI
 
 enum MixinErrorPresenter {
-    private static let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "one.mixin.messenger.desktop",
-        category: "ErrorPresentation"
-    )
-
     static func message(
         for error: Error,
         fileID: StaticString = #fileID,
@@ -16,10 +10,7 @@ enum MixinErrorPresenter {
         line: UInt = #line
     ) -> String {
         let location = "\(fileID):\(line) \(function)"
-        let detail = String(reflecting: error)
-        logger.error(
-            "\(location, privacy: .public): \(detail, privacy: .public)"
-        )
+        AppLogger.error(location, error: error)
         return switch error {
         case SwiftClientError.Unauthorized:
             MixinLocalizations.sessionExpired

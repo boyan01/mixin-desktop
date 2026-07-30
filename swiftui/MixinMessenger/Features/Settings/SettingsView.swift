@@ -3,7 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import UserNotifications
 
-enum SettingsDestination: String, CaseIterable, Identifiable {
+enum SettingsDestination: String, CaseIterable, Hashable, Identifiable {
   case profile
   case notifications
   case storage
@@ -44,20 +44,29 @@ enum SettingsDestination: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
   @Environment(\.mixinTheme) private var theme
+  @Environment(\.colorScheme) private var colorScheme
   @Environment(AppModel.self) private var appModel
   @Environment(AccountSession.self) private var session
-  @State private var destination: SettingsDestination? = .profile
+  @Environment(HomeNavigationModel.self) private var navigation
   @State private var confirmSignOut = false
+  @State private var notificationPermissionDenied = false
+
+  let routeMode: Bool
+  var onShowSidebar: (() -> Void)?
 
   var body: some View {
-    NavigationSplitView {
-      settingsList
-        .navigationSplitViewColumnWidth(min: 300, ideal: 300, max: 300)
-    } detail: {
-      settingsDetail
+    Group {
+      if routeMode {
+        settingsList
+      } else {
+        HStack(spacing: 0) {
+          settingsList
+            .frame(width: 300)
+          Divider()
+          SettingsDetailView(destination: navigation.settingsDestination)
+        }
+      }
     }
-    .navigationSplitViewStyle(.balanced)
-    .toolbar(removing: .sidebarToggle)
     .confirmationDialog(
       "Sign out of Mixin?",
       isPresented: $confirmSignOut
@@ -69,11 +78,16 @@ struct SettingsView: View {
       }
       Button("Cancel", role: .cancel) {}
     }
+    .task {
+      let settings = await UNUserNotificationCenter.current().notificationSettings()
+      notificationPermissionDenied = settings.authorizationStatus == .denied
+    }
   }
 
   private var settingsList: some View {
-    ScrollView {
+    AppScrollView {
       VStack(spacing: 0) {
+        settingsHeader
         profileHeader
 
         Spacer()
@@ -109,23 +123,40 @@ struct SettingsView: View {
           .buttonStyle(.plain)
         }
       }
-      .padding(.top, 64)
     }
     .scrollIndicators(.hidden)
     .background(theme.background)
   }
 
+  private var settingsHeader: some View {
+    HStack(spacing: 0) {
+      if let onShowSidebar {
+        Button(action: onShowSidebar) {
+          Image(systemName: "line.3.horizontal")
+            .frame(width: 32, height: 32)
+        }
+        .buttonStyle(.plain)
+        .help("Show Sidebar")
+
+        Text("Settings")
+          .font(.system(size: 16, weight: .semibold))
+          .foregroundStyle(theme.text)
+          .padding(.leading, 8)
+      }
+      Spacer()
+    }
+    .padding(.horizontal, 16)
+    .frame(height: 64)
+  }
+
   private var profileHeader: some View {
     VStack(spacing: 0) {
-      MixinRemoteImage(url: URL(string: session.profile.avatarUrl)) { image in
-        image.resizable().scaledToFill()
-      } placeholder: {
-        Image(systemName: "person.crop.circle.fill")
-          .resizable()
-          .foregroundStyle(.secondary)
-      }
-      .frame(width: 90, height: 90)
-      .clipShape(Circle())
+      UserAvatar(
+        userID: session.profile.userId,
+        name: session.profile.fullName,
+        url: session.profile.avatarUrl,
+        size: 90
+      )
 
       Spacer()
         .frame(height: 10)
@@ -149,7 +180,11 @@ struct SettingsView: View {
 
       Text("Mixin ID: \(session.profile.identityNumber)")
         .font(.system(size: 14))
-        .foregroundStyle(theme.secondaryText)
+        .foregroundStyle(
+          colorScheme == .dark
+            ? Color.white.opacity(0.4)
+            : Color(red: 188 / 255, green: 190 / 255, blue: 195 / 255)
+        )
         .textSelection(.enabled)
     }
     .frame(maxWidth: .infinity)
@@ -157,7 +192,7 @@ struct SettingsView: View {
 
   private func settingsRow(_ item: SettingsDestination) -> some View {
     Button {
-      destination = item
+      navigation.showSettingsDestination(item)
     } label: {
       SettingsCellContent(
         title: item.title,
@@ -165,14 +200,25 @@ struct SettingsView: View {
         systemImage: item == .mcp
           ? "point.3.connected.trianglepath.dotted"
           : nil,
-        selected: destination == item
+        color: item == .notifications && notificationPermissionDenied
+          ? theme.destructive
+          : nil,
+        selected: navigation.settingsDestination == item,
+        showsWarning: item == .notifications && notificationPermissionDenied
       )
     }
     .buttonStyle(.plain)
   }
+}
 
-  @ViewBuilder
-  private var settingsDetail: some View {
+struct SettingsDetailView: View {
+  @Environment(\.mixinTheme) private var theme
+  @Environment(AppModel.self) private var appModel
+  @Environment(AccountSession.self) private var session
+
+  let destination: SettingsDestination
+
+  var body: some View {
     ZStack {
       theme.chatBackground
         .ignoresSafeArea()
@@ -182,7 +228,7 @@ struct SettingsView: View {
 
   @ViewBuilder
   private var settingsDetailContent: some View {
-    switch destination ?? .profile {
+    switch destination {
     case .profile:
       EditProfileSettingsView()
     case .notifications:
@@ -225,6 +271,7 @@ private struct SettingsCellGroup<Content: View>: View {
 }
 
 private struct SettingsCellContent: View {
+  @Environment(\.colorScheme) private var colorScheme
   @Environment(\.mixinTheme) private var theme
 
   let title: String
@@ -233,6 +280,7 @@ private struct SettingsCellContent: View {
   var color: Color?
   var selected = false
   var showsArrow = true
+  var showsWarning = false
 
   var body: some View {
     HStack(spacing: 8) {
@@ -256,7 +304,14 @@ private struct SettingsCellContent: View {
 
       Spacer(minLength: 4)
 
-      if showsArrow {
+      if showsWarning {
+        Image("Warning")
+          .resizable()
+          .renderingMode(.template)
+          .foregroundStyle(theme.destructive)
+          .frame(width: 22, height: 22)
+          .padding(4)
+      } else if showsArrow {
         Image("SettingsArrow")
           .resizable()
           .renderingMode(.template)
@@ -267,8 +322,12 @@ private struct SettingsCellContent: View {
     .padding(.leading, 16)
     .padding(.trailing, 10)
     .padding(.vertical, 17)
-    .background(selected ? theme.sidebarSelected : Color.clear)
+    .background(selected ? selectedBackground : Color.clear)
     .contentShape(Rectangle())
+  }
+
+  private var selectedBackground: Color {
+    colorScheme == .dark ? Color.white.opacity(0.06) : Color.black.opacity(0.05)
   }
 }
 
@@ -311,122 +370,50 @@ private struct BackupSettingsView: View {
 
 private struct EditProfileSettingsView: View {
   @Environment(AccountSession.self) private var session
+  @Environment(\.mixinTheme) private var theme
+  @Environment(\.colorScheme) private var colorScheme
   @State private var fullName = ""
   @State private var biography = ""
   @State private var saving = false
-  @State private var uploadingAvatar = false
-  @State private var selectingAvatar = false
   @State private var error: String?
+  @State private var formWidth: CGFloat = 0
 
   var body: some View {
-    Form {
-      Section("Profile") {
-        HStack {
-          Spacer()
-          Button {
-            selectingAvatar = true
-          } label: {
-            ZStack(alignment: .bottomTrailing) {
-              MixinRemoteImage(url: URL(string: session.profile.avatarUrl)) { image in
-                image.resizable().scaledToFill()
-              } placeholder: {
-                Image(systemName: "person.crop.circle.fill")
-                  .resizable()
-                  .foregroundStyle(.secondary)
-              }
-              .frame(width: 96, height: 96)
-              .clipShape(Circle())
-
-              Image(systemName: "camera.fill")
-                .padding(7)
-                .foregroundStyle(.white)
-                .background(.tint, in: Circle())
-            }
-            .overlay {
-              if uploadingAvatar {
-                Circle()
-                  .fill(.black.opacity(0.42))
-                ProgressView()
-                  .controlSize(.small)
-                  .tint(.white)
-              }
-            }
-          }
-          .buttonStyle(.plain)
-          .disabled(uploadingAvatar)
-          .accessibilityLabel("Change Profile Photo")
-          Spacer()
+    VStack(spacing: 0) {
+      profileHeader
+      AppScrollView {
+        VStack(spacing: 0) {
+          profileField("Name", text: $fullName, limit: 40)
+          Spacer().frame(height: 32)
+          profileField("Biography", text: $biography, limit: 140)
+          Spacer().frame(height: 32)
+          profileField("Phone Number", text: .constant(session.profile.phone), readOnly: true)
+          Spacer().frame(height: 70)
+          Text(joinedText)
+            .font(.system(size: 14))
+            .foregroundStyle(theme.secondaryText)
+          Spacer().frame(height: 48)
         }
-        TextField("Full Name", text: $fullName)
-          .textFieldStyle(.roundedBorder)
-          .onChange(of: fullName) { _, value in
-            if value.count > 40 {
-              fullName = String(value.prefix(40))
-            }
+        .background {
+          GeometryReader { proxy in
+            Color.clear
+              .onAppear {
+                formWidth = proxy.size.width
+              }
+              .onChange(of: proxy.size.width) {
+                formWidth = $0
+              }
           }
-        Text("\(fullName.count)/40")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        TextField("Biography", text: $biography, axis: .vertical)
-          .textFieldStyle(.roundedBorder)
-          .lineLimit(3...8)
-          .onChange(of: biography) { _, value in
-            if value.count > 140 {
-              biography = String(value.prefix(140))
-            }
-          }
-        Text("\(biography.count)/140")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        LabeledContent("Mixin ID", value: session.profile.identityNumber)
-        LabeledContent("Phone", value: session.profile.phone)
-        LabeledContent(
-          "Joined",
-          value: (try? Date.ISO8601FormatStyle()
-            .parseStrategy
-            .parse(session.profile.createdAt))?
-            .formatted(date: .abbreviated, time: .omitted)
-            ?? session.profile.createdAt
-        )
-      }
-
-      if let error {
-        Text(error)
-          .foregroundStyle(.red)
-      }
-
-      Button {
-        save()
-      } label: {
-        if saving {
-          ProgressView()
-            .controlSize(.small)
-        } else {
-          Text("Save Changes")
         }
       }
-      .disabled(
-        saving
-          || fullName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-          || (fullName == session.profile.fullName
-            && biography == session.profile.biography)
-      )
     }
-    .formStyle(.grouped)
-    .settingsFormLayout()
+    .background(theme.background)
     .navigationTitle("Edit Profile")
-    .fileImporter(
-      isPresented: $selectingAvatar,
-      allowedContentTypes: [.image],
-      allowsMultipleSelection: false
-    ) { result in
-      guard case .success(let urls) = result, let url = urls.first else {
-        if case .failure(let importError) = result {
-          error = MixinErrorPresenter.message(for: importError)
-        }
-        return
+    .toolbar {
+      ToolbarItem(placement: .primaryAction) {
+        Button("Save") { save() }
+          .disabled(saving || fullName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
-      updateAvatar(from: url)
     }
     .task {
       fullName = session.profile.fullName
@@ -442,6 +429,70 @@ private struct EditProfileSettingsView: View {
         // Keep the cached profile when the remote refresh fails.
       }
     }
+  }
+
+  private var profileHeader: some View {
+    VStack(spacing: 0) {
+      Spacer().frame(height: 40)
+      UserAvatar(
+        userID: session.profile.userId,
+        name: session.profile.fullName,
+        url: session.profile.avatarUrl,
+        size: 100
+      )
+      Spacer().frame(height: 10)
+      Text("Mixin ID: \(session.profile.identityNumber)")
+        .font(.system(size: 14))
+        .foregroundStyle(
+          colorScheme == .dark
+            ? Color.white.opacity(0.4)
+            : Color(red: 188 / 255, green: 190 / 255, blue: 195 / 255)
+        )
+        .textSelection(.enabled)
+      Spacer().frame(height: 32)
+    }
+  }
+
+  private func profileField(
+    _ title: String,
+    text: Binding<String>,
+    limit: Int? = nil,
+    readOnly: Bool = false
+  ) -> some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Text(title)
+        .font(.system(size: 14, weight: .medium))
+        .foregroundStyle(theme.secondaryText)
+      TextField("", text: text, axis: .vertical)
+        .textFieldStyle(.plain)
+        .font(.system(size: 16))
+        .foregroundStyle(readOnly ? theme.secondaryText : theme.text)
+        .lineLimit(1...10)
+        .disabled(readOnly)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 24)
+        .background(
+          readOnly ? theme.settingCellBackground : theme.listSelected,
+          in: RoundedRectangle(cornerRadius: 8)
+        )
+        .onChange(of: text.wrappedValue) {
+          if let limit, text.wrappedValue.count > limit {
+            text.wrappedValue = String(text.wrappedValue.prefix(limit))
+          }
+        }
+    }
+    .padding(.horizontal, horizontalInset)
+  }
+
+  private var horizontalInset: CGFloat {
+    min(90, max(20, (formWidth - 500) / 2))
+  }
+
+  private var joinedText: String {
+    guard let date = try? Date.ISO8601FormatStyle().parseStrategy.parse(session.profile.createdAt) else {
+      return ""
+    }
+    return "Joined in \(date.formatted(date: .abbreviated, time: .omitted))"
   }
 
   private func save() {
@@ -460,25 +511,6 @@ private struct EditProfileSettingsView: View {
     }
   }
 
-  private func updateAvatar(from url: URL) {
-    uploadingAvatar = true
-    error = nil
-    Task {
-      let accessing = url.startAccessingSecurityScopedResource()
-      defer {
-        if accessing {
-          url.stopAccessingSecurityScopedResource()
-        }
-        uploadingAvatar = false
-      }
-      do {
-        let avatar = try await ProfileImageProcessor.avatarBase64(from: url)
-        try await session.updateAvatar(avatar)
-      } catch {
-        self.error = MixinErrorPresenter.message(for: error)
-      }
-    }
-  }
 }
 
 private struct NotificationSettingsView: View {
@@ -487,7 +519,7 @@ private struct NotificationSettingsView: View {
   @State private var notificationsAuthorized: Bool?
 
   var body: some View {
-    ScrollView {
+    AppScrollView {
       VStack(alignment: .leading, spacing: 0) {
         HStack {
           Text("Message Preview")
@@ -503,48 +535,64 @@ private struct NotificationSettingsView: View {
           )
           .labelsHidden()
           .toggleStyle(.switch)
-          .controlSize(.small)
+          .scaleEffect(0.7)
         }
-        .padding(.horizontal, 16)
-        .frame(height: 58)
+        .padding(.leading, 16)
+        .padding(.trailing, 10)
+        .padding(.vertical, 17)
         .background(
           theme.settingCellBackground,
           in: RoundedRectangle(cornerRadius: 8)
         )
 
-        Text("Show the sender and message content in notifications.")
+        Text("Preview message text inside new message notifications.")
           .font(.system(size: 14))
           .foregroundStyle(theme.secondaryText)
           .padding(.leading, 10)
           .padding(.top, 10)
+          .padding(.bottom, 14)
 
         if notificationsAuthorized == false {
-          Button("Open Notification Settings") {
+          Button {
             guard
               let url = URL(
-                string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+                string: "x-apple.systempreferences:com.apple.preference.notifications"
               )
             else {
               return
             }
             NSWorkspace.shared.open(url)
+          } label: {
+            HStack(spacing: 4) {
+              Text("Enable Push Notifications")
+              Spacer(minLength: 0)
+              Image("SettingsArrow")
+                .resizable()
+                .renderingMode(.template)
+                .foregroundStyle(theme.secondaryText)
+                .frame(width: 30, height: 30)
+            }
           }
           .buttonStyle(.plain)
           .font(.system(size: 16))
           .foregroundStyle(theme.text)
-          .padding(.horizontal, 16)
-          .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+          .padding(.leading, 16)
+          .padding(.trailing, 10)
+          .padding(.vertical, 17)
+          .frame(maxWidth: .infinity, alignment: .leading)
           .background(
             theme.settingCellBackground,
             in: RoundedRectangle(cornerRadius: 8)
           )
-          .padding(.top, 24)
 
-          Text("Notifications are disabled for Mixin in System Settings.")
+          Text(
+            "Enable push notifications to stay updated on price alerts and messages in real time."
+          )
             .font(.system(size: 14))
             .foregroundStyle(theme.secondaryText)
             .padding(.leading, 10)
             .padding(.top, 10)
+            .padding(.bottom, 14)
         }
       }
       .frame(maxWidth: 600)
@@ -571,78 +619,105 @@ private struct NotificationSettingsView: View {
 }
 
 private struct AppearanceSettingsView: View {
+  @Environment(\.mixinTheme) private var theme
   @Environment(SettingsPreferencesModel.self) private var preferences
 
   var body: some View {
-    Form {
-      Section("Theme") {
-        Picker(
-          "Theme",
-          selection: Binding(
-            get: { preferences.theme },
-            set: { preferences.setTheme($0) }
-          )
-        ) {
-          Text("Follow System").tag("system")
-          Text("Light").tag("light")
-          Text("Dark").tag("dark")
+    AppScrollView {
+      VStack(alignment: .leading, spacing: 0) {
+        sectionTitle("Theme", top: 20)
+        appearanceGroup {
+          VStack(spacing: 0) {
+            radioRow("Follow System", value: "system")
+            radioRow("Light", value: "light")
+            radioRow("Dark", value: "dark")
+          }
         }
-        .pickerStyle(.radioGroup)
-      }
-
-      Section("Chats") {
-        Toggle(
-          "Show Avatar",
-          isOn: Binding(
-            get: { preferences.showAvatar },
-            set: { preferences.setShowAvatar($0) }
-          ))
-        Toggle(
-          "Show Identity Number",
-          isOn: Binding(
-            get: { preferences.showIdentityNumber },
-            set: { preferences.setShowIdentityNumber($0) }
-          ))
-      }
-
-      Section("Chat Text Size") {
-        HStack {
-          Text("A").font(.caption)
-          Slider(
-            value: Binding(
-              get: { preferences.chatFontSizeDelta },
-              set: { preferences.setChatFontSizeDelta($0) }
-            ),
-            in: -2...4,
-            step: 1
-          )
-          Text("A").font(.title2)
+        sectionTitle("Chats", top: 22)
+        appearanceGroup {
+          VStack(spacing: 0) {
+            switchRow("Show Avatar", value: Binding(get: { preferences.showAvatar }, set: { preferences.setShowAvatar($0) }))
+            switchRow("Show Identity Number", value: Binding(get: { preferences.showIdentityNumber }, set: { preferences.setShowIdentityNumber($0) }))
+          }
         }
-        AppearanceChatPreview(
-          fontSizeDelta: preferences.chatFontSizeDelta
-        )
+        sectionTitle("Chat Text Size", top: 22)
+        AppearanceChatPreview(fontSizeDelta: preferences.chatFontSizeDelta)
+          .frame(maxWidth: 600)
+        Spacer().frame(height: 10)
+        HStack(spacing: 10) {
+          Text("A").font(.system(size: 12)).foregroundStyle(theme.text)
+          Slider(value: Binding(get: { preferences.chatFontSizeDelta }, set: { preferences.setChatFontSizeDelta($0) }), in: -2...4, step: 1)
+          Text("A").font(.system(size: 24)).foregroundStyle(theme.text)
+        }
+        .padding(.horizontal, 10)
+        .frame(maxWidth: 600)
       }
+      .padding(.horizontal, 10)
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .formStyle(.grouped)
-    .settingsFormLayout()
+    .background(theme.background)
     .navigationTitle("Appearance")
+  }
+
+  private func sectionTitle(_ title: String, top: CGFloat) -> some View {
+    Text(title)
+      .font(.system(size: 14))
+      .foregroundStyle(theme.secondaryText)
+      .padding(.leading, 10)
+      .padding(.top, top)
+      .padding(.bottom, 14)
+  }
+
+  private func appearanceGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    content().background(theme.settingCellBackground, in: RoundedRectangle(cornerRadius: 8)).frame(maxWidth: 600)
+  }
+
+  private func radioRow(_ title: String, value: String) -> some View {
+    Button { preferences.setTheme(value) } label: {
+      HStack(spacing: 30) {
+        ZStack {
+          Circle().fill(preferences.theme == value ? theme.accent : theme.secondaryText)
+          if preferences.theme == value {
+            Text("✓").font(.system(size: 10)).foregroundStyle(.white)
+          }
+        }.frame(width: 16, height: 16)
+        Text(title).font(.system(size: 16)).foregroundStyle(theme.text)
+        Spacer()
+      }
+      .padding(.leading, 16)
+      .padding(.trailing, 10)
+      .padding(.vertical, 27)
+      .contentShape(Rectangle())
+    }.buttonStyle(.plain)
+  }
+
+  private func switchRow(_ title: String, value: Binding<Bool>) -> some View {
+    HStack { Text(title).font(.system(size: 16)).foregroundStyle(theme.text); Spacer(); Toggle("", isOn: value).labelsHidden().scaleEffect(0.7) }
+      .padding(.leading, 16).padding(.trailing, 10).frame(height: 58)
   }
 }
 
 private struct AppearanceChatPreview: View {
+  @Environment(\.colorScheme) private var colorScheme
   let fontSizeDelta: Double
 
   var body: some View {
     ZStack {
       ChatBackgroundView()
 
-      VStack(spacing: 10) {
+      VStack(spacing: 0) {
         Text("Jan 1")
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-          .padding(.horizontal, 8)
-          .padding(.vertical, 3)
-          .background(.regularMaterial, in: Capsule())
+          .font(.system(size: 14))
+          .foregroundStyle(.black)
+          .frame(minWidth: 64)
+          .padding(.horizontal, 10)
+          .padding(.vertical, 2)
+          .background(
+            Color(red: 213 / 255, green: 211 / 255, blue: 243 / 255),
+            in: RoundedRectangle(cornerRadius: 10)
+          )
+          .padding(.top, 16)
+          .padding(.bottom, 10)
 
         previewBubble(
           "Say hi",
@@ -653,9 +728,12 @@ private struct AppearanceChatPreview: View {
           outgoing: false
         )
       }
-      .padding(16)
+      .padding(.leading, 20)
+      .padding(.trailing, 20)
+      .padding(.top, 10)
+      .padding(.bottom, 20)
     }
-    .frame(maxWidth: .infinity, minHeight: 160)
+    .padding(.horizontal, 10)
     .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 
@@ -668,15 +746,19 @@ private struct AppearanceChatPreview: View {
         Spacer(minLength: 60)
       }
       Text(text)
-        .font(.system(size: 15 + fontSizeDelta))
-        .padding(.horizontal, 12)
+        .font(.system(size: 16 + fontSizeDelta))
+        .padding(.horizontal, 8)
         .padding(.vertical, 8)
         .background(
           outgoing
-            ? Color.accentColor.opacity(0.18)
-            : Color(nsColor: .controlBackgroundColor)
+            ? (colorScheme == .dark
+              ? Color(red: 59 / 255, green: 79 / 255, blue: 103 / 255)
+              : Color(red: 197 / 255, green: 237 / 255, blue: 253 / 255))
+            : (colorScheme == .dark
+              ? Color(red: 52 / 255, green: 59 / 255, blue: 67 / 255)
+              : Color.white)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
       if !outgoing {
         Spacer(minLength: 60)
       }
@@ -685,6 +767,7 @@ private struct AppearanceChatPreview: View {
 }
 
 private struct AboutSettingsView: View {
+  @Environment(\.mixinTheme) private var theme
   @State private var logsPresented = false
   @State private var debugMode = false
   let desktop: SwiftDesktopHandle
@@ -702,62 +785,59 @@ private struct AboutSettingsView: View {
   }
 
   var body: some View {
-    Form {
-      Section {
+    AppScrollView {
+      VStack(spacing: 0) {
+        Spacer().frame(height: 40)
         Image("AboutLogo")
           .resizable()
           .scaledToFit()
           .frame(width: 60, height: 60)
-          .frame(maxWidth: .infinity)
-          .padding(.vertical, 12)
           .onTapGesture(count: 5) {
             logsPresented = true
           }
+        Spacer().frame(height: 24)
         Text("Mixin Messenger")
-          .font(.headline)
-          .frame(maxWidth: .infinity)
+          .font(.system(size: 18))
+          .foregroundStyle(theme.text)
           .onTapGesture(count: 7) {
             debugMode = true
           }
-        LabeledContent("Version", value: version)
-      }
-      Section {
-        Link(
-          "Follow Us on X",
-          destination: URL(string: "https://x.com/MixinMessenger")!
-        )
-        Link(
-          "Follow Us on Facebook",
-          destination: URL(string: "https://fb.com/MixinMessenger")!
-        )
-        Link("Mixin Website", destination: URL(string: "https://mixin.one/")!)
-        Link("Help Center", destination: URL(string: "https://support.mixin.one/")!)
-        Link(
-          "Terms of Service",
-          destination: URL(string: "https://mixin.one/pages/terms")!
-        )
-        Link(
-          "Privacy Policy",
-          destination: URL(string: "https://mixin.one/pages/privacy")!
-        )
-      }
-      if debugMode {
-        Section("Diagnostics") {
-          Button("Open Log Directory") {
-            openLogDirectory()
+        Spacer().frame(height: 8)
+        Text(version)
+          .font(.system(size: 16))
+          .foregroundStyle(theme.secondaryText)
+          .textSelection(.enabled)
+        Spacer().frame(height: 50)
+        aboutGroup {
+          VStack(spacing: 0) {
+            aboutLink("Follow Us on X", "https://x.com/MixinMessenger")
+            aboutLink("Follow Us on Facebook", "https://fb.com/MixinMessenger")
+            aboutLink("Help Center", "https://support.mixin.one")
+            aboutLink("Terms of Service", "https://mixin.one/pages/terms")
+            aboutLink("Privacy Policy", "https://mixin.one/pages/privacy")
           }
-          Button("View Logs") {
-            logsPresented = true
-          }
+        }
+        if debugMode {
+          aboutGroup { Button("Open Log Directory", action: openLogDirectory).buttonStyle(.plain).padding(.leading, 16).padding(.vertical, 17) }
         }
       }
     }
-    .formStyle(.grouped)
-    .settingsFormLayout()
+    .background(theme.background)
     .navigationTitle("About")
     .sheet(isPresented: $logsPresented) {
       LogViewerSheet(desktop: desktop)
     }
+  }
+
+  private func aboutGroup<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    content().background(theme.settingCellBackground, in: RoundedRectangle(cornerRadius: 8)).padding(.horizontal, 10).padding(.bottom, 10).frame(maxWidth: 600)
+  }
+
+  private func aboutLink(_ title: String, _ destination: String) -> some View {
+    Link(destination: URL(string: destination)!) {
+      HStack(spacing: 4) { Text(title).font(.system(size: 16)).foregroundStyle(theme.text); Spacer(); Image("SettingsArrow").resizable().renderingMode(.template).foregroundStyle(theme.secondaryText).frame(width: 30, height: 30) }
+        .padding(.leading, 16).padding(.trailing, 10).padding(.vertical, 17)
+    }.buttonStyle(.plain)
   }
 
   private func openLogDirectory() {

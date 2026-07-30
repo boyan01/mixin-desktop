@@ -6,3 +6,5 @@ target
 *.db-wal
 *.xcuserstate
 xcuserdata/
+/buildServer.json
+/Build/

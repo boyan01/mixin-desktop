@@ -17,9 +17,9 @@ import 'frb_generated.io.dart'
     if (dart.library.js_interop) 'frb_generated.web.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'third_party/mixin_desktop_api/access.dart';
-import 'third_party/mixin_desktop_api/dto.dart';
 import 'third_party/mixin_desktop_api/error.dart';
 import 'third_party/mixin_desktop_api/model.dart';
+import 'third_party/mixin_desktop_core/runtime/model.dart';
 
 /// Main entrypoint of the Rust API
 class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {

@@ -7,19 +7,20 @@ use std::{
 };
 
 use futures::{Stream, StreamExt as _};
-use mixin_desktop_api::AccountClient;
+use mixin_desktop_api::{
+    AccountClient, AccountProfile, CircleItem, CodeResult, ConversationChangeEvent,
+    ConversationDetailItem, ConversationListData, ConversationParticipantItem,
+    ConversationStorageUsage, ConversationUnseenCount, DeviceTransferCommand,
+    GroupConversationItem, ImageMessageView, NotificationEvent, SharedAppItem, SnapshotDetailItem,
+    StickerDetailItem, StorageCategoryUsage, UserProfileItem,
+};
 use tokio::sync::{Mutex, Notify};
 
 use crate::{
     error::SwiftClientError,
     model::{
-        SwiftAccountProfile, SwiftCircleItem, SwiftCodeResult, SwiftConversationChangeEvent,
-        SwiftConversationDetailItem, SwiftConversationListItem, SwiftConversationParticipantItem,
-        SwiftConversationStorageUsage, SwiftConversationUnseenCount, SwiftDeviceTransferCommand,
-        SwiftDeviceTransferEvent, SwiftGroupConversationItem, SwiftImageMessageItem,
-        SwiftMessageItem, SwiftNotificationEvent, SwiftParticipantAction, SwiftSharedAppItem,
-        SwiftSnapshotDetailItem, SwiftStickerAlbumSection, SwiftStickerDetailItem,
-        SwiftStickerLibrary, SwiftStorageCategoryUsage, SwiftUserItem,
+        DeviceTransferEventItem, MessageItem, ParticipantAction, StickerAlbumSection,
+        StickerLibrary,
     },
 };
 
@@ -40,12 +41,12 @@ pub struct SwiftConnectionSubscription {
 
 #[derive(uniffi::Object)]
 pub struct SwiftCircleSubscription {
-    inner: CancellableStream<Vec<SwiftCircleItem>>,
+    inner: CancellableStream<Vec<CircleItem>>,
 }
 
 #[derive(uniffi::Object)]
 pub struct SwiftUnseenCountSubscription {
-    inner: CancellableStream<Vec<SwiftConversationUnseenCount>>,
+    inner: CancellableStream<Vec<ConversationUnseenCount>>,
 }
 
 #[derive(uniffi::Object)]
@@ -55,17 +56,17 @@ pub struct SwiftUnseenMessageCountSubscription {
 
 #[derive(uniffi::Object)]
 pub struct SwiftNotificationSubscription {
-    inner: CancellableStream<Result<SwiftNotificationEvent, SwiftClientError>>,
+    inner: CancellableStream<Result<NotificationEvent, SwiftClientError>>,
 }
 
 #[derive(uniffi::Object)]
 pub struct SwiftDeviceTransferSubscription {
-    inner: CancellableStream<SwiftDeviceTransferEvent>,
+    inner: CancellableStream<DeviceTransferEventItem>,
 }
 
 #[derive(uniffi::Object)]
 pub struct SwiftConversationSubscription {
-    inner: CancellableStream<SwiftConversationChangeEvent>,
+    inner: CancellableStream<ConversationChangeEvent>,
 }
 
 #[derive(uniffi::Object)]
@@ -129,7 +130,7 @@ impl SwiftConnectionSubscription {
 
 #[uniffi::export(async_runtime = "tokio")]
 impl SwiftCircleSubscription {
-    pub async fn next(&self) -> Option<Vec<SwiftCircleItem>> {
+    pub async fn next(&self) -> Option<Vec<CircleItem>> {
         self.inner.next().await
     }
 
@@ -140,7 +141,7 @@ impl SwiftCircleSubscription {
 
 #[uniffi::export(async_runtime = "tokio")]
 impl SwiftUnseenCountSubscription {
-    pub async fn next(&self) -> Option<Vec<SwiftConversationUnseenCount>> {
+    pub async fn next(&self) -> Option<Vec<ConversationUnseenCount>> {
         self.inner.next().await
     }
 
@@ -162,7 +163,7 @@ impl SwiftUnseenMessageCountSubscription {
 
 #[uniffi::export(async_runtime = "tokio")]
 impl SwiftNotificationSubscription {
-    pub async fn next(&self) -> Result<Option<SwiftNotificationEvent>, SwiftClientError> {
+    pub async fn next(&self) -> Result<Option<NotificationEvent>, SwiftClientError> {
         match self.inner.next().await {
             Some(Ok(event)) => Ok(Some(event)),
             Some(Err(error)) => Err(error),
@@ -177,7 +178,7 @@ impl SwiftNotificationSubscription {
 
 #[uniffi::export(async_runtime = "tokio")]
 impl SwiftDeviceTransferSubscription {
-    pub async fn next(&self) -> Option<SwiftDeviceTransferEvent> {
+    pub async fn next(&self) -> Option<DeviceTransferEventItem> {
         self.inner.next().await
     }
 
@@ -188,7 +189,7 @@ impl SwiftDeviceTransferSubscription {
 
 #[uniffi::export(async_runtime = "tokio")]
 impl SwiftConversationSubscription {
-    pub async fn next(&self) -> Option<SwiftConversationChangeEvent> {
+    pub async fn next(&self) -> Option<ConversationChangeEvent> {
         self.inner.next().await
     }
 
@@ -222,33 +223,33 @@ impl SwiftAccountHandle {
 
 #[uniffi::export(async_runtime = "tokio")]
 impl SwiftAccountHandle {
-    pub fn profile(&self) -> SwiftAccountProfile {
-        self.client.profile().into()
+    pub fn profile(&self) -> AccountProfile {
+        self.client.profile()
     }
 
     pub async fn snapshot_by_id(
         &self,
         snapshot_id: String,
-    ) -> Result<SwiftSnapshotDetailItem, SwiftClientError> {
-        Ok(self.client.snapshot_by_id(snapshot_id).await?.into())
+    ) -> Result<SnapshotDetailItem, SwiftClientError> {
+        Ok(self.client.snapshot_by_id(snapshot_id).await?)
     }
 
     pub async fn safe_snapshot_by_id(
         &self,
         snapshot_id: String,
-    ) -> Result<SwiftSnapshotDetailItem, SwiftClientError> {
-        Ok(self.client.safe_snapshot_by_id(snapshot_id).await?.into())
+    ) -> Result<SnapshotDetailItem, SwiftClientError> {
+        Ok(self.client.safe_snapshot_by_id(snapshot_id).await?)
     }
 
     pub async fn snapshot_by_trace(
         &self,
         trace_id: String,
-    ) -> Result<SwiftSnapshotDetailItem, SwiftClientError> {
-        Ok(self.client.snapshot_by_trace(trace_id).await?.into())
+    ) -> Result<SnapshotDetailItem, SwiftClientError> {
+        Ok(self.client.snapshot_by_trace(trace_id).await?)
     }
 
-    pub async fn resolve_code(&self, code: String) -> Result<SwiftCodeResult, SwiftClientError> {
-        Ok(self.client.conversation().resolve_code(code).await?.into())
+    pub async fn resolve_code(&self, code: String) -> Result<CodeResult, SwiftClientError> {
+        Ok(self.client.conversation().resolve_code(code).await?)
     }
 
     pub async fn join_group(&self, code: String) -> Result<String, SwiftClientError> {
@@ -271,23 +272,19 @@ impl SwiftAccountHandle {
         &self,
         full_name: String,
         biography: String,
-    ) -> Result<SwiftAccountProfile, SwiftClientError> {
-        Ok(self
-            .client
-            .update_profile(full_name, biography)
-            .await?
-            .into())
+    ) -> Result<AccountProfile, SwiftClientError> {
+        Ok(self.client.update_profile(full_name, biography).await?)
     }
 
     pub async fn update_avatar(
         &self,
         avatar_base64: String,
-    ) -> Result<SwiftAccountProfile, SwiftClientError> {
-        Ok(self.client.update_avatar(avatar_base64).await?.into())
+    ) -> Result<AccountProfile, SwiftClientError> {
+        Ok(self.client.update_avatar(avatar_base64).await?)
     }
 
-    pub async fn refresh_profile(&self) -> Result<SwiftAccountProfile, SwiftClientError> {
-        Ok(self.client.refresh_profile().await?.into())
+    pub async fn refresh_profile(&self) -> Result<AccountProfile, SwiftClientError> {
+        Ok(self.client.refresh_profile().await?)
     }
 
     pub fn account_health(&self) -> SwiftAccountHealthSubscription {
@@ -318,38 +315,27 @@ impl SwiftAccountHandle {
 
     pub async fn device_transfer_command(
         &self,
-        command: SwiftDeviceTransferCommand,
+        command: DeviceTransferCommand,
     ) -> Result<(), SwiftClientError> {
-        Ok(self.client.device_transfer_command(command.into()).await?)
+        Ok(self.client.device_transfer_command(command).await?)
     }
 
     pub fn media_directory(&self) -> Result<String, SwiftClientError> {
         Ok(self.client.media_directory()?)
     }
 
-    pub async fn storage_usage(
-        &self,
-    ) -> Result<Vec<SwiftConversationStorageUsage>, SwiftClientError> {
-        Ok(self
-            .client
-            .storage_usage()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+    pub async fn storage_usage(&self) -> Result<Vec<ConversationStorageUsage>, SwiftClientError> {
+        Ok(self.client.storage_usage().await?)
     }
 
     pub async fn conversation_storage_usage(
         &self,
         conversation_id: String,
-    ) -> Result<Vec<SwiftStorageCategoryUsage>, SwiftClientError> {
+    ) -> Result<Vec<StorageCategoryUsage>, SwiftClientError> {
         Ok(self
             .client
             .conversation_storage_usage(conversation_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn clear_conversation_storage(
@@ -363,34 +349,19 @@ impl SwiftAccountHandle {
             .await?)
     }
 
-    pub async fn circles(&self) -> Result<Vec<SwiftCircleItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .conversation()
-            .circles()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+    pub async fn circles(&self) -> Result<Vec<CircleItem>, SwiftClientError> {
+        Ok(self.client.conversation().circles().await?)
     }
 
     pub fn circle_changes(&self) -> SwiftCircleSubscription {
         SwiftCircleSubscription {
-            inner: CancellableStream::new(
-                self.client
-                    .circle_changes()
-                    .map(|items| items.into_iter().map(Into::into).collect()),
-            ),
+            inner: CancellableStream::new(self.client.circle_changes()),
         }
     }
 
     pub fn unseen_count_changes(&self) -> SwiftUnseenCountSubscription {
         SwiftUnseenCountSubscription {
-            inner: CancellableStream::new(
-                self.client
-                    .unseen_count_changes()
-                    .map(|items| items.into_iter().map(Into::into).collect()),
-            ),
+            inner: CancellableStream::new(self.client.unseen_count_changes()),
         }
     }
 
@@ -405,7 +376,7 @@ impl SwiftAccountHandle {
             inner: CancellableStream::new(
                 self.client
                     .notification_events()
-                    .map(|result| result.map(Into::into).map_err(Into::into)),
+                    .map(|result| result.map_err(Into::into)),
             ),
         }
     }
@@ -424,29 +395,23 @@ impl SwiftAccountHandle {
         unseen_only: bool,
         limit: i64,
         offset: i64,
-    ) -> Result<Vec<SwiftConversationListItem>, SwiftClientError> {
+    ) -> Result<Vec<ConversationListData>, SwiftClientError> {
         Ok(self
             .client
             .conversation()
             .conversations(category, circle_id, keyword, unseen_only, limit, offset)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn conversation_items_by_ids(
         &self,
         conversation_ids: Vec<String>,
-    ) -> Result<Vec<SwiftConversationListItem>, SwiftClientError> {
+    ) -> Result<Vec<ConversationListData>, SwiftClientError> {
         Ok(self
             .client
             .conversation()
             .conversation_items_by_ids(conversation_ids)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn messages(
@@ -455,7 +420,7 @@ impl SwiftAccountHandle {
         before_created_at_micros: Option<i64>,
         before_message_id: Option<String>,
         limit: i64,
-    ) -> Result<Vec<SwiftMessageItem>, SwiftClientError> {
+    ) -> Result<Vec<MessageItem>, SwiftClientError> {
         Ok(self
             .client
             .message()
@@ -474,7 +439,7 @@ impl SwiftAccountHandle {
     pub async fn message_items_by_ids(
         &self,
         message_ids: Vec<String>,
-    ) -> Result<Vec<SwiftMessageItem>, SwiftClientError> {
+    ) -> Result<Vec<MessageItem>, SwiftClientError> {
         Ok(self
             .client
             .message()
@@ -493,7 +458,7 @@ impl SwiftAccountHandle {
         categories: Vec<String>,
         anchor_message_id: Option<String>,
         limit: u32,
-    ) -> Result<Vec<SwiftMessageItem>, SwiftClientError> {
+    ) -> Result<Vec<MessageItem>, SwiftClientError> {
         Ok(self
             .client
             .message()
@@ -511,10 +476,26 @@ impl SwiftAccountHandle {
             .collect())
     }
 
+    pub async fn search_global_messages(
+        &self,
+        query: String,
+        anchor_message_id: Option<String>,
+        limit: u32,
+    ) -> Result<Vec<MessageItem>, SwiftClientError> {
+        Ok(self
+            .client
+            .message()
+            .search_global_messages(query, anchor_message_id, limit)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
     pub async fn pinned_messages(
         &self,
         conversation_id: String,
-    ) -> Result<Vec<SwiftMessageItem>, SwiftClientError> {
+    ) -> Result<Vec<MessageItem>, SwiftClientError> {
         Ok(self
             .client
             .message()
@@ -531,7 +512,7 @@ impl SwiftAccountHandle {
         kind: String,
         offset: u32,
         limit: u32,
-    ) -> Result<Vec<SwiftMessageItem>, SwiftClientError> {
+    ) -> Result<Vec<MessageItem>, SwiftClientError> {
         Ok(self
             .client
             .message()
@@ -545,29 +526,15 @@ impl SwiftAccountHandle {
     pub async fn local_shared_apps(
         &self,
         user_id: String,
-    ) -> Result<Vec<SwiftSharedAppItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .user()
-            .local_shared_apps(user_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+    ) -> Result<Vec<SharedAppItem>, SwiftClientError> {
+        Ok(self.client.user().local_shared_apps(user_id).await?)
     }
 
     pub async fn shared_apps(
         &self,
         user_id: String,
-    ) -> Result<Vec<SwiftSharedAppItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .user()
-            .shared_apps(user_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+    ) -> Result<Vec<SharedAppItem>, SwiftClientError> {
+        Ok(self.client.user().shared_apps(user_id).await?)
     }
 
     pub async fn unread_mention_message_ids(
@@ -599,7 +566,7 @@ impl SwiftAccountHandle {
         target_message_id: String,
         before: i64,
         after: i64,
-    ) -> Result<Vec<SwiftMessageItem>, SwiftClientError> {
+    ) -> Result<Vec<MessageItem>, SwiftClientError> {
         Ok(self
             .client
             .message()
@@ -613,7 +580,7 @@ impl SwiftAccountHandle {
     pub async fn transcript_messages(
         &self,
         transcript_id: String,
-    ) -> Result<Vec<SwiftMessageItem>, SwiftClientError> {
+    ) -> Result<Vec<MessageItem>, SwiftClientError> {
         Ok(self
             .client
             .message()
@@ -772,15 +739,12 @@ impl SwiftAccountHandle {
         target_message_id: String,
         before: i64,
         after: i64,
-    ) -> Result<Vec<SwiftImageMessageItem>, SwiftClientError> {
+    ) -> Result<Vec<ImageMessageView>, SwiftClientError> {
         Ok(self
             .client
             .message()
             .image_messages_around(conversation_id, target_message_id, before, after)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn send_audio(
@@ -916,54 +880,28 @@ impl SwiftAccountHandle {
             .await?)
     }
 
-    pub async fn sticker_library(&self) -> Result<SwiftStickerLibrary, SwiftClientError> {
+    pub async fn sticker_library(&self) -> Result<StickerLibrary, SwiftClientError> {
         let sticker = self.client.sticker();
-        let recent = sticker
-            .recent_stickers()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect();
-        let personal = sticker
-            .personal_stickers()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect();
+        let recent = sticker.recent_stickers().await?;
+        let personal = sticker.personal_stickers().await?;
         let mut sections = Vec::new();
         for album in sticker.sticker_albums().await? {
-            let stickers = sticker
-                .album_stickers(album.album_id.clone())
-                .await?
-                .into_iter()
-                .map(Into::into)
-                .collect();
-            sections.push(SwiftStickerAlbumSection {
-                album: album.into(),
-                stickers,
-            });
+            let stickers = sticker.album_stickers(album.album_id.clone()).await?;
+            sections.push(StickerAlbumSection { album, stickers });
         }
-        Ok(SwiftStickerLibrary {
+        Ok(StickerLibrary {
             recent,
             personal,
             albums: sections,
         })
     }
 
-    pub async fn sticker_store(&self) -> Result<Vec<SwiftStickerAlbumSection>, SwiftClientError> {
+    pub async fn sticker_store(&self) -> Result<Vec<StickerAlbumSection>, SwiftClientError> {
         let sticker = self.client.sticker();
         let mut sections = Vec::new();
         for album in sticker.sticker_store_albums().await? {
-            let stickers = sticker
-                .album_stickers(album.album_id.clone())
-                .await?
-                .into_iter()
-                .map(Into::into)
-                .collect();
-            sections.push(SwiftStickerAlbumSection {
-                album: album.into(),
-                stickers,
-            });
+            let stickers = sticker.album_stickers(album.album_id.clone()).await?;
+            sections.push(StickerAlbumSection { album, stickers });
         }
         Ok(sections)
     }
@@ -979,13 +917,8 @@ impl SwiftAccountHandle {
     pub async fn sticker_detail(
         &self,
         sticker_id: String,
-    ) -> Result<SwiftStickerDetailItem, SwiftClientError> {
-        Ok(self
-            .client
-            .sticker()
-            .sticker_detail(sticker_id)
-            .await?
-            .into())
+    ) -> Result<StickerDetailItem, SwiftClientError> {
+        Ok(self.client.sticker().sticker_detail(sticker_id).await?)
     }
 
     pub async fn set_sticker_album_added(
@@ -1013,6 +946,18 @@ impl SwiftAccountHandle {
 
     pub async fn add_sticker_from_path(&self, path: String) -> Result<(), SwiftClientError> {
         Ok(self.client.sticker().add_sticker_from_path(path).await?)
+    }
+
+    pub async fn add_sticker(&self, sticker_id: String) -> Result<(), SwiftClientError> {
+        Ok(self.client.sticker().add_sticker(sticker_id).await?)
+    }
+
+    pub async fn add_sticker_from_file(&self, message_id: String) -> Result<(), SwiftClientError> {
+        Ok(self
+            .client
+            .sticker()
+            .add_sticker_from_file(message_id)
+            .await?)
     }
 
     pub async fn remove_sticker(&self, sticker_id: String) -> Result<(), SwiftClientError> {
@@ -1138,83 +1083,65 @@ impl SwiftAccountHandle {
     pub async fn local_conversation_detail(
         &self,
         conversation_id: String,
-    ) -> Result<SwiftConversationDetailItem, SwiftClientError> {
+    ) -> Result<ConversationDetailItem, SwiftClientError> {
         Ok(self
             .client
             .conversation()
             .local_conversation_detail(conversation_id)
-            .await?
-            .into())
+            .await?)
     }
 
     pub async fn conversation_detail(
         &self,
         conversation_id: String,
-    ) -> Result<SwiftConversationDetailItem, SwiftClientError> {
+    ) -> Result<ConversationDetailItem, SwiftClientError> {
         Ok(self
             .client
             .conversation()
             .conversation_detail(conversation_id)
-            .await?
-            .into())
+            .await?)
     }
 
     pub async fn conversation_participants(
         &self,
         conversation_id: String,
-    ) -> Result<Vec<SwiftConversationParticipantItem>, SwiftClientError> {
+    ) -> Result<Vec<ConversationParticipantItem>, SwiftClientError> {
         Ok(self
             .client
             .conversation()
             .conversation_participants(conversation_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn search_group_users(
         &self,
         conversation_id: String,
         keyword: String,
-    ) -> Result<Vec<SwiftConversationParticipantItem>, SwiftClientError> {
+    ) -> Result<Vec<ConversationParticipantItem>, SwiftClientError> {
         Ok(self
             .client
             .conversation()
             .search_group_users(conversation_id, keyword)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn groups_in_common(
         &self,
         user_id: String,
-    ) -> Result<Vec<SwiftGroupConversationItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .conversation()
-            .groups_in_common(user_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+    ) -> Result<Vec<GroupConversationItem>, SwiftClientError> {
+        Ok(self.client.conversation().groups_in_common(user_id).await?)
     }
 
     pub async fn search_bot_group_users(
         &self,
         conversation_id: String,
         keyword: String,
-    ) -> Result<Vec<SwiftConversationParticipantItem>, SwiftClientError> {
+    ) -> Result<Vec<ConversationParticipantItem>, SwiftClientError> {
         Ok(self
             .client
             .conversation()
             .search_bot_group_users(conversation_id, keyword)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub async fn mention_names(
@@ -1227,7 +1154,7 @@ impl SwiftAccountHandle {
     pub async fn update_participants(
         &self,
         conversation_id: String,
-        action: SwiftParticipantAction,
+        action: ParticipantAction,
         user_ids: Vec<String>,
     ) -> Result<(), SwiftClientError> {
         if user_ids.is_empty() {
@@ -1280,25 +1207,15 @@ impl SwiftAccountHandle {
     pub async fn user_profile(
         &self,
         user_id: String,
-    ) -> Result<Option<SwiftUserItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .user()
-            .user_profile(Some(user_id), None)
-            .await?
-            .map(Into::into))
+    ) -> Result<Option<UserProfileItem>, SwiftClientError> {
+        Ok(self.client.user().user_profile(Some(user_id), None).await?)
     }
 
     pub async fn refresh_user_profile(
         &self,
         user_id: String,
-    ) -> Result<Option<SwiftUserItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .user()
-            .refresh_user_profile(user_id)
-            .await?
-            .map(Into::into))
+    ) -> Result<Option<UserProfileItem>, SwiftClientError> {
+        Ok(self.client.user().refresh_user_profile(user_id).await?)
     }
 
     pub async fn bot_creator_id(
@@ -1311,30 +1228,40 @@ impl SwiftAccountHandle {
     pub async fn users_by_identity_numbers(
         &self,
         identity_numbers: Vec<String>,
-    ) -> Result<Vec<SwiftUserItem>, SwiftClientError> {
+    ) -> Result<Vec<UserProfileItem>, SwiftClientError> {
         Ok(self
             .client
             .user()
             .users_by_identity_numbers(identity_numbers)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
-    pub async fn selectable_users(&self) -> Result<Vec<SwiftUserItem>, SwiftClientError> {
+    pub async fn selectable_users(&self) -> Result<Vec<UserProfileItem>, SwiftClientError> {
+        Ok(self.client.user().selectable_users().await?)
+    }
+
+    pub async fn search_mao_user(
+        &self,
+        query: String,
+    ) -> Result<Option<UserProfileItem>, SwiftClientError> {
+        Ok(self.client.user().search_mao_user(query).await?)
+    }
+
+    pub async fn search_local_users(
+        &self,
+        query: String,
+        category: String,
+        limit: i64,
+    ) -> Result<Vec<UserProfileItem>, SwiftClientError> {
         Ok(self
             .client
             .user()
-            .selectable_users()
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .search_local_users(query, category, limit)
+            .await?)
     }
 
-    pub async fn search_user(&self, query: String) -> Result<SwiftUserItem, SwiftClientError> {
-        Ok(self.client.user().search_user(query).await?.into())
+    pub async fn search_user(&self, query: String) -> Result<UserProfileItem, SwiftClientError> {
+        Ok(self.client.user().search_user(query).await?)
     }
 
     pub async fn open_user_conversation(
@@ -1360,8 +1287,8 @@ impl SwiftAccountHandle {
             .await?)
     }
 
-    pub async fn create_circle(&self, name: String) -> Result<SwiftCircleItem, SwiftClientError> {
-        Ok(self.client.conversation().create_circle(name).await?.into())
+    pub async fn create_circle(&self, name: String) -> Result<CircleItem, SwiftClientError> {
+        Ok(self.client.conversation().create_circle(name).await?)
     }
 
     pub async fn update_circle(

@@ -8,9 +8,9 @@ enum DeviceTransferDirection: Equatable {
     var title: String {
         switch self {
         case .restore:
-            "Sync from Other Device"
+            "sync from other device"
         case .backup:
-            "Sync to Other Device"
+            "sync to other device"
         }
     }
 
@@ -189,21 +189,26 @@ final class DeviceTransferController {
         return String(format: "%.2f MB/s", kilobytes / 1024)
     }
 
-    private func receive(_ event: SwiftDeviceTransferEvent) {
+    private func receive(_ event: DeviceTransferEventItem) {
         switch event {
-        case .restoreConnected, .restoreStart:
+        case .restoreConnected:
             presentProgress(.restore)
-        case .backupServerCreated, .backupStart:
+        case .backupServerCreated:
             presentProgress(.backup)
+        case .restoreStart, .backupStart:
+            if sheetMode == .setup {
+                sheetMode = nil
+                setupPage = .choices
+            }
         case .restoreSucceed, .backupSucceed:
             finishTransfer(
-                title: "Transfer Complete",
-                message: "Your chat history has been transferred successfully."
+                title: "",
+                message: "Transfer completed"
             )
         case .restoreFailed, .backupFailed:
             finishTransfer(
-                title: "Transfer Failed",
-                message: "Mixin could not transfer your chat history. Please try again."
+                title: "",
+                message: "Transfer failed"
             )
         case let .restoreProgress(value):
             updateProgress(value, for: .restore)
@@ -216,24 +221,24 @@ final class DeviceTransferController {
         case .backupRequestReceived:
             alert = DeviceTransferAlert(
                 kind: .approval(.restore),
-                title: "Sync Chats from Phone?",
-                message: "Another device wants to send its chat history to this Mac."
+                title: "",
+                message: "Are you sure to sync the chat history from the phone?"
             )
         case .restoreRequestReceived:
             alert = DeviceTransferAlert(
                 kind: .approval(.backup),
-                title: "Sync Chats to Phone?",
-                message: "Another device wants to receive this Mac's chat history."
+                title: "",
+                message: "Are you sure to sync the chat history to the phone?"
             )
         case let .connectionFailed(reason):
             sheetMode = nil
             endActivity()
             alert = DeviceTransferAlert(
                 kind: .notice,
-                title: "Unable to Connect",
+                title: "",
                 message: reason == .versionNotMatched
-                    ? "The devices use incompatible transfer protocol versions. Update Mixin on both devices and try again."
-                    : "Mixin could not connect to the other device. Please try again."
+                    ? "Protocol version does not match, transfer failed. Please upgrade the application first."
+                    : "Transfer failed"
             )
         }
     }
@@ -282,7 +287,7 @@ final class DeviceTransferController {
     private func approvalCommand(
         for direction: DeviceTransferDirection,
         approved: Bool
-    ) -> SwiftDeviceTransferCommand {
+    ) -> DeviceTransferCommand {
         switch (direction, approved) {
         case (.restore, true):
             .confirmRestore

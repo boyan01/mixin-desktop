@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TextMessageView: View {
-    let message: SwiftMessageItem
+    let message: MessageItem
     let mentionNames: [String: String]
     let fontSize: CGFloat
 
@@ -15,23 +15,32 @@ struct TextMessageView: View {
 }
 
 struct RecallMessageView: View {
+    @Environment(SettingsPreferencesModel.self) private var preferences
+    @Environment(\.mixinTheme) private var theme
+
     let outgoing: Bool
     let recalledText: String?
     let onReedit: (String) -> Void
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: "arrow.uturn.backward.circle")
-                .foregroundStyle(.secondary)
+            Image("Recall")
+                .renderingMode(.template)
+                .resizable()
+                .frame(width: 16, height: 16)
+                .foregroundStyle(theme.secondaryText)
             Text(outgoing
                 ? "You deleted this message"
                 : "This message was deleted")
+                .font(.system(size: 16 + preferences.chatFontSizeDelta))
+                .foregroundStyle(theme.text)
             if let recalledText {
                 Button("Re-edit") {
                     onReedit(recalledText)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.accentColor)
+                .font(.system(size: 16 + preferences.chatFontSizeDelta))
+                .foregroundStyle(theme.accent)
             }
         }
     }
@@ -55,7 +64,7 @@ struct SystemConversationMessageView: View {
 }
 
 struct SystemFallbackMessageView: View {
-    let message: SwiftMessageItem
+    let message: MessageItem
 
     var body: some View {
         Text(

@@ -150,6 +150,7 @@ pub fn init(app_name: String, app_version: String, build_number: String) -> Resu
         .appender(Appender::builder().build("file", Box::new(file)))
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
         .logger(Logger::builder().build("flutter", LevelFilter::Trace))
+        .logger(Logger::builder().build("swift", LevelFilter::Trace))
         .build(
             Root::builder()
                 .appender("file")

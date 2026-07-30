@@ -7,7 +7,7 @@ final class AccountSession {
     let media: SwiftMediaHandle
     let security: SecurityService
     let deviceTransfer: DeviceTransferController
-    private(set) var profile: SwiftAccountProfile
+    private(set) var profile: AccountProfile
     private(set) var health = "ready"
     private(set) var connected = false
     private(set) var connectedBefore = false

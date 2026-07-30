@@ -9,7 +9,7 @@ import 'package:provider/provider.dart';
 import '../l10n/l10n.dart';
 import '../models/message_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
-import '../src/rust/third_party/mixin_desktop_api/dto.dart';
+import '../src/rust/third_party/mixin_desktop_core/runtime/model.dart';
 import '../theme.dart';
 import 'buttons.dart';
 import 'high_light_text.dart';

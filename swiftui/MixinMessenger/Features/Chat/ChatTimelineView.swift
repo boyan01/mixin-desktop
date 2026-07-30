@@ -77,147 +77,12 @@ private struct ChatTimelineRenderBoundary<Content: View>: View, Equatable {
     }
 }
 
-private struct ChatHeaderIcon: View {
-    @Environment(\.mixinTheme) private var theme
-    @State private var hovering = false
-
-    let assetName: String
-
-    var body: some View {
-        Image(assetName)
-            .resizable()
-            .renderingMode(.template)
-            .foregroundStyle(theme.icon)
-            .frame(width: 24, height: 24)
-            .padding(8)
-            .background(
-                hovering ? theme.icon.opacity(0.07) : .clear,
-                in: Circle()
-            )
-            .contentShape(Circle())
-            .onHover { hovering = $0 }
-    }
-}
-
-private struct ChatHeaderAvatar: View {
-    @Environment(\.mixinTheme) private var theme
-
-    let conversation: SwiftConversationListItem?
-
-    @ViewBuilder
-    var body: some View {
-        if let conversation,
-           conversation.category == "GROUP",
-           !conversation.groupAvatars.isEmpty
-        {
-            ChatHeaderGroupAvatar(
-                avatars: Array(conversation.groupAvatars.prefix(4))
-            )
-            .clipShape(Circle())
-        } else if let conversation {
-            ChatHeaderAvatarTile(
-                name: conversation.name,
-                url: conversation.iconUrl
-            )
-            .clipShape(Circle())
-        } else {
-            Circle()
-                .fill(theme.listSelected)
-                .overlay {
-                    Image(systemName: "bubble.left.fill")
-                        .foregroundStyle(theme.secondaryText)
-                }
-        }
-    }
-}
-
-private struct ChatHeaderGroupAvatar: View {
-    let avatars: [SwiftGroupAvatar]
-
-    var body: some View {
-        GeometryReader { proxy in
-            let cell = proxy.size.width / 2
-            switch avatars.count {
-            case 1:
-                ChatHeaderAvatarTile(
-                    name: avatars[0].name,
-                    url: avatars[0].avatarUrl
-                )
-            case 2:
-                HStack(spacing: 1) {
-                    ForEach(Array(avatars.enumerated()), id: \.offset) { _, avatar in
-                        ChatHeaderAvatarTile(
-                            name: avatar.name,
-                            url: avatar.avatarUrl
-                        )
-                    }
-                }
-            case 3:
-                HStack(spacing: 1) {
-                    ChatHeaderAvatarTile(
-                        name: avatars[0].name,
-                        url: avatars[0].avatarUrl
-                    )
-                    VStack(spacing: 1) {
-                        ChatHeaderAvatarTile(
-                            name: avatars[1].name,
-                            url: avatars[1].avatarUrl
-                        )
-                        ChatHeaderAvatarTile(
-                            name: avatars[2].name,
-                            url: avatars[2].avatarUrl
-                        )
-                    }
-                }
-            default:
-                LazyVGrid(
-                    columns: [
-                        GridItem(.fixed(cell), spacing: 1),
-                        GridItem(.fixed(cell), spacing: 1),
-                    ],
-                    spacing: 1
-                ) {
-                    ForEach(Array(avatars.enumerated()), id: \.offset) { _, avatar in
-                        ChatHeaderAvatarTile(
-                            name: avatar.name,
-                            url: avatar.avatarUrl
-                        )
-                        .frame(width: cell, height: cell)
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct ChatHeaderAvatarTile: View {
-    @Environment(\.mixinTheme) private var theme
-
-    let name: String
-    let url: String
-
-    var body: some View {
-        MixinRemoteImage(url: URL(string: url)) { image in
-            image
-                .resizable()
-                .scaledToFill()
-        } placeholder: {
-            ZStack {
-                theme.accent.opacity(0.16)
-                Text(name.first.map { String($0).uppercased() } ?? "?")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(theme.accent)
-            }
-        }
-        .clipped()
-    }
-}
-
 struct ChatTimelineView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(AccountSession.self) private var session
     @Environment(HomeNavigationModel.self) private var navigation
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.mixinTheme) private var theme
     @State private var model = ChatTimelineModel()
     @State private var scrollCoordinator = ChatScrollCoordinator()
@@ -225,28 +90,37 @@ struct ChatTimelineView: View {
     @State private var draft: String
     @State private var searchPresented = false
     @State private var searchQuery = ""
-    @State private var searchSender: SwiftConversationParticipantItem?
+    @State private var searchSender: ConversationParticipantItem?
     @State private var searchCategory = MessageSearchCategory.all
     @State private var searchSenderPresented = false
-    @State private var replyMessage: SwiftMessageItem?
+    @State private var replyMessage: MessageItem?
     @State private var selectedMessageIDs = Set<String>()
-    @State private var pendingDeletion: [SwiftMessageItem] = []
+    @State private var pendingDeletion: [MessageItem] = []
     @State private var attachmentURLs: [URL] = []
     @State private var contactPickerPresented = false
     @State private var stickerPresented = false
+    @State private var stickerButtonHovering = false
+    @State private var stickerPanelHovering = false
+    @State private var stickerOpenTask: Task<Void, Never>?
+    @State private var stickerCloseTask: Task<Void, Never>?
     @State private var stickerDetailID: String?
     @State private var voiceRecorder = VoiceRecorderModel()
+    @State private var discardRecordingPresented = false
     @State private var scamWarningVisible: Bool
     @State private var pinnedMessagesPresented = false
-    @State private var dropTargeted = false
     @State private var forwardCombined: Bool?
+    @State private var forwardMessageIDs: [String]?
     @State private var composerFocusRevision = 0
+    @State private var mentionModel = MentionComposerModel()
+    @State private var mentionSelectionRequest: ComposerSelectionRequest?
+    @State private var dropTargeted = false
     @FocusState private var searchFocused: Bool
     let conversationID: String
     let conversationName: String?
     let conversationCategory: String?
     let conversationOwnerID: String?
     let conversationIsBot: Bool
+    let conversationIsBotGroup: Bool
     let conversationIsScam: Bool
     let participantCount: Int64
     let lastReadMessageID: String?
@@ -258,6 +132,7 @@ struct ChatTimelineView: View {
         conversationCategory: String?,
         conversationOwnerID: String?,
         conversationIsBot: Bool,
+        conversationIsBotGroup: Bool,
         conversationIsScam: Bool,
         participantCount: Int64,
         lastReadMessageID: String?,
@@ -269,6 +144,7 @@ struct ChatTimelineView: View {
         self.conversationCategory = conversationCategory
         self.conversationOwnerID = conversationOwnerID
         self.conversationIsBot = conversationIsBot
+        self.conversationIsBotGroup = conversationIsBotGroup
         self.conversationIsScam = conversationIsScam
         self.participantCount = participantCount
         self.lastReadMessageID = lastReadMessageID
@@ -280,23 +156,6 @@ struct ChatTimelineView: View {
     var body: some View {
         VStack(spacing: 0) {
             chatHeader
-
-            if scamWarningVisible {
-                HStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                    Text("Warning: this account has been reported as a scam.")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Button {
-                        scamWarningVisible = false
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .buttonStyle(.borderless)
-                }
-                .padding(12)
-                .background(.red.opacity(0.1))
-            }
 
             if searchPresented {
                 searchContent
@@ -319,10 +178,10 @@ struct ChatTimelineView: View {
                     timelineContent
                 }
                 .equatable()
-                    .background {
-                        ChatBackgroundView()
-                    }
-                    .clipped()
+                .background {
+                    ChatBackgroundView()
+                }
+                .clipped()
             }
 
             Divider()
@@ -338,12 +197,12 @@ struct ChatTimelineView: View {
                     onSend: sendVoiceRecording
                 )
             } else if conversationCategory == "GROUP", participantCount == 0 {
-                Label(
-                    "You are no longer a participant in this group.",
-                    systemImage: "person.crop.circle.badge.xmark"
-                )
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, minHeight: 54)
+                Text("You are no longer a participant in this group.")
+                .font(.system(size: 14))
+                .foregroundStyle(theme.secondaryText)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(theme.primary)
             } else {
                 composer
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -356,6 +215,7 @@ struct ChatTimelineView: View {
         .task(id: conversationID) {
             scrollPosition = ScrollPosition(idType: String.self)
             scrollCoordinator.reset(conversationID: conversationID)
+            loadScamWarningPreference()
             let jumpRequest = navigation.messageJumpRequest.flatMap {
                 $0.conversationID == conversationID ? $0 : nil
             }
@@ -409,6 +269,8 @@ struct ChatTimelineView: View {
             scrollCoordinator.stop()
             model.stop()
             voiceRecorder.dispose()
+            stickerOpenTask?.cancel()
+            stickerCloseTask?.cancel()
         }
         .dropDestination(for: URL.self) { urls, _ in
             let files = urls.filter(\.isFileURL)
@@ -424,16 +286,42 @@ struct ChatTimelineView: View {
             if dropTargeted, selectedMessageIDs.isEmpty {
                 RoundedRectangle(cornerRadius: 14)
                     .fill(.ultraThinMaterial)
-                    .stroke(Color.accentColor, style: StrokeStyle(
-                        lineWidth: 2,
-                        dash: [7]
-                    ))
+                    .stroke(
+                        Color.accentColor,
+                        style: StrokeStyle(lineWidth: 2, dash: [7])
+                    )
                     .padding(12)
                     .overlay {
-                        Label("Drop files to send", systemImage: "tray.and.arrow.down.fill")
-                            .font(.title3.weight(.semibold))
+                        Label(
+                            "Drop files to send",
+                            systemImage: "tray.and.arrow.down.fill"
+                        )
+                        .font(.title3.weight(.semibold))
                     }
                     .allowsHitTesting(false)
+            }
+        }
+        .overlay {
+            if voiceRecorder.status == .recording,
+               !discardRecordingPresented
+            {
+                GeometryReader { proxy in
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            discardRecordingPresented = true
+                        }
+                        .frame(
+                            width: proxy.size.width,
+                            height: max(0, proxy.size.height - 56)
+                        )
+                        .frame(maxHeight: .infinity, alignment: .top)
+                }
+            }
+        }
+        .overlay {
+            if discardRecordingPresented {
+                discardRecordingDialog
             }
         }
         .onChange(of: navigation.messageSearchRequest) {
@@ -444,11 +332,13 @@ struct ChatTimelineView: View {
                 await consumeMessageJump()
             }
         }
-        .task(id: MessageSearchTaskID(
-            query: searchQuery,
-            senderID: searchSender?.userId,
-            category: searchCategory
-        )) {
+        .task(
+            id: MessageSearchTaskID(
+                query: searchQuery,
+                senderID: searchSender?.userId,
+                category: searchCategory
+            )
+        ) {
             guard searchPresented else {
                 return
             }
@@ -505,10 +395,12 @@ struct ChatTimelineView: View {
         } message: {
             Text(voiceRecorder.errorMessage ?? "")
         }
-        .sheet(isPresented: Binding(
-            get: { !attachmentURLs.isEmpty },
-            set: { if !$0 { attachmentURLs = [] } }
-        )) {
+        .sheet(
+            isPresented: Binding(
+                get: { !attachmentURLs.isEmpty },
+                set: { if !$0 { attachmentURLs = [] } }
+            )
+        ) {
             AttachmentPreviewSheet(
                 urls: attachmentURLs,
                 onSend: { request in
@@ -537,7 +429,7 @@ struct ChatTimelineView: View {
         }
         .sheet(isPresented: $pinnedMessagesPresented) {
             NavigationStack {
-                List(model.pinnedMessages, id: \.messageId) { message in
+                AppListView(model.pinnedMessages, id: \.messageId) { message in
                     Button {
                         pinnedMessagesPresented = false
                         Task {
@@ -571,34 +463,44 @@ struct ChatTimelineView: View {
                 searchSender = sender
             }
         }
-        .sheet(isPresented: Binding(
-            get: { forwardCombined != nil },
-            set: { if !$0 { forwardCombined = nil } }
-        )) {
+        .sheet(
+            isPresented: Binding(
+                get: { forwardCombined != nil },
+                set: {
+                    if !$0 {
+                        forwardCombined = nil
+                        forwardMessageIDs = nil
+                    }
+                }
+            )
+        ) {
             if let combined = forwardCombined {
                 ForwardConversationSheet(
                     account: session.handle,
                     combined: combined
                 ) { targetConversationID in
                     let succeeded = await model.forward(
-                        messageIDs: selectedMessages.map(\.messageId),
+                        messageIDs: forwardMessageIDs ?? [],
                         targetConversationID: targetConversationID,
                         combined: combined
                     )
                     if succeeded {
                         selectedMessageIDs.removeAll()
                         forwardCombined = nil
+                        forwardMessageIDs = nil
                     }
                     return succeeded
                 }
             }
         }
-        .sheet(isPresented: Binding(
-            get: { stickerDetailID != nil },
-            set: { if !$0 { stickerDetailID = nil } }
-        )) {
+        .sheet(
+            isPresented: Binding(
+                get: { stickerDetailID != nil },
+                set: { if !$0 { stickerDetailID = nil } }
+            )
+        ) {
             if let stickerDetailID,
-               let desktop = appModel.desktopHandle
+                let desktop = appModel.desktopHandle
             {
                 StickerMessageDetailSheet(
                     account: session.handle,
@@ -615,36 +517,42 @@ struct ChatTimelineView: View {
             Button {
                 navigation.toggleConversationInfo()
             } label: {
-                ChatHeaderAvatar(conversation: navigation.selectedConversation)
-                    .frame(width: 36, height: 36)
+                HStack(spacing: 10) {
+                    ConversationAvatar(
+                        conversation: navigation.selectedConversation,
+                        size: 36
+                    )
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(conversationName ?? "Conversation")
-                        .font(.system(size: 16))
-                        .foregroundStyle(theme.text)
-                        .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Text(conversationName ?? "Conversation")
+                                .font(.system(size: 16))
+                                .foregroundStyle(theme.text)
+                                .lineLimit(1)
+                            if let conversation = navigation.selectedConversation {
+                                ConversationIdentityBadge(conversation: conversation)
+                            }
+                        }
 
-                    Text(chatHeaderSubtitle)
-                        .font(.system(size: 14))
-                        .foregroundStyle(theme.secondaryText)
-                        .lineLimit(1)
+                        if !chatHeaderSubtitle.isEmpty {
+                            Text(chatHeaderSubtitle)
+                                .font(.system(size: 14))
+                                .foregroundStyle(theme.secondaryText)
+                                .lineLimit(1)
+                        }
+                    }
                 }
-                .padding(.leading, 10)
             }
             .buttonStyle(.plain)
 
             Spacer(minLength: 8)
 
-            Button {
-                showSearch()
-            } label: {
-                ChatHeaderIcon(assetName: "ChatHeaderSearch")
-            }
-            .buttonStyle(.plain)
-            .help("Search messages")
-
             if conversationIsBot, let appID = conversationOwnerID {
-                Button {
+                AppIconButton(
+                    assetName: "ChatHeaderBot",
+                    iconSize: 20,
+                    help: "Open bot app"
+                ) {
                     Task {
                         await model.openBotHome(
                             appID: appID,
@@ -652,20 +560,36 @@ struct ChatTimelineView: View {
                             currency: session.profile.fiatCurrency
                         )
                     }
-                } label: {
-                    ChatHeaderIcon(assetName: "ChatHeaderBot")
                 }
-                .buttonStyle(.plain)
-                .help("Open bot app")
             }
 
-            Button {
-                navigation.toggleConversationInfo()
-            } label: {
-                ChatHeaderIcon(assetName: "ChatHeaderInfo")
+            if selectedMessageIDs.isEmpty {
+                AppIconButton(
+                    assetName: "ChatHeaderSearch",
+                    iconSize: 20,
+                    help: "Search messages",
+                    action: showSearch
+                )
+
+                if !navigation.infoPresented {
+                    AppIconButton(
+                        assetName: "ChatHeaderInfo",
+                        iconSize: 20,
+                        help: "Conversation info",
+                        action: navigation.toggleConversationInfo
+                    )
+                    .transition(.scale.combined(with: .opacity))
+                }
+            } else {
+                Button("Cancel") {
+                    selectedMessageIDs.removeAll()
+                }
+                .buttonStyle(.borderless)
+                .font(.system(size: 14))
+                .foregroundStyle(theme.accent)
+                .padding(8)
+                .frame(minWidth: 40, minHeight: 40)
             }
-            .buttonStyle(.plain)
-            .help("Conversation info")
         }
         .padding(.leading, 16)
         .padding(.trailing, 16)
@@ -683,11 +607,11 @@ struct ChatTimelineView: View {
             return "\(participantCount) participants"
         }
         if let identityNumber = navigation.selectedConversation?.identityNumber,
-           !identityNumber.isEmpty
+            !identityNumber.isEmpty
         {
             return identityNumber
         }
-        return conversationID
+        return ""
     }
 
     private var searchContent: some View {
@@ -724,25 +648,24 @@ struct ChatTimelineView: View {
                     Button {
                         searchSenderPresented = true
                     } label: {
-                        Label(
-                            searchSender.map { "From: \($0.fullName)" } ?? "From",
-                            systemImage: "person"
-                        )
+                        Text(searchSender.map { "From: \($0.fullName)" } ?? "From")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(
+                        MessageSearchFilterStyle(selected: searchSender != nil)
+                    )
 
                     ForEach(MessageSearchCategory.filterCases) { category in
                         Button(category.title) {
                             searchCategory = searchCategory == category ? .all : category
                         }
-                        .buttonStyle(.bordered)
-                        .tint(searchCategory == category ? .accentColor : nil)
+                        .buttonStyle(
+                            MessageSearchFilterStyle(selected: searchCategory == category)
+                        )
                     }
                     Spacer()
                 }
-                .controlSize(.small)
-                .padding(.horizontal, 14)
-                .padding(.bottom, 8)
+                .padding(.leading, 16)
+                .padding(.vertical, 8)
             }
 
             if let error = model.searchError {
@@ -759,7 +682,7 @@ struct ChatTimelineView: View {
             } else if !model.searching, model.searchResults.isEmpty {
                 ContentUnavailableView.search(text: searchQuery)
             } else {
-                ScrollView {
+                AppScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(model.searchResults, id: \.messageId) { message in
                             Button {
@@ -779,7 +702,7 @@ struct ChatTimelineView: View {
                             .padding(.horizontal, 6)
                             .onAppear {
                                 guard message.messageId == model.searchResults.last?.messageId,
-                                      model.hasMoreSearchResults
+                                    model.hasMoreSearchResults
                                 else {
                                     return
                                 }
@@ -841,36 +764,16 @@ struct ChatTimelineView: View {
         let hasText = !draft.trimmingCharacters(
             in: .whitespacesAndNewlines
         ).isEmpty
+        let mentionPanelHeight = min(
+            CGFloat(mentionModel.candidates.count) * 50,
+            200
+        )
 
         return VStack(alignment: .leading, spacing: 0) {
             if let replyMessage {
-                HStack(spacing: 8) {
-                    Capsule()
-                        .fill(Color.accentColor)
-                        .frame(width: 3)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Replying to \(replyMessage.senderName)")
-                            .font(.caption)
-                            .foregroundStyle(Color.accentColor)
-                        Text(replyMessage.displayText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                    Spacer()
-                    Button {
-                        self.replyMessage = nil
-                    } label: {
-                        Image("ComposerClose")
-                            .resizable()
-                            .frame(width: 22, height: 22)
-                            .padding(14)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Cancel reply")
+                ComposerQuotePreview(message: replyMessage) {
+                    self.replyMessage = nil
                 }
-                .padding(.leading, 16)
-                .background(theme.popUp)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
@@ -897,50 +800,60 @@ struct ChatTimelineView: View {
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
                     .fixedSize()
+                    .frame(width: 40, height: 40, alignment: .center)
                     .disabled(model.sending)
                     .help("Share contact or attach files")
 
                     Spacer().frame(width: 6)
 
                     Button {
-                        stickerPresented.toggle()
+                        presentStickerPanel()
                     } label: {
                         ComposerIcon(assetName: "ComposerSticker")
                     }
                     .buttonStyle(.plain)
                     .disabled(model.sending)
                     .help("Emoji, stickers and GIFs")
+                    .onHover {
+                        setStickerButtonHovering($0)
+                    }
                     .popover(isPresented: $stickerPresented, arrowEdge: .bottom) {
-                        if let desktop = appModel.desktopHandle {
-                            StickerPanelView(
-                                account: session.handle,
-                                desktop: desktop,
-                                accountID: session.profile.userId,
-                                draft: $draft,
-                                gifAPIKey: GiphyConfiguration.apiKey,
-                                onSendSticker: { stickerID in
-                                    await model.sendSticker(stickerID: stickerID)
-                                },
-                                onSendGIF: { gif in
-                                    await model.sendRemoteGIF(gif)
-                                },
-                                onSent: {
-                                    replyMessage = nil
-                                    stickerPresented = false
-                                }
-                            )
-                        } else {
-                            ContentUnavailableView(
-                                "Sticker service unavailable",
-                                systemImage: "exclamationmark.triangle"
-                            )
-                            .frame(width: 360, height: 260)
+                        Group {
+                            if let desktop = appModel.desktopHandle {
+                                StickerPanelView(
+                                    account: session.handle,
+                                    desktop: desktop,
+                                    accountID: session.profile.userId,
+                                    draft: $draft,
+                                    gifAPIKey: GiphyConfiguration.apiKey,
+                                    onSendSticker: { stickerID in
+                                        await model.sendSticker(stickerID: stickerID)
+                                    },
+                                    onSendGIF: { gif in
+                                        await model.sendRemoteGIF(gif)
+                                    },
+                                    onSent: {
+                                        replyMessage = nil
+                                        dismissStickerPanel()
+                                    }
+                                )
+                            } else {
+                                ContentUnavailableView(
+                                    "Sticker service unavailable",
+                                    systemImage: "exclamationmark.triangle"
+                                )
+                                .frame(width: 360, height: 260)
+                            }
+                        }
+                        .onHover {
+                            setStickerPanelHovering($0)
                         }
                     }
 
                     Spacer().frame(width: 16)
 
                     MentionComposer(
+                        model: mentionModel,
                         account: session.handle,
                         conversationID: conversationID,
                         conversationCategory: conversationCategory,
@@ -950,6 +863,8 @@ struct ChatTimelineView: View {
                         text: $draft,
                         disabled: model.sending,
                         focusRevision: composerFocusRevision,
+                        selectionRequest: mentionSelectionRequest,
+                        onSelectCandidate: selectMentionCandidate,
                         onPasteFiles: { urls in
                             guard selectedMessageIDs.isEmpty, !model.sending else {
                                 return
@@ -985,7 +900,10 @@ struct ChatTimelineView: View {
                                     sendPost()
                                 }
                             } label: {
-                                ComposerIcon(assetName: "ComposerSend")
+                                ComposerIcon(
+                                    assetName: "ComposerSend",
+                                    color: theme.accent
+                                )
                             } primaryAction: {
                                 send(silent: false)
                             }
@@ -1026,10 +944,165 @@ struct ChatTimelineView: View {
             .padding(.vertical, 8)
             .background(theme.primary)
         }
+        .frame(maxWidth: .infinity)
+        .background(alignment: .top) {
+            if !mentionModel.candidates.isEmpty {
+                MentionCandidatePanel(
+                    users: mentionModel.candidates,
+                    keyword: mentionModel.keyword,
+                    selectedIndex: mentionModel.selectedIndex,
+                    onSelect: selectMentionCandidate
+                )
+                .frame(maxWidth: .infinity)
+                .frame(height: mentionPanelHeight)
+                .offset(y: -mentionPanelHeight)
+                .transition(.offset(y: mentionPanelHeight))
+            }
+        }
+        .animation(
+            reduceMotion ? nil : .easeOut(duration: 0.15),
+            value: mentionModel.candidates.isEmpty
+        )
         .animation(
             reduceMotion ? nil : .easeOut(duration: 0.16),
             value: replyMessage?.messageId
         )
+    }
+
+    private var discardRecordingDialog: some View {
+        ZStack {
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    discardRecordingPresented = false
+                }
+
+            VStack(spacing: 0) {
+                Text(
+                    "Are you sure you want to stop recording and discard your voice message?"
+                )
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(theme.text)
+                .lineSpacing(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Spacer().frame(height: 36)
+
+                HStack(spacing: 8) {
+                    Spacer()
+                    Button("Cancel") {
+                        discardRecordingPresented = false
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(theme.accent)
+                    .padding(.horizontal, 16)
+                    .frame(height: 36)
+
+                    Button("Discard") {
+                        discardRecordingPresented = false
+                        Task {
+                            await voiceRecorder.cancel()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(theme.accent)
+                    .frame(height: 36)
+                }
+            }
+            .padding(.horizontal, 30)
+            .padding(.top, 40)
+            .padding(.bottom, 30)
+            .frame(width: 400)
+            .background(theme.popUp, in: RoundedRectangle(cornerRadius: 11))
+        }
+        .transition(.opacity)
+    }
+
+    private func selectMentionCandidate(_ index: Int?) {
+        guard
+            let insertion = mentionModel.selectCandidate(
+                at: index,
+                in: draft
+            )
+        else {
+            return
+        }
+        draft = insertion.text
+        mentionSelectionRequest = ComposerSelectionRequest(
+            offset: insertion.selectionUTF16,
+            revision: (mentionSelectionRequest?.revision ?? 0) + 1
+        )
+    }
+
+    private func presentStickerPanel() {
+        stickerOpenTask?.cancel()
+        stickerCloseTask?.cancel()
+        withAnimation(stickerPanelAnimation) {
+            stickerPresented = true
+        }
+    }
+
+    private func dismissStickerPanel() {
+        stickerOpenTask?.cancel()
+        stickerCloseTask?.cancel()
+        stickerButtonHovering = false
+        stickerPanelHovering = false
+        withAnimation(stickerPanelAnimation) {
+            stickerPresented = false
+        }
+    }
+
+    private func setStickerButtonHovering(_ hovering: Bool) {
+        stickerButtonHovering = hovering
+        updateStickerPanelPresentation()
+    }
+
+    private func setStickerPanelHovering(_ hovering: Bool) {
+        stickerPanelHovering = hovering
+        updateStickerPanelPresentation()
+    }
+
+    private func updateStickerPanelPresentation() {
+        stickerOpenTask?.cancel()
+        stickerCloseTask?.cancel()
+
+        if stickerButtonHovering || stickerPanelHovering {
+            guard !stickerPresented else {
+                return
+            }
+            stickerOpenTask = Task {
+                try? await Task.sleep(for: .milliseconds(50))
+                guard !Task.isCancelled,
+                    stickerButtonHovering || stickerPanelHovering
+                else {
+                    return
+                }
+                withAnimation(stickerPanelAnimation) {
+                    stickerPresented = true
+                }
+            }
+            return
+        }
+
+        guard stickerPresented else {
+            return
+        }
+        stickerCloseTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled,
+                !stickerButtonHovering,
+                !stickerPanelHovering
+            else {
+                return
+            }
+            withAnimation(stickerPanelAnimation) {
+                stickerPresented = false
+            }
+        }
+    }
+
+    private var stickerPanelAnimation: Animation? {
+        reduceMotion ? nil : .easeOut(duration: 0.2)
     }
 
     private func send(silent: Bool) {
@@ -1081,49 +1154,52 @@ struct ChatTimelineView: View {
     }
 
     private var selectionBar: some View {
-        HStack(spacing: 12) {
-            Button("Cancel") {
-                selectedMessageIDs.removeAll()
+        HStack(spacing: 0) {
+            SelectionBarAction(
+                title: "Combine and Forward",
+                assetName: "MessageTranscriptForward",
+                enabled: selectedMessages.count >= 2
+                    && selectedMessages.count < 100
+                    && selectedMessages.allSatisfy {
+                        selectionPolicy(for: $0).canCombineForward
+                    }
+                    && !model.mutating
+            ) {
+                forwardMessageIDs = selectedMessages.map(\.messageId)
+                forwardCombined = true
             }
-            .keyboardShortcut(.cancelAction)
 
-            Text("\(selectedMessageIDs.count) selected")
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
-            Button {
-                copySelectedMessages()
-            } label: {
-                Label("Copy", systemImage: "doc.on.doc")
-            }
-            .disabled(selectedMessages.isEmpty)
-
-            Button {
+            SelectionBarAction(
+                title: "Forward One by One",
+                assetName: "ContextMenuForward",
+                enabled: !selectedMessages.isEmpty
+                    && selectedMessages.count < 100
+                    && selectedMessages.allSatisfy {
+                        selectionPolicy(for: $0).canForward
+                    }
+                    && !model.mutating
+            ) {
+                forwardMessageIDs = selectedMessages.map(\.messageId)
                 forwardCombined = false
-            } label: {
-                Label("Forward", systemImage: "arrowshape.turn.up.right")
-            }
-            .disabled(selectedMessages.isEmpty || model.mutating)
-
-            if selectedMessages.count >= 2, selectedMessages.count < 100 {
-                Button {
-                    forwardCombined = true
-                } label: {
-                    Label("Combine", systemImage: "rectangle.stack")
-                }
-                .disabled(model.mutating)
             }
 
-            Button(role: .destructive) {
+            SelectionBarAction(
+                title: "Copy",
+                assetName: "PreviewCopy",
+                enabled: !selectedMessages.isEmpty
+            ) {
+                copySelectedMessages()
+            }
+
+            SelectionBarAction(
+                title: "Delete",
+                assetName: "ContextMenuDelete",
+                enabled: !selectedMessages.isEmpty && !model.mutating
+            ) {
                 pendingDeletion = selectedMessages
-            } label: {
-                Label("Delete", systemImage: "trash")
             }
-            .disabled(selectedMessages.isEmpty || model.mutating)
         }
-        .padding(.horizontal, 14)
-        .frame(height: 54)
+        .frame(height: 80)
     }
 
     @ViewBuilder
@@ -1132,156 +1208,159 @@ struct ChatTimelineView: View {
         case .loading:
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case let .failed(message):
+        case .failed(let message):
             ContentUnavailableView(
                 "Unable to load messages",
                 systemImage: "exclamationmark.triangle",
                 description: Text(message)
             )
         case .ready:
-            if model.messages.isEmpty {
-                ContentUnavailableView(
-                    "No messages yet",
-                    systemImage: "bubble.left"
-                )
-            } else {
-                @Bindable var coordinator = scrollCoordinator
-                ZStack(alignment: .bottomTrailing) {
-                    ScrollView {
+            @Bindable var coordinator = scrollCoordinator
+            ZStack(alignment: .bottomTrailing) {
+                    AppScrollView(scrollPosition: $scrollPosition) {
                         LazyVStack(spacing: 0) {
                             let unreadBoundaryID = unreadBoundaryMessageID
                             ForEach(model.rows) { row in
                                 if let message = model.message(id: row.messageID) {
                                     VStack(spacing: 0) {
-                                    if row.startsNewDay {
-                                        Text(
-                                            message.createdAtMicros.dayChipTitle
-                                        )
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 4)
-                                            .background(.regularMaterial, in: Capsule())
-                                            .frame(maxWidth: .infinity)
-                                    }
-                                    if message.messageId == unreadBoundaryID {
-                                        HStack(spacing: 8) {
-                                            Rectangle()
-                                                .frame(height: 1)
-                                            Text("Unread Messages")
-                                                .font(.caption)
-                                            Rectangle()
-                                                .frame(height: 1)
+                                        if row.startsNewDay {
+                                            dayChip(
+                                                message.createdAtMicros
+                                                    .dayChipTitle
+                                            )
                                         }
-                                        .foregroundStyle(Color.accentColor)
-                                    }
-                                    MessageRow(
-                                        message: message,
-                                        mentionNames: model.mentionNames,
-                                        mentionNamesRevision:
-                                            model.mentionNamesRevision,
-                                        audioPlaylist: message.presentationKind == .audio
-                                            ? model.audioMessages
-                                            : [],
-                                        mediaIndexRevision:
-                                            message.presentationKind == .audio
+                                        if message.messageId == unreadBoundaryID {
+                                            Text("Unread Messages")
+                                                .font(.system(size: 14))
+                                                .foregroundStyle(theme.secondaryText)
+                                                .frame(maxWidth: .infinity)
+                                                .padding(.vertical, 4)
+                                                .background(theme.background)
+                                                .padding(.vertical, 6)
+                                        }
+                                        MessageRow(
+                                            message: message,
+                                            mentionNames: model.mentionNames,
+                                            mentionNamesRevision:
+                                                model.mentionNamesRevision,
+                                            audioPlaylist: message.presentationKind == .audio
+                                                ? model.audioMessages
+                                                : [],
+                                            mediaIndexRevision:
+                                                message.presentationKind == .audio
                                                 || message.isRichContent
                                                 ? model.mediaIndexRevision
                                                 : 0,
-                                        mediaDirectory: model.mediaDirectory,
-                                        conversationName: conversationName,
-                                        outgoing: message.senderId == session.profile.userId,
-                                        sameUserPrevious: row.sameUserPrevious,
-                                        sameUserNext: row.sameUserNext,
-                                        policy: policy(for: message),
-                                        recalledText: model.recalledText(
-                                            messageID: message.messageId
-                                        ),
-                                        selected: selectedMessageIDs.contains(message.messageId),
-                                        selectionActive: !selectedMessageIDs.isEmpty,
-                                        imageMessages: message.isRichContent
-                                            ? model.imageMessages
-                                            : [],
-                                        loadImageWindow: model.imageMessagesAround,
-                                        onReply: {
-                                            replyMessage = message
-                                        },
-                                        onCopy: copyText,
-                                        onSelect: {
-                                            selectedMessageIDs.insert(message.messageId)
-                                        },
-                                        onToggleSelection: {
-                                            toggleSelection(message.messageId)
-                                        },
-                                        onTogglePin: {
-                                            Task {
-                                                await model.setPinned(
-                                                    messageID: message.messageId,
-                                                    pinned: !message.pinned
+                                            mediaDirectory: model.mediaDirectory,
+                                            conversationName: conversationName,
+                                            groupPresentation:
+                                                conversationCategory == "GROUP"
+                                                || message.senderId
+                                                    != (
+                                                        message.conversationOwnerId
+                                                        ?? conversationOwnerID
+                                                        ?? ""
+                                                    )
+                                                || conversationIsBotGroup,
+                                            outgoing: message.senderId == session.profile.userId,
+                                            sameUserPrevious: row.sameUserPrevious,
+                                            sameUserNext: row.sameUserNext,
+                                            policy: policy(for: message),
+                                            recalledText: model.recalledText(
+                                                messageID: message.messageId
+                                            ),
+                                            selected: selectedMessageIDs.contains(
+                                                message.messageId),
+                                            selectionActive: !selectedMessageIDs.isEmpty,
+                                            imageMessages: message.isRichContent
+                                                ? model.imageMessages
+                                                : [],
+                                            loadImageWindow: model.imageMessagesAround,
+                                            onReply: {
+                                                replyMessage = message
+                                            },
+                                            onCopy: copyText,
+                                            onForward: {
+                                                forwardMessageIDs = [
+                                                    message.messageId
+                                                ]
+                                                forwardCombined = false
+                                            },
+                                            onSelect: {
+                                                selectedMessageIDs.insert(message.messageId)
+                                            },
+                                            onToggleSelection: {
+                                                toggleSelection(message.messageId)
+                                            },
+                                            onTogglePin: {
+                                                Task {
+                                                    await model.setPinned(
+                                                        messageID: message.messageId,
+                                                        pinned: !message.pinned
+                                                    )
+                                                }
+                                            },
+                                            onRecall: {
+                                                pendingDeletion = [message]
+                                            },
+                                            onDelete: {
+                                                pendingDeletion = [message]
+                                            },
+                                            onReedit: reedit,
+                                            attachmentProgress: model.attachmentProgress(
+                                                messageID: message.messageId
+                                            ),
+                                            onAttachmentAction: {
+                                                Task {
+                                                    await model.performAttachmentAction(
+                                                        message,
+                                                        sentByCurrentUser:
+                                                            message.senderId
+                                                            == session.profile.userId
+                                                    )
+                                                }
+                                            },
+                                            loadTranscript: {
+                                                try await model.transcriptMessages(
+                                                    transcriptID: message.messageId
                                                 )
-                                            }
-                                        },
-                                        onRecall: {
-                                            pendingDeletion = [message]
-                                        },
-                                        onDelete: {
-                                            pendingDeletion = [message]
-                                        },
-                                        onReedit: reedit,
-                                        attachmentProgress: model.attachmentProgress(
-                                            messageID: message.messageId
-                                        ),
-                                        onAttachmentAction: {
-                                            Task {
-                                                await model.performAttachmentAction(
-                                                    message,
+                                            },
+                                            onTranscriptAttachmentAction: { item in
+                                                await model.performTranscriptAttachmentAction(
+                                                    transcriptID: message.messageId,
+                                                    message: item,
                                                     sentByCurrentUser:
                                                         message.senderId
-                                                            == session.profile.userId
-                                                )
-                                            }
-                                        },
-                                        loadTranscript: {
-                                            try await model.transcriptMessages(
-                                                transcriptID: message.messageId
-                                            )
-                                        },
-                                        onTranscriptAttachmentAction: { item in
-                                            await model.performTranscriptAttachmentAction(
-                                                transcriptID: message.messageId,
-                                                message: item,
-                                                sentByCurrentUser:
-                                                    message.senderId
                                                         == session.profile.userId
-                                            )
-                                        },
-                                        onMarkAudioRead: { messageID in
-                                            Task {
-                                                await model.markAudioRead(messageID: messageID)
-                                            }
-                                        },
-                                        onShowStickerDetail: { stickerID in
-                                            stickerDetailID = stickerID
-                                        },
-                                        onAppAction: { action, title in
-                                            Task {
-                                                await model.openMessageAction(
+                                                )
+                                            },
+                                            onMarkAudioRead: { messageID in
+                                                Task {
+                                                    await model.markAudioRead(messageID: messageID)
+                                                }
+                                            },
+                                            onShowStickerDetail: { stickerID in
+                                                stickerDetailID = stickerID
+                                            },
+                                            onAppAction: { action, title in
+                                                Task {
+                                                    await model.openMessageAction(
+                                                        action,
+                                                        title: title,
+                                                        currency: session.profile.fiatCurrency
+                                                    )
+                                                }
+                                            },
+                                            onStrangerAction: { action in
+                                                await model.handleStrangerAction(
                                                     action,
-                                                    title: title,
+                                                    message: message,
                                                     currency: session.profile.fiatCurrency
                                                 )
                                             }
-                                        },
-                                        onStrangerAction: { action in
-                                            await model.handleStrangerAction(
-                                                action,
-                                                message: message,
-                                                currency: session.profile.fiatCurrency
-                                            )
-                                        }
-                                    )
-                                    .equatable()
-                                }
+                                        )
+                                        .equatable()
+                                    }
                                     .background {
                                         if coordinator.highlightedMessageID
                                             == message.messageId
@@ -1307,10 +1386,8 @@ struct ChatTimelineView: View {
                             }
                         }
                         .scrollTargetLayout()
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 12)
+                        .padding(.bottom, 10)
                     }
-                    .scrollPosition($scrollPosition)
                     .defaultScrollAnchor(.bottom)
                     .onScrollGeometryChange(
                         for: ChatScrollGeometry.self
@@ -1339,7 +1416,15 @@ struct ChatTimelineView: View {
                         idType: String.self,
                         threshold: 0.01
                     ) { ids in
-                        coordinator.updateVisibleMessageIDs(ids)
+                        coordinator.updateVisibleMessageIDs(
+                            ids,
+                            orderedMessageIDs: model.rows.map(\.messageID),
+                            dayStartMessageIDs: Set(
+                                model.rows
+                                    .filter(\.startsNewDay)
+                                    .map(\.messageID)
+                            )
+                        )
                         model.updateVisibleMessageIDs(ids)
                     }
                     .onScrollPhaseChange { _, phase in
@@ -1379,10 +1464,43 @@ struct ChatTimelineView: View {
                             .allowsHitTesting(false)
                     }
 
+                    stickyDayOverlay
                     timelineOverlays
+                    scamWarningOverlay
                     pinnedMessagesOverlay
                 }
-            }
+        }
+    }
+
+    private func dayChip(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 14))
+            .foregroundStyle(.black)
+            .frame(minWidth: 64)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 2)
+            .background(
+                theme.dateTime,
+                in: RoundedRectangle(cornerRadius: 10)
+            )
+            .padding(.top, 16)
+            .padding(.bottom, 10)
+            .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var stickyDayOverlay: some View {
+        if let anchor = scrollCoordinator.stickyDayAnchor,
+           let message = model.message(id: anchor.messageID)
+        {
+            dayChip(message.createdAtMicros.dayChipTitle)
+                .offset(y: anchor.offset)
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .top
+                )
+                .allowsHitTesting(false)
         }
     }
 
@@ -1391,15 +1509,59 @@ struct ChatTimelineView: View {
             return nil
         }
         if let lastReadMessageID,
-           let index = model.messages.firstIndex(where: {
-               $0.messageId == lastReadMessageID
-           }),
-           index + 1 < model.messages.count
+            let index = model.messages.firstIndex(where: {
+                $0.messageId == lastReadMessageID
+            }),
+            index + 1 < model.messages.count
         {
             return model.messages[index + 1].messageId
         }
         let unseen = min(Int(unseenCount), model.messages.count)
         return model.messages[model.messages.count - unseen].messageId
+    }
+
+    @ViewBuilder
+    private var scamWarningOverlay: some View {
+        if scamWarningVisible {
+            HStack(spacing: 0) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(theme.destructive)
+                    .padding(.leading, 8)
+                    .padding(.trailing, 16)
+                    .padding(.vertical, 8)
+
+                Text("Warning: this account has been reported as a scam.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    dismissScamWarning()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 20))
+                        .frame(width: 40, height: 40)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(8)
+            .background(
+                colorScheme == .dark
+                    ? Color(red: 52 / 255, green: 59 / 255, blue: 67 / 255)
+                    : Color.white,
+                in: RoundedRectangle(cornerRadius: 4)
+            )
+            .shadow(color: .black.opacity(0.15), radius: 10, y: 2)
+            .padding(.horizontal, 6)
+            .padding(.bottom, 6)
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity,
+                alignment: .bottom
+            )
+            .transition(.opacity)
+        }
     }
 
     @ViewBuilder
@@ -1416,12 +1578,27 @@ struct ChatTimelineView: View {
                         }
                     }
                 } label: {
-                    Text(model.unreadMentionMessageIDs.count > 99
-                        ? "99+ @"
-                        : "\(model.unreadMentionMessageIDs.count) @")
-                        .font(.callout.weight(.semibold))
-                        .frame(minWidth: 38, minHeight: 38)
-                        .background(.regularMaterial, in: Circle())
+                    ZStack(alignment: .top) {
+                        Text("@")
+                            .font(.system(size: 17))
+                            .foregroundStyle(theme.text)
+                            .frame(width: 40, height: 40)
+                            .background(timelineOverlaySurface, in: Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 10, y: 2)
+                            .padding(.top, 12)
+
+                        Text(
+                            model.unreadMentionMessageIDs.count > 99
+                                ? "99+"
+                                : "\(model.unreadMentionMessageIDs.count)"
+                        )
+                        .font(.system(size: 14))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .frame(minWidth: 20, minHeight: 20)
+                        .background(theme.accent, in: Capsule())
+                    }
+                    .frame(width: 40, height: 52)
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
@@ -1445,30 +1622,54 @@ struct ChatTimelineView: View {
                         }
                     }
                 } label: {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "arrow.down")
-                            .frame(width: 38, height: 38)
-                            .background(.regularMaterial, in: Circle())
-                        if scrollCoordinator.newMessageCount > 0 {
-                            Text(
-                                scrollCoordinator.newMessageCount > 99
-                                    ? "99+"
-                                    : "\(scrollCoordinator.newMessageCount)"
-                            )
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .frame(minHeight: 17)
-                            .background(Color.accentColor, in: Capsule())
-                            .offset(x: 6, y: -4)
-                        }
-                    }
+                    Image(systemName: "arrow.down")
+                        .foregroundStyle(theme.text)
+                        .frame(width: 40, height: 40)
+                        .background(timelineOverlaySurface, in: Circle())
+                        .shadow(color: .black.opacity(0.15), radius: 10, y: 2)
                 }
                 .buttonStyle(.plain)
                 .help("Jump to latest")
             }
         }
         .padding(16)
+    }
+
+    private var timelineOverlaySurface: Color {
+        colorScheme == .dark
+            ? Color(red: 52 / 255, green: 59 / 255, blue: 67 / 255)
+            : .white
+    }
+
+    private var scamWarningPreferenceKey: String? {
+        guard let conversationOwnerID else {
+            return nil
+        }
+        return "scam_warning_\(session.profile.userId)_\(conversationOwnerID)"
+    }
+
+    private func loadScamWarningPreference() {
+        guard conversationIsScam, let scamWarningPreferenceKey else {
+            scamWarningVisible = false
+            return
+        }
+        let dismissedUntil = UserDefaults.standard.double(
+            forKey: scamWarningPreferenceKey
+        )
+        scamWarningVisible =
+            dismissedUntil <= Date().timeIntervalSince1970 * 1_000
+    }
+
+    private func dismissScamWarning() {
+        scamWarningVisible = false
+        guard let scamWarningPreferenceKey else {
+            return
+        }
+        UserDefaults.standard.set(
+            Date().addingTimeInterval(24 * 60 * 60)
+                .timeIntervalSince1970 * 1_000,
+            forKey: scamWarningPreferenceKey
+        )
     }
 
     @ViewBuilder
@@ -1496,19 +1697,20 @@ struct ChatTimelineView: View {
                     Image("ChatPin")
                         .resizable()
                         .renderingMode(.template)
-                        .foregroundStyle(Color.primary)
+                        .foregroundStyle(theme.text)
                         .frame(width: 34, height: 34)
                         .background(
-                            Color(nsColor: .controlBackgroundColor),
+                            timelineOverlaySurface,
                             in: Circle()
                         )
-                        .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
+                        .shadow(color: .black.opacity(0.15), radius: 10, y: 2)
                 }
                 .buttonStyle(.plain)
                 .help("Pinned Messages")
             }
             .frame(height: 64)
-            .padding(.horizontal, 30)
+            .padding(.leading, 10)
+            .padding(.trailing, 16)
             .padding(.top, 12)
             .frame(
                 maxWidth: .infinity,
@@ -1522,7 +1724,7 @@ struct ChatTimelineView: View {
         }
     }
 
-    private var selectedMessages: [SwiftMessageItem] {
+    private var selectedMessages: [MessageItem] {
         model.messages.filter { selectedMessageIDs.contains($0.messageId) }
     }
 
@@ -1559,7 +1761,7 @@ struct ChatTimelineView: View {
         )
     }
 
-    private func policy(for message: SwiftMessageItem) -> MessageActionPolicy {
+    private func policy(for message: MessageItem) -> MessageActionPolicy {
         MessageActionPolicy(
             message: message,
             currentUserID: session.profile.userId,
@@ -1568,8 +1770,19 @@ struct ChatTimelineView: View {
         )
     }
 
-    private func canRecall(_ message: SwiftMessageItem) -> Bool {
-        policy(for: message).canRecall
+    private func canRecall(_ message: MessageItem) -> Bool {
+        selectionPolicy(for: message).canRecall
+    }
+
+    private func selectionPolicy(
+        for message: MessageItem
+    ) -> MessageActionPolicy {
+        MessageActionPolicy(
+            message: message,
+            currentUserID: session.profile.userId,
+            currentUserRole: nil,
+            now: Date()
+        )
     }
 
     private func toggleSelection(_ messageID: String) {
@@ -1585,7 +1798,7 @@ struct ChatTimelineView: View {
 
     private func copySelectedMessages() {
         let content = selectedMessages.map { message in
-            "\(message.senderName), (\(message.selectionFormattedTime)):\n\(message.displayText)"
+            "\(message.senderName), (\(message.selectionFormattedTime)):\n\(message.selectionPreview)"
         }
         .joined(separator: "\n\n")
         copyText(content)
@@ -1597,7 +1810,8 @@ struct ChatTimelineView: View {
         let messageIDs = messages.map(\.messageId)
         pendingDeletion = []
         Task {
-            let succeeded = recall
+            let succeeded =
+                recall
                 ? await model.recall(messages: messages)
                 : await model.delete(messageIDs: messageIDs)
             if succeeded {
@@ -1625,24 +1839,212 @@ struct ChatTimelineView: View {
     }
 }
 
+private struct ComposerQuotePreview: View {
+    @Environment(\.mixinTheme) private var theme
+
+    let message: MessageItem
+    let onCancel: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Rectangle()
+                    .fill(SenderNameColor.color(for: message.senderId) ?? theme.accent)
+                    .frame(width: 6)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(message.senderName)
+                        .font(.system(size: 14))
+                        .foregroundStyle(SenderNameColor.color(for: message.senderId) ?? theme.accent)
+                        .lineLimit(1)
+                        .padding(.bottom, 4)
+
+                    HStack(spacing: 4) {
+                        if let icon = categoryIcon {
+                            Image(systemName: icon)
+                                .font(.system(size: 16))
+                                .foregroundStyle(theme.secondaryText)
+                                .frame(width: 16, height: 16)
+                        }
+                        Text(message.displayText)
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme.secondaryText)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.leading, 6)
+                .padding(.vertical, 6)
+
+                Spacer(minLength: 8)
+
+                previewImage
+            }
+            .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+
+            Button(action: onCancel) {
+                Image("ComposerClose")
+                    .resizable()
+                    .frame(width: 22, height: 22)
+                    .padding(14)
+            }
+            .buttonStyle(.plain)
+            .help("Cancel reply")
+        }
+        .background(theme.popUp)
+    }
+
+    @ViewBuilder
+    private var previewImage: some View {
+        if message.category.uppercased().hasSuffix("_CONTACT") {
+            MixinRemoteImage(url: message.sharedUserAvatarUrl.flatMap(URL.init(string:))) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                AvatarPlaceholder(
+                    userID: message.sharedUserId ?? "",
+                    name: message.sharedUserFullName ?? ""
+                )
+            }
+            .frame(width: 48, height: 48)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        } else if let source = mediaSource {
+            MessageMediaImage(
+                source: source,
+                thumbnail: message.thumbImage,
+                contentMode: .fill
+            )
+            .frame(width: 48, height: 48)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
+    private var mediaSource: String? {
+        let category = message.category.uppercased()
+        if category.hasSuffix("_STICKER") {
+            return message.stickerAssetUrl
+        }
+        return message.mediaUrl ?? message.thumbUrl
+    }
+
+    private var categoryIcon: String? {
+        let category = message.category.uppercased()
+        if category.contains("IMAGE") { return "photo" }
+        if category.contains("VIDEO") || category.contains("CALL") { return "video" }
+        if category.contains("LIVE") { return "dot.radiowaves.left.and.right" }
+        if category.contains("AUDIO") { return "waveform" }
+        if category.contains("STICKER") { return "face.smiling" }
+        if category.contains("DATA") || category.contains("POST") || category.contains("TRANSCRIPT") {
+            return "doc"
+        }
+        if category.contains("CONTACT") { return "person.crop.circle" }
+        if category.contains("SNAPSHOT") || category.contains("TRANSFER") { return "arrow.left.arrow.right" }
+        if category.contains("LOCATION") { return "location" }
+        if category == "APP_CARD" || category == "APP_BUTTON_GROUP" { return "app" }
+        if category.contains("RECALL") { return "arrow.uturn.backward" }
+        return nil
+    }
+}
+
+private enum SenderNameColor {
+    private static let values: [UInt32] = [
+        0x8C8DFF, 0x7983C2, 0x6D8DDE, 0x5979F0, 0x6695DF, 0x8F7AC5,
+        0x9D77A5, 0x8A64D0, 0xAA66C3, 0xA75C96, 0xC8697D, 0xB74D62,
+        0xBD637C, 0xB3798E, 0x9B6D77, 0xB87F7F, 0xC5595A, 0xAA4848,
+        0xB0665E, 0xB76753, 0xBB5334, 0xC97B46, 0xBE6C2C, 0xCB7F40,
+        0xA47758, 0xB69370, 0xA49373, 0xAA8A46, 0xAA8220, 0x76A048,
+        0x9CAD23, 0xA19431, 0xAA9100, 0xA09555, 0xC49B4B, 0x5FB05F,
+        0x6AB48F, 0x71B15C, 0xB3B357, 0xA3B561, 0x909F45, 0x93B289,
+        0x3D98D0, 0x429AB6, 0x4EABAA, 0x6BC0CE, 0x64B5D9, 0x3E9CCB,
+        0x2887C4, 0x52A98B,
+    ]
+
+    static func color(for userID: String) -> Color? {
+        let parts = userID.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "-")
+        guard parts.count == 5,
+              let first = UInt64(parts[0], radix: 16),
+              let second = UInt64(parts[1], radix: 16),
+              let third = UInt64(parts[2], radix: 16),
+              let fourth = UInt64(parts[3], radix: 16),
+              let fifth = UInt64(parts[4], radix: 16)
+        else {
+            return nil
+        }
+        let mostSignificant = (first << 32) | (second << 16) | third
+        let leastSignificant = (fourth << 48) | fifth
+        let highLow = mostSignificant ^ leastSignificant
+        let hash = Int32(bitPattern: UInt32(truncatingIfNeeded: (highLow >> 32) ^ highLow))
+        let value = values[Int(hash.magnitude % UInt32(values.count))]
+        return Color(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
+    }
+}
+
 private struct ComposerIcon: View {
     @Environment(\.mixinTheme) private var theme
     let assetName: String
     var size: CGFloat = 24
     var padding: CGFloat = 8
+    var color: Color?
 
     var body: some View {
         Image(assetName)
             .resizable()
             .renderingMode(.template)
-            .foregroundStyle(theme.icon)
+            .foregroundStyle(color ?? theme.icon)
             .frame(width: size, height: size)
             .padding(padding)
             .contentShape(Circle())
     }
 }
 
+private struct SelectionBarAction: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.mixinTheme) private var theme
+    @State private var hovering = false
+
+    let title: String
+    let assetName: String
+    let enabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(assetName)
+                    .resizable()
+                    .renderingMode(.template)
+                    .frame(width: 24, height: 24)
+                    .frame(width: 24, height: 24)
+                Text(title)
+                    .font(.system(size: 14))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(theme.text)
+            .frame(maxWidth: .infinity)
+            .padding(8)
+            .background(hoverBackground)
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.5)
+        .onHover { hovering = $0 }
+    }
+
+    private var hoverBackground: Color {
+        guard enabled && hovering else {
+            return .clear
+        }
+        return colorScheme == .dark
+            ? Color.white.opacity(0.2)
+            : Color.black.opacity(0.03)
+    }
+}
+
 private struct PinMessagePreviewBubble: View {
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.mixinTheme) private var theme
     let text: String
     let onDismiss: () -> Void
@@ -1652,9 +2054,8 @@ private struct PinMessagePreviewBubble: View {
         HStack(spacing: 4) {
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(width: 20, height: 20)
-                    .padding(8)
+                    .font(.system(size: 20))
+                    .frame(width: 40, height: 40)
             }
             .buttonStyle(.plain)
 
@@ -1672,8 +2073,12 @@ private struct PinMessagePreviewBubble: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             PinMessageBubbleShape()
-                .fill(Color(nsColor: .controlBackgroundColor))
-                .shadow(color: .black.opacity(0.15), radius: 5, y: 2)
+                .fill(
+                    colorScheme == .dark
+                        ? Color(red: 52 / 255, green: 59 / 255, blue: 67 / 255)
+                        : Color.white
+                )
+                .shadow(color: .black.opacity(0.15), radius: 10, y: 2)
         }
     }
 }
@@ -1736,8 +2141,74 @@ private struct PinMessageBubbleShape: Shape {
     }
 }
 
+struct MessageBubbleShape: Shape {
+    let outgoing: Bool
+    let showsNip: Bool
+
+    func path(in rect: CGRect) -> Path {
+        var incoming = Path()
+        incoming.addRoundedRect(
+            in: CGRect(
+                x: 9,
+                y: 0,
+                width: max(rect.width - 9, 0),
+                height: rect.height
+            ),
+            cornerSize: CGSize(width: 8, height: 8)
+        )
+        if showsNip {
+            incoming.addPath(leftNip(in: rect))
+        }
+        guard outgoing else {
+            return incoming
+        }
+        return incoming.applying(
+            CGAffineTransform(
+                a: -1,
+                b: 0,
+                c: 0,
+                d: 1,
+                tx: rect.width,
+                ty: 0
+            )
+        )
+    }
+
+    private func leftNip(in rect: CGRect) -> Path {
+        let width = 9.0
+        let height = 12.0
+        let y = max(rect.height - 21, 0)
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: y))
+        path.addLine(to: CGPoint(x: width * 1.04, y: y + height))
+        path.addCurve(
+            to: CGPoint(x: width, y: y + height * 0.19),
+            control1: CGPoint(x: width * 1.04, y: y + height),
+            control2: CGPoint(x: width * 1.04, y: y)
+        )
+        path.addCurve(
+            to: CGPoint(x: width * 0.14, y: y + height * 0.67),
+            control1: CGPoint(x: width * 0.81, y: y + height * 0.41),
+            control2: CGPoint(x: width / 2, y: y + height * 0.59)
+        )
+        path.addCurve(
+            to: CGPoint(x: width * 0.13, y: y + height * 0.85),
+            control1: CGPoint(x: width * 0.03, y: y + height * 0.69),
+            control2: CGPoint(x: width * 0.01, y: y + height * 0.79)
+        )
+        path.addCurve(
+            to: CGPoint(x: width * 0.91, y: y + height),
+            control1: CGPoint(x: width * 0.36, y: y + height * 0.94),
+            control2: CGPoint(x: width * 0.62, y: y + height)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
 private struct SearchMessageRow: View {
-    let message: SwiftMessageItem
+    @Environment(\.mixinTheme) private var theme
+    let message: MessageItem
     let mentionNames: [String: String]
     var highlight = ""
 
@@ -1750,31 +2221,74 @@ private struct SearchMessageRow: View {
                     .resizable()
                     .foregroundStyle(.secondary)
             }
-            .frame(width: 44, height: 44)
+            .frame(width: 50, height: 50)
             .clipShape(Circle())
 
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 4) {
                     Text(message.senderName)
-                        .font(.headline)
+                        .font(.system(size: 16))
+                        .foregroundStyle(theme.text)
                         .lineLimit(1)
                     Spacer()
                     Text(message.formattedTime)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.secondaryText)
                 }
-                MessageRichText(
-                    content: message.displayText,
-                    baseFontSize: 13,
-                    color: .secondary,
-                    lineLimit: 2,
-                    mentionNames: mentionNames,
-                    highlight: highlight
-                )
+                HStack(spacing: 2) {
+                    if let icon = categoryIcon {
+                        Image(systemName: icon)
+                            .font(.system(size: 14))
+                            .foregroundStyle(theme.secondaryText)
+                    }
+                    MessageRichText(
+                        content: message.displayText,
+                        baseFontSize: 14,
+                        color: theme.secondaryText,
+                        lineLimit: 1,
+                        mentionNames: mentionNames,
+                        highlight: highlight
+                    )
+                }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .frame(minHeight: 72)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 12)
+    }
+
+    private var categoryIcon: String? {
+        let category = message.category.uppercased()
+        if category.contains("IMAGE") { return "photo" }
+        if category.contains("VIDEO") || category.contains("CALL") { return "video" }
+        if category.contains("LIVE") { return "dot.radiowaves.left.and.right" }
+        if category.contains("AUDIO") { return "waveform" }
+        if category.contains("STICKER") { return "face.smiling" }
+        if category.contains("DATA") || category.contains("POST") || category.contains("TRANSCRIPT") {
+            return "doc"
+        }
+        if category.contains("CONTACT") { return "person.crop.circle" }
+        if category.contains("SNAPSHOT") || category.contains("TRANSFER") { return "arrow.left.arrow.right" }
+        if category.contains("LOCATION") { return "location" }
+        if category == "APP_CARD" || category == "APP_BUTTON_GROUP" { return "app" }
+        if category.contains("RECALL") { return "arrow.uturn.backward" }
+        return nil
+    }
+}
+
+private struct MessageSearchFilterStyle: ButtonStyle {
+    @Environment(\.mixinTheme) private var theme
+
+    let selected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 16))
+            .foregroundStyle(selected ? Color.white : theme.text)
+            .frame(height: 32)
+            .padding(.horizontal, 12)
+            .background(selected ? theme.accent : theme.listSelected, in: Capsule())
+            .opacity(configuration.isPressed ? 0.8 : 1)
     }
 }
 
@@ -1960,7 +2474,7 @@ private struct MessageContentMetadataLayout: Layout {
     }
 }
 
-private struct MessageRow: View, Equatable {
+struct MessageRow: View, Equatable {
     @Environment(AccountSession.self) private var session
     @Environment(HomeNavigationModel.self) private var navigation
     @Environment(SettingsPreferencesModel.self) private var preferences
@@ -1968,14 +2482,17 @@ private struct MessageRow: View, Equatable {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.mixinTheme) private var theme
     @State private var qrPresentation: MessageQRPresentation?
-    @State private var scanningQRCode = false
-    let message: SwiftMessageItem
+    @State private var profilePresented = false
+    @State private var addImageStickerPresented = false
+    @State private var stickerActionError: String?
+    let message: MessageItem
     let mentionNames: [String: String]
     let mentionNamesRevision: Int
-    let audioPlaylist: [SwiftMessageItem]
+    let audioPlaylist: [MessageItem]
     let mediaIndexRevision: Int
     let mediaDirectory: URL?
     let conversationName: String?
+    let groupPresentation: Bool
     let outgoing: Bool
     let sameUserPrevious: Bool
     let sameUserNext: Bool
@@ -1983,10 +2500,11 @@ private struct MessageRow: View, Equatable {
     let recalledText: String?
     let selected: Bool
     let selectionActive: Bool
-    let imageMessages: [SwiftMessageItem]
-    let loadImageWindow: (String) async throws -> [SwiftImageMessageItem]
+    let imageMessages: [MessageItem]
+    let loadImageWindow: (String) async throws -> [ImageMessageView]
     let onReply: () -> Void
     let onCopy: (String) -> Void
+    let onForward: () -> Void
     let onSelect: () -> Void
     let onToggleSelection: () -> Void
     let onTogglePin: () -> Void
@@ -1995,12 +2513,87 @@ private struct MessageRow: View, Equatable {
     let onReedit: (String) -> Void
     let attachmentProgress: Double
     let onAttachmentAction: () -> Void
-    let loadTranscript: () async throws -> [SwiftMessageItem]
-    let onTranscriptAttachmentAction: (SwiftMessageItem) async -> Void
+    let loadTranscript: () async throws -> [MessageItem]
+    let onTranscriptAttachmentAction: (MessageItem) async -> Void
     let onMarkAudioRead: (String) -> Void
     let onShowStickerDetail: (String) -> Void
     let onAppAction: (String, String) -> Void
     let onStrangerAction: (String) async -> Bool
+    let isPinnedPage: Bool
+
+    init(
+        message: MessageItem,
+        mentionNames: [String: String],
+        mentionNamesRevision: Int,
+        audioPlaylist: [MessageItem],
+        mediaIndexRevision: Int,
+        mediaDirectory: URL?,
+        conversationName: String?,
+        groupPresentation: Bool,
+        outgoing: Bool,
+        sameUserPrevious: Bool,
+        sameUserNext: Bool,
+        policy: MessageActionPolicy,
+        recalledText: String?,
+        selected: Bool,
+        selectionActive: Bool,
+        imageMessages: [MessageItem],
+        loadImageWindow: @escaping (String) async throws -> [ImageMessageView],
+        onReply: @escaping () -> Void,
+        onCopy: @escaping (String) -> Void,
+        onForward: @escaping () -> Void = {},
+        onSelect: @escaping () -> Void,
+        onToggleSelection: @escaping () -> Void,
+        onTogglePin: @escaping () -> Void,
+        onRecall: @escaping () -> Void,
+        onDelete: @escaping () -> Void,
+        onReedit: @escaping (String) -> Void,
+        attachmentProgress: Double,
+        onAttachmentAction: @escaping () -> Void,
+        loadTranscript: @escaping () async throws -> [MessageItem],
+        onTranscriptAttachmentAction: @escaping (MessageItem) async -> Void,
+        onMarkAudioRead: @escaping (String) -> Void,
+        onShowStickerDetail: @escaping (String) -> Void,
+        onAppAction: @escaping (String, String) -> Void,
+        onStrangerAction: @escaping (String) async -> Bool,
+        isPinnedPage: Bool = false
+    ) {
+        self.message = message
+        self.mentionNames = mentionNames
+        self.mentionNamesRevision = mentionNamesRevision
+        self.audioPlaylist = audioPlaylist
+        self.mediaIndexRevision = mediaIndexRevision
+        self.mediaDirectory = mediaDirectory
+        self.conversationName = conversationName
+        self.groupPresentation = groupPresentation
+        self.outgoing = outgoing
+        self.sameUserPrevious = sameUserPrevious
+        self.sameUserNext = sameUserNext
+        self.policy = policy
+        self.recalledText = recalledText
+        self.selected = selected
+        self.selectionActive = selectionActive
+        self.imageMessages = imageMessages
+        self.loadImageWindow = loadImageWindow
+        self.onReply = onReply
+        self.onCopy = onCopy
+        self.onForward = onForward
+        self.onSelect = onSelect
+        self.onToggleSelection = onToggleSelection
+        self.onTogglePin = onTogglePin
+        self.onRecall = onRecall
+        self.onDelete = onDelete
+        self.onReedit = onReedit
+        self.attachmentProgress = attachmentProgress
+        self.onAttachmentAction = onAttachmentAction
+        self.loadTranscript = loadTranscript
+        self.onTranscriptAttachmentAction = onTranscriptAttachmentAction
+        self.onMarkAudioRead = onMarkAudioRead
+        self.onShowStickerDetail = onShowStickerDetail
+        self.onAppAction = onAppAction
+        self.onStrangerAction = onStrangerAction
+        self.isPinnedPage = isPinnedPage
+    }
 
     static func == (lhs: MessageRow, rhs: MessageRow) -> Bool {
         lhs.message == rhs.message
@@ -2008,6 +2601,7 @@ private struct MessageRow: View, Equatable {
             && lhs.mediaIndexRevision == rhs.mediaIndexRevision
             && lhs.mediaDirectory == rhs.mediaDirectory
             && lhs.conversationName == rhs.conversationName
+            && lhs.groupPresentation == rhs.groupPresentation
             && lhs.outgoing == rhs.outgoing
             && lhs.sameUserPrevious == rhs.sameUserPrevious
             && lhs.sameUserNext == rhs.sameUserNext
@@ -2020,8 +2614,6 @@ private struct MessageRow: View, Equatable {
 
     var body: some View {
         messageLayout
-            .background(selected ? theme.accent.opacity(0.14) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
             .contentShape(Rectangle())
             .animation(
                 reduceMotion ? nil : .easeInOut(duration: 0.2),
@@ -2042,16 +2634,40 @@ private struct MessageRow: View, Equatable {
             .sheet(item: $qrPresentation) { presentation in
                 MessageQRCodeSheet(presentation: presentation)
             }
+            .sheet(isPresented: $profilePresented) {
+                NavigationStack {
+                    MessageUserProfileView(userID: message.senderId)
+                }
+                .frame(minWidth: 420, minHeight: 560)
+            }
+            .sheet(isPresented: $addImageStickerPresented) {
+                if let source = message.localMediaURL {
+                    AddImageStickerView(
+                        account: session.handle,
+                        messageID: message.messageId,
+                        source: source
+                    )
+                }
+            }
+            .alert(
+                "Add Sticker Failed",
+                isPresented: Binding(
+                    get: { stickerActionError != nil },
+                    set: { if !$0 { stickerActionError = nil } }
+                )
+            ) {
+                Button("OK") {
+                    stickerActionError = nil
+                }
+            } message: {
+                Text(stickerActionError ?? "")
+            }
     }
 
     @ViewBuilder
     private var messageLayout: some View {
         if message.isCenteredTimelineMessage {
             HStack {
-                MessageSelectionIndicator(
-                    selected: selected,
-                    visible: selectionActive
-                )
                 Spacer(minLength: 8)
                 messageBody
                     .font(.system(size: 14 + preferences.chatFontSizeDelta))
@@ -2059,6 +2675,7 @@ private struct MessageRow: View, Equatable {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
+            .padding(.top, sameUserPrevious ? 0 : 8)
             .frame(maxWidth: .infinity)
         } else {
             standardMessageRow
@@ -2066,7 +2683,7 @@ private struct MessageRow: View, Equatable {
     }
 
     private var standardMessageRow: some View {
-        HStack(alignment: .bottom, spacing: 8) {
+        HStack(alignment: .top, spacing: 0) {
             MessageSelectionIndicator(
                 selected: selected,
                 visible: selectionActive
@@ -2074,29 +2691,51 @@ private struct MessageRow: View, Equatable {
 
             if outgoing {
                 Spacer(minLength: 65)
-            } else if preferences.showAvatar, !sameUserPrevious {
+            } else if showsAvatar, !sameUserPrevious {
                 avatar
-            } else if preferences.showAvatar {
+            } else if showsAvatar {
                 Spacer()
                     .frame(width: 32)
+            } else {
+                Spacer()
+                    .frame(width: 8)
             }
 
-            VStack(alignment: outgoing ? .trailing : .leading, spacing: 4) {
-                if !outgoing, !sameUserPrevious {
-                    HStack(alignment: .firstTextBaseline, spacing: 3) {
-                        Text(message.senderName)
-                            .foregroundStyle(theme.secondaryText)
-                        if preferences.showIdentityNumber,
-                           let identity = message.senderIdentityNumber,
-                           !identity.isEmpty,
-                           identity != "0"
-                        {
-                            Text("@\(identity)")
-                                .font(.caption2)
-                                .foregroundStyle(theme.secondaryText.opacity(0.75))
+            VStack(alignment: outgoing ? .trailing : .leading, spacing: 0) {
+                if groupPresentation, !outgoing, !sameUserPrevious {
+                    Button {
+                        profilePresented = true
+                    } label: {
+                        HStack(alignment: .bottom, spacing: 0) {
+                            Text(message.senderName)
+                                .foregroundStyle(
+                                    MessageNamePalette.color(
+                                        for: message.senderId
+                                    )
+                                )
+                            if preferences.showIdentityNumber,
+                               let identity = message.senderIdentityNumber,
+                               !identity.isEmpty,
+                               identity != "0"
+                            {
+                                Spacer().frame(width: 2)
+                                Text("@\(identity)")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(theme.text.opacity(0.5))
+                                    .padding(.bottom, 2)
+                            }
+                            ProfileIdentityBadge(
+                                isVerified: message.senderIsVerified,
+                                isBot: message.senderIsBot,
+                                membership: message.senderMembership
+                            )
+                            .padding(.bottom, 3)
                         }
                     }
+                    .buttonStyle(.plain)
                     .font(.system(size: 12))
+                    .padding(.leading, 10)
+                    .padding(.bottom, 2)
                 }
                 messageBubble
                 if message.usesOuterMetadata {
@@ -2110,17 +2749,18 @@ private struct MessageRow: View, Equatable {
                 Spacer(minLength: 65)
             }
         }
-        .padding(.horizontal, outgoing ? 16 : 8)
+        .padding(.leading, outgoing ? 0 : 8)
+        .padding(.trailing, outgoing ? 16 : 0)
         .padding(.top, sameUserPrevious ? 0 : 8)
         .padding(.vertical, 2)
     }
 
     private var messageBubble: some View {
-        Group {
+        let content = Group {
             if message.hidesMetadata {
-                messageBody
+                messageContentWithQuote
             } else if message.overlaysMetadata {
-                messageBody
+                messageContentWithQuote
                     .overlay(alignment: .bottomTrailing) {
                         messageMetadata
                             .foregroundStyle(.white)
@@ -2130,30 +2770,86 @@ private struct MessageRow: View, Equatable {
                             .padding(6)
                     }
             } else if message.usesOuterMetadata {
-                messageBody
+                messageContentWithQuote
             } else {
                 MessageContentMetadataLayout {
-                    messageBody
+                    messageContentWithQuote
                     messageMetadata
                 }
             }
         }
+        let bubble = messageBubbleSurface(content)
+        return HStack(spacing: 0) {
+            if message.isDisappearing, outgoing {
+                expiringIcon
+            }
+            bubble
+            if message.isDisappearing, !outgoing {
+                expiringIcon
+            }
+        }
         .font(.system(size: 16 + preferences.chatFontSizeDelta))
-        .padding(message.messageContentInsets)
-        .background(
-            message.showsBubbleSurface ? messageBubbleColor : Color.clear
+    }
+
+    private func messageBubbleSurface<Content: View>(
+        _ content: Content
+    ) -> some View {
+        let shape = MessageBubbleShape(
+            outgoing: outgoing,
+            showsNip: showsBubbleNip
         )
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        let nipInsets =
+            message.includesBubbleNipInContent
+            ? EdgeInsets()
+            : EdgeInsets(
+                top: 0,
+                leading: outgoing ? 0 : 9,
+                bottom: 0,
+                trailing: outgoing ? 9 : 0
+            )
+        return content
+            .padding(nipInsets)
+            .background {
+                if message.showsBubbleSurface {
+                    shape
+                        .fill(messageBubbleColor)
+                        .shadow(
+                            color: .black.opacity(0.22),
+                            radius: 0.6,
+                            y: 0.3
+                        )
+                }
+            }
+            .clipShape(
+                message.clipsBubbleContent
+                    ? AnyShape(shape)
+                    : AnyShape(Rectangle())
+            )
+    }
+
+    private var showsBubbleNip: Bool {
+        !sameUserNext && (!showsAvatar || outgoing)
+    }
+
+    private var expiringIcon: some View {
+        Image(colorScheme == .dark ? "ExpiringDark" : "Expiring")
+            .resizable()
+            .frame(width: 16, height: 16)
+            .padding(.horizontal, 10)
     }
 
     private var messageMetadata: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 0) {
             if message.pinned {
                 Image(systemName: "pin.fill")
                     .font(.system(size: 8))
+                    .frame(width: 8, height: 8)
+                    .padding(.trailing, 4)
             }
             Text(message.formattedTime)
             if outgoing {
+                Spacer()
+                    .frame(width: 8)
                 if let assetName = message.statusAssetName {
                     Image(assetName)
                         .resizable()
@@ -2179,6 +2875,7 @@ private struct MessageRow: View, Equatable {
                 blue: colorScheme == .dark ? 134 / 255 : 158 / 255
             )
         )
+        .frame(height: 12)
         .fixedSize()
     }
 
@@ -2195,142 +2892,321 @@ private struct MessageRow: View, Equatable {
 
     @ViewBuilder
     private var messageContextMenu: some View {
-        if !selectionActive, policy.allowsMessageActions {
-                if policy.canReply {
-                    Button("Reply", systemImage: "arrowshape.turn.up.left") {
-                        onReply()
+        if isPinnedPage {
+            if let text = policy.copyableText {
+                Button("Copy", systemImage: "doc.on.doc") {
+                    onCopy(text)
+                }
+                if message.category.hasSuffix("_TEXT") {
+                    Button("Generate QR Code", systemImage: "qrcode") {
+                        qrPresentation = .generated(text)
                     }
                 }
-                if let text = policy.copyableText {
-                    Button("Copy", systemImage: "doc.on.doc") {
-                        onCopy(text)
-                    }
-                    if message.category.hasSuffix("_TEXT") {
-                        Button("Generate QR Code", systemImage: "qrcode") {
-                            qrPresentation = .generated(text)
-                        }
-                    }
+            }
+            if message.category.hasSuffix("_IMAGE"),
+               message.mediaStatus.isComplete,
+               message.localMediaURL != nil
+            {
+                Button("Copy Image", systemImage: "photo.on.rectangle") {
+                    MessageMediaInteraction.copyImage(message)
                 }
-                if message.mediaStatus.isComplete, message.localMediaURL != nil {
-                    if message.category.hasSuffix("_IMAGE") {
-                        Button("Copy Image", systemImage: "photo.on.rectangle") {
-                            MessageMediaInteraction.copyImage(message)
-                        }
-                        Button("Scan QR Code", systemImage: "qrcode.viewfinder") {
-                            scanImageQRCode()
-                        }
-                        .disabled(scanningQRCode)
-                    }
-                    if message.category.hasSuffix("_IMAGE")
-                        || message.category.hasSuffix("_VIDEO")
-                        || message.category.hasSuffix("_DATA")
-                    {
-                        Button("Save Attachment As…", systemImage: "square.and.arrow.down") {
-                            MessageMediaInteraction.save(message)
-                        }
-                    }
-                    if message.category.hasSuffix("_DATA") {
-                        Button("Show in Finder", systemImage: "finder") {
-                            MessageMediaInteraction.reveal(message)
-                        }
-                    }
-                }
-                if policy.canSelect {
-                    Button("Select", systemImage: "checkmark.circle") {
-                        onSelect()
-                    }
-                }
-                if policy.canPin {
-                    Divider()
-                    Button(
-                        message.pinned ? "Unpin" : "Pin",
-                        systemImage: message.pinned ? "pin.slash" : "pin"
-                    ) {
-                        onTogglePin()
-                    }
-                }
+            }
+            Divider()
+            Button("Locate in Chat", systemImage: "scope") {
+                onReply()
+            }
+            Button("Unpin", systemImage: "pin.slash") {
+                onTogglePin()
+            }
+            if policy.canSave, message.localMediaURL != nil {
                 Divider()
-                if policy.canRecall {
-                    Button("Delete for Everyone", systemImage: "trash", role: .destructive) {
-                        onRecall()
+                Button("Save Attachment As…", systemImage: "square.and.arrow.down") {
+                    MessageMediaInteraction.save(message)
+                }
+            }
+        } else if !selectionActive, policy.allowsMessageActions {
+            if policy.canReply {
+                Button("Reply", systemImage: "arrowshape.turn.up.left") {
+                    onReply()
+                }
+            }
+            if let text = policy.copyableText {
+                Button("Copy", systemImage: "doc.on.doc") {
+                    onCopy(text)
+                }
+                if message.category.hasSuffix("_TEXT") {
+                    Button("Generate QR Code", systemImage: "qrcode") {
+                        qrPresentation = .generated(text)
                     }
                 }
-                if policy.canDelete {
-                    Button("Delete for Me", systemImage: "trash", role: .destructive) {
-                        onDelete()
+            }
+            if message.category.hasSuffix("_IMAGE"),
+               message.mediaStatus.isComplete,
+               message.localMediaURL != nil
+            {
+                Button("Copy Image", systemImage: "photo.on.rectangle") {
+                    MessageMediaInteraction.copyImage(message)
+                }
+            }
+            if policy.canForward || policy.canSelect || policy.canPin {
+                Divider()
+            }
+            if policy.canForward {
+                Button("Forward", systemImage: "arrowshape.turn.up.right") {
+                    onForward()
+                }
+            }
+            if policy.canSelect {
+                Button("Select", systemImage: "checkmark.circle") {
+                    onSelect()
+                }
+            }
+            if policy.canPin {
+                Button(
+                    message.pinned ? "Unpin" : "Pin",
+                    systemImage: message.pinned ? "pin.slash" : "pin"
+                ) {
+                    onTogglePin()
+                }
+            }
+            if policy.canSave, message.localMediaURL != nil {
+                Divider()
+                Button("Save Attachment As…", systemImage: "square.and.arrow.down") {
+                    MessageMediaInteraction.save(message)
+                }
+            }
+            if validStickerID != nil || policy.canAddImageAsSticker {
+                Divider()
+                Button("Add Sticker", systemImage: "face.smiling") {
+                    if let stickerID = validStickerID {
+                        Task {
+                            do {
+                                try await session.handle.addSticker(
+                                    stickerId: stickerID
+                                )
+                            } catch {
+                                stickerActionError =
+                                    MixinErrorPresenter.message(for: error)
+                            }
+                        }
+                    } else {
+                        addImageStickerPresented = true
                     }
                 }
+            }
+            Divider()
+            if policy.canRecall {
+                Button("Delete for Everyone", systemImage: "trash", role: .destructive) {
+                    onRecall()
+                }
+            }
+            if policy.canDelete {
+                Button("Delete for Me", systemImage: "trash", role: .destructive) {
+                    onDelete()
+                }
+            }
         }
     }
 
     private var avatar: some View {
-        MixinRemoteImage(url: URL(string: message.senderAvatarUrl)) { image in
-            image.resizable().scaledToFill()
-        } placeholder: {
-            Image(systemName: "person.crop.circle.fill")
-                .resizable()
-                .foregroundStyle(.secondary)
+        Button {
+            profilePresented = true
+        } label: {
+            UserAvatar(
+                userID: message.senderId,
+                name: message.senderName,
+                url: message.senderAvatarUrl,
+                size: 32
+            )
         }
-        .frame(width: 32, height: 32)
-        .clipShape(Circle())
+        .buttonStyle(.plain)
+    }
+
+    private var showsAvatar: Bool {
+        groupPresentation && preferences.showAvatar
     }
 
     @ViewBuilder
     private var messageBody: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let quote = message.quoteContent, !quote.isEmpty {
-                MessageRichText(
-                    content: quote,
-                    baseFontSize: 12,
-                    color: .secondary,
-                    lineLimit: 2,
+        MessageContentView(
+            message: message,
+            mentionNames: mentionNames,
+            audioPlaylist: audioPlaylist,
+            mediaDirectory: mediaDirectory,
+            conversationName: conversationName,
+            outgoing: outgoing,
+            recalledText: recalledText,
+            imageMessages: imageMessages,
+            loadImageWindow: loadImageWindow,
+            attachmentProgress: attachmentProgress,
+            onAttachmentAction: onAttachmentAction,
+            onForward: onForward,
+            loadTranscript: loadTranscript,
+            onTranscriptAttachmentAction: onTranscriptAttachmentAction,
+            onReedit: onReedit,
+            onMarkAudioRead: onMarkAudioRead,
+            onShowStickerDetail: onShowStickerDetail,
+            onAppAction: onAppAction,
+            onStrangerAction: onStrangerAction
+        )
+    }
+
+    @ViewBuilder
+    private var messageContentWithQuote: some View {
+        if message.quoteMessageId?.isEmpty == false {
+            VStack(alignment: .leading, spacing: 0) {
+                MessageQuotePreview(
+                    content: message.quoteContent ?? "",
                     mentionNames: mentionNames
                 )
-                    .padding(.leading, 7)
-                    .overlay(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.accentColor)
-                            .frame(width: 3)
-                    }
+                messageBody
+                    .padding(message.messageContentInsets)
             }
-
-            MessageContentView(
-                message: message,
-                mentionNames: mentionNames,
-                audioPlaylist: audioPlaylist,
-                mediaDirectory: mediaDirectory,
-                conversationName: conversationName,
-                outgoing: outgoing,
-                recalledText: recalledText,
-                imageMessages: imageMessages,
-                loadImageWindow: loadImageWindow,
-                attachmentProgress: attachmentProgress,
-                onAttachmentAction: onAttachmentAction,
-                loadTranscript: loadTranscript,
-                onTranscriptAttachmentAction: onTranscriptAttachmentAction,
-                onReedit: onReedit,
-                onMarkAudioRead: onMarkAudioRead,
-                onShowStickerDetail: onShowStickerDetail,
-                onAppAction: onAppAction,
-                onStrangerAction: onStrangerAction
-            )
+        } else {
+            messageBody
+                .padding(message.messageContentInsets)
         }
     }
 
-    private func scanImageQRCode() {
-        guard !scanningQRCode, let url = message.localMediaURL else {
+    private var validStickerID: String? {
+        guard policy.canAddSticker,
+              let stickerID = message.stickerId?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !stickerID.isEmpty
+        else {
+            return nil
+        }
+        return stickerID
+    }
+}
+
+private struct MessageQuotePreview: View {
+    @Environment(\.mixinTheme) private var theme
+
+    let content: String
+    let mentionNames: [String: String]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Rectangle()
+                .fill(theme.accent)
+                .frame(width: 6)
+
+            Group {
+                if content.isEmpty {
+                    Text("Message not found")
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.secondaryText)
+                } else {
+                    MessageRichText(
+                        content: content,
+                        baseFontSize: 12,
+                        color: .secondary,
+                        lineLimit: 1,
+                        mentionNames: mentionNames
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 6)
+            .padding(.vertical, 6)
+            .padding(.trailing, 8)
+        }
+        .frame(minHeight: 50)
+        .background(.black.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+private struct AddImageStickerView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.mixinTheme) private var theme
+    let account: SwiftAccountHandle
+    let messageID: String
+    let source: URL
+    @State private var saving = false
+    @State private var error: String?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                Text("Add Sticker")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(theme.text)
+                HStack {
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .frame(width: 40, height: 40)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 8)
+            }
+            .frame(height: 64)
+
+            Spacer()
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(
+                        theme.divider,
+                        style: StrokeStyle(
+                            lineWidth: 2,
+                            dash: [8, 2]
+                        )
+                    )
+                if let image = NSImage(contentsOf: source) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(30)
+                }
+            }
+            .frame(width: 400, height: 400)
+            Spacer()
+            Button("Save") {
+                save()
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(theme.accent, in: RoundedRectangle(cornerRadius: 5))
+            .disabled(saving)
+            .padding(.vertical, 30)
+        }
+        .frame(width: 480, height: 600)
+        .background(theme.popUp)
+        .alert(
+            "Add Sticker Failed",
+            isPresented: Binding(
+                get: { error != nil },
+                set: { if !$0 { error = nil } }
+            )
+        ) {
+            Button("OK") {
+                error = nil
+            }
+        } message: {
+            Text(error ?? "")
+        }
+    }
+
+    private func save() {
+        guard !saving else {
             return
         }
-        scanningQRCode = true
+        saving = true
         Task {
-            defer { scanningQRCode = false }
             do {
-                let contents = try await MessageQRScanner.scan(imageAt: url)
-                qrPresentation = contents.isEmpty
-                    ? .detectionFailed
-                    : .detected(contents)
+                try await account.addStickerFromFile(messageId: messageID)
+                dismiss()
             } catch {
-                qrPresentation = .detectionFailed
+                self.error = MixinErrorPresenter.message(for: error)
+                saving = false
             }
         }
     }
@@ -2341,15 +3217,74 @@ private struct MessageSelectionIndicator: View {
     let visible: Bool
 
     var body: some View {
-        Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-            .symbolEffect(.bounce, value: selected)
-            .frame(width: visible ? 32 : 0)
+        Circle()
+            .fill(selected ? Color.accentColor : Color.secondary)
+            .frame(width: 16, height: 16)
+            .overlay {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+            .frame(width: visible ? 48 : 0, height: 20)
             .opacity(visible ? 1 : 0)
-            .scaleEffect(visible ? 1 : 0.75)
             .clipped()
             .accessibilityHidden(!visible)
+            .animation(.easeInOut(duration: 0.3), value: visible)
+    }
+}
+
+private enum MessageNamePalette {
+    private static let colors: [Color] = [
+        color(0x8C8DFF), color(0x7983C2), color(0x6D8DDE),
+        color(0x5979F0), color(0x6695DF), color(0x8F7AC5),
+        color(0x9D77A5), color(0x8A64D0), color(0xAA66C3),
+        color(0xA75C96), color(0xC8697D), color(0xB74D62),
+        color(0xBD637C), color(0xB3798E), color(0x9B6D77),
+        color(0xB87F7F), color(0xC5595A), color(0xAA4848),
+        color(0xB0665E), color(0xB76753), color(0xBB5334),
+        color(0xC97B46), color(0xBE6C2C), color(0xCB7F40),
+        color(0xA47758), color(0xB69370), color(0xA49373),
+        color(0xAA8A46), color(0xAA8220), color(0x76A048),
+        color(0x9CAD23), color(0xA19431), color(0xAA9100),
+        color(0xA09555), color(0xC49B4B), color(0x5FB05F),
+        color(0x6AB48F), color(0x71B15C), color(0xB3B357),
+        color(0xA3B561), color(0x909F45), color(0x93B289),
+        color(0x3D98D0), color(0x429AB6), color(0x4EABAA),
+        color(0x6BC0CE), color(0x64B5D9), color(0x3E9CCB),
+        color(0x2887C4), color(0x52A98B),
+    ]
+
+    static func color(for userID: String) -> Color {
+        colors[Int(hash(for: userID).magnitude % UInt64(colors.count))]
+    }
+
+    private static func hash(for userID: String) -> Int64 {
+        let components = userID.trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: "-")
+        guard components.count == 5,
+              let first = UInt64(components[0], radix: 16),
+              let second = UInt64(components[1], radix: 16),
+              let third = UInt64(components[2], radix: 16),
+              let fourth = UInt64(components[3], radix: 16),
+              let fifth = UInt64(components[4], radix: 16)
+        else {
+            return userID.utf8.reduce(0) { hash, byte in
+                hash &* 31 &+ Int64(byte)
+            }
+        }
+        let mostSignificantBits = first << 32 | second << 16 | third
+        let leastSignificantBits = fourth << 48 | fifth
+        let hilo = mostSignificantBits ^ leastSignificantBits
+        return (Int64(bitPattern: hilo) >> 32)
+            ^ Int64(Int32(truncatingIfNeeded: hilo))
+    }
+
+    private static func color(_ hex: UInt32) -> Color {
+        Color(
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255
+        )
     }
 }
 
@@ -2369,15 +3304,15 @@ final class ChatTimelineModel {
 
     private(set) var state: State = .loading
     private var timelineStore = ChatTimelineStore()
-    var messages: [SwiftMessageItem] { timelineStore.messages }
+    var messages: [MessageItem] { timelineStore.messages }
     fileprivate var rows: [ChatTimelineRow] { timelineStore.rows }
-    fileprivate func message(id: String) -> SwiftMessageItem? {
+    fileprivate func message(id: String) -> MessageItem? {
         timelineStore.message(id: id)
     }
-    var imageMessages: [SwiftMessageItem] {
+    var imageMessages: [MessageItem] {
         timelineStore.imageMessages
     }
-    var audioMessages: [SwiftMessageItem] {
+    var audioMessages: [MessageItem] {
         timelineStore.audioMessages
     }
     var mediaIndexRevision: Int {
@@ -2391,13 +3326,13 @@ final class ChatTimelineModel {
     private(set) var timelineChange: ChatTimelineChange?
     private(set) var sending = false
     private(set) var sendError: String?
-    private(set) var searchResults: [SwiftMessageItem] = []
+    private(set) var searchResults: [MessageItem] = []
     private(set) var searching = false
     private(set) var searchError: String?
     private(set) var hasMoreSearchResults = false
     private(set) var mentionNames: [String: String] = [:]
     private(set) var currentUserRole: String?
-    private(set) var pinnedMessages: [SwiftMessageItem] = []
+    private(set) var pinnedMessages: [MessageItem] = []
     private(set) var unreadMentionMessageIDs: [String] = []
     private(set) var pinnedPreviewDismissed = false
     private(set) var mutating = false
@@ -2436,10 +3371,9 @@ final class ChatTimelineModel {
     private static let recalledTextLifetime: TimeInterval = 6 * 60
     private static let initialPageSize = 60
     private static let pageSize = 100
-
     func recalledText(messageID: String) -> String? {
         guard let value = recalledTexts[messageID],
-              value.expiresAt > Date()
+            value.expiresAt > Date()
         else {
             return nil
         }
@@ -2461,11 +3395,13 @@ final class ChatTimelineModel {
         self.currentUserID = currentUserID
         pinnedMessages = []
         pinnedMessagesLoaded = false
-        let pinnedPreviewPreferenceKey = "show_pin_message_\(conversationID)"
+        let pinnedPreviewPreferenceKey =
+            "show_pin_message_\(currentUserID)_\(conversationID)"
         self.pinnedPreviewPreferenceKey = pinnedPreviewPreferenceKey
-        pinnedPreviewDismissed = UserDefaults.standard.object(
-            forKey: pinnedPreviewPreferenceKey
-        ) == nil
+        pinnedPreviewDismissed =
+            UserDefaults.standard.object(
+                forKey: pinnedPreviewPreferenceKey
+            ) == nil
             ? false
             : !UserDefaults.standard.bool(forKey: pinnedPreviewPreferenceKey)
         mediaDirectory = (try? account.mediaDirectory()).map {
@@ -2477,10 +3413,10 @@ final class ChatTimelineModel {
         self.conversationSubscription = conversationSubscription
         conversationSubscriptionTask = Task { [weak self] in
             while !Task.isCancelled,
-                  let event = await conversationSubscription.next()
+                let event = await conversationSubscription.next()
             {
                 guard let self,
-                      event.reloadAll || event.conversationIds.contains(conversationID)
+                    event.reloadAll || event.conversationIds.contains(conversationID)
                 else {
                     continue
                 }
@@ -2492,7 +3428,7 @@ final class ChatTimelineModel {
         self.messageSubscription = messageSubscription
         messageSubscriptionTask = Task { [weak self] in
             while !Task.isCancelled,
-                  let revision = await messageSubscription.next()
+                let revision = await messageSubscription.next()
             {
                 guard let self else {
                     continue
@@ -2530,8 +3466,8 @@ final class ChatTimelineModel {
             }
         let unreadAnchor: ChatTimelineAnchor?
         if !loadedInitialWindow,
-           unseenCount > 0,
-           let lastReadMessageID
+            unseenCount > 0,
+            let lastReadMessageID
         {
             unreadAnchor = await loadUnreadWindow(
                 lastReadMessageID: lastReadMessageID,
@@ -2664,7 +3600,7 @@ final class ChatTimelineModel {
 
     func imageMessagesAround(
         messageID: String
-    ) async throws -> [SwiftImageMessageItem] {
+    ) async throws -> [ImageMessageView] {
         guard let account, let conversationID else {
             return []
         }
@@ -2697,7 +3633,7 @@ final class ChatTimelineModel {
 
     func handleStrangerAction(
         _ action: String,
-        message: SwiftMessageItem,
+        message: MessageItem,
         currency: String
     ) async -> Bool {
         guard !mutating, let account, let conversationID else {
@@ -2727,8 +3663,9 @@ final class ChatTimelineModel {
                 )
                 await jumpToLatest()
             case "open_home":
-                guard let appID = message.senderAppId?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                guard
+                    let appID = message.senderAppId?
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
                     !appID.isEmpty
                 else {
                     return false
@@ -2801,7 +3738,7 @@ final class ChatTimelineModel {
     }
 
     func sendAudio(
-        _ recording: VoiceRecording,
+        _ recording: VoiceRecordingDraft,
         quoteMessageID: String?
     ) async -> Bool {
         guard !sending, let account, let conversationID else {
@@ -2843,7 +3780,8 @@ final class ChatTimelineModel {
             }
         }
         let videoMetadata = await request.videoMetadata()
-        let dimensions: (width: Int32, height: Int32)? = request.dimensions
+        let dimensions: (width: Int32, height: Int32)? =
+            request.dimensions
             ?? videoMetadata.map { (width: $0.width, height: $0.height) }
         do {
             _ = try await account.sendAttachment(
@@ -2940,7 +3878,7 @@ final class ChatTimelineModel {
     }
 
     func performAttachmentAction(
-        _ message: SwiftMessageItem,
+        _ message: MessageItem,
         sentByCurrentUser: Bool
     ) async {
         guard !mutating, let account else {
@@ -2980,7 +3918,7 @@ final class ChatTimelineModel {
         }
     }
 
-    func transcriptMessages(transcriptID: String) async throws -> [SwiftMessageItem] {
+    func transcriptMessages(transcriptID: String) async throws -> [MessageItem] {
         guard let account else {
             return []
         }
@@ -2989,7 +3927,7 @@ final class ChatTimelineModel {
 
     func performTranscriptAttachmentAction(
         transcriptID: String,
-        message: SwiftMessageItem,
+        message: MessageItem,
         sentByCurrentUser: Bool
     ) async {
         guard let account else {
@@ -3049,11 +3987,11 @@ final class ChatTimelineModel {
         }
     }
 
-    func recall(messages: [SwiftMessageItem]) async -> Bool {
+    func recall(messages: [MessageItem]) async -> Bool {
         guard !messages.isEmpty,
-              !mutating,
-              let account,
-              let conversationID
+            !mutating,
+            let account,
+            let conversationID
         else {
             return false
         }
@@ -3168,10 +4106,10 @@ final class ChatTimelineModel {
 
     func loadOlder() async {
         guard !loadingOlder,
-              hasOlderMessages,
-              let account,
-              let conversationID,
-              let oldest = messages.first
+            hasOlderMessages,
+            let account,
+            let conversationID,
+            let oldest = messages.first
         else {
             return
         }
@@ -3195,10 +4133,10 @@ final class ChatTimelineModel {
 
     func loadNewer() async {
         guard !loadingNewer,
-              hasNewerMessages,
-              let account,
-              let conversationID,
-              let newest = messages.last
+            hasNewerMessages,
+            let account,
+            let conversationID,
+            let newest = messages.last
         else {
             return
         }
@@ -3283,11 +4221,11 @@ final class ChatTimelineModel {
         recalledTexts = [:]
     }
 
-    private func retainRecalledText(from messages: [SwiftMessageItem]) {
+    private func retainRecalledText(from messages: [MessageItem]) {
         let expiresAt = Date().addingTimeInterval(Self.recalledTextLifetime)
         for message in messages
-            where message.category.hasSuffix("_TEXT")
-                && message.senderId == currentUserID
+        where message.category.hasSuffix("_TEXT")
+            && message.senderId == currentUserID
         {
             recalledTexts[message.messageId] = RecalledText(
                 content: message.content,
@@ -3296,7 +4234,8 @@ final class ChatTimelineModel {
         }
         if recalledTexts.count > Self.recalledTextLimit {
             let overflow = recalledTexts.count - Self.recalledTextLimit
-            for messageID in recalledTexts
+            for messageID
+                in recalledTexts
                 .sorted(by: { $0.value.expiresAt < $1.value.expiresAt })
                 .prefix(overflow)
                 .map(\.key)
@@ -3334,9 +4273,9 @@ final class ChatTimelineModel {
         ) async throws -> Void
     ) async -> Bool {
         guard !messageIDs.isEmpty,
-              !mutating,
-              let account,
-              let conversationID
+            !mutating,
+            let account,
+            let conversationID
         else {
             return false
         }
@@ -3358,9 +4297,9 @@ final class ChatTimelineModel {
         mutation: ChatTimelineMutation,
         presentWhenLoaded: Bool = true
     ) async -> Bool {
-        guard case let .message(messageID, _, _, _) = anchor,
-              let account,
-              let conversationID
+        guard case .message(let messageID, _, _, _) = anchor,
+            let account,
+            let conversationID
         else {
             return false
         }
@@ -3375,8 +4314,8 @@ final class ChatTimelineModel {
                 after: halfPage
             )
             guard version == requestVersion,
-                  self.conversationID == conversationID,
-                  items.contains(where: { $0.messageId == messageID })
+                self.conversationID == conversationID,
+                items.contains(where: { $0.messageId == messageID })
             else {
                 return false
             }
@@ -3388,9 +4327,10 @@ final class ChatTimelineModel {
                 $0.messageId == messageID
             }
             hasOlderMessages = targetIndex.map { $0 >= Int(halfPage) } ?? false
-            hasNewerMessages = targetIndex.map {
-                messages.count - $0 - 1 >= Int(halfPage)
-            } ?? false
+            hasNewerMessages =
+                targetIndex.map {
+                    messages.count - $0 - 1 >= Int(halfPage)
+                } ?? false
             if presentWhenLoaded {
                 state = .ready
             }
@@ -3466,24 +4406,26 @@ final class ChatTimelineModel {
                 after: 30
             )
             guard version == requestVersion,
-                  self.conversationID == conversationID,
-                  let readIndex = items.firstIndex(where: {
-                      $0.messageId == lastReadMessageID
-                  })
+                self.conversationID == conversationID,
+                let readIndex = items.firstIndex(where: {
+                    $0.messageId == lastReadMessageID
+                })
             else {
                 return nil
             }
-            let initialMessageID = items.indices.contains(readIndex + 1)
+            let initialMessageID =
+                items.indices.contains(readIndex + 1)
                 ? items[readIndex + 1].messageId
                 : items.last?.messageId
-            let anchor = initialMessageID.map {
-                ChatTimelineAnchor.message(
-                    id: $0,
-                    alignment: .focus,
-                    offset: 0,
-                    highlight: false
-                )
-            } ?? .latest
+            let anchor =
+                initialMessageID.map {
+                    ChatTimelineAnchor.message(
+                        id: $0,
+                        alignment: .focus,
+                        offset: 0,
+                        highlight: false
+                    )
+                } ?? .latest
             replaceMessages(
                 items,
                 mutation: .reset(anchor: anchor)
@@ -3492,9 +4434,10 @@ final class ChatTimelineModel {
             let sortedReadIndex = messages.firstIndex {
                 $0.messageId == lastReadMessageID
             }
-            hasNewerMessages = sortedReadIndex.map {
-                messages.count - $0 - 1 >= 30
-            } ?? false
+            hasNewerMessages =
+                sortedReadIndex.map {
+                    messages.count - $0 - 1 >= 30
+                } ?? false
             if presentWhenLoaded {
                 state = .ready
             }
@@ -3524,7 +4467,7 @@ final class ChatTimelineModel {
             let previousMessageIDs = Set(pinnedMessages.map(\.messageId))
             let pinnedMessageIDs = Set(pinned.map(\.messageId))
             if pinnedMessagesLoaded,
-               !pinnedMessageIDs.subtracting(previousMessageIDs).isEmpty
+                !pinnedMessageIDs.subtracting(previousMessageIDs).isEmpty
             {
                 pinnedPreviewDismissed = false
                 if let pinnedPreviewPreferenceKey {
@@ -3569,8 +4512,8 @@ final class ChatTimelineModel {
 
     private func performChangedMessageRefresh(includeRecent: Bool) async {
         guard let account,
-              let conversationID,
-              !messages.isEmpty
+            let conversationID,
+            !messages.isEmpty
         else {
             return
         }
@@ -3582,7 +4525,7 @@ final class ChatTimelineModel {
             async let loaded = account.messageItemsByIds(
                 messageIds: Array(refreshIDs)
             )
-            let recentItems: [SwiftMessageItem]
+            let recentItems: [MessageItem]
             if includeRecent, !hasNewerMessages {
                 recentItems = try await account.messages(
                     conversationId: conversationID,
@@ -3595,7 +4538,7 @@ final class ChatTimelineModel {
             }
             let loadedItems = try await loaded
             guard version == windowVersion,
-                  self.conversationID == conversationID
+                self.conversationID == conversationID
             else {
                 refreshPending = true
                 refreshRecentPending = refreshRecentPending || includeRecent
@@ -3617,9 +4560,10 @@ final class ChatTimelineModel {
                 let recentUpdates = recentItems.filter {
                     timelineStore.contains($0.messageId)
                 }
-                let liveItems = boundaryIndex.map {
-                    Array(recentItems[..<$0].reversed())
-                } ?? []
+                let liveItems =
+                    boundaryIndex.map {
+                        Array(recentItems[..<$0].reversed())
+                    } ?? []
                 let sentByCurrentUser = liveItems.contains {
                     $0.senderId == currentUserID
                 }
@@ -3663,8 +4607,8 @@ final class ChatTimelineModel {
         revision: UInt64
     ) async {
         guard let account,
-              let conversationID,
-              !messageIDs.isEmpty
+            let conversationID,
+            !messageIDs.isEmpty
         else {
             return
         }
@@ -3674,7 +4618,7 @@ final class ChatTimelineModel {
                 messageIds: messageIDs
             )
             guard self.conversationID == conversationID,
-                  version == windowVersion
+                version == windowVersion
             else {
                 return
             }
@@ -3697,7 +4641,7 @@ final class ChatTimelineModel {
     }
 
     private func prependMessages(
-        _ items: [SwiftMessageItem],
+        _ items: [MessageItem],
         mutation: ChatTimelineMutation
     ) {
         guard timelineStore.prepend(items) else {
@@ -3708,7 +4652,7 @@ final class ChatTimelineModel {
     }
 
     private func appendMessages(
-        _ items: [SwiftMessageItem],
+        _ items: [MessageItem],
         mutation: ChatTimelineMutation
     ) {
         guard timelineStore.append(items) else {
@@ -3719,7 +4663,7 @@ final class ChatTimelineModel {
     }
 
     private func updateMessages(
-        _ items: [SwiftMessageItem],
+        _ items: [MessageItem],
         removingIDs: Set<String> = [],
         mutation: ChatTimelineMutation
     ) {
@@ -3731,7 +4675,7 @@ final class ChatTimelineModel {
     }
 
     private func replaceMessages(
-        _ items: [SwiftMessageItem],
+        _ items: [MessageItem],
         mutation: ChatTimelineMutation
     ) {
         guard timelineStore.reset(with: items) else {
@@ -3787,7 +4731,7 @@ final class ChatTimelineModel {
                 contents: Array(unresolved)
             )
             guard revision == mentionRevision,
-                  self.conversationID == conversationID
+                self.conversationID == conversationID
             else {
                 return
             }
@@ -3799,14 +4743,14 @@ final class ChatTimelineModel {
             resolvedMentionContents.formUnion(unresolved)
         } catch {
             guard revision == mentionRevision,
-                  self.conversationID == conversationID
+                self.conversationID == conversationID
             else {
                 return
             }
         }
     }
 
-    private func deduplicated(_ items: [SwiftMessageItem]) -> [SwiftMessageItem] {
+    private func deduplicated(_ items: [MessageItem]) -> [MessageItem] {
         var seen = Set<String>()
         return items.filter { seen.insert($0.messageId).inserted }
     }
@@ -3827,22 +4771,23 @@ enum MessagePresentationKind {
     case unknown
 }
 
-extension SwiftMessageItem {
+extension MessageItem {
     var hasInvalidImagePayload: Bool {
         category.hasSuffix("_IMAGE") && (mediaWidth == nil || mediaHeight == nil)
     }
 
     var hasInvalidSpecialPayload: Bool {
         let category = category.uppercased()
-        guard category.hasSuffix("_LOCATION")
-            || category.hasSuffix("_TRANSCRIPT")
-            || category == "APP_BUTTON_GROUP"
-            || category == "APP_CARD"
+        guard
+            category.hasSuffix("_LOCATION")
+                || category.hasSuffix("_TRANSCRIPT")
+                || category == "APP_BUTTON_GROUP"
+                || category == "APP_CARD"
         else {
             return false
         }
         guard let data = content.data(using: .utf8),
-              let value = try? JSONSerialization.jsonObject(with: data)
+            let value = try? JSONSerialization.jsonObject(with: data)
         else {
             return true
         }
@@ -3938,6 +4883,8 @@ extension SwiftMessageItem {
         return category.hasSuffix("_IMAGE")
             || category.hasSuffix("_VIDEO")
             || category.hasSuffix("_LIVE")
+            || category.hasSuffix("_POST")
+            || category.hasSuffix("_TRANSCRIPT")
     }
 
     var usesOuterMetadata: Bool {
@@ -3947,7 +4894,6 @@ extension SwiftMessageItem {
             || category.hasSuffix("_CONTACT")
             || category.hasSuffix("_DATA")
             || category.hasSuffix("_AUDIO")
-            || category.hasSuffix("_TRANSCRIPT")
             || category == "APP_CARD"
             || category == "SYSTEM_ACCOUNT_SNAPSHOT"
             || category == "SYSTEM_SAFE_SNAPSHOT"
@@ -3970,8 +4916,43 @@ extension SwiftMessageItem {
         if quoteMessageId?.isEmpty == false || quoteContent?.isEmpty == false {
             return true
         }
+        if category.hasSuffix("_IMAGE"),
+           caption?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+               != false
+        {
+            return false
+        }
+        if isActionsAppCard {
+            return false
+        }
         return !category.hasSuffix("_STICKER")
             && category != "APP_BUTTON_GROUP"
+    }
+
+    var includesBubbleNipInContent: Bool {
+        let category = category.uppercased()
+        return category.hasSuffix("_IMAGE")
+            && caption?.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ).isEmpty != false
+            || category.hasSuffix("_VIDEO")
+            || category.hasSuffix("_LIVE")
+            || category.hasSuffix("_LOCATION")
+            || category == "SYSTEM_SAFE_INSCRIPTION"
+    }
+
+    var clipsBubbleContent: Bool {
+        let category = category.uppercased()
+        return category.hasSuffix("_IMAGE")
+            || category.hasSuffix("_VIDEO")
+            || category.hasSuffix("_LIVE")
+            || category.hasSuffix("_STICKER")
+            || category.hasSuffix("_LOCATION")
+            || category == "SYSTEM_SAFE_INSCRIPTION"
+    }
+
+    var isDisappearing: Bool {
+        (expireIn ?? 0) > 0
     }
 
     var messageContentInsets: EdgeInsets {
@@ -3982,6 +4963,7 @@ extension SwiftMessageItem {
             || category.hasSuffix("_LOCATION")
             || category.hasSuffix("_STICKER")
             || category == "APP_BUTTON_GROUP"
+            || isActionsAppCard
         {
             return EdgeInsets()
         }
@@ -3989,6 +4971,18 @@ extension SwiftMessageItem {
             return EdgeInsets(top: 4, leading: 2, bottom: 2, trailing: 2)
         }
         return EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8)
+    }
+
+    private var isActionsAppCard: Bool {
+        guard category.uppercased() == "APP_CARD",
+              let card = try? JSONDecoder().decode(
+                AppCardContent.self,
+                from: Data(content.utf8)
+              )
+        else {
+            return false
+        }
+        return card.action.isEmpty
     }
 
     var isStandaloneSpecial: Bool {
@@ -4030,6 +5024,49 @@ extension SwiftMessageItem {
             .formatted(date: .numeric, time: .standard)
     }
 
+    var selectionPreview: String {
+        let category = category.uppercased()
+        if category.hasSuffix("_TEXT") {
+            return content
+        }
+        if category.contains("SNAPSHOT") { return "[Transfer]" }
+        if category.hasSuffix("_STICKER") { return "[Sticker]" }
+        if category.hasSuffix("_IMAGE") { return "[Image]" }
+        if category.hasSuffix("_VIDEO") { return "[Video]" }
+        if category.hasSuffix("_LIVE") { return "[Live]" }
+        if category.hasSuffix("_DATA") { return "[File]" }
+        if category.hasSuffix("_POST") {
+            let value = content.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            return value.isEmpty ? "Post" : value
+        }
+        if category.hasSuffix("_LOCATION") { return "[Location]" }
+        if category.hasSuffix("_AUDIO") { return "[Audio]" }
+        if category.hasSuffix("_CONTACT") { return "[Contact]" }
+        if category.hasSuffix("_TRANSCRIPT") { return "[Transcript]" }
+        if category.contains("INSCRIPTION") { return "[Collectible]" }
+        if category == "APP_BUTTON_GROUP",
+           let data = content.data(using: .utf8),
+           let buttons = try? JSONSerialization.jsonObject(
+               with: data
+           ) as? [[String: Any]]
+        {
+            return buttons.map {
+                "[\($0["label"] as? String ?? "")]"
+            }.joined()
+        }
+        if category == "APP_CARD",
+           let data = content.data(using: .utf8),
+           let card = try? JSONSerialization.jsonObject(
+               with: data
+           ) as? [String: Any]
+        {
+            return "[\(card["title"] as? String ?? "Card")]"
+        }
+        return "Unsupported message"
+    }
+
     var statusIcon: String {
         switch status.uppercased() {
         case "READ":
@@ -4060,7 +5097,8 @@ extension SwiftMessageItem {
 
     func systemConversationText(currentUserID: String) -> String {
         let sender = senderId == currentUserID ? "You" : senderName
-        let participant = participantFullName?.isEmpty == false
+        let participant =
+            participantFullName?.isEmpty == false
             ? participantFullName!
             : "a member"
         switch action?.uppercased() {
@@ -4087,12 +5125,12 @@ extension SwiftMessageItem {
     }
 }
 
-private extension Int64 {
-    var messageDate: Date {
+extension Int64 {
+    fileprivate var messageDate: Date {
         Date(timeIntervalSince1970: Double(self) / 1_000_000)
     }
 
-    var formattedDuration: String {
+    fileprivate var formattedDuration: String {
         if self % 86_400 == 0 {
             return "\(self / 86_400)d"
         }
@@ -4105,17 +5143,22 @@ private extension Int64 {
         return "\(self)s"
     }
 
-    var calendarDay: Date {
+    fileprivate var calendarDay: Date {
         Calendar.current.startOfDay(for: messageDate)
     }
 
-    var dayChipTitle: String {
+    fileprivate var dayChipTitle: String {
         if Calendar.current.isDateInToday(messageDate) {
             return "Today"
         }
-        if Calendar.current.isDateInYesterday(messageDate) {
-            return "Yesterday"
-        }
-        return messageDate.formatted(date: .abbreviated, time: .omitted)
+
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.calendar = .current
+        let format = Calendar.current.isDate(messageDate, equalTo: .now, toGranularity: .year)
+            ? "MMMEd"
+            : "yMMMEd"
+        formatter.setLocalizedDateFormatFromTemplate(format)
+        return formatter.string(from: messageDate)
     }
 }

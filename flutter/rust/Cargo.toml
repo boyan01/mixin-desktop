@@ -11,6 +11,7 @@ flutter_rust_bridge = "=2.12.0"
 futures = "0.3"
 log = "0.4"
 mixin_desktop_api = { path = "../../mixin_desktop_api" }
+mixin_desktop_core = { path = "../../mixin_desktop_core" }
 thiserror = "2"
 
 [lints.rust]
