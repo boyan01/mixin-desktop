@@ -7,23 +7,13 @@ import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 
 import '../utils/app_logger.dart';
+import '../utils/cache_client.dart';
 import '../utils/image.dart';
 
 typedef PlaceholderWidgetBuilder = Widget Function();
 
 final _checkedImageFiles = <String>{};
-
-bool shouldUseMediaImagePipeline(
-  String url, {
-  http.Client? client,
-  bool normalizeGif = false,
-}) => normalizeGif || client != null || isLikelyGifUrl(url);
-
-@visibleForTesting
-bool isLikelyGifUrl(String url) {
-  final path = Uri.tryParse(url)?.path ?? url.split('?').first;
-  return path.toLowerCase().endsWith('.gif');
-}
+const _networkImageCacheFolderName = 'cache_image';
 
 ImageProvider resolveMediaImageProvider({
   required ImageProvider image,
@@ -31,12 +21,7 @@ ImageProvider resolveMediaImageProvider({
   int networkRevision = 0,
   bool normalizeGif = false,
 }) {
-  if (image is NetworkImage &&
-      shouldUseMediaImagePipeline(
-        image.url,
-        client: client,
-        normalizeGif: normalizeGif,
-      )) {
+  if (image is NetworkImage) {
     return ProxyNetworkImage(
       image.url,
       scale: image.scale,
@@ -143,16 +128,48 @@ class ProxyNetworkImage extends ImageProvider<ProxyNetworkImage> {
     ProxyNetworkImage key,
     Future<ui.Codec> Function(ui.ImmutableBuffer buffer) decode,
   ) async {
+    final cache = CacheClient(
+      _networkImageCacheFolderName,
+      client: key.client,
+    );
+    final uri = Uri.base.resolve(key.url);
     try {
-      final bytes = normalizeGifBytesIfNeeded(
-        await downloadImageBytes(key.url, client: key.client),
+      final cached = await cache.getOrFetchBytes(
+        uri,
+        () => downloadImageBytes(key.url, client: cache.client),
       );
-      return decode(await ui.ImmutableBuffer.fromUint8List(bytes));
+      try {
+        return await _decode(cached.bytes, decode);
+      } catch (_) {
+        await cache.evict(uri);
+        if (!cached.fromCache) rethrow;
+
+        final refreshed = await cache.getOrFetchBytes(
+          uri,
+          () => downloadImageBytes(key.url, client: cache.client),
+        );
+        try {
+          return await _decode(refreshed.bytes, decode);
+        } catch (_) {
+          await cache.evict(uri);
+          rethrow;
+        }
+      }
     } catch (error, stackTrace) {
       e('Decode media image failed: ${key.url}', error, stackTrace);
       scheduleMicrotask(() => PaintingBinding.instance.imageCache.evict(key));
       rethrow;
+    } finally {
+      cache.close();
     }
+  }
+
+  Future<ui.Codec> _decode(
+    Uint8List bytes,
+    Future<ui.Codec> Function(ui.ImmutableBuffer buffer) decode,
+  ) async {
+    final normalized = normalizeGifBytesIfNeeded(bytes);
+    return decode(await ui.ImmutableBuffer.fromUint8List(normalized));
   }
 
   @override

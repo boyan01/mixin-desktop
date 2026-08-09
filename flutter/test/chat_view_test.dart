@@ -19,6 +19,7 @@ import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 import 'package:mixin_desktop_ui/theme.dart';
 import 'package:mixin_desktop_ui/widgets/chat_view.dart';
 import 'package:mixin_desktop_ui/widgets/high_light_text.dart';
+import 'package:mixin_desktop_ui/widgets/media_image_pipeline.dart';
 import 'package:mixin_desktop_ui/widgets/message_action_policy.dart';
 import 'package:mixin_desktop_ui/widgets/message_audio.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
@@ -1137,7 +1138,7 @@ void main() {
         matching: find.byType(Image),
       ),
     );
-    expect(assetImage.image, isA<NetworkImage>());
+    expect(assetImage.image, isA<ProxyNetworkImage>());
     expect(
       find.descendant(
         of: find.byKey(const Key('message-media-sticker-lottie-sticker')),

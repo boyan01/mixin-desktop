@@ -62,6 +62,15 @@ void main() {
     );
   });
 
+  test('routes ordinary network images through the cached image provider', () {
+    expect(
+      resolveMediaImageProvider(
+        image: const NetworkImage('https://images.mixin.one/avatar.png'),
+      ),
+      isA<ProxyNetworkImage>(),
+    );
+  });
+
   testWidgets('renders a sticker group icon Lottie URL with query parameters', (
     tester,
   ) async {
