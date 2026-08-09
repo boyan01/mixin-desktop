@@ -13,7 +13,7 @@ import '../src/rust/third_party/mixin_desktop_core/runtime/model.dart';
 import '../theme.dart';
 import 'buttons.dart';
 import 'high_light_text.dart';
-import 'message_items/special_message_items.dart';
+import 'message_items/inscription_content.dart';
 import 'mixin_dialog.dart';
 import 'mixin_image.dart';
 

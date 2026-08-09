@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:super_context_menu/super_context_menu.dart';
 
 import '../constants/assets.dart';
+import '../controllers/message_attachment_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../l10n/l10n.dart';
 import '../models/conversation_list_entry.dart';
@@ -14,8 +14,6 @@ import '../models/message_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../theme.dart';
 import '../utils/app_logger.dart';
-import '../utils/system_clipboard.dart';
-import '../utils/web_view.dart';
 import 'action_button.dart';
 import 'avatar_view.dart';
 import 'custom_context_menu.dart';
@@ -26,11 +24,10 @@ import 'message_bubble.dart';
 import 'message_content.dart';
 import 'message_datetime_and_status.dart';
 import 'message_day_time.dart';
-import 'message_items/special_message_items.dart';
-import 'message_media_preview_pages.dart';
+import 'message_items/quote_message_preview.dart';
 import 'message_name.dart';
+import 'message_navigation_scope.dart';
 import 'message_presentation.dart';
-import 'message_qr_dialog.dart';
 import 'message_rows.dart';
 import 'message_selectable_text.dart';
 import 'mixin_dialog.dart';
@@ -170,49 +167,6 @@ class _TranscriptPageState extends State<TranscriptPage>
     });
   }
 
-  Future<void> _download(MessageListEntry message) async {
-    try {
-      if (widget.sentByCurrentUser) {
-        await widget.account.attachment().retryTranscriptAttachment(
-          transcriptId: widget.transcriptId,
-        );
-      } else {
-        await widget.account.attachment().downloadTranscriptAttachment(
-          transcriptId: widget.transcriptId,
-          messageId: message.id,
-        );
-      }
-      await _refresh();
-    } on Object catch (error, stackTrace) {
-      e('Download transcript attachment failed', error, stackTrace);
-    }
-  }
-
-  Future<void> _cancel(MessageListEntry message) async {
-    try {
-      await widget.account.attachment().cancelTranscriptAttachment(
-        transcriptId: widget.transcriptId,
-        messageId: message.id,
-      );
-      await _refresh();
-    } on Object catch (error, stackTrace) {
-      e('Cancel transcript attachment failed', error, stackTrace);
-    }
-  }
-
-  Future<void> _markAudioRead(MessageListEntry message) async {
-    if (message.mediaStatus.toUpperCase() != 'DONE') return;
-    try {
-      await widget.account.attachment().markTranscriptAudioRead(
-        transcriptId: widget.transcriptId,
-        messageId: message.id,
-      );
-      await _refresh();
-    } on Object catch (error, stackTrace) {
-      e('Mark transcript audio read failed', error, stackTrace);
-    }
-  }
-
   Future<void> _locateMessage(String messageId) async {
     final index = _messages.indexWhere((message) => message.id == messageId);
     if (index < 0 || !_scrollController.isAttached) return;
@@ -286,7 +240,26 @@ class _TranscriptPageState extends State<TranscriptPage>
             ],
           ),
         ),
-        Expanded(child: _buildBody()),
+        Expanded(
+          child: Provider<rust.AccountHandle>.value(
+            value: widget.account,
+            child: MessageNavigationScope(
+              currentUserId: widget.currentUserId,
+              onLocateMessage: _locateMessage,
+              onSelectConversation: widget.onSelectConversation,
+              onSelectConversationInfo: widget.onSelectConversationInfo,
+              child: Provider<MessageAttachmentController>(
+                create: (_) => MessageAttachmentController.transcript(
+                  account: widget.account,
+                  transcriptId: widget.transcriptId,
+                  sentByCurrentUser: widget.sentByCurrentUser,
+                  onChanged: (_) => _refresh(),
+                ),
+                child: _buildBody(),
+              ),
+            ),
+          ),
+        ),
       ],
     ),
   );
@@ -350,19 +323,6 @@ class _TranscriptPageState extends State<TranscriptPage>
                   highlightOpacity: _highlightedMessageId == _messages[index].id
                       ? _highlightOpacity
                       : 0,
-                  onOpenMessage:
-                      _messages[index].quoteMessageId != null &&
-                          _messages.any(
-                            (message) =>
-                                message.id == _messages[index].quoteMessageId,
-                          )
-                      ? _locateMessage
-                      : null,
-                  onDownload: _download,
-                  onCancel: _cancel,
-                  onMarkAudioRead: _markAudioRead,
-                  onSelectConversation: widget.onSelectConversation,
-                  onSelectConversationInfo: widget.onSelectConversationInfo,
                 );
               },
             ),
@@ -397,12 +357,6 @@ class _TranscriptMessage extends StatelessWidget {
     required this.next,
     required this.highlighted,
     required this.highlightOpacity,
-    required this.onOpenMessage,
-    required this.onDownload,
-    required this.onCancel,
-    required this.onMarkAudioRead,
-    required this.onSelectConversation,
-    required this.onSelectConversationInfo,
     super.key,
   });
 
@@ -418,12 +372,6 @@ class _TranscriptMessage extends StatelessWidget {
   final MessageListEntry? next;
   final bool highlighted;
   final double highlightOpacity;
-  final ValueChanged<String>? onOpenMessage;
-  final MessageEntryCallback onDownload;
-  final MessageEntryCallback onCancel;
-  final MessageEntryCallback onMarkAudioRead;
-  final ValueChanged<ConversationListEntry> onSelectConversation;
-  final ValueChanged<ConversationListEntry> onSelectConversationInfo;
 
   @override
   Widget build(BuildContext context) {
@@ -455,38 +403,10 @@ class _TranscriptMessage extends StatelessWidget {
       ),
       showNip: presentation.showNip,
       audioPlaylist: messages,
+      isTranscriptPage: true,
       attachmentSentByCurrentUser: transcriptSentByCurrentUser,
       mentionNames: mentionNames,
       highlightOpacity: highlightOpacity,
-      onOpenMessage: onOpenMessage,
-      onAppAction: (action, {title}) => openMessageAction(
-        context: context,
-        account: account,
-        conversationId: message.conversationId,
-        action: action,
-        title: title,
-      ),
-      onOpenImage: (message) => _openImage(context, message),
-      onOpenVideo: (message) => _openVideo(context, message),
-      onOpenPost: (message) => _openPost(context, message),
-      onOpenFile: (message) => unawaited(_openFile(context, message)),
-      onOpenUser: (userId) => _showUser(context, userId: userId),
-      onOpenIdentityNumber: (identityNumber) =>
-          _showUser(context, identityNumber: identityNumber),
-      onOpenTranscript: (id) => unawaited(
-        showTranscriptDialog(
-          context,
-          account: account,
-          transcriptId: id,
-          sentByCurrentUser: message.senderRelationship.toUpperCase() == 'ME',
-          currentUserId: currentUserId,
-          onSelectConversation: onSelectConversation,
-          onSelectConversationInfo: onSelectConversationInfo,
-        ),
-      ),
-      onMarkAudioRead: onMarkAudioRead,
-      onDownloadAttachment: onDownload,
-      onCancelAttachment: onCancel,
     );
     final bypassBubble =
         !message.isUnresolvedMessage &&
@@ -494,7 +414,6 @@ class _TranscriptMessage extends StatelessWidget {
         const {'APP_BUTTON_GROUP', 'APP_CARD'}.contains(message.category);
     final quote = buildMessageQuotePreview(
       message,
-      onOpenMessage: onOpenMessage,
       mentionNames: mentionNames,
     );
     final rendered = bypassBubble
@@ -524,9 +443,6 @@ class _TranscriptMessage extends StatelessWidget {
                 : null,
             child: content,
           );
-    final localImage = message.isImage
-        ? existingLocalFile(message.mediaUrl)
-        : null;
     final policy = MessageActionPolicy(
       message: message,
       currentUserId: currentUserId,
@@ -540,14 +456,6 @@ class _TranscriptMessage extends StatelessWidget {
         context: context,
         message: message,
         policy: policy,
-        callbacks: MessageActionCallbacks(
-          onCopyText: (text) => Clipboard.setData(ClipboardData(text: text)),
-          onCopyImage: localImage == null
-              ? null
-              : () => unawaited(copyLocalFileToClipboard(localImage)),
-          onGenerateQr: (text) => showMessageQrDialog(context, content: text),
-          onSaveAs: () => unawaited(_save(message)),
-        ),
       ),
       child: rendered,
     );
@@ -568,7 +476,10 @@ class _TranscriptMessage extends StatelessWidget {
                   isBot: message.senderIsBot,
                   membership: message.senderMembership,
                   showIdentityNumber: false,
-                  onTap: () => _showUser(context, userId: message.senderId),
+                  onTap: () => openMessageUserDialog(
+                    context,
+                    userId: message.senderId,
+                  ),
                 ),
               ),
             ],
@@ -584,7 +495,10 @@ class _TranscriptMessage extends StatelessWidget {
               const SizedBox(width: 8),
               InteractiveDecoratedBox(
                 cursor: SystemMouseCursors.click,
-                onTap: () => _showUser(context, userId: message.senderId),
+                onTap: () => openMessageUserDialog(
+                  context,
+                  userId: message.senderId,
+                ),
                 child: AvatarView(
                   userId: message.senderId,
                   name: message.senderName,
@@ -625,110 +539,6 @@ class _TranscriptMessage extends StatelessWidget {
           child: child,
         ),
       ],
-    );
-  }
-
-  void _openImage(BuildContext context, MessageListEntry selected) {
-    final images = messages
-        .where((item) => item.isImage && (item.mediaUrl?.isNotEmpty ?? false))
-        .map(
-          (item) => ImagePreviewEntry(
-            id: item.id,
-            source: item.mediaUrl!,
-            name: item.mediaName,
-            thumbImage: item.thumbImage,
-            userId: item.senderId,
-            userFullName: item.senderName,
-            userIdentityNumber: item.senderIdentityNumber,
-            avatarUrl: item.senderAvatarUrl,
-          ),
-        )
-        .toList(growable: false);
-    final index = images.indexWhere((item) => item.id == selected.id);
-    if (index < 0) return;
-    unawaited(
-      ImagePreviewPage.show(
-        context,
-        ImagePreviewPage(
-          images: images,
-          initialIndex: index,
-          onCopy: (image) async {
-            final file = existingLocalFile(image.source);
-            if (file != null) await copyLocalFileToClipboard(file);
-          },
-          onSave: (image) =>
-              saveMessageFileAs(image.source, suggestedName: image.name),
-        ),
-      ),
-    );
-  }
-
-  void _openVideo(BuildContext context, MessageListEntry message) {
-    final source = message.mediaUrl?.trim() ?? '';
-    if (source.isEmpty) return;
-    unawaited(
-      VideoPreviewPage.show(
-        context,
-        VideoPreviewPage(
-          source: source,
-          title: message.mediaName,
-          userId: message.senderId,
-          userFullName: message.senderName,
-          userIdentityNumber: message.senderIdentityNumber,
-          avatarUrl: message.senderAvatarUrl,
-          isTranscriptPage: true,
-        ),
-      ),
-    );
-  }
-
-  void _openPost(BuildContext context, MessageListEntry message) {
-    unawaited(
-      PostPreviewPage.show(
-        context,
-        PostPreviewPage(content: message.content, title: message.senderName),
-      ),
-    );
-  }
-
-  Future<void> _openFile(BuildContext context, MessageListEntry message) async {
-    final source = message.mediaUrl?.trim() ?? '';
-    if (source.isEmpty) return;
-    await openOrSaveMessageFile(context, source, mediaName: message.mediaName);
-  }
-
-  Future<void> _save(MessageListEntry message) async {
-    final source = message.mediaUrl?.trim() ?? '';
-    if (source.isEmpty) return;
-    await saveMessageFileAs(source, suggestedName: message.mediaName);
-  }
-
-  void _showUser(
-    BuildContext context, {
-    String? userId,
-    String? identityNumber,
-  }) {
-    unawaited(_showUserAndHandle(context, userId, identityNumber));
-  }
-
-  Future<void> _showUserAndHandle(
-    BuildContext context,
-    String? userId,
-    String? identityNumber,
-  ) async {
-    final result = await showMessageUserDialog(
-      context,
-      account: account,
-      userId: userId,
-      identityNumber: identityNumber,
-    );
-    if (!context.mounted || result == null) return;
-    await handleMessageUserDialogResult(
-      context,
-      account: account,
-      result: result,
-      onSelectConversation: onSelectConversation,
-      onSelectConversationInfo: onSelectConversationInfo,
     );
   }
 }

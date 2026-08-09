@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:super_context_menu/super_context_menu.dart';
 
+import '../controllers/message_attachment_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../l10n/l10n.dart';
 import '../models/conversation_list_entry.dart';
@@ -12,8 +12,6 @@ import '../models/message_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../theme.dart';
 import '../utils/app_logger.dart';
-import '../utils/system_clipboard.dart';
-import '../utils/web_view.dart';
 import 'avatar_view.dart';
 import 'custom_context_menu.dart';
 import 'interactive_decorated_box.dart';
@@ -23,16 +21,14 @@ import 'message_bubble.dart';
 import 'message_content.dart';
 import 'message_datetime_and_status.dart';
 import 'message_day_time.dart';
-import 'message_items/special_message_items.dart';
-import 'message_media_preview_pages.dart';
+import 'message_items/quote_message_preview.dart';
 import 'message_name.dart';
+import 'message_navigation_scope.dart';
 import 'message_presentation.dart';
-import 'message_qr_dialog.dart';
 import 'message_rows.dart';
 import 'message_selectable_text.dart';
 import 'mixin_dialog.dart';
 import 'show_message_user_dialog.dart';
-import 'transcript_page.dart';
 
 class PinnedMessagesPage extends StatefulWidget {
   const PinnedMessagesPage({
@@ -176,44 +172,29 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
     }
   }
 
-  Future<void> _download(MessageListEntry message) async {
-    try {
-      if (message.senderRelationship.toUpperCase() == 'ME') {
-        await widget.account.attachment().retryAttachment(
-          messageId: message.id,
-        );
-      } else {
-        await widget.account.attachment().downloadAttachment(
-          messageId: message.id,
-        );
-      }
-      await _refresh();
-    } on Object catch (error, stackTrace) {
-      e('Download pinned attachment failed', error, stackTrace);
-    }
-  }
-
-  Future<void> _cancel(MessageListEntry message) async {
-    try {
-      await widget.account.attachment().cancelAttachment(messageId: message.id);
-      await _refresh();
-    } on Object catch (error, stackTrace) {
-      e('Cancel pinned attachment failed', error, stackTrace);
-    }
-  }
-
-  Future<void> _markAudioRead(MessageListEntry message) async {
-    if (message.mediaStatus.toUpperCase() != 'DONE') return;
-    await widget.account.attachment().markAudioRead(messageId: message.id);
-    await _refresh();
-  }
-
   @override
   Widget build(BuildContext context) => Material(
     color: context.theme.popUp,
     child: Column(
       children: [
-        Expanded(child: _body()),
+        Expanded(
+          child: Provider<rust.AccountHandle>.value(
+            value: widget.account,
+            child: MessageNavigationScope(
+              currentUserId: widget.currentUserId,
+              onLocateMessage: _locate,
+              onSelectConversation: widget.onSelectConversation,
+              onSelectConversationInfo: widget.onSelectConversationInfo,
+              child: Provider<MessageAttachmentController>(
+                create: (_) => MessageAttachmentController.conversation(
+                  account: widget.account,
+                  onChanged: (_) => _refresh(),
+                ),
+                child: _body(),
+              ),
+            ),
+          ),
+        ),
         InteractiveDecoratedBox(
           cursor: SystemMouseCursors.click,
           onTap: _unpinAll,
@@ -280,13 +261,7 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
             currentUserId: widget.currentUserId,
             currentUserRole: widget.currentUserRole,
             mentionNames: _mentionNames,
-            onLocate: _locate,
             onUnpin: _unpin,
-            onDownload: _download,
-            onCancel: _cancel,
-            onMarkAudioRead: _markAudioRead,
-            onSelectConversation: widget.onSelectConversation,
-            onSelectConversationInfo: widget.onSelectConversationInfo,
           );
         },
       ),
@@ -315,13 +290,7 @@ class _PinnedMessage extends StatelessWidget {
     required this.currentUserId,
     required this.currentUserRole,
     required this.mentionNames,
-    required this.onLocate,
     required this.onUnpin,
-    required this.onDownload,
-    required this.onCancel,
-    required this.onMarkAudioRead,
-    required this.onSelectConversation,
-    required this.onSelectConversationInfo,
     super.key,
   });
 
@@ -334,13 +303,7 @@ class _PinnedMessage extends StatelessWidget {
   final String currentUserId;
   final String? currentUserRole;
   final Map<String, String> mentionNames;
-  final ValueChanged<String> onLocate;
-  final MessageEntryCallback onUnpin;
-  final MessageEntryCallback onDownload;
-  final MessageEntryCallback onCancel;
-  final MessageEntryCallback onMarkAudioRead;
-  final ValueChanged<ConversationListEntry> onSelectConversation;
-  final ValueChanged<ConversationListEntry> onSelectConversationInfo;
+  final ValueChanged<MessageListEntry> onUnpin;
 
   @override
   Widget build(BuildContext context) {
@@ -372,37 +335,8 @@ class _PinnedMessage extends StatelessWidget {
       ),
       showNip: presentation.showNip,
       isPinnedPage: true,
-      onPinnedMessageTap: () => onLocate(message.id),
       audioPlaylist: messages,
       mentionNames: mentionNames,
-      onAppAction: (action, {title}) => openMessageAction(
-        context: context,
-        account: account,
-        conversationId: message.conversationId,
-        action: action,
-        title: title,
-      ),
-      onOpenMessage: onLocate,
-      onOpenTranscript: (id) => unawaited(
-        showTranscriptDialog(
-          context,
-          account: account,
-          transcriptId: id,
-          sentByCurrentUser: message.senderRelationship.toUpperCase() == 'ME',
-          currentUserId: currentUserId,
-          onSelectConversation: onSelectConversation,
-          onSelectConversationInfo: onSelectConversationInfo,
-        ),
-      ),
-      onOpenImage: (item) => _openImage(context, item),
-      onOpenVideo: (item) => _openVideo(context, item),
-      onOpenPost: (item) => _openPost(context, item),
-      onOpenFile: (item) => unawaited(_openFile(context, item)),
-      onOpenUser: (id) => _showUser(context, userId: id),
-      onOpenIdentityNumber: (id) => _showUser(context, identityNumber: id),
-      onMarkAudioRead: onMarkAudioRead,
-      onDownloadAttachment: onDownload,
-      onCancelAttachment: onCancel,
     );
     final bypassBubble =
         !message.isUnresolvedMessage &&
@@ -422,12 +356,11 @@ class _PinnedMessage extends StatelessWidget {
             isPinnedPage: true,
             quote: buildMessageQuotePreview(
               message,
-              onOpenMessage: onLocate,
               mentionNames: mentionNames,
             ),
             constrainQuoteWidth:
                 message.isImage || message.isVideo || message.isLive,
-            onPinnedMessageTap: () => onLocate(message.id),
+            pinnedMessageId: message.id,
             outerTimeAndStatusWidget: message.useOuterMessageDateAndStatus
                 ? status
                 : null,
@@ -440,25 +373,16 @@ class _PinnedMessage extends StatelessWidget {
       now: DateTime.now(),
       isPinnedPage: true,
     );
-    final localImage = message.isImage
-        ? existingLocalFile(message.mediaUrl)
-        : null;
     final interactive = ContextMenuWidget(
       desktopMenuWidgetBuilder: CustomDesktopMenuWidgetBuilder(),
       menuProvider: (_) => buildMessageActionsMenu(
         context: context,
         message: message,
         policy: policy,
-        callbacks: MessageActionCallbacks(
-          onLocateToChat: () => onLocate(message.id),
-          onTogglePin: () => onUnpin(message),
-          onCopyText: (text) => Clipboard.setData(ClipboardData(text: text)),
-          onCopyImage: localImage == null
-              ? null
-              : () => unawaited(copyLocalFileToClipboard(localImage)),
-          onGenerateQr: (text) => showMessageQrDialog(context, content: text),
-          onSaveAs: () => unawaited(_save(message)),
-        ),
+        onLocateToChat: () => MessageNavigationScope.maybeOf(
+          context,
+        )?.onLocateMessage(message.id),
+        onTogglePin: () => onUnpin(message),
       ),
       child: rendered,
     );
@@ -479,7 +403,10 @@ class _PinnedMessage extends StatelessWidget {
                   isBot: message.senderIsBot,
                   membership: message.senderMembership,
                   showIdentityNumber: false,
-                  onTap: () => _showUser(context, userId: message.senderId),
+                  onTap: () => openMessageUserDialog(
+                    context,
+                    userId: message.senderId,
+                  ),
                 ),
               ),
             ],
@@ -495,7 +422,10 @@ class _PinnedMessage extends StatelessWidget {
               const SizedBox(width: 8),
               InteractiveDecoratedBox(
                 cursor: SystemMouseCursors.click,
-                onTap: () => _showUser(context, userId: message.senderId),
+                onTap: () => openMessageUserDialog(
+                  context,
+                  userId: message.senderId,
+                ),
                 child: AvatarView(
                   userId: message.senderId,
                   name: message.senderName,
@@ -536,109 +466,6 @@ class _PinnedMessage extends StatelessWidget {
           child: child,
         ),
       ],
-    );
-  }
-
-  void _openImage(BuildContext context, MessageListEntry selected) {
-    final images = messages
-        .where((item) => item.isImage && (item.mediaUrl?.isNotEmpty ?? false))
-        .map(
-          (item) => ImagePreviewEntry(
-            id: item.id,
-            source: item.mediaUrl!,
-            name: item.mediaName,
-            thumbImage: item.thumbImage,
-            userId: item.senderId,
-            userFullName: item.senderName,
-            userIdentityNumber: item.senderIdentityNumber,
-            avatarUrl: item.senderAvatarUrl,
-          ),
-        )
-        .toList(growable: false);
-    final index = images.indexWhere((item) => item.id == selected.id);
-    if (index < 0) return;
-    unawaited(
-      ImagePreviewPage.show(
-        context,
-        ImagePreviewPage(
-          images: images,
-          initialIndex: index,
-          onCopy: (image) async {
-            final file = existingLocalFile(image.source);
-            if (file != null) await copyLocalFileToClipboard(file);
-          },
-          onSave: (image) =>
-              saveMessageFileAs(image.source, suggestedName: image.name),
-        ),
-      ),
-    );
-  }
-
-  void _openVideo(BuildContext context, MessageListEntry item) {
-    final source = item.mediaUrl?.trim() ?? '';
-    if (source.isEmpty) return;
-    unawaited(
-      VideoPreviewPage.show(
-        context,
-        VideoPreviewPage(
-          source: source,
-          title: item.mediaName,
-          userId: item.senderId,
-          userFullName: item.senderName,
-          userIdentityNumber: item.senderIdentityNumber,
-          avatarUrl: item.senderAvatarUrl,
-        ),
-      ),
-    );
-  }
-
-  void _openPost(BuildContext context, MessageListEntry item) {
-    unawaited(
-      PostPreviewPage.show(
-        context,
-        PostPreviewPage(content: item.content, title: item.senderName),
-      ),
-    );
-  }
-
-  Future<void> _openFile(BuildContext context, MessageListEntry item) async {
-    final source = item.mediaUrl?.trim() ?? '';
-    if (source.isEmpty) return;
-    await openOrSaveMessageFile(context, source, mediaName: item.mediaName);
-  }
-
-  Future<void> _save(MessageListEntry item) async {
-    final source = item.mediaUrl?.trim() ?? '';
-    if (source.isEmpty) return;
-    await saveMessageFileAs(source, suggestedName: item.mediaName);
-  }
-
-  void _showUser(
-    BuildContext context, {
-    String? userId,
-    String? identityNumber,
-  }) {
-    unawaited(_showUserAndHandle(context, userId, identityNumber));
-  }
-
-  Future<void> _showUserAndHandle(
-    BuildContext context,
-    String? userId,
-    String? identityNumber,
-  ) async {
-    final result = await showMessageUserDialog(
-      context,
-      account: account,
-      userId: userId,
-      identityNumber: identityNumber,
-    );
-    if (!context.mounted || result == null) return;
-    await handleMessageUserDialogResult(
-      context,
-      account: account,
-      result: result,
-      onSelectConversation: onSelectConversation,
-      onSelectConversationInfo: onSelectConversationInfo,
     );
   }
 }

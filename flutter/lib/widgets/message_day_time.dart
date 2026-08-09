@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../l10n/generated/app_localizations.dart';
+import '../l10n/l10n.dart';
 import '../theme.dart';
 import 'message_style.dart';
 
@@ -41,7 +41,7 @@ class MessageDayTimeChip extends StatelessWidget {
     final now = DateTime.now();
     final sameDay = _isSameDay(now, localDateTime);
     final text = sameDay
-        ? AppLocalizations.of(context).today
+        ? context.l10n.today
         : now.year == localDateTime.year
         ? DateFormat.MMMEd().format(localDateTime)
         : DateFormat.yMMMEd().format(localDateTime);

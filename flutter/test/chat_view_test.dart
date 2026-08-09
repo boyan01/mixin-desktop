@@ -38,6 +38,13 @@ void main() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
   });
 
+  test('marks an unread mention only when the whole message is visible', () {
+    expect(shouldMarkMentionRead(false, 1), isTrue);
+    expect(shouldMarkMentionRead(false, 0.99), isFalse);
+    expect(shouldMarkMentionRead(true, 1), isFalse);
+    expect(shouldMarkMentionRead(null, 1), isFalse);
+  });
+
   testWidgets('opens image preview before neighboring images finish loading', (
     tester,
   ) async {
@@ -1138,59 +1145,6 @@ void main() {
       ),
       findsOneWidget,
     );
-  });
-
-  testWidgets('attachment tap downloads canceled and cancels pending media', (
-    tester,
-  ) async {
-    final calls = <String>[];
-    await tester.pumpWidget(
-      _LocalizedApp(
-        child: Scaffold(
-          body: Column(
-            children: [
-              MessageContent(
-                message: _entry(
-                  id: 'canceled-image',
-                  category: 'PLAIN_IMAGE',
-                  content: '',
-                  mediaStatus: 'CANCELED',
-                  mediaWidth: 100,
-                  mediaHeight: 100,
-                ),
-                isCurrentUser: false,
-                dateAndStatus: const SizedBox.shrink(),
-                overlayDateAndStatus: const SizedBox.shrink(),
-                onDownloadAttachment: (_) => calls.add('download'),
-              ),
-              MessageContent(
-                message: _entry(
-                  id: 'pending-image',
-                  category: 'PLAIN_IMAGE',
-                  content: '',
-                  mediaStatus: 'PENDING',
-                  mediaWidth: 100,
-                  mediaHeight: 100,
-                ),
-                isCurrentUser: false,
-                dateAndStatus: const SizedBox.shrink(),
-                overlayDateAndStatus: const SizedBox.shrink(),
-                onCancelAttachment: (_) => calls.add('cancel'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.tap(
-      find.byKey(const Key('message-media-image-canceled-image')),
-    );
-    await tester.tap(
-      find.byKey(const Key('message-media-image-pending-image')),
-    );
-    await tester.pump();
-    expect(calls, ['download', 'cancel']);
   });
 
   testWidgets('APP input action sends its text through AccountHandle', (

@@ -7,9 +7,10 @@ import 'package:provider/provider.dart';
 
 import '../constants/assets.dart';
 import '../controllers/conversation_list_controller.dart';
-import '../l10n/generated/app_localizations.dart';
+import '../controllers/home_navigation_controller.dart';
 import '../l10n/l10n.dart';
 import '../models/conversation_list_entry.dart';
+import '../pages/conversation_info_destination.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../theme.dart';
 import '../utils/app_logger.dart';
@@ -19,6 +20,7 @@ import 'badges_widget.dart';
 import 'buttons.dart';
 import 'custom_popup_menu.dart';
 import 'high_light_text.dart';
+import 'message_navigation_scope.dart';
 import 'mixin_dialog.dart';
 import 'more_extended_text.dart';
 import 'show_forward_conversation_selector.dart';
@@ -31,13 +33,40 @@ void openMessageUserDialog(
   String? userId,
   String? identityNumber,
 }) {
-  unawaited(
-    showMessageUserDialog(
-      context,
-      account: context.read<rust.AccountHandle>(),
-      userId: userId,
-      identityNumber: identityNumber,
-    ),
+  unawaited(_openMessageUserDialog(context, userId, identityNumber));
+}
+
+Future<void> _openMessageUserDialog(
+  BuildContext context,
+  String? userId,
+  String? identityNumber,
+) async {
+  final account = context.read<rust.AccountHandle>();
+  final result = await showMessageUserDialog(
+    context,
+    account: account,
+    userId: userId,
+    identityNumber: identityNumber,
+  );
+  if (!context.mounted || result == null) return;
+  final navigation = context.read<HomeNavigationController?>();
+  final messageNavigation = MessageNavigationScope.maybeOf(context);
+  final onSelectConversation =
+      navigation?.select ?? messageNavigation?.onSelectConversation;
+  if (onSelectConversation == null) return;
+  await handleMessageUserDialogResult(
+    context,
+    account: account,
+    result: result,
+    onSelectConversation: onSelectConversation,
+    onSelectConversationInfo: navigation == null
+        ? messageNavigation?.onSelectConversationInfo
+        : (conversation) {
+            navigation.select(conversation);
+            navigation.chatSideController.openDestination(
+              ConversationInfoDestination.infoPage,
+            );
+          },
   );
 }
 
@@ -200,7 +229,6 @@ class _ProfileBodyState extends State<_ProfileBody> {
   Widget build(BuildContext context) {
     final profile = widget.profile;
     final anonymous = profile.identityNumber == '0';
-    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
     return AnimatedSize(
       duration: const Duration(milliseconds: 150),
       child: Column(
@@ -255,8 +283,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: CustomSelectableText(
-                l10n?.contactMixinId(profile.identityNumber) ??
-                    'Mixin ID: ${profile.identityNumber}',
+                context.l10n.contactMixinId(profile.identityNumber),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: context.theme.secondaryText,

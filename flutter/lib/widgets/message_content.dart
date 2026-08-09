@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -12,24 +13,42 @@ import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
 import '../constants/assets.dart';
+import '../controllers/message_attachment_controller.dart';
 import '../controllers/settings_controller.dart';
-import '../l10n/generated/app_localizations.dart';
+import '../controllers/sticker_controller.dart';
+import '../l10n/l10n.dart';
 import '../models/message_list_entry.dart';
+import '../src/rust/desktop_api.dart' as rust;
 import '../theme.dart';
+import '../utils/system_clipboard.dart';
 import 'app_protocol_handler.dart';
 import 'attachment_status.dart';
 import 'image_by_blur_hash.dart';
 import 'interactive_decorated_box.dart';
+import 'message_action_policy.dart';
 import 'message_audio.dart';
 import 'message_bubble.dart';
-import 'message_items/special_message_items.dart';
+import 'message_items/app_button_group_message_item.dart';
+import 'message_items/app_card_message_item.dart';
+import 'message_items/contact_message_item.dart';
+import 'message_items/location_message_item.dart';
+import 'message_items/pin_message_item.dart';
+import 'message_items/quote_message_preview.dart';
+import 'message_items/secret_message_item.dart';
+import 'message_items/snapshot_message_item.dart';
+import 'message_items/stranger_message_item.dart';
+import 'message_items/system_conversation_message_item.dart';
+import 'message_items/transcript_message_item.dart';
+import 'message_items/waiting_message_item.dart';
 import 'message_layout.dart';
+import 'message_media_preview_pages.dart';
+import 'message_navigation_scope.dart';
 import 'message_selectable_text.dart';
 import 'mixin_image.dart';
 import 'post_markdown.dart';
+import 'show_forward_conversation_selector.dart';
+import 'sticker_page/sticker_detail_page.dart';
 import 'sticker_page/sticker_item.dart';
-
-typedef MessageEntryCallback = void Function(MessageListEntry message);
 
 extension on BuildContext {
   double messageFontSize(double base) =>
@@ -43,21 +62,6 @@ class MessageContent extends StatelessWidget {
     required this.dateAndStatus,
     required this.overlayDateAndStatus,
     super.key,
-    this.onOpenUser,
-    this.onOpenMessage,
-    this.onAction,
-    this.onAppAction,
-    this.onOpenTranscript,
-    this.onOpenSnapshot,
-    this.onOpenImage,
-    this.onOpenVideo,
-    this.onOpenPost,
-    this.onOpenFile,
-    this.onOpenSticker,
-    this.onOpenIdentityNumber,
-    this.onMarkAudioRead,
-    this.onDownloadAttachment,
-    this.onCancelAttachment,
     this.currentUserId,
     this.mentionNames = const {},
     this.keyword = '',
@@ -65,32 +69,16 @@ class MessageContent extends StatelessWidget {
     this.highlighted = false,
     this.highlightOpacity = 0,
     this.recalledText,
-    this.onReedit,
     this.audioPlaylist = const [],
     this.attachmentSentByCurrentUser,
     this.isPinnedPage = false,
-    this.onPinnedMessageTap,
+    this.isTranscriptPage = false,
   });
 
   final MessageListEntry message;
   final bool isCurrentUser;
   final Widget dateAndStatus;
   final Widget overlayDateAndStatus;
-  final MessageStringCallback? onOpenUser;
-  final MessageStringCallback? onOpenMessage;
-  final MessageStringCallback? onAction;
-  final MessageActionCallback? onAppAction;
-  final MessageStringCallback? onOpenTranscript;
-  final MessageStringCallback? onOpenSnapshot;
-  final MessageEntryCallback? onOpenImage;
-  final MessageEntryCallback? onOpenVideo;
-  final MessageEntryCallback? onOpenPost;
-  final MessageEntryCallback? onOpenFile;
-  final MessageEntryCallback? onOpenSticker;
-  final MessageStringCallback? onOpenIdentityNumber;
-  final MessageEntryCallback? onMarkAudioRead;
-  final MessageEntryCallback? onDownloadAttachment;
-  final MessageEntryCallback? onCancelAttachment;
   final String? currentUserId;
   final Map<String, String> mentionNames;
   final String keyword;
@@ -98,11 +86,10 @@ class MessageContent extends StatelessWidget {
   final bool highlighted;
   final double highlightOpacity;
   final String? recalledText;
-  final ValueChanged<String>? onReedit;
   final List<MessageListEntry> audioPlaylist;
   final bool? attachmentSentByCurrentUser;
   final bool isPinnedPage;
-  final VoidCallback? onPinnedMessageTap;
+  final bool isTranscriptPage;
 
   @override
   Widget build(BuildContext context) {
@@ -115,13 +102,9 @@ class MessageContent extends StatelessWidget {
       );
     }
     if (status == 'FAILED') {
-      final l10n = Localizations.of<AppLocalizations>(
-        context,
-        AppLocalizations,
-      );
       return WaitingMessageItem(
         messageId: message.id,
-        subject: isCurrentUser ? l10n?.linkedDevice ?? '' : message.senderName,
+        subject: isCurrentUser ? context.l10n.linkedDevice : message.senderName,
         dateAndStatus: dateAndStatus,
       );
     }
@@ -144,13 +127,9 @@ class MessageContent extends StatelessWidget {
       }.contains(message.senderRelationship.toUpperCase())) {
         return const SizedBox.shrink();
       }
-      return StrangerMessageItem(message: message, onAction: onAction);
+      return StrangerMessageItem(message: message);
     }
     if (message.isRecall) {
-      final l10n = Localizations.of<AppLocalizations>(
-        context,
-        AppLocalizations,
-      );
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -170,17 +149,17 @@ class MessageContent extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: isCurrentUser
-                        ? l10n?.youDeletedThisMessage ??
-                              'You deleted this message'
-                        : l10n?.thisMessageWasDeleted ??
-                              'This message was deleted',
+                        ? context.l10n.youDeletedThisMessage
+                        : context.l10n.thisMessageWasDeleted,
                   ),
                   if (recalledText != null)
                     TextSpan(
-                      text: ' ${l10n?.reedit ?? 'Re-edit'}',
+                      text: ' ${context.l10n.reedit}',
                       style: TextStyle(color: context.theme.accent),
                       recognizer: TapGestureRecognizer()
-                        ..onTap = () => onReedit?.call(recalledText!),
+                        ..onTap = () => MessageNavigationScope.maybeOf(
+                          context,
+                        )?.onReedit?.call(recalledText!),
                     ),
                 ],
               ),
@@ -194,18 +173,13 @@ class MessageContent extends StatelessWidget {
       );
     }
 
-    final quote = buildMessageQuotePreview(
-      message,
-      onOpenMessage: onOpenMessage,
-      mentionNames: mentionNames,
-    );
+    final quote = buildMessageQuotePreview(message, mentionNames: mentionNames);
     Widget content;
     if (message.category.endsWith('_TRANSCRIPT')) {
       content = TranscriptMessageItem(
         message: message,
         isCurrentUser: isCurrentUser,
         overlayDateAndStatus: overlayDateAndStatus,
-        onOpenTranscript: onOpenTranscript,
       );
     } else if (message.category.endsWith('_LOCATION')) {
       content = LocationMessageItem(message: message);
@@ -213,38 +187,32 @@ class MessageContent extends StatelessWidget {
       content = SnapshotMessageItem(
         message: message,
         kind: SnapshotKind.account,
-        onOpenSnapshot: onOpenSnapshot,
       );
     } else if (message.category == 'SYSTEM_SAFE_SNAPSHOT') {
       content = SnapshotMessageItem(
         message: message,
         kind: SnapshotKind.safe,
-        onOpenSnapshot: onOpenSnapshot,
       );
     } else if (message.category == 'SYSTEM_SAFE_INSCRIPTION') {
       content = SnapshotMessageItem(
         message: message,
         kind: SnapshotKind.safeInscription,
-        onOpenSnapshot: onOpenSnapshot,
       );
     } else if (message.category.endsWith('_CONTACT')) {
-      content = ContactMessageItem(message: message, onOpenUser: onOpenUser);
+      content = ContactMessageItem(message: message);
     } else if (message.category == 'APP_BUTTON_GROUP') {
       content = AppButtonGroupMessageItem(
         message: message,
-        onAction: onAppAction,
         isCurrentUser: isCurrentUser,
         showNip: showNip,
         highlighted: highlighted,
         highlightOpacity: highlightOpacity,
         quote: quote,
         isPinnedPage: isPinnedPage,
-        onPinnedMessageTap: onPinnedMessageTap,
       );
     } else if (message.category == 'APP_CARD') {
       content = AppCardMessageItem(
         message: message,
-        onAction: onAppAction,
         isCurrentUser: isCurrentUser,
         showNip: showNip,
         highlighted: highlighted,
@@ -254,7 +222,6 @@ class MessageContent extends StatelessWidget {
         mentionNames: mentionNames,
         keyword: keyword,
         isPinnedPage: isPinnedPage,
-        onPinnedMessageTap: onPinnedMessageTap,
       );
     } else {
       content = _standardContent(context);
@@ -278,9 +245,8 @@ class MessageContent extends StatelessWidget {
         isCurrentUser: isCurrentUser,
         sentByCurrentUser: attachmentIsCurrentUser,
         overlayDateAndStatus: overlayDateAndStatus,
-        onOpen: onOpenImage,
-        onDownloadAttachment: onDownloadAttachment,
-        onCancelAttachment: onCancelAttachment,
+        messages: audioPlaylist,
+        isTranscriptPage: isTranscriptPage,
         mentionNames: mentionNames,
         keyword: keyword,
       );
@@ -291,9 +257,7 @@ class MessageContent extends StatelessWidget {
         isCurrentUser: isCurrentUser,
         sentByCurrentUser: attachmentIsCurrentUser,
         overlayDateAndStatus: overlayDateAndStatus,
-        onOpen: onOpenVideo,
-        onDownloadAttachment: onDownloadAttachment,
-        onCancelAttachment: onCancelAttachment,
+        isTranscriptPage: isTranscriptPage,
       );
     }
     if (message.isAudio) {
@@ -301,27 +265,20 @@ class MessageContent extends StatelessWidget {
         message: message,
         sentByCurrentUser: attachmentIsCurrentUser,
         playlist: audioPlaylist,
-        onMarkRead: onMarkAudioRead,
-        onDownloadAttachment: onDownloadAttachment,
-        onCancelAttachment: onCancelAttachment,
       );
     }
     if (message.isSticker) {
-      return _StickerMessage(message: message, onOpen: onOpenSticker);
+      return _StickerMessage(message: message);
     }
     if (message.category.endsWith('_DATA')) {
       return MessageFile(
         message: message,
         sentByCurrentUser: attachmentIsCurrentUser,
-        onOpen: onOpenFile,
-        onDownloadAttachment: onDownloadAttachment,
-        onCancelAttachment: onCancelAttachment,
       );
     }
     if (message.isPost) {
       return MessagePost(
         message: message,
-        onOpen: onOpenPost,
         overlayDateAndStatus: overlayDateAndStatus,
       );
     }
@@ -376,9 +333,8 @@ class _ImageMessage extends StatelessWidget {
     required this.isCurrentUser,
     required this.sentByCurrentUser,
     required this.overlayDateAndStatus,
-    this.onOpen,
-    this.onDownloadAttachment,
-    this.onCancelAttachment,
+    required this.messages,
+    required this.isTranscriptPage,
     this.mentionNames = const {},
     this.keyword = '',
   });
@@ -387,9 +343,8 @@ class _ImageMessage extends StatelessWidget {
   final bool isCurrentUser;
   final bool sentByCurrentUser;
   final Widget overlayDateAndStatus;
-  final MessageEntryCallback? onOpen;
-  final MessageEntryCallback? onDownloadAttachment;
-  final MessageEntryCallback? onCancelAttachment;
+  final List<MessageListEntry> messages;
+  final bool isTranscriptPage;
   final Map<String, String> mentionNames;
   final String keyword;
 
@@ -411,9 +366,8 @@ class _ImageMessage extends StatelessWidget {
         isCurrentUser: isCurrentUser,
         sentByCurrentUser: sentByCurrentUser,
         overlayDateAndStatus: overlayDateAndStatus,
-        onOpen: onOpen,
-        onDownloadAttachment: onDownloadAttachment,
-        onCancelAttachment: onCancelAttachment,
+        messages: messages,
+        isTranscriptPage: isTranscriptPage,
       );
       return ConstrainedBox(
         key: Key('message-media-image-${message.id}'),
@@ -453,10 +407,9 @@ class MessageImage extends StatelessWidget {
     required this.isCurrentUser,
     required this.sentByCurrentUser,
     required this.overlayDateAndStatus,
+    this.messages = const [],
+    this.isTranscriptPage = false,
     this.size,
-    this.onOpen,
-    this.onDownloadAttachment,
-    this.onCancelAttachment,
     super.key,
   });
 
@@ -465,23 +418,20 @@ class MessageImage extends StatelessWidget {
   final bool isCurrentUser;
   final bool sentByCurrentUser;
   final Widget overlayDateAndStatus;
+  final List<MessageListEntry> messages;
+  final bool isTranscriptPage;
   final Size? size;
-  final MessageEntryCallback? onOpen;
-  final MessageEntryCallback? onDownloadAttachment;
-  final MessageEntryCallback? onCancelAttachment;
 
   @override
   Widget build(BuildContext context) {
     final mediaStatus = message.mediaStatus.toUpperCase();
     final useMediaUrl =
         sentByCurrentUser || mediaStatus == 'DONE' || mediaStatus == 'READ';
-    return _InteractiveMessageCard(
-      message: message,
+    return InteractiveDecoratedBox(
       onTap: _attachmentAction(
+        context,
         message,
-        onOpen: onOpen,
-        onDownload: onDownloadAttachment,
-        onCancel: onCancelAttachment,
+        onOpen: () => _open(context, message),
       ),
       child: SizedBox.fromSize(
         size: size,
@@ -518,6 +468,118 @@ class MessageImage extends StatelessWidget {
       ),
     );
   }
+
+  void _open(BuildContext context, MessageListEntry selected) {
+    final sourceMessages = messages.isEmpty ? [selected] : messages;
+    final images = sourceMessages
+        .where((item) => item.isImage && (item.mediaUrl?.isNotEmpty ?? false))
+        .map(_previewEntry)
+        .toList(growable: false);
+    final index = images.indexWhere((item) => item.id == selected.id);
+    if (index < 0) return;
+    final account = context.read<rust.AccountHandle>();
+    unawaited(
+      ImagePreviewPage.show(
+        context,
+        ImagePreviewPage(
+          images: images,
+          initialIndex: index,
+          onCopy: (image) async {
+            final file = existingLocalFile(image.source);
+            if (file != null) await copyLocalFileToClipboard(file);
+          },
+          onSave: (image) =>
+              saveMessageFileAs(image.source, suggestedName: image.name),
+          onForward: isTranscriptPage
+              ? null
+              : (image) => _forward(context, account, image.id),
+          loadOlder: isTranscriptPage
+              ? null
+              : (boundaryId) => _loadImages(
+                  account,
+                  boundaryId,
+                  before: 1,
+                  after: 0,
+                ),
+          loadNewer: isTranscriptPage
+              ? null
+              : (boundaryId) => _loadImages(
+                  account,
+                  boundaryId,
+                  before: 0,
+                  after: 1,
+                ),
+        ),
+      ),
+    );
+  }
+
+  ImagePreviewEntry _previewEntry(MessageListEntry item) => ImagePreviewEntry(
+    id: item.id,
+    source: item.mediaUrl!,
+    name: item.mediaName,
+    thumbImage: item.thumbImage,
+    canForward: !isTranscriptPage && _canForward(item),
+    userId: item.senderId,
+    userFullName: item.senderName,
+    userIdentityNumber: item.senderIdentityNumber,
+    avatarUrl: item.senderAvatarUrl,
+  );
+
+  bool _canForward(MessageListEntry item) => MessageActionPolicy(
+    message: item,
+    currentUserId: '',
+    currentUserRole: null,
+    now: DateTime.now(),
+    isTranscriptPage: isTranscriptPage,
+  ).canForward;
+
+  Future<List<ImagePreviewEntry>> _loadImages(
+    rust.AccountHandle account,
+    String targetMessageId, {
+    required int before,
+    required int after,
+  }) async {
+    final items = await account.message().imageMessagesAround(
+      conversationId: message.conversationId,
+      targetMessageId: targetMessageId,
+      before: before,
+      after: after,
+    );
+    return items
+        .map(
+          (item) => ImagePreviewEntry(
+            id: item.messageId,
+            source: item.mediaUrl,
+            name: item.mediaName,
+            thumbImage: item.thumbImage,
+            canForward: item.canForward,
+            userId: item.userId,
+            userFullName: item.userFullName,
+            userIdentityNumber: item.userIdentityNumber,
+            avatarUrl: item.avatarUrl,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  Future<bool> _forward(
+    BuildContext context,
+    rust.AccountHandle account,
+    String messageId,
+  ) async {
+    final target = await showConversationSelector(
+      context,
+      account: account,
+      title: context.l10n.forward,
+    );
+    if (target == null || !context.mounted) return false;
+    await account.message().forwardMessages(
+      targetConversationId: target.id,
+      sourceMessageIds: [messageId],
+    );
+    return true;
+  }
 }
 
 class _VideoMessage extends StatelessWidget {
@@ -526,18 +588,14 @@ class _VideoMessage extends StatelessWidget {
     required this.isCurrentUser,
     required this.sentByCurrentUser,
     required this.overlayDateAndStatus,
-    this.onOpen,
-    this.onDownloadAttachment,
-    this.onCancelAttachment,
+    this.isTranscriptPage = false,
   });
 
   final MessageListEntry message;
   final bool isCurrentUser;
   final bool sentByCurrentUser;
   final Widget overlayDateAndStatus;
-  final MessageEntryCallback? onOpen;
-  final MessageEntryCallback? onDownloadAttachment;
-  final MessageEntryCallback? onCancelAttachment;
+  final bool isTranscriptPage;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -553,9 +611,7 @@ class _VideoMessage extends StatelessWidget {
         isCurrentUser: isCurrentUser,
         sentByCurrentUser: sentByCurrentUser,
         overlayDateAndStatus: overlayDateAndStatus,
-        onOpen: onOpen,
-        onDownloadAttachment: onDownloadAttachment,
-        onCancelAttachment: onCancelAttachment,
+        isTranscriptPage: isTranscriptPage,
       );
       return ConstrainedBox(
         key: Key('message-media-video-${message.id}'),
@@ -574,9 +630,7 @@ class MessageVideo extends StatelessWidget {
     required this.overlayDateAndStatus,
     this.size,
     this.overlay,
-    this.onOpen,
-    this.onDownloadAttachment,
-    this.onCancelAttachment,
+    this.isTranscriptPage = false,
     super.key,
   });
 
@@ -586,14 +640,11 @@ class MessageVideo extends StatelessWidget {
   final Widget overlayDateAndStatus;
   final Size? size;
   final Widget? overlay;
-  final MessageEntryCallback? onOpen;
-  final MessageEntryCallback? onDownloadAttachment;
-  final MessageEntryCallback? onCancelAttachment;
+  final bool isTranscriptPage;
 
   @override
-  Widget build(BuildContext context) => _InteractiveMessageCard(
-    message: message,
-    onTap: (msg) => _videoAction(context, msg),
+  Widget build(BuildContext context) => InteractiveDecoratedBox(
+    onTap: () => _videoAction(context),
     child: SizedBox.fromSize(
       size: size,
       child: Stack(
@@ -646,27 +697,69 @@ class MessageVideo extends StatelessWidget {
     ),
   );
 
-  void _videoAction(BuildContext context, MessageListEntry _) {
+  void _videoAction(BuildContext context) {
     switch (message.mediaStatus.toUpperCase()) {
       case 'CANCELED':
-        onDownloadAttachment?.call(message);
+        unawaited(
+          context.read<MessageAttachmentController>().download(message),
+        );
       case 'PENDING':
-        onCancelAttachment?.call(message);
+        unawaited(context.read<MessageAttachmentController>().cancel(message));
       case 'DONE':
-        onOpen?.call(message);
+        final source = message.mediaUrl?.trim() ?? '';
+        if (source.isEmpty) return;
+        unawaited(
+          VideoPreviewPage.show(
+            context,
+            VideoPreviewPage(
+              source: source,
+              title: message.mediaName,
+              userId: message.senderId,
+              userFullName: message.senderName,
+              userIdentityNumber: message.senderIdentityNumber,
+              avatarUrl: message.senderAvatarUrl,
+              onForward: _canForward(context) ? () => _forward(context) : null,
+            ),
+          ),
+        );
       default:
         if (!message.isLive) return;
         final uri = Uri.tryParse(message.mediaUrl?.trim() ?? '');
         if (uri != null) context.openUri(uri);
     }
   }
+
+  bool _canForward(BuildContext context) {
+    final account = context.read<rust.AccountHandle>();
+    return MessageActionPolicy(
+      message: message,
+      currentUserId: account.accountId(),
+      currentUserRole: null,
+      now: DateTime.now(),
+      isTranscriptPage: isTranscriptPage,
+    ).canForward;
+  }
+
+  Future<bool> _forward(BuildContext context) async {
+    final account = context.read<rust.AccountHandle>();
+    final target = await showConversationSelector(
+      context,
+      account: account,
+      title: context.l10n.forward,
+    );
+    if (target == null || !context.mounted) return false;
+    await account.message().forwardMessages(
+      targetConversationId: target.id,
+      sourceMessageIds: [message.id],
+    );
+    return true;
+  }
 }
 
 class _StickerMessage extends StatelessWidget {
-  const _StickerMessage({required this.message, this.onOpen});
+  const _StickerMessage({required this.message});
 
   final MessageListEntry message;
-  final MessageEntryCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -698,8 +791,19 @@ class _StickerMessage extends StatelessWidget {
             size: size,
             child: sticker,
           );
-    if (onOpen == null || message.stickerId?.isNotEmpty != true) return child;
-    return InteractiveDecoratedBox(onTap: () => onOpen!(message), child: child);
+    final stickerId = message.stickerId;
+    if (stickerId == null || stickerId.isEmpty) return child;
+    return InteractiveDecoratedBox(
+      onTap: () => unawaited(
+        showStickerDetailPage(
+          context,
+          account: context.read(),
+          stickerId: stickerId,
+          onAlbumChanged: context.read<StickerController?>()?.refreshLocal,
+        ),
+      ),
+      child: child,
+    );
   }
 }
 
@@ -733,32 +837,35 @@ class MessageFile extends StatelessWidget {
   const MessageFile({
     required this.message,
     this.sentByCurrentUser,
-    this.onOpen,
-    this.onDownloadAttachment,
-    this.onCancelAttachment,
     super.key,
   });
 
   final MessageListEntry message;
   final bool? sentByCurrentUser;
-  final MessageEntryCallback? onOpen;
-  final MessageEntryCallback? onDownloadAttachment;
-  final MessageEntryCallback? onCancelAttachment;
 
   @override
   Widget build(BuildContext context) {
     final name = message.mediaName ?? '';
     final extension = _fileExtension(name);
     final action = _attachmentAction(
+      context,
       message,
-      onOpen: onOpen,
-      onDownload: onDownloadAttachment,
-      onCancel: onCancelAttachment,
+      onOpen: () {
+        final source = message.mediaUrl?.trim() ?? '';
+        if (source.isEmpty) return;
+        unawaited(
+          openOrSaveMessageFile(
+            context,
+            source,
+            mediaName: message.mediaName,
+          ),
+        );
+      },
     );
     final isCurrentUser =
         sentByCurrentUser ?? message.senderRelationship.toUpperCase() == 'ME';
     return InteractiveDecoratedBox(
-      onTap: action == null ? null : () => action(message),
+      onTap: action,
       child: Row(
         key: Key('message-media-file-${message.id}'),
         mainAxisSize: MainAxisSize.min,
@@ -826,7 +933,6 @@ class MessagePost extends StatelessWidget {
   const MessagePost({
     required this.message,
     required this.overlayDateAndStatus,
-    this.onOpen,
     this.showStatus = true,
     this.padding,
     this.decoration,
@@ -835,7 +941,6 @@ class MessagePost extends StatelessWidget {
 
   final MessageListEntry message;
   final Widget overlayDateAndStatus;
-  final MessageEntryCallback? onOpen;
   final bool showStatus;
   final EdgeInsetsGeometry? padding;
   final Decoration? decoration;
@@ -852,7 +957,15 @@ class MessagePost extends StatelessWidget {
       child: DefaultTextStyle.merge(
         style: TextStyle(fontSize: fontSize),
         child: InteractiveDecoratedBox(
-          onTap: onOpen == null ? null : () => onOpen!(message),
+          onTap: () => unawaited(
+            PostPreviewPage.show(
+              context,
+              PostPreviewPage(
+                content: message.content,
+                title: message.senderName,
+              ),
+            ),
+          ),
           behavior: HitTestBehavior.deferToChild,
           child: Container(
             padding: padding,
@@ -922,32 +1035,17 @@ class MessagePost extends StatelessWidget {
   }
 }
 
-class _InteractiveMessageCard extends StatelessWidget {
-  const _InteractiveMessageCard({
-    required this.message,
-    required this.onTap,
-    required this.child,
-  });
-
-  final MessageListEntry message;
-  final MessageEntryCallback? onTap;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (onTap == null) return child;
-    return InteractiveDecoratedBox(onTap: () => onTap!(message), child: child);
-  }
-}
-
-MessageEntryCallback? _attachmentAction(
+VoidCallback? _attachmentAction(
+  BuildContext context,
   MessageListEntry message, {
-  required MessageEntryCallback? onOpen,
-  required MessageEntryCallback? onDownload,
-  required MessageEntryCallback? onCancel,
+  required VoidCallback? onOpen,
 }) => switch (message.mediaStatus.toUpperCase()) {
-  'CANCELED' => onDownload,
-  'PENDING' => onCancel,
+  'CANCELED' => () => unawaited(
+    context.read<MessageAttachmentController>().download(message),
+  ),
+  'PENDING' => () => unawaited(
+    context.read<MessageAttachmentController>().cancel(message),
+  ),
   'DONE' => onOpen,
   _ => null,
 };
@@ -959,12 +1057,11 @@ class _UnknownMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
-    final helpUri = Uri.tryParse(l10n?.chatNotSupportUrl ?? '');
+    final helpUri = Uri.tryParse(context.l10n.chatNotSupportUrl);
     return RichText(
       key: Key('message-media-unknown-${message.id}'),
       text: TextSpan(
-        text: l10n?.messageNotSupport ?? 'This message is not supported',
+        text: context.l10n.messageNotSupport,
         style: TextStyle(
           fontSize: context.messageFontSize(16),
           color: context.theme.text,
@@ -973,15 +1070,13 @@ class _UnknownMessage extends StatelessWidget {
           const TextSpan(text: ' '),
           TextSpan(
             mouseCursor: SystemMouseCursors.click,
-            text: l10n?.learnMore ?? 'Learn More',
+            text: context.l10n.learnMore,
             style: TextStyle(
               fontSize: context.messageFontSize(16),
               color: context.theme.accent,
             ),
             recognizer: TapGestureRecognizer()
-              ..onTap = helpUri == null
-                  ? null
-                  : () => context.openUri(helpUri),
+              ..onTap = helpUri == null ? null : () => context.openUri(helpUri),
           ),
         ],
       ),

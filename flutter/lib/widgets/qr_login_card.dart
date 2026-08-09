@@ -3,7 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 
 import '../constants/assets.dart';
-import '../l10n/generated/app_localizations.dart';
+import '../l10n/l10n.dart';
 import '../theme.dart';
 
 class QrLoginCard extends StatelessWidget {
@@ -24,21 +24,19 @@ class QrLoginCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = Localizations.of<AppLocalizations>(context, AppLocalizations);
-
     Widget child;
     if (loading) {
       child = Center(
         child: _Loading(
-          title: l10n?.initializing ?? 'Initializing…',
-          message: l10n?.chatHintE2e ?? 'End-to-end encrypted',
+          title: context.l10n.initializing,
+          message: context.l10n.chatHintE2e,
         ),
       );
     } else if (provisioning) {
       child = Center(
         child: _Loading(
-          title: l10n?.loading ?? 'Loading...',
-          message: l10n?.chatHintE2e ?? 'End-to-end encrypted',
+          title: context.l10n.loading,
+          message: context.l10n.chatHintE2e,
         ),
       );
     } else {
@@ -52,17 +50,10 @@ class QrLoginCard extends StatelessWidget {
                 authUrl: authUrl,
                 error: error,
                 onRetry: onRetry,
-                title:
-                    l10n?.loginByQrcode ??
-                    'Log in to Mixin Messenger with a QR code',
-                firstTip:
-                    l10n?.loginByQrcodeTips1 ??
-                    'Open Mixin Messenger on your phone.',
-                secondTip:
-                    l10n?.loginByQrcodeTips2 ??
-                    'Scan the QR code on the screen and confirm your sign-in.',
-                retryText:
-                    l10n?.clickToReloadQrcode ?? 'Click to reload the QR code',
+                title: context.l10n.loginByQrcode,
+                firstTip: context.l10n.loginByQrcodeTips1,
+                secondTip: context.l10n.loginByQrcodeTips2,
+                retryText: context.l10n.clickToReloadQrcode,
               ),
               const Spacer(),
             ],

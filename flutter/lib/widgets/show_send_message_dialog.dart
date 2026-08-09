@@ -19,7 +19,7 @@ import '../theme.dart';
 import 'avatar_view.dart';
 import 'buttons.dart';
 import 'message_bubble.dart';
-import 'message_items/special_message_items.dart';
+import 'message_items/app_card_message_item.dart';
 import 'message_style.dart';
 import 'mixin_dialog.dart';
 import 'mixin_image.dart';
@@ -603,10 +603,10 @@ class _AppCardPreview extends StatelessWidget {
         mediaDuration: '',
         mediaStatus: '',
       ),
-      onAction: null,
       isCurrentUser: false,
       showNip: false,
       highlighted: false,
+      interactive: false,
       dateAndStatus: const SizedBox(),
     );
   }

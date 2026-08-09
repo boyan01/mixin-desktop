@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../controllers/message_attachment_controller.dart';
 import '../models/message_list_entry.dart';
 import '../src/rust/api/media.dart';
 import '../theme.dart';
@@ -23,17 +24,11 @@ class AudioMessageWidget extends StatefulWidget {
     super.key,
     this.playlist = const [],
     this.sentByCurrentUser,
-    this.onMarkRead,
-    this.onDownloadAttachment,
-    this.onCancelAttachment,
   });
 
   final MessageListEntry message;
   final List<MessageListEntry> playlist;
   final bool? sentByCurrentUser;
-  final AudioMessageCallback? onMarkRead;
-  final AudioMessageCallback? onDownloadAttachment;
-  final AudioMessageCallback? onCancelAttachment;
 
   @override
   State<AudioMessageWidget> createState() => _AudioMessageWidgetState();
@@ -76,13 +71,14 @@ class _AudioMessageWidgetState extends State<AudioMessageWidget> {
   }
 
   Future<void> _onTap() async {
+    final attachments = context.read<MessageAttachmentController>();
     final status = widget.message.mediaStatus.toUpperCase();
     switch (status) {
       case 'CANCELED':
-        widget.onDownloadAttachment?.call(widget.message);
+        unawaited(attachments.download(widget.message));
         return;
       case 'PENDING':
-        widget.onCancelAttachment?.call(widget.message);
+        unawaited(attachments.cancel(widget.message));
         return;
       case 'DONE':
       case 'READ':
@@ -97,11 +93,13 @@ class _AudioMessageWidgetState extends State<AudioMessageWidget> {
           widget.message,
           path,
           playlist: widget.playlist,
-          onMarkRead: widget.onMarkRead,
+          onMarkRead: (message) => unawaited(
+            attachments.markAudioRead(message),
+          ),
         );
         if (started && status == 'DONE' && !_markedRead) {
           _markedRead = true;
-          widget.onMarkRead?.call(widget.message);
+          unawaited(attachments.markAudioRead(widget.message));
         }
         return;
       default:

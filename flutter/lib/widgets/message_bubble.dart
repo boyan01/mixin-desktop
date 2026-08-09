@@ -7,6 +7,7 @@ import '../constants/assets.dart';
 import '../models/message_list_entry.dart';
 import '../theme.dart';
 import 'action_button.dart';
+import 'message_navigation_scope.dart';
 
 const _nipWidth = 9.0;
 const _lightCurrentBubble = Color.fromRGBO(197, 237, 253, 1);
@@ -134,7 +135,7 @@ class MessageBubble extends StatelessWidget {
     this.forceIsCurrentUserColor,
     this.isDisappearingMessage = false,
     this.isPinnedPage = false,
-    this.onPinnedMessageTap,
+    this.pinnedMessageId,
     this.quote,
     this.constrainQuoteWidth = false,
     this.highlightMedia = false,
@@ -154,7 +155,7 @@ class MessageBubble extends StatelessWidget {
   final bool? forceIsCurrentUserColor;
   final bool isDisappearingMessage;
   final bool isPinnedPage;
-  final VoidCallback? onPinnedMessageTap;
+  final String? pinnedMessageId;
   final Widget? quote;
   final bool constrainQuoteWidth;
   final bool highlightMedia;
@@ -219,7 +220,11 @@ class MessageBubble extends StatelessWidget {
       final pinArrow = ActionButton(
         size: 16,
         name: MixinAssets.pinArrow,
-        onTap: onPinnedMessageTap,
+        onTap: pinnedMessageId == null
+            ? null
+            : () => MessageNavigationScope.maybeOf(
+                context,
+              )?.onLocateMessage(pinnedMessageId!),
       );
       content = Row(
         mainAxisSize: MainAxisSize.min,

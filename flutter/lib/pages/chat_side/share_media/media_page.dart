@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
 
 import '../../../constants/assets.dart';
+import '../../../controllers/message_attachment_controller.dart';
 import '../../../l10n/l10n.dart';
 import '../../../models/message_list_entry.dart';
-import '../../../utils/app_logger.dart';
 import '../../../widgets/message_content.dart';
-import '../../../widgets/message_media_preview_pages.dart';
 import '../chat_side_scope.dart';
 import '../shared_media_page.dart';
 import 'shared_media_list.dart';
@@ -42,55 +42,6 @@ class _MediaItem extends StatelessWidget {
   final MessageListEntry message;
   final List<MessageListEntry> messages;
 
-  Future<void> _open(BuildContext context) async {
-    try {
-      final source = message.mediaUrl?.trim() ?? '';
-      if (source.isEmpty) return;
-      if (message.isVideo) {
-        await VideoPreviewPage.show(
-          context,
-          VideoPreviewPage(
-            source: source,
-            title: message.mediaName,
-            userId: message.senderId,
-            userFullName: message.senderName,
-            userIdentityNumber: message.senderIdentityNumber,
-            avatarUrl: message.senderAvatarUrl,
-          ),
-        );
-        return;
-      }
-      final images = messages
-          .where((item) => item.isImage && (item.mediaUrl?.isNotEmpty ?? false))
-          .map(
-            (item) => ImagePreviewEntry(
-              id: item.id,
-              source: item.mediaUrl!,
-              name: item.mediaName,
-              thumbImage: item.thumbImage,
-              userId: item.senderId,
-              userFullName: item.senderName,
-              userIdentityNumber: item.senderIdentityNumber,
-              avatarUrl: item.senderAvatarUrl,
-            ),
-          )
-          .toList();
-      final index = images.indexWhere((item) => item.id == message.id);
-      if (index < 0) return;
-      await ImagePreviewPage.show(
-        context,
-        ImagePreviewPage(
-          images: images,
-          initialIndex: index,
-          onSave: (image) =>
-              saveMessageFileAs(image.source, suggestedName: image.name),
-        ),
-      );
-    } on Object catch (error) {
-      e('open shared media failed', error);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isCurrentUser = message.senderRelationship.toUpperCase() == 'ME';
@@ -103,12 +54,7 @@ class _MediaItem extends StatelessWidget {
         isCurrentUser: isCurrentUser,
         sentByCurrentUser: isCurrentUser,
         overlayDateAndStatus: const SizedBox(),
-        onOpen: (_) => _open(context),
-        onDownloadAttachment: (_) => isCurrentUser
-            ? account.attachment().retryAttachment(messageId: message.id)
-            : account.attachment().downloadAttachment(messageId: message.id),
-        onCancelAttachment: (_) =>
-            account.attachment().cancelAttachment(messageId: message.id),
+        messages: messages,
       );
     } else {
       child = MessageVideo(
@@ -116,12 +62,6 @@ class _MediaItem extends StatelessWidget {
         isCurrentUser: isCurrentUser,
         sentByCurrentUser: isCurrentUser,
         overlayDateAndStatus: const SizedBox(),
-        onOpen: (_) => _open(context),
-        onDownloadAttachment: (_) => isCurrentUser
-            ? account.attachment().retryAttachment(messageId: message.id)
-            : account.attachment().downloadAttachment(messageId: message.id),
-        onCancelAttachment: (_) =>
-            account.attachment().cancelAttachment(messageId: message.id),
         overlay: Stack(
           fit: StackFit.expand,
           children: [
@@ -171,6 +111,12 @@ class _MediaItem extends StatelessWidget {
         ),
       );
     }
-    return ShareMediaItemMenuWrapper(messageId: message.id, child: child);
+    return Provider<MessageAttachmentController>(
+      create: (_) => MessageAttachmentController.conversation(
+        account: account,
+        onChanged: (_) async {},
+      ),
+      child: ShareMediaItemMenuWrapper(messageId: message.id, child: child),
+    );
   }
 }

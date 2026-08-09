@@ -4,7 +4,6 @@ import '../../../l10n/l10n.dart';
 import '../../../models/message_list_entry.dart';
 import '../../../theme.dart';
 import '../../../widgets/message_content.dart';
-import '../../../widgets/message_media_preview_pages.dart';
 
 import '../shared_media_page.dart';
 import 'shared_media_list.dart';
@@ -42,10 +41,6 @@ class _PostItem extends StatelessWidget {
         decoration: BoxDecoration(
           color: context.theme.sidebarSelected,
           borderRadius: const BorderRadius.all(Radius.circular(8)),
-        ),
-        onOpen: (_) => PostPreviewPage.show(
-          context,
-          PostPreviewPage(content: message.content, title: message.senderName),
         ),
       ),
     ),

@@ -11,7 +11,10 @@ import 'package:mixin_desktop_ui/widgets/interactive_decorated_box.dart';
 import 'package:mixin_desktop_ui/widgets/message_audio.dart';
 import 'package:mixin_desktop_ui/widgets/message_bubble.dart';
 import 'package:mixin_desktop_ui/widgets/message_content.dart';
-import 'package:mixin_desktop_ui/widgets/message_items/special_message_items.dart';
+import 'package:mixin_desktop_ui/widgets/message_items/contact_message_item.dart';
+import 'package:mixin_desktop_ui/widgets/message_items/location_message_item.dart';
+import 'package:mixin_desktop_ui/widgets/message_items/quote_message_preview.dart';
+import 'package:mixin_desktop_ui/widgets/message_items/transcript_message_item.dart';
 import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
 import 'package:provider/provider.dart';
 
@@ -67,7 +70,6 @@ void main() {
           currentUserId: 'me',
           dateAndStatus: const Text('12:30'),
           overlayDateAndStatus: const Text('12:30 overlay'),
-          onOpenSticker: (_) {},
         ),
       ),
     );
@@ -365,87 +367,6 @@ void main() {
     expect(find.text('RAW_UNKNOWN_CATEGORY'), findsNothing);
   });
 
-  testWidgets('opens sticker detail from a sticker message', (tester) async {
-    MessageListEntry? opened;
-    await tester.pumpWidget(
-      _TestApp(
-        child: MessageContent(
-          message: _message(
-            id: 'sticker',
-            category: 'PLAIN_STICKER',
-            stickerId: 'sticker-id',
-            stickerAssetWidth: 128,
-            stickerAssetHeight: 128,
-          ),
-          isCurrentUser: false,
-          currentUserId: 'me',
-          dateAndStatus: const Text('12:30'),
-          overlayDateAndStatus: const Text('12:30 overlay'),
-          onOpenSticker: (message) => opened = message,
-        ),
-      ),
-    );
-
-    await tester.tap(find.byType(InteractiveDecoratedBox));
-
-    expect(opened?.stickerId, 'sticker-id');
-  });
-
-  testWidgets('routes canceled and pending media taps to their callbacks', (
-    tester,
-  ) async {
-    final downloaded = <String>[];
-    final canceled = <String>[];
-
-    await tester.pumpWidget(
-      _TestApp(
-        child: Column(
-          children: [
-            MessageContent(
-              message: _message(
-                id: 'canceled-image',
-                category: 'PLAIN_IMAGE',
-                content: 'RAW_IMAGE',
-                mediaStatus: 'CANCELED',
-                mediaWidth: 200,
-                mediaHeight: 200,
-              ),
-              isCurrentUser: false,
-              dateAndStatus: const Text('time'),
-              overlayDateAndStatus: const Text('overlay'),
-              onDownloadAttachment: (message) => downloaded.add(message.id),
-            ),
-            MessageContent(
-              message: _message(
-                id: 'pending-video',
-                category: 'PLAIN_VIDEO',
-                content: 'RAW_VIDEO',
-                mediaStatus: 'PENDING',
-                mediaWidth: 200,
-                mediaHeight: 200,
-              ),
-              isCurrentUser: false,
-              dateAndStatus: const Text('time'),
-              overlayDateAndStatus: const Text('overlay'),
-              onCancelAttachment: (message) => canceled.add(message.id),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    await tester.tap(
-      find.byKey(const Key('message-media-image-canceled-image')),
-    );
-    await tester.tap(
-      find.byKey(const Key('message-media-video-pending-video')),
-    );
-    await tester.pump();
-
-    expect(downloaded, ['canceled-image']);
-    expect(canceled, ['pending-video']);
-  });
-
   testWidgets('loads incoming local image only after download is done', (
     tester,
   ) async {
@@ -491,23 +412,20 @@ void main() {
     expect(tester.widget<Image>(image).image, isA<FileImage>());
   });
 
-  testWidgets('keeps invalid quotes inert and opens valid quote previews', (
+  testWidgets('keeps invalid and valid quote previews visible', (
     tester,
   ) async {
-    final opened = <String>[];
-
     Future<void> render(MessageListEntry message) => tester.pumpWidget(
       _TestApp(
         child: MessageBubble(
           isCurrentUser: false,
           showNip: false,
-          quote: buildMessageQuotePreview(message, onOpenMessage: opened.add),
+          quote: buildMessageQuotePreview(message),
           child: MessageContent(
             message: message,
             isCurrentUser: false,
             dateAndStatus: const Text('time'),
             overlayDateAndStatus: const Text('overlay'),
-            onOpenMessage: opened.add,
           ),
         ),
       ),
@@ -523,7 +441,6 @@ void main() {
     expect(find.byKey(const Key('quote-message-preview')), findsOneWidget);
     expect(find.byType(InkWell), findsNothing);
     await tester.tap(find.byKey(const Key('quote-message-preview')));
-    expect(opened, isEmpty);
 
     await render(
       _message(content: 'Reply body', quoteMessageId: 'unavailable'),
@@ -540,9 +457,6 @@ void main() {
       ),
     );
     expect(find.byKey(const Key('quote-message-preview')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('quote-message-preview')));
-    await tester.pump();
-    expect(opened, ['quoted-message']);
   });
 
   testWidgets('matches Flutter quote preview geometry and typography', (
@@ -610,14 +524,12 @@ void main() {
               messageId: 'image',
               membership: null,
               mentionNames: {},
-              onOpenMessage: null,
             ),
             QuoteMessagePreview(
               raw: '{"type":"PLAIN_VIDEO","thumb_image":"invalid"}',
               messageId: 'video',
               membership: null,
               mentionNames: {},
-              onOpenMessage: null,
             ),
           ],
         ),
@@ -629,7 +541,6 @@ void main() {
   });
 
   testWidgets('lays out an image message with a quote', (tester) async {
-    final opened = <String>[];
     final message = _message(
       id: 'reply-image',
       category: 'PLAIN_IMAGE',
@@ -647,7 +558,7 @@ void main() {
         child: MessageBubble(
           isCurrentUser: false,
           showNip: true,
-          quote: buildMessageQuotePreview(message, onOpenMessage: opened.add),
+          quote: buildMessageQuotePreview(message),
           constrainQuoteWidth: true,
           child: MessageContent(
             message: message,
@@ -668,8 +579,6 @@ void main() {
       tester.getBottomLeft(find.byKey(const Key('quote-message-preview'))).dy,
       lessThanOrEqualTo(tester.getTopLeft(image).dy),
     );
-    await tester.tap(find.byKey(const Key('quote-message-preview')));
-    expect(opened, ['quoted-message']);
   });
 
   testWidgets('does not create a blank sender row for a nameless quote', (
@@ -682,7 +591,6 @@ void main() {
           messageId: 'quoted',
           membership: null,
           mentionNames: {},
-          onOpenMessage: null,
         ),
       ),
     );
