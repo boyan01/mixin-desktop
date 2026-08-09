@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_portal/flutter_portal.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mixin_desktop_ui/controllers/sticker_controller.dart';
 import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart' as rust;
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_button.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_data.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_detail_page.dart';
 import 'package:mixin_desktop_ui/widgets/sticker_page/sticker_page.dart';
 import 'package:provider/provider.dart';
+
+import 'test_settings_store.dart';
 
 void main() {
   testWidgets('keeps upstream emoji insertion and sticker send behavior', (
@@ -141,6 +146,48 @@ void main() {
     await tester.tap(find.byKey(const Key('sticker-one')));
     expect(sentCalls, 1);
   });
+
+  testWidgets('replaces the tab controller when sticker albums load', (
+    tester,
+  ) async {
+    final controller = StickerController(
+      account: _FakeAccount(),
+      settings: TestSettingsStore(),
+    );
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      _testApp(
+        Portal(
+          child: StickerButton(
+            textEditingController: TextEditingController(),
+            controller: controller,
+            onStickerSelected: (_) async => true,
+            onStickerSent: () {},
+            onEmojiUsed: (_) {},
+            onGifSelected:
+                ({
+                  required url,
+                  required previewUrl,
+                  required width,
+                  required height,
+                }) async {},
+            child: const SizedBox.square(dimension: 24),
+          ),
+        ),
+      ),
+    );
+
+    final initialState = tester.state(find.byType(DefaultTabController));
+    await controller.load();
+    await tester.pump();
+
+    expect(
+      tester.state(find.byType(DefaultTabController)),
+      isNot(same(initialState)),
+    );
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Widget _testApp(Widget child) => Provider<rust.AccountHandle>.value(
@@ -160,7 +207,29 @@ Widget _testApp(Widget child) => Provider<rust.AccountHandle>.value(
 
 class _FakeAccount implements rust.AccountHandle, rust.StickerAccess {
   @override
+  String accountId() => 'sticker-page-test';
+
+  @override
   rust.StickerAccess sticker() => this;
+
+  @override
+  Future<List<rust.StickerItem>> recentStickers() async => const [];
+
+  @override
+  Future<List<rust.StickerItem>> personalStickers() async => const [];
+
+  @override
+  Future<List<rust.StickerAlbumItem>> stickerAlbums() async => const [
+    _rustAlbum,
+  ];
+
+  @override
+  Future<List<rust.StickerItem>> albumStickers({
+    required String albumId,
+  }) async => const [];
+
+  @override
+  Future<bool> refreshStickers() async => false;
 
   @override
   Future<void> refreshSticker({required String stickerId}) async {}

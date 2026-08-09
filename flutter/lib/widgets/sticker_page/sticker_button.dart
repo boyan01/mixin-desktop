@@ -71,6 +71,7 @@ class StickerButton extends HookWidget {
     final tabLength = stickerAlbums.length + presetStickerGroups.length;
 
     return DefaultTabController(
+      key: ValueKey(tabLength),
       length: tabLength,
       initialIndex: 1,
       child: HoverOverlay(
