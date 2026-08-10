@@ -65,8 +65,8 @@ class HomeSidebar extends HookWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: Theme.of(context).brightness == Brightness.light
-              ? Colors.black.withValues(alpha: 0.03)
-              : Colors.white.withValues(alpha: 0.01),
+              ? Colors.white.withValues(alpha: 0.01)
+              : Colors.black.withValues(alpha: 0.03),
           border: Border(right: BorderSide(color: colors.divider)),
         ),
         child: Padding(
