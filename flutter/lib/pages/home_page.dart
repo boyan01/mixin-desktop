@@ -150,6 +150,8 @@ class _HomeBodyState extends State<_HomeBody> {
       navigationController.selectedConversation;
   bool get settingsSelected => navigationController.settingsSelected;
   String? get locateMessageId => navigationController.locateMessageId;
+  String? get locateSourceMessageId =>
+      navigationController.locateSourceMessageId;
   int get locateRequest => navigationController.locateRequest;
   HomeNavigationController get navigation => navigationController;
 
@@ -186,8 +188,8 @@ class _HomeBodyState extends State<_HomeBody> {
     navigation.select(conversation);
   }
 
-  void _locateMessage(String messageId) {
-    navigation.locateMessage(messageId);
+  void _locateMessage(String messageId, {String? sourceMessageId}) {
+    navigation.locateMessage(messageId, sourceMessageId: sourceMessageId);
   }
 
   void _conversationDeleted() {
@@ -285,6 +287,7 @@ class _HomeBodyState extends State<_HomeBody> {
                           notifier: navigation.chatSideController,
                           draft: drafts[conversation.id] ?? conversation.draft,
                           locateMessageId: locateMessageId,
+                          locateSourceMessageId: locateSourceMessageId,
                           locateRequest: locateRequest,
                           onDraftChanged: (value) =>
                               _updateDraft(conversation, value),
@@ -323,6 +326,8 @@ class _HomeBodyState extends State<_HomeBody> {
                                         drafts[conversation.id] ??
                                         conversation.draft,
                                     locateMessageId: locateMessageId,
+                                    locateSourceMessageId:
+                                        locateSourceMessageId,
                                     locateRequest: locateRequest,
                                     onDraftChanged: (value) =>
                                         _updateDraft(conversation, value),
@@ -505,6 +510,7 @@ class _ChatWithSide extends StatelessWidget {
     required this.notifier,
     required this.draft,
     required this.locateMessageId,
+    required this.locateSourceMessageId,
     required this.locateRequest,
     required this.onDraftChanged,
     required this.onLocateMessage,
@@ -518,10 +524,12 @@ class _ChatWithSide extends StatelessWidget {
   final ChatSideNotifier notifier;
   final String draft;
   final String? locateMessageId;
+  final String? locateSourceMessageId;
   final int locateRequest;
   final ValueChanged<String> onDraftChanged;
   final VoidCallback? onBack;
-  final ValueChanged<String> onLocateMessage;
+  final void Function(String messageId, {String? sourceMessageId})
+  onLocateMessage;
   final ValueChanged<ConversationListEntry> onSelectConversation;
   final VoidCallback onConversationDeleted;
 
@@ -546,6 +554,7 @@ class _ChatWithSide extends StatelessWidget {
                 conversation: conversation,
                 draft: draft,
                 locateMessageId: locateMessageId,
+                locateSourceMessageId: locateSourceMessageId,
                 locateRequest: locateRequest,
                 onDraftChanged: onDraftChanged,
                 onSelectConversation: onSelectConversation,

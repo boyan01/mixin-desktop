@@ -48,7 +48,7 @@ class PinnedMessagesPage extends StatefulWidget {
   final String conversationId;
   final String currentUserId;
   final String? currentUserRole;
-  final ValueChanged<String> onLocate;
+  final void Function(String messageId, {String? sourceMessageId}) onLocate;
   final ValueChanged<ConversationListEntry> onSelectConversation;
   final ValueChanged<ConversationListEntry> onSelectConversationInfo;
   final VoidCallback? onEmpty;
@@ -134,8 +134,8 @@ class _PinnedMessagesPageState extends State<PinnedMessagesPage> {
     });
   }
 
-  void _locate(String messageId) {
-    widget.onLocate(messageId);
+  void _locate(String messageId, {String? sourceMessageId}) {
+    widget.onLocate(messageId, sourceMessageId: sourceMessageId);
   }
 
   Future<void> _unpin(MessageListEntry message) async {

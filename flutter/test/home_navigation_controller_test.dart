@@ -14,12 +14,13 @@ void main() {
 
       controller
         ..showSettings()
-        ..locateMessage('message-1')
+        ..locateMessage('message-1', sourceMessageId: 'source-1')
         ..select(conversation);
 
       expect(controller.selectedConversation, same(conversation));
       expect(controller.settingsSelected, isFalse);
       expect(controller.locateMessageId, isNull);
+      expect(controller.locateSourceMessageId, isNull);
       expect(selected, [conversation]);
     },
   );
@@ -31,10 +32,11 @@ void main() {
           HomeNavigationController(
               onConversationSelected: (_) {},
             )
-            ..locateMessage('message-1')
-            ..locateMessage('message-1');
+            ..locateMessage('message-1', sourceMessageId: 'source-1')
+            ..locateMessage('message-1', sourceMessageId: 'source-1');
 
       expect(controller.locateMessageId, 'message-1');
+      expect(controller.locateSourceMessageId, 'source-1');
       expect(controller.locateRequest, 2);
     },
   );

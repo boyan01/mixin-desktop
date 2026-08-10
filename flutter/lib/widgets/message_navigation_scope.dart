@@ -14,7 +14,8 @@ class MessageNavigationScope extends InheritedWidget {
   });
 
   final String currentUserId;
-  final ValueChanged<String> onLocateMessage;
+  final void Function(String messageId, {String? sourceMessageId})
+  onLocateMessage;
   final ValueChanged<String>? onReedit;
   final ValueChanged<ConversationListEntry>? onSelectConversation;
   final ValueChanged<ConversationListEntry>? onSelectConversationInfo;

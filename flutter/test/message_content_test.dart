@@ -15,6 +15,7 @@ import 'package:mixin_desktop_ui/widgets/message_items/contact_message_item.dart
 import 'package:mixin_desktop_ui/widgets/message_items/location_message_item.dart';
 import 'package:mixin_desktop_ui/widgets/message_items/quote_message_preview.dart';
 import 'package:mixin_desktop_ui/widgets/message_items/transcript_message_item.dart';
+import 'package:mixin_desktop_ui/widgets/message_navigation_scope.dart';
 import 'package:mixin_desktop_ui/widgets/mixin_image.dart';
 import 'package:provider/provider.dart';
 
@@ -538,6 +539,38 @@ void main() {
 
     expect(find.byType(MixinImage), findsOneWidget);
     expect(find.byType(ImageByBlurHashOrBase64), findsOneWidget);
+  });
+
+  testWidgets('quote preview locates target from the quoting message', (
+    tester,
+  ) async {
+    final message = _message(
+      id: 'source-message',
+      quoteMessageId: 'target-message',
+      quoteContent:
+          '{"user_full_name":"Alice","type":"PLAIN_TEXT",'
+          '"content":"Quoted text"}',
+    );
+    String? targetMessageId;
+    String? capturedSourceMessageId;
+
+    await tester.pumpWidget(
+      _TestApp(
+        child: MessageNavigationScope(
+          currentUserId: 'me',
+          onLocateMessage: (messageId, {sourceMessageId}) {
+            targetMessageId = messageId;
+            capturedSourceMessageId = sourceMessageId;
+          },
+          child: buildMessageQuotePreview(message)!,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Quoted text', findRichText: true));
+
+    expect(targetMessageId, 'target-message');
+    expect(capturedSourceMessageId, 'source-message');
   });
 
   testWidgets('lays out an image message with a quote', (tester) async {

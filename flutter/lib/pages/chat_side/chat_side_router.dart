@@ -39,7 +39,8 @@ class ChatSideRouter extends StatelessWidget {
   final List<Page<dynamic>> leadingPages;
   final BoxConstraints constraints;
   final bool routeMode;
-  final ValueChanged<String> onLocateMessage;
+  final void Function(String messageId, {String? sourceMessageId})
+  onLocateMessage;
   final ValueChanged<ConversationListEntry> onSelectConversation;
   final VoidCallback onConversationDeleted;
 

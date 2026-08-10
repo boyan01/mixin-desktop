@@ -43,8 +43,11 @@ class _PinMessagesPageState extends State<PinMessagesPage> {
         conversationId: scope.conversation.id,
         currentUserId: scope.currentUserId,
         currentUserRole: role,
-        onLocate: (messageId) {
-          scope.onLocateMessage(messageId);
+        onLocate: (messageId, {sourceMessageId}) {
+          scope.onLocateMessage(
+            messageId,
+            sourceMessageId: sourceMessageId,
+          );
           scope.notifier.closeAfterContentJump(routeMode: scope.routeMode);
         },
         onSelectConversation: scope.onSelectConversation,

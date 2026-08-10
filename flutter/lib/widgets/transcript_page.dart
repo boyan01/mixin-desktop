@@ -167,7 +167,10 @@ class _TranscriptPageState extends State<TranscriptPage>
     });
   }
 
-  Future<void> _locateMessage(String messageId) async {
+  Future<void> _locateMessage(
+    String messageId, {
+    String? sourceMessageId,
+  }) async {
     final index = _messages.indexWhere((message) => message.id == messageId);
     if (index < 0 || !_scrollController.isAttached) return;
     await _scrollController.scrollTo(

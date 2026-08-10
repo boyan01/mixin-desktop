@@ -9,6 +9,7 @@ class HomeNavigationController extends ChangeNotifier {
   ConversationListEntry? _selectedConversation;
   bool _settingsSelected = false;
   String? _locateMessageId;
+  String? _locateSourceMessageId;
   int _locateRequest = 0;
 
   final ValueChanged<ConversationListEntry> onConversationSelected;
@@ -17,6 +18,7 @@ class HomeNavigationController extends ChangeNotifier {
   ConversationListEntry? get selectedConversation => _selectedConversation;
   bool get settingsSelected => _settingsSelected;
   String? get locateMessageId => _locateMessageId;
+  String? get locateSourceMessageId => _locateSourceMessageId;
   int get locateRequest => _locateRequest;
 
   void select(ConversationListEntry conversation) {
@@ -27,6 +29,7 @@ class HomeNavigationController extends ChangeNotifier {
     _selectedConversation = conversation;
     _settingsSelected = false;
     _locateMessageId = null;
+    _locateSourceMessageId = null;
     chatSideController.clear();
     onConversationSelected(conversation);
     if (changed) notifyListeners();
@@ -58,11 +61,13 @@ class HomeNavigationController extends ChangeNotifier {
     final changed = _selectedConversation != null || _locateMessageId != null;
     _selectedConversation = null;
     _locateMessageId = null;
+    _locateSourceMessageId = null;
     if (changed) notifyListeners();
   }
 
-  void locateMessage(String messageId) {
+  void locateMessage(String messageId, {String? sourceMessageId}) {
     _locateMessageId = messageId;
+    _locateSourceMessageId = sourceMessageId;
     _locateRequest++;
     notifyListeners();
   }

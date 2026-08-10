@@ -58,6 +58,7 @@ class ChatView extends StatefulWidget {
     this.onSelectConversationInfo,
     this.showInfoAction = true,
     this.locateMessageId,
+    this.locateSourceMessageId,
     this.locateRequest = 0,
   });
 
@@ -74,6 +75,7 @@ class ChatView extends StatefulWidget {
   final VoidCallback? onOpenPinnedMessages;
   final bool showInfoAction;
   final String? locateMessageId;
+  final String? locateSourceMessageId;
   final int locateRequest;
 
   @override
@@ -130,7 +132,12 @@ class _ChatViewState extends State<ChatView>
     _scheduleInputFocus();
     if (widget.locateMessageId != null) {
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => unawaited(_locateMessage(widget.locateMessageId!)),
+        (_) => unawaited(
+          _locateMessage(
+            widget.locateMessageId!,
+            sourceMessageId: widget.locateSourceMessageId,
+          ),
+        ),
       );
     }
   }
@@ -168,7 +175,12 @@ class _ChatViewState extends State<ChatView>
     if (widget.locateMessageId != null &&
         widget.locateRequest != oldWidget.locateRequest) {
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => unawaited(_locateMessage(widget.locateMessageId!)),
+        (_) => unawaited(
+          _locateMessage(
+            widget.locateMessageId!,
+            sourceMessageId: widget.locateSourceMessageId,
+          ),
+        ),
       );
     }
   }
@@ -474,7 +486,10 @@ class _ChatViewState extends State<ChatView>
     );
   }
 
-  Future<void> _locateMessage(String messageId) async {
+  Future<void> _locateMessage(
+    String messageId, {
+    String? sourceMessageId,
+  }) async {
     final controller = _messageController;
     final conversationId = widget.conversation.id;
     if (await _scrollCoordinator.scrollToMessageIfInLoadedWindow(
@@ -489,8 +504,10 @@ class _ChatViewState extends State<ChatView>
       _highlightMessage(messageId);
       return;
     }
+    final directionSourceMessageId =
+        sourceMessageId ?? _currentWindowSourceMessageId(controller.state);
     final direction = await controller.restoreDirectionFromSource(
-      sourceMessageId: controller.state.center?.id,
+      sourceMessageId: directionSourceMessageId,
       targetMessageId: messageId,
     );
     if (!mounted ||
@@ -508,6 +525,11 @@ class _ChatViewState extends State<ChatView>
       onComplete: () => _highlightMessage(messageId),
     );
     controller.loadAroundMessage(messageId);
+  }
+
+  String? _currentWindowSourceMessageId(MessageState state) {
+    if (state.center != null) return state.center!.id;
+    return state.bottomMessage?.id ?? state.topMessage?.id;
   }
 
   void _highlightMessage(String messageId) {

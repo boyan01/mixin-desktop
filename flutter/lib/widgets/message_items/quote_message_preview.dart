@@ -27,11 +27,13 @@ class QuoteMessagePreview extends StatelessWidget {
     required this.messageId,
     required this.membership,
     required this.mentionNames,
+    this.sourceMessageId,
     super.key,
   });
 
   final String raw;
   final String? messageId;
+  final String? sourceMessageId;
   final String? membership;
   final Map<String, String> mentionNames;
 
@@ -71,9 +73,13 @@ class QuoteMessagePreview extends StatelessWidget {
       description: quote.preview(context.l10n, mentionNames),
       onTap: messageId == null
           ? null
-          : () => MessageNavigationScope.maybeOf(
-              context,
-            )?.onLocateMessage(messageId!),
+          : () =>
+                MessageNavigationScope.maybeOf(
+                  context,
+                )?.onLocateMessage(
+                  messageId!,
+                  sourceMessageId: sourceMessageId,
+                ),
       icon: iconAsset == null
           ? null
           : SvgPicture.asset(
@@ -162,6 +168,7 @@ Widget? buildMessageQuotePreview(
     // reply into an ordinary bubble.
     raw: message.quoteContent ?? '',
     messageId: messageId,
+    sourceMessageId: message.id,
     membership: message.quoteUserMembership,
     mentionNames: mentionNames,
   );

@@ -26,7 +26,8 @@ class ChatSideScope extends InheritedWidget {
   final ChatSideNotifier notifier;
   final String currentUserId;
   final bool routeMode;
-  final ValueChanged<String> onLocateMessage;
+  final void Function(String messageId, {String? sourceMessageId})
+  onLocateMessage;
   final ValueChanged<ConversationListEntry> onSelectConversation;
   final VoidCallback onConversationDeleted;
 
