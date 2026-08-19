@@ -1,0 +1,67 @@
+.launch-state { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; background: var(--primary); text-align: center; }
+.launch-titlebar { position: absolute; inset: 0 0 auto; height: 52px; -webkit-app-region: drag; }
+.mixin-mark { width: 66px; height: 66px; display: grid; place-items: center; border-radius: 18px; background: var(--accent); transform: rotate(45deg); }
+.mixin-mark span { width: 25px; height: 25px; border: 6px solid #fff; border-right-color: transparent; border-radius: 4px; }
+.launch-state h1 { margin: 28px 0 8px; font-size: 21px; }
+.launch-state p { max-width: 460px; margin: 0; color: var(--secondary); font-size: 14px; line-height: 1.5; }
+.launch-state button { margin-top: 20px; height: 36px; padding: 0 15px; border: 0; border-radius: 8px; display: flex; align-items: center; gap: 7px; background: var(--accent); color: #fff; }
+
+.login-page {
+  position: relative; width: 100%; height: 100%; display: grid; place-items: center; padding: 64px 24px;
+  background: #e5e5e5;
+}
+.login-card {
+  width: min(520px, 100%); height: min(418px, 100%); overflow: hidden; border-radius: 13px;
+  background: var(--popup); box-shadow: 0 12px 34px rgba(0, 0, 0, .22);
+}
+.login-loading, .login-content { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.login-loading { width: min(375px, 100%); margin: auto; text-align: center; }
+.login-spinner { color: var(--text); animation: login-spin .9s linear infinite; }
+.login-loading h1 { margin: 24px 0 8px; font-size: 18px; font-weight: 600; }
+.login-loading p { margin: 0; color: var(--secondary); font-size: 16px; }
+.login-qr {
+  position: relative; width: 160px; height: 160px; flex: none; padding: 8px; overflow: hidden; border: 0;
+  border-radius: 11px; background: #fff; color: #111;
+}
+.login-qr svg { display: block; }
+.qr-logo {
+  position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; border-radius: 8px; transform: translate(-50%, -50%);
+}
+.qr-error {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 8px; background: rgba(0, 0, 0, .86); color: rgba(255, 255, 255, .9); font-size: 14px;
+}
+.login-content h1 { margin: 16px 0; color: var(--text); font-size: 16px; font-weight: 400; }
+.login-content ol { width: calc(100% - 40px); margin: 0; padding: 0; list-style: none; counter-reset: login-tip; color: var(--secondary); font-size: 14px; line-height: 20px; text-align: left; }
+.login-content li { counter-increment: login-tip; }
+.login-content li + li { margin-top: 4px; }
+.login-content li::before { content: counter(login-tip) '. '; }
+.login-version { position: absolute; right: 16px; bottom: 16px; padding: 0; border: 0; background: transparent; color: var(--secondary); font-size: 14px; }
+@keyframes login-spin { to { transform: rotate(360deg); } }
+
+.device-transfer-backdrop { z-index: 115; }
+.device-transfer-dialog { width: min(400px, calc(100vw - 32px)); overflow: hidden; border-radius: 12px; background: var(--popup); }
+.device-transfer-dialog > header { height: 56px; padding: 0 12px; display: grid; grid-template-columns: 36px 1fr 36px; align-items: center; }
+.device-transfer-dialog > header strong { text-align: center; font-size: 16px; font-weight: 500; }
+.device-transfer-dialog > header button { width: 36px; height: 36px; border: 0; display: grid; place-items: center; background: transparent; color: var(--icon); }
+.device-transfer-cell { width: calc(100% - 40px); height: 52px; margin: 0 20px 16px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--background); color: var(--text); text-align: left; font: inherit; }
+.device-transfer-page { min-height: 320px; padding: 32px 36px 40px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.device-transfer-page > span { color: var(--secondary); }
+.device-transfer-page p { margin: 20px 0 40px; color: var(--secondary); font-size: 14px; line-height: 1.45; }
+.device-transfer-page button, .transfer-processing button { border: 0; background: transparent; color: var(--accent); font: inherit; }
+.transfer-processing { width: 420px; max-width: calc(100vw - 32px); padding: 60px 40px 40px; display: flex; flex-direction: column; align-items: center; border-radius: 12px; background: var(--popup); }
+.transfer-processing > span { color: var(--secondary); }
+.transfer-processing h2 { margin: 38px 0 20px; font-size: 18px; font-weight: 500; }
+.transfer-processing progress { width: 100%; height: 6px; accent-color: var(--accent); }
+.transfer-processing strong { margin-top: 12px; font-size: 14px; font-weight: 400; }
+.transfer-processing small { min-height: 18px; margin: 8px 0 20px; color: var(--secondary); font-size: 12px; }
+.device-transfer-confirmation { width: min(420px, calc(100vw - 32px)); padding-top: 22px; }
+.toast-host { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; pointer-events: none; }
+.toast-host.is-blocking { pointer-events: auto; background: rgba(0,0,0,.5); }
+.toast-card { min-width: 130px; max-width: min(420px, calc(100vw - 32px)); padding: 20px 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; border-radius: 8px; background: rgba(62,65,72,.7); color: #fff; font-size: 14px; text-align: center; }
+.toast-loading { animation: toast-spin .8s linear infinite; }
+@keyframes toast-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-color-scheme: dark) {
+  .login-page { background: #23272b; }
+}

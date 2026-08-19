@@ -8,3 +8,6 @@ target
 xcuserdata/
 /buildServer.json
 /Build/
+/typescript/dist/
+/typescript/node_modules/
+/typescript/*.tsbuildinfo

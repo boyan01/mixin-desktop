@@ -12,6 +12,11 @@ use mixin_desktop_core::runtime::model::ConversationListData;
 use crate::{ClientError, ClientResult};
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "specta", derive(serde::Serialize, specta::Type))]
+#[cfg_attr(
+    feature = "specta",
+    serde(rename_all = "camelCase", rename = "Profile")
+)]
 pub struct AccountProfile {
     pub user_id: String,
     pub full_name: String,
@@ -26,6 +31,11 @@ pub struct AccountProfile {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "specta", derive(serde::Serialize, specta::Type))]
+#[cfg_attr(
+    feature = "specta",
+    serde(rename_all = "camelCase", rename = "ConversationChange")
+)]
 pub struct ConversationChangeEvent {
     pub conversation_ids: Vec<String>,
     pub reload_all: bool,
@@ -176,6 +186,11 @@ impl From<ConversationListData> for ConversationListItem {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(
+    feature = "specta",
+    derive(serde::Deserialize, serde::Serialize, specta::Type)
+)]
+#[cfg_attr(feature = "specta", serde(rename_all = "camelCase", rename = "Proxy"))]
 pub struct ProxyItem {
     pub id: String,
     pub kind: String,
@@ -186,6 +201,14 @@ pub struct ProxyItem {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(
+    feature = "specta",
+    derive(serde::Deserialize, serde::Serialize, specta::Type)
+)]
+#[cfg_attr(
+    feature = "specta",
+    serde(rename_all = "camelCase", rename = "ProxySettings")
+)]
 pub struct ProxySettingsItem {
     pub enabled: bool,
     pub selected_proxy_id: Option<String>,
@@ -200,6 +223,14 @@ pub struct HttpResponseItem {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(
+    feature = "specta",
+    derive(serde::Deserialize, serde::Serialize, specta::Type)
+)]
+#[cfg_attr(
+    feature = "specta",
+    serde(rename_all = "camelCase", rename = "McpSettings")
+)]
 pub struct McpSettingsItem {
     pub enabled: bool,
     pub token: String,
@@ -208,6 +239,11 @@ pub struct McpSettingsItem {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "specta", derive(serde::Serialize, specta::Type))]
+#[cfg_attr(
+    feature = "specta",
+    serde(rename_all = "camelCase", rename = "McpServerStatus")
+)]
 pub struct McpServerStatusItem {
     pub running: bool,
     pub endpoint: Option<String>,

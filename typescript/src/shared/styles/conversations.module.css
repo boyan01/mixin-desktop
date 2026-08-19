@@ -1,0 +1,67 @@
+.conversation-pane { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--divider); background: var(--primary); }
+.conversation-toolbar { height: 64px; padding: 0 12px 0 0; display: flex; align-items: center; -webkit-app-region: drag; }
+.mobile-drawer-button { display: none; }
+.mobile-drawer-placeholder { width: 16px; height: 40px; flex: none; }
+.conversation-toolbar-asset { width: 20px; height: 20px; display: block; background: currentColor; -webkit-mask: var(--conversation-toolbar-icon-image) center / contain no-repeat; mask: var(--conversation-toolbar-icon-image) center / contain no-repeat; }
+.interactive-decorated-box { transition: background-color var(--interactive-duration, 60ms) cubic-bezier(.25, .8, .25, 1); }
+.mixin-search-field { height: 36px; min-width: 0; display: flex; align-items: center; border-radius: 18px; background: var(--background); color: var(--secondary); -webkit-app-region: no-drag; cursor: text; }
+.mixin-search-field .mixin-search-icon { width: 17px; height: 17px; flex: none; margin-left: 16px; margin-right: 8px; background: currentColor; -webkit-mask: var(--mixin-search-icon-image) center / contain no-repeat; mask: var(--mixin-search-icon-image) center / contain no-repeat; }
+.mixin-search-field input { width: 100%; min-width: 0; height: 36px; padding: 0; border: 0; outline: 0; background: transparent; color: var(--text); }
+.mixin-search-field input::placeholder { color: var(--secondary); }
+.mixin-search-clear { width: 40px; height: 36px; padding: 0 16px 0 8px; border: 0; display: inline-flex; align-items: center; justify-content: flex-end; background: transparent; color: var(--secondary); cursor: pointer; }
+.mixin-search-clear:hover { color: var(--icon); }
+.mixin-search-trailing-space { width: 40px; flex: none; }
+.conversation-search-field { flex: 1; margin-right: 8px; }
+.hover-overlay-anchor { display: inline-flex; }
+.hover-overlay { position: fixed; z-index: 50; transition: opacity var(--hover-overlay-duration, 0ms) linear; }
+.hover-overlay-content { transition-property: opacity; transition-timing-function: linear; }
+.conversation-list { min-height: 0; flex: 1; overflow-y: auto; padding: 0 0 10px; }
+.conversation-search-results { min-height: 100%; }
+.conversation-search-section { padding: 8px 0 2px; }
+.conversation-search-section h2 { height: 40px; margin: 0; padding: 10px 20px 6px 12px; display: flex; align-items: center; justify-content: space-between; color: var(--text); font-size: 14px; font-weight: 400; }
+.conversation-search-section h2 button { border: 0; background: transparent; color: var(--accent); font-size: 14px; }
+.search-conversation-row, .search-action-row { width: 100%; min-height: 72px; padding: 12px 6px; border: 0; display: flex; align-items: center; gap: 12px; background: transparent; color: var(--text); text-align: left; }
+.search-conversation-row:hover, .search-action-row:hover { background: var(--list-selected); }
+.search-conversation-row > span { min-width: 0; flex: 1; display: grid; gap: 3px; }
+.search-conversation-row strong, .search-conversation-row small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.search-conversation-row strong { display: flex; align-items: center; gap: 3px; font-size: 14px; }
+.search-conversation-row small { color: var(--secondary); font-size: 12px; }
+.search-conversation-row time { flex: none; align-self: flex-start; color: var(--secondary); font-size: 12px; }
+.search-loading { padding: 24px 16px; color: var(--secondary); text-align: center; font-size: 13px; }
+.network-status > i { display: block; height: 2px; background: var(--accent); }
+.network-warning { min-height: 48px; padding: 14px 22px; display: flex; align-items: center; gap: 12px; background: color-mix(in srgb, var(--warning), transparent 80%); }
+.network-warning > span { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--warning); color: #fff; }
+.network-warning p { flex: 1; margin: 0; color: var(--text); font-size: 14px; }
+.network-warning button { border: 0; padding: 0; background: transparent; color: var(--accent); font: inherit; font-size: 14px; }
+.audio-player-bar { position: relative; height: 51px; border: 0; display: flex; align-items: center; gap: 8px; padding: 0 8px; background: var(--primary); color: var(--icon); text-align: left; }
+.audio-player-bar > span, .audio-player-bar > i { width: 34px; height: 34px; display: grid; place-items: center; font-style: normal; cursor: pointer; }
+.audio-player-bar > span { color: var(--secondary); font-size: 16px; font-weight: 600; }
+.audio-player-bar > span.is-active { color: var(--accent); }
+.audio-player-bar strong { min-width: 0; flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 400; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.audio-player-bar em { position: absolute; right: 0; bottom: 0; left: 0; height: 3px; background: linear-gradient(to right, var(--accent) calc(var(--audio-bar-progress) * 100%), transparent 0); }
+.conversation-row { width: 100%; height: 78px; padding: 0 8px; border: 0; background: transparent; display: flex; align-items: stretch; text-align: left; cursor: pointer; }
+.conversation-row-surface { width: 100%; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-radius: 8px; }
+.conversation-row:hover .conversation-row-surface { background: color-mix(in srgb, var(--list-selected), transparent 35%); }
+.conversation-row-surface.is-selected { background: var(--list-selected); }
+.conversation-copy { flex: 1; min-width: 0; display: grid; gap: 8px; }
+.conversation-title-line, .conversation-subtitle-line { display: flex; align-items: center; min-width: 0; }
+.conversation-title-line { gap: 8px; }
+.conversation-title-line strong { flex: 1; min-width: 0; display: flex; align-items: center; overflow: hidden; font-size: 16px; font-weight: 400; white-space: nowrap; text-overflow: ellipsis; }
+.conversation-title-line time { color: var(--secondary); font-size: 12px; }
+.conversation-subtitle-line { gap: 0; color: var(--secondary); font-size: 14px; }
+.conversation-preview { min-width: 0; display: flex; flex: 1; align-items: center; gap: 4px; overflow: hidden; }
+.conversation-preview > span:last-child { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.conversation-preview-icon, .conversation-message-status, .conversation-indicator-icon { display: inline-block; flex: none; background: currentColor; -webkit-mask: var(--conversation-preview-icon-image) center / contain no-repeat; mask: var(--conversation-preview-icon-image) center / contain no-repeat; }
+.conversation-preview-icon { width: 14px; height: 14px; }
+.conversation-message-status { width: 14px; height: 14px; -webkit-mask-image: var(--conversation-status-image); mask-image: var(--conversation-status-image); }
+.conversation-message-status.is-read { color: var(--accent); }
+.draft-preview { color: var(--red); font-weight: 400; }
+.conversation-indicators { flex: none; display: inline-flex; align-items: center; gap: 8px; color: var(--secondary); }
+.conversation-indicator-icon { width: 14px; height: 14px; -webkit-mask-image: var(--conversation-indicator-image); mask-image: var(--conversation-indicator-image); }
+.unseen-badge { flex: none !important; min-width: 26px; height: 20px; padding: 0 5px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: white; font-size: 12px; line-height: 1; }
+.unseen-badge.is-muted { background: var(--secondary); }
+.conversation-menu { min-width: 205px; }
+.menu-chevron { margin-left: auto; color: var(--secondary); font-size: 17px; }
+.empty-list, .chat-state { padding: 32px 16px; text-align: center; color: var(--secondary); }
+.conversation-empty-state { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; color: #e5e9f0; font-size: 14px; }
+.conversation-empty-icon { width: 58px; height: 78px; display: block; background: currentColor; -webkit-mask: var(--conversation-empty-image) center / contain no-repeat; mask: var(--conversation-empty-image) center / contain no-repeat; }

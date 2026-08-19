@@ -64,6 +64,29 @@ impl Deref for AttachmentAccess {
 }
 
 impl AttachmentAccess {
+    pub async fn save_attachment_as(&self, message_id: String, destination: String) -> Result<()> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        let message = self
+            .database
+            .message_dao
+            .find_message_by_id(&message_id)
+            .await?
+            .ok_or_else(|| anyhow!("message not found: {message_id}"))?;
+        if !message.category.is_attachment() {
+            return Err(anyhow!("message is not an attachment: {message_id}"));
+        }
+        if !matches!(message.media_status, MediaStatus::Done | MediaStatus::Read) {
+            return Err(anyhow!("attachment is not downloaded: {message_id}"));
+        }
+        let source = attachment_path(
+            &account_data_directory(&self.profile.borrow().identity_number)?,
+            &message,
+        )?;
+        tokio::fs::copy(source, destination).await?;
+        Ok(())
+    }
+
     pub async fn retry_attachment(&self, message_id: String) -> Result<()> {
         let message_id = message_id.as_str();
         let _mutation = self.mutation_gate.read().await;

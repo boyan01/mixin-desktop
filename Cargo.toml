@@ -7,4 +7,5 @@ members = [
     "mixin_desktop_media",
     "flutter/rust",
     "swiftui/rust",
+    "typescript/src-tauri",
 ]

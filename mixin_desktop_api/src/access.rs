@@ -680,6 +680,17 @@ impl From<CoreAttachmentAccess> for AttachmentAccess {
 }
 
 impl AttachmentAccess {
+    pub async fn save_attachment_as(
+        &self,
+        message_id: String,
+        destination: String,
+    ) -> Result<(), ClientError> {
+        Ok(self
+            .inner
+            .save_attachment_as(message_id, destination)
+            .await?)
+    }
+
     pub async fn retry_attachment(&self, message_id: String) -> Result<(), ClientError> {
         Ok(self.inner.retry_attachment(message_id).await?)
     }

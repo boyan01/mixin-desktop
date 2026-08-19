@@ -35,6 +35,7 @@
 ## Testing discipline
 
 - Write tests against observable contracts. Test names state the precondition, action, and expected outcome.
+- Do not add low-value tests that only restate implementation details, verify trivial string assembly or mock wiring, or prove that a stub returns its configured value. A test must be capable of catching a meaningful product regression; when no such automated seam exists, prefer a targeted live validation over a contrived unit test.
 - Each test proves one behavior or one table of cases with the same invariant.
 - Every regression fix includes a test that fails for the original bug at the lowest layer that owns the behavior.
 - Rust unit tests cover pure rules, serialization compatibility, state transitions, and error classification.

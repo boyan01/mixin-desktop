@@ -1,4 +1,6 @@
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "Conversation")]
 pub struct ConversationListData {
     pub conversation_id: String,
     pub owner_id: String,
@@ -34,7 +36,9 @@ pub struct ConversationListData {
     pub group_avatars: Vec<GroupAvatar>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "UnseenCount")]
 pub struct ConversationUnseenCount {
     pub category: String,
     pub circle_id: Option<String>,
@@ -42,33 +46,43 @@ pub struct ConversationUnseenCount {
     pub muted_count: i64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "GroupAvatar")]
 pub struct GroupAvatar {
     pub user_id: String,
     pub name: String,
     pub avatar_url: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "PinMessagePreview")]
 pub struct PinMessagePreviewItem {
     pub message_id: String,
     pub content: String,
     pub sender_name: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "ConversationStorageUsage")]
 pub struct ConversationStorageUsage {
     pub conversation: ConversationListData,
     pub size_bytes: i64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "StorageCategoryUsage")]
 pub struct StorageCategoryUsage {
     pub category: String,
     pub size_bytes: i64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "UserProfile")]
 pub struct UserProfileItem {
     pub user_id: String,
     pub identity_number: String,
@@ -82,14 +96,18 @@ pub struct UserProfileItem {
     pub membership: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "Circle")]
 pub struct CircleItem {
     pub circle_id: String,
     pub name: String,
     pub conversation_count: i64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "ConversationDetail")]
 pub struct ConversationDetailItem {
     pub conversation_id: String,
     pub name: String,
@@ -100,7 +118,9 @@ pub struct ConversationDetailItem {
     pub expire_in: i64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "CodeResult")]
 pub struct CodeResult {
     pub kind: String,
     pub user_id: Option<String>,
@@ -121,7 +141,9 @@ pub struct CodeResult {
     pub action: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "SnapshotDetail")]
 pub struct SnapshotDetailItem {
     pub snapshot_id: String,
     pub trace_id: Option<String>,
@@ -256,7 +278,9 @@ impl SnapshotDetailItem {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "GroupConversation")]
 pub struct GroupConversationItem {
     pub conversation_id: String,
     pub name: String,
@@ -264,7 +288,9 @@ pub struct GroupConversationItem {
     pub participant_count: i64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "SharedApp")]
 pub struct SharedAppItem {
     pub app_id: String,
     pub name: String,
@@ -301,7 +327,9 @@ pub struct StickerItem {
     pub last_use_at_millis: Option<i64>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "StickerAlbum")]
 pub struct StickerAlbumItem {
     pub album_id: String,
     pub name: String,
@@ -406,7 +434,9 @@ pub struct MessageOrderInfoView {
     pub created_at_micros: i64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "NotificationEvent")]
 pub struct NotificationEvent {
     pub message_id: String,
     pub conversation_id: String,

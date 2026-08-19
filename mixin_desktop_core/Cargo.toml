@@ -3,6 +3,9 @@ name = "mixin_desktop_core"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+specta = ["dep:specta"]
+
 [dependencies]
 sdk = { path = "../mixin-bot-sdk", package = "mixin-bot-sdk" }
 reqwest = { version = "0.13.4", default-features = false, features = ["native-tls", "charset", "http2", "system-proxy", "stream", "socks"] }
@@ -12,6 +15,7 @@ tokio-stream = "0.1.18"
 async-stream = "0.3"
 tokio-util = { version = "0.7.18", features = ["io"] }
 serde = { version = "1.0.228", features = ["derive"] }
+specta = { version = "=2.0.0-rc.25", features = ["derive"], optional = true }
 sha2 = "0.11.0"
 jsonwebtoken = "10"
 uuid = { version = "1.23.5", features = ["v4"] }

@@ -1,0 +1,23 @@
+.avatar {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
+  overflow: hidden; color: #fff; font-weight: 650; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.08);
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar .mixin-image { width: 100%; height: 100%; background: transparent; }
+.avatar .mixin-image > .avatar-placeholder { width: 100%; height: 100%; display: grid; place-items: center; }
+.icon-button {
+  width: 40px; height: 40px; padding: 8px; border: 0; border-radius: 50%; background: transparent; display: inline-flex;
+  align-items: center; justify-content: center; color: var(--icon); cursor: pointer; flex: none;
+}
+.icon-button:hover:not(:disabled), .icon-button.is-active { background: rgba(0, 0, 0, .03); }
+.icon-button.is-active { color: var(--accent); }
+.theme-dark .icon-button:hover:not(:disabled), .theme-dark .icon-button.is-active { background: rgba(255, 255, 255, .2); }
+@media (prefers-color-scheme: dark) { .theme-system .icon-button:hover:not(:disabled), .theme-system .icon-button.is-active { background: rgba(255, 255, 255, .2); } }
+.icon-button:disabled { opacity: .35; }
+.unbounded-slider { position: relative; height: 20px; flex: 1; cursor: pointer; outline: none; }
+.unbounded-slider > i { position: absolute; top: 8px; left: 0; height: 4px; border-radius: 2px; pointer-events: none; }
+.unbounded-slider-inactive { width: 100%; background: color-mix(in srgb, var(--accent), transparent 72%); }
+.unbounded-slider-active { background: var(--accent); }
+.unbounded-slider > b { position: absolute; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 1px 2px rgba(0,0,0,.25); transform: translateX(-50%); pointer-events: none; }
+.unbounded-slider:focus-visible > b, .unbounded-slider.is-dragging > b { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent), transparent 75%), 0 1px 2px rgba(0,0,0,.25); }
+.tooltip { z-index: 50; padding: 5px 8px; border-radius: 6px; color: #fff; background: rgba(20,20,20,.85); font-size: 12px; }
