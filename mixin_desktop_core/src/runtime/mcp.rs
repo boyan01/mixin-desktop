@@ -1,8 +1,10 @@
-//! Local, authenticated MCP server for a running account.
+//! Local MCP services for a running account and a read-only database sidecar.
 //!
-//! The server deliberately exposes no message-send or account-write operation.
+//! The services deliberately expose no message-send operation. The database sidecar uses local HTTP
+//! and exposes no write operation.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
@@ -30,8 +32,11 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::db::app::SettingDao;
+use crate::db::mixin::message_fts::MessageFtsSearch;
+use crate::db::MixinDatabase;
 
-use super::AccountRuntime;
+use super::message::normalize_message_media_paths;
+use super::{model, AccountRuntime};
 
 pub const DEFAULT_PORT: u16 = 55001;
 const MCP_ENABLED_KEY: &str = "enable_mcp_server";
@@ -132,6 +137,14 @@ struct RunningMcpServer {
     cancellation: CancellationToken,
     task: Option<JoinHandle<()>>,
     endpoint: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReadOnlyMcpDatabaseInfo {
+    pub database_path: PathBuf,
+    pub identity_number: String,
+    pub user_id: String,
+    pub schema_version: i64,
 }
 
 impl McpServer {
@@ -302,24 +315,11 @@ impl RunningMcpServer {
         }
         let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, DEFAULT_PORT)).await?;
         let cancellation = CancellationToken::new();
-        let state = ServerState { runtime, settings };
-        let config = StreamableHttpServerConfig::default()
-            .with_stateful_mode(false)
-            .with_json_response(true)
-            .with_sse_keep_alive(None)
-            .with_cancellation_token(cancellation.child_token());
-        let service: StreamableHttpService<McpService, LocalSessionManager> =
-            StreamableHttpService::new(
-                {
-                    let state = state.clone();
-                    move || Ok(McpService::new(state.clone()))
-                },
-                Default::default(),
-                config,
-            );
-        let app = Router::new().nest_service("/mcp", service).layer(
-            axum::middleware::from_fn_with_state(state.settings.token.clone(), authorize),
-        );
+        let state = ServerState {
+            source: McpSource::Runtime(runtime),
+            settings,
+        };
+        let app = http_router(state, &cancellation);
         let stop = cancellation.clone();
         let task = tokio::spawn(async move {
             if let Err(error) = axum::serve(listener, app)
@@ -348,6 +348,77 @@ impl RunningMcpServer {
     }
 }
 
+pub async fn inspect_read_only_database(
+    data_directory: impl AsRef<Path>,
+    identity_number: impl Into<String>,
+) -> Result<ReadOnlyMcpDatabaseInfo> {
+    let source = ReadOnlyMcpSource::open(data_directory.as_ref(), identity_number.into()).await?;
+    let info = source.info.clone();
+    source.database.close().await;
+    Ok(info)
+}
+
+pub async fn serve_read_only_http(
+    data_directory: impl AsRef<Path>,
+    identity_number: impl Into<String>,
+    port: u16,
+    token: String,
+) -> Result<()> {
+    if token.trim().is_empty() {
+        return Err(anyhow!("MCP access token is unavailable"));
+    }
+    let source =
+        Arc::new(ReadOnlyMcpSource::open(data_directory.as_ref(), identity_number.into()).await?);
+    let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await?;
+    let cancellation = CancellationToken::new();
+    let app = http_router(
+        ServerState {
+            source: McpSource::ReadOnly(source),
+            settings: McpSettings::disabled(token),
+        },
+        &cancellation,
+    );
+    eprintln!(
+        "MCP listening on http://{}/mcp (read-only)",
+        listener.local_addr()?
+    );
+    let stop = cancellation.clone();
+    let result = axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            if let Err(error) = tokio::signal::ctrl_c().await {
+                log::error!("failed to listen for shutdown: {error}");
+            }
+            stop.cancel();
+        })
+        .await;
+    cancellation.cancel();
+    result?;
+    Ok(())
+}
+
+fn http_router(state: ServerState, cancellation: &CancellationToken) -> Router {
+    let config = StreamableHttpServerConfig::default()
+        .with_stateful_mode(false)
+        .with_json_response(true)
+        .with_sse_keep_alive(None)
+        .with_cancellation_token(cancellation.child_token());
+    let service: StreamableHttpService<McpService, LocalSessionManager> =
+        StreamableHttpService::new(
+            {
+                let state = state.clone();
+                move || Ok(McpService::new(state.clone()))
+            },
+            Default::default(),
+            config,
+        );
+    Router::new()
+        .nest_service("/mcp", service)
+        .layer(axum::middleware::from_fn_with_state(
+            state.settings.token.clone(),
+            authorize,
+        ))
+}
+
 impl Drop for RunningMcpServer {
     fn drop(&mut self) {
         self.cancellation.cancel();
@@ -359,8 +430,305 @@ impl Drop for RunningMcpServer {
 
 #[derive(Clone)]
 struct ServerState {
-    runtime: Arc<AccountRuntime>,
+    source: McpSource,
     settings: McpSettings,
+}
+
+#[derive(Clone)]
+enum McpSource {
+    Runtime(Arc<AccountRuntime>),
+    ReadOnly(Arc<ReadOnlyMcpSource>),
+}
+
+struct ReadOnlyMcpSource {
+    database: Arc<MixinDatabase>,
+    account_directory: PathBuf,
+    info: ReadOnlyMcpDatabaseInfo,
+}
+
+impl ReadOnlyMcpSource {
+    async fn open(data_directory: &Path, identity_number: String) -> Result<Self> {
+        if identity_number.is_empty()
+            || !identity_number
+                .chars()
+                .all(|character| character.is_ascii_digit())
+        {
+            return Err(anyhow!("identity number must contain only digits"));
+        }
+        let account_directory = data_directory.join(&identity_number);
+        let database_path = account_directory.join("mixin.db");
+        let (database, schema_version) =
+            MixinDatabase::connect_read_only_at(&database_path).await?;
+        let database = Arc::new(database);
+        let account = database
+            .user_dao
+            .find_user_by_identity_number(&identity_number)
+            .await?
+            .ok_or_else(|| anyhow!("account user is missing from the Mixin database"))?;
+
+        let conversations = database
+            .conversation_dao
+            .list_items("chats", None, "", false, 1, 0)
+            .await?;
+        if let Some(conversation) = conversations.first() {
+            database
+                .participant_dao
+                .list_items(&conversation.conversation_id)
+                .await?;
+            database
+                .message_dao
+                .list_items(&conversation.conversation_id, None, None, 1)
+                .await?;
+        }
+        database.circle_dao.summaries().await?;
+
+        Ok(Self {
+            database,
+            account_directory,
+            info: ReadOnlyMcpDatabaseInfo {
+                database_path,
+                identity_number,
+                user_id: account.user_id,
+                schema_version,
+            },
+        })
+    }
+
+    fn message_view(
+        &self,
+        item: crate::db::mixin::message::MessageListItem,
+    ) -> Result<model::MessageListView> {
+        let mut view = item.into();
+        normalize_message_media_paths(&mut view, false, &self.account_directory)?;
+        Ok(view)
+    }
+}
+
+impl McpSource {
+    fn is_running(&self) -> bool {
+        match self {
+            Self::Runtime(runtime) => runtime.is_running(),
+            Self::ReadOnly(_) => true,
+        }
+    }
+
+    fn user_id(&self) -> &str {
+        match self {
+            Self::Runtime(runtime) => runtime.account_id(),
+            Self::ReadOnly(source) => &source.info.user_id,
+        }
+    }
+
+    fn kind(&self) -> &'static str {
+        match self {
+            Self::Runtime(_) => "runtime",
+            Self::ReadOnly(_) => "database",
+        }
+    }
+
+    fn is_read_only(&self) -> bool {
+        matches!(self, Self::ReadOnly(_))
+    }
+
+    fn runtime(&self) -> Result<&Arc<AccountRuntime>> {
+        match self {
+            Self::Runtime(runtime) => Ok(runtime),
+            Self::ReadOnly(_) => Err(anyhow!("MCP database sidecar is read-only")),
+        }
+    }
+
+    async fn conversations(
+        &self,
+        circle_id: Option<String>,
+        query: String,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<model::ConversationListData>> {
+        match self {
+            Self::Runtime(runtime) => Ok(runtime
+                .conversation_access()
+                .conversations("chats".into(), circle_id, query, false, limit, offset)
+                .await?),
+            Self::ReadOnly(source) => Ok(source
+                .database
+                .conversation_dao
+                .list_items("chats", circle_id.as_deref(), &query, false, limit, offset)
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect()),
+        }
+    }
+
+    async fn conversations_by_ids(
+        &self,
+        conversation_ids: Vec<String>,
+    ) -> Result<Vec<model::ConversationListData>> {
+        match self {
+            Self::Runtime(runtime) => Ok(runtime
+                .conversation_access()
+                .conversation_items_by_ids(conversation_ids)
+                .await?),
+            Self::ReadOnly(source) => Ok(source
+                .database
+                .conversation_dao
+                .list_items_by_ids(&conversation_ids)
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect()),
+        }
+    }
+
+    async fn messages(
+        &self,
+        conversation_id: String,
+        before_created_at_micros: Option<i64>,
+        before_message_id: Option<String>,
+        limit: i64,
+    ) -> Result<Vec<model::MessageListView>> {
+        match self {
+            Self::Runtime(runtime) => Ok(runtime
+                .message_access()
+                .messages(
+                    conversation_id,
+                    before_created_at_micros,
+                    before_message_id,
+                    limit,
+                )
+                .await?),
+            Self::ReadOnly(source) => {
+                if before_created_at_micros.is_some() != before_message_id.is_some() {
+                    return Err(anyhow!(
+                        "message cursor requires both timestamp and message id"
+                    ));
+                }
+                let before_created_at_millis =
+                    before_created_at_micros.map(|value| value.div_euclid(1_000));
+                source
+                    .database
+                    .message_dao
+                    .list_items(
+                        &conversation_id,
+                        before_created_at_millis,
+                        before_message_id.as_deref(),
+                        limit,
+                    )
+                    .await?
+                    .into_iter()
+                    .map(|item| source.message_view(item))
+                    .collect()
+            }
+        }
+    }
+
+    async fn messages_by_ids(
+        &self,
+        message_ids: Vec<String>,
+    ) -> Result<Vec<model::MessageListView>> {
+        match self {
+            Self::Runtime(runtime) => Ok(runtime
+                .message_access()
+                .message_items_by_ids(message_ids)
+                .await?),
+            Self::ReadOnly(source) => source
+                .database
+                .message_dao
+                .list_items_by_ids(&message_ids)
+                .await?
+                .into_iter()
+                .map(|item| source.message_view(item))
+                .collect(),
+        }
+    }
+
+    async fn search_messages(
+        &self,
+        input: MessageFtsSearch,
+    ) -> Result<Vec<model::MessageListView>> {
+        match self {
+            Self::Runtime(runtime) => runtime.message_access().search_message_items(input).await,
+            Self::ReadOnly(source) => {
+                let matches = source.database.message_fts_dao.search(&input).await?;
+                let message_ids = matches
+                    .iter()
+                    .map(|item| item.message_id.clone())
+                    .collect::<Vec<_>>();
+                let mut items_by_id = source
+                    .database
+                    .message_dao
+                    .list_items_by_ids(&message_ids)
+                    .await?
+                    .into_iter()
+                    .map(|item| (item.message_id.clone(), item))
+                    .collect::<HashMap<_, _>>();
+                let mut result = Vec::with_capacity(matches.len());
+                for matched in matches {
+                    if let Some(item) = items_by_id.remove(&matched.message_id) {
+                        result.push(source.message_view(item)?);
+                    }
+                }
+                Ok(result)
+            }
+        }
+    }
+
+    async fn messages_around(
+        &self,
+        conversation_id: String,
+        message_id: String,
+        before: i64,
+        after: i64,
+    ) -> Result<Vec<model::MessageListView>> {
+        match self {
+            Self::Runtime(runtime) => Ok(runtime
+                .message_access()
+                .messages_around(conversation_id, message_id, before, after)
+                .await?),
+            Self::ReadOnly(source) => source
+                .database
+                .message_dao
+                .list_items_around(&conversation_id, &message_id, before, after)
+                .await?
+                .into_iter()
+                .map(|item| source.message_view(item))
+                .collect(),
+        }
+    }
+
+    async fn participants(
+        &self,
+        conversation_id: String,
+    ) -> Result<Vec<model::ConversationParticipantItem>> {
+        match self {
+            Self::Runtime(runtime) => Ok(runtime
+                .conversation_access()
+                .conversation_participants(conversation_id)
+                .await?),
+            Self::ReadOnly(source) => Ok(source
+                .database
+                .participant_dao
+                .list_items(&conversation_id)
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect()),
+        }
+    }
+
+    async fn circles(&self) -> Result<Vec<model::CircleItem>> {
+        match self {
+            Self::Runtime(runtime) => Ok(runtime.conversation_access().circles().await?),
+            Self::ReadOnly(source) => Ok(source
+                .database
+                .circle_dao
+                .summaries()
+                .await?
+                .into_iter()
+                .map(Into::into)
+                .collect()),
+        }
+    }
 }
 
 async fn authorize(token: axum::extract::State<String>, request: Request, next: Next) -> Response {
@@ -420,8 +788,10 @@ impl McpService {
     #[tool(description = "Get login state, permission scopes, and enabled MCP tools.")]
     async fn mixin_get_app_status(&self) -> Json<ToolOutput> {
         Json(object(json!({
-            "logged_in": self.state.runtime.is_running(),
-            "user_id": self.state.runtime.account_id(),
+            "logged_in": self.state.source.is_running(),
+            "user_id": self.state.source.user_id(),
+            "source": self.state.source.kind(),
+            "read_only": self.state.source.is_read_only(),
             "permission_scopes": {
                 "read": true,
                 "draft_write": self.state.settings.draft_tools_enabled,
@@ -442,13 +812,10 @@ impl McpService {
         let offset = input.offset.unwrap_or(0).max(0);
         let result = self
             .state
-            .runtime
-            .conversation_access()
+            .source
             .conversations(
-                "chats".into(),
                 input.circle_id,
                 input.query.unwrap_or_default(),
-                false,
                 limit + 1,
                 offset,
             )
@@ -485,9 +852,8 @@ impl McpService {
             let id = require_non_empty(input.conversation_id, "conversation_id")?;
             let conversation = self
                 .state
-                .runtime
-                .conversation_access()
-                .conversation_items_by_ids(vec![id])
+                .source
+                .conversations_by_ids(vec![id])
                 .await?
                 .into_iter()
                 .next()
@@ -511,9 +877,8 @@ impl McpService {
             let item = if let Some(id) = input.conversation_id {
                 let id = require_non_empty(id, "conversation_id")?;
                 self.state
-                    .runtime
-                    .conversation_access()
-                    .conversation_items_by_ids(vec![id])
+                    .source
+                    .conversations_by_ids(vec![id])
                     .await?
                     .into_iter()
                     .next()
@@ -523,18 +888,16 @@ impl McpService {
                     .ok_or_else(|| anyhow!("unsupported conversation URI"))?;
                 let id = require_non_empty(id.to_owned(), "conversation_id")?;
                 self.state
-                    .runtime
-                    .conversation_access()
-                    .conversation_items_by_ids(vec![id])
+                    .source
+                    .conversations_by_ids(vec![id])
                     .await?
                     .into_iter()
                     .next()
             } else {
                 let query = require_non_empty(input.query.unwrap_or_default(), "query")?;
                 self.state
-                    .runtime
-                    .conversation_access()
-                    .conversations("chats".into(), None, query, false, 1, 0)
+                    .source
+                    .conversations(None, query, 1, 0)
                     .await?
                     .into_iter()
                     .next()
@@ -557,8 +920,7 @@ impl McpService {
         let result = match require_non_empty(input.conversation_id, "conversation_id") {
             Ok(conversation_id) => self
                 .state
-                .runtime
-                .message_access()
+                .source
                 .messages(
                     conversation_id,
                     input.before_created_at_micros,
@@ -577,6 +939,94 @@ impl McpService {
             .map_err(|error| error.to_string())
     }
 
+    #[tool(
+        description = "Search indexed message content across all or selected conversations, newest first. Use the returned cursor to continue toward older matches."
+    )]
+    async fn mixin_search_messages(
+        &self,
+        Parameters(input): Parameters<SearchMessagesInput>,
+    ) -> Result<Json<ToolOutput>, String> {
+        let result: Result<Value> = async {
+            let query = require_non_empty(input.query, "query")?;
+            let conversation_ids =
+                validate_filter(input.conversation_ids, "conversation_ids", 100)?;
+            let sender_ids = validate_filter(input.sender_ids, "sender_ids", 100)?;
+            let categories = validate_filter(input.categories, "categories", 50)?;
+            if input
+                .start_created_at_micros
+                .zip(input.end_created_at_micros)
+                .is_some_and(|(start, end)| start >= end)
+            {
+                return Err(anyhow!(
+                    "start_created_at_micros must be earlier than end_created_at_micros"
+                ));
+            }
+            let limit = input.limit.unwrap_or(50).clamp(1, 100) as usize;
+            let mut messages = self
+                .state
+                .source
+                .search_messages(MessageFtsSearch {
+                    query,
+                    conversation_ids,
+                    sender_ids,
+                    categories,
+                    start_created_at_millis: input
+                        .start_created_at_micros
+                        .map(|value| value.div_euclid(1_000)),
+                    end_created_at_millis: input
+                        .end_created_at_micros
+                        .map(|value| value.div_euclid(1_000)),
+                    cursor_message_id: input.cursor,
+                    limit: (limit + 1) as u32,
+                })
+                .await?;
+            let has_more = messages.len() > limit;
+            messages.truncate(limit);
+            let next_cursor = has_more
+                .then(|| messages.last().map(|message| message.message_id.clone()))
+                .flatten();
+            let conversation_ids = messages
+                .iter()
+                .map(|message| message.conversation_id.clone())
+                .collect::<HashSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+            let conversations = self
+                .state
+                .source
+                .conversations_by_ids(conversation_ids)
+                .await?
+                .into_iter()
+                .map(|conversation| {
+                    (
+                        conversation.conversation_id.clone(),
+                        conversation_json(conversation),
+                    )
+                })
+                .collect::<HashMap<_, _>>();
+            let messages = messages
+                .into_iter()
+                .map(|message| {
+                    let conversation = conversations.get(&message.conversation_id).cloned();
+                    search_message_json(message, conversation)
+                })
+                .collect::<Vec<_>>();
+            Ok(json!({
+                "messages": messages,
+                "pagination": {
+                    "limit": limit,
+                    "has_more": has_more,
+                    "next_cursor": next_cursor,
+                }
+            }))
+        }
+        .await;
+        result
+            .map(object)
+            .map(Json)
+            .map_err(|error| error.to_string())
+    }
+
     #[tool(description = "Get one local message by message_id.")]
     async fn mixin_get_message(
         &self,
@@ -586,9 +1036,8 @@ impl McpService {
             let id = require_non_empty(input.message_id, "message_id")?;
             let message = self
                 .state
-                .runtime
-                .message_access()
-                .message_items_by_ids(vec![id])
+                .source
+                .messages_by_ids(vec![id])
                 .await?
                 .into_iter()
                 .next()
@@ -612,17 +1061,15 @@ impl McpService {
             let limit = input.limit.unwrap_or(10).clamp(1, 50);
             let target = self
                 .state
-                .runtime
-                .message_access()
-                .message_items_by_ids(vec![id.clone()])
+                .source
+                .messages_by_ids(vec![id.clone()])
                 .await?
                 .into_iter()
                 .next()
                 .ok_or_else(|| anyhow!("message not found"))?;
             let messages = self
                 .state
-                .runtime
-                .message_access()
+                .source
                 .messages_around(target.conversation_id.clone(), id, limit, limit)
                 .await?;
             let target_index = messages
@@ -651,27 +1098,27 @@ impl McpService {
         let query = input.query.unwrap_or_default().to_lowercase();
         let limit = input.limit.unwrap_or(50).clamp(1, 200) as usize;
         let result = match require_non_empty(input.conversation_id, "conversation_id") {
-            Ok(conversation_id) => self
-                .state
-                .runtime
-                .conversation_access()
-                .conversation_participants(conversation_id)
-                .await
-                .map(|participants| {
-                    let participants = participants
-                        .into_iter()
-                        .filter(|participant| {
-                            query.is_empty()
-                                || participant.user_id.to_lowercase().contains(&query)
-                                || participant.identity_number.contains(&query)
-                                || participant.full_name.to_lowercase().contains(&query)
-                        })
-                        .take(limit)
-                        .map(participant_json)
-                        .collect::<Vec<_>>();
-                    json!({"participants": participants})
-                }),
-            Err(error) => Err(error.into()),
+            Ok(conversation_id) => {
+                self.state
+                    .source
+                    .participants(conversation_id)
+                    .await
+                    .map(|participants| {
+                        let participants = participants
+                            .into_iter()
+                            .filter(|participant| {
+                                query.is_empty()
+                                    || participant.user_id.to_lowercase().contains(&query)
+                                    || participant.identity_number.contains(&query)
+                                    || participant.full_name.to_lowercase().contains(&query)
+                            })
+                            .take(limit)
+                            .map(participant_json)
+                            .collect::<Vec<_>>();
+                        json!({"participants": participants})
+                    })
+            }
+            Err(error) => Err(error),
         };
         result
             .map(object)
@@ -690,9 +1137,8 @@ impl McpService {
             let limit = input.limit.unwrap_or(5).clamp(1, 200) as usize;
             let participants = self
                 .state
-                .runtime
-                .conversation_access()
-                .conversation_participants(conversation_id)
+                .source
+                .participants(conversation_id)
                 .await?
                 .into_iter()
                 .filter(|participant| {
@@ -714,15 +1160,9 @@ impl McpService {
 
     #[tool(description = "List local circles and their conversation counts.")]
     async fn mixin_list_circles(&self) -> Result<Json<ToolOutput>, String> {
-        let result = self
-            .state
-            .runtime
-            .conversation_access()
-            .circles()
-            .await
-            .map(|circles| {
-                json!({"circles": circles.into_iter().map(circle_json).collect::<Vec<_>>()})
-            });
+        let result = self.state.source.circles().await.map(
+            |circles| json!({"circles": circles.into_iter().map(circle_json).collect::<Vec<_>>()}),
+        );
         result
             .map(object)
             .map(Json)
@@ -739,9 +1179,8 @@ impl McpService {
             let id = require_non_empty(input.conversation_id, "conversation_id")?;
             let item = self
                 .state
-                .runtime
-                .conversation_access()
-                .conversation_items_by_ids(vec![id.clone()])
+                .source
+                .conversations_by_ids(vec![id.clone()])
                 .await?
                 .into_iter()
                 .next()
@@ -764,13 +1203,13 @@ impl McpService {
             ensure_drafts(&self.state)?;
             let id = require_non_empty(input.conversation_id, "conversation_id")?;
             let text = require_non_empty(input.text, "text")?;
-            self.state
-                .runtime
+            let runtime = self.state.source.runtime()?;
+            runtime
                 .database
                 .conversation_dao
                 .update_draft(&id, &text)
                 .await?;
-            self.state.runtime.notify_conversation_changed(&id);
+            runtime.notify_conversation_changed(&id);
             Ok(json!({"updated": true, "conversation_id": id}))
         }
         .await;
@@ -788,13 +1227,13 @@ impl McpService {
         let result: Result<Value> = async {
             ensure_drafts(&self.state)?;
             let id = require_non_empty(input.conversation_id, "conversation_id")?;
-            self.state
-                .runtime
+            let runtime = self.state.source.runtime()?;
+            runtime
                 .database
                 .conversation_dao
                 .update_draft(&id, "")
                 .await?;
-            self.state.runtime.notify_conversation_changed(&id);
+            runtime.notify_conversation_changed(&id);
             Ok(json!({"updated": true, "conversation_id": id}))
         }
         .await;
@@ -813,7 +1252,8 @@ impl McpService {
             ensure_circles(&self.state)?;
             let circle = self
                 .state
-                .runtime
+                .source
+                .runtime()?
                 .conversation_access()
                 .create_circle(input.name)
                 .await?;
@@ -836,7 +1276,8 @@ impl McpService {
             let id = require_non_empty(input.circle_id, "circle_id")?;
             let name = require_non_empty(input.name, "name")?;
             self.state
-                .runtime
+                .source
+                .runtime()?
                 .conversation_access()
                 .update_circle(id.clone(), name.clone())
                 .await?;
@@ -858,7 +1299,8 @@ impl McpService {
             ensure_circles(&self.state)?;
             let id = require_non_empty(input.circle_id, "circle_id")?;
             self.state
-                .runtime
+                .source
+                .runtime()?
                 .conversation_access()
                 .delete_circle(id.clone())
                 .await?;
@@ -919,6 +1361,26 @@ struct ListMessagesInput {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+struct SearchMessagesInput {
+    /// Required full-text query. Multiple terms must all match.
+    query: String,
+    /// Restrict results to any of these conversation IDs. Omit for all conversations.
+    conversation_ids: Option<Vec<String>>,
+    /// Restrict results to messages from any of these sender IDs.
+    sender_ids: Option<Vec<String>>,
+    /// Restrict results to exact Mixin message categories.
+    categories: Option<Vec<String>>,
+    /// Inclusive lower timestamp bound in microseconds since Unix epoch.
+    start_created_at_micros: Option<i64>,
+    /// Exclusive upper timestamp bound in microseconds since Unix epoch.
+    end_created_at_micros: Option<i64>,
+    /// Opaque cursor returned by the previous page.
+    cursor: Option<String>,
+    /// Page size from 1 through 100. Defaults to 50.
+    limit: Option<i64>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 struct MessageContextInput {
     message_id: String,
     limit: Option<i64>,
@@ -962,6 +1424,7 @@ fn enabled_capabilities(settings: &McpSettings) -> Vec<&'static str> {
         "mixin_get_conversation",
         "mixin_resolve_conversation",
         "mixin_list_messages",
+        "mixin_search_messages",
         "mixin_get_message",
         "mixin_get_message_context",
         "mixin_list_conversation_participants",
@@ -1011,6 +1474,17 @@ fn require_non_empty(value: String, name: &str) -> Result<String> {
     }
 }
 
+fn validate_filter(values: Option<Vec<String>>, name: &str, limit: usize) -> Result<Vec<String>> {
+    let values = values.unwrap_or_default();
+    if values.len() > limit {
+        return Err(anyhow!("{name} supports at most {limit} values"));
+    }
+    if values.iter().any(|value| value.trim().is_empty()) {
+        return Err(anyhow!("{name} must not contain empty values"));
+    }
+    Ok(values)
+}
+
 fn object(value: Value) -> ToolOutput {
     match value {
         Value::Object(value) => value,
@@ -1024,6 +1498,11 @@ fn conversation_json(item: super::model::ConversationListData) -> Value {
 fn message_json(item: super::model::MessageListView) -> Value {
     json!({"message_id":item.message_id,"conversation_id":item.conversation_id,"sender_id":item.sender_id,"sender_name":item.sender_name,"sender_identity_number":item.sender_identity_number,"category":item.category,"content":item.content,"status":item.status,"created_at_micros":item.created_at_micros,"media_url":item.media_url,"media_mime_type":item.media_mime_type,"media_size":item.media_size,"caption":item.caption,"quote_message_id":item.quote_message_id,"quote_content":item.quote_content,"is_pinned":item.pinned})
 }
+fn search_message_json(item: super::model::MessageListView, conversation: Option<Value>) -> Value {
+    let mut message = message_json(item);
+    message["conversation"] = conversation.unwrap_or(Value::Null);
+    message
+}
 fn participant_json(item: super::model::ConversationParticipantItem) -> Value {
     json!({"user_id":item.user_id,"role":item.role,"created_at_millis":item.created_at_millis,"identity_number":item.identity_number,"full_name":item.full_name,"avatar_url":item.avatar_url,"biography":item.biography,"is_verified":item.is_verified,"is_bot":item.is_bot,"relationship":item.relationship,"membership":item.membership})
 }
@@ -1033,9 +1512,14 @@ fn circle_json(item: super::model::CircleItem) -> Value {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use std::time::Duration;
 
+    use chrono::Utc;
+    use sdk::blaze_message::MessageStatus;
+
     use crate::db::app::AppDatabase;
+    use crate::db::mixin::message::Message;
 
     use super::*;
 
@@ -1102,7 +1586,7 @@ mod tests {
     fn tool_router_builds_object_output_schemas_for_every_tool() {
         let tools = McpService::tool_router().list_all();
 
-        assert_eq!(tools.len(), 16);
+        assert_eq!(tools.len(), 17);
         for tool in tools {
             let schema = tool
                 .output_schema
@@ -1114,5 +1598,153 @@ mod tests {
                 tool.name,
             );
         }
+    }
+
+    #[tokio::test]
+    async fn database_sidecar_exposes_only_read_tools_and_reports_its_source() {
+        let directory = tempfile::tempdir().unwrap();
+        let identity_number = "39869091";
+        let account_directory = directory.path().join(identity_number);
+        let path = account_directory.join("mixin.db");
+        let database = MixinDatabase::connect_at(&path).await.unwrap();
+        sqlx::query(
+            r#"INSERT INTO users (
+                   user_id, identity_number, relationship, full_name, avatar_url, phone,
+                   is_verified, created_at, mute_until, has_pin, biography, is_scam,
+                   code_url, code_id, is_deactivated
+               ) VALUES (?, ?, NULL, 'Mixin User', '', '', FALSE, 0, 0, FALSE, '', FALSE, '', '', FALSE)"#,
+        )
+        .bind("account-id")
+        .bind(identity_number)
+        .execute(&database.user_dao.0)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO conversations (conversation_id, owner_id, category, name, created_at, status) \
+             VALUES ('conversation', 'account-id', 'GROUP', 'Route Dev', 0, 0)",
+        )
+        .execute(&database.conversation_dao.0)
+        .await
+        .unwrap();
+        database
+            .message_dao
+            .insert_message(&Message {
+                message_id: "price-alert-message".into(),
+                conversation_id: "conversation".into(),
+                user_id: "account-id".into(),
+                category: "PLAIN_TEXT".into(),
+                content: Some("price alert expires after 90 days".into()),
+                status: MessageStatus::Sent,
+                created_at: Utc::now().naive_utc(),
+                ..Message::default()
+            })
+            .await
+            .unwrap();
+        database
+            .message_fts_dao
+            .upsert(
+                "price-alert-message",
+                "conversation",
+                "price alert expires after 90 days",
+            )
+            .await
+            .unwrap();
+        database.close().await;
+        let source = Arc::new(
+            ReadOnlyMcpSource::open(directory.path(), identity_number.to_owned())
+                .await
+                .unwrap(),
+        );
+        let cancellation = CancellationToken::new();
+        let app = http_router(
+            ServerState {
+                source: McpSource::ReadOnly(source.clone()),
+                settings: McpSettings::disabled("test-token".into()),
+            },
+            &cancellation,
+        );
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
+            .await
+            .unwrap();
+        let endpoint = format!("http://{}/mcp", listener.local_addr().unwrap());
+        let stop = cancellation.clone();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app)
+                .with_graceful_shutdown(stop.cancelled_owned())
+                .await
+                .unwrap();
+        });
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap();
+        for token in [None, Some("wrong-token"), Some("test-token")] {
+            let mut request = client
+                .post(&endpoint)
+                .header("Accept", "application/json, text/event-stream")
+                .header("Content-Type", "application/json")
+                .body(json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}).to_string());
+            if let Some(token) = token {
+                request = request.bearer_auth(token);
+            }
+            let response = request.send().await.unwrap();
+            if token == Some("test-token") {
+                assert_eq!(response.status(), StatusCode::OK);
+                let body: Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
+                let tools = body["result"]["tools"].as_array().unwrap();
+                assert!(tools
+                    .iter()
+                    .any(|tool| tool["name"] == "mixin_search_messages"));
+                assert!(!tools
+                    .iter()
+                    .any(|tool| tool["name"] == "mixin_update_draft"));
+            } else {
+                assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+            }
+        }
+        cancellation.cancel();
+        tokio::time::timeout(std::time::Duration::from_secs(5), server)
+            .await
+            .unwrap()
+            .unwrap();
+        let service = McpService::new(ServerState {
+            source: McpSource::ReadOnly(source),
+            settings: McpSettings::disabled("token".to_owned()),
+        });
+
+        let tools = service
+            .tool_router
+            .list_all()
+            .into_iter()
+            .map(|tool| tool.name.to_string())
+            .collect::<HashSet<_>>();
+        let status = service.mixin_get_app_status().await.0;
+        let search = service
+            .mixin_search_messages(Parameters(SearchMessagesInput {
+                query: "price alert".into(),
+                conversation_ids: Some(vec!["conversation".into()]),
+                sender_ids: Some(vec!["account-id".into()]),
+                categories: Some(vec!["PLAIN_TEXT".into()]),
+                start_created_at_micros: None,
+                end_created_at_micros: None,
+                cursor: None,
+                limit: Some(10),
+            }))
+            .await
+            .unwrap()
+            .0;
+
+        assert_eq!(tools.len(), 11);
+        assert!(tools.contains("mixin_list_conversations"));
+        assert!(tools.contains("mixin_search_messages"));
+        assert!(!tools.contains("mixin_set_conversation_draft"));
+        assert!(!tools.contains("mixin_create_circle"));
+        assert_eq!(status.get("source"), Some(&json!("database")));
+        assert_eq!(status.get("read_only"), Some(&json!(true)));
+        assert_eq!(status.get("user_id"), Some(&json!("account-id")));
+        assert_eq!(search["messages"][0]["message_id"], "price-alert-message");
+        assert_eq!(search["messages"][0]["conversation"]["name"], "Route Dev");
+        assert_eq!(search["pagination"]["has_more"], false);
     }
 }

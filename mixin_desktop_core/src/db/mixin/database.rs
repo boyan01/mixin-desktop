@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::path::Path;
+use std::time::Duration;
 
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
@@ -29,6 +30,7 @@ use crate::db::mixin::transcript_message::TranscriptMessageDao;
 use crate::db::mixin::user::UserDao;
 
 pub(crate) const MARK_LIMIT: usize = 999;
+pub(crate) const MIN_READ_ONLY_SCHEMA_VERSION: i64 = 27;
 
 #[derive(Clone)]
 pub struct MixinDatabase {
@@ -91,7 +93,62 @@ impl MixinDatabase {
             )
             .await?;
         super::migration::MIGRATOR.migrate(&pool).await?;
-        Ok(MixinDatabase {
+        Ok(Self::from_pool(pool))
+    }
+
+    pub(crate) async fn connect_read_only_at(
+        path: impl AsRef<Path>,
+    ) -> anyhow::Result<(Self, i64)> {
+        let path = path.as_ref();
+        if !path.is_file() {
+            anyhow::bail!("Mixin database does not exist: {}", path.display());
+        }
+        let fts_path = path.with_file_name("fts.db");
+        if !fts_path.is_file() {
+            anyhow::bail!("Mixin FTS database does not exist: {}", fts_path.display());
+        }
+        let mut fts_url = url::Url::from_file_path(&fts_path).map_err(|_| {
+            anyhow::anyhow!("invalid Mixin FTS database path: {}", fts_path.display())
+        })?;
+        fts_url.query_pairs_mut().append_pair("mode", "ro");
+        let fts_uri: String = fts_url.into();
+        let pool = SqlitePoolOptions::new()
+            .max_connections(2)
+            .after_connect(move |connection, _| {
+                let fts_uri = fts_uri.clone();
+                Box::pin(async move {
+                    sqlx::query("ATTACH DATABASE ? AS fts")
+                        .bind(fts_uri)
+                        .execute(&mut *connection)
+                        .await?;
+                    sqlx::query("PRAGMA query_only = ON")
+                        .execute(connection)
+                        .await?;
+                    Ok(())
+                })
+            })
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(path)
+                    .read_only(true)
+                    .create_if_missing(false)
+                    .busy_timeout(Duration::from_secs(2)),
+            )
+            .await?;
+        let schema_version: i64 = sqlx::query_scalar("PRAGMA user_version")
+            .fetch_one(&pool)
+            .await?;
+        if schema_version < MIN_READ_ONLY_SCHEMA_VERSION {
+            pool.close().await;
+            anyhow::bail!(
+                "Mixin database schema {schema_version} is too old; version {MIN_READ_ONLY_SCHEMA_VERSION} or newer is required"
+            );
+        }
+        Ok((Self::from_pool(pool), schema_version))
+    }
+
+    fn from_pool(pool: sqlx::Pool<sqlx::Sqlite>) -> Self {
+        MixinDatabase {
             user_dao: UserDao::new(pool.clone()),
             message_dao: MessageDao(pool.clone()),
             message_fts_dao: MessageFtsDao(pool.clone()),
@@ -115,11 +172,62 @@ impl MixinDatabase {
             flood_message_dao: FloodMessageDao::new(pool.clone()),
             expired_message_dao: ExpiredMessageDao(pool.clone()),
             favorite_app_dao: FavoriteAppDao(pool.clone()),
-            fiat_dao: FiatDao(pool.clone()),
-        })
+            fiat_dao: FiatDao(pool),
+        }
     }
 
     pub async fn close(&self) {
         self.user_dao.0.close().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn read_only_connection_accepts_newer_schema_and_rejects_writes() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("mixin.db");
+        let writable = MixinDatabase::connect_at(&path).await.unwrap();
+        sqlx::query("PRAGMA user_version = 29")
+            .execute(&writable.user_dao.0)
+            .await
+            .unwrap();
+        writable.close().await;
+
+        let (database, version) = MixinDatabase::connect_read_only_at(&path).await.unwrap();
+
+        assert_eq!(version, 29);
+        let fts_version: i64 = sqlx::query_scalar("PRAGMA fts.user_version")
+            .fetch_one(&database.message_fts_dao.0)
+            .await
+            .unwrap();
+        assert_eq!(fts_version, 1);
+        let error = database
+            .circle_dao
+            .update_name("circle", "changed")
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("readonly"), "{error:?}");
+    }
+
+    #[tokio::test]
+    async fn read_only_connection_rejects_incompatible_schema() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("mixin.db");
+        let writable = MixinDatabase::connect_at(&path).await.unwrap();
+        sqlx::query("PRAGMA user_version = 26")
+            .execute(&writable.user_dao.0)
+            .await
+            .unwrap();
+        writable.close().await;
+
+        let error = MixinDatabase::connect_read_only_at(&path)
+            .await
+            .err()
+            .unwrap();
+
+        assert!(error.to_string().contains("schema 26"), "{error:?}");
     }
 }

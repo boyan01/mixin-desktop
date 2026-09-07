@@ -3819,7 +3819,11 @@ mod tests {
         assert_eq!(pin_count, 0);
         assert!(database
             .message_fts_dao
-            .search("secret", None, None, &[], None, 10)
+            .search(&crate::db::mixin::message_fts::MessageFtsSearch {
+                query: "secret".into(),
+                limit: 10,
+                ..Default::default()
+            })
             .await
             .unwrap()
             .is_empty());

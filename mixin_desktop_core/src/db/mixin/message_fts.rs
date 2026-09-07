@@ -14,6 +14,18 @@ pub struct MessageFtsItem {
 #[derive(Clone)]
 pub struct MessageFtsDao(pub(crate) sqlx::Pool<Sqlite>);
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MessageFtsSearch {
+    pub query: String,
+    pub conversation_ids: Vec<String>,
+    pub sender_ids: Vec<String>,
+    pub categories: Vec<String>,
+    pub start_created_at_millis: Option<i64>,
+    pub end_created_at_millis: Option<i64>,
+    pub cursor_message_id: Option<String>,
+    pub limit: u32,
+}
+
 impl MessageFtsDao {
     pub async fn upsert(
         &self,
@@ -155,23 +167,15 @@ impl MessageFtsDao {
         Ok(next_anchor)
     }
 
-    pub async fn search(
-        &self,
-        query: &str,
-        conversation_id: Option<&str>,
-        sender_id: Option<&str>,
-        categories: &[String],
-        anchor_message_id: Option<&str>,
-        limit: u32,
-    ) -> Result<Vec<MessageFtsItem>, Error> {
-        let Some(query) = match_query(query) else {
+    pub async fn search(&self, input: &MessageFtsSearch) -> Result<Vec<MessageFtsItem>, Error> {
+        let Some(query) = match_query(&input.query) else {
             return Ok(Vec::new());
         };
-        if limit == 0 {
+        if input.limit == 0 {
             return Ok(Vec::new());
         }
 
-        let anchor = if let Some(message_id) = anchor_message_id {
+        let anchor = if let Some(message_id) = input.cursor_message_id.as_deref() {
             let Some(anchor) = sqlx::query_as::<_, (i64, i64)>(
                 "SELECT created_at, rowid FROM fts.messages_metas WHERE message_id = ? LIMIT 1",
             )
@@ -192,21 +196,35 @@ impl MessageFtsDao {
              WHERE messages_fts MATCH ",
         );
         builder.push_bind(query).push(")");
-        if let Some(conversation_id) = conversation_id {
-            builder
-                .push(" AND meta.conversation_id = ")
-                .push_bind(conversation_id);
+        if !input.conversation_ids.is_empty() {
+            builder.push(" AND meta.conversation_id IN (");
+            let mut separated = builder.separated(", ");
+            for conversation_id in &input.conversation_ids {
+                separated.push_bind(conversation_id);
+            }
+            separated.push_unseparated(")");
         }
-        if let Some(sender_id) = sender_id {
-            builder.push(" AND meta.user_id = ").push_bind(sender_id);
+        if !input.sender_ids.is_empty() {
+            builder.push(" AND meta.user_id IN (");
+            let mut separated = builder.separated(", ");
+            for sender_id in &input.sender_ids {
+                separated.push_bind(sender_id);
+            }
+            separated.push_unseparated(")");
         }
-        if !categories.is_empty() {
+        if !input.categories.is_empty() {
             builder.push(" AND meta.category IN (");
             let mut separated = builder.separated(", ");
-            for category in categories {
+            for category in &input.categories {
                 separated.push_bind(category);
             }
             separated.push_unseparated(")");
+        }
+        if let Some(start) = input.start_created_at_millis {
+            builder.push(" AND meta.created_at >= ").push_bind(start);
+        }
+        if let Some(end) = input.end_created_at_millis {
+            builder.push(" AND meta.created_at < ").push_bind(end);
         }
         if let Some((created_at, row_id)) = anchor {
             builder
@@ -220,7 +238,7 @@ impl MessageFtsDao {
         }
         builder
             .push(" ORDER BY meta.created_at DESC, meta.rowid DESC LIMIT ")
-            .push_bind(limit.clamp(1, 200));
+            .push_bind(input.limit.clamp(1, 200));
         Ok(builder
             .build_query_as::<MessageFtsItem>()
             .fetch_all(&self.0)
@@ -321,6 +339,8 @@ mod tests {
     use crate::db::mixin::message::Message;
     use crate::db::mixin::MixinDatabase;
 
+    use super::MessageFtsSearch;
+
     #[tokio::test]
     async fn uses_flutter_fts_database() {
         let directory = tempfile::tempdir().unwrap();
@@ -363,7 +383,11 @@ mod tests {
         assert_eq!(
             database
                 .message_fts_dao
-                .search("hello", None, None, &[], None, 2)
+                .search(&MessageFtsSearch {
+                    query: "hello".into(),
+                    limit: 2,
+                    ..Default::default()
+                })
                 .await
                 .unwrap()
                 .into_iter()
@@ -374,20 +398,67 @@ mod tests {
         assert_eq!(
             database
                 .message_fts_dao
-                .search(
-                    "hello",
-                    Some("conversation"),
-                    Some("alice"),
-                    &["PLAIN_TEXT".into()],
-                    Some("new"),
-                    10,
-                )
+                .search(&MessageFtsSearch {
+                    query: "hello".into(),
+                    conversation_ids: vec!["conversation".into()],
+                    sender_ids: vec!["alice".into()],
+                    categories: vec!["PLAIN_TEXT".into()],
+                    cursor_message_id: Some("new".into()),
+                    limit: 10,
+                    ..Default::default()
+                })
                 .await
                 .unwrap()
                 .into_iter()
                 .map(|item| item.message_id)
                 .collect::<Vec<_>>(),
             ["old"]
+        );
+        sqlx::query(
+            "INSERT INTO conversations (conversation_id, created_at, status) \
+             VALUES ('other-conversation', 0, 0)",
+        )
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
+        let other_created_at = now + chrono::Duration::seconds(3);
+        database
+            .message_dao
+            .insert_message(&Message {
+                message_id: "other".into(),
+                conversation_id: "other-conversation".into(),
+                user_id: "bob".into(),
+                category: "PLAIN_TEXT".into(),
+                content: Some("hello mixin".into()),
+                status: sdk::blaze_message::MessageStatus::Sent,
+                created_at: other_created_at,
+                ..Message::default()
+            })
+            .await
+            .unwrap();
+        database
+            .message_fts_dao
+            .upsert("other", "other-conversation", "hello mixin")
+            .await
+            .unwrap();
+        assert_eq!(
+            database
+                .message_fts_dao
+                .search(&MessageFtsSearch {
+                    query: "hello".into(),
+                    conversation_ids: vec!["conversation".into(), "other-conversation".into()],
+                    sender_ids: vec!["bob".into()],
+                    start_created_at_millis: Some(other_created_at.and_utc().timestamp_millis()),
+                    end_created_at_millis: Some(other_created_at.and_utc().timestamp_millis() + 1,),
+                    limit: 10,
+                    ..Default::default()
+                })
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|item| item.message_id)
+                .collect::<Vec<_>>(),
+            ["other"]
         );
         let version: i64 = sqlx::query_scalar("PRAGMA fts.user_version")
             .fetch_one(&database.message_fts_dao.0)

@@ -42,8 +42,11 @@ impl MessageAccess {
         item: crate::db::mixin::message::MessageListItem,
     ) -> Result<model::MessageListView> {
         let mut view: model::MessageListView = item.into();
-        self.normalize_local_media_url(&mut view, false)?;
-        self.normalize_quote_local_media_url(&mut view, false)?;
+        normalize_message_media_paths(
+            &mut view,
+            false,
+            &account_data_directory(&self.profile.borrow().identity_number)?,
+        )?;
         Ok(view)
     }
 
@@ -52,8 +55,11 @@ impl MessageAccess {
         item: crate::db::mixin::transcript_message::TranscriptMessageListItem,
     ) -> Result<model::MessageListView> {
         let mut view: model::MessageListView = item.into();
-        self.normalize_local_media_url(&mut view, true)?;
-        self.normalize_quote_local_media_url(&mut view, true)?;
+        normalize_message_media_paths(
+            &mut view,
+            true,
+            &account_data_directory(&self.profile.borrow().identity_number)?,
+        )?;
         Ok(view)
     }
 
@@ -91,54 +97,6 @@ impl MessageAccess {
             user_identity_number: item.user_identity_number,
             avatar_url: item.avatar_url,
         })
-    }
-
-    fn normalize_local_media_url(
-        &self,
-        view: &mut model::MessageListView,
-        is_transcript: bool,
-    ) -> Result<()> {
-        let Some(media_url) = view.media_url.as_deref() else {
-            return Ok(());
-        };
-        if media_url.trim().is_empty()
-            || std::path::Path::new(media_url).is_absolute()
-            || !view.category.is_attachment()
-        {
-            return Ok(());
-        }
-        let message = Message {
-            message_id: view.message_id.clone(),
-            conversation_id: view.conversation_id.clone(),
-            category: view.category.clone(),
-            media_mime_type: view.media_mime_type.clone(),
-            name: view.media_name.clone(),
-            ..Message::default()
-        };
-        let account_data_dir = account_data_directory(&self.profile.borrow().identity_number)?;
-        let path = if is_transcript {
-            transcript_attachment_path(&account_data_dir, &message)?
-        } else {
-            attachment_path(&account_data_dir, &message)?
-        };
-        view.media_url = Some(path.to_string_lossy().into_owned());
-        Ok(())
-    }
-
-    fn normalize_quote_local_media_url(
-        &self,
-        view: &mut model::MessageListView,
-        is_transcript: bool,
-    ) -> Result<()> {
-        let Some(content) = view.quote_content.as_deref() else {
-            return Ok(());
-        };
-        if let Some(content) = normalized_quote_content(content, is_transcript, || {
-            account_data_directory(&self.profile.borrow().identity_number)
-        })? {
-            view.quote_content = Some(content);
-        }
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -466,15 +424,15 @@ impl MessageAccess {
         anchor_message_id: Option<String>,
         limit: u32,
     ) -> Result<Vec<model::MessageListView>> {
-        let sender_id = sender_id.as_deref();
-        self.search_message_items(
-            Some(conversation_id.as_str()),
-            query.as_str(),
-            sender_id,
-            categories.as_slice(),
-            anchor_message_id.as_deref(),
+        self.search_message_items(crate::db::mixin::message_fts::MessageFtsSearch {
+            query,
+            conversation_ids: vec![conversation_id],
+            sender_ids: sender_id.into_iter().collect(),
+            categories,
+            cursor_message_id: anchor_message_id,
             limit,
-        )
+            ..Default::default()
+        })
         .await
     }
 
@@ -484,39 +442,21 @@ impl MessageAccess {
         anchor_message_id: Option<String>,
         limit: u32,
     ) -> Result<Vec<model::MessageListView>> {
-        self.search_message_items(
-            None,
-            query.as_str(),
-            None,
-            &[],
-            anchor_message_id.as_deref(),
+        self.search_message_items(crate::db::mixin::message_fts::MessageFtsSearch {
+            query,
+            cursor_message_id: anchor_message_id,
             limit,
-        )
+            ..Default::default()
+        })
         .await
     }
 
-    async fn search_message_items(
+    pub(crate) async fn search_message_items(
         &self,
-        conversation_id: Option<&str>,
-        query: &str,
-        sender_id: Option<&str>,
-        categories: &[String],
-        anchor_message_id: Option<&str>,
-        limit: u32,
+        input: crate::db::mixin::message_fts::MessageFtsSearch,
     ) -> Result<Vec<model::MessageListView>> {
         self.ensure_active()?;
-        let matches = self
-            .database
-            .message_fts_dao
-            .search(
-                query,
-                conversation_id,
-                sender_id,
-                categories,
-                anchor_message_id,
-                limit,
-            )
-            .await?;
+        let matches = self.database.message_fts_dao.search(&input).await?;
         let message_ids = matches
             .iter()
             .map(|item| item.message_id.clone())
@@ -2300,6 +2240,44 @@ fn is_shareable_app_card_action(action: &str) -> bool {
     matches!(uri.scheme(), "http" | "https")
         && !(matches!(uri.host_str(), Some("mixin.one" | "www.mixin.one"))
             && uri.path().trim_matches('/').starts_with("send"))
+}
+
+pub(crate) fn normalize_message_media_paths(
+    view: &mut model::MessageListView,
+    is_transcript: bool,
+    account_data_dir: &Path,
+) -> Result<()> {
+    let media_url = view.media_url.as_deref();
+    if media_url.is_some_and(|value| {
+        !value.trim().is_empty() && !Path::new(value).is_absolute() && view.category.is_attachment()
+    }) {
+        let message = Message {
+            message_id: view.message_id.clone(),
+            conversation_id: view.conversation_id.clone(),
+            category: view.category.clone(),
+            media_mime_type: view.media_mime_type.clone(),
+            name: view.media_name.clone(),
+            ..Message::default()
+        };
+        let path = if is_transcript {
+            transcript_attachment_path(account_data_dir, &message)?
+        } else {
+            attachment_path(account_data_dir, &message)?
+        };
+        view.media_url = Some(path.to_string_lossy().into_owned());
+    }
+    if let Some(content) = view.quote_content.as_deref() {
+        if let Some(content) =
+            normalized_quote_content(
+                content,
+                is_transcript,
+                || Ok(account_data_dir.to_path_buf()),
+            )?
+        {
+            view.quote_content = Some(content);
+        }
+    }
+    Ok(())
 }
 
 fn normalized_quote_content(
