@@ -151,3 +151,11 @@ media enum VoiceRecorderStatus
 media record VoiceRecorderSnapshot
 media enum AudioPlaybackStatus
 media record AudioPlaybackSnapshot
+model record MessageItem=MessageListView
+account SwiftAccountHandle MessageAccess self.client.message() messages
+account SwiftAccountHandle MessageAccess self.client.message() message_items_by_ids
+account SwiftAccountHandle MessageAccess self.client.message() search_messages
+account SwiftAccountHandle MessageAccess self.client.message() search_global_messages
+account SwiftAccountHandle MessageAccess self.client.message() pinned_messages
+account SwiftAccountHandle MessageAccess self.client.message() messages_around
+account SwiftAccountHandle MessageAccess self.client.message() transcript_messages

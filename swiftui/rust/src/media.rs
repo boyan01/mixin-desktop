@@ -1,12 +1,8 @@
-use std::pin::Pin;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::Arc;
 
-use futures::{Stream, StreamExt as _};
+use crate::subscription::{subscription, CancellableStream};
+use futures::StreamExt as _;
 use mixin_desktop_api::{AudioPlaybackEvent, MediaClient, VoiceRecorderEvent};
-use tokio::sync::{Mutex, Notify};
 
 #[derive(uniffi::Object)]
 pub struct SwiftMediaHandle {
@@ -26,47 +22,9 @@ pub enum MediaPlaybackEvent {
     Failed { id: Option<String>, message: String },
 }
 
-#[derive(uniffi::Object)]
-pub struct SwiftMediaRecorderSubscription {
-    inner: CancellableStream<MediaRecorderEvent>,
-}
+subscription!(SwiftMediaRecorderSubscription, MediaRecorderEvent);
 
-#[derive(uniffi::Object)]
-pub struct SwiftMediaPlaybackSubscription {
-    inner: CancellableStream<MediaPlaybackEvent>,
-}
-
-struct CancellableStream<T> {
-    stream: Mutex<Pin<Box<dyn Stream<Item = T> + Send>>>,
-    cancelled: AtomicBool,
-    cancel_notification: Notify,
-}
-
-impl<T> CancellableStream<T> {
-    fn new(stream: impl Stream<Item = T> + Send + 'static) -> Self {
-        Self {
-            stream: Mutex::new(Box::pin(stream)),
-            cancelled: AtomicBool::new(false),
-            cancel_notification: Notify::new(),
-        }
-    }
-
-    async fn next(&self) -> Option<T> {
-        if self.cancelled.load(Ordering::Acquire) {
-            return None;
-        }
-        let mut stream = self.stream.lock().await;
-        tokio::select! {
-            value = stream.next() => value,
-            _ = self.cancel_notification.notified() => None,
-        }
-    }
-
-    fn cancel(&self) {
-        self.cancelled.store(true, Ordering::Release);
-        self.cancel_notification.notify_one();
-    }
-}
+subscription!(SwiftMediaPlaybackSubscription, MediaPlaybackEvent);
 
 impl SwiftMediaHandle {
     pub(crate) fn new(client: Arc<MediaClient>) -> Self {
@@ -88,28 +46,6 @@ impl SwiftMediaHandle {
         SwiftMediaPlaybackSubscription {
             inner: CancellableStream::new(events),
         }
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-impl SwiftMediaRecorderSubscription {
-    pub async fn next(&self) -> Option<MediaRecorderEvent> {
-        self.inner.next().await
-    }
-
-    pub fn cancel(&self) {
-        self.inner.cancel();
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-impl SwiftMediaPlaybackSubscription {
-    pub async fn next(&self) -> Option<MediaPlaybackEvent> {
-        self.inner.next().await
-    }
-
-    pub fn cancel(&self) {
-        self.inner.cancel();
     }
 }
 

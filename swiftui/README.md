@@ -49,6 +49,9 @@ match their inputs without rewriting them:
 `bridgegen` is a standalone development tool. It parses Rust with `syn` and does
 not link the application, so it can regenerate stale adapters before the bridge
 compiles. Xcode runs it before building Rust and generating Swift bindings.
+The UniFFI CLI binary also belongs to this tool package. Building it with
+`--features swift-bindgen` does not rebuild the application bridge with CLI
+dependencies enabled.
 
 `bridgegen/exports.txt` records only the existing Swift export surface and the
 receiver to call. Method signatures, DTO fields, and unit enum variants are read
@@ -57,12 +60,17 @@ from the public Rust API and its current re-exported type definitions. For examp
 ```text
 account SwiftAccountHandle ConversationAccess self.client.conversation() conversations
 model record AccountProfile
+model record MessageItem=MessageListView
 ```
 
 A signature or field change needs no matching declaration edit in the bridge.
 To expose a new method, add its name to the allowlist; use `swift_name=rust_name`
 only when preserving a different Swift-facing name. This explicit selection keeps
 new public Rust operations from silently becoming UI exports.
+Records and enums support the same `swift_name=rust_name` spelling. It changes
+the generated Swift name while still using the original Rust type and all its
+fields. Documentation comments on types, fields, and variants are preserved;
+conditional fields and variants still require explicit adapter support.
 
 Regenerate or check just the Rust adapters with:
 
@@ -79,4 +87,10 @@ Unsupported signatures fail generation and require an explicit adapter decision.
 
 Keep subscription lifecycle, cancellation, object construction, typed error
 lowering, validation, batching, and presentation-specific conversions in the
-hand-written bridge. Flutter/FRB and Tauri retain their existing integration.
+hand-written bridge. `rust/src/subscription.rs` owns stream cancellation and a
+small macro for ordinary typed subscriptions. Notification error conversion stays
+explicit. Cancellation releases both an active `next()` and reads queued behind it.
+
+All three UI bridges now use the full public `MessageListView` read model. Swift
+keeps the name `MessageItem`; TypeScript keeps `Message`. Flutter already exposes
+the complete type. Do not add another field-by-field message copy in a UI bridge.

@@ -162,6 +162,7 @@ impl Api {
     }
 
     fn remote_type(&self, kind: &str, name: &str) -> Result<String> {
+        let (export_name, name) = name.split_once('=').unwrap_or((name, name));
         if !self.public_types.contains(name) {
             return Err(format!("type is not exported by mixin_desktop_api: {name}").into());
         }
@@ -177,9 +178,16 @@ impl Api {
                 {
                     return Err(format!("unsupported record shape: {name}").into());
                 }
-                record.attrs.clear();
+                record.attrs.retain(|attr| attr.path().is_ident("doc"));
+                if export_name != name {
+                    record
+                        .attrs
+                        .push(parse_quote!(#[uniffi(name = #export_name)]));
+                }
                 for field in &mut record.fields {
-                    if !matches!(field.vis, Visibility::Public(_)) || !field.attrs.is_empty() {
+                    if !matches!(field.vis, Visibility::Public(_))
+                        || field.attrs.iter().any(|attr| !attr.path().is_ident("doc"))
+                    {
                         return Err(
                             format!("unsupported field attributes or visibility: {name}").into(),
                         );
@@ -197,9 +205,16 @@ impl Api {
                 if !item.generics.params.is_empty() {
                     return Err(format!("generic enum is unsupported: {name}").into());
                 }
-                item.attrs.clear();
+                item.attrs.retain(|attr| attr.path().is_ident("doc"));
+                if export_name != name {
+                    item.attrs
+                        .push(parse_quote!(#[uniffi(name = #export_name)]));
+                }
                 for variant in &item.variants {
-                    if !variant.attrs.is_empty()
+                    if variant
+                        .attrs
+                        .iter()
+                        .any(|attr| !attr.path().is_ident("doc"))
                         || variant.discriminant.is_some()
                         || !matches!(variant.fields, Fields::Unit)
                     {
@@ -346,7 +361,10 @@ fn generate(api: &Api, exports: &str) -> Result<BTreeMap<String, String>> {
         let (module, key, declaration) = match parts.as_slice() {
             [module, kind @ ("record" | "enum"), name] => (
                 *module,
-                format!("type::{name}"),
+                format!(
+                    "type::{}",
+                    name.split_once('=').map_or(*name, |(_, source)| source)
+                ),
                 api.remote_type(kind, name)?,
             ),
             [module, handle, owner, receiver, names] => {
@@ -561,6 +579,46 @@ mod tests {
         assert_eq!(fields[0].ident.as_ref().unwrap(), "id");
         assert_eq!(fields[1].ident.as_ref().unwrap(), "labels");
         assert_eq!(fields[1].ty, parse_quote!(Option<Vec<String>>));
+    }
+
+    #[test]
+    fn documented_fields_and_variants_keep_their_docs_and_types() {
+        let mut api = Api::default();
+        api.public_types.extend(["Profile".into(), "Status".into()]);
+        api.read(
+            "/// A profile.\npub struct Profile {\n/// Stable ID.\npub id: String }\n\
+                  pub enum Status {\n/// Ready to use.\nReady }",
+        )
+        .unwrap();
+        let record = syn::parse_file(&api.remote_type("record", "Profile").unwrap()).unwrap();
+        let Item::Struct(record) = &record.items[1] else {
+            panic!("missing record")
+        };
+        assert!(record.attrs.iter().any(|attr| attr.path().is_ident("doc")));
+        let field = record.fields.iter().next().unwrap();
+        assert_eq!(field.ty, parse_quote!(String));
+        assert_eq!(field.attrs, vec![parse_quote!(#[doc = " Stable ID."])]);
+        let item = syn::parse_file(&api.remote_type("enum", "Status").unwrap()).unwrap();
+        let Item::Enum(item) = &item.items[1] else {
+            panic!("missing enum")
+        };
+        assert_eq!(
+            item.variants[0].attrs,
+            vec![parse_quote!(#[doc = " Ready to use."])]
+        );
+    }
+
+    #[test]
+    fn conditional_fields_and_variants_require_explicit_adapter_support() {
+        let mut api = Api::default();
+        api.public_types.extend(["Profile".into(), "Status".into()]);
+        api.read(
+            "pub struct Profile { #[cfg(feature = \"extra\")] pub id: String }\n\
+                  pub enum Status { #[cfg(feature = \"extra\")] Ready }",
+        )
+        .unwrap();
+        assert!(api.remote_type("record", "Profile").is_err());
+        assert!(api.remote_type("enum", "Status").is_err());
     }
 
     #[test]

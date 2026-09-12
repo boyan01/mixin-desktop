@@ -1,24 +1,15 @@
-use std::{
-    pin::Pin,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-};
+use std::sync::Arc;
 
-use futures::{Stream, StreamExt as _};
+use crate::subscription::{subscription, CancellableStream};
+use futures::StreamExt as _;
 use mixin_desktop_api::{
-    AccountClient, CircleItem, ConversationChangeEvent, ConversationUnseenCount, NotificationEvent,
-    UserProfileItem,
+    AccountClient, CircleItem, ConversationChangeEvent, ConversationUnseenCount, MessageListView,
+    NotificationEvent, UserProfileItem,
 };
-use tokio::sync::{Mutex, Notify};
 
 use crate::{
     error::SwiftClientError,
-    model::{
-        DeviceTransferEventItem, MessageItem, ParticipantAction, StickerAlbumSection,
-        StickerLibrary,
-    },
+    model::{DeviceTransferEventItem, ParticipantAction, StickerAlbumSection, StickerLibrary},
 };
 
 #[derive(uniffi::Object)]
@@ -26,137 +17,26 @@ pub struct SwiftAccountHandle {
     client: Arc<AccountClient>,
 }
 
-#[derive(uniffi::Object)]
-pub struct SwiftAccountHealthSubscription {
-    inner: CancellableStream<String>,
-}
+subscription!(SwiftAccountHealthSubscription, String);
 
-#[derive(uniffi::Object)]
-pub struct SwiftConnectionSubscription {
-    inner: CancellableStream<bool>,
-}
+subscription!(SwiftConnectionSubscription, bool);
 
-#[derive(uniffi::Object)]
-pub struct SwiftCircleSubscription {
-    inner: CancellableStream<Vec<CircleItem>>,
-}
+subscription!(SwiftCircleSubscription, Vec<CircleItem>);
 
-#[derive(uniffi::Object)]
-pub struct SwiftUnseenCountSubscription {
-    inner: CancellableStream<Vec<ConversationUnseenCount>>,
-}
+subscription!(SwiftUnseenCountSubscription, Vec<ConversationUnseenCount>);
 
-#[derive(uniffi::Object)]
-pub struct SwiftUnseenMessageCountSubscription {
-    inner: CancellableStream<i64>,
-}
+subscription!(SwiftUnseenMessageCountSubscription, i64);
 
 #[derive(uniffi::Object)]
 pub struct SwiftNotificationSubscription {
     inner: CancellableStream<Result<NotificationEvent, SwiftClientError>>,
 }
 
-#[derive(uniffi::Object)]
-pub struct SwiftDeviceTransferSubscription {
-    inner: CancellableStream<DeviceTransferEventItem>,
-}
+subscription!(SwiftDeviceTransferSubscription, DeviceTransferEventItem);
 
-#[derive(uniffi::Object)]
-pub struct SwiftConversationSubscription {
-    inner: CancellableStream<ConversationChangeEvent>,
-}
+subscription!(SwiftConversationSubscription, ConversationChangeEvent);
 
-#[derive(uniffi::Object)]
-pub struct SwiftMessageSubscription {
-    inner: CancellableStream<u64>,
-}
-
-struct CancellableStream<T> {
-    stream: Mutex<Pin<Box<dyn Stream<Item = T> + Send>>>,
-    cancelled: AtomicBool,
-    cancel_notification: Notify,
-}
-
-impl<T> CancellableStream<T> {
-    fn new(stream: impl Stream<Item = T> + Send + 'static) -> Self {
-        Self {
-            stream: Mutex::new(Box::pin(stream)),
-            cancelled: AtomicBool::new(false),
-            cancel_notification: Notify::new(),
-        }
-    }
-
-    async fn next(&self) -> Option<T> {
-        if self.cancelled.load(Ordering::Acquire) {
-            return None;
-        }
-        let mut stream = self.stream.lock().await;
-        tokio::select! {
-            value = stream.next() => value,
-            _ = self.cancel_notification.notified() => None,
-        }
-    }
-
-    fn cancel(&self) {
-        self.cancelled.store(true, Ordering::Release);
-        self.cancel_notification.notify_one();
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-impl SwiftAccountHealthSubscription {
-    pub async fn next(&self) -> Option<String> {
-        self.inner.next().await
-    }
-
-    pub fn cancel(&self) {
-        self.inner.cancel();
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-impl SwiftConnectionSubscription {
-    pub async fn next(&self) -> Option<bool> {
-        self.inner.next().await
-    }
-
-    pub fn cancel(&self) {
-        self.inner.cancel();
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-impl SwiftCircleSubscription {
-    pub async fn next(&self) -> Option<Vec<CircleItem>> {
-        self.inner.next().await
-    }
-
-    pub fn cancel(&self) {
-        self.inner.cancel();
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-impl SwiftUnseenCountSubscription {
-    pub async fn next(&self) -> Option<Vec<ConversationUnseenCount>> {
-        self.inner.next().await
-    }
-
-    pub fn cancel(&self) {
-        self.inner.cancel();
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-impl SwiftUnseenMessageCountSubscription {
-    pub async fn next(&self) -> Option<i64> {
-        self.inner.next().await
-    }
-
-    pub fn cancel(&self) {
-        self.inner.cancel();
-    }
-}
+subscription!(SwiftMessageSubscription, u64);
 
 #[uniffi::export(async_runtime = "tokio")]
 impl SwiftNotificationSubscription {
@@ -166,39 +46,6 @@ impl SwiftNotificationSubscription {
             Some(Err(error)) => Err(error),
             None => Ok(None),
         }
-    }
-
-    pub fn cancel(&self) {
-        self.inner.cancel();
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-impl SwiftDeviceTransferSubscription {
-    pub async fn next(&self) -> Option<DeviceTransferEventItem> {
-        self.inner.next().await
-    }
-
-    pub fn cancel(&self) {
-        self.inner.cancel();
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-impl SwiftConversationSubscription {
-    pub async fn next(&self) -> Option<ConversationChangeEvent> {
-        self.inner.next().await
-    }
-
-    pub fn cancel(&self) {
-        self.inner.cancel();
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-impl SwiftMessageSubscription {
-    pub async fn next(&self) -> Option<u64> {
-        self.inner.next().await
     }
 
     pub fn cancel(&self) {
@@ -272,144 +119,18 @@ impl SwiftAccountHandle {
         }
     }
 
-    pub async fn messages(
-        &self,
-        conversation_id: String,
-        before_created_at_micros: Option<i64>,
-        before_message_id: Option<String>,
-        limit: i64,
-    ) -> Result<Vec<MessageItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .message()
-            .messages(
-                conversation_id,
-                before_created_at_micros,
-                before_message_id,
-                limit,
-            )
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
-    }
-
-    pub async fn message_items_by_ids(
-        &self,
-        message_ids: Vec<String>,
-    ) -> Result<Vec<MessageItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .message()
-            .message_items_by_ids(message_ids)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
-    }
-
-    pub async fn search_messages(
-        &self,
-        conversation_id: String,
-        query: String,
-        sender_id: Option<String>,
-        categories: Vec<String>,
-        anchor_message_id: Option<String>,
-        limit: u32,
-    ) -> Result<Vec<MessageItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .message()
-            .search_messages(
-                conversation_id,
-                query,
-                sender_id,
-                categories,
-                anchor_message_id,
-                limit,
-            )
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
-    }
-
-    pub async fn search_global_messages(
-        &self,
-        query: String,
-        anchor_message_id: Option<String>,
-        limit: u32,
-    ) -> Result<Vec<MessageItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .message()
-            .search_global_messages(query, anchor_message_id, limit)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
-    }
-
-    pub async fn pinned_messages(
-        &self,
-        conversation_id: String,
-    ) -> Result<Vec<MessageItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .message()
-            .pinned_messages(conversation_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
-    }
-
     pub async fn shared_messages(
         &self,
         conversation_id: String,
         kind: String,
         offset: u32,
         limit: u32,
-    ) -> Result<Vec<MessageItem>, SwiftClientError> {
+    ) -> Result<Vec<MessageListView>, SwiftClientError> {
         Ok(self
             .client
             .message()
             .shared_messages(conversation_id, kind, offset as usize, limit as usize)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
-    }
-
-    pub async fn messages_around(
-        &self,
-        conversation_id: String,
-        target_message_id: String,
-        before: i64,
-        after: i64,
-    ) -> Result<Vec<MessageItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .message()
-            .messages_around(conversation_id, target_message_id, before, after)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
-    }
-
-    pub async fn transcript_messages(
-        &self,
-        transcript_id: String,
-    ) -> Result<Vec<MessageItem>, SwiftClientError> {
-        Ok(self
-            .client
-            .message()
-            .transcript_messages(transcript_id)
-            .await?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+            .await?)
     }
 
     pub fn message_changes(&self) -> SwiftMessageSubscription {

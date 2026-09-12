@@ -6385,6 +6385,9 @@ public func FfiConverterTypeMcpSettingsItem_lower(_ value: McpSettingsItem) -> R
 }
 
 
+/**
+ * Shared message read model used by the desktop UI bridges.
+ */
 public struct MessageItem: Equatable, Hashable {
     public var messageId: String
     public var conversationId: String
@@ -6392,15 +6395,14 @@ public struct MessageItem: Equatable, Hashable {
     public var senderName: String
     public var senderIdentityNumber: String?
     public var senderAvatarUrl: String
-    public var senderRelationship: String
-    public var senderAppId: String?
-    public var senderIsBot: Bool
     public var senderIsVerified: Bool
     public var senderMembership: String?
+    public var senderRelationship: String
+    public var senderAppId: String?
+    public var senderIsScam: Bool
+    public var senderIsBot: Bool
     public var senderParticipantId: String?
     public var senderRole: String?
-    public var conversationOwnerId: String?
-    public var conversationCategory: String?
     public var category: String
     public var content: String
     public var status: String
@@ -6412,19 +6414,19 @@ public struct MessageItem: Equatable, Hashable {
     public var mediaWidth: Int32?
     public var mediaHeight: Int32?
     public var thumbImage: String?
-    public var thumbUrl: String?
     public var mediaStatus: String
-    public var mediaName: String?
-    public var mediaWaveform: String?
-    public var caption: String?
     public var quoteMessageId: String?
     public var quoteContent: String?
+    public var quoteUserMembership: String?
+    public var caption: String?
     public var action: String?
+    public var participantId: String?
     public var participantFullName: String?
     public var snapshotId: String?
     public var snapshotType: String?
     public var snapshotAmount: String?
     public var snapshotMemo: String?
+    public var snapshotAssetId: String?
     public var snapshotAssetSymbol: String?
     public var snapshotAssetIconUrl: String?
     public var snapshotChainIconUrl: String?
@@ -6438,41 +6440,47 @@ public struct MessageItem: Equatable, Hashable {
     public var inscriptionContentUrl: String?
     public var inscriptionName: String?
     public var inscriptionIconUrl: String?
+    public var hyperlink: String?
+    public var mediaName: String?
+    public var albumId: String?
+    public var stickerId: String?
+    public var sharedUserId: String?
+    public var mediaWaveform: String?
+    public var thumbUrl: String?
+    public var conversationOwnerId: String?
+    public var conversationCategory: String?
     public var sharedUserFullName: String?
     public var sharedUserIdentityNumber: String?
-    public var sharedUserId: String?
     public var sharedUserAvatarUrl: String?
     public var sharedUserIsVerified: Bool
     public var sharedUserMembership: String?
     public var sharedUserAppId: String?
-    public var stickerId: String?
     public var stickerAssetUrl: String?
     public var stickerAssetWidth: Int32?
     public var stickerAssetHeight: Int32?
     public var stickerAssetName: String?
     public var stickerAssetType: String?
-    public var hyperlink: String?
+    public var mentionRead: Bool?
     public var pinned: Bool
     public var expireIn: Int64?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(messageId: String, conversationId: String, senderId: String, senderName: String, senderIdentityNumber: String?, senderAvatarUrl: String, senderRelationship: String, senderAppId: String?, senderIsBot: Bool, senderIsVerified: Bool, senderMembership: String?, senderParticipantId: String?, senderRole: String?, conversationOwnerId: String?, conversationCategory: String?, category: String, content: String, status: String, createdAtMicros: Int64, mediaUrl: String?, mediaMimeType: String?, mediaSize: Int64?, mediaDuration: String, mediaWidth: Int32?, mediaHeight: Int32?, thumbImage: String?, thumbUrl: String?, mediaStatus: String, mediaName: String?, mediaWaveform: String?, caption: String?, quoteMessageId: String?, quoteContent: String?, action: String?, participantFullName: String?, snapshotId: String?, snapshotType: String?, snapshotAmount: String?, snapshotMemo: String?, snapshotAssetSymbol: String?, snapshotAssetIconUrl: String?, snapshotChainIconUrl: String?, snapshotOpponentId: String?, snapshotTransactionHash: String?, snapshotCreatedAt: String?, inscriptionHash: String?, inscriptionCollectionHash: String?, inscriptionSequence: Int64?, inscriptionContentType: String?, inscriptionContentUrl: String?, inscriptionName: String?, inscriptionIconUrl: String?, sharedUserFullName: String?, sharedUserIdentityNumber: String?, sharedUserId: String?, sharedUserAvatarUrl: String?, sharedUserIsVerified: Bool, sharedUserMembership: String?, sharedUserAppId: String?, stickerId: String?, stickerAssetUrl: String?, stickerAssetWidth: Int32?, stickerAssetHeight: Int32?, stickerAssetName: String?, stickerAssetType: String?, hyperlink: String?, pinned: Bool, expireIn: Int64?) {
+    public init(messageId: String, conversationId: String, senderId: String, senderName: String, senderIdentityNumber: String?, senderAvatarUrl: String, senderIsVerified: Bool, senderMembership: String?, senderRelationship: String, senderAppId: String?, senderIsScam: Bool, senderIsBot: Bool, senderParticipantId: String?, senderRole: String?, category: String, content: String, status: String, createdAtMicros: Int64, mediaUrl: String?, mediaMimeType: String?, mediaSize: Int64?, mediaDuration: String, mediaWidth: Int32?, mediaHeight: Int32?, thumbImage: String?, mediaStatus: String, quoteMessageId: String?, quoteContent: String?, quoteUserMembership: String?, caption: String?, action: String?, participantId: String?, participantFullName: String?, snapshotId: String?, snapshotType: String?, snapshotAmount: String?, snapshotMemo: String?, snapshotAssetId: String?, snapshotAssetSymbol: String?, snapshotAssetIconUrl: String?, snapshotChainIconUrl: String?, snapshotOpponentId: String?, snapshotTransactionHash: String?, snapshotCreatedAt: String?, inscriptionHash: String?, inscriptionCollectionHash: String?, inscriptionSequence: Int64?, inscriptionContentType: String?, inscriptionContentUrl: String?, inscriptionName: String?, inscriptionIconUrl: String?, hyperlink: String?, mediaName: String?, albumId: String?, stickerId: String?, sharedUserId: String?, mediaWaveform: String?, thumbUrl: String?, conversationOwnerId: String?, conversationCategory: String?, sharedUserFullName: String?, sharedUserIdentityNumber: String?, sharedUserAvatarUrl: String?, sharedUserIsVerified: Bool, sharedUserMembership: String?, sharedUserAppId: String?, stickerAssetUrl: String?, stickerAssetWidth: Int32?, stickerAssetHeight: Int32?, stickerAssetName: String?, stickerAssetType: String?, mentionRead: Bool?, pinned: Bool, expireIn: Int64?) {
         self.messageId = messageId
         self.conversationId = conversationId
         self.senderId = senderId
         self.senderName = senderName
         self.senderIdentityNumber = senderIdentityNumber
         self.senderAvatarUrl = senderAvatarUrl
-        self.senderRelationship = senderRelationship
-        self.senderAppId = senderAppId
-        self.senderIsBot = senderIsBot
         self.senderIsVerified = senderIsVerified
         self.senderMembership = senderMembership
+        self.senderRelationship = senderRelationship
+        self.senderAppId = senderAppId
+        self.senderIsScam = senderIsScam
+        self.senderIsBot = senderIsBot
         self.senderParticipantId = senderParticipantId
         self.senderRole = senderRole
-        self.conversationOwnerId = conversationOwnerId
-        self.conversationCategory = conversationCategory
         self.category = category
         self.content = content
         self.status = status
@@ -6484,19 +6492,19 @@ public struct MessageItem: Equatable, Hashable {
         self.mediaWidth = mediaWidth
         self.mediaHeight = mediaHeight
         self.thumbImage = thumbImage
-        self.thumbUrl = thumbUrl
         self.mediaStatus = mediaStatus
-        self.mediaName = mediaName
-        self.mediaWaveform = mediaWaveform
-        self.caption = caption
         self.quoteMessageId = quoteMessageId
         self.quoteContent = quoteContent
+        self.quoteUserMembership = quoteUserMembership
+        self.caption = caption
         self.action = action
+        self.participantId = participantId
         self.participantFullName = participantFullName
         self.snapshotId = snapshotId
         self.snapshotType = snapshotType
         self.snapshotAmount = snapshotAmount
         self.snapshotMemo = snapshotMemo
+        self.snapshotAssetId = snapshotAssetId
         self.snapshotAssetSymbol = snapshotAssetSymbol
         self.snapshotAssetIconUrl = snapshotAssetIconUrl
         self.snapshotChainIconUrl = snapshotChainIconUrl
@@ -6510,20 +6518,27 @@ public struct MessageItem: Equatable, Hashable {
         self.inscriptionContentUrl = inscriptionContentUrl
         self.inscriptionName = inscriptionName
         self.inscriptionIconUrl = inscriptionIconUrl
+        self.hyperlink = hyperlink
+        self.mediaName = mediaName
+        self.albumId = albumId
+        self.stickerId = stickerId
+        self.sharedUserId = sharedUserId
+        self.mediaWaveform = mediaWaveform
+        self.thumbUrl = thumbUrl
+        self.conversationOwnerId = conversationOwnerId
+        self.conversationCategory = conversationCategory
         self.sharedUserFullName = sharedUserFullName
         self.sharedUserIdentityNumber = sharedUserIdentityNumber
-        self.sharedUserId = sharedUserId
         self.sharedUserAvatarUrl = sharedUserAvatarUrl
         self.sharedUserIsVerified = sharedUserIsVerified
         self.sharedUserMembership = sharedUserMembership
         self.sharedUserAppId = sharedUserAppId
-        self.stickerId = stickerId
         self.stickerAssetUrl = stickerAssetUrl
         self.stickerAssetWidth = stickerAssetWidth
         self.stickerAssetHeight = stickerAssetHeight
         self.stickerAssetName = stickerAssetName
         self.stickerAssetType = stickerAssetType
-        self.hyperlink = hyperlink
+        self.mentionRead = mentionRead
         self.pinned = pinned
         self.expireIn = expireIn
     }
@@ -6550,15 +6565,14 @@ public struct FfiConverterTypeMessageItem: FfiConverterRustBuffer {
                 senderName: FfiConverterString.read(from: &buf),
                 senderIdentityNumber: FfiConverterOptionString.read(from: &buf),
                 senderAvatarUrl: FfiConverterString.read(from: &buf),
-                senderRelationship: FfiConverterString.read(from: &buf),
-                senderAppId: FfiConverterOptionString.read(from: &buf),
-                senderIsBot: FfiConverterBool.read(from: &buf),
                 senderIsVerified: FfiConverterBool.read(from: &buf),
                 senderMembership: FfiConverterOptionString.read(from: &buf),
+                senderRelationship: FfiConverterString.read(from: &buf),
+                senderAppId: FfiConverterOptionString.read(from: &buf),
+                senderIsScam: FfiConverterBool.read(from: &buf),
+                senderIsBot: FfiConverterBool.read(from: &buf),
                 senderParticipantId: FfiConverterOptionString.read(from: &buf),
                 senderRole: FfiConverterOptionString.read(from: &buf),
-                conversationOwnerId: FfiConverterOptionString.read(from: &buf),
-                conversationCategory: FfiConverterOptionString.read(from: &buf),
                 category: FfiConverterString.read(from: &buf),
                 content: FfiConverterString.read(from: &buf),
                 status: FfiConverterString.read(from: &buf),
@@ -6570,19 +6584,19 @@ public struct FfiConverterTypeMessageItem: FfiConverterRustBuffer {
                 mediaWidth: FfiConverterOptionInt32.read(from: &buf),
                 mediaHeight: FfiConverterOptionInt32.read(from: &buf),
                 thumbImage: FfiConverterOptionString.read(from: &buf),
-                thumbUrl: FfiConverterOptionString.read(from: &buf),
                 mediaStatus: FfiConverterString.read(from: &buf),
-                mediaName: FfiConverterOptionString.read(from: &buf),
-                mediaWaveform: FfiConverterOptionString.read(from: &buf),
-                caption: FfiConverterOptionString.read(from: &buf),
                 quoteMessageId: FfiConverterOptionString.read(from: &buf),
                 quoteContent: FfiConverterOptionString.read(from: &buf),
+                quoteUserMembership: FfiConverterOptionString.read(from: &buf),
+                caption: FfiConverterOptionString.read(from: &buf),
                 action: FfiConverterOptionString.read(from: &buf),
+                participantId: FfiConverterOptionString.read(from: &buf),
                 participantFullName: FfiConverterOptionString.read(from: &buf),
                 snapshotId: FfiConverterOptionString.read(from: &buf),
                 snapshotType: FfiConverterOptionString.read(from: &buf),
                 snapshotAmount: FfiConverterOptionString.read(from: &buf),
                 snapshotMemo: FfiConverterOptionString.read(from: &buf),
+                snapshotAssetId: FfiConverterOptionString.read(from: &buf),
                 snapshotAssetSymbol: FfiConverterOptionString.read(from: &buf),
                 snapshotAssetIconUrl: FfiConverterOptionString.read(from: &buf),
                 snapshotChainIconUrl: FfiConverterOptionString.read(from: &buf),
@@ -6596,20 +6610,27 @@ public struct FfiConverterTypeMessageItem: FfiConverterRustBuffer {
                 inscriptionContentUrl: FfiConverterOptionString.read(from: &buf),
                 inscriptionName: FfiConverterOptionString.read(from: &buf),
                 inscriptionIconUrl: FfiConverterOptionString.read(from: &buf),
+                hyperlink: FfiConverterOptionString.read(from: &buf),
+                mediaName: FfiConverterOptionString.read(from: &buf),
+                albumId: FfiConverterOptionString.read(from: &buf),
+                stickerId: FfiConverterOptionString.read(from: &buf),
+                sharedUserId: FfiConverterOptionString.read(from: &buf),
+                mediaWaveform: FfiConverterOptionString.read(from: &buf),
+                thumbUrl: FfiConverterOptionString.read(from: &buf),
+                conversationOwnerId: FfiConverterOptionString.read(from: &buf),
+                conversationCategory: FfiConverterOptionString.read(from: &buf),
                 sharedUserFullName: FfiConverterOptionString.read(from: &buf),
                 sharedUserIdentityNumber: FfiConverterOptionString.read(from: &buf),
-                sharedUserId: FfiConverterOptionString.read(from: &buf),
                 sharedUserAvatarUrl: FfiConverterOptionString.read(from: &buf),
                 sharedUserIsVerified: FfiConverterBool.read(from: &buf),
                 sharedUserMembership: FfiConverterOptionString.read(from: &buf),
                 sharedUserAppId: FfiConverterOptionString.read(from: &buf),
-                stickerId: FfiConverterOptionString.read(from: &buf),
                 stickerAssetUrl: FfiConverterOptionString.read(from: &buf),
                 stickerAssetWidth: FfiConverterOptionInt32.read(from: &buf),
                 stickerAssetHeight: FfiConverterOptionInt32.read(from: &buf),
                 stickerAssetName: FfiConverterOptionString.read(from: &buf),
                 stickerAssetType: FfiConverterOptionString.read(from: &buf),
-                hyperlink: FfiConverterOptionString.read(from: &buf),
+                mentionRead: FfiConverterOptionBool.read(from: &buf),
                 pinned: FfiConverterBool.read(from: &buf),
                 expireIn: FfiConverterOptionInt64.read(from: &buf)
         )
@@ -6622,15 +6643,14 @@ public struct FfiConverterTypeMessageItem: FfiConverterRustBuffer {
         FfiConverterString.write(value.senderName, into: &buf)
         FfiConverterOptionString.write(value.senderIdentityNumber, into: &buf)
         FfiConverterString.write(value.senderAvatarUrl, into: &buf)
-        FfiConverterString.write(value.senderRelationship, into: &buf)
-        FfiConverterOptionString.write(value.senderAppId, into: &buf)
-        FfiConverterBool.write(value.senderIsBot, into: &buf)
         FfiConverterBool.write(value.senderIsVerified, into: &buf)
         FfiConverterOptionString.write(value.senderMembership, into: &buf)
+        FfiConverterString.write(value.senderRelationship, into: &buf)
+        FfiConverterOptionString.write(value.senderAppId, into: &buf)
+        FfiConverterBool.write(value.senderIsScam, into: &buf)
+        FfiConverterBool.write(value.senderIsBot, into: &buf)
         FfiConverterOptionString.write(value.senderParticipantId, into: &buf)
         FfiConverterOptionString.write(value.senderRole, into: &buf)
-        FfiConverterOptionString.write(value.conversationOwnerId, into: &buf)
-        FfiConverterOptionString.write(value.conversationCategory, into: &buf)
         FfiConverterString.write(value.category, into: &buf)
         FfiConverterString.write(value.content, into: &buf)
         FfiConverterString.write(value.status, into: &buf)
@@ -6642,19 +6662,19 @@ public struct FfiConverterTypeMessageItem: FfiConverterRustBuffer {
         FfiConverterOptionInt32.write(value.mediaWidth, into: &buf)
         FfiConverterOptionInt32.write(value.mediaHeight, into: &buf)
         FfiConverterOptionString.write(value.thumbImage, into: &buf)
-        FfiConverterOptionString.write(value.thumbUrl, into: &buf)
         FfiConverterString.write(value.mediaStatus, into: &buf)
-        FfiConverterOptionString.write(value.mediaName, into: &buf)
-        FfiConverterOptionString.write(value.mediaWaveform, into: &buf)
-        FfiConverterOptionString.write(value.caption, into: &buf)
         FfiConverterOptionString.write(value.quoteMessageId, into: &buf)
         FfiConverterOptionString.write(value.quoteContent, into: &buf)
+        FfiConverterOptionString.write(value.quoteUserMembership, into: &buf)
+        FfiConverterOptionString.write(value.caption, into: &buf)
         FfiConverterOptionString.write(value.action, into: &buf)
+        FfiConverterOptionString.write(value.participantId, into: &buf)
         FfiConverterOptionString.write(value.participantFullName, into: &buf)
         FfiConverterOptionString.write(value.snapshotId, into: &buf)
         FfiConverterOptionString.write(value.snapshotType, into: &buf)
         FfiConverterOptionString.write(value.snapshotAmount, into: &buf)
         FfiConverterOptionString.write(value.snapshotMemo, into: &buf)
+        FfiConverterOptionString.write(value.snapshotAssetId, into: &buf)
         FfiConverterOptionString.write(value.snapshotAssetSymbol, into: &buf)
         FfiConverterOptionString.write(value.snapshotAssetIconUrl, into: &buf)
         FfiConverterOptionString.write(value.snapshotChainIconUrl, into: &buf)
@@ -6668,20 +6688,27 @@ public struct FfiConverterTypeMessageItem: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.inscriptionContentUrl, into: &buf)
         FfiConverterOptionString.write(value.inscriptionName, into: &buf)
         FfiConverterOptionString.write(value.inscriptionIconUrl, into: &buf)
+        FfiConverterOptionString.write(value.hyperlink, into: &buf)
+        FfiConverterOptionString.write(value.mediaName, into: &buf)
+        FfiConverterOptionString.write(value.albumId, into: &buf)
+        FfiConverterOptionString.write(value.stickerId, into: &buf)
+        FfiConverterOptionString.write(value.sharedUserId, into: &buf)
+        FfiConverterOptionString.write(value.mediaWaveform, into: &buf)
+        FfiConverterOptionString.write(value.thumbUrl, into: &buf)
+        FfiConverterOptionString.write(value.conversationOwnerId, into: &buf)
+        FfiConverterOptionString.write(value.conversationCategory, into: &buf)
         FfiConverterOptionString.write(value.sharedUserFullName, into: &buf)
         FfiConverterOptionString.write(value.sharedUserIdentityNumber, into: &buf)
-        FfiConverterOptionString.write(value.sharedUserId, into: &buf)
         FfiConverterOptionString.write(value.sharedUserAvatarUrl, into: &buf)
         FfiConverterBool.write(value.sharedUserIsVerified, into: &buf)
         FfiConverterOptionString.write(value.sharedUserMembership, into: &buf)
         FfiConverterOptionString.write(value.sharedUserAppId, into: &buf)
-        FfiConverterOptionString.write(value.stickerId, into: &buf)
         FfiConverterOptionString.write(value.stickerAssetUrl, into: &buf)
         FfiConverterOptionInt32.write(value.stickerAssetWidth, into: &buf)
         FfiConverterOptionInt32.write(value.stickerAssetHeight, into: &buf)
         FfiConverterOptionString.write(value.stickerAssetName, into: &buf)
         FfiConverterOptionString.write(value.stickerAssetType, into: &buf)
-        FfiConverterOptionString.write(value.hyperlink, into: &buf)
+        FfiConverterOptionBool.write(value.mentionRead, into: &buf)
         FfiConverterBool.write(value.pinned, into: &buf)
         FfiConverterOptionInt64.write(value.expireIn, into: &buf)
     }

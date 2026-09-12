@@ -25,7 +25,7 @@ if [[ "$configuration" == Release ]]; then
 else
   cargo build -p mixin_desktop_swift
 fi
-cargo build -p mixin_desktop_swift --features swift-bindgen --bin uniffi-bindgen-swift
+cargo build -p mixin_swift_bridgegen --features swift-bindgen --bin uniffi-bindgen-swift
 
 target_dir="${CARGO_TARGET_DIR:-$repository_root/target}"
 bindgen="$target_dir/debug/uniffi-bindgen-swift"

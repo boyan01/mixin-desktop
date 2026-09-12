@@ -1182,10 +1182,7 @@ async fn search_global_messages(
         .await?
         .message()
         .search_global_messages(query, anchor_message_id, limit.clamp(1, 100))
-        .await?
-        .into_iter()
-        .map(Into::into)
-        .collect())
+        .await?)
 }
 
 #[tauri::command]
@@ -1635,10 +1632,7 @@ async fn messages(
             before_message_id,
             limit.clamp(1, 200),
         )
-        .await?
-        .into_iter()
-        .map(Into::into)
-        .collect())
+        .await?)
 }
 
 #[tauri::command]
@@ -1660,10 +1654,7 @@ async fn messages_around(
             before.clamp(0, 200),
             after.clamp(0, 200),
         )
-        .await?
-        .into_iter()
-        .map(Into::into)
-        .collect())
+        .await?)
 }
 
 #[tauri::command]
@@ -2156,10 +2147,7 @@ async fn search_messages(
             anchor_message_id,
             limit.clamp(1, 100),
         )
-        .await?
-        .into_iter()
-        .map(Into::into)
-        .collect())
+        .await?)
 }
 
 #[tauri::command]
@@ -2399,10 +2387,7 @@ async fn transcript_messages(
         .await?
         .message()
         .transcript_messages(transcript_id)
-        .await?
-        .into_iter()
-        .map(Into::into)
-        .collect())
+        .await?)
 }
 
 #[tauri::command]
@@ -2495,10 +2480,7 @@ async fn shared_messages(
         .await?
         .message()
         .shared_messages(conversation_id, kind, offset, limit)
-        .await?
-        .into_iter()
-        .map(Into::into)
-        .collect())
+        .await?)
 }
 
 #[tauri::command]

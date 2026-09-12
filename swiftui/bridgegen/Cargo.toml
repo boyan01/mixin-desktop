@@ -3,7 +3,17 @@ name = "mixin_swift_bridgegen"
 version = "0.1.0"
 edition = "2021"
 publish = false
+default-run = "mixin_swift_bridgegen"
+
+[features]
+swift-bindgen = ["dep:uniffi"]
 
 [dependencies]
 quote = "1"
 syn = { version = "2", features = ["full", "extra-traits"] }
+uniffi = { version = "0.32", default-features = false, features = ["cli"], optional = true }
+
+[[bin]]
+name = "uniffi-bindgen-swift"
+path = "src/bin/uniffi_bindgen_swift.rs"
+required-features = ["swift-bindgen"]

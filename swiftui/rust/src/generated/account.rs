@@ -776,4 +776,99 @@ impl SwiftAccountHandle {
     pub async fn sign_out(&self) -> Result<(), crate::error::SwiftClientError> {
         Ok(self.client.sign_out().await?)
     }
+    pub async fn messages(
+        &self,
+        conversation_id: String,
+        before_created_at_micros: Option<i64>,
+        before_message_id: Option<String>,
+        limit: i64,
+    ) -> Result<Vec<mixin_desktop_api::MessageListView>, crate::error::SwiftClientError> {
+        Ok(self
+            .client
+            .message()
+            .messages(
+                conversation_id,
+                before_created_at_micros,
+                before_message_id,
+                limit,
+            )
+            .await?)
+    }
+    pub async fn message_items_by_ids(
+        &self,
+        message_ids: Vec<String>,
+    ) -> Result<Vec<mixin_desktop_api::MessageListView>, crate::error::SwiftClientError> {
+        Ok(self
+            .client
+            .message()
+            .message_items_by_ids(message_ids)
+            .await?)
+    }
+    pub async fn search_messages(
+        &self,
+        conversation_id: String,
+        query: String,
+        sender_id: Option<String>,
+        categories: Vec<String>,
+        anchor_message_id: Option<String>,
+        limit: u32,
+    ) -> Result<Vec<mixin_desktop_api::MessageListView>, crate::error::SwiftClientError> {
+        Ok(self
+            .client
+            .message()
+            .search_messages(
+                conversation_id,
+                query,
+                sender_id,
+                categories,
+                anchor_message_id,
+                limit,
+            )
+            .await?)
+    }
+    pub async fn search_global_messages(
+        &self,
+        query: String,
+        anchor_message_id: Option<String>,
+        limit: u32,
+    ) -> Result<Vec<mixin_desktop_api::MessageListView>, crate::error::SwiftClientError> {
+        Ok(self
+            .client
+            .message()
+            .search_global_messages(query, anchor_message_id, limit)
+            .await?)
+    }
+    pub async fn pinned_messages(
+        &self,
+        conversation_id: String,
+    ) -> Result<Vec<mixin_desktop_api::MessageListView>, crate::error::SwiftClientError> {
+        Ok(self
+            .client
+            .message()
+            .pinned_messages(conversation_id)
+            .await?)
+    }
+    pub async fn messages_around(
+        &self,
+        conversation_id: String,
+        target_message_id: String,
+        before: i64,
+        after: i64,
+    ) -> Result<Vec<mixin_desktop_api::MessageListView>, crate::error::SwiftClientError> {
+        Ok(self
+            .client
+            .message()
+            .messages_around(conversation_id, target_message_id, before, after)
+            .await?)
+    }
+    pub async fn transcript_messages(
+        &self,
+        transcript_id: String,
+    ) -> Result<Vec<mixin_desktop_api::MessageListView>, crate::error::SwiftClientError> {
+        Ok(self
+            .client
+            .message()
+            .transcript_messages(transcript_id)
+            .await?)
+    }
 }

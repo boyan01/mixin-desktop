@@ -349,7 +349,10 @@ pub struct StickerDetailItem {
     pub is_personal: bool,
 }
 
-#[derive(Clone, Debug)]
+/// Shared message read model used by the desktop UI bridges.
+#[derive(Clone, Debug, serde::Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase", rename = "Message")]
 pub struct MessageListView {
     pub message_id: String,
     pub conversation_id: String,
