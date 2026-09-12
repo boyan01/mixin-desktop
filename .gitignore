@@ -1,4 +1,5 @@
 keystore.json
+.DS_Store
 .idea
 target
 *.db

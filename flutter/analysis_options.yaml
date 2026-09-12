@@ -11,6 +11,10 @@ analyzer:
     - "lib/src/rust/api/**"
     - "lib/src/rust/third_party/**"
     - "**.g.dart"
+    - build/**
+    - windows/**
+    - macos/**
+    - linux/**
 
 linter:
   rules:
