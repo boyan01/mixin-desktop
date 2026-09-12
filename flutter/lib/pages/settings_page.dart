@@ -336,7 +336,7 @@ class _SettingsHome extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.mixinTheme;
     return ColoredBox(
-      color: colors.background,
+      color: colors.primary,
       child: Column(
         children: [
           const SizedBox(height: 64),

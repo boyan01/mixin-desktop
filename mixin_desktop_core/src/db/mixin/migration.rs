@@ -82,9 +82,15 @@ const MIGRATIONS: &[Migration] = &[
     Migration::action(26, "add inscriptions", migrate_to_v26),
     Migration::action(27, "add memberships", migrate_to_v27),
     Migration::action(28, "add token precision", migrate_to_v28),
+    Migration::sql(
+        29,
+        "index scheduled message expiration",
+        "CREATE INDEX IF NOT EXISTS index_expired_messages_expire_at \
+         ON expired_messages (expire_at) WHERE expire_at IS NOT NULL",
+    ),
 ];
 
-pub(crate) const SCHEMA_VERSION: i64 = 28;
+pub(crate) const SCHEMA_VERSION: i64 = 29;
 pub(crate) const MIGRATOR: Migrator = Migrator::new(
     "mixin",
     SCHEMA_VERSION,
@@ -379,6 +385,71 @@ mod tests {
     #[test]
     fn migration_registry_is_ordered_and_current() {
         MIGRATOR.validate().unwrap();
+    }
+
+    #[tokio::test]
+    async fn new_v28_and_flutter_v29_databases_open_at_v29_with_indexed_expiration_lookup() {
+        for source_version in [0, 28, 29] {
+            let pool = SqlitePoolOptions::new()
+                .max_connections(1)
+                .connect("sqlite::memory:")
+                .await
+                .unwrap();
+            if source_version != 0 {
+                sqlx::raw_sql(
+                    "CREATE TABLE expired_messages (message_id TEXT NOT NULL PRIMARY KEY, \
+                     expire_in INTEGER NOT NULL, expire_at INTEGER); \
+                     INSERT INTO expired_messages VALUES ('due', 60, 100), ('pending', 60, NULL);",
+                )
+                .execute(&pool)
+                .await
+                .unwrap();
+                if source_version == 29 {
+                    sqlx::raw_sql(
+                        "CREATE INDEX IF NOT EXISTS index_expired_messages_expire_at \
+                         ON expired_messages (expire_at) WHERE expire_at IS NOT NULL; \
+                         PRAGMA user_version = 29;",
+                    )
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+                } else {
+                    sqlx::query("PRAGMA user_version = 28")
+                        .execute(&pool)
+                        .await
+                        .unwrap();
+                }
+            }
+
+            MIGRATOR.migrate(&pool).await.unwrap();
+            let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            assert_eq!(version, 29);
+            if source_version == 0 {
+                sqlx::query(
+                    "INSERT INTO expired_messages VALUES ('due', 60, 100), ('pending', 60, NULL)",
+                )
+                .execute(&pool)
+                .await
+                .unwrap();
+            }
+            let due: Vec<String> = sqlx::query_scalar(
+                "SELECT message_id FROM expired_messages \
+                 INDEXED BY index_expired_messages_expire_at WHERE expire_at <= 100",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+            assert_eq!(due, ["due"]);
+            let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM expired_messages")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+            assert_eq!(count, 2);
+            pool.close().await;
+        }
     }
 
     #[tokio::test]

@@ -8,6 +8,7 @@ import 'package:mixin_desktop_ui/l10n/generated/app_localizations.dart';
 import 'package:mixin_desktop_ui/pages/settings_page.dart';
 import 'package:mixin_desktop_ui/src/rust/desktop_api.dart';
 import 'package:mixin_desktop_ui/theme.dart';
+import 'package:mixin_desktop_ui/widgets/settings_widgets.dart';
 import 'package:mixin_desktop_ui/widgets/toast.dart' as app_toast;
 import 'package:overlay_support/overlay_support.dart';
 import 'package:provider/provider.dart';
@@ -27,6 +28,57 @@ const _profile = AccountProfile(
 );
 
 void main() {
+  testWidgets('settings list uses the primary background behind its groups', (
+    tester,
+  ) async {
+    await _pumpSettings(tester, onSignOut: () async {}, onClose: () {});
+    final list = find.ancestor(
+      of: find.byKey(const ValueKey('settings-edit-profile')),
+      matching: find.byType(SingleChildScrollView),
+    );
+    final background = find
+        .ancestor(of: list, matching: find.byType(ColoredBox))
+        .first;
+    expect(
+      tester.widget<ColoredBox>(background).color,
+      buildMixinTheme(Brightness.light).extension<MixinThemeColors>()!.primary,
+    );
+  });
+
+  testWidgets(
+    'app bar keeps its background and elevation when content scrolls underneath',
+    (tester) async {
+      const background = Color(0xFFF4F5F6);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildMixinTheme(Brightness.light),
+          home: Scaffold(
+            appBar: const MixinAppBar(
+              title: Text('Settings'),
+              backgroundColor: background,
+            ),
+            body: ListView.builder(
+              itemCount: 50,
+              itemBuilder: (_, index) =>
+                  SizedBox(height: 80, child: Text('Row $index')),
+            ),
+          ),
+        ),
+      );
+      final material = find
+          .descendant(of: find.byType(AppBar), matching: find.byType(Material))
+          .first;
+      expect(tester.widget<Material>(material).color, background);
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pumpAndSettle();
+      final bar = tester.widget<Material>(material);
+      expect(bar.color, background);
+      expect(bar.elevation, 0);
+      expect(bar.surfaceTintColor, Colors.transparent);
+      expect(bar.shadowColor, Colors.transparent);
+    },
+  );
+
   testWidgets('shows account profile and opens migrated settings pages', (
     tester,
   ) async {

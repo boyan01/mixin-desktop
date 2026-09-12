@@ -4,6 +4,22 @@ import 'package:mixin_desktop_ui/models/conversation_list_entry.dart';
 
 void main() {
   test(
+    'opening settings and clearing the conversation preserves the settings route',
+    () {
+      final controller = HomeNavigationController(
+        onConversationSelected: (_) {},
+      );
+      addTearDown(controller.dispose);
+      controller
+        ..select(_conversation('conversation-1'))
+        ..showSettings()
+        ..clearSelection();
+      expect(controller.selectedConversation, isNull);
+      expect(controller.settingsSelected, isTrue);
+    },
+  );
+
+  test(
     'selecting a conversation clears navigation intent and records selection',
     () {
       final selected = <ConversationListEntry>[];

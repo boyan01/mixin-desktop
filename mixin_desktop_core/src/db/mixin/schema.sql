@@ -1,4 +1,4 @@
--- Current mixin.db schema (v28).
+-- Current mixin.db schema (v29).
 
 CREATE TABLE IF NOT EXISTS addresses
 (
@@ -370,6 +370,9 @@ CREATE TABLE IF NOT EXISTS expired_messages
     expire_at  TIMESTAMP,
     PRIMARY KEY (message_id)
 );
+
+CREATE INDEX IF NOT EXISTS index_expired_messages_expire_at
+    ON expired_messages (expire_at) WHERE expire_at IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS chains
 (

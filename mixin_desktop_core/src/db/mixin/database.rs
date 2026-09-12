@@ -190,7 +190,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("mixin.db");
         let writable = MixinDatabase::connect_at(&path).await.unwrap();
-        sqlx::query("PRAGMA user_version = 29")
+        sqlx::query("PRAGMA user_version = 30")
             .execute(&writable.user_dao.0)
             .await
             .unwrap();
@@ -198,7 +198,7 @@ mod tests {
 
         let (database, version) = MixinDatabase::connect_read_only_at(&path).await.unwrap();
 
-        assert_eq!(version, 29);
+        assert_eq!(version, 30);
         let fts_version: i64 = sqlx::query_scalar("PRAGMA fts.user_version")
             .fetch_one(&database.message_fts_dao.0)
             .await
