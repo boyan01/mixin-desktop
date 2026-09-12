@@ -3823,6 +3823,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mixin_swift_bridgegen"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "mock_instant"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

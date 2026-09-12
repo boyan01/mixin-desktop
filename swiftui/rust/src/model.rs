@@ -1,62 +1,4 @@
-use std::collections::HashMap;
-
-use mixin_desktop_api::{
-    AccountProfile, CircleItem, CodeResult, ConnectionFailedReason, ConversationChangeEvent,
-    ConversationDetailItem, ConversationListData, ConversationParticipantItem,
-    ConversationStorageUsage, ConversationUnseenCount, DeviceTransferCommand, DeviceTransferEvent,
-    GroupAvatar, GroupConversationItem, HttpResponseItem, ImageMessageView, McpServerStatusItem,
-    McpSettingsItem, MessageListView, NotificationEvent, ProxyItem, ProxySettingsItem,
-    SharedAppItem, SnapshotDetailItem, StickerAlbumItem, StickerDetailItem, StickerItem,
-    StorageCategoryUsage, UserProfileItem,
-};
-
-#[uniffi::remote(Record)]
-pub struct HttpResponseItem {
-    pub status_code: u16,
-    pub headers: HashMap<String, String>,
-    pub body: Vec<u8>,
-}
-
-#[uniffi::remote(Record)]
-pub struct ImageMessageView {
-    pub message_id: String,
-    pub created_at_micros: i64,
-    pub media_url: String,
-    pub media_name: Option<String>,
-    pub thumb_image: Option<String>,
-    pub can_forward: bool,
-    pub user_id: String,
-    pub user_full_name: String,
-    pub user_identity_number: String,
-    pub avatar_url: String,
-}
-
-#[uniffi::remote(Record)]
-pub struct AccountProfile {
-    pub user_id: String,
-    pub full_name: String,
-    pub avatar_url: String,
-    pub identity_number: String,
-    pub biography: String,
-    pub phone: String,
-    pub created_at: String,
-    pub is_verified: bool,
-    pub fiat_currency: String,
-    pub membership: Option<String>,
-}
-
-#[uniffi::remote(Record)]
-pub struct NotificationEvent {
-    pub message_id: String,
-    pub conversation_id: String,
-    pub sender_name: String,
-    pub category: String,
-    pub content: String,
-    pub created_at_micros: i64,
-    pub conversation_name: String,
-    pub conversation_category: String,
-    pub dismiss_message_id: Option<String>,
-}
+use mixin_desktop_api::{ConnectionFailedReason, DeviceTransferEvent, MessageListView};
 
 #[derive(uniffi::Enum)]
 pub enum ConnectionFailedReasonItem {
@@ -116,18 +58,6 @@ impl From<DeviceTransferEvent> for DeviceTransferEventItem {
     }
 }
 
-#[uniffi::remote(Enum)]
-pub enum DeviceTransferCommand {
-    PullToRemote,
-    PushToRemote,
-    CancelRestore,
-    CancelBackup,
-    CancelBackupRequest,
-    CancelRestoreRequest,
-    ConfirmRestore,
-    ConfirmBackup,
-}
-
 #[cfg(test)]
 mod device_transfer_tests {
     use mixin_desktop_api::{ConnectionFailedReason, DeviceTransferEvent};
@@ -154,133 +84,6 @@ mod device_transfer_tests {
             }
         ));
     }
-}
-
-#[uniffi::remote(Record)]
-pub struct CircleItem {
-    pub circle_id: String,
-    pub name: String,
-    pub conversation_count: i64,
-}
-
-#[uniffi::remote(Record)]
-pub struct ConversationUnseenCount {
-    pub category: String,
-    pub circle_id: Option<String>,
-    pub count: i64,
-    pub muted_count: i64,
-}
-
-#[uniffi::remote(Record)]
-pub struct ConversationChangeEvent {
-    pub conversation_ids: Vec<String>,
-    pub reload_all: bool,
-}
-
-#[uniffi::remote(Record)]
-pub struct ConversationListData {
-    pub conversation_id: String,
-    pub owner_id: String,
-    pub name: String,
-    pub avatar_url: String,
-    pub category: String,
-    pub draft: String,
-    pub status: i32,
-    pub last_read_message_id: Option<String>,
-    pub last_message: String,
-    pub last_message_category: Option<String>,
-    pub last_message_status: Option<String>,
-    pub last_message_sender_id: Option<String>,
-    pub last_message_sender_name: Option<String>,
-    pub last_message_action: Option<String>,
-    pub last_message_participant_id: Option<String>,
-    pub last_message_participant_name: Option<String>,
-    pub updated_at_millis: i64,
-    pub unseen_count: i64,
-    pub mention_count: i64,
-    pub is_muted: bool,
-    pub is_verified: bool,
-    pub is_scam: bool,
-    pub is_bot: bool,
-    pub is_bot_group: bool,
-    pub membership: Option<String>,
-    pub is_pinned: bool,
-    pub pin_time_millis: i64,
-    pub relationship: String,
-    pub identity_number: String,
-    pub circle_ids: Vec<String>,
-    pub participant_count: i64,
-    pub group_avatars: Vec<GroupAvatar>,
-}
-
-#[uniffi::remote(Record)]
-pub struct GroupConversationItem {
-    pub conversation_id: String,
-    pub name: String,
-    pub avatar_url: String,
-    pub participant_count: i64,
-}
-
-#[uniffi::remote(Record)]
-pub struct GroupAvatar {
-    pub user_id: String,
-    pub name: String,
-    pub avatar_url: String,
-}
-
-#[uniffi::remote(Record)]
-pub struct CodeResult {
-    pub kind: String,
-    pub user_id: Option<String>,
-    pub conversation_id: Option<String>,
-    pub conversation_name: Option<String>,
-    pub participant_count: i64,
-    pub participant_avatars: Vec<GroupAvatar>,
-    pub already_member: bool,
-    pub asset_id: Option<String>,
-    pub asset_symbol: Option<String>,
-    pub asset_icon_url: Option<String>,
-    pub chain_icon_url: Option<String>,
-    pub amount: Option<String>,
-    pub senders: Vec<String>,
-    pub receivers: Vec<String>,
-    pub threshold: i64,
-    pub state: Option<String>,
-    pub action: Option<String>,
-}
-
-#[uniffi::remote(Record)]
-pub struct SnapshotDetailItem {
-    pub snapshot_id: String,
-    pub trace_id: Option<String>,
-    pub snapshot_type: String,
-    pub asset_id: String,
-    pub amount: String,
-    pub created_at_millis: i64,
-    pub opponent_id: Option<String>,
-    pub opponent_name: Option<String>,
-    pub transaction_hash: Option<String>,
-    pub sender: Option<String>,
-    pub receiver: Option<String>,
-    pub memo: Option<String>,
-    pub confirmations: Option<i32>,
-    pub snapshot_hash: Option<String>,
-    pub opening_balance: Option<String>,
-    pub closing_balance: Option<String>,
-    pub symbol: String,
-    pub asset_name: String,
-    pub asset_icon_url: String,
-    pub chain_icon_url: String,
-    pub asset_confirmations: i64,
-    pub asset_tag: Option<String>,
-    pub current_user_name: String,
-    pub is_safe: bool,
-    pub price_usd: Option<String>,
-    pub fiat_rate: Option<f64>,
-    pub ticker_price_usd: Option<String>,
-    pub deposit_hash: Option<String>,
-    pub withdrawal_hash: Option<String>,
-    pub withdrawal_receiver: Option<String>,
 }
 
 #[derive(uniffi::Record)]
@@ -430,40 +233,6 @@ impl From<MessageListView> for MessageItem {
     }
 }
 
-#[uniffi::remote(Record)]
-pub struct SharedAppItem {
-    pub app_id: String,
-    pub name: String,
-    pub icon_url: String,
-    pub description: String,
-    pub home_uri: String,
-}
-
-#[uniffi::remote(Record)]
-pub struct StickerItem {
-    pub sticker_id: String,
-    pub album_id: Option<String>,
-    pub name: String,
-    pub asset_url: String,
-    pub asset_width: i32,
-    pub asset_height: i32,
-    pub asset_type: String,
-    pub created_at_millis: i64,
-    pub last_use_at_millis: Option<i64>,
-}
-
-#[uniffi::remote(Record)]
-pub struct StickerAlbumItem {
-    pub album_id: String,
-    pub name: String,
-    pub icon_url: String,
-    pub category: String,
-    pub description: String,
-    pub banner: Option<String>,
-    pub added: bool,
-    pub is_verified: bool,
-}
-
 #[derive(uniffi::Record)]
 pub struct StickerAlbumSection {
     pub album: StickerAlbumItem,
@@ -475,54 +244,6 @@ pub struct StickerLibrary {
     pub recent: Vec<StickerItem>,
     pub personal: Vec<StickerItem>,
     pub albums: Vec<StickerAlbumSection>,
-}
-
-#[uniffi::remote(Record)]
-pub struct StickerDetailItem {
-    pub sticker: StickerItem,
-    pub album: Option<StickerAlbumItem>,
-    pub album_stickers: Vec<StickerItem>,
-    pub is_personal: bool,
-}
-
-#[uniffi::remote(Record)]
-pub struct UserProfileItem {
-    pub user_id: String,
-    pub identity_number: String,
-    pub full_name: String,
-    pub avatar_url: String,
-    pub biography: String,
-    pub is_verified: bool,
-    pub is_bot: bool,
-    pub relationship: String,
-    pub code_url: String,
-    pub membership: Option<String>,
-}
-
-#[uniffi::remote(Record)]
-pub struct ConversationDetailItem {
-    pub conversation_id: String,
-    pub name: String,
-    pub announcement: String,
-    pub code_url: String,
-    pub created_at_millis: i64,
-    pub mute_until_millis: i64,
-    pub expire_in: i64,
-}
-
-#[uniffi::remote(Record)]
-pub struct ConversationParticipantItem {
-    pub user_id: String,
-    pub role: Option<String>,
-    pub created_at_millis: i64,
-    pub identity_number: String,
-    pub full_name: String,
-    pub avatar_url: String,
-    pub biography: String,
-    pub is_verified: bool,
-    pub is_bot: bool,
-    pub relationship: String,
-    pub membership: Option<String>,
 }
 
 #[derive(uniffi::Enum)]
@@ -565,46 +286,4 @@ mod participant_action_tests {
     }
 }
 
-#[uniffi::remote(Record)]
-pub struct ConversationStorageUsage {
-    pub conversation: ConversationListData,
-    pub size_bytes: i64,
-}
-
-#[uniffi::remote(Record)]
-pub struct StorageCategoryUsage {
-    pub category: String,
-    pub size_bytes: i64,
-}
-
-#[uniffi::remote(Record)]
-pub struct ProxyItem {
-    pub id: String,
-    pub kind: String,
-    pub host: String,
-    pub port: u16,
-    pub username: Option<String>,
-    pub password: Option<String>,
-}
-
-#[uniffi::remote(Record)]
-pub struct ProxySettingsItem {
-    pub enabled: bool,
-    pub selected_proxy_id: Option<String>,
-    pub proxies: Vec<ProxyItem>,
-}
-
-#[uniffi::remote(Record)]
-pub struct McpSettingsItem {
-    pub enabled: bool,
-    pub token: String,
-    pub draft_tools_enabled: bool,
-    pub circle_management_enabled: bool,
-}
-
-#[uniffi::remote(Record)]
-pub struct McpServerStatusItem {
-    pub running: bool,
-    pub endpoint: Option<String>,
-    pub last_error: Option<String>,
-}
+include!("generated/model.rs");

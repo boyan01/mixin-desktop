@@ -5,66 +5,18 @@ use std::sync::{
 };
 
 use futures::{Stream, StreamExt as _};
-use mixin_desktop_api::{
-    AudioPlaybackEvent, AudioPlaybackItem, AudioPlaybackSnapshot, AudioPlaybackStatus, MediaClient,
-    VoiceRecorderEvent, VoiceRecorderSnapshot, VoiceRecorderStatus, VoiceRecording,
-};
+use mixin_desktop_api::{AudioPlaybackEvent, MediaClient, VoiceRecorderEvent};
 use tokio::sync::{Mutex, Notify};
-
-use crate::error::SwiftClientError;
 
 #[derive(uniffi::Object)]
 pub struct SwiftMediaHandle {
     client: Arc<MediaClient>,
 }
 
-#[uniffi::remote(Record)]
-pub struct AudioPlaybackItem {
-    pub id: String,
-    pub path: String,
-    pub duration_millis: u64,
-}
-
-#[uniffi::remote(Record)]
-pub struct VoiceRecording {
-    pub path: String,
-    pub duration_millis: u64,
-    pub waveform: Vec<u8>,
-}
-
-#[uniffi::remote(Enum)]
-pub enum VoiceRecorderStatus {
-    Idle,
-    Recording,
-    Recorded,
-}
-
-#[uniffi::remote(Record)]
-pub struct VoiceRecorderSnapshot {
-    pub status: VoiceRecorderStatus,
-    pub recording: Option<VoiceRecording>,
-}
-
 #[derive(Clone, uniffi::Enum)]
 pub enum MediaRecorderEvent {
     Changed { snapshot: VoiceRecorderSnapshot },
     Failed { message: String },
-}
-
-#[uniffi::remote(Enum)]
-pub enum AudioPlaybackStatus {
-    Idle,
-    Playing,
-    Paused,
-}
-
-#[uniffi::remote(Record)]
-pub struct AudioPlaybackSnapshot {
-    pub status: AudioPlaybackStatus,
-    pub item: Option<AudioPlaybackItem>,
-    pub position_millis: u64,
-    pub duration_millis: u64,
-    pub speed: f64,
 }
 
 #[derive(Clone, uniffi::Enum)]
@@ -122,61 +74,13 @@ impl SwiftMediaHandle {
     }
 }
 
-#[uniffi::export(async_runtime = "tokio")]
+#[uniffi::export]
 impl SwiftMediaHandle {
-    pub async fn start_voice_recording(&self) -> Result<(), SwiftClientError> {
-        Ok(self.client.start_voice_recording().await?)
-    }
-
-    pub async fn stop_voice_recording(&self) -> Result<VoiceRecording, SwiftClientError> {
-        Ok(self.client.stop_voice_recording().await?)
-    }
-
-    pub async fn cancel_voice_recording(&self) -> Result<(), SwiftClientError> {
-        Ok(self.client.cancel_voice_recording().await?)
-    }
-
-    pub fn voice_recorder_snapshot(&self) -> VoiceRecorderSnapshot {
-        self.client.voice_recorder_snapshot()
-    }
-
     pub fn subscribe_voice_recorder(&self) -> SwiftMediaRecorderSubscription {
         let events = self.client.subscribe_voice_recorder().map(Into::into);
         SwiftMediaRecorderSubscription {
             inner: CancellableStream::new(events),
         }
-    }
-
-    pub async fn play_audio(
-        &self,
-        playlist: Vec<AudioPlaybackItem>,
-        start_index: u64,
-    ) -> Result<(), SwiftClientError> {
-        Ok(self.client.play_audio(playlist, start_index).await?)
-    }
-
-    pub async fn pause_audio(&self) -> Result<(), SwiftClientError> {
-        Ok(self.client.pause_audio().await?)
-    }
-
-    pub async fn resume_audio(&self) -> Result<(), SwiftClientError> {
-        Ok(self.client.resume_audio().await?)
-    }
-
-    pub fn seek_audio(&self, position_millis: u64) {
-        self.client.seek_audio(position_millis);
-    }
-
-    pub async fn set_audio_speed(&self, speed: f64) -> Result<(), SwiftClientError> {
-        Ok(self.client.set_audio_speed(speed).await?)
-    }
-
-    pub fn stop_audio(&self) {
-        self.client.stop_audio();
-    }
-
-    pub fn audio_playback_snapshot(&self) -> AudioPlaybackSnapshot {
-        self.client.audio_playback_snapshot()
     }
 
     pub fn subscribe_audio_playback(&self) -> SwiftMediaPlaybackSubscription {
@@ -227,3 +131,5 @@ impl From<AudioPlaybackEvent> for MediaPlaybackEvent {
         }
     }
 }
+
+include!("generated/media.rs");

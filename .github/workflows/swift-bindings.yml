@@ -1,0 +1,35 @@
+name: Swift bindings
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/swift-bindings.yml'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - 'mixin_desktop_api/**'
+      - 'mixin_desktop_core/**'
+      - 'mixin_desktop_media/**'
+      - 'swiftui/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/swift-bindings.yml'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - 'mixin_desktop_api/**'
+      - 'mixin_desktop_core/**'
+      - 'mixin_desktop_media/**'
+      - 'swiftui/**'
+
+jobs:
+  bindings:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Test adapter generation
+        run: cargo test -p mixin_swift_bridgegen
+      - name: Check generated Rust and Swift bindings
+        run: ./swiftui/generate-bindings.sh Debug --check

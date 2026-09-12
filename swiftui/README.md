@@ -31,38 +31,52 @@ The generated Swift source, C header, and module map are committed so the Xcode
 project remains inspectable from a clean checkout. Xcode regenerates them before
 compiling the Swift sources.
 
-Generate the bindings manually from the repository root:
+Generate all adapters and bindings from the repository root:
 
 ```sh
-cargo build -p mixin_desktop_swift
-cargo build -p mixin_desktop_swift \
-  --features swift-bindgen \
-  --bin uniffi-bindgen-swift
-
-target/debug/uniffi-bindgen-swift \
-  target/debug/libmixin_desktop.a \
-  swiftui/MixinMessenger/Generated \
-  --swift-sources \
-  --config swiftui/uniffi-swift.toml
-
-target/debug/uniffi-bindgen-swift \
-  target/debug/libmixin_desktop.a \
-  swiftui/generated \
-  --headers \
-  --config swiftui/uniffi-swift.toml
-
-target/debug/uniffi-bindgen-swift \
-  target/debug/libmixin_desktop.a \
-  swiftui/generated \
-  --modulemap \
-  --module-name MixinDesktopFFI \
-  --modulemap-filename module.modulemap \
-  --config swiftui/uniffi-swift.toml
-
-find swiftui/MixinMessenger/Generated swiftui/generated \
-  -type f \
-  -exec perl -pi -e 's/[ \t]+$//' {} +
-find swiftui/MixinMessenger/Generated swiftui/generated \
-  -type f \
-  -exec perl -0777 -pi -e 's/\n+\z/\n/' {} +
+./swiftui/generate-bindings.sh
 ```
+
+Check that committed Rust adapters, Swift sources, C headers, and the module map
+match their inputs without rewriting them:
+
+```sh
+./swiftui/generate-bindings.sh Debug --check
+```
+
+## Rust adapter generation
+
+`bridgegen` is a standalone development tool. It parses Rust with `syn` and does
+not link the application, so it can regenerate stale adapters before the bridge
+compiles. Xcode runs it before building Rust and generating Swift bindings.
+
+`bridgegen/exports.txt` records only the existing Swift export surface and the
+receiver to call. Method signatures, DTO fields, and unit enum variants are read
+from the public Rust API and its current re-exported type definitions. For example:
+
+```text
+account SwiftAccountHandle ConversationAccess self.client.conversation() conversations
+model record AccountProfile
+```
+
+A signature or field change needs no matching declaration edit in the bridge.
+To expose a new method, add its name to the allowlist; use `swift_name=rust_name`
+only when preserving a different Swift-facing name. This explicit selection keeps
+new public Rust operations from silently becoming UI exports.
+
+Regenerate or check just the Rust adapters with:
+
+```sh
+cargo run -p mixin_swift_bridgegen
+cargo run -p mixin_swift_bridgegen -- --check
+cargo test -p mixin_swift_bridgegen
+```
+
+Generated adapters live in `rust/src/generated/` and are committed. Do not edit
+them. The generator supports shared receivers, owned bridge-safe values,
+`ClientResult<T>` / `Result<T, ClientError>`, same-shape records, and unit enums.
+Unsupported signatures fail generation and require an explicit adapter decision.
+
+Keep subscription lifecycle, cancellation, object construction, typed error
+lowering, validation, batching, and presentation-specific conversions in the
+hand-written bridge. Flutter/FRB and Tauri retain their existing integration.

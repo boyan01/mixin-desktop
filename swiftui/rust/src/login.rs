@@ -19,15 +19,9 @@ impl SwiftLoginHandle {
 
 #[uniffi::export(async_runtime = "tokio")]
 impl SwiftLoginHandle {
-    pub fn auth_url(&self) -> String {
-        self.client.auth_url()
-    }
-
-    pub fn cancel(&self) {
-        self.client.cancel();
-    }
-
     pub async fn wait(&self) -> Result<SwiftAccountHandle, SwiftClientError> {
         Ok(SwiftAccountHandle::new(self.client.wait().await?))
     }
 }
+
+include!("generated/login.rs");
