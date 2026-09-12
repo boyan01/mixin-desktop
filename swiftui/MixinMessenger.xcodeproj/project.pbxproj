@@ -334,7 +334,7 @@
 					CoreAudio,
 					"-liconv",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = one.mixin.messenger.desktop;
+				PRODUCT_BUNDLE_IDENTIFIER = one.mixin.messenger.desktop.debug;
 				PRODUCT_MODULE_NAME = MixinMessenger;
 				PRODUCT_NAME = "Mixin Messenger";
 				REGISTER_APP_GROUPS = YES;

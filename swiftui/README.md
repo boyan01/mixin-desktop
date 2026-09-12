@@ -5,9 +5,15 @@
 
 ## Run the SwiftUI app
 
-The SwiftUI app and the Flutter app use the same bundle identifier and macOS
-App Sandbox container. Build the runnable Debug app with code signing enabled
-so `NSDocumentDirectory` resolves to the existing container:
+SwiftUI, Flutter, and Tauri share the same bundle identifier per build mode:
+Debug uses `one.mixin.messenger.desktop.debug`; Release retains
+`one.mixin.messenger.desktop`. Flutter Profile also uses the Debug identifier.
+Signed sandboxed builds share a container within each mode, while Debug and
+Release keep separate accounts and data. The first Debug launch uses a new
+container; existing Release data is not migrated or copied.
+
+Build the runnable Debug app with code signing enabled so
+`NSDocumentDirectory` resolves inside its app container:
 
 ```sh
 ./build-swiftui.sh
@@ -19,6 +25,13 @@ Pass `Release` as the first argument to create a Release build. Xcode and
 SwiftPM build products and intermediates are kept under the repository-level
 `Build/` directory. The Rust bridge keeps using the same Cargo `target/`
 directory as Xcode.
+
+For Tauri, use `npm run tauri -- dev` or `npm run tauri -- build --debug` from
+`typescript/` for the Debug identifier. `npm run tauri -- build` and
+`npm run tauri -- dev --release` retain the Release identifier. The npm entry
+point selects the macOS identifier automatically; invoking the Tauri CLI directly
+bypasses this selection. To test the selection, run
+`node --test scripts/tauri.test.mjs` from `typescript/`.
 
 `CODE_SIGNING_ALLOWED=NO` is suitable for compile-only validation. Do not run
 that product: an unsigned process resolves the data directory outside the app
