@@ -316,6 +316,7 @@ impl RunningMcpServer {
         let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, DEFAULT_PORT)).await?;
         let cancellation = CancellationToken::new();
         let state = ServerState {
+            search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
             source: McpSource::Runtime(runtime),
             settings,
         };
@@ -373,6 +374,7 @@ pub async fn serve_read_only_http(
     let cancellation = CancellationToken::new();
     let app = http_router(
         ServerState {
+            search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
             source: McpSource::ReadOnly(source),
             settings: McpSettings::disabled(token),
         },
@@ -430,6 +432,7 @@ impl Drop for RunningMcpServer {
 
 #[derive(Clone)]
 struct ServerState {
+    search_slot: Arc<tokio::sync::Semaphore>,
     source: McpSource,
     settings: McpSettings,
 }
@@ -586,15 +589,17 @@ impl McpSource {
         before_created_at_micros: Option<i64>,
         before_message_id: Option<String>,
         limit: i64,
+        range_millis: (Option<i64>, Option<i64>),
     ) -> Result<Vec<model::MessageListView>> {
         match self {
             Self::Runtime(runtime) => Ok(runtime
                 .message_access()
-                .messages(
+                .messages_in_range(
                     conversation_id,
                     before_created_at_micros,
                     before_message_id,
                     limit,
+                    range_millis,
                 )
                 .await?),
             Self::ReadOnly(source) => {
@@ -608,11 +613,12 @@ impl McpSource {
                 source
                     .database
                     .message_dao
-                    .list_items(
+                    .list_items_in_range(
                         &conversation_id,
                         before_created_at_millis,
                         before_message_id.as_deref(),
                         limit,
+                        range_millis,
                     )
                     .await?
                     .into_iter()
@@ -645,32 +651,30 @@ impl McpSource {
     async fn search_messages(
         &self,
         input: MessageFtsSearch,
+        cancellation: CancellationToken,
     ) -> Result<Vec<model::MessageListView>> {
-        match self {
-            Self::Runtime(runtime) => runtime.message_access().search_message_items(input).await,
-            Self::ReadOnly(source) => {
-                let matches = source.database.message_fts_dao.search(&input).await?;
-                let message_ids = matches
-                    .iter()
-                    .map(|item| item.message_id.clone())
-                    .collect::<Vec<_>>();
-                let mut items_by_id = source
-                    .database
-                    .message_dao
-                    .list_items_by_ids(&message_ids)
-                    .await?
-                    .into_iter()
-                    .map(|item| (item.message_id.clone(), item))
-                    .collect::<HashMap<_, _>>();
-                let mut result = Vec::with_capacity(matches.len());
-                for matched in matches {
-                    if let Some(item) = items_by_id.remove(&matched.message_id) {
-                        result.push(source.message_view(item)?);
-                    }
-                }
-                Ok(result)
+        let dao = match self {
+            Self::Runtime(runtime) => {
+                let access = runtime.message_access();
+                access.ensure_active()?;
+                access.database.message_fts_dao.clone()
             }
-        }
+            Self::ReadOnly(source) => source.database.message_fts_dao.clone(),
+        };
+        let matches = dao
+            .search_bounded(&input, cancellation, std::time::Duration::from_secs(40))
+            .await?;
+        let ids = matches.iter().map(|item| item.message_id.clone()).collect();
+        let mut items = self
+            .messages_by_ids(ids)
+            .await?
+            .into_iter()
+            .map(|item| (item.message_id.clone(), item))
+            .collect::<HashMap<_, _>>();
+        Ok(matches
+            .into_iter()
+            .filter_map(|item| items.remove(&item.message_id))
+            .collect())
     }
 
     async fn messages_around(
@@ -912,11 +916,26 @@ impl McpService {
             .map_err(|error| error.to_string())
     }
 
-    #[tool(description = "List local messages in newest-to-oldest order.")]
+    #[tool(
+        description = "List local messages newest first. Use start/end_created_at_micros for a time window. Continue with both fields from pagination.next_cursor, keeping the same time window."
+    )]
     async fn mixin_list_messages(
         &self,
         Parameters(input): Parameters<ListMessagesInput>,
     ) -> Result<Json<ToolOutput>, String> {
+        if input
+            .start_created_at_micros
+            .zip(input.end_created_at_micros)
+            .is_some_and(|(start, end)| start >= end)
+        {
+            return Err(
+                "start_created_at_micros must be earlier than end_created_at_micros".into(),
+            );
+        }
+        let limit = input.limit.unwrap_or(100).clamp(1, 200);
+        // Stored timestamps are milliseconds: ceil both bounds to preserve [start, end).
+        let to_millis =
+            |value: i64| value.div_euclid(1000) + i64::from(value.rem_euclid(1000) != 0);
         let result = match require_non_empty(input.conversation_id, "conversation_id") {
             Ok(conversation_id) => self
                 .state
@@ -925,11 +944,24 @@ impl McpService {
                     conversation_id,
                     input.before_created_at_micros,
                     input.before_message_id,
-                    input.limit.unwrap_or(100).clamp(1, 200),
+                    limit + 1,
+                    (
+                        input.start_created_at_micros.map(to_millis),
+                        input.end_created_at_micros.map(to_millis),
+                    ),
                 )
                 .await
-                .map(|messages| {
-                    json!({"messages": messages.into_iter().map(message_json).collect::<Vec<_>>()})
+                .map(|mut messages| {
+                    let has_more = messages.len() > limit as usize;
+                    messages.truncate(limit as usize);
+                    let next_cursor = messages.last().filter(|_| has_more).map(|message| {
+                        json!({
+                            "before_created_at_micros": message.created_at_micros,
+                            "before_message_id": message.message_id,
+                        })
+                    });
+                    json!({"messages": messages.into_iter().map(message_json).collect::<Vec<_>>(),
+                        "pagination": {"has_more": has_more, "next_cursor": next_cursor}})
                 }),
             Err(error) => Err(error),
         };
@@ -940,12 +972,25 @@ impl McpService {
     }
 
     #[tool(
-        description = "Search indexed message content across all or selected conversations, newest first. Use the returned cursor to continue toward older matches."
+        description = "Search indexed message content across all or selected conversations, newest first. One search may run at a time, with a 40-second query deadline. On search_timeout narrow the time range; on search_busy wait for the active search. Use the returned cursor for older matches."
     )]
     async fn mixin_search_messages(
         &self,
         Parameters(input): Parameters<SearchMessagesInput>,
+        context: rmcp::service::RequestContext<rmcp::RoleServer>,
     ) -> Result<Json<ToolOutput>, String> {
+        self.search_messages_input(input, context.ct).await
+    }
+
+    async fn search_messages_input(
+        &self,
+        input: SearchMessagesInput,
+        cancellation: CancellationToken,
+    ) -> Result<Json<ToolOutput>, String> {
+        let _permit = self.state.search_slot.try_acquire().map_err(|_| {
+            log::info!("MCP search outcome=busy");
+            "search_busy: another search is running; retry after it completes".to_owned()
+        })?;
         let result: Result<Value> = async {
             let query = require_non_empty(input.query, "query")?;
             let conversation_ids =
@@ -965,20 +1010,23 @@ impl McpService {
             let mut messages = self
                 .state
                 .source
-                .search_messages(MessageFtsSearch {
-                    query,
-                    conversation_ids,
-                    sender_ids,
-                    categories,
-                    start_created_at_millis: input
-                        .start_created_at_micros
-                        .map(|value| value.div_euclid(1_000)),
-                    end_created_at_millis: input
-                        .end_created_at_micros
-                        .map(|value| value.div_euclid(1_000)),
-                    cursor_message_id: input.cursor,
-                    limit: (limit + 1) as u32,
-                })
+                .search_messages(
+                    MessageFtsSearch {
+                        query,
+                        conversation_ids,
+                        sender_ids,
+                        categories,
+                        start_created_at_millis: input
+                            .start_created_at_micros
+                            .map(|value| value.div_euclid(1_000)),
+                        end_created_at_millis: input
+                            .end_created_at_micros
+                            .map(|value| value.div_euclid(1_000)),
+                        cursor_message_id: input.cursor,
+                        limit: (limit + 1) as u32,
+                    },
+                    cancellation,
+                )
                 .await?;
             let has_more = messages.len() > limit;
             messages.truncate(limit);
@@ -1355,6 +1403,10 @@ struct ResolveConversationInput {
 #[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 struct ListMessagesInput {
     conversation_id: String,
+    /// Inclusive lower timestamp bound, independent of the pagination cursor.
+    start_created_at_micros: Option<i64>,
+    /// Exclusive upper timestamp bound, independent of the pagination cursor.
+    end_created_at_micros: Option<i64>,
     before_created_at_micros: Option<i64>,
     before_message_id: Option<String>,
     limit: Option<i64>,
@@ -1600,8 +1652,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn database_sidecar_exposes_only_read_tools_and_reports_its_source() {
+    async fn read_only_test_source() -> (tempfile::TempDir, Arc<ReadOnlyMcpSource>) {
         let directory = tempfile::tempdir().unwrap();
         let identity_number = "39869091";
         let account_directory = directory.path().join(identity_number);
@@ -1655,9 +1706,117 @@ mod tests {
                 .await
                 .unwrap(),
         );
+        (directory, source)
+    }
+
+    #[tokio::test]
+    async fn busy_search_rejects_immediately_while_message_reads_succeed() {
+        let (_directory, source) = read_only_test_source().await;
+        let service = McpService::new(ServerState {
+            search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
+            source: McpSource::ReadOnly(source),
+            settings: McpSettings::disabled("token".into()),
+        });
+        let permit = service.state.search_slot.acquire().await.unwrap();
+        let input = || SearchMessagesInput {
+            query: "price".into(),
+            conversation_ids: None,
+            sender_ids: None,
+            categories: None,
+            start_created_at_micros: None,
+            end_created_at_micros: None,
+            cursor: None,
+            limit: Some(1),
+        };
+        let error = service
+            .search_messages_input(input(), CancellationToken::new())
+            .await
+            .err()
+            .expect("a second search must be rejected");
+        assert!(error.starts_with("search_busy:"));
+        let page = service
+            .mixin_list_messages(Parameters(ListMessagesInput {
+                conversation_id: "conversation".into(),
+                before_created_at_micros: None,
+                before_message_id: None,
+                start_created_at_micros: None,
+                end_created_at_micros: None,
+                limit: Some(1),
+            }))
+            .await
+            .unwrap()
+            .0;
+        assert_eq!(page["messages"].as_array().unwrap().len(), 1);
+        drop(permit);
+        assert!(service
+            .search_messages_input(input(), CancellationToken::new())
+            .await
+            .is_ok());
+    }
+
+    #[tokio::test]
+    async fn time_range_message_pages_return_reusable_cursors_and_exact_microsecond_bounds() {
+        let (_directory, source) = read_only_test_source().await;
+        let database = MixinDatabase::connect_at(&source.info.database_path)
+            .await
+            .unwrap();
+        for (id, timestamp) in [("one", 1000), ("two", 1001), ("three", 1002)] {
+            database
+                .message_dao
+                .insert_message(&Message {
+                    message_id: id.into(),
+                    conversation_id: "conversation".into(),
+                    user_id: "account-id".into(),
+                    category: "PLAIN_TEXT".into(),
+                    status: MessageStatus::Sent,
+                    created_at: chrono::DateTime::from_timestamp_millis(timestamp)
+                        .unwrap()
+                        .naive_utc(),
+                    ..Message::default()
+                })
+                .await
+                .unwrap();
+        }
+        database.close().await;
+        let service = McpService::new(ServerState {
+            search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
+            source: McpSource::ReadOnly(source),
+            settings: McpSettings::disabled("token".into()),
+        });
+        let input = |cursor: Option<&Value>| ListMessagesInput {
+            conversation_id: "conversation".into(),
+            start_created_at_micros: Some(1000001),
+            end_created_at_micros: Some(1002001),
+            limit: Some(1),
+            before_created_at_micros: cursor.and_then(|c| c["before_created_at_micros"].as_i64()),
+            before_message_id: cursor
+                .and_then(|c| c["before_message_id"].as_str())
+                .map(str::to_owned),
+        };
+        let first = service
+            .mixin_list_messages(Parameters(input(None)))
+            .await
+            .unwrap()
+            .0;
+        assert_eq!(first["messages"][0]["message_id"], "three");
+        assert_eq!(first["pagination"]["has_more"], true);
+        let second = service
+            .mixin_list_messages(Parameters(input(Some(&first["pagination"]["next_cursor"]))))
+            .await
+            .unwrap()
+            .0;
+        assert_eq!(second["messages"][0]["message_id"], "two");
+        assert_eq!(second["pagination"]["has_more"], false);
+        assert!(second["pagination"]["next_cursor"].is_null());
+    }
+
+    #[tokio::test]
+    async fn database_sidecar_exposes_only_read_tools_and_reports_its_source() {
+        let (_directory, source) = read_only_test_source().await;
         let cancellation = CancellationToken::new();
         let app = http_router(
             ServerState {
+                search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
                 source: McpSource::ReadOnly(source.clone()),
                 settings: McpSettings::disabled("test-token".into()),
             },
@@ -1703,12 +1862,45 @@ mod tests {
                 assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
             }
         }
+        for (name, arguments) in [
+            (
+                "mixin_search_messages",
+                json!({"query": "price alert", "limit": 1}),
+            ),
+            (
+                "mixin_list_messages",
+                json!({"conversation_id": "conversation", "start_created_at_micros": 0, "limit": 1}),
+            ),
+        ] {
+            let response = client
+                .post(&endpoint)
+                .bearer_auth("test-token")
+                .header("Accept", "application/json, text/event-stream")
+                .header("Content-Type", "application/json")
+                .body(
+                    json!({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                    "params": {"name": name, "arguments": arguments}})
+                    .to_string(),
+                )
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let body: Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
+            assert_ne!(body["result"]["isError"], true, "{body}");
+            assert_eq!(
+                body["result"]["structuredContent"]["messages"][0]["message_id"],
+                "price-alert-message",
+                "{body}"
+            );
+        }
         cancellation.cancel();
         tokio::time::timeout(std::time::Duration::from_secs(5), server)
             .await
             .unwrap()
             .unwrap();
         let service = McpService::new(ServerState {
+            search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
             source: McpSource::ReadOnly(source),
             settings: McpSettings::disabled("token".to_owned()),
         });
@@ -1721,16 +1913,19 @@ mod tests {
             .collect::<HashSet<_>>();
         let status = service.mixin_get_app_status().await.0;
         let search = service
-            .mixin_search_messages(Parameters(SearchMessagesInput {
-                query: "price alert".into(),
-                conversation_ids: Some(vec!["conversation".into()]),
-                sender_ids: Some(vec!["account-id".into()]),
-                categories: Some(vec!["PLAIN_TEXT".into()]),
-                start_created_at_micros: None,
-                end_created_at_micros: None,
-                cursor: None,
-                limit: Some(10),
-            }))
+            .search_messages_input(
+                SearchMessagesInput {
+                    query: "price alert".into(),
+                    conversation_ids: Some(vec!["conversation".into()]),
+                    sender_ids: Some(vec!["account-id".into()]),
+                    categories: Some(vec!["PLAIN_TEXT".into()]),
+                    start_created_at_micros: None,
+                    end_created_at_micros: None,
+                    cursor: None,
+                    limit: Some(10),
+                },
+                CancellationToken::new(),
+            )
             .await
             .unwrap()
             .0;

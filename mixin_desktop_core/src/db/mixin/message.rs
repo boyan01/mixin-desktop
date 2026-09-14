@@ -704,7 +704,25 @@ LIMIT ?4
         before_message_id: Option<&str>,
         limit: i64,
     ) -> Result<Vec<MessageListItem>, Error> {
-        let result = sqlx::query_as::<_, MessageListItem>(
+        self.list_items_in_range(
+            conversation_id,
+            before_created_at_millis,
+            before_message_id,
+            limit.clamp(1, 200),
+            (None, None),
+        )
+        .await
+    }
+
+    pub(crate) async fn list_items_in_range(
+        &self,
+        conversation_id: &str,
+        before_created_at_millis: Option<i64>,
+        before_message_id: Option<&str>,
+        limit: i64,
+        range_millis: (Option<i64>, Option<i64>),
+    ) -> Result<Vec<MessageListItem>, Error> {
+        let mut query = QueryBuilder::<Sqlite>::new(
             r#"
 SELECT message.message_id,
        message.conversation_id,
@@ -806,28 +824,33 @@ LEFT JOIN inscription_collections inscription_collection
 LEFT JOIN message_mentions mention ON mention.message_id = message.message_id
 LEFT JOIN pin_messages pin ON pin.message_id = message.message_id
 LEFT JOIN expired_messages expired ON expired.message_id = message.message_id
-WHERE message.conversation_id = ?1
-  AND (
-      ?2 IS NULL
-      OR message.created_at < ?2
-      OR (
-          message.created_at = ?2
-          AND message.rowid < (
-              SELECT rowid FROM messages WHERE message_id = ?3
-          )
-      )
-  )
-ORDER BY message.created_at DESC, message.rowid DESC
-LIMIT ?4
+WHERE message.conversation_id =
             "#,
-        )
-        .bind(conversation_id)
-        .bind(before_created_at_millis)
-        .bind(before_message_id.unwrap_or_default())
-        .bind(limit.clamp(1, 200))
-        .fetch_all(&self.0)
-        .await?;
-        Ok(result)
+        );
+        query.push_bind(conversation_id);
+        if let Some(start) = range_millis.0 {
+            query.push(" AND message.created_at >= ").push_bind(start);
+        }
+        if let Some(end) = range_millis.1 {
+            query.push(" AND message.created_at < ").push_bind(end);
+        }
+        if let Some(before) = before_created_at_millis {
+            query
+                .push(" AND message.created_at <= ")
+                .push_bind(before)
+                .push(" AND (message.created_at < ")
+                .push_bind(before)
+                .push(" OR message.rowid < (SELECT rowid FROM messages WHERE message_id = ")
+                .push_bind(before_message_id.unwrap_or_default())
+                .push("))");
+        }
+        query
+            .push(" ORDER BY message.created_at DESC, message.rowid DESC LIMIT ")
+            .push_bind(limit.clamp(1, 201));
+        Ok(query
+            .build_query_as::<MessageListItem>()
+            .fetch_all(&self.0)
+            .await?)
     }
 
     pub async fn list_items_by_ids(
@@ -2905,6 +2928,52 @@ mod tests {
             .unwrap();
         assert_eq!(persisted.status, MessageStatus::Read);
         assert_eq!(persisted.content.as_deref(), Some("normalized"));
+    }
+
+    #[tokio::test]
+    async fn time_range_pages_include_start_exclude_end_and_preserve_timestamp_ties() {
+        let (_directory, database) = test_database().await;
+        let dao = &database.message_dao;
+        let base = chrono::DateTime::from_timestamp_millis(1000)
+            .unwrap()
+            .naive_utc();
+        for (id, offset) in [
+            ("before", -1),
+            ("start", 0),
+            ("tie1", 1),
+            ("tie2", 1),
+            ("end", 2),
+        ] {
+            dao.insert_message(&Message {
+                message_id: id.into(),
+                created_at: base + chrono::Duration::milliseconds(offset),
+                ..message(id)
+            })
+            .await
+            .unwrap();
+        }
+        let range = (Some(1000), Some(1002));
+        let first = dao
+            .list_items_in_range("conversation", None, None, 1, range)
+            .await
+            .unwrap();
+        assert_eq!(first[0].message_id, "tie2");
+        let second = dao
+            .list_items_in_range("conversation", Some(1001), Some("tie2"), 10, range)
+            .await
+            .unwrap();
+        assert_eq!(
+            second
+                .iter()
+                .map(|item| item.message_id.as_str())
+                .collect::<Vec<_>>(),
+            ["tie1", "start"]
+        );
+        assert!(dao
+            .list_items_in_range("conversation", Some(1000), Some("start"), 10, range)
+            .await
+            .unwrap()
+            .is_empty());
     }
 
     #[tokio::test]

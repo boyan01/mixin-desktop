@@ -168,6 +168,58 @@ impl MessageFtsDao {
     }
 
     pub async fn search(&self, input: &MessageFtsSearch) -> Result<Vec<MessageFtsItem>, Error> {
+        let mut connection = self.0.acquire().await?;
+        Self::search_on(&mut connection, input).await
+    }
+
+    pub(crate) async fn search_bounded(
+        &self,
+        input: &MessageFtsSearch,
+        cancellation: tokio_util::sync::CancellationToken,
+        budget: std::time::Duration,
+    ) -> anyhow::Result<Vec<MessageFtsItem>> {
+        let cancellation = cancellation.child_token();
+        let started = std::time::Instant::now();
+        let deadline = started + budget;
+        let cancel_on_drop = cancellation.clone().drop_guard();
+        // Detach so a cancelled query can never return a poisoned progress handler to the pool.
+        // The pool can replenish its normal read capacity while this search runs.
+        let mut connection = tokio::select! {
+            _ = cancellation.cancelled() => anyhow::bail!("search_cancelled"),
+            result = tokio::time::timeout(budget, self.0.acquire()) => {
+                result.map_err(|_| anyhow::anyhow!("search_timeout: connection acquisition exceeded the search deadline"))??.detach()
+            }
+        };
+        let wait = started.elapsed();
+        install_search_progress_handler(&mut connection, cancellation.clone(), deadline).await?;
+        let result = Self::search_on(&mut connection, input).await;
+        let elapsed = started.elapsed();
+        let outcome = if cancellation.is_cancelled() {
+            "cancelled"
+        } else if std::time::Instant::now() >= deadline {
+            "timeout"
+        } else if result.is_err() {
+            "error"
+        } else {
+            "ok"
+        };
+        log::info!("MCP search outcome={outcome} connection_wait_ms={} elapsed_ms={} conversation_filters={} limit={}",
+            wait.as_millis(), elapsed.as_millis(), input.conversation_ids.len(), input.limit);
+        drop(cancel_on_drop);
+        match outcome {
+            "cancelled" => anyhow::bail!("search_cancelled"),
+            "timeout" => anyhow::bail!(
+                "search_timeout: search exceeded {} seconds; narrow the time range before retrying",
+                budget.as_secs()
+            ),
+            _ => Ok(result?),
+        }
+    }
+
+    async fn search_on(
+        connection: &mut sqlx::SqliteConnection,
+        input: &MessageFtsSearch,
+    ) -> Result<Vec<MessageFtsItem>, Error> {
         let Some(query) = match_query(&input.query) else {
             return Ok(Vec::new());
         };
@@ -180,7 +232,7 @@ impl MessageFtsDao {
                 "SELECT created_at, rowid FROM fts.messages_metas WHERE message_id = ? LIMIT 1",
             )
             .bind(message_id)
-            .fetch_optional(&self.0)
+            .fetch_optional(&mut *connection)
             .await?
             else {
                 return Ok(Vec::new());
@@ -190,12 +242,24 @@ impl MessageFtsDao {
             None
         };
 
-        let mut builder = QueryBuilder::<Sqlite>::new(
-            "SELECT meta.message_id FROM fts.messages_metas meta \
-             WHERE meta.doc_id IN (SELECT rowid FROM fts.messages_fts \
-             WHERE messages_fts MATCH ",
-        );
-        builder.push_bind(query).push(")");
+        // Bound the FTS posting-list scan only when the caller supplies a finite time window.
+        // Materializing candidates prevents SQLite from expanding the global MATCH first.
+        let bounded_window =
+            input.start_created_at_millis.is_some() && input.end_created_at_millis.is_some();
+        let mut builder = if bounded_window {
+            QueryBuilder::<Sqlite>::new(
+                "WITH candidates AS MATERIALIZED (SELECT meta.message_id, meta.doc_id, \
+                 meta.created_at, meta.rowid AS meta_rowid FROM fts.messages_metas meta WHERE 1=1",
+            )
+        } else {
+            let mut builder = QueryBuilder::<Sqlite>::new(
+                "SELECT meta.message_id FROM fts.messages_metas meta \
+                 WHERE meta.doc_id IN (SELECT rowid FROM fts.messages_fts \
+                 WHERE messages_fts MATCH ",
+            );
+            builder.push_bind(&query).push(")");
+            builder
+        };
         if !input.conversation_ids.is_empty() {
             builder.push(" AND meta.conversation_id IN (");
             let mut separated = builder.separated(", ");
@@ -236,14 +300,41 @@ impl MessageFtsDao {
                 .push_bind(row_id)
                 .push("))");
         }
-        builder
-            .push(" ORDER BY meta.created_at DESC, meta.rowid DESC LIMIT ")
-            .push_bind(input.limit.clamp(1, 200));
+        if bounded_window {
+            builder
+                .push(
+                    ") SELECT message_id FROM candidates WHERE doc_id IN (\
+                 SELECT rowid FROM fts.messages_fts WHERE messages_fts MATCH ",
+                )
+                .push_bind(&query)
+                .push(
+                    " AND rowid >= (SELECT min(doc_id) FROM candidates) \
+                 AND rowid <= (SELECT max(doc_id) FROM candidates)) \
+                 ORDER BY created_at DESC, meta_rowid DESC LIMIT ",
+                );
+        } else {
+            builder.push(" ORDER BY meta.created_at DESC, meta.rowid DESC LIMIT ");
+        }
+        builder.push_bind(input.limit.clamp(1, 200));
         Ok(builder
             .build_query_as::<MessageFtsItem>()
-            .fetch_all(&self.0)
+            .fetch_all(&mut *connection)
             .await?)
     }
+}
+
+async fn install_search_progress_handler(
+    connection: &mut sqlx::SqliteConnection,
+    cancellation: tokio_util::sync::CancellationToken,
+    deadline: std::time::Instant,
+) -> Result<(), sqlx::Error> {
+    connection
+        .lock_handle()
+        .await?
+        .set_progress_handler(1000, move || {
+            !cancellation.is_cancelled() && std::time::Instant::now() < deadline
+        });
+    Ok(())
 }
 
 pub(crate) fn message_fts_content(message: &Message) -> Option<String> {
@@ -340,6 +431,244 @@ mod tests {
     use crate::db::mixin::MixinDatabase;
 
     use super::MessageFtsSearch;
+
+    #[tokio::test]
+    async fn bounded_window_avoids_expanding_historical_matches() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        let mut connection = database.message_fts_dao.0.acquire().await.unwrap();
+        sqlx::raw_sql("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<20000)
+            INSERT INTO fts.messages_fts(rowid,content) SELECT x,'needle' FROM n;
+            INSERT INTO fts.messages_metas(doc_id,message_id,conversation_id,category,user_id,created_at)
+            SELECT rowid,CAST(rowid AS TEXT),'scope','PLAIN_TEXT','alice',rowid FROM fts.messages_fts;")
+            .execute(&mut *connection).await.unwrap();
+        let steps = Arc::new(AtomicUsize::new(0));
+        let counter = steps.clone();
+        connection
+            .lock_handle()
+            .await
+            .unwrap()
+            .set_progress_handler(100, move || {
+                counter.fetch_add(1, Ordering::Relaxed);
+                true
+            });
+        let input = MessageFtsSearch {
+            query: "needle".into(),
+            conversation_ids: vec!["scope".into()],
+            start_created_at_millis: Some(19990),
+            end_created_at_millis: Some(20001),
+            limit: 5,
+            ..Default::default()
+        };
+        let optimized = super::MessageFtsDao::search_on(&mut connection, &input)
+            .await
+            .unwrap();
+        let optimized_steps = steps.swap(0, Ordering::Relaxed);
+        let original = sqlx::query_as::<_, super::MessageFtsItem>(
+            "SELECT meta.message_id FROM fts.messages_metas meta WHERE meta.doc_id IN
+             (SELECT rowid FROM fts.messages_fts WHERE messages_fts MATCH ?)
+             AND meta.conversation_id IN (?) AND meta.created_at >= ? AND meta.created_at < ?
+             ORDER BY meta.created_at DESC, meta.rowid DESC LIMIT ?",
+        )
+        .bind("\"needle\"*")
+        .bind("scope")
+        .bind(19990_i64)
+        .bind(20001_i64)
+        .bind(5_i64)
+        .fetch_all(&mut *connection)
+        .await
+        .unwrap();
+        let original_steps = steps.load(Ordering::Relaxed);
+        connection
+            .lock_handle()
+            .await
+            .unwrap()
+            .remove_progress_handler();
+        assert_eq!(optimized, original);
+        assert!(
+            optimized_steps * 2 < original_steps,
+            "bounded={optimized_steps}, original={original_steps}"
+        );
+        drop(connection);
+        database.close().await;
+    }
+
+    #[tokio::test]
+    async fn bounded_window_preserves_filters_cursor_ties_and_nonchronological_doc_ids() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        for (doc_id, id, conversation, user, category, timestamp, content) in [
+            (100, "old", "a", "alice", "PLAIN_TEXT", 100, "needle"),
+            (3, "tie1", "b", "alice", "PLAIN_TEXT", 150, "needle"),
+            (50, "tie2", "a", "alice", "PLAIN_TEXT", 150, "needles"),
+            (40, "wrong-user", "a", "bob", "PLAIN_TEXT", 160, "needle"),
+            (
+                45,
+                "wrong-category",
+                "a",
+                "alice",
+                "PLAIN_IMAGE",
+                170,
+                "needle",
+            ),
+            (
+                46,
+                "wrong-conversation",
+                "c",
+                "alice",
+                "PLAIN_TEXT",
+                180,
+                "needle",
+            ),
+            (
+                47,
+                "wrong-text",
+                "a",
+                "alice",
+                "PLAIN_TEXT",
+                180,
+                "different",
+            ),
+            (48, "end", "a", "alice", "PLAIN_TEXT", 200, "needle"),
+        ] {
+            sqlx::query("INSERT INTO fts.messages_fts(rowid,content) VALUES (?,?)")
+                .bind(doc_id)
+                .bind(content)
+                .execute(&database.message_fts_dao.0)
+                .await
+                .unwrap();
+            sqlx::query("INSERT INTO fts.messages_metas(doc_id,message_id,conversation_id,user_id,category,created_at) VALUES (?,?,?,?,?,?)")
+                .bind(doc_id).bind(id).bind(conversation).bind(user).bind(category).bind(timestamp)
+                .execute(&database.message_fts_dao.0).await.unwrap();
+        }
+        let mut input = MessageFtsSearch {
+            query: "needle".into(),
+            conversation_ids: vec!["a".into(), "b".into()],
+            sender_ids: vec!["alice".into()],
+            categories: vec!["PLAIN_TEXT".into()],
+            start_created_at_millis: Some(100),
+            end_created_at_millis: Some(200),
+            limit: 1,
+            ..Default::default()
+        };
+        for expected in ["tie2", "tie1", "old"] {
+            let page = database.message_fts_dao.search(&input).await.unwrap();
+            assert_eq!(
+                page.iter()
+                    .map(|item| item.message_id.as_str())
+                    .collect::<Vec<_>>(),
+                [expected]
+            );
+            input.cursor_message_id = Some(expected.into());
+        }
+        assert!(database
+            .message_fts_dao
+            .search(&input)
+            .await
+            .unwrap()
+            .is_empty());
+        input.cursor_message_id = None;
+        input.conversation_ids = vec!["missing".into()];
+        assert!(database
+            .message_fts_dao
+            .search(&input)
+            .await
+            .unwrap()
+            .is_empty());
+        database.close().await;
+    }
+
+    #[tokio::test]
+    async fn bounded_search_times_out_expensive_sql_and_leaves_pool_available() {
+        use std::time::Duration;
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        sqlx::raw_sql("ATTACH DATABASE ':memory:' AS fts;
+            CREATE VIRTUAL TABLE fts.messages_fts USING fts5(content);
+            INSERT INTO fts.messages_fts(content) VALUES ('needle');
+            CREATE VIEW fts.messages_metas AS
+                WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<1000000000)
+                SELECT 1 AS doc_id, CAST(x AS TEXT) AS message_id, x AS created_at, x AS rowid FROM n;")
+            .execute(&pool).await.unwrap();
+        let dao = super::MessageFtsDao(pool.clone());
+        let error = tokio::time::timeout(
+            Duration::from_secs(2),
+            dao.search_bounded(
+                &MessageFtsSearch {
+                    query: "needle".into(),
+                    limit: 1,
+                    ..Default::default()
+                },
+                tokio_util::sync::CancellationToken::new(),
+                Duration::from_millis(10),
+            ),
+        )
+        .await
+        .expect("bounded search must stop SQLite")
+        .unwrap_err();
+        assert!(error.to_string().starts_with("search_timeout:"), "{error}");
+        assert_eq!(
+            sqlx::query_scalar::<_, i64>("SELECT 42")
+                .fetch_one(&pool)
+                .await
+                .unwrap(),
+            42
+        );
+        pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn search_progress_interrupts_expired_and_cancelled_sql_without_blocking_reads() {
+        use std::time::{Duration, Instant};
+        use tokio_util::sync::CancellationToken;
+        for cancelled in [false, true] {
+            let pool = sqlx::sqlite::SqlitePoolOptions::new()
+                .max_connections(1)
+                .connect("sqlite::memory:")
+                .await
+                .unwrap();
+            let mut search = pool.acquire().await.unwrap().detach();
+            let cancellation = CancellationToken::new();
+            super::install_search_progress_handler(
+                &mut search,
+                cancellation.clone(),
+                Instant::now() + Duration::from_millis(10),
+            )
+            .await
+            .unwrap();
+            if cancelled {
+                cancellation.cancel();
+            }
+            let error = tokio::time::timeout(Duration::from_secs(2),
+                sqlx::query("WITH RECURSIVE n(x) AS (VALUES(0) UNION ALL SELECT x+1 FROM n WHERE x<1000000000) SELECT sum(x) FROM n")
+                    .fetch_one(&mut search)).await.expect("SQLite must stop executing").unwrap_err();
+            assert!(error.to_string().contains("interrupted"), "{error}");
+            // A detached search must not exhaust even a one-connection read pool.
+            assert_eq!(
+                tokio::time::timeout(
+                    Duration::from_secs(2),
+                    sqlx::query_scalar::<_, i64>("SELECT 42").fetch_one(&pool)
+                )
+                .await
+                .unwrap()
+                .unwrap(),
+                42
+            );
+            drop(search);
+            pool.close().await;
+        }
+    }
 
     #[tokio::test]
     async fn uses_flutter_fts_database() {

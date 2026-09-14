@@ -74,6 +74,10 @@ impl Config {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let mut logging = simplelog::ConfigBuilder::new();
+    logging.add_filter_allow_str("mixin_desktop_core::db::mixin::message_fts");
+    logging.add_filter_allow_str("mixin_desktop_core::runtime::mcp");
+    simplelog::WriteLogger::init(log::LevelFilter::Info, logging.build(), std::io::stderr())?;
     let mut arguments = env::args().skip(1);
     let command = arguments.next().unwrap_or_else(|| "--help".into());
     if matches!(command.as_str(), "-h" | "--help") {

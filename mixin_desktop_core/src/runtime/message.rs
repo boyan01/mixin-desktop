@@ -309,6 +309,24 @@ impl MessageAccess {
         before_message_id: Option<String>,
         limit: i64,
     ) -> Result<Vec<model::MessageListView>> {
+        self.messages_in_range(
+            conversation_id,
+            before_created_at_micros,
+            before_message_id,
+            limit.clamp(1, 200),
+            (None, None),
+        )
+        .await
+    }
+
+    pub(crate) async fn messages_in_range(
+        &self,
+        conversation_id: String,
+        before_created_at_micros: Option<i64>,
+        before_message_id: Option<String>,
+        limit: i64,
+        range_millis: (Option<i64>, Option<i64>),
+    ) -> Result<Vec<model::MessageListView>> {
         let before_message_id = before_message_id.as_deref();
         let conversation_id = conversation_id.as_str();
         if before_created_at_micros.is_some() != before_message_id.is_some() {
@@ -320,11 +338,12 @@ impl MessageAccess {
             before_created_at_micros.map(|value| value.div_euclid(1_000));
         self.database
             .message_dao
-            .list_items(
+            .list_items_in_range(
                 conversation_id,
                 before_created_at_millis,
                 before_message_id,
                 limit,
+                range_millis,
             )
             .await?
             .into_iter()
