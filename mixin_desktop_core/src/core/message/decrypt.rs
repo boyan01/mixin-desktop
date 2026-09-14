@@ -452,7 +452,7 @@ impl ServiceDecryptMessage {
         let users = self
             .app_service
             .conversation
-            .refresh_user(&user_ids, false)
+            .cached_users_or_enqueue(&user_ids, false)
             .await?;
         let user_names = users
             .into_iter()
@@ -776,7 +776,7 @@ impl ServiceDecryptMessage {
     ) -> Result<()> {
         self.app_service
             .conversation
-            .refresh_user(std::slice::from_ref(data.sender_id()), false)
+            .cached_users_or_enqueue(std::slice::from_ref(data.sender_id()), false)
             .await?;
         let quote_message = if let Some(quote_message_id) = data.quote_message_id.clone() {
             self.database
@@ -893,17 +893,17 @@ impl ServiceDecryptMessage {
             let users = self
                 .app_service
                 .conversation
-                .refresh_user(&[contact_message.user_id], false)
+                .cached_users_or_enqueue(std::slice::from_ref(&contact_message.user_id), false)
                 .await?;
-            let user = users.first().ok_or(anyhow!("failed to find user"))?;
+            let user = users.first();
             let message = Message {
                 message_id: data.message_id.clone(),
                 conversation_id: data.conversation_id.clone(),
                 user_id: data.sender_id().clone(),
                 category: data.category.clone(),
                 content: Some(plain),
-                name: Some(user.full_name.clone()),
-                shared_user_id: Some(user.user_id.clone()),
+                name: user.map(|user| user.full_name.clone()),
+                shared_user_id: Some(contact_message.user_id),
                 status: data.status,
                 created_at: data.created_at.naive_utc(),
                 quote_message_id: data.quote_message_id.clone(),
@@ -1126,7 +1126,7 @@ impl ServiceDecryptMessage {
     async fn process_app_card(&self, data: &BlazeMessageData) -> Result<()> {
         self.app_service
             .conversation
-            .refresh_user(std::slice::from_ref(&data.user_id), false)
+            .cached_users_or_enqueue(std::slice::from_ref(&data.user_id), false)
             .await?;
         let content = decode(&data.data)?;
 
@@ -1137,16 +1137,10 @@ impl ServiceDecryptMessage {
             .find_app_by_id(&app_card.app_id)
             .await?;
         if app.is_none() || app.is_some_and(|a| a.updated_at != app_card.updated_at) {
-            let app_service = self.app_service.clone();
-            std::mem::drop(tokio::spawn(async move {
-                if let Err(error) = app_service
-                    .conversation
-                    .refresh_user(std::slice::from_ref(&app_card.app_id), true)
-                    .await
-                {
-                    warn!("failed to refresh app {}: {error}", app_card.app_id);
-                }
-            }));
+            self.app_service
+                .conversation
+                .cached_users_or_enqueue(std::slice::from_ref(&app_card.app_id), true)
+                .await?;
         }
 
         let message = Message {
@@ -1445,7 +1439,7 @@ impl ServiceDecryptMessage {
                     .await?;
                 self.app_service
                     .conversation
-                    .refresh_user(std::slice::from_ref(&message.participant_id), false)
+                    .cached_users_or_enqueue(std::slice::from_ref(&message.participant_id), false)
                     .await?;
             } else {
                 let user_ids = std::slice::from_ref(&message.participant_id);
@@ -1455,7 +1449,7 @@ impl ServiceDecryptMessage {
                     .await?;
                 self.app_service
                     .conversation
-                    .refresh_user(user_ids, false)
+                    .cached_users_or_enqueue(user_ids, false)
                     .await?;
             }
         } else if message.action == message_action::REMOVE || message.action == message_action::EXIT
@@ -1468,7 +1462,7 @@ impl ServiceDecryptMessage {
             }
             self.app_service
                 .conversation
-                .refresh_user(std::slice::from_ref(&message.participant_id), false)
+                .cached_users_or_enqueue(std::slice::from_ref(&message.participant_id), false)
                 .await?;
             self.sender
                 .send_process_signal_key(
@@ -1480,7 +1474,7 @@ impl ServiceDecryptMessage {
             if !message.participant_id.is_empty() {
                 self.app_service
                     .conversation
-                    .refresh_user(std::slice::from_ref(&message.participant_id), true)
+                    .cached_users_or_enqueue(std::slice::from_ref(&message.participant_id), true)
                     .await?;
             } else {
                 self.app_service
@@ -1530,16 +1524,10 @@ impl ServiceDecryptMessage {
 
     async fn process_system_user_message(&self, m: SystemUserMessage) -> Result<()> {
         if m.action == message_action::UPDATE {
-            let app_service = self.app_service.clone();
-            std::mem::drop(tokio::spawn(async move {
-                if let Err(error) = app_service
-                    .conversation
-                    .refresh_user(std::slice::from_ref(&m.user_id), true)
-                    .await
-                {
-                    warn!("failed to refresh user {}: {error}", m.user_id);
-                }
-            }));
+            self.app_service
+                .conversation
+                .cached_users_or_enqueue(std::slice::from_ref(&m.user_id), true)
+                .await?;
         }
         Ok(())
     }
@@ -1572,7 +1560,7 @@ impl ServiceDecryptMessage {
             if let Some(user_id) = message.user_id.as_ref() {
                 self.app_service
                     .conversation
-                    .refresh_user(std::slice::from_ref(user_id), false)
+                    .cached_users_or_enqueue(std::slice::from_ref(user_id), false)
                     .await?;
             }
             let conversation_id = message.conversation_id.unwrap_or(
@@ -1816,6 +1804,211 @@ impl ServiceDecryptMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn missing_profiles_do_not_block_message_storage_or_quote_reads() {
+        use crate::core::attachment::AttachmentService;
+        use crate::core::message::blaze::Blaze;
+        use crate::core::model::{conversation::ConversationService, signal::SignalService};
+        use crate::db::SignalDatabase;
+        use chrono::Utc;
+
+        let directory = tempfile::tempdir().unwrap();
+        let database = Arc::new(
+            MixinDatabase::connect_at(directory.path().join("mixin.db"))
+                .await
+                .unwrap(),
+        );
+        let signal_database = Arc::new(
+            SignalDatabase::connect_at(directory.path().join("signal.db"))
+                .await
+                .unwrap(),
+        );
+        // Invalid signing material rejects accidental API calls before any network I/O.
+        let client = Arc::new(sdk::Client::new(sdk::Credential::KeyStore(sdk::KeyStore {
+            app_id: "test".into(),
+            session_id: "test".into(),
+            server_public_key: String::new(),
+            session_private_key: "invalid".into(),
+            scp: String::new(),
+        })));
+        let mut account = serde_json::json!({});
+        for key in [
+            "user_id",
+            "biography",
+            "code_id",
+            "code_url",
+            "created_at",
+            "device_status",
+            "fiat_currency",
+            "accept_search_source",
+            "accept_conversation_source",
+            "receive_message_source",
+            "identity_number",
+            "mute_until",
+            "phone",
+            "pin_token",
+            "pin_token_base64",
+            "salt_base64",
+            "session_id",
+            "spend_public_key",
+            "tip_key_base64",
+        ] {
+            account[key] = "".into();
+        }
+        for key in [
+            "has_emergency_contact",
+            "has_pin",
+            "has_safe",
+            "is_deactivated",
+            "is_scam",
+            "is_verified",
+        ] {
+            account[key] = false.into();
+        }
+        for key in [
+            "tip_counter",
+            "transfer_confirmation_threshold",
+            "transfer_notification_threshold",
+        ] {
+            account[key] = 0.into();
+        }
+        account["user_id"] = "me".into();
+        account["identity_number"] = "1".into();
+        let auth = Auth {
+            user_id: "me".into(),
+            private_key: vec![],
+            primary_session_id: None,
+            account: serde_json::from_value(account).unwrap(),
+        };
+        let conversation = ConversationService::new(database.clone(), client.clone(), "me".into());
+        let protocol = Arc::new(SignalProtocol::new(signal_database.clone(), "me".into()));
+        let blaze = Arc::new(Blaze::new(
+            database.clone(),
+            client.clone(),
+            sdk::Credential::None,
+            "me".into(),
+            None,
+        ));
+        let sender = Arc::new(MessageSender::new(
+            blaze.clone(),
+            conversation,
+            database.clone(),
+            "me".into(),
+            "".into(),
+            protocol.clone(),
+            SignalService::new(protocol.clone(), signal_database.clone(), client.clone()),
+        ));
+        let attachment = Arc::new(AttachmentService::new(
+            client.clone(),
+            reqwest::Client::new(),
+            directory.path(),
+        ));
+        let app = Arc::new(AppService::new(
+            database.clone(),
+            client,
+            &auth,
+            sender.clone(),
+            attachment,
+            None,
+        ));
+        let service = ServiceDecryptMessage::new(
+            database.clone(),
+            app,
+            protocol,
+            sender,
+            blaze.pending_message_statuses(),
+            &auth,
+        );
+        let now = Utc::now();
+        database
+            .conversation_dao
+            .insert(&crate::db::mixin::conversation::Conversation {
+                conversation_id: "conversation".into(),
+                owner_id: Some("missing-sender".into()),
+                category: Some(sdk::ConversationCategory::Contact),
+                name: String::new(),
+                icon_url: String::new(),
+                announcement: String::new(),
+                code_url: String::new(),
+                created_at: now,
+                status: ConversationStatus::SUCCESS,
+                mute_until: now,
+                expire_in: 0,
+            })
+            .await
+            .unwrap();
+        for (id, category, content) in [
+            ("text", "PLAIN_TEXT", "hello"),
+            (
+                "contact",
+                "PLAIN_CONTACT",
+                r#"{"user_id":"missing-contact"}"#,
+            ),
+            ("next", "PLAIN_TEXT", "following message"),
+        ] {
+            let data = serde_json::json!({"conversation_id":"conversation", "user_id":"missing-sender",
+                "message_id":id, "category":category, "data":Base64::encode_string(content.as_bytes()),
+                "status":"SENT", "created_at":now, "updated_at":now, "source":"CREATE_MESSAGE", "session_id":""});
+            let flood = FloodMessage {
+                message_id: id.into(),
+                data: data.to_string(),
+                created_at: now.naive_utc(),
+            };
+            tokio::time::timeout(Duration::from_secs(2), service.process_message(&flood))
+                .await
+                .unwrap()
+                .unwrap();
+            let stored = database
+                .message_dao
+                .find_message_by_id(&id.to_string())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_ne!(stored.status, MessageStatus::Unknown);
+            assert_eq!(stored.category, category);
+            if id == "contact" {
+                assert_eq!(stored.shared_user_id.as_deref(), Some("missing-contact"));
+                assert_eq!(stored.name, None);
+            } else {
+                assert_eq!(stored.content.as_deref(), Some(content));
+            }
+            assert!(database
+                .message_dao
+                .find_quote_message_by_id(id)
+                .await
+                .unwrap()
+                .is_some());
+        }
+        assert_eq!(
+            service.app_service.conversation.pending_user_count().await,
+            2
+        );
+        let mut missing = database
+            .user_dao
+            .missing_referenced_user_ids()
+            .await
+            .unwrap();
+        missing.sort();
+        assert_eq!(missing, ["missing-contact", "missing-sender"]);
+        let items = database
+            .conversation_dao
+            .list_items("chats", None, "", false, 10, 0)
+            .await
+            .unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "missing-sender");
+        assert_eq!(
+            database
+                .conversation_dao
+                .count_items("chats", None, "", false)
+                .await
+                .unwrap(),
+            1
+        );
+        signal_database.close().await;
+        database.close().await;
+    }
 
     fn fts_message(category: &str, content: Option<&str>) -> Message {
         Message {

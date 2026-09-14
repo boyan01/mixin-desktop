@@ -394,7 +394,7 @@ pub struct QuoteMessage {
 
 const QUOTE_MESSAGE_QUERY_PREFIX: &str = r#"
 SELECT message.message_id AS messageId, message.conversation_id AS conversationId,
-    sender.user_id AS userId,
+    message.user_id AS userId,
     sender.full_name AS userFullName, sender.identity_number AS userIdentityNumber,
     sender.app_id AS appId,
     message.category AS type,
@@ -415,7 +415,7 @@ SELECT message.message_id AS messageId, message.conversation_id AS conversationI
     shareUser.avatar_url AS sharedUserAvatarUrl, shareUser.is_verified AS sharedUserIsVerified,
     shareUser.app_id AS sharedUserAppId
 FROM messages message
-         INNER JOIN users sender ON message.user_id = sender.user_id
+         LEFT JOIN users sender ON message.user_id = sender.user_id
          LEFT JOIN stickers sticker ON sticker.sticker_id = message.sticker_id
          LEFT JOIN users shareUser ON message.shared_user_id = shareUser.user_id
          LEFT JOIN message_mentions messageMention ON message.message_id = messageMention.message_id
@@ -484,11 +484,11 @@ SELECT message.rowid AS row_id,
        COALESCE(conversation.category, '') AS conversation_category,
        CASE WHEN conversation.category = 'GROUP'
             THEN conversation.mute_until >= ?3
-            ELSE owner.mute_until >= ?3 END AS is_muted
+            ELSE COALESCE(owner.mute_until >= ?3, FALSE) END AS is_muted
 FROM messages message
 INNER JOIN conversations conversation
         ON conversation.conversation_id = message.conversation_id
-INNER JOIN users owner ON owner.user_id = conversation.owner_id
+LEFT JOIN users owner ON owner.user_id = conversation.owner_id
 LEFT JOIN users sender ON sender.user_id = message.user_id
 WHERE message.user_id != ?1
   AND message.rowid > ?2

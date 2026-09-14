@@ -30,9 +30,11 @@ These rules extend the repository-level `AGENTS.md` for work under `flutter/`.
 
 ## Testing and validation
 
-- Regression fixes require a test that fails for the original bug. Test observable behavior through public methods and user interaction rather than private widget structure.
-- Controller tests must cover the relevant loading, success, failure, retry/supersession, disposal, and stale-result paths. Fakes must reject unexpected calls and record meaningful arguments.
-- Widget tests must mount the smallest production-like tree with required providers, localization, `Portal`, overlays, and navigation shell. Interact through taps, text entry, keyboard, focus, or scrolling and assert user-visible results.
+- Follow the repository-level preference to avoid new UI-layer tests by default. Do not use Computer Use for UI testing unless explicitly requested; a UI smoke test is not required for handoff.
+
+- Prefer regression coverage at the Rust/business layer. UI-only fixes do not require new tests; when a UI test is explicitly requested or justified by a concrete high-value regression, test observable behavior rather than private widget structure.
+- When adding controller tests, cover the relevant loading, success, failure, retry/supersession, disposal, and stale-result paths. Fakes must reject unexpected calls and record meaningful arguments.
+- When adding widget tests, mount the smallest production-like tree with required providers, localization, `Portal`, overlays, and navigation shell. Interact through taps, text entry, keyboard, focus, or scrolling and assert user-visible results.
 - Close streams, timers, completers, platform handlers, and global overrides in teardown. Keep tests hermetic and order-independent.
 - Run `dart format` on touched Dart files, then the narrow relevant tests. Before handoff, run `flutter analyze`, the relevant `flutter test` targets, and `git diff --check`; use the full Flutter suite and `flutter build macos --debug` for broad UI, bridge, plugin, or native changes.
 - After changing an FRB-visible Rust API, stabilize the API first, run `flutter_rust_bridge_codegen generate` from `flutter/`, and include the generated bindings.

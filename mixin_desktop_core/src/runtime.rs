@@ -993,7 +993,7 @@ async fn run_account(context: AccountRunContext) {
     let result = prepare_account(
         &auth,
         client.clone(),
-        conversation_changes,
+        conversation_changes.clone(),
         notification_changes,
         initial_account_health,
         attachment_transfer_requests,
@@ -1035,6 +1035,9 @@ async fn run_account(context: AccountRunContext) {
             if let Err(error) = result {
                 error!("Blaze stopped: {error:?}");
             }
+        }
+        _ = app_service.conversation.run_user_refresh(conversation_changes) => {
+            warn!("user profile refresh service stopped");
         }
         _ = decrypt_message.start() => {
             warn!("message decrypt service stopped");

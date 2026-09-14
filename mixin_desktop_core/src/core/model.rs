@@ -39,7 +39,7 @@ impl AppService {
         changes: Option<ConversationChangeNotifier>,
     ) -> Self {
         let account_id = auth.account.user_id.clone();
-        let conversation = ConversationService::new(db.clone(), client.clone(), account_id.clone());
+        let conversation = message_sender.conversation.clone();
         let expired_message =
             expired_message::ExpiredMessageService::new(db.clone(), changes.clone());
         let expired_message_notify = expired_message.notifier();

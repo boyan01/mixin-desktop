@@ -28,7 +28,7 @@ use crate::db::MixinDatabase;
 #[derive(Clone)]
 pub struct MessageSender {
     blaze: Arc<Blaze>,
-    conversation: ConversationService,
+    pub(crate) conversation: ConversationService,
     database: Arc<MixinDatabase>,
     account_id: String,
     session_id: String,

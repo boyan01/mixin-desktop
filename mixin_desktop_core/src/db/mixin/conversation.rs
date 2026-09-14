@@ -103,7 +103,7 @@ impl ConversationDao {
             r#"
 SELECT COUNT(*)
 FROM conversations conversation
-INNER JOIN users owner ON owner.user_id = conversation.owner_id
+LEFT JOIN users owner ON owner.user_id = conversation.owner_id
 LEFT JOIN messages last_message ON last_message.message_id = conversation.last_message_id
 WHERE conversation.category IN ('CONTACT', 'GROUP')
   AND (
@@ -113,7 +113,7 @@ WHERE conversation.category IN ('CONTACT', 'GROUP')
       OR (?1 = 'groups' AND conversation.category = 'GROUP')
       OR (?1 = 'bots' AND conversation.category = 'CONTACT' AND owner.app_id IS NOT NULL)
       OR (?1 = 'strangers' AND conversation.category = 'CONTACT'
-          AND owner.relationship = 'STRANGER' AND owner.app_id IS NULL)
+          AND COALESCE(owner.relationship, 'STRANGER') = 'STRANGER' AND owner.app_id IS NULL)
       OR (?1 = 'circle' AND EXISTS (
           SELECT 1 FROM circle_conversations circle_conversation
           WHERE circle_conversation.conversation_id = conversation.conversation_id
@@ -124,7 +124,7 @@ WHERE conversation.category IN ('CONTACT', 'GROUP')
   AND (
       ?4 = ''
       OR CASE WHEN conversation.category = 'GROUP'
-              THEN conversation.name ELSE owner.full_name END LIKE '%' || ?4 || '%' COLLATE NOCASE
+              THEN conversation.name ELSE COALESCE(owner.full_name, conversation.owner_id, '') END LIKE '%' || ?4 || '%' COLLATE NOCASE
       OR owner.identity_number LIKE '%' || ?4 || '%' COLLATE NOCASE
       OR COALESCE(last_message.content, '') LIKE '%' || ?4 || '%' COLLATE NOCASE
   )
@@ -202,11 +202,11 @@ SELECT conversation.conversation_id,
        COALESCE(conversation.owner_id, '') AS owner_id,
        CASE
            WHEN conversation.category = 'GROUP' THEN conversation.name
-           ELSE owner.full_name
+           ELSE COALESCE(owner.full_name, conversation.owner_id, '')
        END AS name,
        CASE
            WHEN conversation.category = 'GROUP' THEN conversation.icon_url
-           ELSE owner.avatar_url
+           ELSE COALESCE(owner.avatar_url, '')
        END AS avatar_url,
        conversation.category,
        COALESCE(conversation.draft, '') AS draft,
@@ -270,7 +270,7 @@ SELECT conversation.conversation_id,
            ) avatar_user
        ), '') ELSE '' END AS group_avatar_data
 FROM conversations conversation
-INNER JOIN users owner ON owner.user_id = conversation.owner_id
+LEFT JOIN users owner ON owner.user_id = conversation.owner_id
 LEFT JOIN messages last_message ON last_message.message_id = conversation.last_message_id
 LEFT JOIN users last_message_sender ON last_message_sender.user_id = last_message.user_id
 LEFT JOIN users last_message_participant ON last_message_participant.user_id = last_message.participant_id
@@ -282,7 +282,7 @@ WHERE conversation.category IN ('CONTACT', 'GROUP')
       OR (?1 = 'groups' AND conversation.category = 'GROUP')
       OR (?1 = 'bots' AND conversation.category = 'CONTACT' AND owner.app_id IS NOT NULL)
       OR (?1 = 'strangers' AND conversation.category = 'CONTACT'
-          AND owner.relationship = 'STRANGER' AND owner.app_id IS NULL)
+          AND COALESCE(owner.relationship, 'STRANGER') = 'STRANGER' AND owner.app_id IS NULL)
       OR (?1 = 'circle' AND EXISTS (
           SELECT 1 FROM circle_conversations circle_conversation
           WHERE circle_conversation.conversation_id = conversation.conversation_id
@@ -293,7 +293,7 @@ WHERE conversation.category IN ('CONTACT', 'GROUP')
   AND (
       ?4 = ''
       OR CASE WHEN conversation.category = 'GROUP'
-              THEN conversation.name ELSE owner.full_name END LIKE '%' || ?4 || '%' COLLATE NOCASE
+              THEN conversation.name ELSE COALESCE(owner.full_name, conversation.owner_id, '') END LIKE '%' || ?4 || '%' COLLATE NOCASE
       OR owner.identity_number LIKE '%' || ?4 || '%' COLLATE NOCASE
       OR COALESCE(last_message.content, '') LIKE '%' || ?4 || '%' COLLATE NOCASE
   )
@@ -331,10 +331,10 @@ WITH base AS (
            CASE
                WHEN conversation.category = 'GROUP'
                    THEN conversation.mute_until > CAST(unixepoch('subsec') * 1000 AS INTEGER)
-               ELSE owner.mute_until > CAST(unixepoch('subsec') * 1000 AS INTEGER)
+               ELSE COALESCE(owner.mute_until > CAST(unixepoch('subsec') * 1000 AS INTEGER), FALSE)
            END AS is_muted
     FROM conversations conversation
-    INNER JOIN users owner ON owner.user_id = conversation.owner_id
+    LEFT JOIN users owner ON owner.user_id = conversation.owner_id
     WHERE conversation.category IN ('CONTACT', 'GROUP')
       AND COALESCE(conversation.unseen_message_count, 0) > 0
 ), classified AS (
@@ -369,13 +369,13 @@ ORDER BY category, circle_id
             r#"
 SELECT COALESCE(SUM(conversation.unseen_message_count), 0)
 FROM conversations conversation
-INNER JOIN users owner ON owner.user_id = conversation.owner_id
+LEFT JOIN users owner ON owner.user_id = conversation.owner_id
 WHERE conversation.category IN ('CONTACT', 'GROUP')
   AND COALESCE(conversation.unseen_message_count, 0) > 0
   AND CASE
           WHEN conversation.category = 'GROUP'
               THEN conversation.mute_until <= CAST(unixepoch('subsec') * 1000 AS INTEGER)
-          ELSE owner.mute_until <= CAST(unixepoch('subsec') * 1000 AS INTEGER)
+          ELSE COALESCE(owner.mute_until <= CAST(unixepoch('subsec') * 1000 AS INTEGER), TRUE)
       END
             "#,
         )

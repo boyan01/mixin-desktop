@@ -248,7 +248,7 @@ For each feature or vertical slice:
 3. Locate the existing Rust implementation in `mixin_desktop_api` and `mixin_desktop_core`. Identify missing commands, DTOs, and events before building Swift state around gaps.
 4. Add or stabilize the smallest coarse Rust API that owns the behavior. Add Rust contract tests first for new rules, queries, transitions, or persistence.
 5. Implement the Swift feature end to end: model, view, navigation, keyboard/menu behavior, accessibility, cancellation, error presentation, and previews.
-6. Add model tests and targeted UI tests. Run a live app smoke test when real startup, account state, Blaze, Signal, notifications, media, or file access is involved.
+6. Prefer Rust/business-layer regression tests and relevant existing tests. Avoid adding UI model or UI tests by default. Validate startup, account state, Blaze, Signal, notifications, media, and file access through non-UI runtime checks; an automated UI smoke test is not required.
 7. Compare the running Swift feature with the source behavior. Record any concrete unresolved parity question and leave unsupported actions visibly disabled until the Rust operation exists.
 
 A feature is complete only when all source entry paths and user-visible actions work. A screen that renders while commands are silent no-ops, hidden, or permanently disabled is incomplete.
@@ -281,8 +281,10 @@ This order expresses dependencies only. Re-check the current source before every
 
 ## Testing discipline
 
+- Follow the repository-level preference to avoid new UI-layer tests by default. Do not use Computer Use for UI testing unless explicitly requested; a UI smoke test is not required for handoff.
+
 - Test observable contracts rather than incidental SwiftUI structure.
-- Use Swift Testing or XCTest model tests under `MixinMessengerTests/`. Use `MixinMessengerUITests/` for a small set of high-value navigation, keyboard, menu, drag/drop, and accessibility flows.
+- When UI-layer tests are explicitly requested or justified by a concrete high-value regression, place Swift Testing or XCTest model tests under `MixinMessengerTests/` and UI tests under `MixinMessengerUITests/`.
 - Model test names state the precondition, action, and expected result.
 - Fakes conform to generated handle protocols where practical, fail on unexpected calls, record meaningful arguments, and use deterministic async streams.
 - Cover initial loading, cached content, empty state, failure and retry, live event updates, cancellation, supersession, session shutdown, and stale-result guards where applicable.
@@ -294,7 +296,7 @@ This order expresses dependencies only. Re-check the current source before every
 - UI tests interact through accessibility identifiers, taps, keyboard, focus, menus, scrolling, and drag/drop. Assert user-visible results.
 - Do not use screenshots, logs, or successful construction as the only oracle. Snapshot tests are optional and do not prove functional parity.
 - Keep tests hermetic and order-independent. Close subscriptions, tasks, temporary files, notification handlers, windows, and global overrides in teardown.
-- Every regression fix includes a test that fails for the original bug at the lowest owning layer.
+- Non-UI regression fixes include a test that fails for the original bug at the lowest owning layer. UI-only fixes follow the UI testing preference above.
 
 ## Validation
 
@@ -316,7 +318,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 - Run the relevant `xcodebuild test` destinations after test targets exist.
 - For a UniFFI-visible change, regenerate all bindings using `swiftui/README.md`, then run Rust tests, Swift model tests, and `./build-swiftui.sh`.
 - For changes to the shared public API that also touch `flutter/`, run `flutter analyze`, relevant `flutter test` targets, and `flutter build macos --debug` when generated bindings, plugins, or native build behavior changed.
-- Run a live app smoke test for startup, restore/login, Blaze/Signal, real event streams, notifications, media, file access, protocol links, and visual interaction changes.
+- Use non-UI runtime checks for startup, restore/login, Blaze/Signal, real event streams, notifications, media, file access, and protocol links. Visual interaction changes do not require automated UI smoke tests.
 - Build the app with `./build-swiftui.sh` and use the product path printed by the script for live smoke tests, visual checks, and performance profiling.
 - Do not claim visual or behavioral parity without running the relevant flow.
 - Run `git diff --check`, inspect the final diff, and separate repository failures from local Xcode, CocoaPods, signing, or cache failures.
