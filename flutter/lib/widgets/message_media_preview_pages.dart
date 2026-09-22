@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -211,7 +212,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
     }
     final canGoPrevious = _index > 0;
     final canGoNext = _index + 1 < _images.length;
-    final darwin = Platform.isMacOS || Platform.isIOS;
+    final darwin = (!kIsWeb && Platform.isMacOS) || (!kIsWeb && Platform.isIOS);
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
@@ -697,7 +698,7 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
   @override
   Widget build(BuildContext context) {
     final localFile = existingLocalFile(widget.source);
-    final darwin = Platform.isMacOS || Platform.isIOS;
+    final darwin = (!kIsWeb && Platform.isMacOS) || (!kIsWeb && Platform.isIOS);
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>

@@ -39,7 +39,14 @@ impl DesktopHandle {
 
     #[flutter_rust_bridge::frb(sync, getter)]
     pub fn media(&self) -> MediaHandle {
-        MediaHandle::new(self.client.media())
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            MediaHandle::new(self.client.media())
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            MediaHandle {}
+        }
     }
 
     pub async fn http_request(
@@ -188,18 +195,46 @@ impl SettingsHandle {
 
 impl SettingsHandle {
     pub async fn mcp_settings(&self) -> Result<McpSettingsItem, CoreError> {
-        Ok(self.client.mcp_settings().await?)
+        #[cfg(target_arch = "wasm32")]
+        {
+            Err(CoreError::Other {
+                message: "MCP server is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self.client.mcp_settings().await?)
+        }
     }
 
     pub async fn update_mcp_settings(
         &self,
         settings: McpSettingsItem,
     ) -> Result<McpServerStatusItem, CoreError> {
-        Ok(self.client.update_mcp_settings(settings).await?)
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (settings,);
+            Err(CoreError::Other {
+                message: "MCP server is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self.client.update_mcp_settings(settings).await?)
+        }
     }
 
     pub async fn mcp_server_status(&self) -> Result<McpServerStatusItem, CoreError> {
-        Ok(self.client.mcp_server_status().await?)
+        #[cfg(target_arch = "wasm32")]
+        {
+            Err(CoreError::Other {
+                message: "MCP server is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self.client.mcp_server_status().await?)
+        }
     }
 
     pub async fn proxy_settings(&self) -> Result<ProxySettingsItem, CoreError> {

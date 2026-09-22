@@ -31,6 +31,7 @@ impl From<anyhow::Error> for ClientError {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<mixin_desktop_media::MediaError> for ClientError {
     fn from(error: mixin_desktop_media::MediaError) -> Self {
         Self::Internal(error.to_string())

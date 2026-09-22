@@ -3,11 +3,11 @@ use sdk::{Asset, Chain, Token};
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct AssetDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct AssetDao(pub(crate) crate::db::Pool);
 
 impl AssetDao {
     pub async fn insert_asset(&self, asset: &Asset) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             r#"INSERT OR REPLACE INTO assets
                (asset_id, symbol, name, icon_url, balance, destination, tag, price_btc,
                 price_usd, chain_id, change_usd, change_btc, confirmations, asset_key, reserve)
@@ -33,7 +33,7 @@ impl AssetDao {
     }
 
     pub async fn insert_chain(&self, chain: &Chain) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             "INSERT OR REPLACE INTO chains (chain_id, name, symbol, icon_url, threshold) \
              VALUES (?, ?, ?, ?, ?)",
         )
@@ -48,7 +48,7 @@ impl AssetDao {
     }
 
     pub async fn insert_token(&self, token: &Token) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             r#"INSERT OR REPLACE INTO tokens
                (asset_id, kernel_asset_id, symbol, name, icon_url, price_btc, price_usd,
                 chain_id, change_usd, change_btc, confirmations, asset_key, dust, collection_hash)

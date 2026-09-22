@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_app_icon_badge/flutter_app_icon_badge.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 import '../src/rust/desktop_api.dart';
 import '../utils/app_logger.dart';
+import '../utils/rust_int.dart';
 
 class AppIconBadge extends HookWidget {
   const AppIconBadge({required this.account, required this.child, super.key});
@@ -22,11 +24,11 @@ class AppIconBadge extends HookWidget {
         (count) {
           pending = pending.then((_) async {
             try {
-              if (!Platform.isMacOS) return;
+              if (!(!kIsWeb && Platform.isMacOS)) return;
               if (count == 0) {
                 await FlutterAppIconBadge.removeBadge();
               } else {
-                await FlutterAppIconBadge.updateBadge(count);
+                await FlutterAppIconBadge.updateBadge(count.toDartInt());
               }
             } catch (exception, stackTrace) {
               e('Update app icon badge failed', exception, stackTrace);

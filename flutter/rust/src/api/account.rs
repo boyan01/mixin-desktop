@@ -229,14 +229,24 @@ impl AccountHandle {
         &self,
         sink: StreamSink<DeviceTransferEvent>,
     ) -> Result<(), CoreError> {
-        let events = self.client.device_transfer_events();
-        futures::pin_mut!(events);
-        while let Some(event) = events.next().await {
-            if sink.add(event.into()).is_err() {
-                break;
-            }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (sink,);
+            Err(CoreError::Other {
+                message: "LAN device transfer is not supported in the browser".into(),
+            })
         }
-        Ok(())
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let events = self.client.device_transfer_events();
+            futures::pin_mut!(events);
+            while let Some(event) = events.next().await {
+                if sink.add(event.into()).is_err() {
+                    break;
+                }
+            }
+            Ok(())
+        }
     }
 }
 
@@ -245,7 +255,17 @@ impl AccountHandle {
         &self,
         command: DeviceTransferCommand,
     ) -> Result<(), CoreError> {
-        Ok(self.client.device_transfer_command(command.into()).await?)
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (command,);
+            Err(CoreError::Other {
+                message: "LAN device transfer is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self.client.device_transfer_command(command.into()).await?)
+        }
     }
 }
 

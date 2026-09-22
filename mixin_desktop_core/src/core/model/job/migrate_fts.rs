@@ -15,7 +15,7 @@ pub(super) struct MigrateFtsJobRunner {
 impl JobTrigger for MigrateFtsJobRunner {
     async fn trigger(&self) -> Result<bool> {
         loop {
-            let job = sqlx::query_as::<_, Job>(
+            let job = crate::db::query_as::<Job>(
                 "SELECT * FROM jobs WHERE action = ? ORDER BY created_at LIMIT 1",
             )
             .bind(MIGRATE_FTS)
@@ -30,14 +30,14 @@ impl JobTrigger for MigrateFtsJobRunner {
                 .and_then(|value| value.parse::<i64>().ok());
             let Some(next_anchor) = self.database.message_fts_dao.migrate_batch(anchor).await?
             else {
-                sqlx::query("DELETE FROM jobs WHERE action = ?")
+                crate::db::query("DELETE FROM jobs WHERE action = ?")
                     .bind(MIGRATE_FTS)
                     .execute(&self.database.job_dao.0)
                     .await?;
                 info!("message FTS migration completed");
                 return Ok(false);
             };
-            sqlx::query("UPDATE jobs SET blaze_message = ? WHERE job_id = ?")
+            crate::db::query("UPDATE jobs SET blaze_message = ? WHERE job_id = ?")
                 .bind(next_anchor.to_string())
                 .bind(&job.job_id)
                 .execute(&self.database.job_dao.0)
@@ -67,7 +67,7 @@ mod tests {
                 .await
                 .unwrap(),
         );
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO conversations (conversation_id, created_at, status) \
              VALUES ('conversation', 0, 0)",
         )
@@ -88,7 +88,7 @@ mod tests {
             })
             .await
             .unwrap();
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO jobs (job_id, action, created_at, priority, run_count) \
              VALUES ('migration', ?, 0, 5, 0)",
         )
@@ -104,13 +104,13 @@ mod tests {
         .await
         .unwrap();
 
-        let indexed: i64 = sqlx::query_scalar(
+        let indexed: i64 = crate::db::query_scalar(
             "SELECT COUNT(*) FROM fts.messages_metas WHERE message_id = 'message'",
         )
         .fetch_one(&database.message_dao.0)
         .await
         .unwrap();
-        let jobs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM jobs WHERE action = ?")
+        let jobs: i64 = crate::db::query_scalar("SELECT COUNT(*) FROM jobs WHERE action = ?")
             .bind(MIGRATE_FTS)
             .fetch_one(&database.message_dao.0)
             .await

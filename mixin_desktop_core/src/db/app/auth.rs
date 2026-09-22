@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail};
 use base64ct::{Base64, Encoding};
+#[cfg(not(target_arch = "wasm32"))]
 use log::{info, warn};
 use ring::signature::{Ed25519KeyPair, KeyPair};
 use sdk::Account;
@@ -9,6 +10,7 @@ use super::{PropertyDao, PropertyGroup};
 
 const AUTHS_KEY: &str = "auths";
 const ACTIVE_USER_ID_KEY: &str = "active_user_id";
+#[cfg(not(target_arch = "wasm32"))]
 const AUTH_MIGRATION_KEY: &str = "auth_migration";
 
 #[derive(Clone)]
@@ -130,6 +132,15 @@ impl AuthDao {
         Ok(auths)
     }
 
+    /// wasm: web accounts start fresh; the legacy Hive file only exists on
+    /// native desktop, so there is nothing to migrate.
+    #[cfg(target_arch = "wasm32")]
+    async fn migrate_legacy_auths(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    /// Imports settings/authorizations from the legacy desktop Hive store.
+    #[cfg(not(target_arch = "wasm32"))]
     async fn migrate_legacy_auths(&self) -> anyhow::Result<()> {
         let migrated = self.0.get(PropertyGroup::Auth, AUTH_MIGRATION_KEY).await?;
         if migrated.is_some() {
@@ -198,6 +209,7 @@ impl AuthDao {
         Ok(())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     async fn migrate_legacy_signal_state(&self, auth: &Auth) -> anyhow::Result<()> {
         let identity_number = &auth.account.identity_number;
         if super::legacy_hive::migrate_signal_database(identity_number).await? {

@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flutter/widgets.dart';
+
 import '../models/conversation_list_entry.dart';
 import '../models/message_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../utils/app_logger.dart';
 import '../utils/chat_jump_trace.dart';
+import '../utils/rust_int.dart';
 
 part 'message_window_loader.dart';
 

@@ -1,10 +1,10 @@
-use sqlx::QueryBuilder;
+use crate::db::QueryBuilder;
 
 use crate::db::mixin::app::App;
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct FavoriteAppDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct FavoriteAppDao(pub(crate) crate::db::Pool);
 
 impl FavoriteAppDao {
     pub async fn replace_for_user(
@@ -13,13 +13,13 @@ impl FavoriteAppDao {
         apps: &[sdk::FavoriteApp],
     ) -> Result<(), Error> {
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
-        sqlx::query("DELETE FROM favorite_apps WHERE user_id = ?")
+        crate::db::query("DELETE FROM favorite_apps WHERE user_id = ?")
             .bind(user_id)
             .execute(&mut *transaction)
             .await?;
 
         if !apps.is_empty() {
-            let mut query_builder: QueryBuilder<sqlx::Sqlite> = QueryBuilder::new(
+            let mut query_builder: QueryBuilder = QueryBuilder::new(
                 "INSERT OR REPLACE INTO favorite_apps (app_id, user_id, created_at) ",
             );
             query_builder.push_values(apps, |mut builder, app| {
@@ -36,7 +36,7 @@ impl FavoriteAppDao {
     }
 
     pub async fn find_apps_by_user_id(&self, user_id: &str) -> Result<Vec<App>, Error> {
-        Ok(sqlx::query_as::<_, App>(
+        Ok(crate::db::query_as::<App>(
             r#"SELECT a.* FROM favorite_apps AS fa
                INNER JOIN apps AS a ON fa.app_id = a.app_id
                WHERE fa.user_id = ?"#,

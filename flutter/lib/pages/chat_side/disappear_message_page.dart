@@ -10,6 +10,7 @@ import '../../constants/assets.dart';
 import '../../l10n/l10n.dart';
 import '../../theme.dart';
 import '../../utils/app_logger.dart';
+import '../../utils/rust_int.dart';
 import '../../widgets/adaptive_selection_toolbar.dart';
 import '../../widgets/buttons.dart';
 import '../../widgets/custom_popup_menu.dart';
@@ -53,7 +54,7 @@ class _DisappearMessagePageState extends State<DisappearMessagePage> {
       );
       if (!mounted) return;
       setState(() {
-        selected = detail.expireIn;
+        selected = detail.expireIn.toDartInt();
         loading = false;
         error = null;
       });
@@ -74,7 +75,7 @@ class _DisappearMessagePageState extends State<DisappearMessagePage> {
       final detail = await scope.account.conversation().conversationDetail(
         conversationId: scope.conversation.id,
       );
-      if (mounted) setState(() => selected = detail.expireIn);
+      if (mounted) setState(() => selected = detail.expireIn.toDartInt());
     } on Object catch (exception, stackTrace) {
       e('Refresh disappearing message setting failed', exception, stackTrace);
       if (mounted) setState(() => error = exception);
@@ -88,7 +89,7 @@ class _DisappearMessagePageState extends State<DisappearMessagePage> {
     try {
       await scope.account.conversation().setDisappearingMessages(
         conversationId: scope.conversation.id,
-        duration: seconds,
+        duration: seconds.toRustInt(),
       );
     } on Object catch (exception, stackTrace) {
       e('Set disappearing message duration failed', exception, stackTrace);

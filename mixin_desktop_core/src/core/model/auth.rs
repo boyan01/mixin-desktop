@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use crate::time::sleep;
 use anyhow::anyhow;
 use base64ct::{Base64, Encoding};
 use libsignal_protocol::KeyPair;
@@ -8,7 +9,6 @@ use log::info;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use ring::signature::{Ed25519KeyPair, KeyPair as SignatureKeyPair};
 use serde::{Deserialize, Serialize};
-use tokio::time::sleep;
 
 use sdk::{Client, Credential, ProvisioningRequest};
 
@@ -46,9 +46,19 @@ impl AuthService {
         let session = self.begin_authorization("rust").await?;
         info!("login url: {}", session.auth_url());
 
-        tokio::select! {
-            result = self.wait_authorization(&session, Duration::from_secs(60)) => result,
-            _ = tokio::signal::ctrl_c() => Err(anyhow!("authorization cancelled")),
+        // Native lets Ctrl-C cancel the wait; the browser has no process
+        // interrupt, so wasm relies on the 60s wait timeout alone.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            tokio::select! {
+                result = self.wait_authorization(&session, Duration::from_secs(60)) => result,
+                _ = tokio::signal::ctrl_c() => Err(anyhow!("authorization cancelled")),
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.wait_authorization(&session, Duration::from_secs(60))
+                .await
         }
     }
 
@@ -64,7 +74,7 @@ impl AuthService {
             .provisioning_api
             .get_provisioning_id(platform)
             .await?;
-        let key_pair = KeyPair::generate(&mut rand_core::OsRng);
+        let key_pair = KeyPair::generate(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng));
         let public_key = utf8_percent_encode(
             &Base64::encode_string(&key_pair.public_key.serialize()),
             NON_ALPHANUMERIC,

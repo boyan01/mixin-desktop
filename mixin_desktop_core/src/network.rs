@@ -1,14 +1,19 @@
+#[cfg(target_arch = "wasm32")]
+pub(crate) mod browser;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::task::JoinHandle;
 use anyhow::{anyhow, Context, Result};
 use futures::StreamExt as _;
 use log::error;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
+#[cfg(target_arch = "wasm32")]
+use reqwest::Method;
+#[cfg(not(target_arch = "wasm32"))]
 use reqwest::{Method, Proxy};
 use tokio::sync::watch;
-use tokio::task::JoinHandle;
 use url::Url;
 
 use crate::db::app::SettingDao;
@@ -40,7 +45,7 @@ impl NetworkService {
         initial.validate()?;
         let client = build_client(initial.active_proxy())?;
         let (client_sender, client) = watch::channel(client);
-        let settings_task = tokio::spawn(async move {
+        let settings_task = crate::task::spawn(async move {
             while let Some(next) = settings.next().await {
                 let next = match next {
                     Ok(next) => next,
@@ -117,10 +122,12 @@ impl NetworkService {
         {
             return Err(anyhow!("HTTP response is too large"));
         }
+        use futures::StreamExt;
         let mut body = Vec::new();
-        let mut response = response;
-        while let Some(chunk) = response.chunk().await? {
-            if body.len() + chunk.len() > limit {
+        let mut chunks = response.bytes_stream();
+        while let Some(chunk) = chunks.next().await {
+            let chunk = chunk?;
+            if chunk.len() > limit.saturating_sub(body.len()) {
                 return Err(anyhow!("HTTP response is too large"));
             }
             body.extend_from_slice(&chunk);
@@ -140,12 +147,23 @@ impl Drop for NetworkService {
 }
 
 fn build_client(proxy: Option<&ProxyConfig>) -> Result<reqwest::Client> {
-    let mut builder = reqwest::Client::builder()
+    // wasm: the browser owns network egress, timeouts, and proxy settings;
+    // the reqwest browser backend exposes none of them on the client builder.
+    #[cfg(target_arch = "wasm32")]
+    let builder = reqwest::Client::builder();
+    #[cfg(not(target_arch = "wasm32"))]
+    let builder = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(10))
         .read_timeout(Duration::from_secs(150));
-    if let Some(config) = proxy {
-        builder = builder.proxy(Proxy::all(config.url()?.as_str())?);
-    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let builder = if let Some(config) = proxy {
+        builder.proxy(Proxy::all(config.url()?.as_str())?)
+    } else {
+        builder
+    };
+    // wasm: the browser owns network egress; proxy settings cannot apply.
+    #[cfg(target_arch = "wasm32")]
+    let _ = proxy;
     Ok(builder.build()?)
 }
 

@@ -1,4 +1,4 @@
-use sqlx::{FromRow, QueryBuilder, Row, Sqlite};
+use crate::db::QueryBuilder;
 
 use sdk::blaze_message::MessageStatus;
 use sdk::message_category::MessageCategory;
@@ -6,13 +6,13 @@ use sdk::message_category::MessageCategory;
 use crate::db::mixin::message::Message;
 use crate::db::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq, FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MessageFtsItem {
     pub message_id: String,
 }
 
 #[derive(Clone)]
-pub struct MessageFtsDao(pub(crate) sqlx::Pool<Sqlite>);
+pub struct MessageFtsDao(pub(crate) crate::db::Pool);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MessageFtsSearch {
@@ -33,7 +33,7 @@ impl MessageFtsDao {
         conversation_id: &str,
         content: &str,
     ) -> Result<(), Error> {
-        let metadata = sqlx::query(
+        let metadata = crate::db::query(
             r#"SELECT category, user_id,
                CASE WHEN typeof(created_at) = 'integer' THEN created_at
                     ELSE CAST(strftime('%s', created_at) AS INTEGER) * 1000 END AS created_at
@@ -52,12 +52,12 @@ impl MessageFtsDao {
 
         let content = normalize_content(content);
         if !content.trim().is_empty() {
-            let doc_id = sqlx::query("INSERT INTO fts.messages_fts (content) VALUES (?)")
+            let doc_id = crate::db::query("INSERT INTO fts.messages_fts (content) VALUES (?)")
                 .bind(content)
                 .execute(&mut *transaction)
                 .await?
                 .last_insert_rowid();
-            sqlx::query(
+            crate::db::query(
                 "INSERT INTO fts.messages_metas \
                  (doc_id, message_id, conversation_id, category, user_id, created_at) \
                  VALUES (?, ?, ?, ?, ?, ?)",
@@ -92,7 +92,7 @@ impl MessageFtsDao {
 
     pub(crate) async fn migrate_batch(&self, anchor: Option<i64>) -> Result<Option<i64>, Error> {
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
-        let rows = sqlx::query(
+        let rows = crate::db::query(
             r#"SELECT m.rowid AS source_rowid, m.message_id, m.conversation_id, m.category, m.user_id,
                CASE WHEN typeof(m.created_at) = 'integer' THEN m.created_at
                     ELSE CAST(strftime('%s', m.created_at) AS INTEGER) * 1000 END AS created_at,
@@ -128,7 +128,7 @@ impl MessageFtsDao {
         let next_anchor = rows.last().map(|row| row.get::<i64, _>("source_rowid"));
         for row in rows {
             let message_id = row.get::<String, _>("message_id");
-            if sqlx::query_scalar::<_, bool>(
+            if crate::db::query_scalar::<bool>(
                 "SELECT EXISTS(SELECT 1 FROM fts.messages_metas WHERE message_id = ?)",
             )
             .bind(&message_id)
@@ -144,12 +144,12 @@ impl MessageFtsDao {
             if content.trim().is_empty() {
                 continue;
             }
-            let doc_id = sqlx::query("INSERT INTO fts.messages_fts (content) VALUES (?)")
+            let doc_id = crate::db::query("INSERT INTO fts.messages_fts (content) VALUES (?)")
                 .bind(content)
                 .execute(&mut *transaction)
                 .await?
                 .last_insert_rowid();
-            sqlx::query(
+            crate::db::query(
                 "INSERT INTO fts.messages_metas \
                  (doc_id, message_id, conversation_id, category, user_id, created_at) \
                  VALUES (?, ?, ?, ?, ?, ?)",
@@ -172,6 +172,7 @@ impl MessageFtsDao {
         Self::search_on(&mut connection, input).await
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) async fn search_bounded(
         &self,
         input: &MessageFtsSearch,
@@ -179,14 +180,13 @@ impl MessageFtsDao {
         budget: std::time::Duration,
     ) -> anyhow::Result<Vec<MessageFtsItem>> {
         let cancellation = cancellation.child_token();
-        let started = std::time::Instant::now();
+        let started = crate::time::WallInstant::now();
         let deadline = started + budget;
         let cancel_on_drop = cancellation.clone().drop_guard();
-        // Detach so a cancelled query can never return a poisoned progress handler to the pool.
-        // The pool can replenish its normal read capacity while this search runs.
+        // Detach so cancelled searches cannot return a progress handler to the pool.
         let mut connection = tokio::select! {
             _ = cancellation.cancelled() => anyhow::bail!("search_cancelled"),
-            result = tokio::time::timeout(budget, self.0.acquire()) => {
+            result = crate::time::timeout(budget, self.0.acquire()) => {
                 result.map_err(|_| anyhow::anyhow!("search_timeout: connection acquisition exceeded the search deadline"))??.detach()
             }
         };
@@ -196,7 +196,7 @@ impl MessageFtsDao {
         let elapsed = started.elapsed();
         let outcome = if cancellation.is_cancelled() {
             "cancelled"
-        } else if std::time::Instant::now() >= deadline {
+        } else if crate::time::WallInstant::now() >= deadline {
             "timeout"
         } else if result.is_err() {
             "error"
@@ -217,7 +217,7 @@ impl MessageFtsDao {
     }
 
     async fn search_on(
-        connection: &mut sqlx::SqliteConnection,
+        connection: &mut crate::db::Conn,
         input: &MessageFtsSearch,
     ) -> Result<Vec<MessageFtsItem>, Error> {
         let Some(query) = match_query(&input.query) else {
@@ -228,7 +228,7 @@ impl MessageFtsDao {
         }
 
         let anchor = if let Some(message_id) = input.cursor_message_id.as_deref() {
-            let Some(anchor) = sqlx::query_as::<_, (i64, i64)>(
+            let Some(anchor) = crate::db::query_as::<(i64, i64)>(
                 "SELECT created_at, rowid FROM fts.messages_metas WHERE message_id = ? LIMIT 1",
             )
             .bind(message_id)
@@ -247,12 +247,12 @@ impl MessageFtsDao {
         let bounded_window =
             input.start_created_at_millis.is_some() && input.end_created_at_millis.is_some();
         let mut builder = if bounded_window {
-            QueryBuilder::<Sqlite>::new(
+            QueryBuilder::new(
                 "WITH candidates AS MATERIALIZED (SELECT meta.message_id, meta.doc_id, \
                  meta.created_at, meta.rowid AS meta_rowid FROM fts.messages_metas meta WHERE 1=1",
             )
         } else {
-            let mut builder = QueryBuilder::<Sqlite>::new(
+            let mut builder = QueryBuilder::new(
                 "SELECT meta.message_id FROM fts.messages_metas meta \
                  WHERE meta.doc_id IN (SELECT rowid FROM fts.messages_fts \
                  WHERE messages_fts MATCH ",
@@ -323,16 +323,17 @@ impl MessageFtsDao {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 async fn install_search_progress_handler(
-    connection: &mut sqlx::SqliteConnection,
+    connection: &mut crate::db::Conn,
     cancellation: tokio_util::sync::CancellationToken,
-    deadline: std::time::Instant,
+    deadline: crate::time::WallInstant,
 ) -> Result<(), sqlx::Error> {
     connection
         .lock_handle()
         .await?
         .set_progress_handler(1000, move || {
-            !cancellation.is_cancelled() && std::time::Instant::now() < deadline
+            !cancellation.is_cancelled() && crate::time::WallInstant::now() < deadline
         });
     Ok(())
 }
@@ -358,10 +359,10 @@ pub(crate) fn message_fts_content(message: &Message) -> Option<String> {
 }
 
 pub(crate) async fn delete_message_fts(
-    transaction: &mut sqlx::Transaction<'_, Sqlite>,
+    transaction: &mut crate::db::Transaction<'_>,
     message_id: &str,
 ) -> Result<u64, Error> {
-    sqlx::query(
+    crate::db::query(
         "DELETE FROM fts.messages_fts WHERE rowid = \
          (SELECT doc_id FROM fts.messages_metas WHERE message_id = ?)",
     )
@@ -369,7 +370,7 @@ pub(crate) async fn delete_message_fts(
     .execute(&mut **transaction)
     .await?;
     Ok(
-        sqlx::query("DELETE FROM fts.messages_metas WHERE message_id = ?")
+        crate::db::query("DELETE FROM fts.messages_metas WHERE message_id = ?")
             .bind(message_id)
             .execute(&mut **transaction)
             .await?
@@ -378,10 +379,10 @@ pub(crate) async fn delete_message_fts(
 }
 
 pub(crate) async fn delete_conversation_fts(
-    transaction: &mut sqlx::Transaction<'_, Sqlite>,
+    transaction: &mut crate::db::Transaction<'_>,
     conversation_id: &str,
 ) -> Result<u64, Error> {
-    sqlx::query(
+    crate::db::query(
         "DELETE FROM fts.messages_fts WHERE rowid IN \
          (SELECT doc_id FROM fts.messages_metas WHERE conversation_id = ?)",
     )
@@ -389,7 +390,7 @@ pub(crate) async fn delete_conversation_fts(
     .execute(&mut **transaction)
     .await?;
     Ok(
-        sqlx::query("DELETE FROM fts.messages_metas WHERE conversation_id = ?")
+        crate::db::query("DELETE FROM fts.messages_metas WHERE conversation_id = ?")
             .bind(conversation_id)
             .execute(&mut **transaction)
             .await?
@@ -443,7 +444,7 @@ mod tests {
             .await
             .unwrap();
         let mut connection = database.message_fts_dao.0.acquire().await.unwrap();
-        sqlx::raw_sql("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<20000)
+        crate::db::raw_sql("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<20000)
             INSERT INTO fts.messages_fts(rowid,content) SELECT x,'needle' FROM n;
             INSERT INTO fts.messages_metas(doc_id,message_id,conversation_id,category,user_id,created_at)
             SELECT rowid,CAST(rowid AS TEXT),'scope','PLAIN_TEXT','alice',rowid FROM fts.messages_fts;")
@@ -470,7 +471,7 @@ mod tests {
             .await
             .unwrap();
         let optimized_steps = steps.swap(0, Ordering::Relaxed);
-        let original = sqlx::query_as::<_, super::MessageFtsItem>(
+        let original = crate::db::query_as::<super::MessageFtsItem>(
             "SELECT meta.message_id FROM fts.messages_metas meta WHERE meta.doc_id IN
              (SELECT rowid FROM fts.messages_fts WHERE messages_fts MATCH ?)
              AND meta.conversation_id IN (?) AND meta.created_at >= ? AND meta.created_at < ?
@@ -539,13 +540,13 @@ mod tests {
             ),
             (48, "end", "a", "alice", "PLAIN_TEXT", 200, "needle"),
         ] {
-            sqlx::query("INSERT INTO fts.messages_fts(rowid,content) VALUES (?,?)")
+            crate::db::query("INSERT INTO fts.messages_fts(rowid,content) VALUES (?,?)")
                 .bind(doc_id)
                 .bind(content)
                 .execute(&database.message_fts_dao.0)
                 .await
                 .unwrap();
-            sqlx::query("INSERT INTO fts.messages_metas(doc_id,message_id,conversation_id,user_id,category,created_at) VALUES (?,?,?,?,?,?)")
+            crate::db::query("INSERT INTO fts.messages_metas(doc_id,message_id,conversation_id,user_id,category,created_at) VALUES (?,?,?,?,?,?)")
                 .bind(doc_id).bind(id).bind(conversation).bind(user).bind(category).bind(timestamp)
                 .execute(&database.message_fts_dao.0).await.unwrap();
         }
@@ -594,7 +595,7 @@ mod tests {
             .connect("sqlite::memory:")
             .await
             .unwrap();
-        sqlx::raw_sql("ATTACH DATABASE ':memory:' AS fts;
+        crate::db::raw_sql("ATTACH DATABASE ':memory:' AS fts;
             CREATE VIRTUAL TABLE fts.messages_fts USING fts5(content);
             INSERT INTO fts.messages_fts(content) VALUES ('needle');
             CREATE VIEW fts.messages_metas AS
@@ -619,7 +620,7 @@ mod tests {
         .unwrap_err();
         assert!(error.to_string().starts_with("search_timeout:"), "{error}");
         assert_eq!(
-            sqlx::query_scalar::<_, i64>("SELECT 42")
+            crate::db::query_scalar::<i64>("SELECT 42")
                 .fetch_one(&pool)
                 .await
                 .unwrap(),
@@ -651,14 +652,14 @@ mod tests {
                 cancellation.cancel();
             }
             let error = tokio::time::timeout(Duration::from_secs(2),
-                sqlx::query("WITH RECURSIVE n(x) AS (VALUES(0) UNION ALL SELECT x+1 FROM n WHERE x<1000000000) SELECT sum(x) FROM n")
+                crate::db::query("WITH RECURSIVE n(x) AS (VALUES(0) UNION ALL SELECT x+1 FROM n WHERE x<1000000000) SELECT sum(x) FROM n")
                     .fetch_one(&mut search)).await.expect("SQLite must stop executing").unwrap_err();
             assert!(error.to_string().contains("interrupted"), "{error}");
             // A detached search must not exhaust even a one-connection read pool.
             assert_eq!(
                 tokio::time::timeout(
                     Duration::from_secs(2),
-                    sqlx::query_scalar::<_, i64>("SELECT 42").fetch_one(&pool)
+                    crate::db::query_scalar::<i64>("SELECT 42").fetch_one(&pool)
                 )
                 .await
                 .unwrap()
@@ -676,7 +677,7 @@ mod tests {
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
             .await
             .unwrap();
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO conversations (conversation_id, created_at, status) \
              VALUES ('conversation', 0, 0)",
         )
@@ -743,7 +744,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["old"]
         );
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO conversations (conversation_id, created_at, status) \
              VALUES ('other-conversation', 0, 0)",
         )
@@ -789,10 +790,14 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["other"]
         );
-        let version: i64 = sqlx::query_scalar("PRAGMA fts.user_version")
+        let version: i64 = crate::db::query_scalar("PRAGMA fts.user_version")
             .fetch_one(&database.message_fts_dao.0)
             .await
             .unwrap();
         assert_eq!(version, 1);
     }
 }
+
+crate::db::storage::row_mapping!(MessageFtsItem {
+    message_id: "message_id",
+});

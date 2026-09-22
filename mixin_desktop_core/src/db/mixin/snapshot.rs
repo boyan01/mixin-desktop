@@ -1,6 +1,6 @@
 use crate::db::Error;
 
-#[derive(Clone, sqlx::FromRow)]
+#[derive(Clone)]
 pub struct SnapshotDetail {
     pub snapshot_id: String,
     pub trace_id: Option<String>,
@@ -29,11 +29,11 @@ pub struct SnapshotDetail {
 }
 
 #[derive(Clone)]
-pub struct SnapshotDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct SnapshotDao(pub(crate) crate::db::Pool);
 
 impl SnapshotDao {
     pub async fn insert(&self, snapshot: &sdk::SnapshotMessage) -> Result<(), Error> {
-        let _ = sqlx::query(r#"
+        let _ = crate::db::query(r#"
 INSERT OR REPLACE INTO snapshots (snapshot_id, trace_id, type, asset_id, amount, created_at, opponent_id, transaction_hash, sender, receiver, memo, confirmations, snapshot_hash, opening_balance, closing_balance)
 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         "#).bind(&snapshot.snapshot_id)
@@ -61,7 +61,7 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         trace_id: &str,
         fiat_currency: &str,
     ) -> Result<Option<SnapshotDetail>, Error> {
-        Ok(sqlx::query_as::<_, SnapshotDetail>(
+        Ok(crate::db::query_as::<SnapshotDetail>(
             r#"
 SELECT s.snapshot_id, s.trace_id, s.type AS type_field, s.asset_id, s.amount,
        s.created_at, s.opponent_id, s.transaction_hash, s.sender, s.receiver,
@@ -90,7 +90,7 @@ SELECT s.snapshot_id, s.trace_id, s.type AS type_field, s.asset_id, s.amount,
         snapshot_id: &str,
         fiat_currency: &str,
     ) -> Result<Option<SnapshotDetail>, Error> {
-        Ok(sqlx::query_as::<_, SnapshotDetail>(
+        Ok(crate::db::query_as::<SnapshotDetail>(
             r#"
 SELECT s.snapshot_id, s.trace_id, s.type AS type_field, s.asset_id, s.amount,
        s.created_at, s.opponent_id, s.transaction_hash, s.sender, s.receiver,
@@ -114,3 +114,30 @@ SELECT s.snapshot_id, s.trace_id, s.type AS type_field, s.asset_id, s.amount,
         .await?)
     }
 }
+
+crate::db::storage::row_mapping!(SnapshotDetail {
+    snapshot_id: "snapshot_id",
+    trace_id: "trace_id",
+    type_field: "type_field",
+    asset_id: "asset_id",
+    amount: "amount",
+    created_at: "created_at",
+    opponent_id: "opponent_id",
+    transaction_hash: "transaction_hash",
+    sender: "sender",
+    receiver: "receiver",
+    memo: "memo",
+    confirmations: "confirmations",
+    snapshot_hash: "snapshot_hash",
+    opening_balance: "opening_balance",
+    closing_balance: "closing_balance",
+    symbol: "symbol",
+    asset_name: "asset_name",
+    asset_icon_url: "asset_icon_url",
+    chain_icon_url: "chain_icon_url",
+    asset_confirmations: "asset_confirmations",
+    asset_tag: "asset_tag",
+    opponent_name: "opponent_name",
+    price_usd: "price_usd",
+    fiat_rate: "fiat_rate",
+});

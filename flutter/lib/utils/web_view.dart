@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:desktop_webview_window/desktop_webview_window.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -63,6 +64,10 @@ Future<void> openBotWebViewWindow({
   required String conversationId,
   required String currency,
 }) async {
+  if (kIsWeb) {
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    return;
+  }
   if (Platform.isWindows && !await WebviewWindow.isWebviewAvailable()) {
     if (context.mounted) await _showWebViewUnavailableDialog(context);
     return;

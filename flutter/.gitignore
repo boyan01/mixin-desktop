@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Generated browser runtime and build tools
+/web/pkg/
+/tool/web/node_modules/

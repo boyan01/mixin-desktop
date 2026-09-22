@@ -1,25 +1,21 @@
+use crate::db::QueryBuilder;
 use chrono::{DateTime, Utc};
-use sqlx::{QueryBuilder, Sqlite};
 
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct ParticipantDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct ParticipantDao(pub(crate) crate::db::Pool);
 
-#[derive(sqlx::FromRow)]
 pub struct Participant {
     pub conversation_id: String,
     pub user_id: String,
     pub role: Option<String>,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(sqlx::FromRow)]
 pub struct ParticipantListItem {
     pub user_id: String,
     pub role: Option<String>,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
     pub identity_number: String,
     pub full_name: String,
@@ -36,7 +32,7 @@ impl ParticipantDao {
         &self,
         conversation_id: &str,
     ) -> Result<Vec<ParticipantListItem>, Error> {
-        Ok(sqlx::query_as::<_, ParticipantListItem>(
+        Ok(crate::db::query_as::<ParticipantListItem>(
             r#"SELECT participant.user_id, participant.role, participant.created_at,
                       COALESCE(user.identity_number, '') AS identity_number,
                       COALESCE(user.full_name, '') AS full_name,
@@ -63,7 +59,7 @@ impl ParticipantDao {
     ) -> Result<(), Error> {
         let mut tx = self.0.begin_with("BEGIN IMMEDIATE").await?;
 
-        sqlx::query("DELETE FROM participants WHERE conversation_id = ?")
+        crate::db::query("DELETE FROM participants WHERE conversation_id = ?")
             .bind(conversation_id)
             .execute(&mut *tx)
             .await?;
@@ -73,7 +69,7 @@ impl ParticipantDao {
             return Ok(());
         }
 
-        let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(
+        let mut qb: QueryBuilder = QueryBuilder::new(
             "INSERT OR REPLACE INTO participants (conversation_id, user_id, role, created_at)",
         );
         qb.push_values(participants.iter(), |mut b, participant| {
@@ -93,7 +89,7 @@ impl ParticipantDao {
         conversation_id: &str,
         user_id: &str,
     ) -> Result<Option<Participant>, Error> {
-        let result = sqlx::query_as::<_, Participant>(
+        let result = crate::db::query_as::<Participant>(
             "SELECT * FROM participants WHERE conversation_id = ? AND user_id = ?",
         )
         .bind(conversation_id)
@@ -104,7 +100,7 @@ impl ParticipantDao {
     }
 
     pub async fn insert_participant(&self, participant: &Participant) -> Result<(), Error> {
-        let _ = sqlx::query(
+        let _ = crate::db::query(
             "INSERT OR REPLACE INTO participants (conversation_id, user_id, role, created_at) VALUES (?, ?, ?, ?)",
         )
         .bind(&participant.conversation_id)
@@ -122,7 +118,7 @@ impl ParticipantDao {
         pid: &str,
         role: &Option<String>,
     ) -> Result<(), Error> {
-        let _ = sqlx::query(
+        let _ = crate::db::query(
             "UPDATE participants SET role = ? WHERE conversation_id = ? AND user_id = ?",
         )
         .bind(role)
@@ -134,11 +130,12 @@ impl ParticipantDao {
     }
 
     pub async fn remove_participant(&self, cid: &str, pid: &str) -> Result<(), Error> {
-        let _ = sqlx::query("DELETE FROM participants WHERE conversation_id = ? AND user_id = ?")
-            .bind(cid)
-            .bind(pid)
-            .execute(&self.0)
-            .await?;
+        let _ =
+            crate::db::query("DELETE FROM participants WHERE conversation_id = ? AND user_id = ?")
+                .bind(cid)
+                .bind(pid)
+                .execute(&self.0)
+                .await?;
         Ok(())
     }
 
@@ -149,7 +146,7 @@ impl ParticipantDao {
         let sql = "SELECT p.conversation_id FROM participants p, conversations c \
                    WHERE p.user_id = ? AND p.conversation_id = c.conversation_id \
                    AND c.status = 2 LIMIT 1";
-        let result = sqlx::query_scalar::<_, String>(sql)
+        let result = crate::db::query_scalar::<String>(sql)
             .bind(uid)
             .fetch_optional(&self.0)
             .await?;
@@ -184,7 +181,7 @@ mod tests {
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
             .await
             .unwrap();
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO conversations (conversation_id, created_at, status) VALUES (?, ?, ?)",
         )
         .bind("conversation")
@@ -215,3 +212,24 @@ mod tests {
         );
     }
 }
+
+crate::db::storage::row_mapping!(Participant {
+    conversation_id: "conversation_id",
+    user_id: "user_id",
+    role: "role",
+    created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
+});
+
+crate::db::storage::row_mapping!(ParticipantListItem {
+    user_id: "user_id",
+    role: "role",
+    created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
+    identity_number: "identity_number",
+    full_name: "full_name",
+    avatar_url: "avatar_url",
+    biography: "biography",
+    is_verified: "is_verified",
+    is_bot: "is_bot",
+    membership: "membership",
+    relationship: "relationship",
+});

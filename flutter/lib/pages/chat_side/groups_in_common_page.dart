@@ -6,6 +6,7 @@ import '../../l10n/l10n.dart';
 import '../../models/conversation_list_entry.dart';
 import '../../src/rust/desktop_api.dart' as rust;
 import '../../theme.dart';
+import '../../utils/rust_int.dart';
 import '../../widgets/avatar_view.dart';
 import '../../widgets/interactive_decorated_box.dart';
 import 'chat_side_scope.dart';
@@ -40,13 +41,13 @@ class _GroupsInCommonPageState extends State<GroupsInCommonPage> {
       unseenOnly: false,
     );
     var offset = 0;
-    while (offset < count) {
+    while (offset < count.toDartInt()) {
       final conversations = await scope.account.conversation().conversations(
         category: 'groups',
         keyword: '',
         unseenOnly: false,
-        limit: 200,
-        offset: offset,
+        limit: 200.toRustInt(),
+        offset: offset.toRustInt(),
       );
       for (final conversation in conversations) {
         if (conversation.conversationId == group.conversationId && mounted) {

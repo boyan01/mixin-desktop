@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::thread::JoinHandle;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
 
 use anyhow::{anyhow, Result};
@@ -22,7 +22,9 @@ use crate::core::attachment::AttachmentService;
 use crate::core::constants::SCP;
 use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::crypto::signal_protocol::SignalProtocol;
-use crate::core::device_transfer::{DeviceTransferControlEvent, DeviceTransferService};
+use crate::core::device_transfer::DeviceTransferControlEvent;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::core::device_transfer::DeviceTransferService;
 use crate::core::message::blaze::Blaze;
 use crate::core::message::decrypt::{AttachmentTransferRequest, ServiceDecryptMessage};
 use crate::core::message::sender::MessageSender;
@@ -44,9 +46,11 @@ mod conversion;
 pub mod desktop;
 pub mod logging;
 pub mod login;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod mcp;
 mod message;
 pub mod model;
+mod runner;
 mod sticker;
 mod user;
 
@@ -60,17 +64,19 @@ pub use user::UserAccess;
 #[error("session unauthorized")]
 pub(crate) struct SessionUnauthorized;
 
-type AccountStartupResult = std::result::Result<
-    (
-        Arc<MixinDatabase>,
-        Arc<SignalDatabase>,
-        Arc<AppService>,
-        Arc<Blaze>,
-        Arc<DeviceTransferService>,
-        String,
-    ),
-    String,
->;
+type AccountStartupResult = std::result::Result<AccountStartupReady, String>;
+
+/// The prepared services handed from the account loop back to the runtime
+/// shell once startup succeeds.
+struct AccountStartupReady {
+    database: Arc<MixinDatabase>,
+    signal_database: Arc<SignalDatabase>,
+    app_service: Arc<AppService>,
+    blaze: Arc<Blaze>,
+    #[cfg(not(target_arch = "wasm32"))]
+    device_transfer: Arc<DeviceTransferService>,
+    account_health: String,
+}
 
 const MIN_STICKER_FILE_SIZE: usize = 1024;
 const MAX_STICKER_FILE_SIZE: usize = 1024 * 1024;
@@ -83,7 +89,7 @@ const MAX_AUDIO_WAVEFORM_SAMPLES: usize = 1024;
 pub struct AccountRuntime {
     state: Arc<AccountState>,
     shutdown: watch::Sender<bool>,
-    thread: Mutex<Option<JoinHandle<()>>>,
+    runner: runner::Runner,
 }
 
 #[doc(hidden)]
@@ -99,6 +105,8 @@ pub struct AccountState {
     shutdown: watch::Receiver<bool>,
     notification_changes: watch::Sender<u64>,
     blaze: Arc<Blaze>,
+    /// Desktop-to-desktop pairing is a native-only service.
+    #[cfg(not(target_arch = "wasm32"))]
     device_transfer: Arc<DeviceTransferService>,
     account_health: watch::Sender<String>,
     active: AtomicBool,
@@ -176,13 +184,7 @@ pub struct StickerDetail {
 
 impl AccountRuntime {
     pub fn is_running(&self) -> bool {
-        self.active.load(Ordering::Acquire)
-            && self
-                .thread
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .as_ref()
-                .is_some_and(|thread| !thread.is_finished())
+        self.active.load(Ordering::Acquire) && self.runner.is_running()
     }
 
     pub fn attachment_progress(&self, message_id: &str) -> f64 {
@@ -199,6 +201,7 @@ impl AccountRuntime {
         auth_service: Arc<AuthService>,
         setting_dao: SettingDao,
     ) -> Result<Self> {
+        crate::core::message::ws::validate_configuration()?;
         let account_id = auth.account.user_id.clone();
         let account = auth.account.clone();
         let (profile, _) = watch::channel(account);
@@ -215,41 +218,29 @@ impl AccountRuntime {
         let account_conversation_changes = conversation_changes.clone();
         let account_notification_changes = notification_changes.clone();
         let (ready_sender, ready_receiver) = oneshot::channel();
-        let thread = std::thread::Builder::new()
-            .name(format!("mixin-account-{account_id}"))
-            .spawn({
-                let client = client.clone();
-                let account_health_updates = account_health_updates.clone();
-                move || {
-                    let runtime = tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build();
-                    match runtime {
-                        Ok(runtime) => runtime.block_on(run_account(AccountRunContext {
-                            auth,
-                            client,
-                            shutdown_receiver,
-                            conversation_changes: account_conversation_changes,
-                            notification_changes: account_notification_changes,
-                            account_health_updates,
-                            initial_account_health,
-                            attachment_transfer_requests: attachment_transfer_sender,
-                            ready_sender,
-                        })),
-                        Err(error) => {
-                            let _ = ready_sender.send(Err(error.to_string()));
-                        }
-                    }
-                }
-            })?;
-        let (
+        let runner = runner::Runner::start(
+            format!("mixin-account-{account_id}"),
+            AccountRunContext {
+                auth,
+                client: client.clone(),
+                shutdown_receiver,
+                conversation_changes: account_conversation_changes,
+                notification_changes: account_notification_changes,
+                account_health_updates: account_health_updates.clone(),
+                initial_account_health,
+                attachment_transfer_requests: attachment_transfer_sender,
+                ready_sender,
+            },
+        )?;
+        let AccountStartupReady {
             database,
             signal_database,
             app_service,
             blaze,
+            #[cfg(not(target_arch = "wasm32"))]
             device_transfer,
-            initial_account_health,
-        ) = ready_receiver
+            account_health: initial_account_health,
+        } = ready_receiver
             .await
             .map_err(|_| anyhow!("account runtime stopped during startup"))?
             .map_err(|error| anyhow!(error))?;
@@ -267,6 +258,7 @@ impl AccountRuntime {
             shutdown: shutdown.subscribe(),
             notification_changes,
             blaze,
+            #[cfg(not(target_arch = "wasm32"))]
             device_transfer,
             account_health: account_health_updates,
             active: AtomicBool::new(true),
@@ -274,7 +266,7 @@ impl AccountRuntime {
             attachment_downloads: Mutex::new(HashMap::new()),
             attachment_progresses: Mutex::new(HashMap::new()),
         });
-        tokio::spawn(run_attachment_transfer_requests(
+        crate::task::spawn(run_attachment_transfer_requests(
             state.clone(),
             attachment_transfer_requests,
             setting_dao,
@@ -282,7 +274,7 @@ impl AccountRuntime {
         Ok(Self {
             state,
             shutdown,
-            thread: Mutex::new(Some(thread)),
+            runner,
         })
     }
 
@@ -306,6 +298,7 @@ impl AccountRuntime {
         UserAccess::new(self.state.clone())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn device_transfer(&self) -> Arc<DeviceTransferService> {
         self.device_transfer.clone()
     }
@@ -324,7 +317,7 @@ impl AccountRuntime {
 
     pub fn media_directory(&self) -> Result<PathBuf> {
         let directory = account_data_directory(&self.account().identity_number)?.join("Media");
-        std::fs::create_dir_all(&directory)?;
+
         Ok(directory)
     }
 
@@ -692,29 +685,24 @@ impl AccountRuntime {
             offset += page_len as i64;
         }
         let media = account_data_directory(&self.account().identity_number)?.join("Media");
-        tokio::task::spawn_blocking(move || {
-            let mut usage = conversations
-                .into_iter()
-                .map(|conversation| {
-                    let size_bytes = ["Images", "Videos", "Audios", "Files"]
-                        .into_iter()
-                        .map(|category| {
-                            directory_size(
-                                &media.join(category).join(&conversation.conversation_id),
-                            )
-                        })
-                        .sum::<u64>();
-                    model::ConversationStorageUsage {
-                        conversation,
-                        size_bytes: i64::try_from(size_bytes).unwrap_or(i64::MAX),
-                    }
-                })
-                .collect::<Vec<_>>();
-            usage.sort_by_key(|item| std::cmp::Reverse(item.size_bytes));
-            usage
-        })
-        .await
-        .map_err(|error| anyhow!("storage usage task failed: {error}"))
+        let mut usage = Vec::new();
+        for conversation in conversations {
+            let mut size_bytes = 0u64;
+            for category in ["Images", "Videos", "Audios", "Files"] {
+                size_bytes = size_bytes.saturating_add(
+                    crate::fs::directory_size(
+                        &media.join(category).join(&conversation.conversation_id),
+                    )
+                    .await,
+                );
+            }
+            usage.push(model::ConversationStorageUsage {
+                conversation,
+                size_bytes: i64::try_from(size_bytes).unwrap_or(i64::MAX),
+            });
+        }
+        usage.sort_by_key(|item| std::cmp::Reverse(item.size_bytes));
+        Ok(usage)
     }
 
     pub async fn conversation_storage_usage(
@@ -723,25 +711,22 @@ impl AccountRuntime {
     ) -> Result<Vec<model::StorageCategoryUsage>> {
         validate_storage_component("conversation id", &conversation_id)?;
         let media = account_data_directory(&self.account().identity_number)?.join("Media");
-        tokio::task::spawn_blocking(move || {
-            [
-                ("photos", "Images"),
-                ("videos", "Videos"),
-                ("audio", "Audios"),
-                ("files", "Files"),
-            ]
-            .into_iter()
-            .map(|(category, directory)| model::StorageCategoryUsage {
-                category: category.to_string(),
-                size_bytes: i64::try_from(directory_size(
-                    &media.join(directory).join(&conversation_id),
-                ))
+        let mut usage = Vec::new();
+        for (category, directory) in [
+            ("photos", "Images"),
+            ("videos", "Videos"),
+            ("audio", "Audios"),
+            ("files", "Files"),
+        ] {
+            usage.push(model::StorageCategoryUsage {
+                category: category.to_owned(),
+                size_bytes: i64::try_from(
+                    crate::fs::directory_size(&media.join(directory).join(&conversation_id)).await,
+                )
                 .unwrap_or(i64::MAX),
-            })
-            .collect()
-        })
-        .await
-        .map_err(|error| anyhow!("conversation storage usage task failed: {error}"))
+            });
+        }
+        Ok(usage)
     }
 
     pub async fn clear_conversation_storage(
@@ -761,14 +746,11 @@ impl AccountRuntime {
             })
             .collect::<Result<Vec<_>>>()?;
         let media = account_data_directory(&self.account().identity_number)?.join("Media");
-        tokio::task::spawn_blocking(move || {
-            for directory in directories {
-                clear_directory_contents(&media.join(directory).join(&conversation_id))?;
-            }
-            Ok(())
-        })
-        .await
-        .map_err(|error| anyhow!("clear storage task failed: {error}"))?
+        for directory in directories {
+            crate::fs::clear_directory_contents(&media.join(directory).join(&conversation_id))
+                .await?;
+        }
+        Ok(())
     }
 
     pub async fn shutdown(&self) {
@@ -780,10 +762,7 @@ impl AccountRuntime {
         self.active.store(false, Ordering::Release);
         self.cancel_attachment_downloads();
         let _ = self.shutdown.send(true);
-        let thread = self.thread.lock().unwrap().take();
-        if let Some(thread) = thread {
-            let _ = tokio::task::spawn_blocking(move || thread.join()).await;
-        }
+        self.runner.wait().await;
     }
 
     pub async fn revoke_session(&self) {
@@ -819,7 +798,8 @@ impl AccountRuntime {
         }
         self.signal_database.close().await;
         self.database.close().await;
-        match tokio::fs::remove_dir_all(&data_directory).await {
+        crate::db::storage::files::remove_directory(&data_directory).await?;
+        match crate::fs::remove_dir_all(&data_directory).await {
             Ok(()) => {}
             Err(error) if error.kind() == ErrorKind::NotFound => {}
             Err(error) => warn!(
@@ -880,7 +860,7 @@ async fn run_attachment_transfer_requests(
                     continue;
                 }
                 let attachment = AttachmentAccess::new(state.clone());
-                tokio::spawn(async move {
+                crate::task::spawn(async move {
                     let result = match request.transcript_id.as_ref() {
                         Some(transcript_id) => attachment
                             .download_transcript_attachment(
@@ -915,45 +895,6 @@ fn validate_storage_component(label: &str, value: &str) -> Result<()> {
         || components.next().is_some()
     {
         return Err(anyhow!("invalid {label}"));
-    }
-    Ok(())
-}
-
-fn directory_size(path: &Path) -> u64 {
-    let Ok(metadata) = std::fs::symlink_metadata(path) else {
-        return 0;
-    };
-    if metadata.file_type().is_symlink() {
-        return 0;
-    }
-    if metadata.is_file() {
-        return metadata.len();
-    }
-    let Ok(entries) = std::fs::read_dir(path) else {
-        return 0;
-    };
-    entries
-        .filter_map(std::result::Result::ok)
-        .map(|entry| directory_size(&entry.path()))
-        .sum()
-}
-
-fn clear_directory_contents(path: &PathBuf) -> Result<()> {
-    let Ok(metadata) = std::fs::symlink_metadata(path) else {
-        return Ok(());
-    };
-    if metadata.file_type().is_symlink() || !metadata.is_dir() {
-        return Err(anyhow!("invalid storage directory: {}", path.display()));
-    }
-    for entry in std::fs::read_dir(path)? {
-        let entry = entry?;
-        let child = entry.path();
-        let metadata = std::fs::symlink_metadata(&child)?;
-        if metadata.is_dir() && !metadata.file_type().is_symlink() {
-            std::fs::remove_dir_all(child)?;
-        } else {
-            std::fs::remove_file(child)?;
-        }
     }
     Ok(())
 }
@@ -999,36 +940,47 @@ async fn run_account(context: AccountRunContext) {
         attachment_transfer_requests,
     )
     .await;
-    let (
+    let AccountServices {
         database,
         signal_database,
         blaze,
         decrypt_message,
         sender,
         app_service,
+        #[cfg(not(target_arch = "wasm32"))]
         device_transfer,
         device_transfer_controls,
         account_health,
-    ) = match result {
+    } = match result {
         Ok(services) => services,
         Err(error) => {
             let _ = ready_sender.send(Err(error.to_string()));
             return;
         }
     };
-    if ready_sender
-        .send(Ok((
-            database,
-            signal_database,
-            app_service.clone(),
-            blaze.clone(),
-            device_transfer.clone(),
-            account_health,
-        )))
-        .is_err()
-    {
+    let ready = AccountStartupReady {
+        database,
+        signal_database,
+        app_service: app_service.clone(),
+        blaze: blaze.clone(),
+        #[cfg(not(target_arch = "wasm32"))]
+        device_transfer: device_transfer.clone(),
+        account_health,
+    };
+    if ready_sender.send(Ok(ready)).is_err() {
         return;
     }
+
+    // Native runs the device-transfer service. The web has no desktop-to-
+    // desktop pairing, so the control receiver is dropped (decrypt's event
+    // sends are ignored) and the select arm never fires.
+    #[cfg(not(target_arch = "wasm32"))]
+    let device_transfer_run = device_transfer.run(device_transfer_controls);
+    #[cfg(target_arch = "wasm32")]
+    let device_transfer_run = {
+        drop(device_transfer_controls);
+        std::future::pending::<()>()
+    };
 
     tokio::select! {
         result = blaze.connect() => {
@@ -1045,7 +997,7 @@ async fn run_account(context: AccountRunContext) {
         _ = sender.maintain_signal_keys() => {
             warn!("signal key service stopped");
         }
-        _ = device_transfer.run(device_transfer_controls) => {
+        _ = device_transfer_run => {
             warn!("device transfer service stopped");
         }
         result = app_service.job.start() => {
@@ -1079,17 +1031,19 @@ async fn forward_account_health(client: Arc<Client>, health: watch::Sender<Strin
     }
 }
 
-type AccountServices = (
-    Arc<MixinDatabase>,
-    Arc<SignalDatabase>,
-    Arc<Blaze>,
-    Arc<ServiceDecryptMessage>,
-    Arc<MessageSender>,
-    Arc<AppService>,
-    Arc<DeviceTransferService>,
-    tokio::sync::broadcast::Receiver<DeviceTransferControlEvent>,
-    String,
-);
+/// Services assembled by `prepare_account` and consumed by the account loop.
+struct AccountServices {
+    database: Arc<MixinDatabase>,
+    signal_database: Arc<SignalDatabase>,
+    blaze: Arc<Blaze>,
+    decrypt_message: Arc<ServiceDecryptMessage>,
+    sender: Arc<MessageSender>,
+    app_service: Arc<AppService>,
+    #[cfg(not(target_arch = "wasm32"))]
+    device_transfer: Arc<DeviceTransferService>,
+    device_transfer_controls: tokio::sync::broadcast::Receiver<DeviceTransferControlEvent>,
+    account_health: String,
+}
 
 async fn prepare_account(
     auth: &Auth,
@@ -1141,12 +1095,19 @@ async fn prepare_account(
         signal_service,
     ));
     let account_data_dir = account_data_directory(&account.identity_number)?;
+    crate::fs::create_dir_all(account_data_dir.join("Media")).await?;
+    // wasm: the browser owns network timeouts; reqwest's browser backend
+    // exposes no client-level connect/read timeouts (see network::build_client).
+    #[cfg(not(target_arch = "wasm32"))]
+    let attachment_http_client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .read_timeout(Duration::from_secs(150))
+        .build()?;
+    #[cfg(target_arch = "wasm32")]
+    let attachment_http_client = reqwest::Client::builder().build()?;
     let attachment = Arc::new(AttachmentService::new(
         client.clone(),
-        reqwest::Client::builder()
-            .connect_timeout(Duration::from_secs(10))
-            .read_timeout(Duration::from_secs(150))
-            .build()?,
+        attachment_http_client,
         account_data_dir.clone(),
     ));
     let app_service = Arc::new(AppService::new(
@@ -1159,6 +1120,7 @@ async fn prepare_account(
     ));
     let (device_transfer_control_sender, device_transfer_controls) =
         tokio::sync::broadcast::channel(16);
+    #[cfg(not(target_arch = "wasm32"))]
     let device_transfer = DeviceTransferService::new(
         database.clone(),
         sender.clone(),
@@ -1182,17 +1144,18 @@ async fn prepare_account(
         .with_device_transfer_controls(device_transfer_control_sender)
         .with_attachment_transfer_requests(attachment_transfer_requests),
     );
-    Ok((
+    Ok(AccountServices {
         database,
         signal_database,
         blaze,
         decrypt_message,
         sender,
         app_service,
+        #[cfg(not(target_arch = "wasm32"))]
         device_transfer,
         device_transfer_controls,
         account_health,
-    ))
+    })
 }
 
 fn database_open_error(error: &(dyn Error + 'static)) -> anyhow::Error {

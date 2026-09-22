@@ -18,6 +18,7 @@ import '../models/conversation_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../theme.dart';
 import '../utils/app_logger.dart';
+import '../utils/rust_int.dart';
 import 'avatar_view.dart';
 import 'custom_context_menu.dart';
 import 'mixin_dialog.dart';
@@ -521,7 +522,7 @@ int _unseenCountFor(
     if (item.category == filter.name &&
         (filter != ConversationCategoryFilter.circle ||
             item.circleId == circleId)) {
-      return item.count;
+      return item.count.toDartInt();
     }
   }
   return 0;
@@ -536,7 +537,7 @@ int _mutedUnseenCountFor(
     if (item.category == filter.name &&
         (filter != ConversationCategoryFilter.circle ||
             item.circleId == circleId)) {
-      return item.mutedCount;
+      return item.mutedCount.toDartInt();
     }
   }
   return 0;

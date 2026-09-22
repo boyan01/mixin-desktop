@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -292,7 +293,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
               ),
             ),
           ),
-          if (Platform.isMacOS)
+          if (!kIsWeb && Platform.isMacOS)
             AnimatedVisibility(
               visible: _hasNotificationPermission == false,
               child: Column(
@@ -329,7 +330,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage>
                 ],
               ),
             ),
-          if (!Platform.isMacOS)
+          if (!(!kIsWeb && Platform.isMacOS))
             AnimatedVisibility(
               visible: _hasNotificationPermission == false,
               child: Padding(

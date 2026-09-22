@@ -92,9 +92,14 @@ pub(crate) enum MixinResponse {
 
 impl ClientRef {
     pub fn new(credential: Credential, user_agent: Option<String>) -> Self {
-        let mut builder = reqwest::Client::builder()
-            .connect_timeout(API_TIMEOUT)
-            .read_timeout(API_TIMEOUT);
+        let mut builder = reqwest::Client::builder();
+        // Browser requests use a total deadline in raw_request instead.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            builder = builder
+                .connect_timeout(API_TIMEOUT)
+                .read_timeout(API_TIMEOUT);
+        }
         if let Some(user_agent) = user_agent.filter(|value| !value.is_empty()) {
             builder = builder.user_agent(user_agent);
         }
@@ -185,6 +190,10 @@ impl ClientRef {
             Err(err) => return Err(anyhow!("can not set auth header: {}", err).into()),
         };
 
+        #[cfg(target_arch = "wasm32")]
+        {
+            request.timeout_mut().get_or_insert(API_TIMEOUT);
+        }
         let resp = self.client.execute(request).await?;
         let status = resp.status();
         if status.as_u16() == crate::err::error_code::AUTHENTICATION as u16 {

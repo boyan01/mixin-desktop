@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
+
 import '../src/rust/desktop_api.dart' as rust;
+import '../utils/rust_int.dart';
 
 @immutable
 class MessageListEntry {
@@ -94,11 +96,11 @@ class MessageListEntry {
         content: item.content,
         status: item.status,
         createdAt: DateTime.fromMicrosecondsSinceEpoch(
-          item.createdAtMicros,
+          item.createdAtMicros.toDartInt(),
         ),
         mediaUrl: item.mediaUrl,
         mediaMimeType: item.mediaMimeType,
-        mediaSize: item.mediaSize,
+        mediaSize: item.mediaSize?.toDartInt(),
         mediaDuration: item.mediaDuration,
         mediaWidth: item.mediaWidth,
         mediaHeight: item.mediaHeight,
@@ -124,7 +126,7 @@ class MessageListEntry {
         snapshotCreatedAt: item.snapshotCreatedAt,
         inscriptionHash: item.inscriptionHash,
         inscriptionCollectionHash: item.inscriptionCollectionHash,
-        inscriptionSequence: item.inscriptionSequence,
+        inscriptionSequence: item.inscriptionSequence?.toDartInt(),
         inscriptionContentType: item.inscriptionContentType,
         inscriptionContentUrl: item.inscriptionContentUrl,
         inscriptionName: item.inscriptionName,
@@ -157,7 +159,7 @@ class MessageListEntry {
         stickerAssetType: item.stickerAssetType,
         mentionRead: item.mentionRead,
         pinned: item.pinned,
-        expireIn: item.expireIn,
+        expireIn: item.expireIn?.toDartInt(),
       );
 
   final String id;

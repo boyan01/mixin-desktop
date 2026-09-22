@@ -524,6 +524,7 @@ class ImageMessageView {
           avatarUrl == other.avatarUrl;
 }
 
+/// Shared message read model used by the desktop UI bridges.
 class MessageListView {
   final String messageId;
   final String conversationId;

@@ -1,40 +1,75 @@
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::{Path, PathBuf};
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::{Duration, Instant};
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::db::QueryBuilder;
+#[cfg(not(target_arch = "wasm32"))]
 use aes::cipher::{Block, BlockCipherDecrypt, BlockCipherEncrypt, KeyInit};
+#[cfg(not(target_arch = "wasm32"))]
 use aes::Aes256;
+#[cfg(not(target_arch = "wasm32"))]
 use anyhow::{anyhow, bail, Context, Result};
+#[cfg(not(target_arch = "wasm32"))]
 use base64ct::{Base64, Encoding};
+#[cfg(not(target_arch = "wasm32"))]
 use hmac::{Hmac, KeyInit as HmacKeyInit, Mac};
+#[cfg(not(target_arch = "wasm32"))]
 use ring::rand::{SecureRandom, SystemRandom};
+#[cfg(not(target_arch = "wasm32"))]
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_arch = "wasm32"))]
 use serde_json::{Map, Value};
+#[cfg(not(target_arch = "wasm32"))]
 use sha2::Sha256;
-use sqlx::{AssertSqlSafe, QueryBuilder, Row, Sqlite};
+#[cfg(not(target_arch = "wasm32"))]
+use sqlx::AssertSqlSafe;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::net::{TcpListener, TcpStream};
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::{broadcast, Mutex};
+#[cfg(not(target_arch = "wasm32"))]
 use tokio_util::sync::CancellationToken;
+#[cfg(not(target_arch = "wasm32"))]
 use uuid::Uuid;
 
+#[cfg(not(target_arch = "wasm32"))]
 use sdk::message_category::MessageCategory;
 
+#[cfg(not(target_arch = "wasm32"))]
 use crate::core::attachment::{attachment_path, transcript_attachment_path};
+#[cfg(not(target_arch = "wasm32"))]
 use crate::core::conversation_change::ConversationChangeNotifier;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::core::message::sender::MessageSender;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::db::mixin::message::{MediaStatus, Message};
+#[cfg(not(target_arch = "wasm32"))]
 use crate::db::mixin::message_fts::message_fts_content;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::db::MixinDatabase;
 
 pub const DEVICE_TRANSFER_ACTION: &str = "DEVICE_TRANSFER";
+#[cfg(not(target_arch = "wasm32"))]
 const PROTOCOL_VERSION: i32 = 3;
+#[cfg(not(target_arch = "wasm32"))]
 const PACKET_COMMAND: u8 = 1;
+#[cfg(not(target_arch = "wasm32"))]
 const PACKET_JSON: u8 = 2;
+#[cfg(not(target_arch = "wasm32"))]
 const PACKET_FILE: u8 = 3;
+#[cfg(not(target_arch = "wasm32"))]
 const HMAC_SIZE: usize = 32;
+#[cfg(not(target_arch = "wasm32"))]
 const IV_SIZE: usize = 16;
+#[cfg(not(target_arch = "wasm32"))]
 const KEY_SIZE: usize = 64;
+#[cfg(not(target_arch = "wasm32"))]
 const JSON_PACKET_LIMIT: usize = 500 * 1024;
 
 #[derive(Clone, Debug)]
@@ -79,6 +114,7 @@ pub enum DeviceTransferCommand {
     ConfirmBackup,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct TransferCommand {
     #[serde(rename = "device_id")]
@@ -98,10 +134,12 @@ struct TransferCommand {
     progress: Option<f64>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn desktop_platform() -> String {
     "desktop".to_string()
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl TransferCommand {
     fn simple(device_id: &str, action: &str) -> Self {
         Self {
@@ -156,6 +194,7 @@ impl TransferCommand {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 struct RemotePushData {
     ip: String,
@@ -164,6 +203,7 @@ struct RemotePushData {
     key: [u8; KEY_SIZE],
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Default)]
 struct TransferState {
     waiting_for_remote_push: bool,
@@ -172,6 +212,7 @@ struct TransferState {
     receiver_cancel: Option<CancellationToken>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub struct DeviceTransferService {
     database: Arc<MixinDatabase>,
     message_sender: Arc<MessageSender>,
@@ -184,6 +225,7 @@ pub struct DeviceTransferService {
     conversation_changes: ConversationChangeNotifier,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl DeviceTransferService {
     pub fn new(
         database: Arc<MixinDatabase>,
@@ -375,7 +417,7 @@ impl DeviceTransferService {
         self.emit(DeviceTransferEvent::BackupServerCreated);
 
         let service = self.clone();
-        tokio::spawn(async move {
+        crate::task::spawn(async move {
             let result = service.run_sender(listener, code, key, cancel).await;
             if let Err(error) = result {
                 log::error!("device transfer sender failed: {error:?}");
@@ -390,7 +432,7 @@ impl DeviceTransferService {
 
     fn start_receiver(self: &Arc<Self>, remote: RemotePushData) {
         let service = self.clone();
-        tokio::spawn(async move {
+        crate::task::spawn(async move {
             if let Some(cancel) = service.state.lock().await.receiver_cancel.take() {
                 cancel.cancel();
             }
@@ -436,7 +478,7 @@ impl DeviceTransferService {
                 total += self.count_records(spec).await?;
             }
         }
-        total += sqlx::query_scalar::<_, i64>(
+        total += crate::db::query_scalar::< i64>(
             "SELECT COUNT(*) FROM messages WHERE category IN ('SIGNAL_IMAGE', 'SIGNAL_VIDEO', 'SIGNAL_DATA', 'SIGNAL_AUDIO', 'PLAIN_IMAGE', 'PLAIN_VIDEO', 'PLAIN_DATA', 'PLAIN_AUDIO', 'ENCRYPTED_IMAGE', 'ENCRYPTED_VIDEO', 'ENCRYPTED_DATA', 'ENCRYPTED_AUDIO')",
         )
         .fetch_one(self.pool())
@@ -522,7 +564,7 @@ impl DeviceTransferService {
 
     async fn run_receiver(&self, remote: RemotePushData, cancel: CancellationToken) -> Result<()> {
         let stream = tokio::select! {
-            stream = tokio::time::timeout(Duration::from_secs(60), TcpStream::connect((&*remote.ip, remote.port))) => stream??,
+            stream = crate::time::timeout(Duration::from_secs(60), TcpStream::connect((&*remote.ip, remote.port))) => stream??,
             _ = cancel.cancelled() => return Ok(()),
         };
         let (mut reader, mut writer) = stream.into_split();
@@ -620,10 +662,12 @@ impl DeviceTransferService {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn transfer_speed(bytes: u64, started: Instant) -> f64 {
     bytes as f64 / started.elapsed().as_secs_f64().max(0.001)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn first_ipv4_address() -> Result<String> {
     let socket = std::net::UdpSocket::bind("0.0.0.0:0")?;
     socket.connect("8.8.8.8:80")?;
@@ -633,6 +677,7 @@ fn first_ipv4_address() -> Result<String> {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn random_u16() -> Result<u16> {
     let mut bytes = [0u8; 2];
     SystemRandom::new()
@@ -641,6 +686,7 @@ fn random_u16() -> Result<u16> {
     Ok(u16::from_be_bytes(bytes))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn generate_transfer_key() -> Result<[u8; KEY_SIZE]> {
     let mut input = [0u8; 32];
     SystemRandom::new()
@@ -649,6 +695,7 @@ fn generate_transfer_key() -> Result<[u8; KEY_SIZE]> {
     hkdf_sha256(&input, b"Mixin Device Transfer")
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn hkdf_sha256(input: &[u8], info: &[u8]) -> Result<[u8; KEY_SIZE]> {
     let salt = [0u8; 32];
     let mut extract = <Hmac<Sha256> as HmacKeyInit>::new_from_slice(&salt)
@@ -670,6 +717,7 @@ fn hkdf_sha256(input: &[u8], info: &[u8]) -> Result<[u8; KEY_SIZE]> {
     Ok(output)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 enum Packet {
     Command(TransferCommand),
     Json {
@@ -684,6 +732,7 @@ enum Packet {
     },
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl Packet {
     fn wire_size(&self) -> usize {
         match self {
@@ -693,6 +742,7 @@ impl Packet {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 async fn write_command<W: AsyncWrite + Unpin>(
     writer: &mut W,
     key: &[u8; KEY_SIZE],
@@ -701,6 +751,7 @@ async fn write_command<W: AsyncWrite + Unpin>(
     write_encrypted_packet(writer, key, PACKET_COMMAND, &serde_json::to_vec(command)?).await
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 async fn write_json_record<W: AsyncWrite + Unpin>(
     writer: &mut W,
     key: &[u8; KEY_SIZE],
@@ -714,6 +765,7 @@ async fn write_json_record<W: AsyncWrite + Unpin>(
     write_encrypted_packet(writer, key, PACKET_JSON, &bytes).await
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 async fn write_encrypted_packet<W: AsyncWrite + Unpin>(
     writer: &mut W,
     key: &[u8; KEY_SIZE],
@@ -731,6 +783,7 @@ async fn write_encrypted_packet<W: AsyncWrite + Unpin>(
     write_packet_body(writer, key, packet_type, &body).await
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 async fn write_file_packet<W: AsyncWrite + Unpin>(
     writer: &mut W,
     key: &[u8; KEY_SIZE],
@@ -755,6 +808,7 @@ async fn write_file_packet<W: AsyncWrite + Unpin>(
     write_packet_body(writer, key, PACKET_FILE, &body).await
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 async fn write_packet_body<W: AsyncWrite + Unpin>(
     writer: &mut W,
     key: &[u8; KEY_SIZE],
@@ -774,6 +828,7 @@ async fn write_packet_body<W: AsyncWrite + Unpin>(
     Ok(5 + body.len() + HMAC_SIZE)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 async fn read_packet<R: AsyncRead + Unpin>(reader: &mut R, key: &[u8; KEY_SIZE]) -> Result<Packet> {
     let packet_type = reader.read_u8().await?;
     let body_length = reader.read_i32().await?;
@@ -833,6 +888,7 @@ async fn read_packet<R: AsyncRead + Unpin>(reader: &mut R, key: &[u8; KEY_SIZE])
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn encrypt_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     let cipher = Aes256::new_from_slice(key).map_err(|_| anyhow!("invalid AES key"))?;
     let padding = 16 - data.len() % 16;
@@ -854,6 +910,7 @@ fn encrypt_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     Ok(padded)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn decrypt_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     if data.is_empty() || !data.len().is_multiple_of(16) {
         bail!("invalid AES ciphertext length");
@@ -886,6 +943,7 @@ fn decrypt_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>> {
     Ok(output)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 struct RecordSpec {
     kind: &'static str,
     table: &'static str,
@@ -893,6 +951,7 @@ struct RecordSpec {
     boolean_columns: &'static [&'static str],
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn record_specs() -> Vec<RecordSpec> {
     vec![
         spec(
@@ -1179,6 +1238,7 @@ fn record_specs() -> Vec<RecordSpec> {
     ]
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn spec(kind: &'static str, table: &'static str, columns: &'static [&'static str]) -> RecordSpec {
     RecordSpec {
         kind,
@@ -1188,6 +1248,7 @@ fn spec(kind: &'static str, table: &'static str, columns: &'static [&'static str
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn spec_bool(
     kind: &'static str,
     table: &'static str,
@@ -1202,13 +1263,14 @@ fn spec_bool(
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl DeviceTransferService {
     fn pool(&self) -> &sqlx::SqlitePool {
         &self.database.user_dao.0
     }
 
     async fn count_records(&self, spec: &RecordSpec) -> Result<u64> {
-        let count = sqlx::query_scalar::<_, i64>(AssertSqlSafe(format!(
+        let count = crate::db::query_scalar::<i64>(AssertSqlSafe(format!(
             "SELECT COUNT(*) FROM {}",
             spec.table
         )))
@@ -1241,7 +1303,7 @@ impl DeviceTransferService {
             "SELECT json_object({pairs}) FROM {} LIMIT ? OFFSET ?",
             spec.table
         );
-        let rows = sqlx::query_scalar::<_, String>(AssertSqlSafe(sql))
+        let rows = crate::db::query_scalar::<String>(AssertSqlSafe(sql))
             .bind(limit as i64)
             .bind(offset as i64)
             .fetch_all(self.pool())
@@ -1294,7 +1356,7 @@ impl DeviceTransferService {
         } else {
             "INSERT OR IGNORE"
         };
-        let mut builder = QueryBuilder::<Sqlite>::new(format!("{verb} INTO {} (", spec.table));
+        let mut builder = QueryBuilder::new(format!("{verb} INTO {} (", spec.table));
         {
             let mut columns = builder.separated(", ");
             for (column, _) in &values {
@@ -1414,7 +1476,7 @@ impl DeviceTransferService {
         } else {
             "SELECT category, conversation_id, message_id, media_mime_type, name FROM messages WHERE message_id = ? LIMIT 1"
         };
-        let row = sqlx::query(sql)
+        let row = crate::db::query(sql)
             .bind(message_id)
             .fetch_optional(self.pool())
             .await?;
@@ -1437,6 +1499,7 @@ impl DeviceTransferService {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn transferred_message_fts_content(record: &Map<String, Value>) -> Option<String> {
     message_fts_content(&Message {
         category: record.get("category")?.as_str()?.to_string(),
@@ -1453,6 +1516,7 @@ fn transferred_message_fts_content(record: &Map<String, Value>) -> Option<String
     })
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn normalize_outgoing_record(kind: &str, data: &mut Map<String, Value>) {
     if kind != "expired_message" {
         for key in [
@@ -1512,6 +1576,7 @@ fn normalize_outgoing_record(kind: &str, data: &mut Map<String, Value>) {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn normalize_incoming_record(kind: &str, data: &mut Map<String, Value>) {
     if kind == "conversation" {
         if let Some(Value::String(value)) = data.get("last_message_created_at") {
@@ -1536,6 +1601,7 @@ fn normalize_incoming_record(kind: &str, data: &mut Map<String, Value>) {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn normalize_millis_date(data: &mut Map<String, Value>, key: &str) {
     let Some(milliseconds) = data.get(key).and_then(Value::as_i64) else {
         return;
@@ -1546,6 +1612,7 @@ fn normalize_millis_date(data: &mut Map<String, Value>, key: &str) {
     data.insert(key.to_string(), Value::String(date.to_rfc3339()));
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn normalize_quote_content(data: &mut Map<String, Value>) {
     let Some(Value::String(content)) = data.get("quote_content") else {
         return;
@@ -1573,6 +1640,7 @@ fn normalize_quote_content(data: &mut Map<String, Value>) {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn parse_string_list(value: &str) -> Option<Vec<Value>> {
     if let Ok(Value::Array(values)) = serde_json::from_str(value) {
         return Some(values);
@@ -1588,6 +1656,7 @@ fn parse_string_list(value: &str) -> Option<Vec<Value>> {
     )
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn message_from_record(record: &Map<String, Value>) -> Result<Message> {
     let get = |name: &str| record.get(name).and_then(Value::as_str).unwrap_or_default();
     Ok(Message {
@@ -1608,6 +1677,7 @@ fn message_from_record(record: &Map<String, Value>) -> Result<Message> {
     })
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 async fn write_attachment_if_absent(path: &Path, bytes: &[u8]) -> Result<()> {
     if tokio::fs::metadata(path).await.is_ok() {
         return Ok(());
@@ -1625,6 +1695,7 @@ async fn write_attachment_if_absent(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
+#[cfg(all(test, not(target_arch = "wasm32")))]
 #[cfg(test)]
 mod tests {
     use super::*;

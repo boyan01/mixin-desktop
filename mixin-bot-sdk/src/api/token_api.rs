@@ -62,7 +62,7 @@ pub struct Token {
     pub collection_hash: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, sqlx::FromRow)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InscriptionItem {
     pub inscription_hash: String,
     pub collection_hash: String,
@@ -75,7 +75,7 @@ pub struct InscriptionItem {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, sqlx::FromRow)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InscriptionCollection {
     pub collection_hash: String,
     pub supply: String,
@@ -87,11 +87,10 @@ pub struct InscriptionCollection {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, sqlx::FromRow)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SafeSnapshotShot {
     pub snapshot_id: String,
     #[serde(rename = "type")]
-    #[sqlx(rename = "type")]
     pub type_field: String,
     pub asset_id: String,
     pub amount: String,
@@ -111,13 +110,13 @@ pub struct SafeSnapshotShot {
     pub inscription_hash: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, sqlx::Type)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SafeWithdrawal {
     pub withdrawal_hash: String,
     pub receiver: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, sqlx::Type)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SafeDeposit {
     pub deposit_hash: String,
     #[serde(default)]

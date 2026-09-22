@@ -19,8 +19,6 @@ impl ConversationApi {
 
 #[derive(Debug, Deserialize, Serialize, Clone, Eq, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[derive(sqlx::Type)]
-#[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ConversationCategory {
     Group,
     Contact,

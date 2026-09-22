@@ -6,6 +6,7 @@ use mixin_desktop_core::core::device_transfer::{
     DeviceTransferEvent as CoreDeviceTransferEvent,
 };
 use mixin_desktop_core::network::{ProxyConfig, ProxySettings, ProxyType};
+#[cfg(not(target_arch = "wasm32"))]
 use mixin_desktop_core::runtime::mcp::{McpServerStatus, McpSettings};
 use mixin_desktop_core::runtime::model::ConversationListData;
 
@@ -250,6 +251,7 @@ pub struct McpServerStatusItem {
     pub last_error: Option<String>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<McpSettings> for McpSettingsItem {
     fn from(settings: McpSettings) -> Self {
         Self {
@@ -261,6 +263,7 @@ impl From<McpSettings> for McpSettingsItem {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<McpSettingsItem> for McpSettings {
     fn from(settings: McpSettingsItem) -> Self {
         Self {
@@ -272,6 +275,7 @@ impl From<McpSettingsItem> for McpSettings {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<McpServerStatus> for McpServerStatusItem {
     fn from(status: McpServerStatus) -> Self {
         Self {

@@ -5,6 +5,7 @@ pub mod dto;
 pub mod error;
 mod logging;
 mod login;
+#[cfg(not(target_arch = "wasm32"))]
 mod media;
 pub mod model;
 
@@ -21,7 +22,9 @@ pub use dto::{
 pub use error::{ClientError, ClientResult};
 pub use logging::{init_logging, log_directory, write_log, LogLevel};
 pub use login::LoginClient;
+#[cfg(not(target_arch = "wasm32"))]
 pub use media::MediaClient;
+#[cfg(not(target_arch = "wasm32"))]
 pub use mixin_desktop_media::{
     AudioPlaybackEvent, AudioPlaybackItem, AudioPlaybackSnapshot, AudioPlaybackStatus,
     VoiceRecorderEvent, VoiceRecorderSnapshot, VoiceRecorderStatus, VoiceRecording,

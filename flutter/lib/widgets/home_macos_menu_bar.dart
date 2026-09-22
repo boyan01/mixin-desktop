@@ -18,6 +18,7 @@ import '../pages/conversation_info_destination.dart';
 import '../src/rust/desktop_api.dart';
 import '../theme.dart';
 import '../utils/app_logger.dart';
+import '../utils/rust_int.dart';
 import 'avatar_view.dart';
 import 'command_palette.dart';
 import 'device_transfer_dialog.dart';
@@ -440,7 +441,7 @@ class _MacosMenuBarState extends State<MacosMenuBar> {
         conversationId: conversation.id,
         ownerId: conversation.ownerId,
         category: conversation.category,
-        durationSeconds: duration,
+        durationSeconds: duration.toRustInt(),
       );
     } catch (error, stackTrace) {
       e(

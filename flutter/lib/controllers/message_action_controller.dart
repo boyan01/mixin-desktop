@@ -6,6 +6,7 @@ import '../models/conversation_list_entry.dart';
 import '../models/message_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../utils/app_logger.dart';
+import '../utils/rust_int.dart';
 import '../widgets/toast.dart';
 import 'message_controller.dart';
 import 'voice_recorder_controller.dart';
@@ -168,7 +169,7 @@ class MessageActionController extends ChangeNotifier {
       final messageId = await account.message().sendAudio(
         conversationId: conversation.id,
         path: path,
-        durationMillis: duration.inMilliseconds,
+        durationMillis: duration.inMilliseconds.toRustInt(),
         waveform: waveform,
         quoteMessageId: quoteMessageId,
       );
@@ -217,7 +218,7 @@ class MessageActionController extends ChangeNotifier {
         name: name,
         width: width,
         height: height,
-        durationMillis: durationMillis,
+        durationMillis: durationMillis?.toRustInt(),
         thumbnail: thumbnail,
         caption: caption,
         quoteMessageId: quoteMessageId,

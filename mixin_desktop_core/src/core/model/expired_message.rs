@@ -3,11 +3,11 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::task::JoinHandle;
 use anyhow::Result;
 use chrono::Utc;
 use log::error;
 use tokio::sync::Notify;
-use tokio::task::JoinHandle;
 
 use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::db::MixinDatabase;
@@ -21,7 +21,7 @@ impl ExpiredMessageService {
     pub fn new(database: Arc<MixinDatabase>, changes: Option<ConversationChangeNotifier>) -> Self {
         let notify = Arc::new(Notify::new());
         let runner_notify = notify.clone();
-        let handle = tokio::spawn(async move {
+        let handle = crate::task::spawn(async move {
             loop {
                 match cleanup_expired_messages(&database).await {
                     Ok(true) => {
@@ -51,7 +51,7 @@ impl ExpiredMessageService {
                 };
 
                 tokio::select! {
-                    _ = tokio::time::sleep(Duration::from_secs(delay)) => {}
+                    _ = crate::time::sleep(Duration::from_secs(delay)) => {}
                     _ = runner_notify.notified() => {}
                 }
             }
@@ -105,7 +105,7 @@ async fn cleanup_expired_messages(database: &MixinDatabase) -> Result<bool> {
         media_urls.dedup();
         for path in media_urls {
             if Path::new(&path).is_absolute() {
-                if let Err(err) = tokio::fs::remove_file(&path).await {
+                if let Err(err) = crate::fs::remove_file(&path).await {
                     if err.kind() != ErrorKind::NotFound {
                         return Err(err.into());
                     }
@@ -137,7 +137,7 @@ mod tests {
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
             .await
             .unwrap();
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO conversations (conversation_id, created_at, status) \
              VALUES ('conversation', 0, 0)",
         )
@@ -186,7 +186,7 @@ mod tests {
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
             .await
             .unwrap();
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO conversations (conversation_id, created_at, status) \
              VALUES ('conversation', 0, 0)",
         )
@@ -195,8 +195,8 @@ mod tests {
         .unwrap();
         let parent_path = directory.path().join("parent-attachment");
         let child_path = directory.path().join("transcript-attachment");
-        tokio::fs::write(&parent_path, b"parent").await.unwrap();
-        tokio::fs::write(&child_path, b"child").await.unwrap();
+        crate::fs::write(&parent_path, b"parent").await.unwrap();
+        crate::fs::write(&child_path, b"child").await.unwrap();
 
         database
             .message_dao

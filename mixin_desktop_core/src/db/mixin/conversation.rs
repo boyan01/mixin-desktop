@@ -7,11 +7,9 @@ use crate::db::mixin::message::Message;
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct ConversationDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct ConversationDao(pub(crate) crate::db::Pool);
 
-#[derive(sqlx::Type, Clone, Eq, PartialEq)]
-#[sqlx(transparent)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct ConversationStatus(pub(crate) i32);
 
 impl ConversationStatus {
@@ -21,7 +19,7 @@ impl ConversationStatus {
     pub const QUIT: ConversationStatus = ConversationStatus(3);
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Conversation {
     pub conversation_id: String,
     pub owner_id: Option<String>,
@@ -30,15 +28,13 @@ pub struct Conversation {
     pub icon_url: String,
     pub announcement: String,
     pub code_url: String,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
     pub status: ConversationStatus,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub mute_until: DateTime<Utc>,
     pub expire_in: i64,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone)]
 pub struct ConversationListItem {
     pub conversation_id: String,
     pub owner_id: String,
@@ -57,7 +53,6 @@ pub struct ConversationListItem {
     pub last_message_participant_id: Option<String>,
     pub last_message_participant_name: Option<String>,
     pub last_message_created_at: Option<i64>,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
     pub unseen_count: i64,
     pub mention_count: i64,
@@ -76,7 +71,7 @@ pub struct ConversationListItem {
     pub group_avatar_data: String,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug)]
 pub struct ConversationUnseenCountItem {
     pub category: String,
     pub circle_id: Option<String>,
@@ -99,7 +94,7 @@ impl ConversationDao {
         keyword: &str,
         unseen_only: bool,
     ) -> Result<i64, Error> {
-        let count = sqlx::query_scalar::<_, i64>(
+        let count = crate::db::query_scalar::< i64>(
             r#"
 SELECT COUNT(*)
 FROM conversations conversation
@@ -196,7 +191,7 @@ WHERE conversation.category IN ('CONTACT', 'GROUP')
         offset: i64,
         conversation_ids_json: &str,
     ) -> Result<Vec<ConversationListItem>, Error> {
-        let result = sqlx::query_as::<_, ConversationListItem>(
+        let result = crate::db::query_as::< ConversationListItem>(
             r#"
 SELECT conversation.conversation_id,
        COALESCE(conversation.owner_id, '') AS owner_id,
@@ -318,7 +313,7 @@ LIMIT ?5 OFFSET ?6
     }
 
     pub async fn unseen_counts(&self) -> Result<Vec<ConversationUnseenCountItem>, Error> {
-        Ok(sqlx::query_as::<_, ConversationUnseenCountItem>(
+        Ok(crate::db::query_as::<ConversationUnseenCountItem>(
             r#"
 WITH base AS (
     SELECT conversation.conversation_id,
@@ -365,7 +360,7 @@ ORDER BY category, circle_id
     }
 
     pub async fn unseen_unmuted_message_count(&self) -> Result<i64, Error> {
-        Ok(sqlx::query_scalar(
+        Ok(crate::db::query_scalar(
             r#"
 SELECT COALESCE(SUM(conversation.unseen_message_count), 0)
 FROM conversations conversation
@@ -384,7 +379,7 @@ WHERE conversation.category IN ('CONTACT', 'GROUP')
     }
 
     pub async fn is_bot_group(&self, conversation_id: &str) -> Result<bool, Error> {
-        Ok(sqlx::query_scalar(
+        Ok(crate::db::query_scalar(
             r#"
 SELECT EXISTS (
     SELECT 1
@@ -419,7 +414,7 @@ SELECT EXISTS (
     }
 
     pub async fn set_pinned(&self, conversation_id: &str, pinned: bool) -> Result<(), Error> {
-        sqlx::query("UPDATE conversations SET pin_time = ? WHERE conversation_id = ?")
+        crate::db::query("UPDATE conversations SET pin_time = ? WHERE conversation_id = ?")
             .bind(pinned.then(|| Utc::now().timestamp_millis()))
             .bind(conversation_id)
             .execute(&self.0)
@@ -435,13 +430,13 @@ SELECT EXISTS (
         mute_until: DateTime<Utc>,
     ) -> Result<(), Error> {
         if category == "GROUP" {
-            sqlx::query("UPDATE conversations SET mute_until = ? WHERE conversation_id = ?")
+            crate::db::query("UPDATE conversations SET mute_until = ? WHERE conversation_id = ?")
                 .bind(mute_until.timestamp_millis())
                 .bind(conversation_id)
                 .execute(&self.0)
                 .await?;
         } else {
-            sqlx::query("UPDATE users SET mute_until = ? WHERE user_id = ?")
+            crate::db::query("UPDATE users SET mute_until = ? WHERE user_id = ?")
                 .bind(mute_until.timestamp_millis())
                 .bind(owner_id)
                 .execute(&self.0)
@@ -460,7 +455,7 @@ SELECT EXISTS (
             "DELETE FROM messages WHERE conversation_id = ?",
             "DELETE FROM conversations WHERE conversation_id = ?",
         ] {
-            sqlx::query(query)
+            crate::db::query(query)
                 .bind(conversation_id)
                 .execute(&mut *transaction)
                 .await?;
@@ -473,7 +468,7 @@ SELECT EXISTS (
         &self,
         conversation_id: &str,
     ) -> Result<Option<Conversation>, Error> {
-        let result = sqlx::query_as::<_, Conversation>(
+        let result = crate::db::query_as::<Conversation>(
             "SELECT * FROM conversations WHERE conversation_id = ?",
         )
         .bind(conversation_id)
@@ -483,7 +478,7 @@ SELECT EXISTS (
     }
 
     pub async fn insert(&self, conversation: &Conversation) -> Result<(), Error> {
-        let _ = sqlx::query(
+        let _ = crate::db::query(
             r#"INSERT INTO conversations (
                 conversation_id, owner_id, category, name, icon_url, announcement,
                 code_url, created_at, status, mute_until, expire_in
@@ -518,7 +513,7 @@ SELECT EXISTS (
     }
 
     pub async fn update_status(&self, cid: &str, status: ConversationStatus) -> Result<(), Error> {
-        let _ = sqlx::query("UPDATE conversations SET status = ? WHERE conversation_id = ?")
+        let _ = crate::db::query("UPDATE conversations SET status = ? WHERE conversation_id = ?")
             .bind(status)
             .bind(cid)
             .execute(&self.0)
@@ -527,7 +522,7 @@ SELECT EXISTS (
     }
 
     pub async fn update_draft(&self, conversation_id: &str, draft: &str) -> Result<(), Error> {
-        sqlx::query("UPDATE conversations SET draft = ? WHERE conversation_id = ?")
+        crate::db::query("UPDATE conversations SET draft = ? WHERE conversation_id = ?")
             .bind(draft)
             .bind(conversation_id)
             .execute(&self.0)
@@ -536,11 +531,12 @@ SELECT EXISTS (
     }
 
     pub async fn update_expire_in(&self, cid: &str, expire_in: i64) -> Result<(), Error> {
-        let _ = sqlx::query("UPDATE conversations SET expire_in = ? WHERE conversation_id = ?")
-            .bind(expire_in)
-            .bind(cid)
-            .execute(&self.0)
-            .await?;
+        let _ =
+            crate::db::query("UPDATE conversations SET expire_in = ? WHERE conversation_id = ?")
+                .bind(expire_in)
+                .bind(cid)
+                .execute(&self.0)
+                .await?;
         Ok(())
     }
 
@@ -550,7 +546,7 @@ SELECT EXISTS (
         current_user_id: &str,
     ) -> Result<(), Error> {
         if message.user_id == current_user_id {
-            sqlx::query(
+            crate::db::query(
                 "UPDATE conversations SET last_message_id = ?, last_message_created_at = ?, \
                  draft = '' WHERE conversation_id = ?",
             )
@@ -562,7 +558,7 @@ SELECT EXISTS (
             return Ok(());
         }
 
-        let unseen: i64 = sqlx::query_scalar(
+        let unseen: i64 = crate::db::query_scalar(
             "SELECT COUNT(1) FROM messages WHERE conversation_id = ? \
              AND status IN ('SENT', 'DELIVERED') AND user_id != ?",
         )
@@ -571,7 +567,7 @@ SELECT EXISTS (
         .fetch_one(&self.0)
         .await?;
         let created_at = message.created_at.and_utc().timestamp_millis();
-        sqlx::query(
+        crate::db::query(
             "UPDATE conversations SET unseen_message_count = ?, \
              last_message_id = CASE \
                  WHEN last_message_created_at IS NULL OR last_message_created_at <= ? \
@@ -597,14 +593,14 @@ SELECT EXISTS (
         conversation_id: &str,
         current_user_id: &str,
     ) -> Result<(), Error> {
-        let last_read_message_id = sqlx::query_scalar::<_, String>(
+        let last_read_message_id = crate::db::query_scalar::<String>(
             "SELECT message_id FROM messages WHERE conversation_id = ? AND status = 'READ' \
              ORDER BY created_at DESC, rowid DESC LIMIT 1",
         )
         .bind(conversation_id)
         .fetch_optional(&self.0)
         .await?;
-        let unseen: i64 = sqlx::query_scalar(
+        let unseen: i64 = crate::db::query_scalar(
             "SELECT COUNT(1) FROM messages WHERE conversation_id = ? \
              AND status IN ('SENT', 'DELIVERED') AND user_id != ?",
         )
@@ -612,7 +608,7 @@ SELECT EXISTS (
         .bind(current_user_id)
         .fetch_one(&self.0)
         .await?;
-        sqlx::query(
+        crate::db::query(
             "UPDATE conversations SET last_read_message_id = ?, unseen_message_count = ? \
              WHERE conversation_id = ?",
         )
@@ -658,7 +654,7 @@ mod tests {
             .insert(&conversation)
             .await
             .unwrap();
-        sqlx::query(
+        crate::db::query(
             "UPDATE conversations SET pin_time = ?, last_message_id = ?, \
              last_message_created_at = ?, last_read_message_id = ?, \
              unseen_message_count = ?, draft = ? WHERE conversation_id = ?",
@@ -683,20 +679,17 @@ mod tests {
             .await
             .unwrap();
 
-        let row = sqlx::query_as::<
-            _,
-            (
-                String,
-                i32,
-                i64,
-                Option<String>,
-                Option<i64>,
-                Option<String>,
-                Option<i64>,
-                Option<String>,
-                Option<i64>,
-            ),
-        >(
+        let row = crate::db::query_as::<(
+            String,
+            i32,
+            i64,
+            Option<String>,
+            Option<i64>,
+            Option<String>,
+            Option<i64>,
+            Option<String>,
+            Option<i64>,
+        )>(
             "SELECT name, status, expire_in, last_message_id, last_message_created_at, \
              last_read_message_id, unseen_message_count, draft, pin_time \
              FROM conversations WHERE conversation_id = ?",
@@ -769,7 +762,7 @@ mod tests {
                 .unwrap();
         }
 
-        let row = sqlx::query_as::<_, (Option<String>, Option<i64>, Option<i64>)>(
+        let row = crate::db::query_as::<(Option<String>, Option<i64>, Option<i64>)>(
             "SELECT last_message_id, last_message_created_at, unseen_message_count \
              FROM conversations WHERE conversation_id = 'conversation'",
         )
@@ -791,7 +784,7 @@ mod tests {
             .update_read_state("conversation", "me")
             .await
             .unwrap();
-        let row = sqlx::query_as::<_, (Option<String>, Option<i64>)>(
+        let row = crate::db::query_as::<(Option<String>, Option<i64>)>(
             "SELECT last_read_message_id, unseen_message_count \
              FROM conversations WHERE conversation_id = 'conversation'",
         )
@@ -815,7 +808,7 @@ mod tests {
             .update_for_message(&own, "me")
             .await
             .unwrap();
-        let row = sqlx::query_as::<_, (Option<String>, Option<i64>, Option<String>)>(
+        let row = crate::db::query_as::<(Option<String>, Option<i64>, Option<String>)>(
             "SELECT last_message_id, last_message_created_at, draft \
              FROM conversations WHERE conversation_id = 'conversation'",
         )
@@ -843,7 +836,7 @@ mod tests {
             ("unmuted-owner", now),
             ("muted-owner", now + TimeDelta::hours(1)),
         ] {
-            sqlx::query(
+            crate::db::query(
                 "INSERT INTO users (user_id, identity_number, full_name, avatar_url, \
                  created_at, mute_until) VALUES (?, ?, ?, ?, ?, ?)",
             )
@@ -904,7 +897,7 @@ mod tests {
                 })
                 .await
                 .unwrap();
-            sqlx::query(
+            crate::db::query(
                 "UPDATE conversations SET unseen_message_count = ? WHERE conversation_id = ?",
             )
             .bind(unseen_count)
@@ -931,7 +924,7 @@ mod tests {
             .await
             .unwrap();
         let now = Utc::now();
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO users (user_id, identity_number, relationship, full_name, avatar_url, \
              created_at, mute_until, app_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
@@ -963,7 +956,7 @@ mod tests {
             })
             .await
             .unwrap();
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO messages (message_id, conversation_id, user_id, category, status, \
              created_at) VALUES (?, ?, ?, ?, ?, ?)",
         )
@@ -987,7 +980,7 @@ mod tests {
             .await
             .unwrap());
 
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO messages (message_id, conversation_id, user_id, category, status, \
              created_at) VALUES (?, ?, ?, ?, ?, ?)",
         )
@@ -1014,7 +1007,7 @@ mod tests {
             .await
             .unwrap();
         let now = Utc::now();
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO users (user_id, identity_number, full_name, avatar_url, \
              is_verified, created_at, mute_until) VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
@@ -1061,12 +1054,14 @@ mod tests {
             .update_for_message(&message, "me")
             .await
             .unwrap();
-        sqlx::query("UPDATE conversations SET last_read_message_id = ? WHERE conversation_id = ?")
-            .bind("read-boundary")
-            .bind("conversation")
-            .execute(&database.conversation_dao.0)
-            .await
-            .unwrap();
+        crate::db::query(
+            "UPDATE conversations SET last_read_message_id = ? WHERE conversation_id = ?",
+        )
+        .bind("read-boundary")
+        .bind("conversation")
+        .execute(&database.conversation_dao.0)
+        .await
+        .unwrap();
 
         let count = database
             .conversation_dao
@@ -1116,7 +1111,7 @@ mod tests {
             .delete_local("conversation")
             .await
             .unwrap();
-        let remaining: i64 = sqlx::query_scalar(
+        let remaining: i64 = crate::db::query_scalar(
             "SELECT (SELECT COUNT(*) FROM conversations) + \
              (SELECT COUNT(*) FROM messages) + \
              (SELECT COUNT(*) FROM fts.messages_metas)",
@@ -1127,3 +1122,60 @@ mod tests {
         assert_eq!(remaining, 0);
     }
 }
+
+crate::db::storage::row_mapping!(Conversation {
+    conversation_id: "conversation_id",
+    owner_id: "owner_id",
+    category: "category",
+    name: "name",
+    icon_url: "icon_url",
+    announcement: "announcement",
+    code_url: "code_url",
+    created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
+    status: "status",
+    mute_until: "mute_until" => crate::db::datetime::DatabaseDateTime,
+    expire_in: "expire_in",
+});
+
+crate::db::storage::row_mapping!(ConversationListItem {
+    conversation_id: "conversation_id",
+    owner_id: "owner_id",
+    name: "name",
+    avatar_url: "avatar_url",
+    category: "category",
+    draft: "draft",
+    status: "status",
+    last_read_message_id: "last_read_message_id",
+    last_message: "last_message",
+    last_message_category: "last_message_category",
+    last_message_status: "last_message_status",
+    last_message_sender_id: "last_message_sender_id",
+    last_message_sender_name: "last_message_sender_name",
+    last_message_action: "last_message_action",
+    last_message_participant_id: "last_message_participant_id",
+    last_message_participant_name: "last_message_participant_name",
+    last_message_created_at: "last_message_created_at",
+    created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
+    unseen_count: "unseen_count",
+    mention_count: "mention_count",
+    is_muted: "is_muted",
+    is_verified: "is_verified",
+    is_scam: "is_scam",
+    is_bot: "is_bot",
+    is_bot_group: "is_bot_group",
+    membership: "membership",
+    is_pinned: "is_pinned",
+    pin_time_millis: "pin_time_millis",
+    relationship: "relationship",
+    identity_number: "identity_number",
+    circle_ids: "circle_ids",
+    participant_count: "participant_count",
+    group_avatar_data: "group_avatar_data",
+});
+
+crate::db::storage::row_mapping!(ConversationUnseenCountItem {
+    category: "category",
+    circle_id: "circle_id",
+    count: "count",
+    muted_count: "muted_count",
+});

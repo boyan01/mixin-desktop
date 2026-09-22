@@ -18,9 +18,9 @@ const TRANSCRIPT_SELECT_COLUMNS: &str = r#"
 "#;
 
 #[derive(Clone)]
-pub struct TranscriptMessageDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct TranscriptMessageDao(pub(crate) crate::db::Pool);
 
-#[derive(Clone, Debug, Deserialize, Serialize, sqlx::FromRow)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct TranscriptMessage {
     pub transcript_id: String,
     pub message_id: String,
@@ -33,7 +33,6 @@ pub struct TranscriptMessage {
         deserialize_with = "deserialize_datetime",
         serialize_with = "serialize_datetime"
     )]
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
     #[serde(default)]
     pub content: Option<String>,
@@ -87,7 +86,7 @@ pub struct TranscriptMessage {
     pub caption: Option<String>,
 }
 
-#[derive(Clone, Debug, sqlx::FromRow)]
+#[derive(Clone, Debug)]
 pub struct TranscriptMessageListItem {
     pub message_id: String,
     pub conversation_id: String,
@@ -104,7 +103,6 @@ pub struct TranscriptMessageListItem {
     pub category: String,
     pub content: Option<String>,
     pub status: MessageStatus,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
     pub media_url: Option<String>,
     pub media_mime_type: Option<String>,
@@ -145,11 +143,11 @@ impl TranscriptMessageDao {
     }
 
     pub(crate) async fn insert_all_with(
-        transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        transaction: &mut crate::db::Transaction<'_>,
         transcripts: &[TranscriptMessage],
     ) -> Result<(), Error> {
         for transcript in transcripts {
-            sqlx::query(
+            crate::db::query(
                 r#"INSERT OR REPLACE INTO transcript_messages
                    (transcript_id, message_id, user_id, user_full_name, category, created_at,
                     content, media_url, media_name, media_size, media_width, media_height,
@@ -202,7 +200,7 @@ impl TranscriptMessageDao {
         message_id: &str,
         status: MediaStatus,
     ) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             "UPDATE transcript_messages SET media_status = ? \
              WHERE transcript_id = ? AND message_id = ?",
         )
@@ -223,7 +221,7 @@ impl TranscriptMessageDao {
         media_digest: Option<&str>,
         media_created_at: DateTime<Utc>,
     ) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             "UPDATE transcript_messages SET content = ?, media_key = ?, media_digest = ?, \
              media_created_at = ?, media_status = ? \
              WHERE transcript_id = ? AND message_id = ?",
@@ -249,7 +247,7 @@ impl TranscriptMessageDao {
         media_created_at: Option<DateTime<Utc>>,
         content: &str,
     ) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             "UPDATE transcript_messages SET media_url = ?, media_size = ?, media_status = ?, \
              media_created_at = ?, content = ? WHERE transcript_id = ? AND message_id = ?",
         )
@@ -274,7 +272,7 @@ impl TranscriptMessageDao {
         media_created_at: Option<DateTime<Utc>>,
         content: &str,
     ) -> Result<bool, Error> {
-        let result = sqlx::query(
+        let result = crate::db::query(
             "UPDATE transcript_messages SET media_url = ?, media_size = ?, media_status = ?, \
              media_created_at = ?, content = ? WHERE transcript_id = ? AND message_id = ? \
              AND media_status = ?",
@@ -301,7 +299,7 @@ impl TranscriptMessageDao {
              WHERE transcript_id = ? ORDER BY created_at"
         );
         Ok(
-            sqlx::query_as::<_, TranscriptMessage>(sqlx::AssertSqlSafe(query))
+            crate::db::query_as::<TranscriptMessage>(sqlx::AssertSqlSafe(query))
                 .bind(transcript_id)
                 .fetch_all(&self.0)
                 .await?,
@@ -312,7 +310,7 @@ impl TranscriptMessageDao {
         &self,
         transcript_id: &str,
     ) -> Result<Vec<TranscriptMessageListItem>, Error> {
-        Ok(sqlx::query_as::<_, TranscriptMessageListItem>(
+        Ok(crate::db::query_as::< TranscriptMessageListItem>(
             r#"SELECT transcript.message_id AS message_id,
                        parent.conversation_id AS conversation_id,
                        COALESCE(transcript.user_id, '') AS user_id,
@@ -383,7 +381,7 @@ impl TranscriptMessageDao {
              WHERE transcript_id = ? AND message_id = ? LIMIT 1"
         );
         Ok(
-            sqlx::query_as::<_, TranscriptMessage>(sqlx::AssertSqlSafe(query))
+            crate::db::query_as::<TranscriptMessage>(sqlx::AssertSqlSafe(query))
                 .bind(transcript_id)
                 .bind(message_id)
                 .fetch_optional(&self.0)
@@ -395,7 +393,7 @@ impl TranscriptMessageDao {
         &self,
         transcript_id: &str,
     ) -> Result<Vec<String>, Error> {
-        Ok(sqlx::query_scalar(
+        Ok(crate::db::query_scalar(
             "SELECT media_url FROM transcript_messages \
              WHERE transcript_id = ? AND media_url IS NOT NULL AND media_url != ''",
         )
@@ -529,7 +527,7 @@ mod tests {
             stored[0].media_created_at.unwrap().timestamp_millis(),
             1_704_164_646_123
         );
-        let storage_type: String = sqlx::query_scalar(
+        let storage_type: String = crate::db::query_scalar(
             "SELECT typeof(media_created_at) FROM transcript_messages \
              WHERE transcript_id = 'root' AND message_id = 'child'",
         )
@@ -571,3 +569,80 @@ mod tests {
         );
     }
 }
+
+crate::db::storage::row_mapping!(TranscriptMessage {
+    transcript_id: "transcript_id",
+    message_id: "message_id",
+    user_id: "user_id",
+    user_full_name: "user_full_name",
+    category: "category",
+    created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
+    content: "content",
+    media_url: "media_url",
+    media_name: "media_name",
+    media_size: "media_size",
+    media_width: "media_width",
+    media_height: "media_height",
+    media_mime_type: "media_mime_type",
+    media_duration: "media_duration",
+    media_status: "media_status",
+    media_waveform: "media_waveform",
+    thumb_image: "thumb_image",
+    thumb_url: "thumb_url",
+    media_key: "media_key",
+    media_digest: "media_digest",
+    media_created_at: "media_created_at",
+    sticker_id: "sticker_id",
+    shared_user_id: "shared_user_id",
+    mentions: "mentions",
+    quote_id: "quote_id",
+    quote_content: "quote_content",
+    caption: "caption",
+});
+
+crate::db::storage::row_mapping!(TranscriptMessageListItem {
+    message_id: "message_id",
+    conversation_id: "conversation_id",
+    user_id: "user_id",
+    sender_name: "sender_name",
+    sender_identity_number: "sender_identity_number",
+    sender_avatar_url: "sender_avatar_url",
+    sender_is_verified: "sender_is_verified",
+    sender_membership: "sender_membership",
+    sender_relationship: "sender_relationship",
+    sender_app_id: "sender_app_id",
+    sender_is_scam: "sender_is_scam",
+    sender_is_bot: "sender_is_bot",
+    category: "category",
+    content: "content",
+    status: "status",
+    created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
+    media_url: "media_url",
+    media_mime_type: "media_mime_type",
+    media_size: "media_size",
+    media_duration: "media_duration",
+    media_width: "media_width",
+    media_height: "media_height",
+    thumb_image: "thumb_image",
+    media_status: "media_status",
+    quote_message_id: "quote_message_id",
+    quote_content: "quote_content",
+    quote_user_membership: "quote_user_membership",
+    caption: "caption",
+    media_name: "media_name",
+    sticker_id: "sticker_id",
+    shared_user_id: "shared_user_id",
+    media_waveform: "media_waveform",
+    thumb_url: "thumb_url",
+    shared_user_full_name: "shared_user_full_name",
+    shared_user_identity_number: "shared_user_identity_number",
+    shared_user_avatar_url: "shared_user_avatar_url",
+    shared_user_is_verified: "shared_user_is_verified",
+    shared_user_membership: "shared_user_membership",
+    shared_user_app_id: "shared_user_app_id",
+    sticker_asset_url: "sticker_asset_url",
+    sticker_asset_width: "sticker_asset_width",
+    sticker_asset_height: "sticker_asset_height",
+    sticker_asset_name: "sticker_asset_name",
+    sticker_asset_type: "sticker_asset_type",
+});

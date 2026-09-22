@@ -1,6 +1,9 @@
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
 
+#[cfg(not(target_arch = "wasm32"))]
 use futures::StreamExt as _;
+#[cfg(not(target_arch = "wasm32"))]
 use mixin_desktop_api::{
     AudioPlaybackEvent, AudioPlaybackItem, AudioPlaybackSnapshot, AudioPlaybackStatus, MediaClient,
     VoiceRecorderEvent, VoiceRecorderSnapshot, VoiceRecorderStatus, VoiceRecording,
@@ -10,6 +13,7 @@ use crate::{frb_generated::StreamSink, CoreError, Result};
 
 #[flutter_rust_bridge::frb(opaque)]
 pub struct MediaHandle {
+    #[cfg(not(target_arch = "wasm32"))]
     client: Arc<MediaClient>,
 }
 
@@ -78,39 +82,86 @@ pub enum MediaPlaybackEvent {
 }
 
 impl MediaHandle {
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn new(client: Arc<MediaClient>) -> Self {
         Self { client }
     }
 
     pub async fn start_voice_recording(&self) -> Result<(), CoreError> {
-        Ok(self.client.start_voice_recording().await?)
+        #[cfg(target_arch = "wasm32")]
+        {
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self.client.start_voice_recording().await?)
+        }
     }
 
     pub async fn stop_voice_recording(&self) -> Result<MediaVoiceRecording, CoreError> {
-        Ok(self.client.stop_voice_recording().await?.into())
+        #[cfg(target_arch = "wasm32")]
+        {
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self.client.stop_voice_recording().await?.into())
+        }
     }
 
     pub async fn cancel_voice_recording(&self) -> Result<(), CoreError> {
-        Ok(self.client.cancel_voice_recording().await?)
+        #[cfg(target_arch = "wasm32")]
+        {
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self.client.cancel_voice_recording().await?)
+        }
     }
 
     #[flutter_rust_bridge::frb(sync)]
-    pub fn voice_recorder_snapshot(&self) -> MediaRecorderSnapshot {
-        self.client.voice_recorder_snapshot().into()
+    pub fn voice_recorder_snapshot(&self) -> Result<MediaRecorderSnapshot, CoreError> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self.client.voice_recorder_snapshot().into())
+        }
     }
 
     pub async fn voice_recorder_events(
         &self,
         sink: StreamSink<MediaRecorderEvent>,
     ) -> Result<(), CoreError> {
-        let events = self.client.subscribe_voice_recorder();
-        futures::pin_mut!(events);
-        while let Some(event) = events.next().await {
-            if sink.add(event.into()).is_err() {
-                break;
-            }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (sink,);
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
         }
-        Ok(())
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let events = self.client.subscribe_voice_recorder();
+            futures::pin_mut!(events);
+            while let Some(event) = events.next().await {
+                if sink.add(event.into()).is_err() {
+                    break;
+                }
+            }
+            Ok(())
+        }
     }
 
     pub async fn play_audio(
@@ -118,54 +169,133 @@ impl MediaHandle {
         playlist: Vec<MediaAudioItem>,
         start_index: u64,
     ) -> Result<(), CoreError> {
-        Ok(self
-            .client
-            .play_audio(playlist.into_iter().map(Into::into).collect(), start_index)
-            .await?)
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (playlist, start_index);
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self
+                .client
+                .play_audio(playlist.into_iter().map(Into::into).collect(), start_index)
+                .await?)
+        }
     }
 
     pub async fn pause_audio(&self) -> Result<(), CoreError> {
-        Ok(self.client.pause_audio().await?)
+        #[cfg(target_arch = "wasm32")]
+        {
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self.client.pause_audio().await?)
+        }
     }
 
     pub async fn resume_audio(&self) -> Result<(), CoreError> {
-        Ok(self.client.resume_audio().await?)
+        #[cfg(target_arch = "wasm32")]
+        {
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self.client.resume_audio().await?)
+        }
     }
 
     #[flutter_rust_bridge::frb(sync)]
-    pub fn seek_audio(&self, position_millis: u64) {
-        self.client.seek_audio(position_millis);
+    pub fn seek_audio(&self, position_millis: u64) -> Result<(), CoreError> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (position_millis,);
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.client.seek_audio(position_millis);
+            Ok(())
+        }
     }
 
     pub async fn set_audio_speed(&self, speed: f64) -> Result<(), CoreError> {
-        Ok(self.client.set_audio_speed(speed).await?)
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (speed,);
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self.client.set_audio_speed(speed).await?)
+        }
     }
 
     #[flutter_rust_bridge::frb(sync)]
-    pub fn stop_audio(&self) {
-        self.client.stop_audio();
+    pub fn stop_audio(&self) -> Result<(), CoreError> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.client.stop_audio();
+            Ok(())
+        }
     }
 
     #[flutter_rust_bridge::frb(sync)]
-    pub fn audio_playback_snapshot(&self) -> MediaPlaybackSnapshot {
-        self.client.audio_playback_snapshot().into()
+    pub fn audio_playback_snapshot(&self) -> Result<MediaPlaybackSnapshot, CoreError> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            Ok(self.client.audio_playback_snapshot().into())
+        }
     }
 
     pub async fn audio_playback_events(
         &self,
         sink: StreamSink<MediaPlaybackEvent>,
     ) -> Result<(), CoreError> {
-        let events = self.client.subscribe_audio_playback();
-        futures::pin_mut!(events);
-        while let Some(event) = events.next().await {
-            if sink.add(event.into()).is_err() {
-                break;
-            }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = (sink,);
+            Err(CoreError::Other {
+                message: "Native media is not supported in the browser".into(),
+            })
         }
-        Ok(())
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let events = self.client.subscribe_audio_playback();
+            futures::pin_mut!(events);
+            while let Some(event) = events.next().await {
+                if sink.add(event.into()).is_err() {
+                    break;
+                }
+            }
+            Ok(())
+        }
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<MediaAudioItem> for AudioPlaybackItem {
     fn from(value: MediaAudioItem) -> Self {
         Self {
@@ -176,6 +306,7 @@ impl From<MediaAudioItem> for AudioPlaybackItem {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<AudioPlaybackItem> for MediaAudioItem {
     fn from(value: AudioPlaybackItem) -> Self {
         Self {
@@ -186,6 +317,7 @@ impl From<AudioPlaybackItem> for MediaAudioItem {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<VoiceRecording> for MediaVoiceRecording {
     fn from(value: VoiceRecording) -> Self {
         Self {
@@ -196,6 +328,7 @@ impl From<VoiceRecording> for MediaVoiceRecording {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<VoiceRecorderStatus> for MediaRecorderStatus {
     fn from(value: VoiceRecorderStatus) -> Self {
         match value {
@@ -206,6 +339,7 @@ impl From<VoiceRecorderStatus> for MediaRecorderStatus {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<VoiceRecorderSnapshot> for MediaRecorderSnapshot {
     fn from(value: VoiceRecorderSnapshot) -> Self {
         Self {
@@ -215,6 +349,7 @@ impl From<VoiceRecorderSnapshot> for MediaRecorderSnapshot {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<VoiceRecorderEvent> for MediaRecorderEvent {
     fn from(value: VoiceRecorderEvent) -> Self {
         match value {
@@ -226,6 +361,7 @@ impl From<VoiceRecorderEvent> for MediaRecorderEvent {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<AudioPlaybackStatus> for MediaPlaybackStatus {
     fn from(value: AudioPlaybackStatus) -> Self {
         match value {
@@ -236,6 +372,7 @@ impl From<AudioPlaybackStatus> for MediaPlaybackStatus {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<AudioPlaybackSnapshot> for MediaPlaybackSnapshot {
     fn from(value: AudioPlaybackSnapshot) -> Self {
         Self {
@@ -248,6 +385,7 @@ impl From<AudioPlaybackSnapshot> for MediaPlaybackSnapshot {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<AudioPlaybackEvent> for MediaPlaybackEvent {
     fn from(value: AudioPlaybackEvent) -> Self {
         match value {

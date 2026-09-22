@@ -234,11 +234,12 @@ impl Api {
             .methods
             .get(&(owner.into(), source_name.into()))
             .ok_or_else(|| format!("method not found: {owner}::{source_name}"))?;
-        if source
-            .attrs
-            .iter()
-            .any(|attr| !attr.path().is_ident("doc") && !attr.path().is_ident("allow"))
-        {
+        // Swift is a native target. Consume this exact platform gate; other
+        // conditions still require explicit generator support.
+        let native_only: syn::Attribute = parse_quote!(#[cfg(not(target_arch = "wasm32"))]);
+        if source.attrs.iter().any(|attr| {
+            !attr.path().is_ident("doc") && !attr.path().is_ident("allow") && attr != &native_only
+        }) {
             return Err(format!("unsupported method attributes: {owner}::{source_name}").into());
         }
         let mut signature = source.sig.clone();
@@ -293,7 +294,12 @@ impl Api {
         }
         signature.ident = format_ident!("{export_name}");
         let mut method: ItemFn = parse_quote!(pub #signature { #call });
-        method.attrs = source.attrs.clone();
+        method.attrs = source
+            .attrs
+            .iter()
+            .filter(|attr| *attr != &native_only)
+            .cloned()
+            .collect();
         Ok(method)
     }
 }
@@ -485,6 +491,7 @@ mod tests {
         let source = r#"
             pub struct Client;
             impl Client {
+                #[cfg(not(target_arch = "wasm32"))]
                 pub async fn query(&self, term: String, limit: Option<u64>) -> ClientResult<String> {
                     if term.is_empty() { return Err(ClientError); }
                     Ok(format!("{term}:{}", limit.unwrap_or(15)))

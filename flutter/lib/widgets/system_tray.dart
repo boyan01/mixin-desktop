@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:system_tray/system_tray.dart';
@@ -24,7 +25,7 @@ class _SystemTrayWidgetState extends State<SystemTrayWidget> {
   @override
   void initState() {
     super.initState();
-    if (Platform.isWindows) unawaited(_initialize());
+    if (!kIsWeb && Platform.isWindows) unawaited(_initialize());
   }
 
   Future<void> _initialize() async {
@@ -53,7 +54,9 @@ class _SystemTrayWidgetState extends State<SystemTrayWidget> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (Platform.isWindows && _initialized) unawaited(_updateMenu());
+    if ((!kIsWeb && Platform.isWindows) && _initialized) {
+      unawaited(_updateMenu());
+    }
   }
 
   Future<void> _updateMenu() => _systemTray.setContextMenu([

@@ -9,6 +9,7 @@ import '../../l10n/l10n.dart';
 import '../../src/rust/desktop_api.dart' as rust;
 import '../../theme.dart';
 import '../../utils/app_logger.dart';
+import '../../utils/rust_int.dart';
 import '../../widgets/avatar_view.dart';
 import '../../widgets/badges_widget.dart';
 import '../../widgets/custom_popup_menu.dart';
@@ -209,7 +210,8 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
     final scope = ChatSideScope.of(context);
     final muted = detail == null
         ? scope.conversation.isMuted
-        : detail!.muteUntilMillis > DateTime.now().millisecondsSinceEpoch;
+        : detail!.muteUntilMillis.toDartInt() >
+              DateTime.now().millisecondsSinceEpoch;
     var seconds = 0;
     if (!muted) {
       final selected = await showMuteDialog(context);
@@ -221,7 +223,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
         conversationId: scope.conversation.id,
         ownerId: scope.conversation.ownerId,
         category: scope.conversation.category,
-        durationSeconds: seconds,
+        durationSeconds: seconds.toRustInt(),
       ),
     );
   }
@@ -243,8 +245,9 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
         isGroup && participantsLoaded && currentParticipant == null;
     final muted = detail == null
         ? conversation.isMuted
-        : detail!.muteUntilMillis > DateTime.now().millisecondsSinceEpoch;
-    final expireIn = detail?.expireIn ?? 0;
+        : detail!.muteUntilMillis.toDartInt() >
+              DateTime.now().millisecondsSinceEpoch;
+    final expireIn = detail?.expireIn.toDartInt() ?? 0;
     final canModifyExpire = !isGroup || isOwnerOrAdmin;
     return ChatSidePageScaffold(
       title: '',
@@ -473,7 +476,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                           ? Text(
                               DateFormat('yyyy/MM/dd, hh:mm a').format(
                                 DateTime.fromMillisecondsSinceEpoch(
-                                  detail!.muteUntilMillis,
+                                  detail!.muteUntilMillis.toDartInt(),
                                 ).toLocal(),
                               ),
                             )
@@ -682,7 +685,7 @@ class _ChatInfoPageState extends State<ChatInfoPage> {
                   context.l10n.createdAt(
                     DateFormat.yMMMd().format(
                       DateTime.fromMillisecondsSinceEpoch(
-                        detail!.createdAtMillis,
+                        detail!.createdAtMillis.toDartInt(),
                       ).toLocal(),
                     ),
                   ),

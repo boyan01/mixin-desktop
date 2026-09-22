@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 class TextInputActionHandler extends StatefulWidget {
@@ -30,7 +31,7 @@ class _TextInputActionHandlerState extends State<TextInputActionHandler> {
   );
 
   @override
-  Widget build(BuildContext context) => Platform.isMacOS
+  Widget build(BuildContext context) => (!kIsWeb && Platform.isMacOS)
       ? Actions(actions: actions, child: widget.child)
       : widget.child;
 }

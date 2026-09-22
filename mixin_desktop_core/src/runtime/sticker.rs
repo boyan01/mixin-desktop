@@ -334,17 +334,17 @@ impl StickerAccess {
         let path = path.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
-        let path = tokio::fs::canonicalize(path)
+        let path = crate::fs::canonicalize(path)
             .await
             .with_context(|| format!("resolve sticker image {path}"))?;
-        let metadata = tokio::fs::metadata(&path).await?;
+        let metadata = crate::fs::metadata(&path).await?;
         if !metadata.is_file() {
             return Err(anyhow!("sticker image path is not a file"));
         }
         if metadata.len() > MAX_STICKER_FILE_SIZE as u64 {
             return Err(anyhow!("sticker image exceeds the 1MB size limit"));
         }
-        let bytes = tokio::fs::read(&path).await?;
+        let bytes = crate::fs::read(&path).await?;
         self.add_sticker_image(&path, &bytes).await
     }
 

@@ -1,13 +1,13 @@
+use crate::db::QueryBuilder;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::QueryBuilder;
 
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct AppDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct AppDao(pub(crate) crate::db::Pool);
 
-#[derive(Serialize, Deserialize, Debug, Clone, sqlx::FromRow)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct App {
     pub app_id: String,
     pub app_number: String,
@@ -21,13 +21,12 @@ pub struct App {
     pub capabilities: Option<String>,
     pub creator_id: String,
     pub resource_patterns: Option<String>,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub updated_at: DateTime<Utc>,
 }
 
 impl AppDao {
     pub async fn find_app_by_id(&self, app_id: &str) -> Result<Option<App>, Error> {
-        let result = sqlx::query_as::<_, App>("SELECT * FROM apps WHERE app_id = ?")
+        let result = crate::db::query_as::<App>("SELECT * FROM apps WHERE app_id = ?")
             .bind(app_id)
             .fetch_optional(&self.0)
             .await?;
@@ -38,7 +37,7 @@ impl AppDao {
         if apps.is_empty() {
             return Ok(());
         }
-        let mut query_builder: QueryBuilder<sqlx::Sqlite> = QueryBuilder::new(
+        let mut query_builder: QueryBuilder = QueryBuilder::new(
             r#"INSERT OR REPLACE INTO apps (
                 app_id, app_number, home_uri, redirect_uri, name, icon_url,
                 category, description, app_secret, capabilities, creator_id,
@@ -65,3 +64,19 @@ impl AppDao {
         Ok(())
     }
 }
+
+crate::db::storage::row_mapping!(App {
+    app_id: "app_id",
+    app_number: "app_number",
+    home_uri: "home_uri",
+    redirect_uri: "redirect_uri",
+    name: "name",
+    icon_url: "icon_url",
+    category: "category",
+    description: "description",
+    app_secret: "app_secret",
+    capabilities: "capabilities",
+    creator_id: "creator_id",
+    resource_patterns: "resource_patterns",
+    updated_at: "updated_at" => crate::db::datetime::DatabaseDateTime,
+});

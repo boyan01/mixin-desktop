@@ -17,6 +17,7 @@ use crate::db::SignalDatabase;
 use crate::network::{HttpResponse, NetworkService, SharedNetworkService};
 
 use super::login::LoginRuntime;
+#[cfg(not(target_arch = "wasm32"))]
 use super::mcp::McpServer;
 use super::{credential, AccountRuntime, SessionUnauthorized};
 
@@ -28,6 +29,9 @@ pub struct DesktopRuntime {
     pub settings: SettingDao,
     network_service: SharedNetworkService,
     account: Mutex<Option<Arc<AccountRuntime>>>,
+    /// The MCP server exposes a localhost TCP bridge; the browser has no
+    /// equivalent, so it only exists on native.
+    #[cfg(not(target_arch = "wasm32"))]
     pub mcp_server: Arc<McpServer>,
 }
 
@@ -42,6 +46,7 @@ impl DesktopRuntime {
         let database = Arc::new(AppDatabase::connect().await?);
         let auth_service = Arc::new(AuthService::new(database.clone()));
         auth_service.initialize().await?;
+        #[cfg(not(target_arch = "wasm32"))]
         let mcp_server = McpServer::new(database.setting_dao.clone()).await?;
         let network_service = Arc::new(NetworkService::new(database.setting_dao.clone()).await?);
         Ok(Self {
@@ -50,6 +55,7 @@ impl DesktopRuntime {
             settings: database.setting_dao.clone(),
             network_service,
             account: Mutex::new(None),
+            #[cfg(not(target_arch = "wasm32"))]
             mcp_server,
         })
     }
@@ -120,6 +126,7 @@ impl DesktopRuntime {
                 info!("started account runtime for {}", runtime.account_id());
                 *active = Some(runtime.clone());
                 drop(active);
+                #[cfg(not(target_arch = "wasm32"))]
                 self.mcp_server.start(runtime.clone()).await?;
                 Ok(Some(runtime))
             }
@@ -192,6 +199,7 @@ impl DesktopRuntime {
         );
         *active = Some(runtime.clone());
         drop(active);
+        #[cfg(not(target_arch = "wasm32"))]
         self.mcp_server.start(runtime.clone()).await?;
         Ok(runtime)
     }
@@ -203,6 +211,7 @@ impl DesktopRuntime {
             .is_some_and(|current| Arc::ptr_eq(current, runtime));
         if was_active {
             active.take();
+            #[cfg(not(target_arch = "wasm32"))]
             self.mcp_server.stop().await;
         }
         runtime.shutdown().await;
@@ -216,6 +225,7 @@ impl DesktopRuntime {
         {
             return Err(anyhow!("account runtime is no longer active"));
         }
+        #[cfg(not(target_arch = "wasm32"))]
         self.mcp_server.stop().await;
         let result = runtime.sign_out().await;
         active.take();
@@ -228,6 +238,7 @@ impl DesktopRuntime {
     async fn shutdown_active_account(&self) {
         let mut active = self.account.lock().await;
         let runtime = active.take();
+        #[cfg(not(target_arch = "wasm32"))]
         self.mcp_server.stop().await;
         if let Some(runtime) = runtime {
             runtime.shutdown().await;
@@ -241,19 +252,11 @@ async fn rename_with_timestamp_if_exists(path: &Path) -> Result<()> {
         return Err(anyhow!("database path has no file name"));
     };
     let target = path.with_file_name(format!("{file_name}.{}", Local::now().to_rfc3339()));
-    match tokio::fs::rename(path, target).await {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error.into()),
-    }
+    crate::db::storage::files::rename(path, &target).await
 }
 
 async fn remove_if_exists(path: &Path) -> Result<()> {
-    match tokio::fs::remove_file(path).await {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error.into()),
-    }
+    crate::db::storage::files::remove(path).await
 }
 
 async fn device_matches(
@@ -280,7 +283,8 @@ async fn device_matches(
 
     auth_service.clear_auth(user_id).await?;
     let directory = account_data_directory(identity_number)?;
-    match tokio::fs::remove_dir_all(&directory).await {
+    crate::db::storage::files::remove_directory(&directory).await?;
+    match crate::fs::remove_dir_all(&directory).await {
         Ok(()) => {}
         Err(error) if error.kind() == ErrorKind::NotFound => {}
         Err(error) => return Err(error.into()),
@@ -301,6 +305,7 @@ pub(super) async fn record_current_device(property_dao: &PropertyDao) -> Result<
     Ok(())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 async fn current_device_id() -> Option<String> {
     tokio::task::spawn_blocking(current_device_id_sync)
         .await
@@ -308,6 +313,7 @@ async fn current_device_id() -> Option<String> {
         .flatten()
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn current_device_id_sync() -> Option<String> {
     #[cfg(target_os = "linux")]
     {
@@ -347,5 +353,10 @@ fn current_device_id_sync() -> Option<String> {
             .map(str::to_lowercase);
     }
     #[allow(unreachable_code)]
+    None
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn current_device_id() -> Option<String> {
     None
 }

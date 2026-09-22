@@ -131,7 +131,7 @@ pub(super) async fn migrate_signal_database(identity_number: &str) -> anyhow::Re
         .connect_with(SqliteConnectOptions::new().filename(&source))
         .await
         .with_context(|| format!("open legacy signal database {}", source.display()))?;
-    let migration_result = sqlx::query("VACUUM INTO ?")
+    let migration_result = crate::db::query("VACUUM INTO ?")
         .bind(temporary.to_string_lossy().as_ref())
         .execute(&pool)
         .await;

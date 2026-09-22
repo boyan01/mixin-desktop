@@ -3,7 +3,8 @@ use std::path::Path;
 
 use anyhow::anyhow;
 use libsignal_protocol::{IdentityKeyPair, PrivateKey};
-use rand_core::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
+#[cfg(not(target_arch = "wasm32"))]
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
 use crate::db;
@@ -31,6 +32,7 @@ impl SignalDatabase {
         Self::connect_at(path).await
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn connect_at(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         let path = path.as_ref();
         crate::db::path::create_parent_directory(path).await?;
@@ -45,18 +47,34 @@ impl SignalDatabase {
             )
             .await?;
         super::migration::MIGRATOR.migrate(&pool).await?;
+        let database = Self::from_pool(pool);
+        database.crypto_key_value.init().await?;
+        Ok(database)
+    }
 
-        let database = SignalDatabase {
+    /// wasm: open through the Worker bridge; OPFS directories and
+    /// storage-mode pragmas are owned by the JS open handler.
+    #[cfg(target_arch = "wasm32")]
+    pub async fn connect_at(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+        let path = path.as_ref();
+        crate::db::path::create_parent_directory(path).await?;
+        let pool = crate::db::Pool::open(&path.to_string_lossy()).await?;
+        super::migration::MIGRATOR.migrate(&pool).await?;
+        let database = Self::from_pool(pool);
+        database.crypto_key_value.init().await?;
+        Ok(database)
+    }
+
+    fn from_pool(pool: crate::db::Pool) -> Self {
+        SignalDatabase {
             pre_key_dao: PreKeyDao(pool.clone()),
             signed_pre_key_dao: SignedPreKeyDao(pool.clone()),
             session_dao: SessionDao(pool.clone()),
             sender_key_dao: SenderKeyDao(pool.clone()),
             identity_dao: IdentityDao(pool.clone()),
             crypto_key_value: CryptoKeyValue::new(pool.clone()),
-            ratchet_sender_key_dao: RatchetSenderKeyDao(pool.clone()),
-        };
-        database.crypto_key_value.init().await?;
-        Ok(database)
+            ratchet_sender_key_dao: RatchetSenderKeyDao(pool),
+        }
     }
 
     pub async fn init(
@@ -69,7 +87,7 @@ impl SignalDatabase {
                 .map_err(|e| anyhow!("deserialize private key error: {}", e))?;
             IdentityKeyPair::try_from(private_key).map_err(|e| anyhow!("key pair error: {}", e))?
         } else {
-            IdentityKeyPair::generate(&mut OsRng)
+            IdentityKeyPair::generate(&mut UnwrapErr(SysRng))
         };
         self.identity_dao
             .save_identity(&Identity {
@@ -93,7 +111,7 @@ impl SignalDatabase {
             "ratchet_sender_keys",
             "properties",
         ] {
-            sqlx::query(sqlx::AssertSqlSafe(format!("DELETE FROM {table}")))
+            crate::db::query(sqlx::AssertSqlSafe(format!("DELETE FROM {table}")))
                 .execute(&mut *transaction)
                 .await?;
         }
@@ -110,7 +128,7 @@ impl SignalDatabase {
 mod tests {
     use libsignal_protocol::{KeyPair, PreKeyRecord};
     use log::LevelFilter;
-    use rand_core::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
     use simplelog::{Config, TestLogger};
 
     use super::*;
@@ -120,7 +138,7 @@ mod tests {
         let _ = TestLogger::init(LevelFilter::Info, Config::default());
         let directory = tempfile::tempdir()?;
         let db = SignalDatabase::connect_at(directory.path().join("signal.db")).await?;
-        let mut csprng = OsRng;
+        let mut csprng = UnwrapErr(SysRng);
         let key_pair = KeyPair::generate(&mut csprng);
         let serialized = PreKeyRecord::new(0, &key_pair).serialize().unwrap();
         db.pre_key_dao
@@ -152,7 +170,7 @@ mod tests {
             "INSERT INTO ratchet_sender_keys VALUES ('group', 'sender', 'SENT', 'message', '2026-07-16T00:00:00Z')",
             "INSERT INTO properties VALUES ('has_push_signal_keys', 'true')",
         ] {
-            sqlx::query(statement).execute(pool).await?;
+            crate::db::query(statement).execute(pool).await?;
         }
 
         db.clear().await?;
@@ -166,10 +184,11 @@ mod tests {
             "ratchet_sender_keys",
             "properties",
         ] {
-            let count: i64 =
-                sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT COUNT(*) FROM {table}")))
-                    .fetch_one(pool)
-                    .await?;
+            let count: i64 = crate::db::query_scalar(sqlx::AssertSqlSafe(format!(
+                "SELECT COUNT(*) FROM {table}"
+            )))
+            .fetch_one(pool)
+            .await?;
             assert_eq!(count, 0, "{table} was not cleared");
         }
         Ok(())
@@ -189,11 +208,13 @@ mod tests {
                     .create_if_missing(true),
             )
             .await?;
-        sqlx::raw_sql(include_str!("schema.sql"))
+        crate::db::raw_sql(include_str!("schema.sql"))
             .execute(&pool)
             .await?;
-        sqlx::query("DROP TABLE properties").execute(&pool).await?;
-        sqlx::query("PRAGMA user_version = 1")
+        crate::db::query("DROP TABLE properties")
+            .execute(&pool)
+            .await?;
+        crate::db::query("PRAGMA user_version = 1")
             .execute(&pool)
             .await?;
         pool.close().await;
@@ -205,7 +226,7 @@ mod tests {
                     .create_if_missing(true),
             )
             .await?;
-        sqlx::raw_sql(
+        crate::db::raw_sql(
             r#"CREATE TABLE properties (
                 "key" TEXT NOT NULL,
                 "group" TEXT NOT NULL,
@@ -221,10 +242,10 @@ mod tests {
         app_pool.close().await;
 
         let database = SignalDatabase::connect_at(&path).await?;
-        let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+        let version: i64 = crate::db::query_scalar("PRAGMA user_version")
             .fetch_one(&database.pre_key_dao.0)
             .await?;
-        let properties: i64 = sqlx::query_scalar(
+        let properties: i64 = crate::db::query_scalar(
             "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'properties'",
         )
         .fetch_one(&database.pre_key_dao.0)

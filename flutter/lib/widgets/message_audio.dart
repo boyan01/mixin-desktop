@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -127,54 +128,57 @@ class _AudioMessageWidgetState extends State<AudioMessageWidget> {
         : 0.0;
     final waveform = _decodeWaveform(widget.message.mediaWaveform);
     final useReadWaveform = isCurrentUser || status == 'READ';
-    return InteractiveDecoratedBox(
-      onTap: _onTap,
-      child: Row(
-        key: Key('message-media-audio-${widget.message.id}'),
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _AudioStatusButton(
-            messageId: widget.message.id,
-            status: status,
-            playing: playing,
-            upload:
-                status == 'CANCELED' &&
-                sentByCurrentUser &&
-                (widget.message.mediaUrl?.isNotEmpty ?? false),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  key: Key('audio-waveform-${widget.message.id}'),
-                  width: 238,
-                  height: 12,
-                  child: WaveformWidget(
-                    value: progress,
-                    waveform: waveform,
-                    backgroundColor: useReadWaveform
-                        ? context.theme.waveformBackground
-                        : context.theme.accent,
-                    foregroundColor: useReadWaveform
-                        ? context.theme.waveformForeground
-                        : context.theme.accent,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _formatDuration(duration),
-                  style: TextStyle(
-                    fontSize: context.messageStyle.tertiaryFontSize,
-                    color: context.theme.secondaryText,
-                  ),
-                ),
-              ],
+    return Opacity(
+      opacity: kIsWeb ? 0.5 : 1,
+      child: InteractiveDecoratedBox(
+        onTap: kIsWeb ? null : _onTap,
+        child: Row(
+          key: Key('message-media-audio-${widget.message.id}'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AudioStatusButton(
+              messageId: widget.message.id,
+              status: status,
+              playing: playing,
+              upload:
+                  status == 'CANCELED' &&
+                  sentByCurrentUser &&
+                  (widget.message.mediaUrl?.isNotEmpty ?? false),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    key: Key('audio-waveform-${widget.message.id}'),
+                    width: 238,
+                    height: 12,
+                    child: WaveformWidget(
+                      value: progress,
+                      waveform: waveform,
+                      backgroundColor: useReadWaveform
+                          ? context.theme.waveformBackground
+                          : context.theme.accent,
+                      foregroundColor: useReadWaveform
+                          ? context.theme.waveformForeground
+                          : context.theme.accent,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _formatDuration(duration),
+                    style: TextStyle(
+                      fontSize: context.messageStyle.tertiaryFontSize,
+                      color: context.theme.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -257,6 +261,7 @@ class RustAudioPlaybackBackend implements AudioPlaybackBackend {
 
 class AudioMessagePlaybackCoordinator extends ChangeNotifier {
   AudioMessagePlaybackCoordinator({required this._backend}) {
+    if (kIsWeb) return;
     _events = _backend.events().listen(
       _handleEvent,
       onError: (Object error, StackTrace stackTrace) {
@@ -271,8 +276,8 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
   }
 
   final AudioPlaybackBackend _backend;
-  late final StreamSubscription<MediaPlaybackEvent> _events;
-  late final Timer _positionTimer;
+  StreamSubscription<MediaPlaybackEvent>? _events;
+  Timer? _positionTimer;
   int _listenerOwners = 0;
   String? _currentMessageId;
   MessageListEntry? currentMessage;
@@ -292,7 +297,7 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
   void detach() {
     _listenerOwners = math.max(0, _listenerOwners - 1);
     if (_listenerOwners == 0) {
-      _backend.stop();
+      if (!kIsWeb) _backend.stop();
       _messagesById = const {};
       _onMarkRead = null;
       _clearPlayback(notify: false);
@@ -382,7 +387,7 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
   }
 
   void stop() {
-    _backend.stop();
+    if (!kIsWeb) _backend.stop();
     _messagesById = const {};
     _onMarkRead = null;
     _clearPlayback();
@@ -459,9 +464,9 @@ class AudioMessagePlaybackCoordinator extends ChangeNotifier {
 
   @override
   void dispose() {
-    _positionTimer.cancel();
-    unawaited(_events.cancel());
-    _backend.stop();
+    _positionTimer?.cancel();
+    unawaited(_events?.cancel());
+    if (!kIsWeb) _backend.stop();
     super.dispose();
   }
 }

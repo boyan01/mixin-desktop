@@ -27,6 +27,7 @@ import '../src/rust/desktop_api.dart'
     show AccountHandle, CircleItem, UserProfileItem;
 import '../theme.dart';
 import '../utils/app_logger.dart';
+import '../utils/rust_int.dart';
 import '../utils/web_view.dart';
 import 'action_button.dart';
 import 'app_protocol_handler.dart';
@@ -415,7 +416,7 @@ class _ConversationRow extends StatelessWidget {
           conversationId: conversation.id,
           ownerId: conversation.ownerId,
           category: conversation.category,
-          durationSeconds: duration,
+          durationSeconds: duration.toRustInt(),
         );
       } on Object catch (error, stackTrace) {
         e('Set conversation mute state failed', error, stackTrace);

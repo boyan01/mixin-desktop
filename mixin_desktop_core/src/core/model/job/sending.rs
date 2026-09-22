@@ -189,7 +189,7 @@ impl SendingJobRunner {
         };
         if !message.category.is_recall() {
             for path in self.recalled_attachment_paths(&message).await? {
-                match tokio::fs::remove_file(&path).await {
+                match crate::fs::remove_file(&path).await {
                     Ok(()) => {}
                     Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
                     Err(error) => {

@@ -28,7 +28,7 @@ class MoveWindow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => GestureDetector(
     behavior: behavior,
-    onDoubleTap: clickToFullScreen
+    onDoubleTap: !kIsWeb && clickToFullScreen
         ? () async {
             if (defaultTargetPlatform != TargetPlatform.macOS) return;
             if (await windowManager.isMaximized()) {

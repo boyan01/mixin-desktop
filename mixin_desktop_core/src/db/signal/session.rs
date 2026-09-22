@@ -1,19 +1,16 @@
-use sqlx::{FromRow, Pool, Sqlite};
-
 use crate::db::Error;
 
-#[derive(FromRow)]
 pub struct Session {
     pub address: String,
     pub device: u32,
     pub record: Vec<u8>,
 }
 
-pub struct SessionDao(pub(crate) Pool<Sqlite>);
+pub struct SessionDao(pub(crate) crate::db::Pool);
 
 impl SessionDao {
     pub async fn has_session(&self, address: &str) -> Result<bool, Error> {
-        let result = sqlx::query_scalar::<_, bool>(
+        let result = crate::db::query_scalar::<bool>(
             "SELECT EXISTS(SELECT 1 FROM sessions WHERE address = ?)",
         )
         .bind(address)
@@ -23,7 +20,7 @@ impl SessionDao {
     }
 
     pub async fn find_session(&self, address: &str, device: u32) -> Result<Option<Vec<u8>>, Error> {
-        let result = sqlx::query_scalar::<_, Vec<u8>>(
+        let result = crate::db::query_scalar::<Vec<u8>>(
             "SELECT record FROM sessions WHERE address = ? AND device = ?",
         )
         .bind(address)
@@ -39,7 +36,7 @@ impl SessionDao {
         device: u32,
         record: Vec<u8>,
     ) -> Result<(), Error> {
-        let _ = sqlx::query(
+        let _ = crate::db::query(
             "INSERT OR REPLACE INTO sessions (address, device, record, timestamp) VALUES (?, ?, ?, ?)",
         )
         .bind(address)
@@ -52,7 +49,7 @@ impl SessionDao {
     }
 
     pub async fn delete_session(&self, address: &str, device: u32) -> Result<(), Error> {
-        let _ = sqlx::query("DELETE FROM sessions WHERE address = ? AND device = ?")
+        let _ = crate::db::query("DELETE FROM sessions WHERE address = ? AND device = ?")
             .bind(address)
             .bind(device)
             .execute(&self.0)
@@ -60,3 +57,9 @@ impl SessionDao {
         Ok(())
     }
 }
+
+crate::db::storage::row_mapping!(Session {
+    address: "address",
+    device: "device",
+    record: "record",
+});

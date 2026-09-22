@@ -1,23 +1,21 @@
+use crate::db::QueryBuilder;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{QueryBuilder, Sqlite};
 
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct CircleDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct CircleDao(pub(crate) crate::db::Pool);
 
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Circle {
     pub circle_id: String,
     pub name: String,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
-    #[sqlx(try_from = "crate::db::datetime::OptionalDatabaseDateTime")]
     pub ordered_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug)]
 pub struct CircleSummary {
     pub circle_id: String,
     pub name: String,
@@ -26,7 +24,7 @@ pub struct CircleSummary {
 
 impl CircleDao {
     pub async fn summaries(&self) -> Result<Vec<CircleSummary>, Error> {
-        Ok(sqlx::query_as::<_, CircleSummary>(
+        Ok(crate::db::query_as::<CircleSummary>(
             r#"SELECT circle.circle_id, circle.name,
                       COUNT(circle_conversation.conversation_id) AS conversation_count
                FROM circles circle
@@ -41,7 +39,7 @@ impl CircleDao {
 
     pub async fn list(&self) -> Result<Vec<Circle>, Error> {
         Ok(
-            sqlx::query_as::<_, Circle>("SELECT * FROM circles ORDER BY ordered_at, created_at")
+            crate::db::query_as::<Circle>("SELECT * FROM circles ORDER BY ordered_at, created_at")
                 .fetch_all(&self.0)
                 .await?,
         )
@@ -51,7 +49,7 @@ impl CircleDao {
         if circles.is_empty() {
             return Ok(());
         }
-        let mut query_builder: QueryBuilder<Sqlite> =
+        let mut query_builder: QueryBuilder =
             QueryBuilder::new("INSERT OR REPLACE INTO circles (circle_id, name, created_at) ");
         query_builder.push_values(circles.iter(), |mut b, circle| {
             b.push_bind(&circle.circle_id)
@@ -64,7 +62,7 @@ impl CircleDao {
     }
 
     pub async fn exists(&self, circle_id: &str) -> Result<bool, Error> {
-        let result = sqlx::query_scalar::<_, bool>(
+        let result = crate::db::query_scalar::<bool>(
             "SELECT EXISTS(SELECT 1 FROM circles WHERE circle_id = ?)",
         )
         .bind(circle_id)
@@ -74,7 +72,7 @@ impl CircleDao {
     }
 
     pub async fn update_name(&self, id: &str, name: &str) -> Result<(), Error> {
-        sqlx::query("UPDATE circles SET name = ? WHERE circle_id = ?")
+        crate::db::query("UPDATE circles SET name = ? WHERE circle_id = ?")
             .bind(name)
             .bind(id)
             .execute(&self.0)
@@ -86,7 +84,7 @@ impl CircleDao {
         let now = Utc::now();
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         for (index, id) in ids.iter().enumerate() {
-            sqlx::query("UPDATE circles SET ordered_at = ? WHERE circle_id = ?")
+            crate::db::query("UPDATE circles SET ordered_at = ? WHERE circle_id = ?")
                 .bind((now + Duration::milliseconds(index as i64)).timestamp_millis())
                 .bind(id)
                 .execute(&mut *transaction)
@@ -97,7 +95,7 @@ impl CircleDao {
     }
 
     pub async fn delete(&self, id: &str) -> Result<(), Error> {
-        sqlx::query("DELETE FROM circles WHERE circle_id = ?")
+        crate::db::query("DELETE FROM circles WHERE circle_id = ?")
             .bind(id)
             .execute(&self.0)
             .await?;
@@ -162,3 +160,16 @@ mod tests {
         assert_eq!(circles[2].name, "Renamed");
     }
 }
+
+crate::db::storage::row_mapping!(Circle {
+    circle_id: "circle_id",
+    name: "name",
+    created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
+    ordered_at: "ordered_at" => crate::db::datetime::OptionalDatabaseDateTime,
+});
+
+crate::db::storage::row_mapping!(CircleSummary {
+    circle_id: "circle_id",
+    name: "name",
+    conversation_count: "conversation_count",
+});

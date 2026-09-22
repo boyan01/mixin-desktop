@@ -1,13 +1,12 @@
 use chrono::Utc;
-use sqlx::{FromRow, Sqlite};
 
 use db::Error;
 
 use crate::db;
 use crate::db::mixin::database::MARK_LIMIT;
-use crate::db::mixin::util::{expand_var, expand_var_with_index, BindList, BindListForQuery};
+use crate::db::mixin::util::{expand_var, expand_var_with_index, BindList};
 
-#[derive(Debug, Clone, PartialEq, Eq, FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExpiredMessage {
     pub message_id: String,
     pub expire_in: i64,
@@ -15,7 +14,7 @@ pub struct ExpiredMessage {
 }
 
 #[derive(Clone)]
-pub struct ExpiredMessageDao(pub(crate) sqlx::Pool<Sqlite>);
+pub struct ExpiredMessageDao(pub(crate) crate::db::Pool);
 
 impl ExpiredMessageDao {
     pub async fn insert(
@@ -24,7 +23,7 @@ impl ExpiredMessageDao {
         expire_in: i64,
         expire_at: Option<i64>,
     ) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO expired_messages (message_id, expire_in, expire_at) VALUES (?, ?, ?) \
              ON CONFLICT(message_id) DO UPDATE SET \
              expire_in = excluded.expire_in, expire_at = excluded.expire_at",
@@ -41,7 +40,7 @@ impl ExpiredMessageDao {
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         let mut rows_affected = 0;
         for (message_id, expire_at) in data {
-            rows_affected += sqlx::query(
+            rows_affected += crate::db::query(
                 "UPDATE expired_messages SET expire_at = ? WHERE message_id = ? \
                  AND (expire_at IS NULL OR expire_at > ?)",
             )
@@ -66,7 +65,7 @@ impl ExpiredMessageDao {
                  AND message_id IN ({})",
                 expand_var_with_index(2, chunk.len())
             );
-            rows_affected += sqlx::query(sqlx::AssertSqlSafe(sql))
+            rows_affected += crate::db::query(sqlx::AssertSqlSafe(sql))
                 .bind(now)
                 .bind_list(chunk)
                 .execute(&self.0)
@@ -84,7 +83,7 @@ impl ExpiredMessageDao {
         &self,
         current_time: i64,
     ) -> Result<Vec<ExpiredMessage>, Error> {
-        let messages = sqlx::query_as::<_, ExpiredMessage>(
+        let messages = crate::db::query_as::<ExpiredMessage>(
             "SELECT * FROM expired_messages WHERE expire_at <= ? ORDER BY expire_at ASC",
         )
         .bind(current_time)
@@ -94,7 +93,7 @@ impl ExpiredMessageDao {
     }
 
     pub async fn get_first_expired_message(&self) -> Result<Option<ExpiredMessage>, Error> {
-        let message = sqlx::query_as::<_, ExpiredMessage>(
+        let message = crate::db::query_as::<ExpiredMessage>(
             "SELECT * FROM expired_messages WHERE expire_at IS NOT NULL \
              ORDER BY expire_at ASC LIMIT 1",
         )
@@ -107,7 +106,7 @@ impl ExpiredMessageDao {
         &self,
         message_id: &str,
     ) -> Result<Option<ExpiredMessage>, Error> {
-        let message = sqlx::query_as::<_, ExpiredMessage>(
+        let message = crate::db::query_as::<ExpiredMessage>(
             "SELECT * FROM expired_messages WHERE message_id = ? LIMIT 1",
         )
         .bind(message_id)
@@ -127,7 +126,7 @@ impl ExpiredMessageDao {
                 expand_var(chunk.len())
             );
             messages.extend(
-                sqlx::query_as::<_, ExpiredMessage>(sqlx::AssertSqlSafe(sql))
+                crate::db::query_as::<ExpiredMessage>(sqlx::AssertSqlSafe(sql))
                     .bind_list(chunk)
                     .fetch_all(&self.0)
                     .await?,
@@ -137,7 +136,7 @@ impl ExpiredMessageDao {
     }
 
     pub async fn delete_by_message_id(&self, message_id: &str) -> Result<u64, Error> {
-        let result = sqlx::query("DELETE FROM expired_messages WHERE message_id = ?")
+        let result = crate::db::query("DELETE FROM expired_messages WHERE message_id = ?")
             .bind(message_id)
             .execute(&self.0)
             .await?;
@@ -151,7 +150,7 @@ impl ExpiredMessageDao {
                 "DELETE FROM expired_messages WHERE message_id IN ({})",
                 expand_var(chunk.len())
             );
-            rows_affected += sqlx::query(sqlx::AssertSqlSafe(sql))
+            rows_affected += crate::db::query(sqlx::AssertSqlSafe(sql))
                 .bind_list(chunk)
                 .execute(&self.0)
                 .await?
@@ -219,3 +218,9 @@ mod tests {
         assert_eq!(selected.len(), 7);
     }
 }
+
+crate::db::storage::row_mapping!(ExpiredMessage {
+    message_id: "message_id",
+    expire_in: "expire_in",
+    expire_at: "expire_at",
+});

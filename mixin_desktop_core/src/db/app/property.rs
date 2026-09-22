@@ -1,4 +1,4 @@
-use sqlx::{Error, Sqlite};
+use sqlx::Error;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PropertyGroup {
@@ -18,11 +18,11 @@ impl PropertyGroup {
 }
 
 #[derive(Clone)]
-pub struct PropertyDao(pub(crate) sqlx::Pool<Sqlite>);
+pub struct PropertyDao(pub(crate) crate::db::Pool);
 
 impl PropertyDao {
     pub async fn get(&self, group: PropertyGroup, key: &str) -> Result<Option<String>, Error> {
-        sqlx::query_scalar("SELECT value FROM properties WHERE \"group\" = ? AND \"key\" = ?")
+        crate::db::query_scalar("SELECT value FROM properties WHERE \"group\" = ? AND \"key\" = ?")
             .bind(group.value())
             .bind(key)
             .fetch_optional(&self.0)
@@ -30,7 +30,7 @@ impl PropertyDao {
     }
 
     pub async fn set(&self, group: PropertyGroup, key: &str, value: &str) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             r#"INSERT INTO properties ("group", "key", value) VALUES (?, ?, ?)
                ON CONFLICT("key", "group") DO UPDATE SET value = excluded.value"#,
         )
@@ -50,7 +50,7 @@ impl PropertyDao {
         for (group, key, value) in values {
             let group = group.value();
             if let Some(value) = value {
-                sqlx::query(
+                crate::db::query(
                     r#"INSERT INTO properties ("group", "key", value) VALUES (?, ?, ?)
                        ON CONFLICT("key", "group") DO UPDATE SET value = excluded.value"#,
                 )
@@ -60,7 +60,7 @@ impl PropertyDao {
                 .execute(&mut *transaction)
                 .await?;
             } else {
-                sqlx::query("DELETE FROM properties WHERE \"group\" = ? AND \"key\" = ?")
+                crate::db::query("DELETE FROM properties WHERE \"group\" = ? AND \"key\" = ?")
                     .bind(group)
                     .bind(key)
                     .execute(&mut *transaction)

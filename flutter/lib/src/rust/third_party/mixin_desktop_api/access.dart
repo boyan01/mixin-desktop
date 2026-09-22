@@ -36,6 +36,11 @@ abstract class AttachmentAccess implements RustOpaqueInterface {
   Future<void> retryAttachment({required String messageId});
 
   Future<void> retryTranscriptAttachment({required String transcriptId});
+
+  Future<void> saveAttachmentAs({
+    required String messageId,
+    required String destination,
+  });
 }
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ConversationAccess>>

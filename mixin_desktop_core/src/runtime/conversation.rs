@@ -428,7 +428,7 @@ where
                 }
             }
 
-            let delay = tokio::time::sleep(throttle);
+            let delay = crate::time::sleep(throttle);
             tokio::pin!(delay);
             loop {
                 tokio::select! {

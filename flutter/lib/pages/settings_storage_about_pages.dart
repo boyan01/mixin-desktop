@@ -14,6 +14,7 @@ import '../models/conversation_list_entry.dart';
 import '../src/rust/desktop_api.dart';
 import '../theme.dart';
 import '../utils/app_logger.dart';
+import '../utils/rust_int.dart';
 import '../widgets/action_button.dart';
 import '../widgets/app_protocol_handler.dart';
 import '../widgets/avatar_view.dart';
@@ -171,7 +172,7 @@ class _StorageUsageListPageState extends State<StorageUsageListPage> {
           .map(
             (item) => ConversationStorageUsageEntry(
               conversation: ConversationListEntry.fromRust(item.conversation),
-              sizeBytes: item.sizeBytes,
+              sizeBytes: item.sizeBytes.toDartInt(),
             ),
           )
           .toList(growable: false);
@@ -293,7 +294,7 @@ class _StorageUsageDetailPageState extends State<StorageUsageDetailPage> {
             return StorageCategoryUsageEntry(
               category: item.category,
               label: label,
-              sizeBytes: item.sizeBytes,
+              sizeBytes: item.sizeBytes.toDartInt(),
             );
           })
           .toList(growable: false);

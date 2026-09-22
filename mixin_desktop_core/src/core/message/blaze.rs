@@ -11,12 +11,8 @@ use flate2::Compression;
 use futures::{SinkExt, StreamExt};
 use futures_channel::mpsc::UnboundedSender;
 use log::{error, info, warn};
-use reqwest::header::HeaderValue;
 use reqwest::Method;
 use tokio::sync::{watch, Notify};
-use tokio_tungstenite::connect_async;
-use tokio_tungstenite::tungstenite::client::IntoClientRequest;
-use tokio_tungstenite::tungstenite::{Error as WebSocketError, Message};
 
 use sdk::blaze_message::{
     BlazeMessage, BlazeMessageData, ACKNOWLEDGE_MESSAGE_RECEIPT, CREATE_CALL, CREATE_KRAKEN,
@@ -29,7 +25,7 @@ use sdk::{
 
 use crate::core::conversation_change::ConversationChangeNotifier;
 use crate::core::message::completer::Completer;
-use crate::core::user_agent::generate_user_agent;
+use crate::core::message::ws::{self, Handshake, Message};
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
 use crate::db::mixin::message::Message as StoredMessage;
@@ -43,8 +39,6 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 const STATUS_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const RECONNECT_DELAY: Duration = Duration::from_secs(5);
-const PING_INTERVAL: Duration = Duration::from_secs(10);
-const PONG_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug, thiserror::Error)]
 #[error("blaze authentication failed")]
@@ -187,13 +181,6 @@ fn fail_transactions(transactions: &Mutex<HashMap<String, Completer<BlazeMessage
     }
 }
 
-fn is_authentication_handshake_error(error: &WebSocketError) -> bool {
-    matches!(
-        error,
-        WebSocketError::Http(response) if matches!(response.status().as_u16(), 401 | 403)
-    )
-}
-
 fn is_api_authentication_error(error: &anyhow::Error) -> bool {
     error.downcast_ref::<sdk::ApiError>().is_some_and(|error| {
         matches!(
@@ -212,7 +199,7 @@ async fn await_transaction(
     completer: Completer<BlazeMessage>,
     timeout: Duration,
 ) -> Result<BlazeMessage> {
-    match tokio::time::timeout(timeout, completer).await {
+    match crate::time::timeout(timeout, completer).await {
         Ok(result) => result,
         Err(_) => {
             transactions.lock().unwrap().remove(message_id);
@@ -298,7 +285,7 @@ impl Blaze {
 
             host_index = (host_index + 1) % WS_HOSTS.len();
             tokio::select! {
-                _ = tokio::time::sleep(RECONNECT_DELAY) => {}
+                _ = crate::time::sleep(RECONNECT_DELAY) => {}
                 _ = self.reconnect.notified() => {}
             }
         }
@@ -310,32 +297,21 @@ impl Blaze {
             .sign_authentication_token(&Method::GET, &"/".to_string(), [])
             .map_err(|e| anyhow!("can not sign request: {}", e))?;
 
-        let mut request = host.into_client_request()?;
-        request.headers_mut().insert(
-            "Sec-WebSocket-Protocol",
-            HeaderValue::try_from("Mixin-Blaze-1")?,
-        );
-        request.headers_mut().insert(
-            "Authorization",
-            HeaderValue::try_from(format!("Bearer {}", token))?,
-        );
-        request
-            .headers_mut()
-            .insert("User-Agent", HeaderValue::try_from(generate_user_agent())?);
-
-        let connection = tokio::time::timeout(CONNECT_TIMEOUT, connect_async(request))
+        let handshake = Handshake {
+            url: host.to_owned(),
+            authorization: format!("Bearer {}", token),
+            protocol: "Mixin-Blaze-1".to_owned(),
+        };
+        let connection = crate::time::timeout(CONNECT_TIMEOUT, ws::connect(&handshake))
             .await
             .map_err(|_| anyhow!("blaze connection timed out"))?;
-        let (ws_stream, _) = match connection {
+        let (mut socket_sink, mut socket_stream) = match connection {
             Ok(connection) => connection,
-            Err(err) if is_authentication_handshake_error(&err) => {
-                return Ok(SocketSessionEnd::AuthenticationFailed);
-            }
-            Err(err) => return Err(err.into()),
+            Err(error) if error.unauthorized => return Ok(SocketSessionEnd::AuthenticationFailed),
+            Err(error) => return Err(anyhow!(error.message)),
         };
-        let (mut socket_sink, mut socket_stream) = ws_stream.split();
-        let (mut sender, mut receiver) = futures_channel::mpsc::unbounded();
 
+        let (mut sender, mut receiver) = futures_channel::mpsc::unbounded();
         self.connection.lock().unwrap().sink = Some(sender.clone());
         self.connection_status.send_replace(true);
         let _session_guard = SocketSessionGuard {
@@ -355,9 +331,7 @@ impl Blaze {
                 offset.map(|e| e.and_utc().to_rfc3339()),
             ))
             .await?;
-        let mut heartbeat = tokio::time::interval(PING_INTERVAL);
-        heartbeat.tick().await;
-        let mut last_pong = tokio::time::Instant::now();
+        let mut keepalive = ws::Keepalive::new();
         let mut status_refresh = Box::pin(self.refresh_message_status_offset());
         let mut status_refresh_complete = false;
 
@@ -372,11 +346,8 @@ impl Blaze {
                         warn!("failed to refresh message status offset: {err}");
                     }
                 }
-                _ = heartbeat.tick() => {
-                    if last_pong.elapsed() >= PONG_TIMEOUT {
-                        return Ok(SocketSessionEnd::Disconnected);
-                    }
-                    socket_sink.send(Message::Ping(Vec::new().into())).await?;
+                result = keepalive.tick(&mut socket_sink) => {
+                    result?;
                 }
                 outgoing = receiver.next() => {
                     let Some(outgoing) = outgoing else {
@@ -390,8 +361,11 @@ impl Blaze {
                     };
                     let incoming = incoming?;
                     match incoming {
+                        #[cfg(not(target_arch = "wasm32"))]
                         Message::Ping(data) => socket_sink.send(Message::Pong(data)).await?,
-                        Message::Pong(_) => last_pong = tokio::time::Instant::now(),
+                        #[cfg(not(target_arch = "wasm32"))]
+                        Message::Pong(_) => keepalive.received_pong(),
+                        #[cfg(not(target_arch = "wasm32"))]
                         Message::Close(_) => return Ok(SocketSessionEnd::Disconnected),
                         message => {
                             match self.on_socket_message(message).await? {
@@ -508,7 +482,7 @@ impl Blaze {
             .ok_or_else(|| anyhow!("message status offset is outside the nanosecond range"))?;
 
         loop {
-            let messages = tokio::time::timeout(
+            let messages = crate::time::timeout(
                 STATUS_REQUEST_TIMEOUT,
                 self.client.message_api.message_status_offset(offset),
             )
@@ -545,7 +519,7 @@ impl Blaze {
         let client = self.client.clone();
         let database = self.database.clone();
         let job_id = job.job_id;
-        tokio::spawn(async move {
+        crate::task::spawn(async move {
             match client
                 .message_api
                 .acknowledgements(std::slice::from_ref(&acknowledgement))
@@ -567,7 +541,7 @@ impl Blaze {
         Ok(())
     }
 
-    pub fn try_get_sender(&self) -> Result<UnboundedSender<Message>> {
+    pub(crate) fn try_get_sender(&self) -> Result<UnboundedSender<Message>> {
         let connection = self
             .connection
             .lock()
@@ -668,9 +642,12 @@ mod tests {
                 .status(status)
                 .body(None)
                 .unwrap();
-            assert!(is_authentication_handshake_error(&WebSocketError::Http(
-                Box::new(response)
-            )));
+            assert!(
+                crate::core::message::ws::native::classify_error(
+                    tokio_tungstenite::tungstenite::Error::Http(Box::new(response))
+                )
+                .unauthorized
+            );
         }
 
         let api_error = anyhow::Error::new(sdk::ApiError::Server(sdk::Error {
@@ -687,7 +664,7 @@ mod tests {
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
             .await
             .unwrap();
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO conversations (conversation_id, created_at, status) \
              VALUES ('conversation-id', 0, 0)",
         )

@@ -1,9 +1,8 @@
 use anyhow::{bail, Context};
 use futures::future::BoxFuture;
-use sqlx::{Pool, Sqlite, SqliteConnection};
 
 pub(crate) type MigrationFuture<'a> = BoxFuture<'a, anyhow::Result<()>>;
-type MigrationAction = for<'a> fn(&'a mut SqliteConnection) -> MigrationFuture<'a>;
+type MigrationAction = for<'a> fn(&'a mut crate::db::Conn) -> MigrationFuture<'a>;
 
 #[derive(Clone, Copy)]
 enum MigrationKind {
@@ -44,10 +43,10 @@ impl Migration {
         }
     }
 
-    async fn apply(&self, connection: &mut SqliteConnection) -> anyhow::Result<()> {
+    async fn apply(&self, connection: &mut crate::db::Conn) -> anyhow::Result<()> {
         match self.kind {
             MigrationKind::Sql(sql) => {
-                sqlx::raw_sql(sql).execute(connection).await?;
+                crate::db::raw_sql(sql).execute(connection).await?;
                 Ok(())
             }
             MigrationKind::Action(apply) => apply(connection).await,
@@ -82,7 +81,7 @@ impl Migrator {
         }
     }
 
-    pub(crate) async fn migrate(&self, pool: &Pool<Sqlite>) -> anyhow::Result<()> {
+    pub(crate) async fn migrate(&self, pool: &crate::db::Pool) -> anyhow::Result<()> {
         self.validate()?;
         let source_version = user_version(pool).await?;
         if source_version > self.schema_version {
@@ -144,13 +143,13 @@ impl Migrator {
         Ok(())
     }
 
-    async fn create_current_schema(&self, pool: &Pool<Sqlite>) -> anyhow::Result<()> {
+    async fn create_current_schema(&self, pool: &crate::db::Pool) -> anyhow::Result<()> {
         if has_application_tables(pool).await? {
             bail!("{} database has no Drift user_version", self.database_name);
         }
 
         let mut transaction = pool.begin_with("BEGIN IMMEDIATE").await?;
-        sqlx::raw_sql(self.schema)
+        crate::db::raw_sql(self.schema)
             .execute(&mut *transaction)
             .await
             .with_context(|| {
@@ -164,7 +163,11 @@ impl Migrator {
         Ok(())
     }
 
-    async fn run_migrations(&self, pool: &Pool<Sqlite>, source_version: i64) -> anyhow::Result<()> {
+    async fn run_migrations(
+        &self,
+        pool: &crate::db::Pool,
+        source_version: i64,
+    ) -> anyhow::Result<()> {
         let mut transaction = pool.begin_with("BEGIN IMMEDIATE").await?;
         for migration in self
             .migrations
@@ -190,14 +193,14 @@ impl Migrator {
     }
 }
 
-async fn user_version(pool: &Pool<Sqlite>) -> Result<i64, sqlx::Error> {
-    sqlx::query_scalar("PRAGMA user_version")
+async fn user_version(pool: &crate::db::Pool) -> Result<i64, sqlx::Error> {
+    crate::db::query_scalar("PRAGMA user_version")
         .fetch_one(pool)
         .await
 }
 
-async fn has_application_tables(pool: &Pool<Sqlite>) -> Result<bool, sqlx::Error> {
-    sqlx::query_scalar(
+async fn has_application_tables(pool: &crate::db::Pool) -> Result<bool, sqlx::Error> {
+    crate::db::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' \
          AND name NOT LIKE 'sqlite_%')",
     )
@@ -205,9 +208,9 @@ async fn has_application_tables(pool: &Pool<Sqlite>) -> Result<bool, sqlx::Error
     .await
 }
 
-async fn set_user_version(connection: &mut SqliteConnection, version: i64) -> anyhow::Result<()> {
+async fn set_user_version(connection: &mut crate::db::Conn, version: i64) -> anyhow::Result<()> {
     let statement = format!("PRAGMA user_version = {version}");
-    sqlx::query(sqlx::AssertSqlSafe(statement))
+    crate::db::query(sqlx::AssertSqlSafe(statement))
         .execute(connection)
         .await?;
     Ok(())
@@ -228,9 +231,9 @@ mod tests {
     ];
     const MIGRATOR: Migrator = Migrator::new("test", 3, CURRENT_SCHEMA, MIGRATIONS);
 
-    fn add_enabled(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+    fn add_enabled(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
         async move {
-            sqlx::query("ALTER TABLE records ADD COLUMN enabled INTEGER NOT NULL DEFAULT 0")
+            crate::db::query("ALTER TABLE records ADD COLUMN enabled INTEGER NOT NULL DEFAULT 0")
                 .execute(connection)
                 .await?;
             Ok(())
@@ -238,7 +241,7 @@ mod tests {
         .boxed()
     }
 
-    async fn pool() -> Pool<Sqlite> {
+    async fn pool() -> crate::db::Pool {
         SqlitePoolOptions::new()
             .max_connections(1)
             .connect_with(
@@ -258,7 +261,7 @@ mod tests {
 
         assert_eq!(user_version(&pool).await.unwrap(), 3);
         let columns: Vec<String> =
-            sqlx::query_scalar("SELECT name FROM pragma_table_info('records')")
+            crate::db::query_scalar("SELECT name FROM pragma_table_info('records')")
                 .fetch_all(&pool)
                 .await
                 .unwrap();
@@ -268,16 +271,18 @@ mod tests {
     #[tokio::test]
     async fn existing_database_runs_newer_migrations_in_order() {
         let pool = pool().await;
-        sqlx::raw_sql("CREATE TABLE records (id INTEGER PRIMARY KEY); PRAGMA user_version = 1;")
-            .execute(&pool)
-            .await
-            .unwrap();
+        crate::db::raw_sql(
+            "CREATE TABLE records (id INTEGER PRIMARY KEY); PRAGMA user_version = 1;",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
 
         MIGRATOR.migrate(&pool).await.unwrap();
 
         assert_eq!(user_version(&pool).await.unwrap(), 3);
         let columns: Vec<String> =
-            sqlx::query_scalar("SELECT name FROM pragma_table_info('records')")
+            crate::db::query_scalar("SELECT name FROM pragma_table_info('records')")
                 .fetch_all(&pool)
                 .await
                 .unwrap();
@@ -293,16 +298,18 @@ mod tests {
         const FAILING_MIGRATOR: Migrator =
             Migrator::new("failing", 3, CURRENT_SCHEMA, FAILING_MIGRATIONS);
         let pool = pool().await;
-        sqlx::raw_sql("CREATE TABLE records (id INTEGER PRIMARY KEY); PRAGMA user_version = 1;")
-            .execute(&pool)
-            .await
-            .unwrap();
+        crate::db::raw_sql(
+            "CREATE TABLE records (id INTEGER PRIMARY KEY); PRAGMA user_version = 1;",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
 
         assert!(FAILING_MIGRATOR.migrate(&pool).await.is_err());
 
         assert_eq!(user_version(&pool).await.unwrap(), 1);
         let columns: Vec<String> =
-            sqlx::query_scalar("SELECT name FROM pragma_table_info('records')")
+            crate::db::query_scalar("SELECT name FROM pragma_table_info('records')")
                 .fetch_all(&pool)
                 .await
                 .unwrap();
@@ -312,10 +319,12 @@ mod tests {
     #[tokio::test]
     async fn database_newer_than_supported_is_rejected_without_changes() {
         let pool = pool().await;
-        sqlx::raw_sql("CREATE TABLE records (id INTEGER PRIMARY KEY); PRAGMA user_version = 4;")
-            .execute(&pool)
-            .await
-            .unwrap();
+        crate::db::raw_sql(
+            "CREATE TABLE records (id INTEGER PRIMARY KEY); PRAGMA user_version = 4;",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
 
         let error = MIGRATOR.migrate(&pool).await.unwrap_err();
 
@@ -328,7 +337,7 @@ mod tests {
     #[tokio::test]
     async fn unversioned_database_with_tables_is_rejected_without_overwriting_schema() {
         let pool = pool().await;
-        sqlx::query("CREATE TABLE legacy (id INTEGER PRIMARY KEY)")
+        crate::db::query("CREATE TABLE legacy (id INTEGER PRIMARY KEY)")
             .execute(&pool)
             .await
             .unwrap();
@@ -338,7 +347,7 @@ mod tests {
         assert!(error
             .to_string()
             .contains("test database has no Drift user_version"));
-        let legacy_exists: bool = sqlx::query_scalar(
+        let legacy_exists: bool = crate::db::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'legacy')",
         )
         .fetch_one(&pool)

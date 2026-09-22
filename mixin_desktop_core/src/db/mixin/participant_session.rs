@@ -1,18 +1,16 @@
+use crate::db::QueryBuilder;
 use chrono::{DateTime, Utc};
-use sqlx::{QueryBuilder, Sqlite};
 
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct ParticipantSessionDao(pub(crate) sqlx::Pool<Sqlite>);
+pub struct ParticipantSessionDao(pub(crate) crate::db::Pool);
 
-#[derive(sqlx::FromRow)]
 pub struct ParticipantSession {
     pub conversation_id: String,
     pub user_id: String,
     pub session_id: String,
     pub sent_to_server: Option<i32>,
-    #[sqlx(try_from = "crate::db::datetime::OptionalDatabaseDateTime")]
     pub created_at: Option<DateTime<Utc>>,
     pub public_key: Option<String>,
 }
@@ -20,11 +18,11 @@ pub struct ParticipantSession {
 impl ParticipantSessionDao {
     pub async fn clear_for_sign_out(&self, session_id: &str) -> Result<(), Error> {
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
-        sqlx::query("DELETE FROM participant_session WHERE session_id = ?")
+        crate::db::query("DELETE FROM participant_session WHERE session_id = ?")
             .bind(session_id)
             .execute(&mut *transaction)
             .await?;
-        sqlx::query("UPDATE participant_session SET sent_to_server = NULL")
+        crate::db::query("UPDATE participant_session SET sent_to_server = NULL")
             .execute(&mut *transaction)
             .await?;
         transaction.commit().await?;
@@ -38,7 +36,7 @@ impl ParticipantSessionDao {
     ) -> Result<(), sqlx::Error> {
         let mut tx = self.0.begin_with("BEGIN IMMEDIATE").await?;
 
-        sqlx::query("DELETE FROM participant_session WHERE conversation_id = ?")
+        crate::db::query("DELETE FROM participant_session WHERE conversation_id = ?")
             .bind(conversation_id)
             .execute(&mut *tx)
             .await?;
@@ -48,7 +46,7 @@ impl ParticipantSessionDao {
             return Ok(());
         }
 
-        let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(
+        let mut qb: QueryBuilder = QueryBuilder::new(
             "INSERT OR REPLACE INTO participant_session (conversation_id, user_id, session_id, sent_to_server, created_at, public_key)",
         );
         qb.push_values(sessions.iter(), |mut b, session| {
@@ -70,7 +68,7 @@ impl ParticipantSessionDao {
         conversation_id: &str,
         user_id: &str,
     ) -> Result<(), sqlx::Error> {
-        let _ = sqlx::query(
+        let _ = crate::db::query(
             "DELETE FROM participant_session WHERE conversation_id = ? AND user_id = ?",
         )
         .bind(conversation_id)
@@ -81,7 +79,7 @@ impl ParticipantSessionDao {
     }
 
     pub async fn clear_status(&self, cid: &str) -> Result<(), Error> {
-        let _ = sqlx::query(
+        let _ = crate::db::query(
             "UPDATE participant_session SET sent_to_server = null WHERE conversation_id = ?",
         )
         .bind(cid)
@@ -94,7 +92,7 @@ impl ParticipantSessionDao {
         if sessions.is_empty() {
             return Ok(());
         }
-        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+        let mut query_builder: QueryBuilder = QueryBuilder::new(
             "INSERT OR REPLACE INTO participant_session (conversation_id, user_id, session_id, public_key)",
         );
         query_builder.push_values(sessions.iter(), |mut b, session| {
@@ -114,7 +112,7 @@ impl ParticipantSessionDao {
         sid: &str,
         sent_to_server: i32,
     ) -> Result<(), Error> {
-        let _ = sqlx::query(
+        let _ = crate::db::query(
             "INSERT OR REPLACE INTO participant_session \
              (conversation_id, user_id, session_id, sent_to_server) VALUES (?, ?, ?, ?)",
         )
@@ -131,7 +129,7 @@ impl ParticipantSessionDao {
         &self,
         cid: &str,
     ) -> Result<Vec<ParticipantSession>, Error> {
-        let result = sqlx::query_as::<_, ParticipantSession>(
+        let result = crate::db::query_as::<ParticipantSession>(
             "SELECT * FROM participant_session WHERE conversation_id = ?",
         )
         .bind(cid)
@@ -145,7 +143,7 @@ impl ParticipantSessionDao {
         conversation_id: &str,
         current_session_id: &str,
     ) -> Result<Vec<ParticipantSession>, Error> {
-        let sessions = sqlx::query_as::<_, ParticipantSession>(
+        let sessions = crate::db::query_as::<ParticipantSession>(
             "SELECT p.* FROM participant_session AS p \
              LEFT JOIN users AS u ON p.user_id = u.user_id \
              WHERE p.conversation_id = ? AND p.session_id != ? \
@@ -163,7 +161,7 @@ impl ParticipantSessionDao {
         conversation_id: &str,
         account_id: &str,
     ) -> Result<Option<ParticipantSession>, Error> {
-        let session = sqlx::query_as::<_, ParticipantSession>(
+        let session = crate::db::query_as::<ParticipantSession>(
             "SELECT * FROM participant_session \
              WHERE conversation_id = ? AND user_id != ? \
              AND public_key IS NOT NULL AND public_key != '' LIMIT 1",
@@ -181,7 +179,7 @@ impl ParticipantSessionDao {
         account_id: &str,
         current_session_id: &str,
     ) -> Result<Option<ParticipantSession>, Error> {
-        let session = sqlx::query_as::<_, ParticipantSession>(
+        let session = crate::db::query_as::<ParticipantSession>(
             "SELECT * FROM participant_session \
              WHERE conversation_id = ? AND user_id = ? AND session_id != ? \
              AND public_key IS NOT NULL AND public_key != '' \
@@ -202,7 +200,7 @@ impl ParticipantSessionDao {
         session_id: &str,
         status: i32,
     ) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             "UPDATE participant_session SET sent_to_server = ? \
              WHERE conversation_id = ? AND user_id = ? AND session_id = ?",
         )
@@ -265,7 +263,7 @@ mod tests {
     {
         let directory = tempfile::tempdir()?;
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db")).await?;
-        sqlx::query("INSERT INTO users (user_id, identity_number, app_id) VALUES (?, ?, ?)")
+        crate::db::query("INSERT INTO users (user_id, identity_number, app_id) VALUES (?, ?, ?)")
             .bind("app-user")
             .bind("1")
             .bind("app-id")
@@ -379,3 +377,12 @@ mod tests {
         Ok(())
     }
 }
+
+crate::db::storage::row_mapping!(ParticipantSession {
+    conversation_id: "conversation_id",
+    user_id: "user_id",
+    session_id: "session_id",
+    sent_to_server: "sent_to_server",
+    created_at: "created_at" => crate::db::datetime::OptionalDatabaseDateTime,
+    public_key: "public_key",
+});

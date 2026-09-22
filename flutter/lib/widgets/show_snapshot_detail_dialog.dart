@@ -11,6 +11,7 @@ import '../models/message_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../src/rust/third_party/mixin_desktop_core/runtime/model.dart';
 import '../theme.dart';
+import '../utils/rust_int.dart';
 import 'buttons.dart';
 import 'high_light_text.dart';
 import 'message_items/inscription_content.dart';
@@ -757,13 +758,13 @@ class _SnapshotView {
     receiver: item.receiver ?? '',
     memo: item.memo ?? '',
     confirmations: item.confirmations ?? 0,
-    assetConfirmations: item.assetConfirmations,
+    assetConfirmations: item.assetConfirmations.toDartInt(),
     assetTag: item.assetTag ?? '',
     snapshotHash: item.snapshotHash ?? '',
     openingBalance: item.openingBalance ?? '',
     closingBalance: item.closingBalance ?? '',
     createdAt: DateTime.fromMillisecondsSinceEpoch(
-      item.createdAtMillis,
+      item.createdAtMillis.toDartInt(),
     ).toLocal(),
     inscription: false,
     inscriptionHash: '',

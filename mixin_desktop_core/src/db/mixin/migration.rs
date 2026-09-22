@@ -1,5 +1,4 @@
 use futures::FutureExt;
-use sqlx::SqliteConnection;
 use uuid::Uuid;
 
 use crate::db::migration::{Migration, MigrationFuture, Migrator};
@@ -98,9 +97,9 @@ pub(crate) const MIGRATOR: Migrator = Migrator::new(
     MIGRATIONS,
 );
 
-fn migrate_to_v21(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v21(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO jobs (job_id, action, created_at, priority, run_count) \
              VALUES (?, 'LOCAL_MIGRATE_FTS', ?, 5, 0)",
         )
@@ -113,9 +112,9 @@ fn migrate_to_v21(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
     .boxed()
 }
 
-fn migrate_to_v3(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v3(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
-        sqlx::raw_sql(
+        crate::db::raw_sql(
             r#"
 DROP INDEX IF EXISTS index_conversations_category_status_pin_time_created_at;
 DROP INDEX IF EXISTS index_participants_conversation_id;
@@ -148,9 +147,9 @@ CREATE INDEX index_sticker_albums_category_created_at ON sticker_albums(category
     .boxed()
 }
 
-fn migrate_to_v4(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v4(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
-        sqlx::raw_sql(
+        crate::db::raw_sql(
             r#"
 DROP TABLE addresses;
 CREATE TABLE addresses (
@@ -169,9 +168,9 @@ CREATE TABLE addresses (
     .boxed()
 }
 
-fn migrate_to_v5(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v5(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
-        sqlx::raw_sql(
+        crate::db::raw_sql(
             r#"CREATE TABLE transcript_messages (
     transcript_id TEXT NOT NULL, message_id TEXT NOT NULL, user_id TEXT,
     user_full_name TEXT, category TEXT NOT NULL, created_at INTEGER NOT NULL,
@@ -191,9 +190,9 @@ fn migrate_to_v5(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
     .boxed()
 }
 
-fn migrate_to_v6(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v6(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
-        sqlx::raw_sql(
+        crate::db::raw_sql(
             r#"CREATE TABLE pin_messages (
     message_id TEXT NOT NULL, conversation_id TEXT NOT NULL,
     created_at INTEGER NOT NULL, PRIMARY KEY(message_id)
@@ -207,7 +206,7 @@ CREATE INDEX index_pin_messages_conversation_id ON pin_messages(conversation_id)
     .boxed()
 }
 
-fn migrate_to_v10(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v10(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
         add_column(
             connection,
@@ -224,7 +223,7 @@ fn migrate_to_v10(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
             "BOOLEAN DEFAULT FALSE",
         )
         .await?;
-        sqlx::query("UPDATE sticker_albums SET added = TRUE")
+        crate::db::query("UPDATE sticker_albums SET added = TRUE")
             .execute(connection)
             .await?;
         Ok(())
@@ -232,11 +231,11 @@ fn migrate_to_v10(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
     .boxed()
 }
 
-fn migrate_to_v12(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v12(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     add_column_boxed(connection, "snapshots", "trace_id", "TEXT")
 }
 
-fn migrate_to_v13(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v13(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     add_column_boxed(
         connection,
         "sticker_albums",
@@ -245,10 +244,10 @@ fn migrate_to_v13(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
     )
 }
 
-fn migrate_to_v14(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v14(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
         add_column(connection, "conversations", "expire_in", "INTEGER").await?;
-        sqlx::query(
+        crate::db::query(
             "CREATE TABLE expired_messages (message_id TEXT NOT NULL, expire_in INTEGER NOT NULL, \
              expire_at INTEGER, PRIMARY KEY(message_id))",
         )
@@ -259,7 +258,7 @@ fn migrate_to_v14(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
     .boxed()
 }
 
-fn migrate_to_v17(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v17(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
         add_column(connection, "users", "code_url", "TEXT").await?;
         add_column(connection, "users", "code_id", "TEXT").await
@@ -267,7 +266,7 @@ fn migrate_to_v17(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
     .boxed()
 }
 
-fn migrate_to_v22(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v22(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
         add_column(connection, "snapshots", "snapshot_hash", "TEXT").await?;
         add_column(connection, "snapshots", "opening_balance", "TEXT").await?;
@@ -276,13 +275,13 @@ fn migrate_to_v22(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
     .boxed()
 }
 
-fn migrate_to_v24(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v24(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     add_column_boxed(connection, "users", "is_deactivated", "BOOLEAN")
 }
 
-fn migrate_to_v25(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v25(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
-        sqlx::raw_sql(
+        crate::db::raw_sql(
             r#"CREATE TABLE safe_snapshots (
     snapshot_id TEXT NOT NULL, type TEXT NOT NULL, asset_id TEXT NOT NULL,
     amount TEXT NOT NULL, user_id TEXT NOT NULL, opponent_id TEXT NOT NULL,
@@ -306,11 +305,11 @@ CREATE INDEX index_tokens_kernel_asset_id ON tokens(kernel_asset_id);"#,
     .boxed()
 }
 
-fn migrate_to_v26(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v26(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
         add_column(connection, "safe_snapshots", "inscription_hash", "TEXT").await?;
         add_column(connection, "tokens", "collection_hash", "TEXT").await?;
-        sqlx::raw_sql(
+        crate::db::raw_sql(
             r#"CREATE INDEX index_tokens_collection_hash ON tokens(collection_hash);
 CREATE TABLE inscription_collections (
     collection_hash TEXT NOT NULL, supply TEXT NOT NULL, unit TEXT NOT NULL,
@@ -332,11 +331,11 @@ CREATE TABLE inscription_items (
     .boxed()
 }
 
-fn migrate_to_v27(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v27(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     add_column_boxed(connection, "users", "membership", "TEXT")
 }
 
-fn migrate_to_v28(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+fn migrate_to_v28(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     add_column_boxed(
         connection,
         "tokens",
@@ -346,7 +345,7 @@ fn migrate_to_v28(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
 }
 
 fn add_column_boxed<'a>(
-    connection: &'a mut SqliteConnection,
+    connection: &'a mut crate::db::Conn,
     table: &'static str,
     column: &'static str,
     definition: &'static str,
@@ -355,20 +354,20 @@ fn add_column_boxed<'a>(
 }
 
 async fn add_column(
-    connection: &mut SqliteConnection,
+    connection: &mut crate::db::Conn,
     table: &str,
     column: &str,
     definition: &str,
 ) -> anyhow::Result<()> {
     let exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pragma_table_info(?) WHERE name = ?)")
+        crate::db::query_scalar("SELECT EXISTS(SELECT 1 FROM pragma_table_info(?) WHERE name = ?)")
             .bind(table)
             .bind(column)
             .fetch_one(&mut *connection)
             .await?;
     if !exists {
         let statement = format!("ALTER TABLE {table} ADD COLUMN {column} {definition}");
-        sqlx::query(sqlx::AssertSqlSafe(statement))
+        crate::db::query(sqlx::AssertSqlSafe(statement))
             .execute(connection)
             .await?;
     }
@@ -396,7 +395,7 @@ mod tests {
                 .await
                 .unwrap();
             if source_version != 0 {
-                sqlx::raw_sql(
+                crate::db::raw_sql(
                     "CREATE TABLE expired_messages (message_id TEXT NOT NULL PRIMARY KEY, \
                      expire_in INTEGER NOT NULL, expire_at INTEGER); \
                      INSERT INTO expired_messages VALUES ('due', 60, 100), ('pending', 60, NULL);",
@@ -405,7 +404,7 @@ mod tests {
                 .await
                 .unwrap();
                 if source_version == 29 {
-                    sqlx::raw_sql(
+                    crate::db::raw_sql(
                         "CREATE INDEX IF NOT EXISTS index_expired_messages_expire_at \
                          ON expired_messages (expire_at) WHERE expire_at IS NOT NULL; \
                          PRAGMA user_version = 29;",
@@ -414,7 +413,7 @@ mod tests {
                     .await
                     .unwrap();
                 } else {
-                    sqlx::query("PRAGMA user_version = 28")
+                    crate::db::query("PRAGMA user_version = 28")
                         .execute(&pool)
                         .await
                         .unwrap();
@@ -422,20 +421,20 @@ mod tests {
             }
 
             MIGRATOR.migrate(&pool).await.unwrap();
-            let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+            let version: i64 = crate::db::query_scalar("PRAGMA user_version")
                 .fetch_one(&pool)
                 .await
                 .unwrap();
             assert_eq!(version, 29);
             if source_version == 0 {
-                sqlx::query(
+                crate::db::query(
                     "INSERT INTO expired_messages VALUES ('due', 60, 100), ('pending', 60, NULL)",
                 )
                 .execute(&pool)
                 .await
                 .unwrap();
             }
-            let due: Vec<String> = sqlx::query_scalar(
+            let due: Vec<String> = crate::db::query_scalar(
                 "SELECT message_id FROM expired_messages \
                  INDEXED BY index_expired_messages_expire_at WHERE expire_at <= 100",
             )
@@ -443,7 +442,7 @@ mod tests {
             .await
             .unwrap();
             assert_eq!(due, ["due"]);
-            let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM expired_messages")
+            let count: i64 = crate::db::query_scalar("SELECT COUNT(*) FROM expired_messages")
                 .fetch_one(&pool)
                 .await
                 .unwrap();
@@ -466,11 +465,11 @@ mod tests {
             )
             .await
             .unwrap();
-        sqlx::raw_sql(include_str!("../../../tests/fixtures/mixin_v1.sql"))
+        crate::db::raw_sql(include_str!("../../../tests/fixtures/mixin_v1.sql"))
             .execute(&pool)
             .await
             .unwrap();
-        sqlx::raw_sql(
+        crate::db::raw_sql(
             "PRAGMA user_version = 1; \
              INSERT INTO users (user_id, identity_number, full_name) \
              VALUES ('legacy-user', '7000', 'Legacy User');",
@@ -481,21 +480,21 @@ mod tests {
         pool.close().await;
 
         let database = MixinDatabase::connect_at(&path).await.unwrap();
-        let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+        let version: i64 = crate::db::query_scalar("PRAGMA user_version")
             .fetch_one(&database.user_dao.0)
             .await
             .unwrap();
         let membership: Option<String> =
-            sqlx::query_scalar("SELECT membership FROM users WHERE user_id = 'legacy-user'")
+            crate::db::query_scalar("SELECT membership FROM users WHERE user_id = 'legacy-user'")
                 .fetch_one(&database.user_dao.0)
                 .await
                 .unwrap();
         let migration_job: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM jobs WHERE action = 'LOCAL_MIGRATE_FTS'")
+            crate::db::query_scalar("SELECT COUNT(*) FROM jobs WHERE action = 'LOCAL_MIGRATE_FTS'")
                 .fetch_one(&database.user_dao.0)
                 .await
                 .unwrap();
-        let sqlx_table: bool = sqlx::query_scalar(
+        let sqlx_table: bool = crate::db::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name = '_sqlx_migrations')",
         )
         .fetch_one(&database.user_dao.0)

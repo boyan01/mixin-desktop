@@ -2,7 +2,7 @@ use anyhow::Context;
 
 use crate::db::Error;
 
-#[derive(Clone, sqlx::FromRow)]
+#[derive(Clone)]
 pub struct SafeSnapshotDetail {
     pub snapshot_id: String,
     pub trace_id: Option<String>,
@@ -29,11 +29,11 @@ pub struct SafeSnapshotDetail {
 }
 
 #[derive(Clone)]
-pub struct SafeSnapshotDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct SafeSnapshotDao(pub(crate) crate::db::Pool);
 
 impl SafeSnapshotDao {
     pub async fn insert(&self, snapshot: &sdk::SafeSnapshotShot) -> Result<(), Error> {
-        let _ = sqlx::query(r#"
+        let _ = crate::db::query(r#"
 INSERT OR REPLACE INTO safe_snapshots
 (snapshot_id, type, asset_id, amount, user_id, opponent_id, memo, transaction_hash, created_at, trace_id, confirmations, opening_balance, closing_balance, withdrawal, deposit, inscription_hash)
 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
@@ -58,7 +58,7 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     }
 
     pub async fn delete_pending_snapshot_by_hash(&self, tx_hash: &str) -> Result<(), Error> {
-        let _ = sqlx::query(
+        let _ = crate::db::query(
             "DELETE FROM safe_snapshots WHERE type = 'pending' AND transaction_hash = ?",
         )
         .bind(tx_hash)
@@ -72,7 +72,7 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         snapshot_id: &str,
         fiat_currency: &str,
     ) -> Result<Option<SafeSnapshotDetail>, Error> {
-        Ok(sqlx::query_as::<_, SafeSnapshotDetail>(
+        Ok(crate::db::query_as::<SafeSnapshotDetail>(
             r#"
 SELECT s.snapshot_id, s.trace_id, s.type AS type_field, s.asset_id, s.amount,
        s.created_at, s.opponent_id, s.transaction_hash, s.memo, s.confirmations,
@@ -95,3 +95,28 @@ SELECT s.snapshot_id, s.trace_id, s.type AS type_field, s.asset_id, s.amount,
         .await?)
     }
 }
+
+crate::db::storage::row_mapping!(SafeSnapshotDetail {
+    snapshot_id: "snapshot_id",
+    trace_id: "trace_id",
+    type_field: "type_field",
+    asset_id: "asset_id",
+    amount: "amount",
+    created_at: "created_at",
+    opponent_id: "opponent_id",
+    transaction_hash: "transaction_hash",
+    memo: "memo",
+    confirmations: "confirmations",
+    opening_balance: "opening_balance",
+    closing_balance: "closing_balance",
+    withdrawal: "withdrawal",
+    deposit: "deposit",
+    symbol: "symbol",
+    asset_name: "asset_name",
+    asset_icon_url: "asset_icon_url",
+    chain_icon_url: "chain_icon_url",
+    asset_confirmations: "asset_confirmations",
+    opponent_name: "opponent_name",
+    price_usd: "price_usd",
+    fiat_rate: "fiat_rate",
+});

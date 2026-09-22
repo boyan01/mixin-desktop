@@ -2,10 +2,17 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
+#[cfg(not(target_arch = "wasm32"))]
+use anyhow::Context;
 #[cfg(target_os = "linux")]
 use directories::BaseDirs;
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+#[cfg(not(any(
+    target_arch = "wasm32",
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "windows"
+)))]
 use directories::ProjectDirs;
 #[cfg(target_os = "windows")]
 use directories::UserDirs;
@@ -53,6 +60,7 @@ pub fn log_directory() -> anyhow::Result<PathBuf> {
     Ok(data_directory()?.join("log"))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) async fn create_parent_directory(path: &Path) -> anyhow::Result<()> {
     let parent = path
         .parent()
@@ -63,6 +71,13 @@ pub(crate) async fn create_parent_directory(path: &Path) -> anyhow::Result<()> {
     tokio::fs::create_dir_all(parent)
         .await
         .with_context(|| format!("create database directory {}", parent.display()))
+}
+
+/// wasm: directories inside the virtual filesystem are created by the Worker
+/// bridge when it opens a file, so there is nothing to do in Rust.
+#[cfg(target_arch = "wasm32")]
+pub(crate) async fn create_parent_directory(_path: &Path) -> anyhow::Result<()> {
+    Ok(())
 }
 
 pub fn data_directory() -> anyhow::Result<PathBuf> {
@@ -107,7 +122,12 @@ fn platform_data_directory() -> Option<PathBuf> {
     Some(BaseDirs::new()?.home_dir().join(".mixin"))
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+#[cfg(not(any(
+    target_arch = "wasm32",
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "windows"
+)))]
 fn platform_data_directory() -> Option<PathBuf> {
     ProjectDirs::from("dev", "Mixin", "Mixin Desktop")
         .map(|directories| directories.data_local_dir().to_path_buf())
@@ -155,4 +175,9 @@ mod tests {
             BaseDirs::new().unwrap().home_dir().join(".mixin")
         );
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn platform_data_directory() -> Option<PathBuf> {
+    Some(PathBuf::from("/mixin"))
 }

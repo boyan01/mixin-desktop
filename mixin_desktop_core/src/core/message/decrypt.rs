@@ -1,7 +1,7 @@
+use crate::time::{Duration, Instant};
 use std::collections::{HashMap, HashSet};
 use std::default::Default;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Context, Result};
 use base64ct::{Base64, Encoding};
@@ -229,7 +229,7 @@ impl ServiceDecryptMessage {
             };
             tokio::select! {
                 _ = self.database.flood_message_dao.wait_for_message() => {}
-                _ = tokio::time::sleep(delay) => {}
+                _ = crate::time::sleep(delay) => {}
             }
         }
     }
@@ -1270,7 +1270,7 @@ impl ServiceDecryptMessage {
             .into_iter()
             .filter(|path| std::path::Path::new(path).is_absolute())
         {
-            if let Err(err) = tokio::fs::remove_file(&path).await {
+            if let Err(err) = crate::fs::remove_file(&path).await {
                 if err.kind() != std::io::ErrorKind::NotFound {
                     warn!("failed to remove recalled attachment {path}: {err}");
                 }
@@ -1542,20 +1542,20 @@ impl ServiceDecryptMessage {
         {
             let app_service = self.app_service.clone();
             let circle_id = message.circle_id.clone();
-            std::mem::drop(tokio::spawn(async move {
+            crate::task::spawn(async move {
                 if let Err(error) = app_service.circle.refresh_circle(&circle_id).await {
                     warn!("failed to refresh circle {circle_id}: {error}");
                 }
-            }));
+            });
         } else if message.action == SystemCircleAction::Add {
             if !self.database.circle_dao.exists(&message.circle_id).await? {
                 let app_service = self.app_service.clone();
                 let circle_id = message.circle_id.clone();
-                std::mem::drop(tokio::spawn(async move {
+                crate::task::spawn(async move {
                     if let Err(error) = app_service.circle.refresh_circle(&circle_id).await {
                         warn!("failed to refresh circle {circle_id}: {error}");
                     }
-                }));
+                });
             }
             if let Some(user_id) = message.user_id.as_ref() {
                 self.app_service

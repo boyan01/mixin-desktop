@@ -20,13 +20,13 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::time::{interval, sleep};
 use anyhow::{anyhow, bail, Result};
 use futures::{future::pending, StreamExt};
 use log::{error, info};
 use strum_macros::Display;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::sync::{Mutex, Notify};
-use tokio::time::{interval, sleep};
 use tokio_stream::wrappers::ReceiverStream;
 
 use sdk::err::error_code::{BAD_DATA, FORBIDDEN};

@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:ui' as ui;
 
-import 'package:data_detector/data_detector.dart';
 import 'package:emojis/emoji.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -11,6 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../theme.dart';
 import '../utils/emoji.dart';
+import '../utils/url_text_ranges.dart'
+    if (dart.library.io) '../utils/url_text_ranges_io.dart';
 import 'adaptive_selection_toolbar.dart';
 import 'app_protocol_handler.dart';
 
@@ -257,14 +257,7 @@ class EmojiTextMatcher extends TextMatcher {
 class UrlTextMatcher extends TextMatcher {
   UrlTextMatcher(BuildContext context)
     : super.textRangesFromText(
-        textRangesFromText: (text) {
-          if (defaultTargetPlatform == TargetPlatform.macOS) {
-            return DataDetector(
-              NSTextCheckingType.NSTextCheckingTypeLink,
-            ).matchesInString(text).map((match) => match.range);
-          }
-          return _textRangesFromRegExp(text, _uriRegExp);
-        },
+        textRangesFromText: urlTextRanges,
         matchBuilder: (span, displayString, linkString) => TextSpan(
           text: displayString,
           style: TextStyle(color: context.theme.accent),
@@ -274,17 +267,6 @@ class UrlTextMatcher extends TextMatcher {
         ),
       );
 }
-
-final _uriRegExp = RegExp(
-  r'\b[a-zA-z+]+:(?://)?[\w-]+(?:\.[\w-]+)*(?:[\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?\b/?',
-);
-
-Iterable<TextRange> _textRangesFromRegExp(String text, RegExp regExp) => regExp
-    .allMatches(text)
-    .map(
-      (match) => TextRange(start: match.start, end: match.end),
-    );
-
 
 class MailTextMatcher extends TextMatcher {
   MailTextMatcher(BuildContext context)

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
@@ -13,6 +14,7 @@ import '../utils/app_logger.dart';
 import '../utils/local_notification_center.dart';
 import '../utils/mixin_uri.dart';
 import '../utils/notification_preview.dart';
+import '../utils/rust_int.dart';
 import 'toast.dart';
 
 class HomeNotificationBridge extends StatefulWidget {
@@ -36,6 +38,7 @@ class _HomeNotificationBridgeState extends State<HomeNotificationBridge> {
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) return;
     _events = widget.account.desktopNotificationEvents().listen(
       (event) => unawaited(_showMessageNotification(event)),
       onError: (Object error, StackTrace stackTrace) =>
@@ -62,7 +65,7 @@ class _HomeNotificationBridgeState extends State<HomeNotificationBridge> {
       return;
     }
     final createdAt = DateTime.fromMicrosecondsSinceEpoch(
-      message.createdAtMicros,
+      message.createdAtMicros.toDartInt(),
     );
     if (createdAt.isBefore(
       DateTime.now().subtract(const Duration(minutes: 2)),

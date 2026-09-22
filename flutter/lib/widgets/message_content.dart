@@ -20,6 +20,7 @@ import '../l10n/l10n.dart';
 import '../models/message_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../theme.dart';
+import '../utils/rust_int.dart';
 import '../utils/system_clipboard.dart';
 import 'app_protocol_handler.dart';
 import 'attachment_status.dart';
@@ -543,8 +544,8 @@ class MessageImage extends StatelessWidget {
     final items = await account.message().imageMessagesAround(
       conversationId: message.conversationId,
       targetMessageId: targetMessageId,
-      before: before,
-      after: after,
+      before: before.toRustInt(),
+      after: after.toRustInt(),
     );
     return items
         .map(

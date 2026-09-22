@@ -251,7 +251,8 @@ class _AppBody extends StatelessWidget {
                 ],
               ),
     };
-    if (defaultTargetPlatform == TargetPlatform.macOS &&
+    if (!kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.macOS &&
         controller.stage != AppStage.signedIn) {
       return _SignedOutMacMenuBar(child: body);
     }

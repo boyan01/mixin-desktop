@@ -4,12 +4,11 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sqlx::{Pool, Sqlite};
 
 use crate::core::crypto::signal_protocol::MAX_VALUE;
 
 pub struct CryptoKeyValue {
-    pool: Pool<Sqlite>,
+    pool: crate::db::Pool,
     inner: Arc<Mutex<CryptoKeyValueInner>>,
 }
 
@@ -24,7 +23,7 @@ const KEY_NEXT_SIGNED_PRE_KEY_ID: &str = "next_signed_pre_key_id";
 const KEY_HAS_PUSH_SIGNAL_KEYS: &str = "has_push_signal_keys";
 
 impl CryptoKeyValue {
-    pub fn new(pool: Pool<Sqlite>) -> Self {
+    pub fn new(pool: crate::db::Pool) -> Self {
         CryptoKeyValue {
             pool,
             inner: Arc::new(Mutex::new(CryptoKeyValueInner {
@@ -91,7 +90,7 @@ impl CryptoKeyValue {
         T: DeserializeOwned,
     {
         let value: Option<String> =
-            sqlx::query_scalar("SELECT value FROM properties WHERE key = ?")
+            crate::db::query_scalar("SELECT value FROM properties WHERE key = ?")
                 .bind(key)
                 .fetch_optional(&self.pool)
                 .await?;
@@ -108,7 +107,7 @@ impl CryptoKeyValue {
         T: Serialize + ?Sized,
     {
         let value = serde_json::to_string(value)?;
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO properties (key, value) VALUES (?, ?)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         )

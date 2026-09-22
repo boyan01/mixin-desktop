@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 final _plugin = FlutterLocalNotificationsPlugin();
@@ -11,7 +12,10 @@ var _nextId = 0;
 Stream<Uri> get notificationSelections => _selectionController.stream;
 
 Future<void> initNotificationListener() async {
-  if (!Platform.isMacOS && !Platform.isLinux && !Platform.isWindows) return;
+  if (kIsWeb ||
+      (!Platform.isMacOS && !Platform.isLinux && !Platform.isWindows)) {
+    return;
+  }
   await _plugin.initialize(
     settings: const InitializationSettings(
       macOS: DarwinInitializationSettings(),
@@ -40,7 +44,10 @@ Future<void> showMessageNotification({
   required String conversationId,
   required String messageId,
 }) async {
-  if (!Platform.isMacOS && !Platform.isLinux && !Platform.isWindows) return;
+  if (kIsWeb ||
+      (!Platform.isMacOS && !Platform.isLinux && !Platform.isWindows)) {
+    return;
+  }
   _nextId = (_nextId + 1) & 0x7fffffff;
   const details = NotificationDetails(
     macOS: DarwinNotificationDetails(sound: 'mixin.caf', presentSound: true),

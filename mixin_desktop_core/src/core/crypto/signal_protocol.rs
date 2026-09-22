@@ -9,7 +9,7 @@ use libsignal_protocol::{
     PublicKey, SenderKeyDistributionMessage, SenderKeyName, SignalProtocolError,
 };
 use log::info;
-use rand_core::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use uuid::Uuid;
 
 use sdk::message_category;
@@ -132,7 +132,7 @@ impl SignalProtocol {
                 &mut store.identity_store,
                 &mut store.pre_key_store,
                 &mut store.signed_pre_key_store,
-                &mut OsRng,
+                &mut UnwrapErr(SysRng),
                 context,
             )
             .await
@@ -156,7 +156,7 @@ impl SignalProtocol {
                         &mut store.identity_store,
                         &mut store.pre_key_store,
                         &mut store.signed_pre_key_store,
-                        &mut OsRng,
+                        &mut UnwrapErr(SysRng),
                         context,
                     )
                     .await
@@ -241,7 +241,7 @@ impl SignalProtocol {
             &mut store.session_store,
             &mut store.identity_store,
             &pre_key_bundle,
-            &mut OsRng,
+            &mut UnwrapErr(SysRng),
             None,
         )
         .await;
@@ -252,7 +252,7 @@ impl SignalProtocol {
                 &mut store.session_store,
                 &mut store.identity_store,
                 &pre_key_bundle,
-                &mut OsRng,
+                &mut UnwrapErr(SysRng),
                 None,
             )
             .await?;
@@ -274,7 +274,7 @@ impl SignalProtocol {
         let message = create_sender_key_distribution_message(
             &SenderKeyName::new(cid.to_string(), local_address)?,
             &mut store.sender_key_store,
-            &mut OsRng,
+            &mut UnwrapErr(SysRng),
             None,
         )
         .await?;
@@ -308,7 +308,7 @@ impl SignalProtocol {
             &mut store.sender_key_store,
             &sender_key_name,
             plaintext,
-            &mut OsRng,
+            &mut UnwrapErr(SysRng),
             None,
         )
         .await?;
@@ -402,7 +402,7 @@ mod tests {
     use libsignal_protocol::{
         create_sender_key_distribution_message, ProtocolAddress, SenderKeyName,
     };
-    use rand_core::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use crate::core::crypto::compose_message::ComposeMessageData;
     use crate::db::SignalDatabase;
@@ -470,7 +470,7 @@ mod tests {
         let distribution = create_sender_key_distribution_message(
             &sender_key_name,
             &mut sender_store.sender_key_store,
-            &mut OsRng,
+            &mut UnwrapErr(SysRng),
             None,
         )
         .await

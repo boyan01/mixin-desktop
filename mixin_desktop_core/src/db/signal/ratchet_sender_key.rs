@@ -1,6 +1,6 @@
-pub struct RatchetSenderKeyDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct RatchetSenderKeyDao(pub(crate) crate::db::Pool);
 
-#[derive(sqlx::FromRow, Debug)]
+#[derive(Debug)]
 pub struct RatchetSenderKey {
     pub group_id: String,
     pub sender_id: String,
@@ -15,7 +15,7 @@ pub mod ratchet_sender_key_status {
 
 impl RatchetSenderKeyDao {
     pub async fn insert_sender_key(&self, key: &RatchetSenderKey) -> Result<(), sqlx::Error> {
-        sqlx::query(
+        crate::db::query(
             "INSERT OR REPLACE INTO ratchet_sender_keys (group_id, sender_id, status, message_id, created_at) VALUES (?, ?, ?, ?, ?)",
         )
         .bind(&key.group_id)
@@ -29,7 +29,7 @@ impl RatchetSenderKeyDao {
     }
 
     pub async fn delete(&self, group_id: &str, sender_id: &str) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM ratchet_sender_keys WHERE group_id = ? AND sender_id = ?")
+        crate::db::query("DELETE FROM ratchet_sender_keys WHERE group_id = ? AND sender_id = ?")
             .bind(group_id)
             .bind(sender_id)
             .execute(&self.0)
@@ -42,7 +42,7 @@ impl RatchetSenderKeyDao {
         group_id: &str,
         sender_id: &str,
     ) -> Result<Option<String>, sqlx::Error> {
-        let result = sqlx::query_scalar::<_, String>(
+        let result = crate::db::query_scalar::<String>(
             "SELECT status FROM ratchet_sender_keys WHERE group_id = ? AND sender_id = ?",
         )
         .bind(group_id)
@@ -52,3 +52,11 @@ impl RatchetSenderKeyDao {
         Ok(result)
     }
 }
+
+crate::db::storage::row_mapping!(RatchetSenderKey {
+    group_id: "group_id",
+    sender_id: "sender_id",
+    status: "status",
+    message_id: "message_id",
+    created_at: "created_at",
+});

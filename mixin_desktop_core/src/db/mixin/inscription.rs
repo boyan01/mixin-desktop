@@ -3,11 +3,11 @@ use sdk::{InscriptionCollection, InscriptionItem};
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct InscriptionDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct InscriptionDao(pub(crate) crate::db::Pool);
 
 impl InscriptionDao {
     pub async fn find_item(&self, hash: &str) -> Result<Option<InscriptionItem>, Error> {
-        Ok(sqlx::query_as::<_, InscriptionItem>(
+        Ok(crate::db::query_as::<InscriptionItem>(
             "SELECT * FROM inscription_items WHERE inscription_hash = ?",
         )
         .bind(hash)
@@ -19,7 +19,7 @@ impl InscriptionDao {
         &self,
         hash: &str,
     ) -> Result<Option<InscriptionCollection>, Error> {
-        Ok(sqlx::query_as::<_, InscriptionCollection>(
+        Ok(crate::db::query_as::<InscriptionCollection>(
             "SELECT * FROM inscription_collections WHERE collection_hash = ?",
         )
         .bind(hash)
@@ -28,7 +28,7 @@ impl InscriptionDao {
     }
 
     pub async fn insert_item(&self, item: &InscriptionItem) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             r#"INSERT OR REPLACE INTO inscription_items
                (inscription_hash, collection_hash, sequence, content_type, content_url,
                 occupied_by, occupied_at, created_at, updated_at)
@@ -49,7 +49,7 @@ impl InscriptionDao {
     }
 
     pub async fn insert_collection(&self, collection: &InscriptionCollection) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             r#"INSERT OR REPLACE INTO inscription_collections
                (collection_hash, supply, unit, symbol, name, icon_url, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)"#,

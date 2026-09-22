@@ -1,9 +1,12 @@
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
+#[cfg(not(target_arch = "wasm32"))]
 use futures::FutureExt;
+#[cfg(not(target_arch = "wasm32"))]
 use log::info;
+#[cfg(not(target_arch = "wasm32"))]
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use sqlx::SqliteConnection;
 
 use crate::db::migration::{Migration, MigrationFuture, Migrator};
 
@@ -21,9 +24,19 @@ pub(super) const MIGRATOR: Migrator = Migrator::new(
     MIGRATIONS,
 );
 
-fn migrate_to_v2(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
+/// Copies counters out of the legacy desktop app database. The legacy app
+/// database only exists for native upgrades; wasm databases are created
+/// directly at the current schema, so this migration never runs there and
+/// has nothing to copy.
+#[cfg(target_arch = "wasm32")]
+fn migrate_to_v2(_connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
+    Box::pin(async { Ok(()) })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn migrate_to_v2(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
-        sqlx::query(
+        crate::db::query(
             "CREATE TABLE properties (
                 key TEXT PRIMARY KEY NOT NULL,
                 value TEXT NOT NULL
@@ -32,9 +45,10 @@ fn migrate_to_v2(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
         .execute(&mut *connection)
         .await?;
 
-        let (_, _, signal_path): (i64, String, String) = sqlx::query_as("PRAGMA database_list")
-            .fetch_one(&mut *connection)
-            .await?;
+        let (_, _, signal_path): (i64, String, String) =
+            crate::db::query_as("PRAGMA database_list")
+                .fetch_one(&mut *connection)
+                .await?;
         let signal_path = Path::new(&signal_path);
         let Some(account_directory) = signal_path.parent() else {
             return Ok(());
@@ -61,7 +75,7 @@ fn migrate_to_v2(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
                     .read_only(true),
             )
             .await?;
-        let properties: Vec<(String, String)> = sqlx::query_as(
+        let properties: Vec<(String, String)> = crate::db::query_as(
             r#"SELECT "key", value
                FROM properties
                WHERE "group" = ?
@@ -77,7 +91,7 @@ fn migrate_to_v2(connection: &mut SqliteConnection) -> MigrationFuture<'_> {
         app_pool.close().await;
 
         for (key, value) in &properties {
-            sqlx::query("INSERT INTO properties (key, value) VALUES (?, ?)")
+            crate::db::query("INSERT INTO properties (key, value) VALUES (?, ?)")
                 .bind(key)
                 .bind(value)
                 .execute(&mut *connection)

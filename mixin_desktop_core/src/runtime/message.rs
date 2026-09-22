@@ -191,11 +191,11 @@ impl MessageAccess {
             "mixin-remote-image-{}.{}",
             message.message_id, extension
         ));
-        tokio::fs::write(&temporary, bytes).await?;
+        crate::fs::write(&temporary, bytes).await?;
         let result = self
             .complete_remote_image_file(message, &temporary, width, height, silent)
             .await;
-        let _ = tokio::fs::remove_file(&temporary).await;
+        let _ = crate::fs::remove_file(&temporary).await;
         result
     }
 
@@ -991,11 +991,11 @@ impl MessageAccess {
                 "audio waveform must contain between 1 and 1024 samples"
             ));
         }
-        let source = tokio::fs::canonicalize(path)
+        let source = crate::fs::canonicalize(path)
             .await
             .with_context(|| format!("resolve recorded audio {path}"))?;
-        let metadata = tokio::fs::metadata(&source).await?;
-        if !metadata.is_file() || metadata.len() == 0 {
+        let metadata = crate::fs::metadata(&source).await?;
+        if !metadata.is_file() || metadata.is_empty() {
             return Err(anyhow!("recorded audio is empty or is not a file"));
         }
         if metadata.len() > MAX_AUDIO_FILE_SIZE {
@@ -1208,11 +1208,11 @@ impl MessageAccess {
             return Err(anyhow!("file name is required"));
         }
 
-        let source = tokio::fs::canonicalize(path)
+        let source = crate::fs::canonicalize(path)
             .await
             .with_context(|| format!("resolve attachment {path}"))?;
-        let metadata = tokio::fs::metadata(&source).await?;
-        if !metadata.is_file() || metadata.len() == 0 {
+        let metadata = crate::fs::metadata(&source).await?;
+        if !metadata.is_file() || metadata.is_empty() {
             return Err(anyhow!("attachment is empty or is not a file"));
         }
         let size = i64::try_from(metadata.len()).context("attachment is too large")?;
@@ -1545,7 +1545,7 @@ impl MessageAccess {
                         {
                             Ok(upload) => upload,
                             Err(error) => {
-                                let _ = tokio::fs::remove_file(&target_path).await;
+                                let _ = crate::fs::remove_file(&target_path).await;
                                 return Err(error);
                             }
                         };
@@ -1729,7 +1729,7 @@ impl MessageAccess {
             };
             if let Err(error) = inserted {
                 if let Some(path) = copied_attachment_path {
-                    let _ = tokio::fs::remove_file(path).await;
+                    let _ = crate::fs::remove_file(path).await;
                 }
                 return Err(error.into());
             }

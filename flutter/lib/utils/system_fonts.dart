@@ -2,14 +2,17 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import 'app_logger.dart';
 
 bool _fallbackFontsLoaded = false;
 String? loadedFallbackFonts;
 
 Future<void> loadFallbackFonts() async {
-  if (!Platform.isLinux ||
+  if (kIsWeb ||
+      !Platform.isLinux ||
       PlatformDispatcher.instance.locale.languageCode == 'en' ||
       _fallbackFontsLoaded) {
     return;
@@ -60,7 +63,7 @@ Future<void> loadFallbackFonts() async {
 extension ApplyFontsExtension on ThemeData {
   ThemeData withFallbackFonts() {
     if (loadedFallbackFonts == null) {
-      if (Platform.isWindows) {
+      if (!kIsWeb && Platform.isWindows) {
         return copyWith(
           textTheme: textTheme.applyFonts(null, ['Microsoft Yahei']),
           primaryTextTheme: primaryTextTheme.applyFonts(null, [

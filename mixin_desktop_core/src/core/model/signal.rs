@@ -5,7 +5,7 @@ use base64ct::{Base64, Encoding};
 use libsignal_protocol::{
     IdentityKeyPair, IdentityKeyStore, KeyPair, PreKeyRecord, SignedPreKeyRecord, SignedPreKeyStore,
 };
-use rand_core::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
 use sdk::{Client, OneTimePreKey, SignalKeyRequest, SignedPreKey};
 
@@ -62,8 +62,10 @@ impl SignalService {
         let mut pre_keys = Vec::new();
         let pre_key_offset = crypto_key_value.next_pre_key_id();
         for index in pre_key_offset..PRE_KEY_BATCH_SIZE + pre_key_offset {
-            let pre_key_record =
-                PreKeyRecord::new(index & MAX_VALUE, &KeyPair::generate(&mut OsRng));
+            let pre_key_record = PreKeyRecord::new(
+                index & MAX_VALUE,
+                &KeyPair::generate(&mut UnwrapErr(SysRng)),
+            );
 
             let pre_key = PreKey {
                 prekey_id: index & MAX_VALUE,
@@ -93,10 +95,10 @@ impl SignalService {
     ) -> Result<SignedPreKeyRecord> {
         let crypto_key_value = &self.signal_database.crypto_key_value;
         let signed_pre_key_id = crypto_key_value.next_signed_pre_key_id();
-        let key_pair = KeyPair::generate(&mut OsRng);
+        let key_pair = KeyPair::generate(&mut UnwrapErr(SysRng));
         let signature = identity_key_pair
             .private_key()
-            .calculate_signature(&key_pair.public_key.serialize(), &mut OsRng)
+            .calculate_signature(&key_pair.public_key.serialize(), &mut UnwrapErr(SysRng))
             .map_err(|e| anyhow!("failed to calculate signature: {e}"))?;
 
         let record = SignedPreKeyRecord::new(

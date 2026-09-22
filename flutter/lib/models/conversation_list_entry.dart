@@ -1,4 +1,5 @@
 import '../src/rust/desktop_api.dart' as rust;
+import '../utils/rust_int.dart';
 
 class ConversationListEntry {
   const ConversationListEntry({
@@ -55,10 +56,10 @@ class ConversationListEntry {
         lastMessageParticipantId: item.lastMessageParticipantId,
         lastMessageParticipantName: item.lastMessageParticipantName,
         updatedAt: DateTime.fromMillisecondsSinceEpoch(
-          item.updatedAtMillis,
+          item.updatedAtMillis.toDartInt(),
         ),
-        unseenCount: item.unseenCount,
-        mentionCount: item.mentionCount,
+        unseenCount: item.unseenCount.toDartInt(),
+        mentionCount: item.mentionCount.toDartInt(),
         isMuted: item.isMuted,
         isVerified: item.isVerified,
         isScam: item.isScam,
@@ -66,13 +67,15 @@ class ConversationListEntry {
         isBotGroup: item.isBotGroup,
         membership: item.membership,
         isPinned: item.isPinned,
-        pinTime: item.pinTimeMillis == 0
+        pinTime: item.pinTimeMillis.toDartInt() == 0
             ? null
-            : DateTime.fromMillisecondsSinceEpoch(item.pinTimeMillis),
+            : DateTime.fromMillisecondsSinceEpoch(
+                item.pinTimeMillis.toDartInt(),
+              ),
         relationship: item.relationship,
         identityNumber: item.identityNumber,
         circleIds: item.circleIds,
-        participantCount: item.participantCount,
+        participantCount: item.participantCount.toDartInt(),
         groupAvatars: item.groupAvatars
             .map(
               (avatar) => ConversationAvatarEntry(

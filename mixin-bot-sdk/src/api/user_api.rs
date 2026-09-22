@@ -19,8 +19,6 @@ impl UserApi {
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-#[derive(sqlx::Type)]
-#[sqlx(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum UserRelationship {
     Friend,
     Me,

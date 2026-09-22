@@ -1,0 +1,12 @@
+{
+  "name": "mixin-flutter-web-tools",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@sqlite.org/sqlite-wasm": "3.51.2-build8",
+    "esbuild": "0.25.12"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

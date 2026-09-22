@@ -30,17 +30,18 @@ Future<void> main(List<String> args) async {
   await initializeLogUtil();
   i('Application started');
   await loadFallbackFonts();
-  if (runWebViewTitleBarWidget(
-    args,
-    builder: (context) => Theme(
-      data: buildMixinTheme(Brightness.light),
-      child: const Material(
-        color: Color(0xFFF0E7EA),
-        child: WebViewNavigationBar(),
-      ),
-    ),
-    backgroundColor: const Color(0xFFF0E7EA),
-  )) {
+  if (!kIsWeb &&
+      runWebViewTitleBarWidget(
+        args,
+        builder: (context) => Theme(
+          data: buildMixinTheme(Brightness.light),
+          child: const Material(
+            color: Color(0xFFF0E7EA),
+            child: WebViewNavigationBar(),
+          ),
+        ),
+        backgroundColor: const Color(0xFFF0E7EA),
+      )) {
     return;
   }
   FlutterError.onError = (details) {
@@ -52,20 +53,26 @@ Future<void> main(List<String> args) async {
     return true;
   };
 
-  unawaited(initNotificationListener());
+  if (!kIsWeb) unawaited(initNotificationListener());
 
   await _initializeDesktopWindow();
-  if (defaultTargetPlatform == TargetPlatform.macOS ||
-      defaultTargetPlatform == TargetPlatform.windows) {
+  if (!kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.windows)) {
     await protocolHandler.register('mixin');
   }
-  final initialProtocolUrl = defaultTargetPlatform == TargetPlatform.linux
+  final initialProtocolUrl = kIsWeb
+      ? null
+      : defaultTargetPlatform == TargetPlatform.linux
       ? args.firstOrNull
       : await protocolHandler.getInitialUrl();
   final settingsController = SettingsController();
   await settingsController.initialize();
   final desktop = await openDesktop();
-  final controller = AppController(settings: settingsController.store);
+  final controller = AppController(
+    settings: settingsController.store,
+    desktop: desktop,
+  );
   unawaited(controller.initialize());
   runApp(
     MultiProvider(

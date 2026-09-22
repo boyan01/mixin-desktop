@@ -2,14 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+
 import '../../constants/assets.dart';
 import '../../l10n/l10n.dart';
 import '../../src/rust/desktop_api.dart' as rust;
 import '../../theme.dart';
 import '../../utils/app_logger.dart';
+import '../../utils/rust_int.dart';
 import '../../widgets/action_button.dart';
 import '../../widgets/mixin_dialog.dart';
-
 import 'chat_side_scope.dart';
 
 class CircleManagerPage extends StatefulWidget {
@@ -215,8 +216,8 @@ class _CircleManagerItem extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               context.l10n.circleSubtitle(
-                circle.conversationCount,
-                circle.conversationCount,
+                circle.conversationCount.toDartInt(),
+                circle.conversationCount.toDartInt(),
               ),
               style: TextStyle(
                 color: context.theme.secondaryText,

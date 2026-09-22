@@ -1,13 +1,13 @@
-use sqlx::{QueryBuilder, Sqlite};
+use crate::db::QueryBuilder;
 
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct MessageHistoryDao(pub(crate) sqlx::Pool<Sqlite>);
+pub struct MessageHistoryDao(pub(crate) crate::db::Pool);
 
 impl MessageHistoryDao {
     pub async fn insert(&self, message_id: &str) -> Result<(), Error> {
-        sqlx::query("INSERT INTO messages_history (message_id) VALUES (?)")
+        crate::db::query("INSERT INTO messages_history (message_id) VALUES (?)")
             .bind(message_id)
             .execute(&self.0)
             .await?;
@@ -18,7 +18,7 @@ impl MessageHistoryDao {
         if message_ids.is_empty() {
             return Ok(());
         }
-        let mut query_builder: QueryBuilder<Sqlite> =
+        let mut query_builder: QueryBuilder =
             QueryBuilder::new("INSERT INTO messages_history (message_id) VALUES ");
 
         query_builder.push_values(message_ids.iter(), |mut b, message_id| {
@@ -30,7 +30,7 @@ impl MessageHistoryDao {
     }
 
     pub async fn exists(&self, message_id: &str) -> Result<bool, Error> {
-        let result = sqlx::query_scalar::<_, bool>(
+        let result = crate::db::query_scalar::<bool>(
             "SELECT EXISTS(SELECT 1 FROM messages_history WHERE message_id = ?)",
         )
         .bind(message_id)

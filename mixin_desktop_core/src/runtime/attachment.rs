@@ -83,7 +83,7 @@ impl AttachmentAccess {
             &account_data_directory(&self.profile.borrow().identity_number)?,
             &message,
         )?;
-        tokio::fs::copy(source, destination).await?;
+        crate::fs::copy(source, destination).await?;
         Ok(())
     }
 
@@ -378,7 +378,7 @@ impl AttachmentAccess {
                 )
                 .await?;
             if !completed {
-                let _ = tokio::fs::remove_file(&downloaded.path).await;
+                let _ = crate::fs::remove_file(&downloaded.path).await;
                 return Err(anyhow!("transcript attachment download canceled"));
             }
             Ok(())
@@ -749,7 +749,7 @@ impl AttachmentAccess {
                 )
                 .await?;
             if !completed {
-                let _ = tokio::fs::remove_file(&downloaded.path).await;
+                let _ = crate::fs::remove_file(&downloaded.path).await;
                 return Err(anyhow!("attachment download canceled"));
             }
             self.database

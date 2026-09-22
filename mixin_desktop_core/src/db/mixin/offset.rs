@@ -9,12 +9,12 @@ pub const MESSAGE_STATUS_OFFSET: &str = "messages_status_offset";
 
 #[derive(Clone)]
 pub struct OffsetDao {
-    pool: sqlx::Pool<sqlx::Sqlite>,
+    pool: crate::db::Pool,
     write_lock: Arc<Mutex<()>>,
 }
 
 impl OffsetDao {
-    pub fn new(pool: sqlx::Pool<sqlx::Sqlite>) -> Self {
+    pub fn new(pool: crate::db::Pool) -> Self {
         Self {
             pool,
             write_lock: Arc::new(Mutex::new(())),
@@ -22,7 +22,7 @@ impl OffsetDao {
     }
 
     pub async fn message_status_offset(&self) -> Result<Option<DateTime<Utc>>, Error> {
-        sqlx::query_scalar::<_, String>("SELECT timestamp FROM offsets WHERE \"key\" = ?")
+        crate::db::query_scalar::<String>("SELECT timestamp FROM offsets WHERE \"key\" = ?")
             .bind(MESSAGE_STATUS_OFFSET)
             .fetch_optional(&self.pool)
             .await?
@@ -52,7 +52,7 @@ impl OffsetDao {
             return Ok(());
         }
 
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO offsets (\"key\", timestamp) VALUES (?, ?) \
              ON CONFLICT(\"key\") DO UPDATE SET timestamp = excluded.timestamp",
         )

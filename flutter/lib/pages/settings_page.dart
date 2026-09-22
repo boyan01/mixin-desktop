@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -431,13 +432,19 @@ class _SettingsHome extends StatelessWidget {
                         ),
                         CellItem(
                           key: const ValueKey('settings-proxy'),
+                          color: kIsWeb
+                              ? context.mixinTheme.secondaryText
+                              : null,
+                          description: kIsWeb
+                              ? const Icon(Icons.block, size: 16)
+                              : null,
                           leading: _icon(context, MixinAssets.proxy),
                           title: AutoSizeText(context.l10n.proxy, maxLines: 1),
                           selected:
                               state._wideMode &&
                               state._activeDestination ==
                                   _SettingsDestination.proxy,
-                          onTap: state._openProxy,
+                          onTap: kIsWeb ? null : state._openProxy,
                         ),
                         CellItem(
                           key: const ValueKey('settings-appearance'),
@@ -454,6 +461,12 @@ class _SettingsHome extends StatelessWidget {
                         ),
                         CellItem(
                           key: const ValueKey('settings-mcp'),
+                          color: kIsWeb
+                              ? context.mixinTheme.secondaryText
+                              : null,
+                          description: kIsWeb
+                              ? const Icon(Icons.block, size: 16)
+                              : null,
                           leading: const Icon(Icons.hub_outlined),
                           title: const AutoSizeText(
                             'Local MCP Server',
@@ -463,7 +476,7 @@ class _SettingsHome extends StatelessWidget {
                               state._wideMode &&
                               state._activeDestination ==
                                   _SettingsDestination.mcp,
-                          onTap: state._openMcp,
+                          onTap: kIsWeb ? null : state._openMcp,
                         ),
                         CellItem(
                           key: const ValueKey('settings-about'),

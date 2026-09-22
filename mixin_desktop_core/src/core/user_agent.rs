@@ -55,6 +55,7 @@ fn plist_value<'a>(values: &'a str, key: &str) -> Option<&'a str> {
     })
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn os_version() -> String {
     std::process::Command::new("uname")
         .arg("-r")
@@ -83,4 +84,9 @@ mod tests {
         assert!(generate_user_agent().starts_with("Mixin/5.1.2 (Flutter "));
         assert_eq!(provisioning_app_version(), "5.1.2(557)");
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn os_version() -> String {
+    "browser".to_owned()
 }

@@ -61,9 +61,10 @@ class MessageWindowLoader {
       int limit,
     ) => account.message().messageIdsBefore(
       conversationId: conversationId,
-      anchorRowId: anchor.rowId,
-      anchorCreatedAtMicros: anchor.createdAt.microsecondsSinceEpoch,
-      limit: limit,
+      anchorRowId: anchor.rowId.toRustInt(),
+      anchorCreatedAtMicros: anchor.createdAt.microsecondsSinceEpoch
+          .toRustInt(),
+      limit: limit.toRustInt(),
     );
 
     Future<List<String>> messageIdsAfter(
@@ -72,16 +73,17 @@ class MessageWindowLoader {
       int limit,
     ) => account.message().messageIdsAfter(
       conversationId: conversationId,
-      anchorRowId: anchor.rowId,
-      anchorCreatedAtMicros: anchor.createdAt.microsecondsSinceEpoch,
-      limit: limit,
+      anchorRowId: anchor.rowId.toRustInt(),
+      anchorCreatedAtMicros: anchor.createdAt.microsecondsSinceEpoch
+          .toRustInt(),
+      limit: limit.toRustInt(),
     );
 
     return MessageWindowLoader(
       recentMessages: (conversationId, limit) async =>
           (await account.message().messages(
             conversationId: conversationId,
-            limit: limit,
+            limit: limit.toRustInt(),
           )).map(MessageListEntry.fromRust).toList(growable: false),
       messageOrderInfo: (messageId) async {
         final info = await account.message().messageOrderInfo(
@@ -91,9 +93,9 @@ class MessageWindowLoader {
             ? null
             : MessageOrderInfo(
                 messageId: info.messageId,
-                rowId: info.rowId,
+                rowId: info.rowId.toDartInt(),
                 createdAt: DateTime.fromMicrosecondsSinceEpoch(
-                  info.createdAtMicros,
+                  info.createdAtMicros.toDartInt(),
                 ),
               );
       },
@@ -113,8 +115,8 @@ class MessageWindowLoader {
               (await account.message().messagesAround(
                 conversationId: conversationId,
                 targetMessageId: targetMessageId,
-                before: before,
-                after: after,
+                before: before.toRustInt(),
+                after: after.toRustInt(),
               )).map(MessageListEntry.fromRust).toList(growable: false),
     );
   }

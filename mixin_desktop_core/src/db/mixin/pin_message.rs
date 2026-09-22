@@ -5,17 +5,16 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
-pub struct PinMessageDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct PinMessageDao(pub(crate) crate::db::Pool);
 
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PinMessage {
     pub message_id: String,
     pub conversation_id: String,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PinMessageMinimal {
     #[serde(rename = "category")]
     pub category: String,
@@ -41,7 +40,7 @@ mod tests {
     }
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug)]
 pub struct PinMessagePreview {
     pub message_id: String,
     pub content: Option<String>,
@@ -50,7 +49,7 @@ pub struct PinMessagePreview {
 
 impl PinMessageDao {
     pub async fn message_ids(&self, conversation_id: &str) -> Result<Vec<String>, Error> {
-        Ok(sqlx::query_scalar(
+        Ok(crate::db::query_scalar(
             r#"
 SELECT pin.message_id
 FROM pin_messages pin INDEXED BY index_pin_messages_conversation_id
@@ -68,7 +67,7 @@ ORDER BY message.created_at DESC, message.message_id DESC
         &self,
         conversation_id: &str,
     ) -> Result<Option<PinMessagePreview>, Error> {
-        Ok(sqlx::query_as::<_, PinMessagePreview>(
+        Ok(crate::db::query_as::<PinMessagePreview>(
             r#"
 SELECT pin.message_id,
        pin_event.content,
@@ -97,7 +96,7 @@ LIMIT 1
                 "DELETE FROM pin_messages WHERE message_id IN ({})",
                 expand_var(chunk.len())
             );
-            sqlx::query(sqlx::AssertSqlSafe(query))
+            crate::db::query(sqlx::AssertSqlSafe(query))
                 .bind_list(chunk)
                 .execute(&self.0)
                 .await?;
@@ -106,7 +105,7 @@ LIMIT 1
     }
 
     pub async fn insert_pin_message(&self, pin_message: &PinMessage) -> Result<(), Error> {
-        let _ = sqlx::query(
+        let _ = crate::db::query(
             "INSERT INTO pin_messages (message_id, conversation_id, created_at) VALUES (?, ?, ?)",
         )
         .bind(&pin_message.message_id)
@@ -117,3 +116,21 @@ LIMIT 1
         Ok(())
     }
 }
+
+crate::db::storage::row_mapping!(PinMessage {
+    message_id: "message_id",
+    conversation_id: "conversation_id",
+    created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
+});
+
+crate::db::storage::row_mapping!(PinMessageMinimal {
+    category: "category",
+    message_id: "message_id",
+    content: "content",
+});
+
+crate::db::storage::row_mapping!(PinMessagePreview {
+    message_id: "message_id",
+    content: "content",
+    sender_name: "sender_name",
+});

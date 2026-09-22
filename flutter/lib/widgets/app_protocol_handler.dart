@@ -60,6 +60,7 @@ class _AppProtocolHandlerState extends State<AppProtocolHandler>
   @override
   void initState() {
     super.initState();
+    if (kIsWeb) return;
     if (defaultTargetPlatform == TargetPlatform.linux) {
       unawaited(_initializeLinuxHandler());
     } else {

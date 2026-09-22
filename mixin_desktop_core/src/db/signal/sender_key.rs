@@ -1,8 +1,6 @@
-use sqlx::{Pool, Sqlite};
-
 use crate::db;
 
-pub struct SenderKeyDao(pub(crate) Pool<Sqlite>);
+pub struct SenderKeyDao(pub(crate) crate::db::Pool);
 
 impl SenderKeyDao {
     pub async fn find_sender_key(
@@ -11,7 +9,7 @@ impl SenderKeyDao {
         sender_name: &str,
         device_id: u32,
     ) -> Result<Option<Vec<u8>>, db::Error> {
-        let result = sqlx::query_scalar::<_, Vec<u8>>(
+        let result = crate::db::query_scalar::<Vec<u8>>(
             "SELECT record FROM sender_keys WHERE group_id = ? AND sender_id = ?",
         )
         .bind(group_id)
@@ -28,7 +26,7 @@ impl SenderKeyDao {
         device_id: u32,
         record: Vec<u8>,
     ) -> Result<(), db::Error> {
-        let _ = sqlx::query(
+        let _ = crate::db::query(
             "INSERT OR REPLACE INTO sender_keys (group_id, sender_id, record) VALUES (?, ?, ?)",
         )
         .bind(group_id)
@@ -45,7 +43,7 @@ impl SenderKeyDao {
         sender_name: &str,
         device_id: u32,
     ) -> Result<(), db::Error> {
-        sqlx::query("DELETE FROM sender_keys WHERE group_id = ? AND sender_id = ?")
+        crate::db::query("DELETE FROM sender_keys WHERE group_id = ? AND sender_id = ?")
             .bind(group_id)
             .bind(format!("{}:{}", sender_name, device_id))
             .execute(&self.0)
@@ -59,7 +57,7 @@ impl SenderKeyDao {
         sender_id: &str,
         device_id: u32,
     ) -> Result<bool, db::Error> {
-        let result = sqlx::query_scalar::<_, bool>(
+        let result = crate::db::query_scalar::<bool>(
             "SELECT EXISTS(SELECT 1 FROM sender_keys WHERE group_id = ? AND sender_id = ?)",
         )
         .bind(group_id)

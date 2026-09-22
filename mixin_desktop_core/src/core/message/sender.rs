@@ -1,11 +1,11 @@
 use std::backtrace::Backtrace;
 use std::sync::{Arc, Mutex};
 
+use crate::time::{interval_at, sleep, Duration, Instant};
 use anyhow::{anyhow, bail, Result};
 use base64ct::{Base64, Encoding};
 use chrono::Utc;
 use log::{error, info, warn};
-use tokio::time::{interval_at, sleep, Duration, Instant};
 use uuid::Uuid;
 
 use sdk::err::error_code::{BAD_DATA, CONVERSATION_CHECKSUM_INVALID_ERROR, FORBIDDEN};
@@ -34,7 +34,7 @@ pub struct MessageSender {
     session_id: String,
     signal_protocol: Arc<SignalProtocol>,
     signal_service: SignalService,
-    last_signal_key_refresh: Arc<Mutex<Option<std::time::Instant>>>,
+    last_signal_key_refresh: Arc<Mutex<Option<crate::time::Instant>>>,
 }
 
 pub struct MessageResult {
@@ -192,7 +192,7 @@ impl MessageSender {
 
     pub async fn refresh_signal_key(&self, conversation_id: &str) -> Result<()> {
         info!("start refresh signal key: {}", conversation_id);
-        let now = std::time::Instant::now();
+        let now = crate::time::Instant::now();
         {
             let last = self.last_signal_key_refresh.lock().unwrap();
             if let Some(last) = *last {

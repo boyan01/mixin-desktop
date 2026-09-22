@@ -1,6 +1,4 @@
-use sqlx::query::{Query, QueryAs};
-use sqlx::{Database, Encode, Type};
-
+use crate::db::storage::{IntoValue, Query};
 pub fn expand_var(amount: usize) -> String {
     if amount == 0 {
         return "".to_string();
@@ -23,34 +21,18 @@ pub fn expand_var_with_index(start: usize, amount: usize) -> String {
     buffer
 }
 
-pub trait BindList<'q, DB: Database, O> {
-    fn bind_list<T: 'q + Encode<'q, DB> + Type<DB>>(self, list: &'q [T]) -> Self;
+pub trait BindList {
+    fn bind_list<T: IntoValue + Clone>(self, list: &[T]) -> Self;
 }
-
-impl<'q, DB: Database, O> BindList<'q, DB, O> for QueryAs<'q, DB, O, <DB as Database>::Arguments> {
-    fn bind_list<T: 'q + Encode<'q, DB> + Type<DB>>(self, list: &'q [T]) -> Self {
-        let mut query = self;
-        for item in list.iter() {
-            query = query.bind(item);
+impl<O> BindList for Query<O> {
+    fn bind_list<T: IntoValue + Clone>(mut self, list: &[T]) -> Self {
+        for item in list {
+            self = self.bind(item);
         }
-        query
+        self
     }
 }
-
-pub trait BindListForQuery<'q, DB: Database> {
-    fn bind_list<T: 'q + Encode<'q, DB> + Type<DB>>(self, list: &'q [T]) -> Self;
-}
-
-impl<'q, DB: Database> BindListForQuery<'q, DB> for Query<'q, DB, <DB as Database>::Arguments> {
-    fn bind_list<T: 'q + Encode<'q, DB> + Type<DB>>(self, list: &'q [T]) -> Self {
-        let mut query = self;
-        for item in list.iter() {
-            query = query.bind(item);
-        }
-        query
-    }
-}
-
+pub use BindList as BindListForQuery;
 #[cfg(test)]
 mod test {
     use super::*;

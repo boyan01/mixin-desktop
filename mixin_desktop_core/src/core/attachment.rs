@@ -1,19 +1,26 @@
-use std::fs::{File, OpenOptions};
-use std::io::{BufReader, BufWriter, Read, Write};
+use crate::fs::{File, OpenOptions};
 use std::path::{Component, Path, PathBuf};
+#[cfg(any(not(target_arch = "wasm32"), test))]
 use std::pin::Pin;
 use std::sync::Arc;
+#[cfg(any(not(target_arch = "wasm32"), test))]
 use std::task::{Context as TaskContext, Poll};
+use tokio::io::{BufReader, BufWriter};
 
 use aes::cipher::{Block, BlockCipherDecrypt, BlockCipherEncrypt, KeyInit};
 use aes::Aes256;
 use anyhow::{anyhow, bail, Context, Result};
 use futures::StreamExt;
 use hmac::{Hmac, KeyInit as HmacKeyInit, Mac};
-use reqwest::header::{CONNECTION, CONTENT_LENGTH, CONTENT_TYPE};
+use reqwest::header::CONTENT_TYPE;
+#[cfg(not(target_arch = "wasm32"))]
+use reqwest::header::{CONNECTION, CONTENT_LENGTH};
 use reqwest::Client as HttpClient;
 use sha2::{Digest, Sha256};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf};
+#[cfg(any(not(target_arch = "wasm32"), test))]
+use tokio::io::{AsyncRead, ReadBuf};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+#[cfg(any(not(target_arch = "wasm32"), test))]
 use tokio_util::io::ReaderStream;
 use tokio_util::sync::CancellationToken;
 
@@ -52,6 +59,7 @@ pub struct AttachmentUploadResult {
     pub digest: Option<Vec<u8>>,
 }
 
+#[cfg(any(not(target_arch = "wasm32"), test))]
 struct ProgressReader<R> {
     reader: R,
     completed: u64,
@@ -59,6 +67,7 @@ struct ProgressReader<R> {
     progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
 }
 
+#[cfg(any(not(target_arch = "wasm32"), test))]
 impl<R> ProgressReader<R> {
     fn new(reader: R, total: u64, progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>) -> Self {
         Self {
@@ -70,6 +79,7 @@ impl<R> ProgressReader<R> {
     }
 }
 
+#[cfg(any(not(target_arch = "wasm32"), test))]
 impl<R: AsyncRead + Unpin> AsyncRead for ProgressReader<R> {
     fn poll_read(
         mut self: Pin<&mut Self>,
@@ -151,16 +161,16 @@ impl AttachmentService {
         source: &Path,
         target_message: &Message,
     ) -> Result<(PathBuf, i64)> {
-        let account_dir = tokio::fs::canonicalize(&self.account_data_dir)
+        let account_dir = crate::fs::canonicalize(&self.account_data_dir)
             .await
             .context("canonicalize account data directory")?;
-        let source = tokio::fs::canonicalize(source)
+        let source = crate::fs::canonicalize(source)
             .await
             .with_context(|| format!("resolve attachment source {}", source.display()))?;
         if !source.starts_with(&account_dir) {
             bail!("attachment source is outside the account data directory");
         }
-        if !tokio::fs::metadata(&source).await?.is_file() {
+        if !crate::fs::metadata(&source).await?.is_file() {
             bail!("attachment source is not a file");
         }
         validate_path_component("message id", &target_message.message_id)?;
@@ -172,14 +182,14 @@ impl AttachmentService {
         ensure_safe_target_directory(&account_dir, directory).await?;
         let copy_temp = temp_path(&target, "copy")?;
         let operation = async {
-            let size = tokio::fs::copy(&source, &copy_temp).await?;
+            let size = crate::fs::copy(&source, &copy_temp).await?;
             let size = i64::try_from(size).context("attachment is too large")?;
-            tokio::fs::rename(&copy_temp, &target).await?;
+            crate::fs::rename(&copy_temp, &target).await?;
             Ok::<_, anyhow::Error>(size)
         }
         .await;
         if operation.is_err() {
-            let _ = tokio::fs::remove_file(&copy_temp).await;
+            let _ = crate::fs::remove_file(&copy_temp).await;
         }
         Ok((target, operation?))
     }
@@ -189,15 +199,15 @@ impl AttachmentService {
         source: &Path,
         target_message: &Message,
     ) -> Result<(PathBuf, i64)> {
-        let source = tokio::fs::canonicalize(source)
+        let source = crate::fs::canonicalize(source)
             .await
             .with_context(|| format!("resolve local attachment {}", source.display()))?;
-        if !tokio::fs::metadata(&source).await?.is_file() {
+        if !crate::fs::metadata(&source).await?.is_file() {
             bail!("local attachment source is not a file");
         }
         validate_path_component("message id", &target_message.message_id)?;
         validate_path_component("conversation id", &target_message.conversation_id)?;
-        let account_dir = tokio::fs::canonicalize(&self.account_data_dir)
+        let account_dir = crate::fs::canonicalize(&self.account_data_dir)
             .await
             .context("canonicalize account data directory")?;
         let target = attachment_path(&self.account_data_dir, target_message)?;
@@ -207,33 +217,33 @@ impl AttachmentService {
         ensure_safe_target_directory(&account_dir, directory).await?;
         let copy_temp = temp_path(&target, "import")?;
         let operation = async {
-            let size = tokio::fs::copy(&source, &copy_temp).await?;
+            let size = crate::fs::copy(&source, &copy_temp).await?;
             let size = i64::try_from(size).context("attachment is too large")?;
-            tokio::fs::rename(&copy_temp, &target).await?;
+            crate::fs::rename(&copy_temp, &target).await?;
             Ok::<_, anyhow::Error>(size)
         }
         .await;
         if operation.is_err() {
-            let _ = tokio::fs::remove_file(&copy_temp).await;
+            let _ = crate::fs::remove_file(&copy_temp).await;
         }
         Ok((target, operation?))
     }
 
     pub async fn read_account_file(&self, path: &Path, max_size: u64) -> Result<Vec<u8>> {
-        let account_dir = tokio::fs::canonicalize(&self.account_data_dir)
+        let account_dir = crate::fs::canonicalize(&self.account_data_dir)
             .await
             .context("canonicalize account data directory")?;
-        let path = tokio::fs::canonicalize(path)
+        let path = crate::fs::canonicalize(path)
             .await
             .with_context(|| format!("resolve local file {}", path.display()))?;
         if !path.starts_with(&account_dir) {
             bail!("local file is outside the account data directory");
         }
-        if !tokio::fs::metadata(&path).await?.is_file() {
+        if !crate::fs::metadata(&path).await?.is_file() {
             bail!("local path is not a file");
         }
         let mut bytes = Vec::new();
-        tokio::fs::File::open(&path)
+        crate::fs::File::open(&path)
             .await?
             .take(max_size.saturating_add(1))
             .read_to_end(&mut bytes)
@@ -268,21 +278,11 @@ impl AttachmentService {
         let upload_path = if let Some(temp) = encrypted_temp.as_ref() {
             let source = path.to_path_buf();
             let output = temp.clone();
-            let encrypted = match tokio::task::spawn_blocking(move || {
-                encrypt_attachment_file(&source, &output)
-            })
-            .await
-            {
-                Ok(result) => result,
-                Err(error) => {
-                    let _ = tokio::fs::remove_file(temp).await;
-                    return Err(error).context("attachment encrypt task failed");
-                }
-            };
+            let encrypted = encrypt_attachment_file(&source, &output).await;
             let (generated_key, generated_digest) = match encrypted {
                 Ok(result) => result,
                 Err(error) => {
-                    let _ = tokio::fs::remove_file(temp).await;
+                    let _ = crate::fs::remove_file(temp).await;
                     return Err(error);
                 }
             };
@@ -294,30 +294,37 @@ impl AttachmentService {
         };
 
         let operation = async {
-            let file = tokio::fs::File::open(upload_path).await?;
-            let length = file.metadata().await?.len();
+            let length = crate::fs::metadata(upload_path).await?.len();
             if let Some(callback) = progress.as_ref() {
                 callback(0, length);
             }
-            let stream = ReaderStream::new(ProgressReader::new(file, length, progress.clone()));
-            let request = self
-                .http_client
-                .put(parsed_url)
-                .header(CONTENT_TYPE, "application/octet-stream")
-                .header(CONTENT_LENGTH, length)
-                .header(CONNECTION, "close")
-                .header("x-amz-acl", "public-read")
-                .body(reqwest::Body::wrap_stream(stream))
-                .send();
+            #[cfg(not(target_arch = "wasm32"))]
+            let request = async {
+                let file = File::open(upload_path).await?;
+                let stream = ReaderStream::new(ProgressReader::new(file, length, progress.clone()));
+                self.http_client
+                    .put(parsed_url)
+                    .header(CONTENT_TYPE, "application/octet-stream")
+                    .header(CONTENT_LENGTH, length)
+                    .header(CONNECTION, "close")
+                    .header("x-amz-acl", "public-read")
+                    .body(reqwest::Body::wrap_stream(stream))
+                    .send()
+                    .await?
+                    .error_for_status()?;
+                Ok::<_, anyhow::Error>(())
+            };
+            #[cfg(target_arch = "wasm32")]
+            let request = crate::network::browser::upload_file(upload_path, parsed_url.as_str());
             match cancellation {
                 Some(cancellation) => tokio::select! {
                     _ = cancellation.cancelled() => bail!("attachment upload canceled"),
                     result = request => {
-                        result?.error_for_status()?;
+                        result?;
                     }
                 },
                 None => {
-                    request.await?.error_for_status()?;
+                    request.await?;
                 }
             }
             if let Some(callback) = progress.as_ref() {
@@ -327,7 +334,7 @@ impl AttachmentService {
         }
         .await;
         if let Some(temp) = encrypted_temp {
-            let _ = tokio::fs::remove_file(temp).await;
+            let _ = crate::fs::remove_file(temp).await;
         }
         operation?;
 
@@ -378,7 +385,7 @@ impl AttachmentService {
         let directory = target
             .parent()
             .ok_or_else(|| anyhow!("attachment target has no parent directory"))?;
-        let account_dir = tokio::fs::canonicalize(&self.account_data_dir)
+        let account_dir = crate::fs::canonicalize(&self.account_data_dir)
             .await
             .context("canonicalize account data directory")?;
         ensure_safe_target_directory(&account_dir, directory).await?;
@@ -396,13 +403,9 @@ impl AttachmentService {
                     let output = output_temp.clone();
                     let key = key.clone();
                     let digest = digest.clone();
-                    tokio::task::spawn_blocking(move || {
-                        decrypt_attachment_file(&input, &output, &key, &digest)
-                    })
-                    .await
-                    .context("attachment decrypt task failed")??;
+                    decrypt_attachment_file(&input, &output, &key, &digest).await?;
                     ensure_not_cancelled(cancellation)?;
-                    tokio::fs::remove_file(&download_temp).await?;
+                    crate::fs::remove_file(&download_temp).await?;
                 }
                 (None, None) => {
                     self.download_to_file(&view_url, &output_temp, cancellation, progress)
@@ -411,19 +414,19 @@ impl AttachmentService {
                 _ => bail!("attachment key and digest must be provided together"),
             }
 
-            let size = tokio::fs::metadata(&output_temp).await?.len();
+            let size = crate::fs::metadata(&output_temp).await?.len();
             let size = i64::try_from(size).context("attachment is too large")?;
             ensure_not_cancelled(cancellation)?;
-            tokio::fs::rename(&output_temp, &target)
+            crate::fs::rename(&output_temp, &target)
                 .await
                 .with_context(|| format!("move attachment into {}", target.display()))?;
             Ok::<_, anyhow::Error>(size)
         }
         .await;
 
-        let _ = tokio::fs::remove_file(&download_temp).await;
+        let _ = crate::fs::remove_file(&download_temp).await;
         if operation.is_err() {
-            let _ = tokio::fs::remove_file(&output_temp).await;
+            let _ = crate::fs::remove_file(&output_temp).await;
         }
         let size = operation?;
 
@@ -466,7 +469,7 @@ impl AttachmentService {
         }
         let mut stream = response.bytes_stream();
         let mut received = 0_u64;
-        let mut file = tokio::fs::OpenOptions::new()
+        let mut file = crate::fs::OpenOptions::new()
             .create_new(true)
             .write(true)
             .open(path)
@@ -507,8 +510,8 @@ fn https_url(value: &str, label: &str) -> Result<reqwest::Url> {
 }
 
 async fn ensure_safe_target_directory(account_dir: &Path, directory: &Path) -> Result<()> {
-    tokio::fs::create_dir_all(directory).await?;
-    let directory = tokio::fs::canonicalize(directory)
+    crate::fs::create_dir_all(directory).await?;
+    let directory = crate::fs::canonicalize(directory)
         .await
         .with_context(|| format!("canonicalize attachment directory {}", directory.display()))?;
     if !directory.starts_with(account_dir) {
@@ -640,7 +643,10 @@ fn validate_encryption_material(key: &[u8], digest: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn encrypt_attachment_file(input: &Path, output: &Path) -> Result<(Vec<u8>, Vec<u8>)> {
+pub(crate) async fn encrypt_attachment_file(
+    input: &Path,
+    output: &Path,
+) -> Result<(Vec<u8>, Vec<u8>)> {
     let mut key = vec![0_u8; ATTACHMENT_KEY_SIZE];
     let mut iv = [0_u8; CBC_BLOCK_SIZE];
     rand::fill(key.as_mut_slice());
@@ -652,24 +658,26 @@ fn encrypt_attachment_file(input: &Path, output: &Path) -> Result<(Vec<u8>, Vec<
         <Hmac<Sha256> as HmacKeyInit>::new_from_slice(&key[AES_KEY_SIZE..ATTACHMENT_KEY_SIZE])
             .map_err(|_| anyhow!("invalid attachment MAC key"))?;
     let mut digest_hasher = Sha256::new();
-    let mut reader = BufReader::with_capacity(IO_BUFFER_SIZE, File::open(input)?);
+    let mut reader = BufReader::with_capacity(IO_BUFFER_SIZE, File::open(input).await?);
     let mut writer = BufWriter::with_capacity(
         IO_BUFFER_SIZE,
         OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(output)?,
+            .open(output)
+            .await?,
     );
-    writer.write_all(&iv)?;
+    writer.write_all(&iv).await?;
     hmac.update(&iv);
     digest_hasher.update(iv);
 
     let mut previous = iv;
+    let mut processed = 0;
     loop {
         let mut plaintext = [0_u8; CBC_BLOCK_SIZE];
         let mut count = 0;
         while count < CBC_BLOCK_SIZE {
-            let read = reader.read(&mut plaintext[count..])?;
+            let read = reader.read(&mut plaintext[count..]).await?;
             if read == 0 {
                 break;
             }
@@ -684,26 +692,35 @@ fn encrypt_attachment_file(input: &Path, output: &Path) -> Result<(Vec<u8>, Vec<
         }
         let mut block = Block::<Aes256>::from(plaintext);
         cipher.encrypt_block(&mut block);
-        writer.write_all(&block)?;
+        writer.write_all(&block).await?;
         hmac.update(&block);
         digest_hasher.update(block);
         previous.copy_from_slice(&block);
+        processed += CBC_BLOCK_SIZE;
+        if processed.is_multiple_of(IO_BUFFER_SIZE) {
+            crate::task::yield_now().await;
+        }
         if count < CBC_BLOCK_SIZE {
             break;
         }
     }
 
     let mac = hmac.finalize().into_bytes();
-    writer.write_all(&mac)?;
-    writer.flush()?;
-    writer.get_ref().sync_all()?;
+    writer.write_all(&mac).await?;
+    writer.flush().await?;
+    writer.get_ref().sync_all().await?;
     digest_hasher.update(mac);
     Ok((key, digest_hasher.finalize().to_vec()))
 }
 
-fn decrypt_attachment_file(input: &Path, output: &Path, key: &[u8], digest: &[u8]) -> Result<()> {
+pub(crate) async fn decrypt_attachment_file(
+    input: &Path,
+    output: &Path,
+    key: &[u8],
+    digest: &[u8],
+) -> Result<()> {
     validate_encryption_material(key, digest)?;
-    let input_size = File::open(input)?.metadata()?.len();
+    let input_size = File::open(input).await?.metadata().await?.len();
     let minimum_size = CBC_BLOCK_SIZE + CBC_BLOCK_SIZE + MAC_SIZE;
     if input_size < minimum_size as u64 {
         bail!("encrypted attachment is truncated");
@@ -719,11 +736,12 @@ fn decrypt_attachment_file(input: &Path, output: &Path, key: &[u8], digest: &[u8
         input_size,
         &key[AES_KEY_SIZE..ATTACHMENT_KEY_SIZE],
         digest,
-    )?;
+    )
+    .await?;
 
-    let mut reader = BufReader::with_capacity(IO_BUFFER_SIZE, File::open(input)?);
+    let mut reader = BufReader::with_capacity(IO_BUFFER_SIZE, File::open(input).await?);
     let mut previous = [0u8; CBC_BLOCK_SIZE];
-    reader.read_exact(&mut previous)?;
+    reader.read_exact(&mut previous).await?;
     let cipher = Aes256::new_from_slice(&key[..AES_KEY_SIZE])
         .map_err(|_| anyhow!("invalid attachment AES key"))?;
     let block_count = ciphertext_size / CBC_BLOCK_SIZE;
@@ -732,12 +750,13 @@ fn decrypt_attachment_file(input: &Path, output: &Path, key: &[u8], digest: &[u8
         OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(output)?,
+            .open(output)
+            .await?,
     );
 
     for index in 0..block_count {
         let mut encrypted = [0u8; CBC_BLOCK_SIZE];
-        reader.read_exact(&mut encrypted)?;
+        reader.read_exact(&mut encrypted).await?;
         let mut block = Block::<Aes256>::from(encrypted);
         cipher.decrypt_block(&mut block);
         for (byte, previous_byte) in block.iter_mut().zip(previous) {
@@ -754,21 +773,29 @@ fn decrypt_attachment_file(input: &Path, output: &Path, key: &[u8], digest: &[u8
             {
                 bail!("attachment has invalid PKCS7 padding");
             }
-            writer.write_all(&block[..CBC_BLOCK_SIZE - padding])?;
+            writer.write_all(&block[..CBC_BLOCK_SIZE - padding]).await?;
         } else {
-            writer.write_all(&block)?;
+            writer.write_all(&block).await?;
         }
         previous = encrypted;
+        if ((index + 1) * CBC_BLOCK_SIZE).is_multiple_of(IO_BUFFER_SIZE) {
+            crate::task::yield_now().await;
+        }
     }
 
-    writer.flush()?;
-    writer.get_ref().sync_all()?;
+    writer.flush().await?;
+    writer.get_ref().sync_all().await?;
     Ok(())
 }
 
-fn verify_attachment(input: &Path, input_size: u64, mac_key: &[u8], digest: &[u8]) -> Result<()> {
+async fn verify_attachment(
+    input: &Path,
+    input_size: u64,
+    mac_key: &[u8],
+    digest: &[u8],
+) -> Result<()> {
     let authenticated_size = input_size - MAC_SIZE as u64;
-    let mut reader = BufReader::with_capacity(IO_BUFFER_SIZE, File::open(input)?);
+    let mut reader = BufReader::with_capacity(IO_BUFFER_SIZE, File::open(input).await?);
     let mut hmac = <Hmac<Sha256> as HmacKeyInit>::new_from_slice(mac_key)
         .map_err(|_| anyhow!("invalid attachment MAC key"))?;
     let mut digest_hasher = Sha256::new();
@@ -777,14 +804,15 @@ fn verify_attachment(input: &Path, input_size: u64, mac_key: &[u8], digest: &[u8
 
     while remaining > 0 {
         let count = usize::try_from(remaining.min(buffer.len() as u64)).unwrap();
-        reader.read_exact(&mut buffer[..count])?;
+        reader.read_exact(&mut buffer[..count]).await?;
         hmac.update(&buffer[..count]);
         digest_hasher.update(&buffer[..count]);
         remaining -= count as u64;
+        crate::task::yield_now().await;
     }
 
     let mut expected_mac = [0u8; MAC_SIZE];
-    reader.read_exact(&mut expected_mac)?;
+    reader.read_exact(&mut expected_mac).await?;
     hmac.verify_slice(&expected_mac)
         .map_err(|_| anyhow!("attachment MAC does not match"))?;
     digest_hasher.update(expected_mac);
@@ -821,8 +849,8 @@ mod tests {
         assert_eq!(updates.lock().unwrap().last(), Some(&(5, 5)));
     }
 
-    #[test]
-    fn decrypts_flutter_attachment_fixture() {
+    #[tokio::test]
+    async fn decrypts_flutter_attachment_fixture() {
         let directory = tempfile::tempdir().unwrap();
         let input = directory.path().join("encrypted");
         let output = directory.path().join("plain");
@@ -830,6 +858,7 @@ mod tests {
         std::fs::write(&input, hex::decode(FLUTTER_ATTACHMENT).unwrap()).unwrap();
 
         decrypt_attachment_file(&input, &output, &key, &hex::decode(FLUTTER_DIGEST).unwrap())
+            .await
             .unwrap();
 
         assert_eq!(
@@ -838,8 +867,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn encrypts_and_decrypts_attachment_file() {
+    #[tokio::test]
+    async fn encrypts_and_decrypts_attachment_file() {
         let directory = tempfile::tempdir().unwrap();
         let input = directory.path().join("input");
         let encrypted = directory.path().join("encrypted");
@@ -847,22 +876,26 @@ mod tests {
         let content = vec![0x5a; IO_BUFFER_SIZE + 37];
         std::fs::write(&input, &content).unwrap();
 
-        let (key, digest) = encrypt_attachment_file(&input, &encrypted).unwrap();
-        decrypt_attachment_file(&encrypted, &output, &key, &digest).unwrap();
+        let (key, digest) = encrypt_attachment_file(&input, &encrypted).await.unwrap();
+        decrypt_attachment_file(&encrypted, &output, &key, &digest)
+            .await
+            .unwrap();
 
         assert_eq!(std::fs::read(output).unwrap(), content);
     }
 
-    #[test]
-    fn encrypts_and_decrypts_empty_attachment_file() {
+    #[tokio::test]
+    async fn encrypts_and_decrypts_empty_attachment_file() {
         let directory = tempfile::tempdir().unwrap();
         let input = directory.path().join("input");
         let encrypted = directory.path().join("encrypted");
         let output = directory.path().join("output");
         std::fs::write(&input, []).unwrap();
 
-        let (key, digest) = encrypt_attachment_file(&input, &encrypted).unwrap();
-        decrypt_attachment_file(&encrypted, &output, &key, &digest).unwrap();
+        let (key, digest) = encrypt_attachment_file(&input, &encrypted).await.unwrap();
+        decrypt_attachment_file(&encrypted, &output, &key, &digest)
+            .await
+            .unwrap();
 
         assert!(std::fs::read(output).unwrap().is_empty());
     }
@@ -993,8 +1026,8 @@ mod tests {
         assert!(!outside.join("message-id.jpg").exists());
     }
 
-    #[test]
-    fn rejects_tampered_attachment_without_plaintext() {
+    #[tokio::test]
+    async fn rejects_tampered_attachment_without_plaintext() {
         let directory = tempfile::tempdir().unwrap();
         let input = directory.path().join("encrypted");
         let output = directory.path().join("plain");
@@ -1005,14 +1038,15 @@ mod tests {
 
         let error =
             decrypt_attachment_file(&input, &output, &key, &hex::decode(FLUTTER_DIGEST).unwrap())
+                .await
                 .unwrap_err();
 
         assert_eq!(error.to_string(), "attachment MAC does not match");
         assert!(!output.exists());
     }
 
-    #[test]
-    fn rejects_wrong_attachment_digest_without_plaintext() {
+    #[tokio::test]
+    async fn rejects_wrong_attachment_digest_without_plaintext() {
         let directory = tempfile::tempdir().unwrap();
         let input = directory.path().join("encrypted");
         let output = directory.path().join("plain");
@@ -1021,7 +1055,9 @@ mod tests {
         digest[0] ^= 1;
         std::fs::write(&input, hex::decode(FLUTTER_ATTACHMENT).unwrap()).unwrap();
 
-        let error = decrypt_attachment_file(&input, &output, &key, &digest).unwrap_err();
+        let error = decrypt_attachment_file(&input, &output, &key, &digest)
+            .await
+            .unwrap_err();
 
         assert_eq!(error.to_string(), "attachment digest does not match");
         assert!(!output.exists());

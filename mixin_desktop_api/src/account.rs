@@ -1,3 +1,5 @@
+#[cfg(not(target_arch = "wasm32"))]
+use crate::{DeviceTransferCommand, DeviceTransferEvent};
 use std::sync::Arc;
 
 use async_stream::stream;
@@ -9,8 +11,8 @@ use mixin_desktop_core::runtime::{desktop::DesktopRuntime, AccountRuntime};
 use crate::{
     AccountProfile, AttachmentAccess, CircleItem, ClientResult, ConversationAccess,
     ConversationChangeEvent, ConversationListItem, ConversationStorageUsage,
-    ConversationUnseenCount, DeviceTransferCommand, DeviceTransferEvent, MessageAccess,
-    NotificationEvent, SnapshotDetailItem, StickerAccess, StorageCategoryUsage, UserAccess,
+    ConversationUnseenCount, MessageAccess, NotificationEvent, SnapshotDetailItem, StickerAccess,
+    StorageCategoryUsage, UserAccess,
 };
 
 pub struct AccountClient {
@@ -297,6 +299,7 @@ impl AccountClient {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn device_transfer_events(
         &self,
     ) -> impl Stream<Item = DeviceTransferEvent> + Send + 'static {
@@ -320,6 +323,7 @@ impl AccountClient {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn device_transfer_command(
         &self,
         command: DeviceTransferCommand,

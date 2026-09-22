@@ -1,7 +1,9 @@
 use std::error::Error;
 use std::path::Path;
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Duration;
 
+#[cfg(not(target_arch = "wasm32"))]
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
 use crate::db::mixin::app::AppDao;
@@ -30,6 +32,7 @@ use crate::db::mixin::transcript_message::TranscriptMessageDao;
 use crate::db::mixin::user::UserDao;
 
 pub(crate) const MARK_LIMIT: usize = 999;
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) const MIN_READ_ONLY_SCHEMA_VERSION: i64 = 27;
 
 #[derive(Clone)]
@@ -66,6 +69,7 @@ impl MixinDatabase {
         Self::connect_at(path).await
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn connect_at(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         let path = path.as_ref();
         crate::db::path::create_parent_directory(path).await?;
@@ -76,7 +80,7 @@ impl MixinDatabase {
             .after_connect(move |connection, _| {
                 let attached_fts_path = attached_fts_path.clone();
                 Box::pin(async move {
-                    sqlx::query("ATTACH DATABASE ? AS fts")
+                    crate::db::query("ATTACH DATABASE ? AS fts")
                         .bind(attached_fts_path)
                         .execute(connection)
                         .await?;
@@ -96,6 +100,27 @@ impl MixinDatabase {
         Ok(Self::from_pool(pool))
     }
 
+    /// wasm: open through the Worker bridge and attach the FTS database on
+    /// the single pooled connection; OPFS directories and storage-mode
+    /// pragmas are owned by the JS open handler.
+    #[cfg(target_arch = "wasm32")]
+    pub async fn connect_at(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+        let path = path.as_ref();
+        crate::db::path::create_parent_directory(path).await?;
+        let fts_path = path.with_file_name("fts.db");
+        crate::db::fts::migrate(&fts_path).await?;
+        let pool = crate::db::Pool::open(&path.to_string_lossy()).await?;
+        crate::db::query("ATTACH DATABASE ? AS fts")
+            .bind(fts_path.to_string_lossy().into_owned())
+            .execute(&pool)
+            .await?;
+        super::migration::MIGRATOR.migrate(&pool).await?;
+        Ok(Self::from_pool(pool))
+    }
+
+    /// Read-only inspection of a local database file (MCP and backup tooling).
+    /// The browser has no local file to open read-only, so this stays native.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) async fn connect_read_only_at(
         path: impl AsRef<Path>,
     ) -> anyhow::Result<(Self, i64)> {
@@ -117,11 +142,11 @@ impl MixinDatabase {
             .after_connect(move |connection, _| {
                 let fts_uri = fts_uri.clone();
                 Box::pin(async move {
-                    sqlx::query("ATTACH DATABASE ? AS fts")
+                    crate::db::query("ATTACH DATABASE ? AS fts")
                         .bind(fts_uri)
                         .execute(&mut *connection)
                         .await?;
-                    sqlx::query("PRAGMA query_only = ON")
+                    crate::db::query("PRAGMA query_only = ON")
                         .execute(connection)
                         .await?;
                     Ok(())
@@ -135,7 +160,7 @@ impl MixinDatabase {
                     .busy_timeout(Duration::from_secs(2)),
             )
             .await?;
-        let schema_version: i64 = sqlx::query_scalar("PRAGMA user_version")
+        let schema_version: i64 = crate::db::query_scalar("PRAGMA user_version")
             .fetch_one(&pool)
             .await?;
         if schema_version < MIN_READ_ONLY_SCHEMA_VERSION {
@@ -147,7 +172,7 @@ impl MixinDatabase {
         Ok((Self::from_pool(pool), schema_version))
     }
 
-    fn from_pool(pool: sqlx::Pool<sqlx::Sqlite>) -> Self {
+    fn from_pool(pool: crate::db::Pool) -> Self {
         MixinDatabase {
             user_dao: UserDao::new(pool.clone()),
             message_dao: MessageDao(pool.clone()),
@@ -190,7 +215,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("mixin.db");
         let writable = MixinDatabase::connect_at(&path).await.unwrap();
-        sqlx::query("PRAGMA user_version = 30")
+        crate::db::query("PRAGMA user_version = 30")
             .execute(&writable.user_dao.0)
             .await
             .unwrap();
@@ -199,7 +224,7 @@ mod tests {
         let (database, version) = MixinDatabase::connect_read_only_at(&path).await.unwrap();
 
         assert_eq!(version, 30);
-        let fts_version: i64 = sqlx::query_scalar("PRAGMA fts.user_version")
+        let fts_version: i64 = crate::db::query_scalar("PRAGMA fts.user_version")
             .fetch_one(&database.message_fts_dao.0)
             .await
             .unwrap();
@@ -217,7 +242,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("mixin.db");
         let writable = MixinDatabase::connect_at(&path).await.unwrap();
-        sqlx::query("PRAGMA user_version = 26")
+        crate::db::query("PRAGMA user_version = 26")
             .execute(&writable.user_dao.0)
             .await
             .unwrap();

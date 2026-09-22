@@ -1,6 +1,7 @@
 use anyhow::Context;
 use std::path::Path;
 
+#[cfg(not(target_arch = "wasm32"))]
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
 pub use auth::*;
@@ -10,6 +11,7 @@ pub use settings::*;
 use crate::db::Error;
 
 pub mod auth;
+#[cfg(not(target_arch = "wasm32"))]
 mod legacy_hive;
 mod migration;
 pub mod property;
@@ -26,6 +28,7 @@ impl AppDatabase {
         Self::connect_at(path).await
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn connect_at(path: impl AsRef<Path>) -> Result<Self, Error> {
         let path = path.as_ref();
         crate::db::path::create_parent_directory(path).await?;
@@ -44,12 +47,28 @@ impl AppDatabase {
             .migrate(&pool)
             .await
             .with_context(|| "app database migration failed")?;
+        Ok(Self::from_pool(pool))
+    }
+
+    /// wasm: open through the Worker bridge; OPFS directory creation and
+    /// storage-mode pragmas are owned by the JS open handler.
+    #[cfg(target_arch = "wasm32")]
+    pub async fn connect_at(path: impl AsRef<Path>) -> Result<Self, Error> {
+        let pool = crate::db::Pool::open(&path.as_ref().to_string_lossy()).await?;
+        migration::MIGRATOR
+            .migrate(&pool)
+            .await
+            .with_context(|| "app database migration failed")?;
+        Ok(Self::from_pool(pool))
+    }
+
+    fn from_pool(pool: crate::db::Pool) -> Self {
         let property_dao = PropertyDao(pool);
-        Ok(AppDatabase {
+        Self {
             auth_dao: AuthDao(property_dao.clone()),
             setting_dao: SettingDao::new(property_dao.clone()),
             property_dao,
-        })
+        }
     }
 }
 
@@ -63,11 +82,11 @@ mod tests {
             std::env::temp_dir().join(format!("mixin-desktop-app-{}.db", uuid::Uuid::new_v4()));
         let database = AppDatabase::connect_at(&path).await.unwrap();
 
-        let version: i64 = sqlx::query_scalar("PRAGMA user_version")
+        let version: i64 = crate::db::query_scalar("PRAGMA user_version")
             .fetch_one(&database.property_dao.0)
             .await
             .unwrap();
-        let tables: Vec<String> = sqlx::query_scalar(
+        let tables: Vec<String> = crate::db::query_scalar(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
         )
         .fetch_all(&database.property_dao.0)

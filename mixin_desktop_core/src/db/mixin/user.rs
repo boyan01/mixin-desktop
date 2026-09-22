@@ -1,5 +1,5 @@
+use crate::db::QueryBuilder;
 use chrono::{DateTime, Utc};
-use sqlx::{Pool, QueryBuilder, Sqlite};
 use std::collections::HashMap;
 
 use sdk::SYSTEM_USER;
@@ -10,9 +10,9 @@ use crate::db::mixin::util::{expand_var, BindList};
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct UserDao(pub(crate) Pool<Sqlite>, MentionCache);
+pub struct UserDao(pub(crate) crate::db::Pool, MentionCache);
 
-#[derive(sqlx::FromRow, Debug)]
+#[derive(Debug)]
 pub struct User {
     pub user_id: String,
     pub identity_number: String,
@@ -21,9 +21,7 @@ pub struct User {
     pub avatar_url: String,
     pub phone: String,
     pub is_verified: bool,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub mute_until: DateTime<Utc>,
     pub has_pin: bool,
     pub app_id: Option<String>,
@@ -62,12 +60,12 @@ impl From<sdk::User> for User {
 }
 
 impl UserDao {
-    pub(crate) fn new(pool: Pool<Sqlite>) -> Self {
+    pub(crate) fn new(pool: crate::db::Pool) -> Self {
         Self(pool, MentionCache::default())
     }
 
     pub(crate) async fn missing_referenced_user_ids(&self) -> Result<Vec<String>, Error> {
-        Ok(sqlx::query_scalar(
+        Ok(crate::db::query_scalar(
             r#"SELECT DISTINCT refs.user_id FROM (
                 SELECT owner_id AS user_id FROM conversations
                 UNION ALL SELECT user_id FROM participants
@@ -85,7 +83,7 @@ impl UserDao {
     }
 
     pub async fn selectable_users(&self, current_user_id: &str) -> Result<Vec<User>, Error> {
-        Ok(sqlx::query_as::<_, User>(
+        Ok(crate::db::query_as::<User>(
             r#"SELECT * FROM users
                WHERE user_id != ?
                  AND identity_number != '0'
@@ -107,7 +105,7 @@ impl UserDao {
         keyword: &str,
         limit: i64,
     ) -> Result<Vec<User>, Error> {
-        Ok(sqlx::query_as::<_, User>(
+        Ok(crate::db::query_as::<User>(
             r#"SELECT * FROM users
                WHERE user_id != ?
                  AND identity_number != '0'
@@ -137,14 +135,14 @@ impl UserDao {
         keyword: &str,
     ) -> Result<Vec<User>, Error> {
         if keyword.is_empty() {
-            return Ok(sqlx::query_as::<_, User>(
+            return Ok(crate::db::query_as::<User>(
                 "SELECT * FROM users WHERE relationship = 'FRIEND' ORDER BY full_name, user_id ASC",
             )
             .fetch_all(&self.0)
             .await?);
         }
         let created_at = Utc::now() - chrono::Duration::days(7);
-        Ok(sqlx::query_as::<_, User>(
+        Ok(crate::db::query_as::<User>(
             r#"SELECT DISTINCT u.* FROM users AS u
                WHERE (u.user_id IN (
                         SELECT m.user_id FROM messages AS m
@@ -175,7 +173,7 @@ impl UserDao {
         conversation_id: &str,
         keyword: &str,
     ) -> Result<Vec<User>, Error> {
-        Ok(sqlx::query_as::<_, User>(
+        Ok(crate::db::query_as::<User>(
             r#"SELECT u.* FROM participants AS p, users AS u
                WHERE u.user_id != ?
                  AND p.conversation_id = ?
@@ -197,7 +195,7 @@ impl UserDao {
 
     pub async fn find_user_by_id(&self, user_id: &str) -> Result<Option<User>, Error> {
         Ok(
-            sqlx::query_as::<_, User>("SELECT * FROM users WHERE user_id = ?")
+            crate::db::query_as::<User>("SELECT * FROM users WHERE user_id = ?")
                 .bind(user_id)
                 .fetch_optional(&self.0)
                 .await?,
@@ -209,7 +207,7 @@ impl UserDao {
         identity_number: &str,
     ) -> Result<Option<User>, Error> {
         Ok(
-            sqlx::query_as::<_, User>("SELECT * FROM users WHERE identity_number = ? LIMIT 1")
+            crate::db::query_as::<User>("SELECT * FROM users WHERE identity_number = ? LIMIT 1")
                 .bind(identity_number)
                 .fetch_optional(&self.0)
                 .await?,
@@ -217,7 +215,7 @@ impl UserDao {
     }
 
     pub async fn find_user(&self, identity_number: &str) -> Result<Option<String>, sqlx::Error> {
-        let result = sqlx::query_scalar::<_, String>(
+        let result = crate::db::query_scalar::<String>(
             "SELECT relationship FROM users WHERE identity_number = ?",
         )
         .bind(identity_number)
@@ -231,7 +229,7 @@ impl UserDao {
             "SELECT * FROM users WHERE user_id IN ({})",
             expand_var(ids.len())
         );
-        let result = sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(query_str))
+        let result = crate::db::query_as::<User>(sqlx::AssertSqlSafe(query_str))
             .bind_list(ids)
             .fetch_all(&self.0)
             .await?;
@@ -249,7 +247,7 @@ impl UserDao {
                 expand_var(chunk.len())
             );
             user_ids.extend(
-                sqlx::query_as::<_, (String,)>(sqlx::AssertSqlSafe(query))
+                crate::db::query_as::<(String,)>(sqlx::AssertSqlSafe(query))
                     .bind_list(chunk)
                     .fetch_all(&self.0)
                     .await?
@@ -271,7 +269,7 @@ impl UserDao {
                 expand_var(chunk.len())
             );
             users.extend(
-                sqlx::query_as::<_, User>(sqlx::AssertSqlSafe(query))
+                crate::db::query_as::<User>(sqlx::AssertSqlSafe(query))
                     .bind_list(chunk)
                     .fetch_all(&self.0)
                     .await?,
@@ -284,7 +282,7 @@ impl UserDao {
         if users.is_empty() {
             return Ok(Vec::new());
         }
-        let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+        let mut query_builder: QueryBuilder = QueryBuilder::new(
             r#"INSERT OR REPLACE INTO users (user_id, identity_number, relationship, full_name, avatar_url,
               phone, is_verified, created_at, mute_until, has_pin, app_id, biography, is_scam, 
               code_url, code_id, is_deactivated, membership)"#,
@@ -346,7 +344,7 @@ impl UserDao {
 
     pub async fn has_user(&self, user_id: &str) -> Result<bool, sqlx::Error> {
         let result =
-            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM users WHERE user_id = ?)")
+            crate::db::query_scalar::<bool>("SELECT EXISTS(SELECT 1 FROM users WHERE user_id = ?)")
                 .bind(user_id)
                 .fetch_one(&self.0)
                 .await?;
@@ -357,7 +355,7 @@ impl UserDao {
         if self.has_user(SYSTEM_USER).await? {
             return Ok(());
         }
-        sqlx::query("INSERT OR REPLACE INTO users (user_id, identity_number) VALUES (?, ?)")
+        crate::db::query("INSERT OR REPLACE INTO users (user_id, identity_number) VALUES (?, ?)")
             .bind(SYSTEM_USER)
             .bind("0")
             .execute(&self.0)
@@ -398,7 +396,7 @@ mod tests {
             ("user-2", "7002", "Bob"),
             ("user-3", "7003", "Carol"),
         ] {
-            sqlx::query(
+            crate::db::query(
                 r#"INSERT INTO users (
                     user_id, identity_number, relationship, full_name, avatar_url,
                     phone, is_verified, created_at, mute_until, has_pin, app_id,
@@ -487,7 +485,7 @@ mod tests {
             ("friend", "7001", "FRIEND", "Alice"),
             ("stranger", "7002", "STRANGER", "Alice Stranger"),
         ] {
-            sqlx::query(
+            crate::db::query(
                 r#"INSERT INTO users (
                     user_id, identity_number, relationship, full_name, avatar_url,
                     phone, is_verified, created_at, mute_until, has_pin, app_id,
@@ -519,14 +517,14 @@ mod tests {
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].user_id, "friend");
 
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO conversations (conversation_id, created_at, status) VALUES ('group', 0, 0)",
         )
         .execute(&database.user_dao.0)
         .await
         .unwrap();
         for user_id in ["current", "friend", "stranger"] {
-            sqlx::query(
+            crate::db::query(
                 "INSERT INTO participants (conversation_id, user_id, role, created_at) VALUES ('group', ?, NULL, 0)",
             )
             .bind(user_id)
@@ -548,3 +546,23 @@ mod tests {
         );
     }
 }
+
+crate::db::storage::row_mapping!(User {
+    user_id: "user_id",
+    identity_number: "identity_number",
+    relationship: "relationship",
+    full_name: "full_name",
+    avatar_url: "avatar_url",
+    phone: "phone",
+    is_verified: "is_verified",
+    created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
+    mute_until: "mute_until" => crate::db::datetime::DatabaseDateTime,
+    has_pin: "has_pin",
+    app_id: "app_id",
+    biography: "biography",
+    is_scam: "is_scam",
+    code_url: "code_url",
+    code_id: "code_id",
+    is_deactivated: "is_deactivated",
+    membership: "membership",
+});

@@ -1,5 +1,5 @@
+use crate::db::QueryBuilder;
 use chrono::{NaiveDateTime, Utc};
-use sqlx::{QueryBuilder, Sqlite};
 use uuid::Uuid;
 
 use sdk::blaze_message::{CREATE_MESSAGE, PIN_MESSAGE, RECALL_MESSAGE};
@@ -12,13 +12,12 @@ use crate::db::Error;
 use sdk::unique_object_id;
 
 #[derive(Clone)]
-pub struct JobDao(pub(crate) sqlx::Pool<Sqlite>);
+pub struct JobDao(pub(crate) crate::db::Pool);
 
-#[derive(Debug, PartialEq, Eq, sqlx::FromRow)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Job {
     pub job_id: String,
     pub action: String,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: NaiveDateTime,
     pub order_id: Option<i32>,
     pub priority: i32,
@@ -205,7 +204,7 @@ impl JobDao {
              conversation_id, resend_message_id, run_count, blaze_message)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#
         };
-        sqlx::query(statement)
+        crate::db::query(statement)
             .bind(&job.job_id)
             .bind(&job.action)
             .bind(job.created_at.and_utc().timestamp_millis())
@@ -232,7 +231,7 @@ impl JobDao {
                 .filter(|job| is_deduplicated_resource_action(&job.action) == deduplicated)
                 .collect::<Vec<_>>();
             for jobs in jobs.chunks(MARK_LIMIT / COLUMN_COUNT) {
-                let mut query_builder: QueryBuilder<Sqlite> = QueryBuilder::new(format!(
+                let mut query_builder: QueryBuilder = QueryBuilder::new(format!(
                     "{statement} \
                      (job_id, action, created_at, order_id, priority, user_id, \
                      conversation_id, resend_message_id, run_count, blaze_message) "
@@ -258,7 +257,7 @@ impl JobDao {
     }
 
     pub async fn delete_job_by_id(&self, job_id: &str) -> Result<u64, Error> {
-        let result = sqlx::query("DELETE FROM jobs WHERE job_id = ?")
+        let result = crate::db::query("DELETE FROM jobs WHERE job_id = ?")
             .bind(job_id)
             .execute(&self.0)
             .await?;
@@ -266,7 +265,7 @@ impl JobDao {
     }
 
     pub async fn delete_jobs_by_action(&self, action: &str) -> Result<u64, Error> {
-        let result = sqlx::query("DELETE FROM jobs WHERE action = ?")
+        let result = crate::db::query("DELETE FROM jobs WHERE action = ?")
             .bind(action)
             .execute(&self.0)
             .await?;
@@ -279,12 +278,13 @@ impl JobDao {
         created_at: NaiveDateTime,
         run_count: i32,
     ) -> Result<u64, Error> {
-        let result = sqlx::query("UPDATE jobs SET created_at = ?, run_count = ? WHERE job_id = ?")
-            .bind(created_at.and_utc().timestamp_millis())
-            .bind(run_count)
-            .bind(job_id)
-            .execute(&self.0)
-            .await?;
+        let result =
+            crate::db::query("UPDATE jobs SET created_at = ?, run_count = ? WHERE job_id = ?")
+                .bind(created_at.and_utc().timestamp_millis())
+                .bind(run_count)
+                .bind(job_id)
+                .execute(&self.0)
+                .await?;
         Ok(result.rows_affected())
     }
 
@@ -296,7 +296,7 @@ impl JobDao {
                 "DELETE FROM jobs WHERE job_id in ({})",
                 expand_var(chunk.len())
             );
-            let affected = sqlx::query(sqlx::AssertSqlSafe(query))
+            let affected = crate::db::query(sqlx::AssertSqlSafe(query))
                 .bind_list(chunk)
                 .execute(&self.0)
                 .await?
@@ -307,7 +307,7 @@ impl JobDao {
     }
 
     pub async fn ack_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(
+        let result = crate::db::query_as::<Job>(
             "SELECT * FROM jobs WHERE action = ? AND blaze_message IS NOT NULL LIMIT 100",
         )
         .bind(ACKNOWLEDGE_MESSAGE_RECEIPTS)
@@ -317,7 +317,7 @@ impl JobDao {
     }
 
     pub async fn session_ack_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(
+        let result = crate::db::query_as::<Job>(
             "SELECT * FROM jobs WHERE action = ? AND blaze_message IS NOT NULL \
              ORDER BY created_at ASC LIMIT 100",
         )
@@ -328,7 +328,7 @@ impl JobDao {
     }
 
     pub async fn sending_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(
+        let result = crate::db::query_as::<Job>(
             "SELECT * FROM jobs WHERE action IN (?, ?, ?) AND blaze_message IS NOT NULL \
              ORDER BY created_at ASC LIMIT 100",
         )
@@ -341,7 +341,7 @@ impl JobDao {
     }
 
     pub async fn update_asset_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(
+        let result = crate::db::query_as::<Job>(
             "SELECT * FROM jobs WHERE action = ? AND blaze_message IS NOT NULL \
              ORDER BY created_at ASC LIMIT 100",
         )
@@ -352,7 +352,7 @@ impl JobDao {
     }
 
     pub async fn update_token_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(
+        let result = crate::db::query_as::<Job>(
             "SELECT * FROM jobs WHERE action = ? AND blaze_message IS NOT NULL \
              ORDER BY created_at ASC LIMIT 100",
         )
@@ -363,7 +363,7 @@ impl JobDao {
     }
 
     pub async fn update_sticker_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(
+        let result = crate::db::query_as::<Job>(
             "SELECT * FROM jobs WHERE action = ? AND blaze_message IS NOT NULL \
              AND created_at <= ? ORDER BY created_at ASC LIMIT 100",
         )
@@ -375,7 +375,7 @@ impl JobDao {
     }
 
     pub async fn sync_inscription_message_jobs(&self) -> Result<Vec<Job>, Error> {
-        let result = sqlx::query_as::<_, Job>(
+        let result = crate::db::query_as::<Job>(
             "SELECT * FROM jobs WHERE action = ? AND blaze_message IS NOT NULL \
              ORDER BY created_at ASC LIMIT 100",
         )
@@ -409,7 +409,7 @@ mod tests {
         database.job_dao.insert_all(&[]).await.unwrap();
         database.job_dao.insert_all(&jobs).await.unwrap();
 
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM jobs")
+        let count: i64 = crate::db::query_scalar("SELECT COUNT(*) FROM jobs")
             .fetch_one(&database.job_dao.0)
             .await
             .unwrap();
@@ -453,13 +453,13 @@ mod tests {
             .await
             .unwrap();
 
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM jobs")
+        let count: i64 = crate::db::query_scalar("SELECT COUNT(*) FROM jobs")
             .fetch_one(&database.job_dao.0)
             .await
             .unwrap();
         assert_eq!(count, 4);
         let (created_at, run_count): (i64, i32) =
-            sqlx::query_as("SELECT created_at, run_count FROM jobs WHERE job_id = ?")
+            crate::db::query_as("SELECT created_at, run_count FROM jobs WHERE job_id = ?")
                 .bind(asset_job_id)
                 .fetch_one(&database.job_dao.0)
                 .await
@@ -503,3 +503,16 @@ mod tests {
         assert_eq!(due[0].run_count, 2);
     }
 }
+
+crate::db::storage::row_mapping!(Job {
+    job_id: "job_id",
+    action: "action",
+    created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
+    order_id: "order_id",
+    priority: "priority",
+    user_id: "user_id",
+    blaze_message: "blaze_message",
+    conversation_id: "conversation_id",
+    resend_message_id: "resend_message_id",
+    run_count: "run_count",
+});

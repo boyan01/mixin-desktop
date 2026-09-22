@@ -7,6 +7,7 @@ import '../l10n/l10n.dart';
 import '../models/conversation_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../theme.dart';
+import '../utils/rust_int.dart';
 import 'adaptive_selection_toolbar.dart';
 import 'avatar_view.dart';
 import 'badges_widget.dart';
@@ -153,7 +154,7 @@ class _ConversationSelectorState extends State<_ConversationSelector> {
         unseenOnly: false,
       );
       var offset = 0;
-      while (offset < count) {
+      while (offset < count.toDartInt()) {
         final page = await widget.account.conversation().conversations(
           category: category.name,
           circleId: category == ConversationCategoryFilter.circle
@@ -161,8 +162,8 @@ class _ConversationSelectorState extends State<_ConversationSelector> {
               : null,
           keyword: '',
           unseenOnly: false,
-          limit: 200,
-          offset: offset,
+          limit: 200.toRustInt(),
+          offset: offset.toRustInt(),
         );
         result.addAll(page.map(ConversationListEntry.fromRust));
         offset += page.length;

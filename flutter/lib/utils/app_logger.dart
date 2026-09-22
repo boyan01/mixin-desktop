@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -17,7 +18,7 @@ Future<void> initializeLogUtil() async {
     appVersion: packageInfo.version,
     buildNumber: packageInfo.buildNumber,
   );
-  _logDirectoryPath = await directory();
+  if (!kIsWeb) _logDirectoryPath = await directory();
   _isLogReady = true;
 }
 

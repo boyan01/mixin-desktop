@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::task::JoinHandle;
 use anyhow::{anyhow, Result};
 use axum::extract::Request;
 use axum::http::{header, HeaderMap, StatusCode};
@@ -27,7 +28,6 @@ use serde_json::{json, Map, Value};
 use subtle::ConstantTimeEq;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -194,7 +194,7 @@ impl McpServer {
     async fn start_settings_subscription(self: &Arc<Self>) {
         let subscription = Self::subscribe_settings(self.settings.clone());
         let server = Arc::downgrade(self);
-        let task = tokio::spawn(async move {
+        let task = crate::task::spawn(async move {
             futures::pin_mut!(subscription);
             let mut initial = true;
             while let Some(next) = subscription.next().await {
@@ -322,7 +322,7 @@ impl RunningMcpServer {
         };
         let app = http_router(state, &cancellation);
         let stop = cancellation.clone();
-        let task = tokio::spawn(async move {
+        let task = crate::task::spawn(async move {
             if let Err(error) = axum::serve(listener, app)
                 .with_graceful_shutdown(stop.cancelled_owned())
                 .await
@@ -1658,7 +1658,7 @@ mod tests {
         let account_directory = directory.path().join(identity_number);
         let path = account_directory.join("mixin.db");
         let database = MixinDatabase::connect_at(&path).await.unwrap();
-        sqlx::query(
+        crate::db::query(
             r#"INSERT INTO users (
                    user_id, identity_number, relationship, full_name, avatar_url, phone,
                    is_verified, created_at, mute_until, has_pin, biography, is_scam,
@@ -1670,7 +1670,7 @@ mod tests {
         .execute(&database.user_dao.0)
         .await
         .unwrap();
-        sqlx::query(
+        crate::db::query(
             "INSERT INTO conversations (conversation_id, owner_id, category, name, created_at, status) \
              VALUES ('conversation', 'account-id', 'GROUP', 'Route Dev', 0, 0)",
         )

@@ -39,7 +39,7 @@ class CustomDesktopMenuWidgetBuilder extends DefaultDesktopMenuWidgetBuilder {
                 fontSize: 14,
                 decoration: TextDecoration.none,
                 fontWeight: FontWeight.w500,
-                fontFamilyFallback: Platform.isWindows
+                fontFamilyFallback: (!kIsWeb && Platform.isWindows)
                     ? ['Microsoft Yahei']
                     : null,
               ),

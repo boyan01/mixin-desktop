@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -824,7 +825,9 @@ class _ChatViewState extends State<ChatView>
                         onContactPressed: () => unawaited(_sendContact()),
                         onFilesPressed: () => unawaited(_pickAttachments()),
                         onPicturesPressed: () => unawaited(_pickAttachments()),
-                        onVoicePressed: () => unawaited(_startVoiceRecording()),
+                        onVoicePressed: kIsWeb
+                            ? null
+                            : () => unawaited(_startVoiceRecording()),
                         stickerAction: StickerButton(
                           textEditingController: _inputController,
                           controller: _stickerController,

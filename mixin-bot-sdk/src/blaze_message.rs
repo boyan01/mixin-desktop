@@ -188,8 +188,6 @@ pub struct SignalKeyRequest {
 
 #[derive(Serialize, Deserialize, PartialOrd, PartialEq, Debug, Eq, Default, Clone, Copy)]
 #[serde(rename_all = "UPPERCASE")]
-#[derive(sqlx::Type)]
-#[sqlx(rename_all = "UPPERCASE")]
 pub enum MessageStatus {
     Failed,
     #[default]

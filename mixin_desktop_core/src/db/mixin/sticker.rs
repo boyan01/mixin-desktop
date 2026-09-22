@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct StickerDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct StickerDao(pub(crate) crate::db::Pool);
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Sticker {
     pub sticker_id: String,
     pub album_id: Option<String>,
@@ -15,20 +15,16 @@ pub struct Sticker {
     pub asset_width: i32,
     pub asset_height: i32,
     pub asset_type: String,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
-    #[sqlx(try_from = "crate::db::datetime::OptionalDatabaseDateTime")]
     pub last_use_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StickerAlbum {
     pub album_id: String,
     pub name: String,
     pub icon_url: String,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub created_at: DateTime<Utc>,
-    #[sqlx(try_from = "crate::db::datetime::DatabaseDateTime")]
     pub update_at: DateTime<Utc>,
     pub ordered_at: i64,
     pub user_id: String,
@@ -41,7 +37,7 @@ pub struct StickerAlbum {
 
 impl StickerDao {
     pub async fn find_sticker_by_id(&self, sticker_id: &str) -> Result<Option<Sticker>, Error> {
-        let result = sqlx::query_as::<_, Sticker>("SELECT * FROM stickers WHERE sticker_id = ?")
+        let result = crate::db::query_as::<Sticker>("SELECT * FROM stickers WHERE sticker_id = ?")
             .bind(sticker_id)
             .fetch_optional(&self.0)
             .await?;
@@ -49,7 +45,7 @@ impl StickerDao {
     }
 
     pub async fn insert(&self, sticker: &sdk::Sticker) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             r#"INSERT OR REPLACE INTO stickers
                (sticker_id, album_id, name, asset_url, asset_type, asset_width,
                 asset_height, created_at, last_use_at)
@@ -70,7 +66,7 @@ impl StickerDao {
     }
 
     pub async fn insert_album(&self, album: &sdk::StickerAlbum) -> Result<(), Error> {
-        let ordered_at = match sqlx::query_scalar::<_, i64>(
+        let ordered_at = match crate::db::query_scalar::<i64>(
             "SELECT ordered_at FROM sticker_albums WHERE album_id = ?",
         )
         .bind(&album.album_id)
@@ -79,14 +75,14 @@ impl StickerDao {
         {
             Some(ordered_at) => ordered_at,
             None => {
-                sqlx::query_scalar::<_, i64>(
+                crate::db::query_scalar::<i64>(
                     "SELECT COALESCE(MAX(ordered_at), 0) + 1 FROM sticker_albums",
                 )
                 .fetch_one(&self.0)
                 .await?
             }
         };
-        sqlx::query(
+        crate::db::query(
             r#"INSERT INTO sticker_albums
                (album_id, name, icon_url, created_at, update_at, ordered_at, user_id,
                 category, description, banner, added, is_verified)
@@ -121,7 +117,7 @@ impl StickerDao {
     }
 
     pub async fn recent(&self) -> Result<Vec<Sticker>, Error> {
-        Ok(sqlx::query_as::<_, Sticker>(
+        Ok(crate::db::query_as::< Sticker>(
             "SELECT * FROM stickers WHERE last_use_at IS NOT NULL ORDER BY last_use_at DESC LIMIT 20",
         )
         .fetch_all(&self.0)
@@ -133,7 +129,7 @@ impl StickerDao {
     }
 
     async fn by_album_category(&self, category: &str) -> Result<Vec<Sticker>, Error> {
-        Ok(sqlx::query_as::<_, Sticker>(
+        Ok(crate::db::query_as::<Sticker>(
             r#"SELECT s.* FROM sticker_albums a
                INNER JOIN sticker_relationships r ON r.album_id = a.album_id
                INNER JOIN stickers s ON s.sticker_id = r.sticker_id
@@ -145,7 +141,7 @@ impl StickerDao {
     }
 
     pub async fn system_albums(&self) -> Result<Vec<StickerAlbum>, Error> {
-        Ok(sqlx::query_as::<_, StickerAlbum>(
+        Ok(crate::db::query_as::<StickerAlbum>(
             r#"SELECT * FROM sticker_albums
                WHERE category = 'SYSTEM' AND added = TRUE
                ORDER BY ordered_at, created_at DESC"#,
@@ -155,7 +151,7 @@ impl StickerDao {
     }
 
     pub async fn system_store_albums(&self) -> Result<Vec<StickerAlbum>, Error> {
-        Ok(sqlx::query_as::<_, StickerAlbum>(
+        Ok(crate::db::query_as::<StickerAlbum>(
             r#"SELECT * FROM sticker_albums
                WHERE category = 'SYSTEM' AND is_verified = TRUE
                ORDER BY created_at DESC"#,
@@ -165,7 +161,7 @@ impl StickerDao {
     }
 
     pub async fn find_album_by_id(&self, album_id: &str) -> Result<Option<StickerAlbum>, Error> {
-        Ok(sqlx::query_as::<_, StickerAlbum>(
+        Ok(crate::db::query_as::<StickerAlbum>(
             "SELECT * FROM sticker_albums WHERE album_id = ? LIMIT 1",
         )
         .bind(album_id)
@@ -177,7 +173,7 @@ impl StickerDao {
         &self,
         sticker_id: &str,
     ) -> Result<Option<StickerAlbum>, Error> {
-        Ok(sqlx::query_as::<_, StickerAlbum>(
+        Ok(crate::db::query_as::<StickerAlbum>(
             r#"SELECT a.* FROM sticker_albums a
                INNER JOIN sticker_relationships r ON r.album_id = a.album_id
                WHERE r.sticker_id = ? AND a.category = 'SYSTEM' LIMIT 1"#,
@@ -188,7 +184,7 @@ impl StickerDao {
     }
 
     pub async fn by_album(&self, album_id: &str) -> Result<Vec<Sticker>, Error> {
-        Ok(sqlx::query_as::<_, Sticker>(
+        Ok(crate::db::query_as::<Sticker>(
             r#"SELECT s.* FROM sticker_relationships r
                INNER JOIN stickers s ON s.sticker_id = r.sticker_id
                WHERE r.album_id = ? ORDER BY s.created_at DESC"#,
@@ -199,7 +195,7 @@ impl StickerDao {
     }
 
     pub async fn update_last_used(&self, sticker_id: &str) -> Result<(), Error> {
-        sqlx::query("UPDATE stickers SET last_use_at = ? WHERE sticker_id = ?")
+        crate::db::query("UPDATE stickers SET last_use_at = ? WHERE sticker_id = ?")
             .bind(Utc::now().timestamp_millis())
             .bind(sticker_id)
             .execute(&self.0)
@@ -208,7 +204,7 @@ impl StickerDao {
     }
 
     pub async fn is_personal(&self, sticker_id: &str) -> Result<bool, Error> {
-        Ok(sqlx::query_scalar(
+        Ok(crate::db::query_scalar(
             r#"SELECT EXISTS(SELECT 1 FROM sticker_relationships r
                INNER JOIN sticker_albums a ON a.album_id = r.album_id
                WHERE r.sticker_id = ? AND a.category = 'PERSONAL')"#,
@@ -219,7 +215,7 @@ impl StickerDao {
     }
 
     pub async fn set_album_added(&self, album_id: &str, added: bool) -> Result<(), Error> {
-        sqlx::query("UPDATE sticker_albums SET added = ? WHERE album_id = ?")
+        crate::db::query("UPDATE sticker_albums SET added = ? WHERE album_id = ?")
             .bind(added)
             .bind(album_id)
             .execute(&self.0)
@@ -230,7 +226,7 @@ impl StickerDao {
     pub async fn set_album_order(&self, album_ids: &[String]) -> Result<(), Error> {
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         for (ordered_at, album_id) in album_ids.iter().enumerate() {
-            sqlx::query("UPDATE sticker_albums SET ordered_at = ? WHERE album_id = ?")
+            crate::db::query("UPDATE sticker_albums SET ordered_at = ? WHERE album_id = ?")
                 .bind(ordered_at as i64)
                 .bind(album_id)
                 .execute(&mut *transaction)
@@ -241,7 +237,7 @@ impl StickerDao {
     }
 
     pub async fn remove_personal_relationship(&self, sticker_id: &str) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             r#"DELETE FROM sticker_relationships WHERE sticker_id = ? AND album_id IN
                (SELECT album_id FROM sticker_albums WHERE category = 'PERSONAL')"#,
         )
@@ -252,7 +248,7 @@ impl StickerDao {
     }
 
     pub async fn insert_relationship(&self, album_id: &str, sticker_id: &str) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             "INSERT OR REPLACE INTO sticker_relationships (album_id, sticker_id) VALUES (?, ?)",
         )
         .bind(album_id)
@@ -263,7 +259,7 @@ impl StickerDao {
     }
 
     pub async fn find_personal_album_id(&self) -> Result<Option<String>, Error> {
-        Ok(sqlx::query_scalar(
+        Ok(crate::db::query_scalar(
             "SELECT album_id FROM sticker_albums WHERE category = 'PERSONAL' LIMIT 1",
         )
         .fetch_optional(&self.0)
@@ -379,3 +375,30 @@ mod tests {
         assert_eq!(dao.system_store_albums().await.unwrap().len(), 2);
     }
 }
+
+crate::db::storage::row_mapping!(Sticker {
+    sticker_id: "sticker_id",
+    album_id: "album_id",
+    name: "name",
+    asset_url: "asset_url",
+    asset_width: "asset_width",
+    asset_height: "asset_height",
+    asset_type: "asset_type",
+    created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
+    last_use_at: "last_use_at" => crate::db::datetime::OptionalDatabaseDateTime,
+});
+
+crate::db::storage::row_mapping!(StickerAlbum {
+    album_id: "album_id",
+    name: "name",
+    icon_url: "icon_url",
+    created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
+    update_at: "update_at" => crate::db::datetime::DatabaseDateTime,
+    ordered_at: "ordered_at",
+    user_id: "user_id",
+    category: "category",
+    description: "description",
+    banner: "banner",
+    added: "added",
+    is_verified: "is_verified",
+});

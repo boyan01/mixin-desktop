@@ -4,9 +4,9 @@ use crate::db::mixin::util::{expand_var, BindListForQuery};
 use crate::db::Error;
 
 #[derive(Clone)]
-pub struct MessageMentionDao(pub(crate) sqlx::Pool<sqlx::Sqlite>);
+pub struct MessageMentionDao(pub(crate) crate::db::Pool);
 
-#[derive(Debug, PartialEq, Eq, sqlx::FromRow)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct MessageMention {
     pub message_id: String,
     pub conversation_id: String,
@@ -43,7 +43,7 @@ fn parse_mention_data(
 
 impl MessageMentionDao {
     pub async fn unread_message_ids(&self, conversation_id: &str) -> Result<Vec<String>, Error> {
-        Ok(sqlx::query_scalar::<_, String>(
+        Ok(crate::db::query_scalar::<String>(
             "SELECT message_id FROM message_mentions \
              WHERE conversation_id = ? AND COALESCE(has_read, FALSE) = FALSE",
         )
@@ -85,7 +85,7 @@ impl MessageMentionDao {
         &self,
         message_mention: MessageMention,
     ) -> Result<(), Error> {
-        sqlx::query(
+        crate::db::query(
             "INSERT OR REPLACE INTO message_mentions \
              (message_id, conversation_id, has_read) VALUES (?, ?, ?)",
         )
@@ -98,7 +98,7 @@ impl MessageMentionDao {
     }
 
     pub async fn delete_message_mention(&self, message_id: &str) -> Result<u64, Error> {
-        let result = sqlx::query("DELETE FROM message_mentions WHERE message_id = ?")
+        let result = crate::db::query("DELETE FROM message_mentions WHERE message_id = ?")
             .bind(message_id)
             .execute(&self.0)
             .await?;
@@ -117,7 +117,7 @@ impl MessageMentionDao {
                 "UPDATE message_mentions SET has_read = true WHERE message_id IN ({})",
                 expand_var(chunk.len())
             );
-            let affected = sqlx::query(sqlx::AssertSqlSafe(query))
+            let affected = crate::db::query(sqlx::AssertSqlSafe(query))
                 .bind_list(chunk)
                 .execute(&self.0)
                 .await?
@@ -179,7 +179,7 @@ mod tests {
                 .unwrap(),
             1
         );
-        let has_read: bool = sqlx::query_scalar(
+        let has_read: bool = crate::db::query_scalar(
             "SELECT has_read FROM message_mentions WHERE message_id = 'message'",
         )
         .fetch_one(&dao.0)
@@ -189,3 +189,9 @@ mod tests {
         assert_eq!(dao.delete_message_mention("message").await.unwrap(), 1);
     }
 }
+
+crate::db::storage::row_mapping!(MessageMention {
+    message_id: "message_id",
+    conversation_id: "conversation_id",
+    has_read: "has_read",
+});

@@ -1,3 +1,5 @@
+#[cfg(not(target_arch = "wasm32"))]
+use crate::{McpServerStatusItem, McpSettingsItem, MediaClient};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -6,14 +8,12 @@ use mixin_desktop_core::network::ProxySettings;
 use mixin_desktop_core::runtime::{desktop::DesktopRuntime, logging};
 use tokio::sync::OnceCell;
 
-use crate::{
-    AccountClient, ClientResult, HttpResponseItem, LoginClient, McpServerStatusItem,
-    McpSettingsItem, MediaClient, ProxySettingsItem,
-};
+use crate::{AccountClient, ClientResult, HttpResponseItem, LoginClient, ProxySettingsItem};
 
 #[derive(Clone)]
 pub struct DesktopClient {
     runtime: Arc<DesktopRuntime>,
+    #[cfg(not(target_arch = "wasm32"))]
     media: Arc<MediaClient>,
 }
 
@@ -23,6 +23,7 @@ pub struct SettingsClient {
 }
 
 static DESKTOP_RUNTIME: OnceCell<Arc<DesktopRuntime>> = OnceCell::const_new();
+#[cfg(not(target_arch = "wasm32"))]
 static MEDIA_CLIENT: std::sync::OnceLock<Arc<MediaClient>> = std::sync::OnceLock::new();
 
 impl DesktopClient {
@@ -40,6 +41,7 @@ impl DesktopClient {
             .await?;
         Ok(Self {
             runtime: runtime.clone(),
+            #[cfg(not(target_arch = "wasm32"))]
             media: MEDIA_CLIENT
                 .get_or_init(|| Arc::new(MediaClient::new()))
                 .clone(),
@@ -65,6 +67,7 @@ impl DesktopClient {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn media(&self) -> Arc<MediaClient> {
         self.media.clone()
     }
@@ -175,10 +178,12 @@ impl SettingsClient {
             .map(|result| result.map_err(Into::into))
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn mcp_settings(&self) -> ClientResult<McpSettingsItem> {
         Ok(self.runtime.mcp_server.settings().await?.into())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn update_mcp_settings(
         &self,
         settings: McpSettingsItem,
@@ -191,6 +196,7 @@ impl SettingsClient {
             .into())
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn mcp_server_status(&self) -> ClientResult<McpServerStatusItem> {
         Ok(self.runtime.mcp_server.status().await.into())
     }

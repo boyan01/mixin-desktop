@@ -44,11 +44,11 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.12.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1020337611;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -188557981;
 
 // Section: executor
 
-flutter_rust_bridge::frb_generated_default_handler!();
+pub use crate::api::handler::FLUTTER_RUST_BRIDGE_HANDLER;
 
 // Section: wire_funcs
 
@@ -2225,6 +2225,69 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
  let output_ok = mixin_desktop_api::access::AttachmentAccess::retry_transcript_attachment(&*api_that_guard, api_transcript_id).await?;   Ok(output_ok)
                     })().await)
                 } })
+}
+fn wire__mixin_desktop_api__access__AttachmentAccess_save_attachment_as_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "AttachmentAccess_save_attachment_as",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentAccess>,
+            >>::sse_decode(&mut deserializer);
+            let api_message_id = <String>::sse_decode(&mut deserializer);
+            let api_destination = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, ClientError>(
+                    (move || async move {
+                        let mut api_that_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_that, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_that_guard =
+                                        Some(api_that.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_that_guard = api_that_guard.unwrap();
+                        let output_ok =
+                            mixin_desktop_api::access::AttachmentAccess::save_attachment_as(
+                                &*api_that_guard,
+                                api_message_id,
+                                api_destination,
+                            )
+                            .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
 }
 fn wire__mixin_desktop_api__access__ConversationAccess_circles_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
@@ -4675,7 +4738,7 @@ fn wire__crate__api__media__MediaHandle_audio_playback_snapshot_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MediaHandle>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, ()>((move || {
+            transform_result_sse::<_, crate::error::CoreError>((move || {
                 let mut api_that_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -4690,9 +4753,8 @@ fn wire__crate__api__media__MediaHandle_audio_playback_snapshot_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(
-                    crate::api::media::MediaHandle::audio_playback_snapshot(&*api_that_guard),
-                )?;
+                let output_ok =
+                    crate::api::media::MediaHandle::audio_playback_snapshot(&*api_that_guard)?;
                 Ok(output_ok)
             })())
         },
@@ -4957,7 +5019,7 @@ fn wire__crate__api__media__MediaHandle_seek_audio_impl(
             >>::sse_decode(&mut deserializer);
             let api_position_millis = <u64>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, ()>((move || {
+            transform_result_sse::<_, crate::error::CoreError>((move || {
                 let mut api_that_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -4972,12 +5034,10 @@ fn wire__crate__api__media__MediaHandle_seek_audio_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok({
-                    crate::api::media::MediaHandle::seek_audio(
-                        &*api_that_guard,
-                        api_position_millis,
-                    );
-                })?;
+                let output_ok = crate::api::media::MediaHandle::seek_audio(
+                    &*api_that_guard,
+                    api_position_millis,
+                )?;
                 Ok(output_ok)
             })())
         },
@@ -5125,7 +5185,7 @@ fn wire__crate__api__media__MediaHandle_stop_audio_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MediaHandle>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, ()>((move || {
+            transform_result_sse::<_, crate::error::CoreError>((move || {
                 let mut api_that_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -5140,9 +5200,7 @@ fn wire__crate__api__media__MediaHandle_stop_audio_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok({
-                    crate::api::media::MediaHandle::stop_audio(&*api_that_guard);
-                })?;
+                let output_ok = crate::api::media::MediaHandle::stop_audio(&*api_that_guard)?;
                 Ok(output_ok)
             })())
         },
@@ -5293,7 +5351,7 @@ fn wire__crate__api__media__MediaHandle_voice_recorder_snapshot_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MediaHandle>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            transform_result_sse::<_, ()>((move || {
+            transform_result_sse::<_, crate::error::CoreError>((move || {
                 let mut api_that_guard = None;
                 let decode_indices_ =
                     flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
@@ -5308,9 +5366,8 @@ fn wire__crate__api__media__MediaHandle_voice_recorder_snapshot_impl(
                     }
                 }
                 let api_that_guard = api_that_guard.unwrap();
-                let output_ok = Result::<_, ()>::Ok(
-                    crate::api::media::MediaHandle::voice_recorder_snapshot(&*api_that_guard),
-                )?;
+                let output_ok =
+                    crate::api::media::MediaHandle::voice_recorder_snapshot(&*api_that_guard)?;
                 Ok(output_ok)
             })())
         },
@@ -12981,761 +13038,767 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        41 => wire__mixin_desktop_api__access__ConversationAccess_circles_impl(
+        41 => wire__mixin_desktop_api__access__AttachmentAccess_save_attachment_as_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        42 => wire__mixin_desktop_api__access__ConversationAccess_clear_conversation_impl(
+        42 => wire__mixin_desktop_api__access__ConversationAccess_circles_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        43 => wire__mixin_desktop_api__access__ConversationAccess_conversation_count_impl(
+        43 => wire__mixin_desktop_api__access__ConversationAccess_clear_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        44 => wire__mixin_desktop_api__access__ConversationAccess_conversation_detail_impl(
+        44 => wire__mixin_desktop_api__access__ConversationAccess_conversation_count_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        45 => wire__mixin_desktop_api__access__ConversationAccess_conversation_items_impl(
+        45 => wire__mixin_desktop_api__access__ConversationAccess_conversation_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        46 => wire__mixin_desktop_api__access__ConversationAccess_conversation_items_by_ids_impl(
+        46 => wire__mixin_desktop_api__access__ConversationAccess_conversation_items_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => wire__mixin_desktop_api__access__ConversationAccess_conversation_participants_impl(
+        47 => wire__mixin_desktop_api__access__ConversationAccess_conversation_items_by_ids_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        48 => wire__mixin_desktop_api__access__ConversationAccess_conversations_impl(
+        48 => wire__mixin_desktop_api__access__ConversationAccess_conversation_participants_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        49 => wire__mixin_desktop_api__access__ConversationAccess_create_circle_impl(
+        49 => wire__mixin_desktop_api__access__ConversationAccess_conversations_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        50 => wire__mixin_desktop_api__access__ConversationAccess_create_group_impl(
+        50 => wire__mixin_desktop_api__access__ConversationAccess_create_circle_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__mixin_desktop_api__access__ConversationAccess_current_user_role_impl(
+        51 => wire__mixin_desktop_api__access__ConversationAccess_create_group_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        52 => wire__mixin_desktop_api__access__ConversationAccess_delete_circle_impl(
+        52 => wire__mixin_desktop_api__access__ConversationAccess_current_user_role_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__mixin_desktop_api__access__ConversationAccess_delete_conversation_impl(
+        53 => wire__mixin_desktop_api__access__ConversationAccess_delete_circle_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        54 => wire__mixin_desktop_api__access__ConversationAccess_edit_circle_conversation_impl(
+        54 => wire__mixin_desktop_api__access__ConversationAccess_delete_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__mixin_desktop_api__access__ConversationAccess_edit_conversation_impl(
+        55 => wire__mixin_desktop_api__access__ConversationAccess_edit_circle_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        56 => wire__mixin_desktop_api__access__ConversationAccess_exit_group_impl(
+        56 => wire__mixin_desktop_api__access__ConversationAccess_edit_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        57 => wire__mixin_desktop_api__access__ConversationAccess_groups_in_common_impl(
+        57 => wire__mixin_desktop_api__access__ConversationAccess_exit_group_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        58 => wire__mixin_desktop_api__access__ConversationAccess_is_bot_group_impl(
+        58 => wire__mixin_desktop_api__access__ConversationAccess_groups_in_common_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        59 => wire__mixin_desktop_api__access__ConversationAccess_join_group_impl(
+        59 => wire__mixin_desktop_api__access__ConversationAccess_is_bot_group_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        60 => wire__mixin_desktop_api__access__ConversationAccess_local_conversation_detail_impl(
+        60 => wire__mixin_desktop_api__access__ConversationAccess_join_group_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        61 => wire__mixin_desktop_api__access__ConversationAccess_open_user_conversation_impl(
+        61 => wire__mixin_desktop_api__access__ConversationAccess_local_conversation_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        62 => wire__mixin_desktop_api__access__ConversationAccess_reorder_circles_impl(
+        62 => wire__mixin_desktop_api__access__ConversationAccess_open_user_conversation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        63 => wire__mixin_desktop_api__access__ConversationAccess_resolve_code_impl(
+        63 => wire__mixin_desktop_api__access__ConversationAccess_reorder_circles_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        64 => wire__mixin_desktop_api__access__ConversationAccess_rotate_group_invite_impl(
+        64 => wire__mixin_desktop_api__access__ConversationAccess_resolve_code_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        65 => wire__mixin_desktop_api__access__ConversationAccess_search_bot_group_users_impl(
+        65 => wire__mixin_desktop_api__access__ConversationAccess_rotate_group_invite_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        66 => wire__mixin_desktop_api__access__ConversationAccess_search_group_users_impl(
+        66 => wire__mixin_desktop_api__access__ConversationAccess_search_bot_group_users_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        67 => wire__mixin_desktop_api__access__ConversationAccess_set_disappearing_messages_impl(
+        67 => wire__mixin_desktop_api__access__ConversationAccess_search_group_users_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        68 => wire__mixin_desktop_api__access__ConversationAccess_set_muted_impl(
+        68 => wire__mixin_desktop_api__access__ConversationAccess_set_disappearing_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        69 => wire__mixin_desktop_api__access__ConversationAccess_set_pinned_impl(
+        69 => wire__mixin_desktop_api__access__ConversationAccess_set_muted_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        70 => wire__mixin_desktop_api__access__ConversationAccess_update_circle_impl(
+        70 => wire__mixin_desktop_api__access__ConversationAccess_set_pinned_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        71 => wire__mixin_desktop_api__access__ConversationAccess_update_draft_impl(
+        71 => wire__mixin_desktop_api__access__ConversationAccess_update_circle_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        72 => wire__mixin_desktop_api__access__ConversationAccess_update_participants_impl(
+        72 => wire__mixin_desktop_api__access__ConversationAccess_update_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        73 => wire__crate__api__desktop__DesktopHandle_abort_saved_login_impl(
+        73 => wire__mixin_desktop_api__access__ConversationAccess_update_participants_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        74 => wire__crate__api__desktop__DesktopHandle_begin_login_impl(
+        74 => wire__crate__api__desktop__DesktopHandle_abort_saved_login_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        75 => wire__crate__api__desktop__DesktopHandle_http_request_impl(
+        75 => wire__crate__api__desktop__DesktopHandle_begin_login_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        77 => wire__crate__api__desktop__DesktopHandle_recreate_account_database_impl(
+        76 => wire__crate__api__desktop__DesktopHandle_http_request_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        78 => wire__crate__api__desktop__DesktopHandle_restore_account_impl(
+        78 => wire__crate__api__desktop__DesktopHandle_recreate_account_database_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        82 => wire__crate__api__login__LoginHandle_wait_impl(port, ptr, rust_vec_len, data_len),
-        83 => wire__crate__api__media__MediaHandle_audio_playback_events_impl(
+        79 => wire__crate__api__desktop__DesktopHandle_restore_account_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        85 => wire__crate__api__media__MediaHandle_cancel_voice_recording_impl(
+        83 => wire__crate__api__login__LoginHandle_wait_impl(port, ptr, rust_vec_len, data_len),
+        84 => wire__crate__api__media__MediaHandle_audio_playback_events_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        86 => {
+        86 => wire__crate__api__media__MediaHandle_cancel_voice_recording_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        87 => {
             wire__crate__api__media__MediaHandle_pause_audio_impl(port, ptr, rust_vec_len, data_len)
         }
-        87 => {
+        88 => {
             wire__crate__api__media__MediaHandle_play_audio_impl(port, ptr, rust_vec_len, data_len)
         }
-        88 => wire__crate__api__media__MediaHandle_resume_audio_impl(
+        89 => wire__crate__api__media__MediaHandle_resume_audio_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        90 => wire__crate__api__media__MediaHandle_set_audio_speed_impl(
+        91 => wire__crate__api__media__MediaHandle_set_audio_speed_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        91 => wire__crate__api__media__MediaHandle_start_voice_recording_impl(
+        92 => wire__crate__api__media__MediaHandle_start_voice_recording_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        93 => wire__crate__api__media__MediaHandle_stop_voice_recording_impl(
+        94 => wire__crate__api__media__MediaHandle_stop_voice_recording_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        94 => wire__crate__api__media__MediaHandle_voice_recorder_events_impl(
+        95 => wire__crate__api__media__MediaHandle_voice_recorder_events_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        96 => wire__mixin_desktop_api__access__MessageAccess_combine_forward_messages_impl(
+        97 => wire__mixin_desktop_api__access__MessageAccess_combine_forward_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        97 => wire__mixin_desktop_api__access__MessageAccess_conversation_is_encrypted_impl(
+        98 => wire__mixin_desktop_api__access__MessageAccess_conversation_is_encrypted_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        98 => wire__mixin_desktop_api__access__MessageAccess_delete_messages_impl(
+        99 => wire__mixin_desktop_api__access__MessageAccess_delete_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        99 => wire__mixin_desktop_api__access__MessageAccess_forward_messages_impl(
+        100 => wire__mixin_desktop_api__access__MessageAccess_forward_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        100 => wire__mixin_desktop_api__access__MessageAccess_image_messages_around_impl(
+        101 => wire__mixin_desktop_api__access__MessageAccess_image_messages_around_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        101 => wire__mixin_desktop_api__access__MessageAccess_mark_conversation_read_impl(
+        102 => wire__mixin_desktop_api__access__MessageAccess_mark_conversation_read_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        102 => wire__mixin_desktop_api__access__MessageAccess_mark_mention_read_impl(
+        103 => wire__mixin_desktop_api__access__MessageAccess_mark_mention_read_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        103 => wire__mixin_desktop_api__access__MessageAccess_message_ids_after_impl(
+        104 => wire__mixin_desktop_api__access__MessageAccess_message_ids_after_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        104 => wire__mixin_desktop_api__access__MessageAccess_message_ids_before_impl(
+        105 => wire__mixin_desktop_api__access__MessageAccess_message_ids_before_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        105 => wire__mixin_desktop_api__access__MessageAccess_message_items_by_ids_impl(
+        106 => wire__mixin_desktop_api__access__MessageAccess_message_items_by_ids_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        106 => wire__mixin_desktop_api__access__MessageAccess_message_order_info_impl(
+        107 => wire__mixin_desktop_api__access__MessageAccess_message_order_info_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        107 => wire__mixin_desktop_api__access__MessageAccess_messages_impl(
+        108 => wire__mixin_desktop_api__access__MessageAccess_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        108 => wire__mixin_desktop_api__access__MessageAccess_messages_around_impl(
+        109 => wire__mixin_desktop_api__access__MessageAccess_messages_around_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        109 => wire__mixin_desktop_api__access__MessageAccess_pin_message_preview_impl(
+        110 => wire__mixin_desktop_api__access__MessageAccess_pin_message_preview_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        110 => wire__mixin_desktop_api__access__MessageAccess_pinned_message_ids_impl(
+        111 => wire__mixin_desktop_api__access__MessageAccess_pinned_message_ids_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        111 => wire__mixin_desktop_api__access__MessageAccess_pinned_messages_impl(
+        112 => wire__mixin_desktop_api__access__MessageAccess_pinned_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        112 => wire__mixin_desktop_api__access__MessageAccess_recall_messages_impl(
+        113 => wire__mixin_desktop_api__access__MessageAccess_recall_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        113 => wire__mixin_desktop_api__access__MessageAccess_search_global_messages_impl(
+        114 => wire__mixin_desktop_api__access__MessageAccess_search_global_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        114 => wire__mixin_desktop_api__access__MessageAccess_search_messages_impl(
+        115 => wire__mixin_desktop_api__access__MessageAccess_search_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        115 => wire__mixin_desktop_api__access__MessageAccess_send_app_card_impl(
+        116 => wire__mixin_desktop_api__access__MessageAccess_send_app_card_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        116 => wire__mixin_desktop_api__access__MessageAccess_send_attachment_impl(
+        117 => wire__mixin_desktop_api__access__MessageAccess_send_attachment_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        117 => wire__mixin_desktop_api__access__MessageAccess_send_audio_impl(
+        118 => wire__mixin_desktop_api__access__MessageAccess_send_audio_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        118 => wire__mixin_desktop_api__access__MessageAccess_send_contact_impl(
+        119 => wire__mixin_desktop_api__access__MessageAccess_send_contact_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        119 => wire__mixin_desktop_api__access__MessageAccess_send_post_impl(
+        120 => wire__mixin_desktop_api__access__MessageAccess_send_post_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        120 => wire__mixin_desktop_api__access__MessageAccess_send_remote_image_impl(
+        121 => wire__mixin_desktop_api__access__MessageAccess_send_remote_image_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        121 => wire__mixin_desktop_api__access__MessageAccess_send_sticker_impl(
+        122 => wire__mixin_desktop_api__access__MessageAccess_send_sticker_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        122 => wire__mixin_desktop_api__access__MessageAccess_send_text_impl(
+        123 => wire__mixin_desktop_api__access__MessageAccess_send_text_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        123 => wire__mixin_desktop_api__access__MessageAccess_set_message_pinned_impl(
+        124 => wire__mixin_desktop_api__access__MessageAccess_set_message_pinned_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        124 => wire__mixin_desktop_api__access__MessageAccess_shared_messages_impl(
+        125 => wire__mixin_desktop_api__access__MessageAccess_shared_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        125 => wire__mixin_desktop_api__access__MessageAccess_transcript_messages_impl(
+        126 => wire__mixin_desktop_api__access__MessageAccess_transcript_messages_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        126 => wire__mixin_desktop_api__access__MessageAccess_unread_mention_message_ids_impl(
+        127 => wire__mixin_desktop_api__access__MessageAccess_unread_mention_message_ids_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        127 => wire__crate__api__desktop__SettingsHandle_file_auto_download_impl(
+        128 => wire__crate__api__desktop__SettingsHandle_file_auto_download_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        128 => wire__crate__api__desktop__SettingsHandle_mcp_server_status_impl(
+        129 => wire__crate__api__desktop__SettingsHandle_mcp_server_status_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        129 => wire__crate__api__desktop__SettingsHandle_mcp_settings_impl(
+        130 => wire__crate__api__desktop__SettingsHandle_mcp_settings_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        130 => wire__crate__api__desktop__SettingsHandle_photo_auto_download_impl(
+        131 => wire__crate__api__desktop__SettingsHandle_photo_auto_download_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        131 => wire__crate__api__desktop__SettingsHandle_proxy_settings_impl(
+        132 => wire__crate__api__desktop__SettingsHandle_proxy_settings_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        132 => wire__crate__api__desktop__SettingsHandle_set_file_auto_download_impl(
+        133 => wire__crate__api__desktop__SettingsHandle_set_file_auto_download_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        133 => wire__crate__api__desktop__SettingsHandle_set_photo_auto_download_impl(
+        134 => wire__crate__api__desktop__SettingsHandle_set_photo_auto_download_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        134 => wire__crate__api__desktop__SettingsHandle_set_proxy_settings_impl(
+        135 => wire__crate__api__desktop__SettingsHandle_set_proxy_settings_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        135 => wire__crate__api__desktop__SettingsHandle_set_setting_impl(
+        136 => wire__crate__api__desktop__SettingsHandle_set_setting_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        136 => wire__crate__api__desktop__SettingsHandle_set_video_auto_download_impl(
+        137 => wire__crate__api__desktop__SettingsHandle_set_video_auto_download_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        137 => wire__crate__api__desktop__SettingsHandle_setting_impl(
+        138 => wire__crate__api__desktop__SettingsHandle_setting_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        138 => wire__crate__api__desktop__SettingsHandle_subscribe_file_auto_download_impl(
+        139 => wire__crate__api__desktop__SettingsHandle_subscribe_file_auto_download_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        139 => wire__crate__api__desktop__SettingsHandle_subscribe_photo_auto_download_impl(
+        140 => wire__crate__api__desktop__SettingsHandle_subscribe_photo_auto_download_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        140 => wire__crate__api__desktop__SettingsHandle_subscribe_setting_impl(
+        141 => wire__crate__api__desktop__SettingsHandle_subscribe_setting_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        141 => wire__crate__api__desktop__SettingsHandle_subscribe_video_auto_download_impl(
+        142 => wire__crate__api__desktop__SettingsHandle_subscribe_video_auto_download_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        142 => wire__crate__api__desktop__SettingsHandle_update_mcp_settings_impl(
+        143 => wire__crate__api__desktop__SettingsHandle_update_mcp_settings_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        143 => wire__crate__api__desktop__SettingsHandle_video_auto_download_impl(
+        144 => wire__crate__api__desktop__SettingsHandle_video_auto_download_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        144 => wire__mixin_desktop_api__access__StickerAccess_add_sticker_impl(
+        145 => wire__mixin_desktop_api__access__StickerAccess_add_sticker_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        145 => wire__mixin_desktop_api__access__StickerAccess_add_sticker_from_file_impl(
+        146 => wire__mixin_desktop_api__access__StickerAccess_add_sticker_from_file_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        146 => wire__mixin_desktop_api__access__StickerAccess_add_sticker_from_path_impl(
+        147 => wire__mixin_desktop_api__access__StickerAccess_add_sticker_from_path_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        147 => wire__mixin_desktop_api__access__StickerAccess_album_stickers_impl(
+        148 => wire__mixin_desktop_api__access__StickerAccess_album_stickers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        148 => wire__mixin_desktop_api__access__StickerAccess_personal_stickers_impl(
+        149 => wire__mixin_desktop_api__access__StickerAccess_personal_stickers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        149 => wire__mixin_desktop_api__access__StickerAccess_recent_stickers_impl(
+        150 => wire__mixin_desktop_api__access__StickerAccess_recent_stickers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        150 => wire__mixin_desktop_api__access__StickerAccess_refresh_sticker_impl(
+        151 => wire__mixin_desktop_api__access__StickerAccess_refresh_sticker_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        151 => wire__mixin_desktop_api__access__StickerAccess_refresh_stickers_impl(
+        152 => wire__mixin_desktop_api__access__StickerAccess_refresh_stickers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        152 => wire__mixin_desktop_api__access__StickerAccess_remove_sticker_impl(
+        153 => wire__mixin_desktop_api__access__StickerAccess_remove_sticker_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        153 => wire__mixin_desktop_api__access__StickerAccess_set_sticker_album_added_impl(
+        154 => wire__mixin_desktop_api__access__StickerAccess_set_sticker_album_added_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        154 => wire__mixin_desktop_api__access__StickerAccess_set_sticker_album_order_impl(
+        155 => wire__mixin_desktop_api__access__StickerAccess_set_sticker_album_order_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        155 => wire__mixin_desktop_api__access__StickerAccess_sticker_albums_impl(
+        156 => wire__mixin_desktop_api__access__StickerAccess_sticker_albums_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        156 => wire__mixin_desktop_api__access__StickerAccess_sticker_detail_impl(
+        157 => wire__mixin_desktop_api__access__StickerAccess_sticker_detail_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        157 => wire__mixin_desktop_api__access__StickerAccess_sticker_store_albums_impl(
+        158 => wire__mixin_desktop_api__access__StickerAccess_sticker_store_albums_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        158 => wire__mixin_desktop_api__access__UserAccess_add_contact_impl(
+        159 => wire__mixin_desktop_api__access__UserAccess_add_contact_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        159 => wire__mixin_desktop_api__access__UserAccess_block_user_impl(
+        160 => wire__mixin_desktop_api__access__UserAccess_block_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        160 => wire__mixin_desktop_api__access__UserAccess_bot_creator_id_impl(
+        161 => wire__mixin_desktop_api__access__UserAccess_bot_creator_id_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        161 => wire__mixin_desktop_api__access__UserAccess_bot_home_uri_impl(
+        162 => wire__mixin_desktop_api__access__UserAccess_bot_home_uri_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        162 => wire__mixin_desktop_api__access__UserAccess_local_shared_apps_impl(
+        163 => wire__mixin_desktop_api__access__UserAccess_local_shared_apps_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        163 => wire__mixin_desktop_api__access__UserAccess_mention_names_impl(
+        164 => wire__mixin_desktop_api__access__UserAccess_mention_names_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        164 => wire__mixin_desktop_api__access__UserAccess_refresh_user_profile_impl(
+        165 => wire__mixin_desktop_api__access__UserAccess_refresh_user_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        165 => wire__mixin_desktop_api__access__UserAccess_remove_contact_impl(
+        166 => wire__mixin_desktop_api__access__UserAccess_remove_contact_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        166 => wire__mixin_desktop_api__access__UserAccess_replace_mentions_impl(
+        167 => wire__mixin_desktop_api__access__UserAccess_replace_mentions_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        167 => wire__mixin_desktop_api__access__UserAccess_report_user_impl(
+        168 => wire__mixin_desktop_api__access__UserAccess_report_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        168 => wire__mixin_desktop_api__access__UserAccess_search_local_users_impl(
+        169 => wire__mixin_desktop_api__access__UserAccess_search_local_users_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        169 => wire__mixin_desktop_api__access__UserAccess_search_mao_user_impl(
+        170 => wire__mixin_desktop_api__access__UserAccess_search_mao_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        170 => wire__mixin_desktop_api__access__UserAccess_search_user_impl(
+        171 => wire__mixin_desktop_api__access__UserAccess_search_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        171 => wire__mixin_desktop_api__access__UserAccess_selectable_users_impl(
+        172 => wire__mixin_desktop_api__access__UserAccess_selectable_users_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        172 => wire__mixin_desktop_api__access__UserAccess_shared_apps_impl(
+        173 => wire__mixin_desktop_api__access__UserAccess_shared_apps_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        173 => wire__mixin_desktop_api__access__UserAccess_unblock_user_impl(
+        174 => wire__mixin_desktop_api__access__UserAccess_unblock_user_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        174 => wire__mixin_desktop_api__access__UserAccess_user_profile_impl(
+        175 => wire__mixin_desktop_api__access__UserAccess_user_profile_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        175 => wire__mixin_desktop_api__access__UserAccess_users_by_identity_numbers_impl(
+        176 => wire__mixin_desktop_api__access__UserAccess_users_by_identity_numbers_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        176 => wire__crate__api__logging__directory_impl(port, ptr, rust_vec_len, data_len),
-        177 => wire__crate__api__logging__init_impl(port, ptr, rust_vec_len, data_len),
-        178 => wire__crate__api__logging__init_app_impl(port, ptr, rust_vec_len, data_len),
-        180 => wire__crate__api__desktop__open_desktop_impl(port, ptr, rust_vec_len, data_len),
+        177 => wire__crate__api__logging__directory_impl(port, ptr, rust_vec_len, data_len),
+        178 => wire__crate__api__logging__init_impl(port, ptr, rust_vec_len, data_len),
+        179 => wire__crate__api__logging__init_app_impl(port, ptr, rust_vec_len, data_len),
+        181 => wire__crate__api__desktop__open_desktop_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -13772,23 +13835,23 @@ fn pde_ffi_dispatcher_sync_impl(
         ),
         27 => wire__crate__api__account__AccountHandle_sticker_impl(ptr, rust_vec_len, data_len),
         32 => wire__crate__api__account__AccountHandle_user_impl(ptr, rust_vec_len, data_len),
-        76 => wire__crate__api__desktop__DesktopHandle_media_impl(ptr, rust_vec_len, data_len),
-        79 => wire__crate__api__desktop__DesktopHandle_settings_impl(ptr, rust_vec_len, data_len),
-        80 => wire__crate__api__login__LoginHandle_auth_url_impl(ptr, rust_vec_len, data_len),
-        81 => wire__crate__api__login__LoginHandle_cancel_impl(ptr, rust_vec_len, data_len),
-        84 => wire__crate__api__media__MediaHandle_audio_playback_snapshot_impl(
+        77 => wire__crate__api__desktop__DesktopHandle_media_impl(ptr, rust_vec_len, data_len),
+        80 => wire__crate__api__desktop__DesktopHandle_settings_impl(ptr, rust_vec_len, data_len),
+        81 => wire__crate__api__login__LoginHandle_auth_url_impl(ptr, rust_vec_len, data_len),
+        82 => wire__crate__api__login__LoginHandle_cancel_impl(ptr, rust_vec_len, data_len),
+        85 => wire__crate__api__media__MediaHandle_audio_playback_snapshot_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        89 => wire__crate__api__media__MediaHandle_seek_audio_impl(ptr, rust_vec_len, data_len),
-        92 => wire__crate__api__media__MediaHandle_stop_audio_impl(ptr, rust_vec_len, data_len),
-        95 => wire__crate__api__media__MediaHandle_voice_recorder_snapshot_impl(
+        90 => wire__crate__api__media__MediaHandle_seek_audio_impl(ptr, rust_vec_len, data_len),
+        93 => wire__crate__api__media__MediaHandle_stop_audio_impl(ptr, rust_vec_len, data_len),
+        96 => wire__crate__api__media__MediaHandle_voice_recorder_snapshot_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        179 => wire__crate__api__logging__log_flutter_impl(ptr, rust_vec_len, data_len),
+        180 => wire__crate__api__logging__log_flutter_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

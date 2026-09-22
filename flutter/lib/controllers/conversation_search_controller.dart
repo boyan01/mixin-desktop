@@ -6,6 +6,7 @@ import '../models/conversation_list_entry.dart';
 import '../models/message_list_entry.dart';
 import '../src/rust/desktop_api.dart' as rust;
 import '../utils/app_logger.dart';
+import '../utils/rust_int.dart';
 import 'conversation_filter_controller.dart';
 import 'conversation_list_controller.dart';
 
@@ -78,7 +79,7 @@ class ConversationSearchController extends ChangeNotifier {
           account.user().searchLocalUsers(
             query: normalized,
             category: filter.category.name,
-            limit: 64,
+            limit: 64.toRustInt(),
           ),
         ]);
         if (_disposed || revision != _revision) return;

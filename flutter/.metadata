@@ -25,6 +25,10 @@ migration:
       create_revision: f94f4fc76b4d74543ed9b085bbd75341ef65de22
       base_revision: f94f4fc76b4d74543ed9b085bbd75341ef65de22
 
+    - platform: web
+      create_revision: d3b14c876900e553bc736ca19295fc09e3853e8e
+      base_revision: d3b14c876900e553bc736ca19295fc09e3853e8e
+
   # User provided section
 
   # List of Local paths (relative to this file) that should be
