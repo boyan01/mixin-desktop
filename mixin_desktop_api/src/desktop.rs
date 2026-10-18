@@ -196,6 +196,20 @@ impl SettingsClient {
             .into())
     }
 
+    /// Overrides the MCP port for this process; call before restoring or
+    /// signing in an account. Not persisted.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn set_mcp_port(&self, port: u16) {
+        self.runtime.mcp_server.set_port(port).await;
+    }
+
+    /// Lets MCP clients send messages as this account for this process; call
+    /// before restoring or signing in an account. Not persisted.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn set_mcp_message_send(&self, enabled: bool) {
+        self.runtime.mcp_server.set_message_send(enabled).await;
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn mcp_server_status(&self) -> ClientResult<McpServerStatusItem> {
         Ok(self.runtime.mcp_server.status().await.into())

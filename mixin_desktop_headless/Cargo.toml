@@ -1,0 +1,15 @@
+[package]
+name = "mixin_desktop_headless"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "mixin-headless"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+futures = "0.3"
+mixin_desktop_api = { path = "../mixin_desktop_api" }
+qrcode = { version = "0.14", default-features = false }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }

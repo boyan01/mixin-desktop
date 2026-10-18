@@ -468,18 +468,8 @@ impl NotificationEvent {
     ) -> Option<Self> {
         let dismiss_message_id = (value.category == sdk::message_category::MESSAGE_RECALL)
             .then(|| value.content.clone().unwrap_or_default());
-        let mentioned = value.category.contains("TEXT")
-            && mentions_identity(
-                value.content.as_deref().unwrap_or_default(),
-                current_identity_number,
-            );
-        let quoted = value
-            .quote_content
-            .as_deref()
-            .and_then(|content| serde_json::from_str::<serde_json::Value>(content).ok())
-            .is_some_and(|quote| {
-                quote.get("user_id").and_then(serde_json::Value::as_str) == Some(current_user_id)
-            });
+        let mentioned = is_mentioned(&value, current_identity_number);
+        let quoted = is_quoted(&value, current_user_id);
         if dismiss_message_id.is_none() && value.is_muted && !mentioned && !quoted {
             return None;
         }
@@ -495,6 +485,54 @@ impl NotificationEvent {
             dismiss_message_id,
         })
     }
+}
+
+/// Why a message from someone else should reach an agent, or `None` when the
+/// notification rules stay silent for it: muted conversations only pass
+/// mentions and quotes of the current account.
+pub(crate) fn agent_trigger(
+    value: &crate::db::mixin::message::NotificationMessageItem,
+    current_user_id: &str,
+    current_identity_number: &str,
+) -> Option<&'static str> {
+    if value.category == sdk::message_category::MESSAGE_RECALL {
+        return None;
+    }
+    let group = value.conversation_category == "GROUP";
+    if !group && !value.is_muted {
+        return Some("direct");
+    }
+    if is_mentioned(value, current_identity_number) {
+        return Some("mention");
+    }
+    if is_quoted(value, current_user_id) {
+        return Some("quote");
+    }
+    (group && !value.is_muted).then_some("group")
+}
+
+fn is_mentioned(
+    value: &crate::db::mixin::message::NotificationMessageItem,
+    current_identity_number: &str,
+) -> bool {
+    value.category.contains("TEXT")
+        && mentions_identity(
+            value.content.as_deref().unwrap_or_default(),
+            current_identity_number,
+        )
+}
+
+fn is_quoted(
+    value: &crate::db::mixin::message::NotificationMessageItem,
+    current_user_id: &str,
+) -> bool {
+    value
+        .quote_content
+        .as_deref()
+        .and_then(|content| serde_json::from_str::<serde_json::Value>(content).ok())
+        .is_some_and(|quote| {
+            quote.get("user_id").and_then(serde_json::Value::as_str) == Some(current_user_id)
+        })
 }
 
 fn mentions_identity(content: &str, identity_number: &str) -> bool {
@@ -599,5 +637,53 @@ mod notification_tests {
             event.dismiss_message_id.as_deref(),
             Some("recalled-message")
         );
+    }
+
+    #[test]
+    fn agent_trigger_classifies_messages_by_conversation_mute_mention_and_quote() {
+        let quote = Some(r#"{"user_id":"current-user"}"#);
+        let cases = [
+            ("CONTACT", "PLAIN_TEXT", "hi", None, false, Some("direct")),
+            (
+                "CONTACT",
+                "PLAIN_TEXT",
+                "hi @7000",
+                None,
+                true,
+                Some("mention"),
+            ),
+            ("CONTACT", "PLAIN_TEXT", "hi", None, true, None),
+            (
+                "GROUP",
+                "PLAIN_TEXT",
+                "hi @7000",
+                None,
+                false,
+                Some("mention"),
+            ),
+            (
+                "GROUP",
+                "PLAIN_TEXT",
+                "hi @70001",
+                None,
+                false,
+                Some("group"),
+            ),
+            ("GROUP", "PLAIN_TEXT", "reply", quote, true, Some("quote")),
+            ("GROUP", "PLAIN_TEXT", "hi", None, true, None),
+            ("GROUP", "PLAIN_IMAGE", "@7000", None, true, None),
+            ("CONTACT", "MESSAGE_RECALL", "message", None, false, None),
+        ];
+
+        for (conversation_category, category, content, quote_content, is_muted, expected) in cases {
+            let mut item = message(category, content, quote_content, is_muted);
+            item.conversation_category = conversation_category.to_string();
+
+            assert_eq!(
+                super::agent_trigger(&item, "current-user", "7000"),
+                expected,
+                "{conversation_category} {category} {content:?} muted={is_muted}",
+            );
+        }
     }
 }

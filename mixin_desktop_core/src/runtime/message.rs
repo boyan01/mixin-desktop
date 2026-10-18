@@ -738,7 +738,7 @@ impl MessageAccess {
         Ok(message_id)
     }
 
-    async fn send_text_message(
+    pub(crate) async fn send_text_message(
         &self,
         conversation_id: String,
         content: String,

@@ -93,6 +93,10 @@ struct McpServerState {
     running: Option<RunningMcpServer>,
     applied_settings: Option<McpSettings>,
     last_error: Option<String>,
+    /// Process-scoped overrides for headless hosts; never persisted, so the
+    /// desktop apps cannot enable sending.
+    port: Option<u16>,
+    message_send: bool,
 }
 
 impl McpServerState {
@@ -121,7 +125,8 @@ impl McpServerState {
                 .runtime
                 .clone()
                 .ok_or_else(|| anyhow!("MCP requires a signed-in account"))?;
-            match RunningMcpServer::start(runtime, settings).await {
+            let port = self.port.unwrap_or(DEFAULT_PORT);
+            match RunningMcpServer::start(runtime, settings, port, self.message_send).await {
                 Ok(server) => self.running = Some(server),
                 Err(error) => {
                     self.last_error = Some(error.to_string());
@@ -177,6 +182,16 @@ impl McpServer {
         let mut state = self.state.lock().await;
         state.runtime = Some(runtime);
         state.apply(settings, true).await
+    }
+
+    /// Sets the port used the next time the server starts.
+    pub async fn set_port(&self, port: u16) {
+        self.state.lock().await.port = Some(port);
+    }
+
+    /// Enables the message_send scope the next time the server starts.
+    pub async fn set_message_send(&self, enabled: bool) {
+        self.state.lock().await.message_send = enabled;
     }
 
     pub async fn stop(&self) {
@@ -309,16 +324,22 @@ impl Drop for McpServer {
 }
 
 impl RunningMcpServer {
-    async fn start(runtime: Arc<AccountRuntime>, settings: McpSettings) -> Result<Self> {
+    async fn start(
+        runtime: Arc<AccountRuntime>,
+        settings: McpSettings,
+        port: u16,
+        message_send: bool,
+    ) -> Result<Self> {
         if settings.token.trim().is_empty() {
             return Err(anyhow!("MCP access token is unavailable"));
         }
-        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, DEFAULT_PORT)).await?;
+        let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await?;
         let cancellation = CancellationToken::new();
         let state = ServerState {
             search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
             source: McpSource::Runtime(runtime),
             settings,
+            message_send,
         };
         let app = http_router(state, &cancellation);
         let stop = cancellation.clone();
@@ -333,7 +354,7 @@ impl RunningMcpServer {
         Ok(Self {
             cancellation,
             task: Some(task),
-            endpoint: format!("http://127.0.0.1:{DEFAULT_PORT}/mcp"),
+            endpoint: format!("http://127.0.0.1:{port}/mcp"),
         })
     }
 
@@ -377,6 +398,7 @@ pub async fn serve_read_only_http(
             search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
             source: McpSource::ReadOnly(source),
             settings: McpSettings::disabled(token),
+            message_send: false,
         },
         &cancellation,
     );
@@ -413,8 +435,18 @@ fn http_router(state: ServerState, cancellation: &CancellationToken) -> Router {
             Default::default(),
             config,
         );
+    let events_cancellation = cancellation.child_token();
     Router::new()
         .nest_service("/mcp", service)
+        .route(
+            "/events",
+            axum::routing::get({
+                let source = state.source.clone();
+                move |headers: HeaderMap, query: axum::extract::Query<EventsQuery>| {
+                    events(source, events_cancellation, headers, query.0)
+                }
+            }),
+        )
         .layer(axum::middleware::from_fn_with_state(
             state.settings.token.clone(),
             authorize,
@@ -435,6 +467,7 @@ struct ServerState {
     search_slot: Arc<tokio::sync::Semaphore>,
     source: McpSource,
     settings: McpSettings,
+    message_send: bool,
 }
 
 #[derive(Clone)]
@@ -720,6 +753,63 @@ impl McpSource {
         }
     }
 
+    /// Messages from others after `after_row_id` that an agent should see,
+    /// with the rowid cursor to resume from.
+    async fn agent_event_batch(&self, after_row_id: i64, limit: i64) -> Result<AgentEventBatch> {
+        let (database, identity_number) = match self {
+            Self::Runtime(runtime) => (&runtime.database, runtime.account().identity_number),
+            Self::ReadOnly(source) => (&source.database, source.info.identity_number.clone()),
+        };
+        let items = database
+            .message_dao
+            .notification_items_after(self.user_id(), after_row_id, limit)
+            .await?;
+        let next_row_id = items.last().map_or(after_row_id, |item| item.row_id);
+        let has_more = items.len() as i64 == limit;
+        let triggered = items
+            .into_iter()
+            .filter_map(|item| {
+                model::agent_trigger(&item, self.user_id(), &identity_number)
+                    .map(|trigger| (item, trigger))
+            })
+            .collect::<Vec<_>>();
+        let mut messages = self
+            .messages_by_ids(
+                triggered
+                    .iter()
+                    .map(|(item, _)| item.message_id.clone())
+                    .collect(),
+            )
+            .await?
+            .into_iter()
+            .map(|message| (message.message_id.clone(), message))
+            .collect::<HashMap<_, _>>();
+        let events = triggered
+            .into_iter()
+            .filter_map(|(item, trigger)| {
+                let message = messages.remove(&item.message_id)?;
+                Some(AgentEvent {
+                    cursor: item.row_id,
+                    data: json!({
+                        "cursor": item.row_id.to_string(),
+                        "trigger": trigger,
+                        "conversation": {
+                            "conversation_id": item.conversation_id,
+                            "category": item.conversation_category,
+                            "name": item.conversation_name,
+                        },
+                        "message": message_json(message),
+                    }),
+                })
+            })
+            .collect();
+        Ok(AgentEventBatch {
+            events,
+            next_row_id,
+            has_more,
+        })
+    }
+
     async fn circles(&self) -> Result<Vec<model::CircleItem>> {
         match self {
             Self::Runtime(runtime) => Ok(runtime.conversation_access().circles().await?),
@@ -756,6 +846,115 @@ fn authorized(headers: &HeaderMap, token: &str) -> bool {
     value.as_bytes().ct_eq(token.as_bytes()).into()
 }
 
+struct AgentEvent {
+    cursor: i64,
+    data: Value,
+}
+
+struct AgentEventBatch {
+    events: Vec<AgentEvent>,
+    next_row_id: i64,
+    has_more: bool,
+}
+
+#[derive(serde::Deserialize)]
+struct EventsQuery {
+    cursor: Option<String>,
+}
+
+/// Server-sent events for messages an agent should see. Each event id is a
+/// cursor; reconnecting with `?cursor=` or `Last-Event-ID` resumes after it,
+/// and omitting both starts from new messages.
+async fn events(
+    source: McpSource,
+    cancellation: CancellationToken,
+    headers: HeaderMap,
+    query: EventsQuery,
+) -> Response {
+    let McpSource::Runtime(runtime) = &source else {
+        return (
+            StatusCode::NOT_FOUND,
+            "events require a signed-in account runtime",
+        )
+            .into_response();
+    };
+    let cursor = query.cursor.or_else(|| {
+        headers
+            .get("last-event-id")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned)
+    });
+    let cursor = match cursor.map(|value| value.parse::<i64>()) {
+        Some(Ok(value)) if value >= 0 => Some(value),
+        Some(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "cursor must be a non-negative integer",
+            )
+                .into_response()
+        }
+        None => None,
+    };
+    let mut changes = runtime.subscribe_notification_changes();
+    let mut shutdown = runtime.subscribe_shutdown();
+    let mut row_id = match cursor {
+        Some(cursor) => cursor,
+        None => match runtime.latest_notification_row_id().await {
+            Ok(row_id) => row_id,
+            Err(error) => {
+                return (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()).into_response()
+            }
+        },
+    };
+    let stream = async_stream::stream! {
+        yield Ok::<_, std::convert::Infallible>(
+            axum::response::sse::Event::default()
+                .event("ready")
+                .data(json!({"cursor": row_id.to_string()}).to_string()),
+        );
+        loop {
+            loop {
+                let batch = match source.agent_event_batch(row_id, 200).await {
+                    Ok(batch) => batch,
+                    Err(error) => {
+                        log::error!("agent event batch failed: {error}");
+                        yield Ok(axum::response::sse::Event::default()
+                            .event("error")
+                            .data(json!({"message": error.to_string()}).to_string()));
+                        return;
+                    }
+                };
+                row_id = batch.next_row_id;
+                for event in batch.events {
+                    yield Ok(axum::response::sse::Event::default()
+                        .event("message")
+                        .id(event.cursor.to_string())
+                        .data(event.data.to_string()));
+                }
+                if !batch.has_more {
+                    break;
+                }
+            }
+            tokio::select! {
+                changed = changes.changed() => {
+                    if changed.is_err() {
+                        break;
+                    }
+                }
+                changed = shutdown.changed() => {
+                    if changed.is_err() || *shutdown.borrow() {
+                        break;
+                    }
+                }
+                _ = cancellation.cancelled() => break,
+            }
+        }
+    };
+    axum::response::sse::Sse::new(stream)
+        .keep_alive(axum::response::sse::KeepAlive::default())
+        .into_response()
+}
+
 #[derive(Clone)]
 struct McpService {
     state: ServerState,
@@ -783,7 +982,29 @@ impl McpService {
                 tool_router.disable_route(name);
             }
         }
+        if !state.message_send {
+            for name in SEND_TOOLS {
+                tool_router.disable_route(name);
+            }
+        }
         Self { state, tool_router }
+    }
+
+    /// Checks the send scope and that the conversation exists locally.
+    async fn send_target(&self, conversation_id: String) -> Result<(String, &Arc<AccountRuntime>)> {
+        ensure_send(&self.state)?;
+        let id = require_non_empty(conversation_id, "conversation_id")?;
+        let runtime = self.state.source.runtime()?;
+        if self
+            .state
+            .source
+            .conversations_by_ids(vec![id.clone()])
+            .await?
+            .is_empty()
+        {
+            return Err(anyhow!("conversation not found"));
+        }
+        Ok((id, runtime))
     }
 }
 
@@ -800,10 +1021,10 @@ impl McpService {
                 "read": true,
                 "draft_write": self.state.settings.draft_tools_enabled,
                 "circle_management": self.state.settings.circle_management_enabled,
-                "message_send": false,
+                "message_send": self.state.message_send,
                 "account_write": false,
             },
-            "capabilities": enabled_capabilities(&self.state.settings),
+            "capabilities": enabled_capabilities(&self.state),
         })))
     }
 
@@ -1291,6 +1512,168 @@ impl McpService {
             .map_err(|error| error.to_string())
     }
 
+    #[tool(
+        description = "Send a text message as this account, optionally quoting a message. Set post to render Markdown. Requires the message_send scope."
+    )]
+    async fn mixin_send_text(
+        &self,
+        Parameters(input): Parameters<SendTextInput>,
+    ) -> Result<Json<ToolOutput>, String> {
+        let result: Result<Value> = async {
+            let (id, runtime) = self.send_target(input.conversation_id).await?;
+            let text = require_non_empty(input.text, "text")?;
+            let message_id = runtime
+                .message_access()
+                .send_text_message(
+                    id.clone(),
+                    text,
+                    input.quote_message_id,
+                    input.post.unwrap_or(false),
+                    false,
+                )
+                .await?;
+            Ok(sent_json(id, message_id))
+        }
+        .await;
+        result
+            .map(object)
+            .map(Json)
+            .map_err(|error| error.to_string())
+    }
+
+    #[tool(
+        description = "Send a PNG, JPEG, GIF, or WebP image as this account from base64 data (a data: URL prefix is allowed), optionally with a caption and quote. Requires the message_send scope."
+    )]
+    async fn mixin_send_image(
+        &self,
+        Parameters(input): Parameters<SendImageInput>,
+    ) -> Result<Json<ToolOutput>, String> {
+        let result: Result<Value> = async {
+            let (id, runtime) = self.send_target(input.conversation_id).await?;
+            let image = decode_image(&input.data_base64)?;
+            let temporary = std::env::temp_dir().join(format!(
+                "mixin-mcp-image-{}.{}",
+                Uuid::new_v4(),
+                image.extension
+            ));
+            crate::fs::write(&temporary, image.bytes).await?;
+            // The attachment is copied into the account media directory
+            // before upload, so the temporary file is only needed until then.
+            let result = runtime
+                .message_access()
+                .send_attachment(
+                    id.clone(),
+                    temporary.to_string_lossy().into_owned(),
+                    "IMAGE".into(),
+                    image.mime_type.into(),
+                    None,
+                    Some(image.width),
+                    Some(image.height),
+                    None,
+                    None,
+                    input.caption,
+                    input.quote_message_id,
+                    false,
+                )
+                .await;
+            let _ = crate::fs::remove_file(&temporary).await;
+            Ok(sent_json(id, result?))
+        }
+        .await;
+        result
+            .map(object)
+            .map(Json)
+            .map_err(|error| error.to_string())
+    }
+
+    #[tool(
+        description = "Send a sticker by sticker_id, as seen on received sticker messages. Requires the message_send scope."
+    )]
+    async fn mixin_send_sticker(
+        &self,
+        Parameters(input): Parameters<SendStickerInput>,
+    ) -> Result<Json<ToolOutput>, String> {
+        let result: Result<Value> = async {
+            let (id, runtime) = self.send_target(input.conversation_id).await?;
+            let sticker_id = require_non_empty(input.sticker_id, "sticker_id")?;
+            // Same as the UI targets: fetch stickers that are not stored locally yet.
+            runtime
+                .sticker_access()
+                .sticker_detail(sticker_id.clone())
+                .await?;
+            let message_id = runtime
+                .message_access()
+                .send_sticker(id.clone(), sticker_id)
+                .await?;
+            Ok(sent_json(id, message_id))
+        }
+        .await;
+        result
+            .map(object)
+            .map(Json)
+            .map_err(|error| error.to_string())
+    }
+
+    #[tool(
+        description = "Share a user's contact card by user_id, optionally quoting a message. Requires the message_send scope."
+    )]
+    async fn mixin_send_contact(
+        &self,
+        Parameters(input): Parameters<SendContactInput>,
+    ) -> Result<Json<ToolOutput>, String> {
+        let result: Result<Value> = async {
+            let (id, runtime) = self.send_target(input.conversation_id).await?;
+            let user_id = require_non_empty(input.user_id, "user_id")?;
+            let message_id = runtime
+                .message_access()
+                .send_contact(id.clone(), user_id, input.quote_message_id, false)
+                .await?;
+            Ok(sent_json(id, message_id))
+        }
+        .await;
+        result
+            .map(object)
+            .map(Json)
+            .map_err(|error| error.to_string())
+    }
+
+    #[tool(
+        description = "Send an app card on behalf of a Mixin bot. card needs app_id (the bot's app ID), title, and description. Add buttons with actions: [{label, color, action: https URL}], which also requires icon_url; non-shareable button URLs drop all buttons. Requires the message_send scope."
+    )]
+    async fn mixin_send_app_card(
+        &self,
+        Parameters(input): Parameters<SendAppCardInput>,
+    ) -> Result<Json<ToolOutput>, String> {
+        let result: Result<Value> = async {
+            let (id, runtime) = self.send_target(input.conversation_id).await?;
+            // Core only checks the fields it renders; the server rejects these
+            // cases with an opaque invalid-field error.
+            let has_text = |field: &str| {
+                input
+                    .card
+                    .get(field)
+                    .and_then(Value::as_str)
+                    .is_some_and(|value| !value.trim().is_empty())
+            };
+            if !has_text("app_id") {
+                return Err(anyhow!("card.app_id is required"));
+            }
+            if input.card.contains_key("actions") && !has_text("icon_url") {
+                return Err(anyhow!("card.icon_url is required with card.actions"));
+            }
+            let message_id = runtime
+                .message_access()
+                .send_app_card(id.clone(), serde_json::to_string(&input.card)?)
+                .await?;
+            Ok(sent_json(id, message_id))
+        }
+        .await;
+        result
+            .map(object)
+            .map(Json)
+            .map_err(|error| error.to_string())
+    }
+
     #[tool(description = "Create a circle.")]
     async fn mixin_create_circle(
         &self,
@@ -1365,8 +1748,13 @@ impl McpService {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for McpService {
     fn get_info(&self) -> ServerInfo {
+        let instructions = if self.state.message_send {
+            "Local Mixin account access. mixin_send_text sends real messages as this account."
+        } else {
+            "Local Mixin desktop access. It never sends messages."
+        };
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
-            .with_instructions("Local Mixin desktop access. It never sends messages.")
+            .with_instructions(instructions)
     }
 }
 
@@ -1459,6 +1847,47 @@ struct SetDraftInput {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+struct SendTextInput {
+    conversation_id: String,
+    text: String,
+    /// Message to quote; it must belong to the same conversation.
+    quote_message_id: Option<String>,
+    /// Render text as a Markdown post. Defaults to false.
+    post: Option<bool>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+struct SendImageInput {
+    conversation_id: String,
+    /// Base64 image bytes, or a data: URL. At most 16 MiB decoded.
+    data_base64: String,
+    caption: Option<String>,
+    /// Message to quote; it must belong to the same conversation.
+    quote_message_id: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+struct SendStickerInput {
+    conversation_id: String,
+    sticker_id: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+struct SendContactInput {
+    conversation_id: String,
+    /// User whose contact card is shared.
+    user_id: String,
+    /// Message to quote; it must belong to the same conversation.
+    quote_message_id: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+struct SendAppCardInput {
+    conversation_id: String,
+    card: Map<String, Value>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 struct CreateCircleInput {
     name: String,
 }
@@ -1469,7 +1898,8 @@ struct RenameCircleInput {
     name: String,
 }
 
-fn enabled_capabilities(settings: &McpSettings) -> Vec<&'static str> {
+fn enabled_capabilities(state: &ServerState) -> Vec<&'static str> {
+    let settings = &state.settings;
     let mut capabilities = vec![
         "mixin_get_app_status",
         "mixin_list_conversations",
@@ -1497,7 +1927,82 @@ fn enabled_capabilities(settings: &McpSettings) -> Vec<&'static str> {
             "mixin_delete_circle",
         ]);
     }
+    if state.message_send {
+        capabilities.extend(SEND_TOOLS);
+    }
     capabilities
+}
+
+const SEND_TOOLS: [&str; 5] = [
+    "mixin_send_text",
+    "mixin_send_image",
+    "mixin_send_sticker",
+    "mixin_send_contact",
+    "mixin_send_app_card",
+];
+
+const MAX_IMAGE_BYTES: usize = 16 * 1024 * 1024;
+
+struct DecodedImage {
+    bytes: Vec<u8>,
+    mime_type: &'static str,
+    extension: &'static str,
+    width: i32,
+    height: i32,
+}
+
+fn decode_image(data: &str) -> Result<DecodedImage> {
+    use base64ct::{Base64, Encoding};
+    let data = data.trim();
+    let data = match data.strip_prefix("data:") {
+        Some(url) => url
+            .split_once(";base64,")
+            .map(|(_, data)| data)
+            .ok_or_else(|| anyhow!("data URL must be base64 encoded"))?,
+        None => data,
+    };
+    if data.len() > MAX_IMAGE_BYTES / 3 * 4 + 4 {
+        return Err(anyhow!("image must be at most 16 MiB"));
+    }
+    let bytes = Base64::decode_vec(data).map_err(|_| anyhow!("data_base64 is not valid base64"))?;
+    if bytes.is_empty() || bytes.len() > MAX_IMAGE_BYTES {
+        return Err(anyhow!("image must be between 1 byte and 16 MiB"));
+    }
+    let reader =
+        image::ImageReader::new(std::io::Cursor::new(bytes.as_slice())).with_guessed_format()?;
+    let (mime_type, extension) = match reader.format() {
+        Some(image::ImageFormat::Png) => ("image/png", "png"),
+        Some(image::ImageFormat::Jpeg) => ("image/jpeg", "jpg"),
+        Some(image::ImageFormat::Gif) => ("image/gif", "gif"),
+        Some(image::ImageFormat::WebP) => ("image/webp", "webp"),
+        _ => {
+            return Err(anyhow!(
+                "unsupported image format; use PNG, JPEG, GIF, or WebP"
+            ))
+        }
+    };
+    let (width, height) = reader
+        .into_dimensions()
+        .map_err(|error| anyhow!("invalid image: {error}"))?;
+    Ok(DecodedImage {
+        bytes,
+        mime_type,
+        extension,
+        width: i32::try_from(width)?,
+        height: i32::try_from(height)?,
+    })
+}
+
+fn sent_json(conversation_id: String, message_id: String) -> Value {
+    json!({"sent": true, "conversation_id": conversation_id, "message_id": message_id})
+}
+
+fn ensure_send(state: &ServerState) -> Result<()> {
+    if state.message_send {
+        Ok(())
+    } else {
+        Err(anyhow!("MCP permission scope message_send is disabled"))
+    }
 }
 
 fn ensure_drafts(state: &ServerState) -> Result<()> {
@@ -1548,7 +2053,7 @@ fn conversation_json(item: super::model::ConversationListData) -> Value {
     json!({"conversation_id":item.conversation_id,"owner_id":item.owner_id,"name":item.name,"avatar_url":item.avatar_url,"category":item.category,"draft":item.draft,"updated_at_millis":item.updated_at_millis,"unseen_count":item.unseen_count,"mention_count":item.mention_count,"is_muted":item.is_muted,"is_verified":item.is_verified,"is_scam":item.is_scam,"is_bot":item.is_bot,"is_pinned":item.is_pinned,"identity_number":item.identity_number,"circle_ids":item.circle_ids,"participant_count":item.participant_count})
 }
 fn message_json(item: super::model::MessageListView) -> Value {
-    json!({"message_id":item.message_id,"conversation_id":item.conversation_id,"sender_id":item.sender_id,"sender_name":item.sender_name,"sender_identity_number":item.sender_identity_number,"category":item.category,"content":item.content,"status":item.status,"created_at_micros":item.created_at_micros,"media_url":item.media_url,"media_mime_type":item.media_mime_type,"media_size":item.media_size,"caption":item.caption,"quote_message_id":item.quote_message_id,"quote_content":item.quote_content,"is_pinned":item.pinned})
+    json!({"message_id":item.message_id,"conversation_id":item.conversation_id,"sender_id":item.sender_id,"sender_name":item.sender_name,"sender_identity_number":item.sender_identity_number,"category":item.category,"content":item.content,"status":item.status,"created_at_micros":item.created_at_micros,"media_url":item.media_url,"media_mime_type":item.media_mime_type,"media_size":item.media_size,"caption":item.caption,"quote_message_id":item.quote_message_id,"quote_content":item.quote_content,"sticker_id":item.sticker_id,"shared_user_id":item.shared_user_id,"is_pinned":item.pinned})
 }
 fn search_message_json(item: super::model::MessageListView, conversation: Option<Value>) -> Value {
     let mut message = message_json(item);
@@ -1638,7 +2143,7 @@ mod tests {
     fn tool_router_builds_object_output_schemas_for_every_tool() {
         let tools = McpService::tool_router().list_all();
 
-        assert_eq!(tools.len(), 17);
+        assert_eq!(tools.len(), 22);
         for tool in tools {
             let schema = tool
                 .output_schema
@@ -1650,6 +2155,134 @@ mod tests {
                 tool.name,
             );
         }
+    }
+
+    #[test]
+    fn decode_image_reads_format_and_size_and_rejects_non_images() {
+        use base64ct::{Base64, Encoding};
+        let mut png = Vec::new();
+        image::RgbImage::new(3, 2)
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+        let encoded = Base64::encode_string(&png);
+
+        for data in [encoded.clone(), format!("data:image/png;base64,{encoded}")] {
+            let image = decode_image(&data).unwrap();
+            assert_eq!(
+                (image.mime_type, image.extension, image.width, image.height),
+                ("image/png", "png", 3, 2)
+            );
+            assert_eq!(image.bytes, png);
+        }
+        for data in [
+            "not base64!".to_owned(),
+            Base64::encode_string(b"plain text, not an image"),
+            String::new(),
+            "data:image/png,raw".to_owned(),
+        ] {
+            assert!(decode_image(&data).is_err(), "{data:?} must be rejected");
+        }
+    }
+
+    #[tokio::test]
+    async fn agent_event_batch_returns_triggered_messages_from_others_and_resumes_after_cursor() {
+        let directory = tempfile::tempdir().unwrap();
+        let identity_number = "39869091";
+        let path = directory.path().join(identity_number).join("mixin.db");
+        let database = MixinDatabase::connect_at(&path).await.unwrap();
+        for (user_id, identity) in [("account-id", identity_number), ("friend-id", "7000")] {
+            crate::db::query(
+                r#"INSERT INTO users (
+                       user_id, identity_number, relationship, full_name, avatar_url, phone,
+                       is_verified, created_at, mute_until, has_pin, biography, is_scam,
+                       code_url, code_id, is_deactivated
+                   ) VALUES (?, ?, NULL, 'User', '', '', FALSE, 0, 0, FALSE, '', FALSE, '', '', FALSE)"#,
+            )
+            .bind(user_id)
+            .bind(identity)
+            .execute(&database.user_dao.0)
+            .await
+            .unwrap();
+        }
+        crate::db::query(
+            "INSERT INTO conversations (conversation_id, owner_id, category, name, created_at, status, mute_until) VALUES \
+             ('direct', 'friend-id', 'CONTACT', '', 0, 0, 0), \
+             ('group', 'friend-id', 'GROUP', 'Dev', 0, 0, ?)",
+        )
+        .bind(i64::MAX)
+        .execute(&database.conversation_dao.0)
+        .await
+        .unwrap();
+        for (message_id, conversation_id, user_id, category, content) in [
+            ("own", "direct", "account-id", "PLAIN_TEXT", "from me"),
+            ("hello", "direct", "friend-id", "PLAIN_TEXT", "hello"),
+            ("muted", "group", "friend-id", "PLAIN_TEXT", "chatter"),
+            ("ask", "group", "friend-id", "PLAIN_TEXT", "@39869091 help"),
+            ("recall", "direct", "friend-id", "MESSAGE_RECALL", "hello"),
+        ] {
+            database
+                .message_dao
+                .insert_message(&Message {
+                    message_id: message_id.into(),
+                    conversation_id: conversation_id.into(),
+                    user_id: user_id.into(),
+                    category: category.into(),
+                    content: Some(content.into()),
+                    status: MessageStatus::Delivered,
+                    created_at: Utc::now().naive_utc(),
+                    ..Message::default()
+                })
+                .await
+                .unwrap();
+        }
+        database.close().await;
+        let source = McpSource::ReadOnly(Arc::new(
+            ReadOnlyMcpSource::open(directory.path(), identity_number.to_owned())
+                .await
+                .unwrap(),
+        ));
+
+        let batch = source.agent_event_batch(0, 200).await.unwrap();
+        let resumed = source
+            .agent_event_batch(batch.events[0].cursor, 200)
+            .await
+            .unwrap();
+        let caught_up = source
+            .agent_event_batch(batch.next_row_id, 200)
+            .await
+            .unwrap();
+
+        let summary = |batch: &AgentEventBatch| {
+            batch
+                .events
+                .iter()
+                .map(|event| {
+                    (
+                        event.data["message"]["message_id"]
+                            .as_str()
+                            .unwrap()
+                            .to_owned(),
+                        event.data["trigger"].as_str().unwrap().to_owned(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            summary(&batch),
+            [
+                ("hello".to_owned(), "direct".to_owned()),
+                ("ask".to_owned(), "mention".to_owned()),
+            ]
+        );
+        assert_eq!(batch.events[1].data["message"]["sender_id"], "friend-id");
+        assert_eq!(batch.events[1].data["conversation"]["category"], "GROUP");
+        assert!(!batch.has_more);
+        assert_eq!(
+            summary(&resumed),
+            [("ask".to_owned(), "mention".to_owned())]
+        );
+        assert!(caught_up.events.is_empty());
+        assert_eq!(caught_up.next_row_id, batch.next_row_id);
     }
 
     async fn read_only_test_source() -> (tempfile::TempDir, Arc<ReadOnlyMcpSource>) {
@@ -1716,6 +2349,7 @@ mod tests {
             search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
             source: McpSource::ReadOnly(source),
             settings: McpSettings::disabled("token".into()),
+            message_send: false,
         });
         let permit = service.state.search_slot.acquire().await.unwrap();
         let input = || SearchMessagesInput {
@@ -1782,6 +2416,7 @@ mod tests {
             search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
             source: McpSource::ReadOnly(source),
             settings: McpSettings::disabled("token".into()),
+            message_send: false,
         });
         let input = |cursor: Option<&Value>| ListMessagesInput {
             conversation_id: "conversation".into(),
@@ -1819,6 +2454,7 @@ mod tests {
                 search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
                 source: McpSource::ReadOnly(source.clone()),
                 settings: McpSettings::disabled("test-token".into()),
+                message_send: false,
             },
             &cancellation,
         );
@@ -1903,6 +2539,7 @@ mod tests {
             search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
             source: McpSource::ReadOnly(source),
             settings: McpSettings::disabled("token".to_owned()),
+            message_send: false,
         });
 
         let tools = service
@@ -1935,6 +2572,8 @@ mod tests {
         assert!(tools.contains("mixin_search_messages"));
         assert!(!tools.contains("mixin_set_conversation_draft"));
         assert!(!tools.contains("mixin_create_circle"));
+        assert!(SEND_TOOLS.iter().all(|name| !tools.contains(*name)));
+        assert_eq!(status["permission_scopes"]["message_send"], false);
         assert_eq!(status.get("source"), Some(&json!("database")));
         assert_eq!(status.get("read_only"), Some(&json!(true)));
         assert_eq!(status.get("user_id"), Some(&json!("account-id")));
