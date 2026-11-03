@@ -19,11 +19,12 @@ use rmcp::handler::server::{
     router::tool::ToolRouter,
     wrapper::{Json, Parameters},
 };
-use rmcp::model::{ServerCapabilities, ServerInfo};
+use rmcp::model::{CallToolResult, ContentBlock, ServerCapabilities, ServerInfo};
 use rmcp::transport::streamable_http_server::{
     session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
 };
 use rmcp::{schemars, tool, tool_handler, tool_router, ServerHandler};
+use sdk::message_category::MessageCategory as _;
 use serde_json::{json, Map, Value};
 use subtle::ConstantTimeEq;
 use tokio::net::TcpListener;
@@ -710,6 +711,30 @@ impl McpSource {
             .collect())
     }
 
+    async fn transcript_messages(
+        &self,
+        transcript_id: String,
+    ) -> Result<Vec<model::MessageListView>> {
+        match self {
+            Self::Runtime(runtime) => Ok(runtime
+                .message_access()
+                .transcript_messages(transcript_id)
+                .await?),
+            Self::ReadOnly(source) => source
+                .database
+                .transcript_message_dao
+                .list_items(&transcript_id)
+                .await?
+                .into_iter()
+                .map(|item| {
+                    let mut view = item.into();
+                    normalize_message_media_paths(&mut view, true, &source.account_directory)?;
+                    Ok(view)
+                })
+                .collect(),
+        }
+    }
+
     async fn messages_around(
         &self,
         conversation_id: String,
@@ -1296,7 +1321,9 @@ impl McpService {
             .map_err(|error| error.to_string())
     }
 
-    #[tool(description = "Get one local message by message_id.")]
+    #[tool(
+        description = "Get one local message by message_id. A transcript (forwarded chat history) also returns its child messages in transcript_messages, with local media_url and media_status."
+    )]
     async fn mixin_get_message(
         &self,
         Parameters(input): Parameters<MessageIdInput>,
@@ -1311,13 +1338,80 @@ impl McpService {
                 .into_iter()
                 .next()
                 .ok_or_else(|| anyhow!("message not found"))?;
-            Ok(json!({"message": message_json(message)}))
+            if !message.category.is_transcript() {
+                return Ok(json!({"message": message_json(message)}));
+            }
+            let transcript_messages = self
+                .state
+                .source
+                .transcript_messages(message.message_id.clone())
+                .await?
+                .into_iter()
+                .map(|item| {
+                    let media_status = item.media_status.clone();
+                    let mut value = message_json(item);
+                    value["media_status"] = json!(media_status);
+                    value
+                })
+                .collect::<Vec<_>>();
+            Ok(json!({
+                "message": message_json(message),
+                "transcript_messages": transcript_messages,
+            }))
         }
         .await;
         result
             .map(object)
             .map(Json)
             .map_err(|error| error.to_string())
+    }
+
+    #[tool(
+        description = "Read a downloaded image attachment as image content. For an image inside a transcript, pass the transcript message_id as transcript_id."
+    )]
+    async fn mixin_read_attachment(
+        &self,
+        Parameters(input): Parameters<ReadAttachmentInput>,
+    ) -> Result<CallToolResult, String> {
+        let result: Result<CallToolResult> = async {
+            let id = require_non_empty(input.message_id, "message_id")?;
+            let message = match input.transcript_id {
+                Some(transcript_id) => self
+                    .state
+                    .source
+                    .transcript_messages(require_non_empty(transcript_id, "transcript_id")?)
+                    .await?
+                    .into_iter()
+                    .find(|message| message.message_id == id),
+                None => self
+                    .state
+                    .source
+                    .messages_by_ids(vec![id])
+                    .await?
+                    .into_iter()
+                    .next(),
+            }
+            .ok_or_else(|| anyhow!("message not found"))?;
+            if !message.category.is_image() {
+                return Err(anyhow!("message is not an image"));
+            }
+            if message.media_status != "DONE" {
+                return Err(anyhow!(
+                    "attachment is not downloaded: media_status={}",
+                    message.media_status
+                ));
+            }
+            let path = message
+                .media_url
+                .filter(|path| !path.trim().is_empty())
+                .ok_or_else(|| anyhow!("attachment has no local file"))?;
+            let (data, mime_type) = read_attachment_image(Path::new(&path)).await?;
+            Ok(CallToolResult::success(vec![ContentBlock::image(
+                data, mime_type,
+            )]))
+        }
+        .await;
+        result.map_err(|error| error.to_string())
     }
 
     #[tool(description = "Read messages before and after one message.")]
@@ -1774,6 +1868,13 @@ struct MessageIdInput {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+struct ReadAttachmentInput {
+    message_id: String,
+    /// The transcript message_id when message_id is a message inside a transcript.
+    transcript_id: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 struct ListConversationsInput {
     query: Option<String>,
     circle_id: Option<String>,
@@ -1909,6 +2010,7 @@ fn enabled_capabilities(state: &ServerState) -> Vec<&'static str> {
         "mixin_search_messages",
         "mixin_get_message",
         "mixin_get_message_context",
+        "mixin_read_attachment",
         "mixin_list_conversation_participants",
         "mixin_resolve_conversation_participant",
         "mixin_list_circles",
@@ -1942,6 +2044,28 @@ const SEND_TOOLS: [&str; 5] = [
 ];
 
 const MAX_IMAGE_BYTES: usize = 16 * 1024 * 1024;
+
+const MAX_READ_ATTACHMENT_BYTES: u64 = 5 * 1024 * 1024;
+
+/// Reads an image attachment and returns its base64 data and the MIME type of its actual format.
+async fn read_attachment_image(path: &Path) -> Result<(String, &'static str)> {
+    use base64ct::{Base64, Encoding};
+    let size = tokio::fs::metadata(path).await?.len();
+    if size == 0 || size > MAX_READ_ATTACHMENT_BYTES {
+        return Err(anyhow!(
+            "attachment must be between 1 byte and 5 MiB, got {size} bytes"
+        ));
+    }
+    let bytes = tokio::fs::read(path).await?;
+    let mime_type = match image::guess_format(&bytes) {
+        Ok(image::ImageFormat::Png) => "image/png",
+        Ok(image::ImageFormat::Jpeg) => "image/jpeg",
+        Ok(image::ImageFormat::Gif) => "image/gif",
+        Ok(image::ImageFormat::WebP) => "image/webp",
+        _ => return Err(anyhow!("unsupported image format")),
+    };
+    Ok((Base64::encode_string(&bytes), mime_type))
+}
 
 struct DecodedImage {
     bytes: Vec<u8>,
@@ -2143,8 +2267,12 @@ mod tests {
     fn tool_router_builds_object_output_schemas_for_every_tool() {
         let tools = McpService::tool_router().list_all();
 
-        assert_eq!(tools.len(), 22);
-        for tool in tools {
+        assert_eq!(tools.len(), 23);
+        // mixin_read_attachment returns image content instead of structured output.
+        for tool in tools
+            .into_iter()
+            .filter(|tool| tool.name != "mixin_read_attachment")
+        {
             let schema = tool
                 .output_schema
                 .unwrap_or_else(|| panic!("{} has no output schema", tool.name));
@@ -2445,6 +2573,118 @@ mod tests {
         assert!(second["pagination"]["next_cursor"].is_null());
     }
 
+    /// A read-only service with one transcript holding a text, a downloaded image, and a
+    /// pending image child.
+    async fn transcript_test_service() -> (tempfile::TempDir, McpService) {
+        use crate::db::mixin::message::MediaStatus;
+        let (directory, source) = read_only_test_source().await;
+        let database = MixinDatabase::connect_at(&source.info.database_path)
+            .await
+            .unwrap();
+        database
+            .message_dao
+            .insert_message(&Message {
+                message_id: "transcript".into(),
+                conversation_id: "conversation".into(),
+                user_id: "account-id".into(),
+                category: "SIGNAL_TRANSCRIPT".into(),
+                content: Some("[]".into()),
+                status: MessageStatus::Sent,
+                created_at: Utc::now().naive_utc(),
+                ..Message::default()
+            })
+            .await
+            .unwrap();
+        let mut children: Vec<crate::db::mixin::transcript_message::TranscriptMessage> =
+            serde_json::from_value(json!([
+                {"transcript_id":"transcript","message_id":"text-child","category":"SIGNAL_TEXT",
+                 "created_at":"2024-01-02T03:04:05Z","content":"signing failed"},
+                {"transcript_id":"transcript","message_id":"image-child","category":"SIGNAL_IMAGE",
+                 "created_at":"2024-01-02T03:04:06Z","content":"attachment-id",
+                 "media_url":"image-child.png","media_mime_type":"image/png","media_size":42},
+                {"transcript_id":"transcript","message_id":"pending-child","category":"SIGNAL_IMAGE",
+                 "created_at":"2024-01-02T03:04:07Z","content":"attachment-id",
+                 "media_mime_type":"image/png","media_size":42}
+            ]))
+            .unwrap();
+        children[1].media_status = Some(MediaStatus::Done);
+        children[2].media_status = Some(MediaStatus::Pending);
+        database
+            .transcript_message_dao
+            .insert_all(&children)
+            .await
+            .unwrap();
+        database.close().await;
+        let service = McpService::new(ServerState {
+            search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
+            source: McpSource::ReadOnly(source),
+            settings: McpSettings::disabled("token".into()),
+            message_send: false,
+        });
+        (directory, service)
+    }
+
+    #[tokio::test]
+    async fn get_transcript_message_returns_children_with_local_media_paths() {
+        let (directory, service) = transcript_test_service().await;
+
+        let output = service
+            .mixin_get_message(Parameters(MessageIdInput {
+                message_id: "transcript".into(),
+            }))
+            .await
+            .unwrap()
+            .0;
+
+        assert_eq!(output["message"]["message_id"], "transcript");
+        let children = output["transcript_messages"].as_array().unwrap();
+        assert_eq!(children.len(), 3);
+        assert_eq!(children[0]["content"], "signing failed");
+        assert_eq!(children[1]["message_id"], "image-child");
+        assert_eq!(children[1]["media_status"], "DONE");
+        let expected = directory
+            .path()
+            .join("39869091/Media/Transcripts/image-child.png");
+        assert_eq!(
+            children[1]["media_url"].as_str(),
+            Some(expected.to_str().unwrap())
+        );
+    }
+
+    #[tokio::test]
+    async fn read_attachment_returns_downloaded_transcript_image_and_rejects_pending_one() {
+        use base64ct::{Base64, Encoding};
+        let (directory, service) = transcript_test_service().await;
+        let mut png = Vec::new();
+        image::RgbaImage::new(1, 1)
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+        let media = directory.path().join("39869091/Media/Transcripts");
+        std::fs::create_dir_all(&media).unwrap();
+        std::fs::write(media.join("image-child.png"), &png).unwrap();
+        let input = |message_id: &str| ReadAttachmentInput {
+            message_id: message_id.into(),
+            transcript_id: Some("transcript".into()),
+        };
+
+        let result = service
+            .mixin_read_attachment(Parameters(input("image-child")))
+            .await
+            .unwrap();
+        let ContentBlock::Image(image) = &result.content[0] else {
+            panic!("expected image content");
+        };
+        assert_eq!(image.mime_type, "image/png");
+        assert_eq!(Base64::decode_vec(&image.data).unwrap(), png);
+
+        let error = service
+            .mixin_read_attachment(Parameters(input("pending-child")))
+            .await
+            .err()
+            .unwrap();
+        assert_eq!(error, "attachment is not downloaded: media_status=PENDING");
+    }
+
     #[tokio::test]
     async fn database_sidecar_exposes_only_read_tools_and_reports_its_source() {
         let (_directory, source) = read_only_test_source().await;
@@ -2567,7 +2807,7 @@ mod tests {
             .unwrap()
             .0;
 
-        assert_eq!(tools.len(), 11);
+        assert_eq!(tools.len(), 12);
         assert!(tools.contains("mixin_list_conversations"));
         assert!(tools.contains("mixin_search_messages"));
         assert!(!tools.contains("mixin_set_conversation_draft"));
