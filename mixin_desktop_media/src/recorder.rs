@@ -22,14 +22,6 @@ pub enum VoiceRecorderStatus {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[cfg_attr(
-    feature = "specta",
-    derive(serde::Deserialize, serde::Serialize, specta::Type)
-)]
-#[cfg_attr(
-    feature = "specta",
-    serde(rename_all = "camelCase", rename = "VoiceRecording")
-)]
 pub struct VoiceRecording {
     pub path: String,
     pub duration_millis: u64,

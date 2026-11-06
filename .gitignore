@@ -5,12 +5,6 @@ target
 *.db
 *.db-shm
 *.db-wal
-*.xcuserstate
-xcuserdata/
-/buildServer.json
 /Build/
-/typescript/dist/
-/typescript/node_modules/
-/typescript/*.tsbuildinfo
 
 mixin-db-mcp.toml

@@ -1,5 +1,5 @@
-const APP_VERSION: &str = env!("MIXIN_APP_VERSION");
-const APP_BUILD_NUMBER: &str = env!("MIXIN_APP_BUILD_NUMBER");
+const APP_VERSION: &str = "5.1.2";
+const APP_BUILD_NUMBER: &str = "557";
 
 pub fn provisioning_app_version() -> String {
     format!("{APP_VERSION}({APP_BUILD_NUMBER})")

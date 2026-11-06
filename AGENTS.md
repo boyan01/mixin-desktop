@@ -1,36 +1,31 @@
 # Mixin Messenger Repository Working Agreement
 
-## Scope routing
+## Product and scope
 
-- These rules apply to the whole repository.
-- For work under `swiftui/`, also read `swiftui/AGENTS.md`. It owns the SwiftUI architecture, macOS state management, navigation, UniFFI lifecycle, source organization, parity workflow, and Xcode validation.
-- For SwiftUI/macOS feature work that also changes `mixin_desktop_api`, `mixin_desktop_core`, or `mixin-bot-sdk`, apply the relevant bridge and parity rules from `swiftui/AGENTS.md` to those shared changes.
-- For work under `flutter/`, also read `flutter/AGENTS.md`. It owns Flutter hooks, Provider state management, FRB lifecycle, widget testing, and Flutter validation.
-- For work that affects both UI targets, preserve both bridge contracts and run the validation required by each affected target.
+- The desktop UI is being rebuilt in Rust with Native Shell (NSH).
+- Keep the shared Rust business layer and headless client independent of NSH.
+- Use the installed `nsh` and `nsh-design-guides` skills for NSH implementation.
+- Target native desktop backends. Validate macOS first; report Windows and Linux as unverified until checked on those platforms.
 
 ## Shared architecture boundary
 
 - Rust owns protocol and API access, Blaze, Signal, sync, jobs, SQLite, credentials, durable settings, durable business state, and reusable business filtering.
-- Each UI target owns presentation, navigation, view-local state, UI-tree composition, lifecycle, and platform integrations such as notification delivery and click handling.
+- The Rust UI owns presentation, navigation, view-local state, UI-tree composition, lifecycle, and platform integrations such as notification delivery and click handling.
 - `DesktopRuntime` owns process-scoped Rust services. `AccountRuntime` remains authoritative for account-scoped business state.
-- `mixin_desktop_api` is the platform-neutral public facade over `mixin_desktop_core`. Keep it free of Flutter, SwiftUI, FRB, UniFFI, and platform presentation types.
-- UI bridge crates depend on `mixin_desktop_api`. Do not bypass the public facade to expose core DAOs or internal services.
-- Expose coarse account-scoped handles, DTOs, commands, and event streams. Prefer screen-ready queries and batched commands over per-row or per-field FFI calls.
-- UI targets must not maintain a second durable profile, conversation, message, or settings source of truth.
+- `mixin_desktop_api` is the platform-neutral public facade over `mixin_desktop_core`. Keep it free of NSH and platform presentation types.
+- The Rust UI depends on `mixin_desktop_api`. Keep core DAOs and internal services behind that facade.
+- Expose coarse account-scoped handles, DTOs, commands, and event streams. Prefer screen-ready queries and batched commands over per-row or per-field calls.
+- The UI must not maintain a second durable profile, conversation, message, or settings source of truth.
 - Prefer events over polling. Preserve cancellation, disposal, shutdown, lag recovery, and request-version guards for long-lived asynchronous work.
 - Keep UI controllers and models limited to presentation state, bounded paging/message windows, orchestration, and presentation mapping.
 
-## Public API, bridges, and generated code
+## Public Rust API
 
-- Stabilize the public Rust API shape before adding bridge annotations or regenerating bindings.
 - Use `mixin_desktop_api::ClientResult<T>` and `ClientError` as the shared public error contract. Convert internal errors once at the public boundary.
-- Prefer bridge-safe primitives, records, enums, byte arrays, opaque handles, explicit timestamp units, and string filesystem paths.
-- Do not expose SQL rows, DAOs, Tokio runtime handles, Rust path types, or internal synchronization primitives.
-- Keep bridge-specific error lowering exhaustive and typed. Preserve unauthorized, not found, cancelled, and invalid argument cases.
-- After changing an FRB-visible API, run `flutter_rust_bridge_codegen generate` from `flutter/` and include generated Dart changes.
-- After changing a UniFFI-visible API, regenerate Swift source, C headers, and the module map with the workflow in `swiftui/README.md`.
-- Generated code is committed. Inspect generated diffs for accidental API expansion, stale symbols, naming regressions, and formatting noise.
-- Do not add thin wrappers that only rename an existing operation. A wrapper must add conversion, batching, cancellation, lifecycle ownership, error lowering, or a meaningful test seam.
+- Expose coarse account-scoped clients, commands, screen-ready queries, and cancellable event streams.
+- Keep SQL rows, DAOs, Tokio runtime handles, and internal synchronization primitives private to the owning business module.
+- Add presentation mapping only where it serves the UI. Avoid wrappers that merely rename an existing operation.
+- UI signals stay on the NSH engine thread. Run business work on the Rust runtime and deliver results back through owner-scoped tasks.
 
 ## Testing discipline
 
@@ -61,11 +56,10 @@ cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-- Follow `swiftui/AGENTS.md` for SwiftUI, UniFFI, Xcode, and macOS live validation.
-- Follow `flutter/AGENTS.md` for Dart formatting, Flutter analysis, tests, FRB generation, and Flutter builds.
-- A shared public API change must compile every affected bridge and UI target even when only one target currently consumes the new method.
-- Run `git diff --check` and inspect the final diff for generated noise and unrelated changes.
-- Distinguish repository failures from local Xcode, CocoaPods, signing, Flutter cache, and other toolchain failures.
+- Compile every affected Rust consumer after a shared public API change.
+- For NSH startup and login, run the native app and verify the runtime result. Use isolated test data and mixtest accounts for live login checks.
+- Run `git diff --check` and inspect the final diff for unrelated changes.
+- Distinguish repository failures from local native SDK, signing, and other toolchain failures.
 
 ## Communication and commits
 
