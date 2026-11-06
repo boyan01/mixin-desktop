@@ -3541,6 +3541,7 @@ name = "mixin_desktop_headless"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "directories",
  "futures",
  "mixin_desktop_api",
  "qrcode",

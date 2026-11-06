@@ -1,6 +1,7 @@
 use std::env;
 
 use anyhow::{anyhow, Result};
+use directories::BaseDirs;
 use futures::StreamExt;
 use mixin_desktop_api::{AccountClient, ClientError, DesktopClient};
 use qrcode::{render::unicode, QrCode};
@@ -14,7 +15,7 @@ const USAGE: &str = "Usage:
                          /events. --allow-send enables the mixin_send_text tool.
   mixin-headless token   Print the MCP bearer token
 
-MIXIN_DESKTOP_DATA_DIR must be set so data stays apart from the Mixin desktop app.";
+Data is stored in ~/.mixin/mixin-headless.";
 
 const DATA_DIRECTORY_ENV: &str = "MIXIN_DESKTOP_DATA_DIR";
 
@@ -49,11 +50,14 @@ async fn main() -> Result<()> {
             _ => return Err(anyhow!("unknown option: {argument}\n\n{USAGE}")),
         }
     }
-    // Without it the runtime falls back to the desktop app's data directory
-    // and would share its account and database.
-    if env::var_os(DATA_DIRECTORY_ENV).is_none_or(|value| value.is_empty()) {
-        return Err(anyhow!("set {DATA_DIRECTORY_ENV} to a dedicated directory"));
-    }
+    // The runtime reads its data directory from this variable. Always pin it
+    // so headless never shares the desktop app's account and database.
+    let data_directory = BaseDirs::new()
+        .ok_or_else(|| anyhow!("failed to resolve the home directory"))?
+        .home_dir()
+        .join(".mixin")
+        .join("mixin-headless");
+    env::set_var(DATA_DIRECTORY_ENV, data_directory);
     let desktop = DesktopClient::open().await?;
     match command.as_str() {
         "login" => login(&desktop).await,

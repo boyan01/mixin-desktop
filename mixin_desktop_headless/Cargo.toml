@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
+directories = "6.0.0"
 futures = "0.3"
 mixin_desktop_api = { path = "../mixin_desktop_api" }
 qrcode = { version = "0.14", default-features = false }

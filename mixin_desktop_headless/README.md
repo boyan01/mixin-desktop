@@ -17,7 +17,6 @@ client signs this one out.
 
 ```sh
 cargo build -p mixin_desktop_headless --release
-export MIXIN_DESKTOP_DATA_DIR=~/mixin-headless-data
 
 # Scan the QR code with the Mixin app of the dedicated account.
 # Expired codes are replaced every 60 seconds.
@@ -30,9 +29,8 @@ export MIXIN_DESKTOP_DATA_DIR=~/mixin-headless-data
 ./target/release/mixin-headless token
 ```
 
-`MIXIN_DESKTOP_DATA_DIR` is required. Without it the runtime would fall back to
-the desktop app's data directory and share its account and database. Logs are
-written to `$MIXIN_DESKTOP_DATA_DIR/log`.
+Data is stored in `~/.mixin/mixin-headless`, apart from the desktop app's
+account and database. Logs are written to `~/.mixin/mixin-headless/log`.
 
 The default port is 55001, which is also the desktop app's MCP port. Pass
 `--port` when both run on the same machine.
@@ -168,11 +166,6 @@ once by hand first.
     <string>--port</string>
     <string>55002</string>
   </array>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>MIXIN_DESKTOP_DATA_DIR</key>
-    <string>/Users/me/mixin-headless-data</string>
-  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -180,7 +173,7 @@ once by hand first.
   <key>ThrottleInterval</key>
   <integer>30</integer>
   <key>StandardErrorPath</key>
-  <string>/Users/me/mixin-headless-data/serve.log</string>
+  <string>/Users/me/.mixin/mixin-headless/serve.log</string>
 </dict>
 </plist>
 ```
