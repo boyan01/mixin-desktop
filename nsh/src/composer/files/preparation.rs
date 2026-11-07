@@ -1,9 +1,12 @@
 //! Retains prepared sources across appends; each source has one current recipe.
 use super::Mode;
-use crate::composer::AttachmentSource;
-use mixin_desktop_api::{ClientResult, ImageEdit, MediaClient, PreparedAttachment};
+use crate::{composer::AttachmentSource, runtime};
+use mixin_desktop_api::{ClientError, ClientResult, ImageEdit, MediaClient, PreparedAttachment};
 use nsh_core::prelude::*;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 #[derive(Clone)]
 pub(super) struct Source {
@@ -14,12 +17,59 @@ pub(super) struct Source {
     pub edited: Option<PreparedAttachment>,
 }
 
+impl Source {
+    pub fn new(id: u64, input: AttachmentSource) -> Self {
+        Self {
+            id,
+            input,
+            original: None,
+            edits: Vec::new(),
+            edited: None,
+        }
+    }
+
+    pub fn name(&self) -> String {
+        match &self.input {
+            AttachmentSource::Path(path) => std::path::Path::new(path)
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            AttachmentSource::Clipboard { name, .. } => name.clone(),
+        }
+    }
+}
+
 #[derive(Clone)]
-pub(super) struct Cached {
+struct Cached {
     media: bool,
     compress: bool,
     edited: Option<String>,
-    pub item: PreparedAttachment,
+    item: PreparedAttachment,
+}
+
+/// Rows survive a cancelled preparation, so adding a file or changing the mode
+/// never repeats compression of the rows that already finished.
+#[derive(Clone, Default)]
+pub(super) struct Cache(Arc<Mutex<HashMap<u64, Cached>>>);
+
+impl Cache {
+    fn entries(&self) -> std::sync::MutexGuard<'_, HashMap<u64, Cached>> {
+        self.0.lock().expect("attachment cache")
+    }
+
+    pub fn item(&self, id: u64) -> Option<PreparedAttachment> {
+        self.entries().get(&id).map(|entry| entry.item.clone())
+    }
+
+    /// Forgets removed rows and returns the finished items in source order.
+    pub fn retain(&self, sources: &[Source]) -> Vec<PreparedAttachment> {
+        let mut entries = self.entries();
+        entries.retain(|id, _| sources.iter().any(|source| source.id == *id));
+        sources
+            .iter()
+            .filter_map(|source| entries.get(&source.id).map(|entry| entry.item.clone()))
+            .collect()
+    }
 }
 
 pub(super) async fn prepare_source(
@@ -42,44 +92,52 @@ pub(super) async fn prepare_source(
     }
 }
 
+/// A failure names its file: the rest of the batch stays usable once it is removed.
 pub(super) async fn prepare_sources(
     media: Arc<MediaClient>,
     sources: Vec<Source>,
     mode: Mode,
     compress: bool,
-    cached: HashMap<u64, Cached>,
-) -> ClientResult<(Vec<PreparedAttachment>, HashMap<u64, Cached>)> {
+    cache: Cache,
+) -> ClientResult<Vec<PreparedAttachment>> {
     let as_media = matches!(mode, Mode::Auto | Mode::Media);
     let compress = as_media && compress;
     let mut items = Vec::with_capacity(sources.len());
-    let mut cache = HashMap::with_capacity(sources.len());
     for source in &sources {
         let edited = source.edited.as_ref().map(|item| item.path.clone());
-        let item = if let Some(entry) = cached.get(&source.id).filter(|entry| {
-            entry.media == as_media && entry.compress == compress && entry.edited == edited
-        }) {
-            entry.item.clone()
-        } else if let Some(retained) = &source.edited {
-            let mut item = media
+        let current = cache.entries().get(&source.id).and_then(|entry| {
+            (entry.media == as_media && entry.compress == compress && entry.edited == edited)
+                .then(|| entry.item.clone())
+        });
+        if let Some(item) = current {
+            items.push(item);
+            continue;
+        }
+        let prepared = if let Some(retained) = &source.edited {
+            media
                 .prepare_attachment(retained.path.clone(), as_media, compress)
-                .await?;
-            item.name = retained.name.clone();
-            item
+                .await
+                .map(|mut item| {
+                    item.name = retained.name.clone();
+                    item
+                })
         } else {
-            prepare_source(&media, &source.input, as_media, compress).await?
+            prepare_source(&media, &source.input, as_media, compress).await
         };
-        items.push(item.clone());
-        cache.insert(
+        let item = prepared
+            .map_err(|error| ClientError::Internal(format!("{}: {error}", source.name())))?;
+        cache.entries().insert(
             source.id,
             Cached {
                 media: as_media,
                 compress,
                 edited,
-                item,
+                item: item.clone(),
             },
         );
+        items.push(item);
     }
-    Ok((items, cache))
+    Ok(items)
 }
 
 pub(super) fn local_sources(uris: &[String]) -> Vec<AttachmentSource> {
@@ -113,14 +171,9 @@ pub(super) async fn clipboard_sources() -> Vec<AttachmentSource> {
     let Some(image) = clipboard_image().await else {
         return Vec::new();
     };
-    use base64::Engine as _;
-    let Some((header, bytes)) = image.url.split_once(',') else {
-        return Vec::new();
-    };
-    if !header.starts_with("data:image/") || !header.ends_with(";base64") {
-        return Vec::new();
-    }
-    let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(bytes) else {
+    // A screenshot's data URI is megabytes: decode it off the engine thread.
+    let bytes = runtime::run(async move { Ok(decode_image(&image.url)) }).await;
+    let Ok(Some(bytes)) = bytes else {
         return Vec::new();
     };
     vec![AttachmentSource::Clipboard {
@@ -129,12 +182,11 @@ pub(super) async fn clipboard_sources() -> Vec<AttachmentSource> {
     }]
 }
 
-pub(super) fn name(source: &Source) -> String {
-    match &source.input {
-        AttachmentSource::Path(path) => std::path::Path::new(path)
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_default(),
-        AttachmentSource::Clipboard { name, .. } => name.clone(),
+fn decode_image(url: &str) -> Option<Vec<u8>> {
+    use base64::Engine as _;
+    let (header, bytes) = url.split_once(',')?;
+    if !header.starts_with("data:image/") || !header.ends_with(";base64") {
+        return None;
     }
+    base64::engine::general_purpose::STANDARD.decode(bytes).ok()
 }

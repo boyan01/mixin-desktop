@@ -1,9 +1,10 @@
 use mixin_desktop_api::{AccountClient, ConversationListData, UserProfileItem};
 use std::sync::Arc;
 
-use crate::{i18n::tr, runtime, ui};
-use nsh_base::theme;
+use crate::{conversation::parts, i18n::tr, runtime, ui};
 use nsh_core::prelude::*;
+
+const PAGE_SIZE: i64 = 60;
 
 #[derive(Clone)]
 pub(crate) enum Recipient {
@@ -11,9 +12,11 @@ pub(crate) enum Recipient {
     User(UserProfileItem),
 }
 impl Recipient {
-    fn key(&self) -> String {
+    /// A person has one key, whether picked from chats or from contacts.
+    pub(crate) fn key(&self) -> String {
         match self {
-            Self::Chat(row) => format!("chat:{}", row.conversation_id),
+            Self::Chat(row) if row.category == "GROUP" => format!("chat:{}", row.conversation_id),
+            Self::Chat(row) => format!("user:{}", row.owner_id),
             Self::User(user) => format!("user:{}", user.user_id),
         }
     }
@@ -37,6 +40,17 @@ pub(crate) fn screen(
     cancel: impl Fn() + Copy + 'static,
     choose: impl Fn(Recipient) + Copy + 'static,
 ) -> impl IntoElement {
+    picker(account, disabled, |_| false, cancel, choose)
+}
+
+/// `selected` marks rows of a multi-selection; `choose` toggles them.
+pub(crate) fn picker(
+    account: Arc<AccountClient>,
+    disabled: impl Fn() -> bool + Copy + 'static,
+    selected: impl Fn(&Recipient) -> bool + Copy + 'static,
+    cancel: impl Fn() + Copy + 'static,
+    choose: impl Fn(Recipient) + Copy + 'static,
+) -> impl IntoElement {
     let account = stored(account);
     let contacts = signal(false);
     let query = signal(String::new());
@@ -46,11 +60,8 @@ pub(crate) fn screen(
     let more = signal(false);
     let loading = signal(true);
     let failed = signal(false);
-    let request = signal(0_u64);
     let retry = signal(0_u64);
     effect(move || {
-        let ticket = request.get_untracked().wrapping_add(1);
-        request.set(ticket);
         if composing.get() {
             loading.set(true);
             return;
@@ -63,11 +74,14 @@ pub(crate) fn screen(
         loading.set(true);
         failed.set(false);
         spawn(async move {
+            if !query.trim().is_empty() {
+                timer(parts::SEARCH_DELAY).await;
+            }
             let result = runtime::run(async move {
                 if contacts {
                     Ok(client
                         .user()
-                        .selectable_users_page(query, page * 60, 61)
+                        .selectable_users_page(query, page * PAGE_SIZE, PAGE_SIZE + 1)
                         .await?
                         .into_iter()
                         .map(Recipient::User)
@@ -75,7 +89,14 @@ pub(crate) fn screen(
                 } else {
                     Ok(client
                         .conversation()
-                        .conversations("chats".into(), None, query, false, 61, page * 60)
+                        .conversations(
+                            "chats".into(),
+                            None,
+                            query,
+                            false,
+                            PAGE_SIZE + 1,
+                            page * PAGE_SIZE,
+                        )
                         .await?
                         .into_iter()
                         .map(|row| Recipient::Chat(Box::new(row)))
@@ -83,13 +104,10 @@ pub(crate) fn screen(
                 }
             })
             .await;
-            if request.get_untracked() != ticket {
-                return;
-            }
             match result {
                 Ok(mut values) => {
-                    more.set(values.len() > 60);
-                    values.truncate(60);
+                    more.set(values.len() > PAGE_SIZE as usize);
+                    values.truncate(PAGE_SIZE as usize);
                     rows.set(values);
                 }
                 Err(_) => failed.set(true),
@@ -97,6 +115,7 @@ pub(crate) fn screen(
             loading.set(false);
         });
     });
+    let unavailable = move || disabled() || composing.get();
     view()
         .flex_shrink(1.0)
         .min_h_0()
@@ -104,7 +123,7 @@ pub(crate) fn screen(
         .child(
             view().flex_none().flex_row().gap_2().children(
                 [
-                    (false, "Conversations", "会话"),
+                    (false, "Recent chats", "最近聊天"),
                     (true, "Contacts", "联系人"),
                 ]
                 .into_iter()
@@ -112,13 +131,9 @@ pub(crate) fn screen(
                     ui::command()
                         .flex_1()
                         .selected(move || contacts.get() == value)
-                        .selected_style(|style| style.bg(move || theme().accent))
-                        .disabled(move || disabled() || composing.get())
+                        .disabled(unavailable)
                         .on_press(move || {
-                            if disabled()
-                                || composing.get_untracked()
-                                || contacts.get_untracked() == value
-                            {
+                            if contacts.get_untracked() == value {
                                 return;
                             }
                             batch(|| {
@@ -134,7 +149,7 @@ pub(crate) fn screen(
         .child(
             ui::field()
                 .flex_none()
-                .label(move || tr("Choose recipient", "选择接收方"))
+                .label(move || tr("Search", "搜索"))
                 .placeholder(move || tr("Search", "搜索").to_owned())
                 .value(move || query.get())
                 .disabled(disabled)
@@ -151,129 +166,54 @@ pub(crate) fn screen(
                     batch(|| {
                         query.set(value.into());
                         page.set(0);
-                        rows.set(Vec::new());
                     })
                 })
                 .on_composition_change(move |event: &Composition| composing.set(event.composing)),
         )
-        .child(when(loading, || {
-            text(move || tr("Loading…", "加载中…")).text_sm()
-        }))
+        .child(when(
+            move || loading.get() && rows.with(Vec::is_empty),
+            || parts::status(move || tr("Loading…", "加载中…")),
+        ))
         .child(when(failed, move || {
-            view()
-                .gap_2()
-                .child(
-                    text(move || tr("Couldn’t load recipients.", "无法加载接收方。"))
-                        .text_sm()
-                        .text_color(move || theme().destructive),
-                )
-                .child(
-                    ui::action(
-                        move || tr("Retry", "重试"),
-                        move || {
-                            if !disabled() && !composing.get_untracked() {
-                                retry.update(|retry| *retry += 1);
-                            }
-                        },
-                    )
-                    .disabled(move || disabled() || composing.get()),
-                )
+            parts::failure(
+                move || tr("Couldn’t load chats. Try again.", "聊天加载失败，请重试。"),
+                move || retry.update(|retry| *retry += 1),
+            )
         }))
         .child(
             virtual_list(
                 move || rows.with(Vec::len),
                 move |at| {
                     let value = move || rows.with(|rows| rows.get(at.index()).cloned());
-                    ui::command()
-                        .justify_start()
-                        .min_h_16()
-                        .gap_3()
-                        .disabled(move || {
-                            loading.get() || failed.get() || disabled() || composing.get()
-                        })
-                        .child(ui::avatar_view(
-                            move || value().map(|value| value.name().into()).unwrap_or_default(),
-                            move || value().map(|value| value.avatar()).unwrap_or_default(),
-                        ))
-                        .child(
-                            text(move || value().map(|value| value.name()).unwrap_or_default())
-                                .text_sm()
-                                .number_of_lines(1)
-                                .flex_1(),
-                        )
-                        .on_press(move || {
-                            if loading.get_untracked()
-                                || failed.get_untracked()
-                                || disabled()
-                                || composing.get_untracked()
-                            {
-                                return;
-                            }
-                            if let Some(value) = value() {
-                                choose(value);
-                            }
-                        })
+                    parts::entity_row(
+                        move || value().map(|value| value.name()).unwrap_or_default(),
+                        move || value().map(|value| value.avatar()).unwrap_or_default(),
+                        String::new,
+                        move || value().is_some_and(|value| selected(&value)),
+                    )
+                    .px_3()
+                    .disabled(unavailable)
+                    .on_press(move || {
+                        if let Some(value) = value() {
+                            choose(value);
+                        }
+                    })
                 },
             )
             .keys(move || rows.with(|rows| rows.iter().map(Recipient::key).collect::<Vec<_>>()))
-            .estimated_item_size(px(64.0))
-            .h(move || px(rows.with(|rows| rows.len().min(5)) as f32 * 64.0))
+            .estimated_item_size(parts::row_height())
+            .h(move || parts::dialog_list_height(rows.with(Vec::len)))
             .flex_shrink(1.0)
             .min_h_0()
             .style_when(move || rows.with(Vec::is_empty), |style| style.hidden()),
         )
         .child(when(
             move || !loading.get() && !failed.get() && rows.with(Vec::is_empty),
-            || {
-                view().min_h_24().items_center().justify_center().child(
-                    text(move || tr("No recipients found", "没有找到接收方"))
-                        .text_sm()
-                        .text_color(move || theme().muted_foreground),
-                )
-            },
+            || ui::placeholder(move || tr("No chats found", "没有找到聊天")).min_h_24(),
         ))
-        .child(when(
-            move || page.get() > 0 || more.get(),
-            move || {
-                view()
-                    .flex_none()
-                    .flex_row()
-                    .justify_between()
-                    .gap_2()
-                    .child(
-                        ui::action(
-                            move || tr("Previous page", "上一页"),
-                            move || {
-                                if !disabled()
-                                    && !composing.get_untracked()
-                                    && !loading.get_untracked()
-                                    && page.get_untracked() > 0
-                                {
-                                    page.update(|page| *page = page.saturating_sub(1));
-                                }
-                            },
-                        )
-                        .disabled(move || {
-                            disabled() || composing.get() || loading.get() || page.get() == 0
-                        }),
-                    )
-                    .child(
-                        ui::action(
-                            move || tr("Next page", "下一页"),
-                            move || {
-                                if !disabled()
-                                    && !composing.get_untracked()
-                                    && !loading.get_untracked()
-                                    && more.get_untracked()
-                                {
-                                    page.update(|page| *page += 1);
-                                }
-                            },
-                        )
-                        .disabled(move || {
-                            disabled() || composing.get() || loading.get() || !more.get()
-                        }),
-                    )
-            },
+        .child(parts::pager(
+            page,
+            move || more.get(),
+            move || unavailable() || loading.get(),
         ))
 }

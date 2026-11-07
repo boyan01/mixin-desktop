@@ -1,13 +1,10 @@
 use super::{Command, Handle};
+use crate::i18n::tr;
 use nsh_core::{
     desktop::MenuRole,
     element::desktop::{MenuItem, set_application_menu},
     prelude::*,
 };
-
-fn tr(en: &'static str, zh: &'static str) -> &'static str {
-    crate::i18n::tr(en, zh)
-}
 
 fn quit_item(shell: Handle) -> MenuItem {
     #[cfg(any(target_os = "windows", target_os = "linux"))]

@@ -1,8 +1,15 @@
+use std::{collections::HashMap, time::Duration};
+
 use futures::StreamExt as _;
+use mixin_desktop_api::{ClientResult, QuickSearchItem};
 use nsh_base::{Command, CommandApi, CommandEntry, CommandItem, command};
 use nsh_core::keymap::When;
 
 use super::*;
+
+const PAGE_SIZE: i64 = 50;
+const DEBOUNCE: Duration = Duration::from_millis(100);
+const REFRESH_INTERVAL: Duration = Duration::from_millis(333);
 
 pub(crate) fn surface(account: Arc<AccountClient>, open: Signal<bool>) -> impl IntoElement {
     let failed = signal(false);
@@ -29,227 +36,393 @@ pub(crate) fn surface(account: Arc<AccountClient>, open: Signal<bool>) -> impl I
     )
 }
 
+#[derive(Clone, Copy)]
+struct Palette {
+    open: Signal<bool>,
+    open_failed: Signal<bool>,
+    account: Stored<Arc<AccountClient>>,
+    navigation: ChatNavigation,
+    query: Signal<String>,
+    page: Signal<i64>,
+    rows: Signal<Vec<Row>>,
+    more: Signal<bool>,
+    loading: Signal<bool>,
+    failed: Signal<bool>,
+    revision: Signal<u64>,
+    highlighted: Signal<Option<String>>,
+}
+
 fn content(
     account: Arc<AccountClient>,
     open: Signal<bool>,
     open_failed: Signal<bool>,
     presence: crate::motion::Presence,
 ) -> impl IntoElement {
-    let navigation = use_context::<ChatNavigation>().expect("Home provides navigation");
-    let account = stored(account);
-    let query = signal(String::new());
-    let page = signal(0_i64);
-    let rows = signal_with(Vec::<Row>::new(), SignalEquals::Never);
-    let more = signal(false);
-    let loading = signal(true);
-    let failed = signal(false);
-    let request = signal(0_u64);
-    let revision = signal(0_u64);
+    let palette = Palette {
+        open,
+        open_failed,
+        account: stored(account),
+        navigation: use_context().expect("Home provides navigation"),
+        query: signal(String::new()),
+        page: signal(0),
+        rows: signal_with(Vec::new(), SignalEquals::Never),
+        more: signal(false),
+        loading: signal(true),
+        failed: signal(false),
+        revision: signal(0),
+        highlighted: signal(None),
+    };
     let control = component_ref::<Command>();
-    let highlighted = signal(None::<String>);
-    let close = move || {
+    palette.observe_changes();
+    palette.load();
+    palette.bind_keys(control);
+    let close = move || palette.close();
+    nsh_base::dialog()
+        .animation(nsh_core::ModalAnimation::None)
+        .close_on_escape(false)
+        .close_on_backdrop_press(false)
+        .on_cancel(close)
+        .flex_1()
+        .child(
+            view()
+                .flex_1()
+                .p_6()
+                .items_center()
+                .justify_center()
+                .child(presence.backdrop(ui::scrim().on_press(close)))
+                .child(
+                    presence.surface(
+                        view()
+                            .w(px(480.0))
+                            .max_w(relative(1.0))
+                            .max_h(relative(0.9))
+                            .min_h_0()
+                            .rounded_xl()
+                            .overflow_hidden()
+                            .bg(move || theme().popover)
+                            .border_1()
+                            .border_color(move || theme().border)
+                            .shadow_lg()
+                            .child(palette.command(control))
+                            .child(palette.failure()),
+                    ),
+                ),
+        )
+}
+
+impl Palette {
+    fn close(self) {
         dismiss_keyboard();
-        open.set(false);
-    };
-    let mut changes = Box::pin(runtime::observe(
-        account.with(|account| account.conversation_changes()),
-    ));
-    spawn(async move {
-        while changes.next().await.is_some() {
-            if open.get_untracked() {
-                revision.update(|value| *value = value.wrapping_add(1));
+        self.open.set(false);
+    }
+
+    fn observe_changes(self) {
+        let account = self.account.with(|account| account.clone());
+        spawn(async move {
+            let mut changes = Box::pin(runtime::throttled(
+                account.conversation_changes(),
+                REFRESH_INTERVAL,
+            ));
+            while changes.next().await.is_some() {
+                if self.open.get_untracked() {
+                    self.revision.update(|value| *value = value.wrapping_add(1));
+                }
             }
-            // Event-driven throttling keeps live updates from continuously
-            // canceling the input debounce during a busy conversation.
-            timer(std::time::Duration::from_millis(333)).await;
-        }
-    });
-    let move_highlight = move |forward: bool| {
-        if !open.get_untracked() || loading.get_untracked() {
-            return;
-        }
-        let mut ids = rows.with_untracked(|rows| rows.iter().map(Row::key).collect::<Vec<_>>());
-        if page.get_untracked() > 0 {
-            ids.push("previous".into());
-        }
-        if more.get_untracked() {
-            ids.push("next".into());
-        }
-        if ids.is_empty() {
-            return;
-        }
-        let current = highlighted
-            .with_untracked(|highlighted| {
-                highlighted
-                    .as_ref()
-                    .and_then(|id| ids.iter().position(|candidate| candidate == id))
-            })
-            .unwrap_or(0);
-        let index = if forward {
-            (current + 1).min(ids.len() - 1)
-        } else {
-            current.saturating_sub(1)
+        });
+    }
+
+    fn load(self) {
+        let seen_revision = stored(0_u64);
+        effect(move || {
+            let keyword = self.query.get();
+            let page = self.page.get();
+            let revision = self.revision.get();
+            let recent = self.navigation.recent_ids();
+            // Live updates keep the list and its highlight; only input shows loading.
+            let background = seen_revision.replace(revision) != revision
+                && !self.failed.get_untracked()
+                && !self.loading.get_untracked();
+            if !background {
+                self.loading.set(true);
+                self.failed.set(false);
+            }
+            let client = self.account.with(|account| account.clone());
+            // Rerunning this effect cancels the previous task and its business call.
+            spawn(async move {
+                if !background {
+                    timer(DEBOUNCE).await;
+                }
+                let result = runtime::run(search(client, keyword, recent, page)).await;
+                match result {
+                    Ok((values, more)) => batch(|| {
+                        self.rows.set(values);
+                        self.more.set(more);
+                    }),
+                    Err(_) => self.failed.set(true),
+                }
+                self.loading.set(false);
+            });
+        });
+    }
+
+    fn bind_keys(self, control: ComponentRef<Command>) {
+        let move_highlight = move |forward: bool| {
+            if !self.open.get_untracked() || self.loading.get_untracked() {
+                return;
+            }
+            let ids = self.item_ids();
+            if ids.is_empty() {
+                return;
+            }
+            let current = self
+                .highlighted
+                .with_untracked(|highlighted| {
+                    highlighted
+                        .as_ref()
+                        .and_then(|id| ids.iter().position(|candidate| candidate == id))
+                })
+                .unwrap_or(0);
+            let index = if forward {
+                (current + 1).min(ids.len() - 1)
+            } else {
+                current.saturating_sub(1)
+            };
+            if let Some(api) = control.api::<CommandApi>() {
+                api.highlight(ids[index].clone());
+            }
         };
-        if let Some(api) = control.api::<CommandApi>() {
-            api.highlight(ids[index].clone());
-        }
-    };
-    on_key_with(
-        "tab",
-        KeyOptions {
+        let always = || KeyOptions {
             when: When::Always,
             repeat: true,
-        },
-        move |_| move_highlight(true),
-    );
-    #[cfg(target_os = "macos")]
-    {
-        on_key_with(
-            "ctrl+n",
-            KeyOptions {
-                when: When::Always,
-                repeat: true,
-            },
-            move |_| move_highlight(true),
-        );
-        on_key_with(
-            "ctrl+p",
-            KeyOptions {
-                when: When::Always,
-                repeat: true,
-            },
-            move |_| move_highlight(false),
-        );
+        };
+        on_key_with("tab", always(), move |_| move_highlight(true));
+        #[cfg(target_os = "macos")]
+        {
+            on_key_with("ctrl+n", always(), move |_| move_highlight(true));
+            on_key_with("ctrl+p", always(), move |_| move_highlight(false));
+        }
     }
-    const SIZE: i64 = 50;
-    effect(move || {
-        let keyword = query.get();
-        let requested_page = page.get();
-        let requested_keyword = keyword.clone();
-        let _revision = revision.get();
-        let ticket = request.get_untracked().wrapping_add(1);
-        request.set(ticket);
-        let recent = navigation.recent_ids();
-        let client = account.with(|account| account.clone());
-        loading.set(true);
-        failed.set(false);
-        spawn(async move {
-            timer(std::time::Duration::from_millis(100)).await;
-            if request.get_untracked() != ticket {
-                return;
+
+    fn item_ids(self) -> Vec<String> {
+        let mut ids = self
+            .rows
+            .with_untracked(|rows| rows.iter().map(Row::key).collect::<Vec<_>>());
+        if self.page.get_untracked() > 0 {
+            ids.push("previous".into());
+        }
+        if self.more.get_untracked() {
+            ids.push("next".into());
+        }
+        ids
+    }
+
+    fn row(self, id: &str) -> Option<Row> {
+        self.rows
+            .with(|rows| rows.iter().find(|row| row.key() == id).cloned())
+    }
+
+    fn items(self) -> Vec<CommandItem> {
+        let loading = self.loading.get();
+        let mut items = self.rows.with(|rows| {
+            rows.iter()
+                .filter_map(|row| match row {
+                    Row::User(user) => Some(
+                        CommandItem::new(row.key(), user.full_name.clone())
+                            .keywords([user.identity_number.clone()]),
+                    ),
+                    Row::Conversation(conversation) => {
+                        Some(CommandItem::new(row.key(), conversation.name.clone()))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        });
+        if self.page.get() > 0 {
+            items.push(CommandItem::new("previous", tr("Previous page", "上一页")));
+        }
+        if self.more.get() {
+            items.push(CommandItem::new("next", tr("Next page", "下一页")));
+        }
+        items
+            .into_iter()
+            .map(|item| item.disabled(loading))
+            .collect()
+    }
+
+    fn select(self, id: &str) {
+        if !self.open.get_untracked() || self.loading.get_untracked() {
+            return;
+        }
+        match id {
+            "next" => {
+                self.loading.set(true);
+                self.page.update(|page| *page += 1);
             }
-            let result = runtime::run(async move {
-                if keyword.trim().is_empty() {
-                    let rows = client
-                        .conversation()
-                        .conversation_items_by_ids(recent.clone())
-                        .await?;
-                    let mut rows = rows
-                        .into_iter()
-                        .map(|row| (row.conversation_id.clone(), row))
-                        .collect::<std::collections::HashMap<_, _>>();
-                    Ok((
-                        recent
-                            .into_iter()
-                            .filter_map(|id| rows.remove(&id))
-                            .map(|row| Row::Conversation(Box::new(row)))
-                            .collect::<Vec<_>>(),
-                        false,
-                    ))
-                } else {
-                    let mut items = client
-                        .quick_search(keyword, requested_page * SIZE, SIZE + 1)
-                        .await?;
-                    let more = items.len() > SIZE as usize;
-                    items.truncate(SIZE as usize);
-                    let result = items
-                        .into_iter()
-                        .map(|item| match item {
-                            mixin_desktop_api::QuickSearchItem::User(user) => Row::User(*user),
-                            mixin_desktop_api::QuickSearchItem::Conversation(conversation) => {
-                                Row::Conversation(conversation)
-                            }
-                        })
-                        .collect::<Vec<_>>();
-                    Ok((result, more))
+            "previous" => {
+                self.loading.set(true);
+                self.page.update(|page| *page = page.saturating_sub(1));
+            }
+            _ => match untracked(|| self.row(id)) {
+                Some(Row::Conversation(row)) => {
+                    self.close();
+                    self.navigation.select(*row);
+                }
+                Some(Row::User(user)) => {
+                    self.close();
+                    self.navigation.open_user(
+                        self.account.with(|account| account.clone()),
+                        user.user_id,
+                        self.open_failed,
+                    );
+                }
+                _ => {}
+            },
+        }
+    }
+
+    fn command(self, control: ComponentRef<Command>) -> impl IntoElement {
+        let close = move || self.close();
+        command()
+            .component_ref(&control)
+            .flex_shrink(1.0)
+            .min_h_0()
+            .auto_focus(true)
+            .filterable(false)
+            .loading(self.loading)
+            .query(move || Some(self.query.get().into()))
+            .on_query_change(move |value: &SharedString| {
+                if self.query.with_untracked(|query| query != value.as_str())
+                    || self.page.get_untracked() != 0
+                {
+                    batch(|| {
+                        self.loading.set(true);
+                        self.query.set(value.to_string());
+                        self.page.set(0);
+                    });
                 }
             })
-            .await;
-            if request.get_untracked() != ticket
-                || query.get_untracked() != requested_keyword
-                || page.get_untracked() != requested_page
-            {
-                return;
-            }
-            match result {
-                Ok((values, extra)) => {
-                    rows.set(values);
-                    more.set(extra);
-                }
-                Err(_) => failed.set(true),
-            }
-            loading.set(false);
-        });
-    });
-    nsh_base::dialog().animation(nsh_core::ModalAnimation::None).close_on_escape(false).close_on_backdrop_press(false).on_cancel(close).flex_1()
-        .child(view().flex_1().p_6().items_center().justify_center()
-        .child(presence.backdrop(view().absolute().inset_0().bg(move || theme().foreground.opacity(0.2)).on_press(close)))
-        .child(presence.surface(view().w(px(480.0)).max_w(relative(1.0)).max_h(relative(0.9)).min_h_0().rounded_xl().overflow_hidden().bg(move || theme().popover)
-            .child(command().component_ref(&control).flex_shrink(1.0).min_h_0().auto_focus(true).filterable(false).loading(loading)
-                .query(move || Some(query.get().into())).on_query_change(move |value: &SharedString| { if query.with_untracked(|query| query.as_str() != value.as_str()) || page.get_untracked() != 0 { batch(|| { loading.set(true); query.set(value.to_string()); page.set(0); }); } })
-                .placeholder(move || Some(tr("Search conversations and contacts", "搜索会话和联系人").into()))
-                .accessibility_label(move || Some(tr("Quick search", "快速搜索").into()))
-                .items(move || {
-                    let mut items = rows.with(|rows| rows.iter().filter_map(|row| match row {
-                        Row::User(user) => Some(CommandItem::new(row.key(), user.full_name.clone()).keywords([user.identity_number.clone()])),
-                        Row::Conversation(conversation) => Some(CommandItem::new(row.key(), conversation.name.clone())), _ => None,
-                    }).collect::<Vec<_>>());
-                    if page.get() > 0 { items.push(CommandItem::new("previous", tr("Previous page", "上一页"))); }
-                    if more.get() { items.push(CommandItem::new("next", tr("Next page", "下一页"))); }
-                    items.into_iter().map(|item| item.disabled(loading.get())).collect::<Vec<_>>()
-                })
-                .search_bar_class("flex items-center px-4 py-2 border-b border-border gap-3 shrink-0")
-                .search_class("flex-1 min-w-0 text-sm text-foreground bg-transparent")
-                .list_class("min-h-0 max-h-96")
-                .item_class("group px-4 py-3 min-h-16 focus:bg-accent hover:bg-muted active:opacity-70")
-                .group_class("px-4 py-2 text-xs text-muted-foreground")
-                .separator_class("h-px bg-border")
-                .search_prefix(ui::icon(ui::Icon::Search))
-                        .search_suffix(ui::icon_button().size_8().px_1().py_1().accessibility_label(move || Some(tr("Close", "关闭").into())).on_press(close).child(text("×").text_lg()))
-                        .on_highlight_change(move |value: &Option<SharedString>| highlighted.set(value.as_ref().map(ToString::to_string)))
-                .empty(view().p_6().child(text(move || tr("No results", "没有搜索结果")).text_sm().text_color(move || theme().muted_foreground)))
-                .footer(view().flex_none().px_4().py_3().flex_row().items_center().gap_3().border_t_1().border_color(move || theme().border)
-                    .child(text(move || tr("↑↓ Select · Enter Open · Esc Close", "↑↓ 选择 · Enter 打开 · Esc 关闭")).flex_1().min_w_0().text_xs().text_color(move || theme().muted_foreground))
-                    .child(ui::command().min_h_6().py_0().on_press(close).child(text(move || tr("Close", "关闭")).text_xs())))
-                .render_item(move |item: &CommandEntry| {
-                    let id = stored(item.id.to_string());
-                    let row = move || rows.with(|rows| rows.iter().find(|row| row.key() == id.with(|id| id.clone())).cloned());
-                    let label = item.label.clone();
-                    view().flex_row().gap_3().items_center().min_w_0()
-                        .child(when(move || row().is_some(), move || ui::avatar_view(move || row().map(|row| match row { Row::User(user) => user.full_name.into(), Row::Conversation(row) => row.name.into(), _ => SharedString::default() }).unwrap_or_default(), move || row().map(|row| match row { Row::User(user) => user.avatar_url, Row::Conversation(row) => row.avatar_url, _ => String::new() }).unwrap_or_default())))
-                        .child(text(label).text_sm().flex_1().min_w_0().number_of_lines(1))
-                })
-                .on_select(move |id: &SharedString| {
-                    if !open.get_untracked() || loading.get_untracked() { return; }
-                    match id.as_str() {
-                        "next" => { loading.set(true); page.update(|page| *page += 1); return; },
-                        "previous" => { loading.set(true); page.update(|page| *page = page.saturating_sub(1)); return; },
-                        _ => {},
-                    }
-                    if let Some(row) = rows.with_untracked(|rows| rows.iter().find(|row| row.key() == id.as_str()).cloned()) {
-                        match row {
-                            Row::Conversation(row) => {
-                                close();
-                                navigation.select(*row);
-                            },
-                            Row::User(user) => {
-                                close();
-                                navigation.open_user(account.with(|account| account.clone()), user.user_id, open_failed);
-                            },
-                            _ => (),
-                        }
-                    }
-                }).on_cancel(close))
-            .child(when(failed, move || view().p_3().gap_2().child(text(move || tr("Couldn’t load quick search", "快速搜索加载失败")).text_sm().text_color(move || theme().destructive))
-                .child(ui::action(move || tr("Retry", "重试"), move || revision.update(|revision| *revision += 1))))))))
+            .placeholder(move || {
+                Some(tr("Search conversations and contacts", "搜索会话和联系人").into())
+            })
+            .accessibility_label(move || Some(tr("Quick search", "快速搜索").into()))
+            .items(move || self.items())
+            .search_bar_class("flex items-center px-4 py-2 border-b border-border gap-3 shrink-0")
+            .search_class("flex-1 min-w-0 text-sm text-foreground bg-transparent")
+            .list_class("min-h-0 max-h-96")
+            .item_class("group px-4 py-3 min-h-16 focus:bg-accent hover:bg-muted active:opacity-70")
+            .group_class("px-4 py-2 text-xs text-muted-foreground")
+            .separator_class("h-px bg-border")
+            .search_prefix(ui::icon(ui::Icon::Search))
+            .search_suffix(
+                ui::icon_button()
+                    .size_8()
+                    .px_1()
+                    .py_1()
+                    .accessibility_label(move || Some(tr("Close", "关闭").into()))
+                    .on_press(close)
+                    .child(ui::icon(ui::Icon::Close)),
+            )
+            .on_highlight_change(move |value: &Option<SharedString>| {
+                self.highlighted
+                    .set(value.as_ref().map(ToString::to_string))
+            })
+            .empty(ui::placeholder(move || tr("No results", "没有搜索结果")))
+            .footer(
+                view()
+                    .flex_none()
+                    .px_4()
+                    .py_3()
+                    .border_t_1()
+                    .border_color(move || theme().border)
+                    .child(
+                        text(move || {
+                            tr(
+                                "↑↓ Select · Enter Open · Esc Close",
+                                "↑↓ 选择 · Enter 打开 · Esc 关闭",
+                            )
+                        })
+                        .text_xs()
+                        .text_color(move || theme().muted_foreground),
+                    ),
+            )
+            .render_item(move |item: &CommandEntry| {
+                let id = stored(item.id.to_string());
+                let row = move || id.with(|id| self.row(id));
+                view()
+                    .flex_row()
+                    .gap_3()
+                    .items_center()
+                    .min_w_0()
+                    .child(when(
+                        move || row().is_some(),
+                        move || {
+                            ui::avatar_view(
+                                move || row().map(|row| row.title()).unwrap_or_default().into(),
+                                move || row().map(|row| row.avatar_url()).unwrap_or_default(),
+                            )
+                        },
+                    ))
+                    .child(
+                        text(item.label.clone())
+                            .text_sm()
+                            .flex_1()
+                            .min_w_0()
+                            .number_of_lines(1),
+                    )
+            })
+            .on_select(move |id: &SharedString| self.select(id.as_str()))
+            .on_cancel(close)
+    }
+
+    fn failure(self) -> impl IntoElement {
+        let i18n = i18n::current();
+        when(self.failed, move || {
+            view()
+                .p_3()
+                .gap_2()
+                .child(ui::error_text(move || {
+                    tr("Couldn’t load quick search", "快速搜索加载失败")
+                }))
+                .child(ui::action(
+                    move || i18n.text(Key::Retry),
+                    move || self.revision.update(|revision| *revision += 1),
+                ))
+        })
+    }
+}
+
+async fn search(
+    client: Arc<AccountClient>,
+    keyword: String,
+    recent: Vec<String>,
+    page: i64,
+) -> ClientResult<(Vec<Row>, bool)> {
+    if keyword.trim().is_empty() {
+        let mut rows = client
+            .conversation()
+            .conversation_items_by_ids(recent.clone())
+            .await?
+            .into_iter()
+            .map(|row| (row.conversation_id.clone(), row))
+            .collect::<HashMap<_, _>>();
+        let rows = recent
+            .into_iter()
+            .filter_map(|id| rows.remove(&id))
+            .map(|row| Row::Conversation(Box::new(row)))
+            .collect();
+        return Ok((rows, false));
+    }
+    let mut items = client
+        .quick_search(keyword, page * PAGE_SIZE, PAGE_SIZE + 1)
+        .await?;
+    let more = items.len() > PAGE_SIZE as usize;
+    items.truncate(PAGE_SIZE as usize);
+    let rows = items
+        .into_iter()
+        .map(|item| match item {
+            QuickSearchItem::User(user) => Row::User(*user),
+            QuickSearchItem::Conversation(conversation) => Row::Conversation(conversation),
+        })
+        .collect();
+    Ok((rows, more))
 }

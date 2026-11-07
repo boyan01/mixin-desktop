@@ -35,17 +35,19 @@ pub(super) fn screen(
         let query = query.get_untracked().trim().to_owned();
         spawn(async move {
             match runtime::run(async move { client.user().search_user(query).await }).await {
-                Ok(user) => profile.set(Some(user.user_id)),
-                Err(_) => failed.set(true),
+                Ok(user) => {
+                    busy.set(false);
+                    profile.set(Some(user.user_id));
+                }
+                Err(_) => {
+                    busy.set(false);
+                    failed.set(true);
+                }
             }
-            busy.set(false);
         });
     };
     modal(cancel).child(
         panel()
-            .h(auto())
-            .min_h_0()
-            .overflow_hidden()
             .style_when(
                 move || profile.with(Option::is_some),
                 |style| style.w(px(340.0)).h(px(560.0)).p_0(),
@@ -64,12 +66,7 @@ pub(super) fn screen(
                         .flex_shrink(1.0)
                         .min_h_0()
                         .gap_4()
-                        .child(
-                            text(move || i18n.text(Key::SearchContact))
-                                .flex_none()
-                                .text_lg()
-                                .font_weight(FontWeight::SEMIBOLD),
-                        )
+                        .child(ui::modal_title(move || i18n.text(Key::SearchContact)))
                         .child(
                             scroll().flex_shrink(1.0).min_h_0().child(
                                 view()
@@ -98,33 +95,15 @@ pub(super) fn screen(
                                             .on_submit(move |_: &str| search()),
                                     )
                                     .child(when(failed, move || {
-                                        text(move || i18n.text(Key::SearchFailed))
-                                            .text_sm()
-                                            .text_color(move || theme().destructive)
+                                        ui::error_text(move || i18n.text(Key::SearchFailed))
                                     }))
-                                    .child(when(busy, move || {
-                                        view()
-                                            .flex_row()
-                                            .items_center()
-                                            .gap_2()
-                                            .text_color(move || theme().muted_foreground)
-                                            .child(ui::busy_indicator(
-                                                move || busy.get(),
-                                                move || tr("Searching…", "正在搜索…").into(),
-                                            ))
-                                            .child(
-                                                text(move || tr("Searching…", "正在搜索…"))
-                                                    .text_sm(),
-                                            )
+                                    .child(when(busy, || {
+                                        parts::status(move || tr("Searching…", "正在搜索…"))
                                     })),
                             ),
                         )
                         .child(
-                            view()
-                                .flex_none()
-                                .flex_row()
-                                .justify_end()
-                                .gap_2()
+                            parts::dialog_actions()
                                 .child(
                                     ui::action(move || i18n.text(Key::Cancel), cancel)
                                         .disabled(move || busy.get() || composing.get()),

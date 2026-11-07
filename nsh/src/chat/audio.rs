@@ -3,7 +3,7 @@ use mixin_desktop_api::{AudioPlaybackStatus, MessageListView};
 use nsh_base::{SliderValue, menu, menu_item, slider, theme};
 use nsh_core::prelude::*;
 
-use super::message_actions::{Actions, label};
+use super::message_actions::Actions;
 use crate::{i18n::Key, runtime, ui};
 
 pub(super) fn body(
@@ -77,7 +77,7 @@ pub(super) fn body(
                                         .playback
                                         .with(|p| p.status == AudioPlaybackStatus::Playing)
                                 {
-                                    label(i18n, "Stop", "停止")
+                                    i18n.tr("Stop", "停止")
                                 } else {
                                     i18n.text(Key::Play)
                                 }
@@ -133,7 +133,7 @@ pub(super) fn body(
                 .value(move || Some(SliderValue::Single(position() as f64)))
                 .disabled(move || !active() || duration() == 0)
                 .accessibility_label(move || {
-                    Some(label(i18n, "Voice message position", "语音播放进度").into())
+                    Some(i18n.tr("Voice message position", "语音播放进度").into())
                 })
                 .track_class("h-6 justify-center disabled:opacity-40")
                 .indicator_class("h-1 rounded-full bg-muted-foreground/30")
@@ -174,7 +174,7 @@ pub(super) fn body(
                                 .py_1()
                                 .disabled(busy)
                                 .accessibility_label(move || {
-                                    Some(label(i18n, "Playback speed", "播放速度").into())
+                                    Some(i18n.tr("Playback speed", "播放速度").into())
                                 })
                                 .child(
                                     text(move || {

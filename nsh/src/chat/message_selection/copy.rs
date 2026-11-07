@@ -23,7 +23,7 @@ pub(super) fn selected(actions: Actions, conversation: String) {
     let account = actions.account.with(|account| account.clone());
     actions.busy.set(true);
     actions.failed.set(false);
-    spawn(async move {
+    actions.task(async move {
         match selection_text(account, &conversation, &ids, actions.i18n).await {
             Ok(text) => {
                 // NSH exposes clipboard text as a native command without an OS

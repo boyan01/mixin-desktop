@@ -70,10 +70,90 @@ fn overlay_foreground() -> nsh_core::element::AdaptiveColor {
         .unwrap_or(theme().foreground)
 }
 
+/// One attachment's transfer: its queued state, live bytes and toggle command.
+#[derive(Clone, Copy)]
+pub(super) struct Transfer {
+    id: Stored<String>,
+    root: Stored<Option<String>>,
+    queued: bool,
+    progress: crate::home::AttachmentProgress,
+}
+
+impl Transfer {
+    pub fn of(row: &MessageListView, transcript: Option<String>) -> Self {
+        Self {
+            id: stored(row.message_id.clone()),
+            root: stored(transcript),
+            queued: matches!(row.media_status.as_str(), "PENDING" | "PROCESSING"),
+            progress: use_context::<crate::home::AttachmentProgress>()
+                .expect("Home provides attachment progress"),
+        }
+    }
+
+    fn bytes(self) -> Option<(u64, u64)> {
+        self.root.with(|root| {
+            self.id
+                .with(|id| self.progress.bytes(root.as_deref(), id.as_str()))
+        })
+    }
+
+    pub fn active(self) -> bool {
+        self.queued || self.bytes().is_some()
+    }
+
+    /// `None` until the transfer reports a total: never a made-up figure.
+    pub fn percent(self) -> Option<String> {
+        self.bytes()
+            .filter(|(_, total)| *total > 0)
+            .map(|(done, total)| {
+                format!(
+                    "{:.0}%",
+                    (done as f64 / total as f64 * 100.0).clamp(0.0, 100.0)
+                )
+            })
+    }
+
+    /// Cancels an active transfer, else starts or resumes it.
+    pub fn toggle(self, actions: Actions) {
+        let cancel = self.active();
+        let client = actions.account.with(|account| account.clone());
+        let id = self.id.with(|id| id.clone());
+        let root = self.root.with(|root| root.clone());
+        actions.commit(async move {
+            match (cancel, root) {
+                (true, Some(root)) => {
+                    client
+                        .attachment()
+                        .cancel_transcript_attachment(root, id)
+                        .await
+                }
+                (true, None) => client.attachment().cancel_attachment(id).await,
+                (false, root) => client.attachment().resume_attachment(id, root).await,
+            }
+        });
+    }
+}
+
+fn overlay_label(
+    label: impl Fn() -> &'static str + 'static,
+    appearance: appearance::Appearance,
+) -> impl IntoElement {
+    text(label)
+        .px_2()
+        .py_1()
+        .rounded_md()
+        .bg(overlay_color)
+        .text_color(overlay_foreground)
+        .text_size(move || appearance.tertiary_size())
+        .number_of_lines(2)
+}
+
+/// `status` follows delivery without rebuilding the card; only a timeline row has it.
 pub(super) fn card(
     row: MessageListView,
     transcript: Option<String>,
     actions: Actions,
+    status: Option<Memo<String>>,
 ) -> impl IntoElement {
     let i18n = actions.i18n;
     let appearance =
@@ -81,7 +161,7 @@ pub(super) fn card(
     let viewport = use_context::<Viewport>();
     let video = row.category.ends_with("_VIDEO");
     let done = available(&row);
-    let pending = matches!(row.media_status.as_str(), "PENDING" | "PROCESSING");
+    let transfer = Transfer::of(&row, transcript.clone());
     let expired = row.media_status == "EXPIRED";
     let metadata = transcript.is_none() && inline_metadata(&row);
     let mine = row.sender_id == actions.account.with(|account| account.account_id());
@@ -119,12 +199,7 @@ pub(super) fn card(
     let row = stored(row);
     let root = stored(transcript);
     let preview = thumbnail(move || row.with(|row| row.thumb_image.clone()));
-    let progress = use_context::<crate::home::AttachmentProgress>()
-        .expect("Home provides attachment progress");
-    let bytes =
-        move || root.with(|root| row.with(|row| progress.bytes(root.as_deref(), &row.message_id)));
-    let transferring = move || pending || bytes().is_some();
-    let submitting = signal(false);
+    let transferring = move || transfer.active();
     let local_failed = signal(false);
     let remote_failed = signal(false);
     let full_loaded = signal(false);
@@ -140,7 +215,6 @@ pub(super) fn card(
             })
     });
     let remote = stored(remote);
-    let owner = Owner::current();
     ui::command()
         .p_0()
         .min_h_0()
@@ -148,7 +222,7 @@ pub(super) fn card(
         .max_w(relative(1.0))
         .w(move || px(size().0))
         .aspect_ratio(move || size().0 / size().1)
-        .disabled(move || expired || submitting.get())
+        .disabled(move || expired)
         .accessibility_label(move || {
             Some(
                 if expired {
@@ -170,44 +244,19 @@ pub(super) fn card(
             )
         })
         .on_press(move || {
-            if expired || submitting.get_untracked() {
+            if expired {
                 return;
             }
-            if done {
-                let message = row.with(|value| value.clone());
-                if video {
-                    actions.open_preview(message);
-                } else {
-                    actions.open_image(message, root.with(|value| value.clone()));
-                }
-                return;
+            if !done {
+                transfer.toggle(actions);
+            } else if video {
+                actions.open_preview(row.with(|value| value.clone()));
+            } else {
+                actions.open_image(
+                    row.with(|value| value.clone()),
+                    root.with(|value| value.clone()),
+                );
             }
-            let cancel = transferring();
-            let client = actions.account.with(|value| value.clone());
-            let id = row.with(|row| row.message_id.clone());
-            let transcript = root.with(|value| value.clone());
-            submitting.set(true);
-            let command = runtime::commit(async move {
-                if cancel {
-                    if let Some(root) = transcript {
-                        client
-                            .attachment()
-                            .cancel_transcript_attachment(root, id)
-                            .await
-                    } else {
-                        client.attachment().cancel_attachment(id).await
-                    }
-                } else {
-                    client.attachment().resume_attachment(id, transcript).await
-                }
-            });
-            spawn(async move {
-                let result = command.await;
-                if owner.is_live() {
-                    submitting.set(false);
-                    actions.failed.set(result.is_err());
-                }
-            });
         })
         .child(
             view()
@@ -302,27 +351,17 @@ pub(super) fn card(
                                             .gap_1()
                                             .items_center()
                                             .child(ui::busy_indicator(
-                                                move || bytes().is_none_or(|(_, total)| total == 0),
+                                                move || transfer.percent().is_none(),
                                                 move || {
                                                     i18n.tr("Transferring…", "正在传输…").into()
                                                 },
                                             ))
                                             .child(ui::icon(ui::Icon::Close).size_5())
                                             .child(when(
-                                                move || bytes().is_some_and(|(_, total)| total > 0),
+                                                move || transfer.percent().is_some(),
                                                 move || {
                                                     text(move || {
-                                                        bytes()
-                                                            .map(|(done, total)| {
-                                                                format!(
-                                                                    "{:.0}%",
-                                                                    (done as f64
-                                                                        / total.max(1) as f64
-                                                                        * 100.0)
-                                                                        .clamp(0.0, 100.0)
-                                                                )
-                                                            })
-                                                            .unwrap_or_default()
+                                                        transfer.percent().unwrap_or_default()
                                                     })
                                                     .text_size(move || appearance.tertiary_size())
                                                 },
@@ -348,27 +387,17 @@ pub(super) fn card(
                                     )),
                             )
                             .child(when(local_failed, move || {
-                                text(move || {
-                                    i18n.tr("Couldn’t display this photo.", "无法显示此图片。")
-                                })
-                                .px_2()
-                                .py_1()
-                                .rounded_md()
-                                .bg(overlay_color)
-                                .text_color(overlay_foreground)
-                                .text_size(move || appearance.tertiary_size())
-                                .number_of_lines(2)
+                                overlay_label(
+                                    move || {
+                                        i18n.tr("Couldn’t display this photo.", "无法显示此图片。")
+                                    },
+                                    appearance,
+                                )
                             }))
                             .child(when(
                                 move || expired,
                                 move || {
-                                    text(move || i18n.tr("Expired", "已过期"))
-                                        .px_2()
-                                        .py_1()
-                                        .rounded_md()
-                                        .bg(overlay_color)
-                                        .text_color(overlay_foreground)
-                                        .text_size(move || appearance.tertiary_size())
+                                    overlay_label(move || i18n.tr("Expired", "已过期"), appearance)
                                 },
                             ))
                     },
@@ -431,8 +460,13 @@ pub(super) fn card(
                                 move || mine,
                                 move || {
                                     dynamic(move || {
-                                        row.with(|row| {
-                                            appearance::delivery_icon_on_media(&row.status)
+                                        let current = status.map(|status| status.get());
+                                        untracked(|| {
+                                            row.with(|row| {
+                                                appearance::delivery_icon_on_media(
+                                                    current.as_deref().unwrap_or(&row.status),
+                                                )
+                                            })
                                         })
                                     })
                                 },

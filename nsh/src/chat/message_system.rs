@@ -84,7 +84,7 @@ fn help(actions: Actions, encryption: bool) -> impl IntoElement {
         } else {
             "https://support.mixin.one/en/article/how-to-do-when-you-receive-a-message-like-this-this-type-of-message-is-not-supported-please-upgrade-mixin-17j1t3p"
         };
-        spawn(async move { actions.failed.set(!open_url(url).await); });
+        actions.task(async move { actions.failed.set(!open_url(url).await); });
     }).px_0().py_0().text_color(move || theme().primary)
 }
 
@@ -255,7 +255,7 @@ fn stranger(row: MessageListView, actions: Actions) -> impl IntoElement {
                                 contact.with(|contact| contact.clone());
                             actions.busy.set(true);
                             actions.failed.set(false);
-                            spawn(async move {
+                            actions.task(async move {
                                 if let Some(app_id) = app_id {
                                     match runtime::run(async move {
                                         client.user().bot_home_uri(app_id).await
@@ -298,7 +298,7 @@ fn stranger(row: MessageListView, actions: Actions) -> impl IntoElement {
                                 contact.with(|contact| contact.clone());
                             actions.busy.set(true);
                             actions.failed.set(false);
-                            spawn(async move {
+                            actions.task(async move {
                                 let result = runtime::commit(async move {
                                     if bot {
                                         client

@@ -1,5 +1,6 @@
-use super::{Feedback, body, section, tr};
+use super::{Feedback, body, section};
 use crate::{
+    conversation::parts,
     i18n::{self, Key},
     runtime, ui,
 };
@@ -10,15 +11,19 @@ use nsh_core::prelude::*;
 use std::sync::Arc;
 pub(super) fn screen(
     account: Arc<AccountClient>,
+    draft: Signal<Option<(String, String)>>,
     on_signed_out: impl Fn() + 'static,
     session_owner: Owner,
 ) -> impl IntoElement {
     let i18n = i18n::current();
     let initial = account.profile();
-    let name = signal(initial.full_name.clone());
-    let biography = signal(initial.biography.clone());
+    let (initial_name, initial_biography) = draft
+        .get_untracked()
+        .unwrap_or_else(|| (initial.full_name.clone(), initial.biography.clone()));
+    let name = signal(initial_name);
+    let biography = signal(initial_biography);
     let profile = signal_with(initial, SignalEquals::Never);
-    let edited = signal(false);
+    let keep_draft = move || draft.set(Some((name.get_untracked(), biography.get_untracked())));
     let refresh = signal(0_u64);
     let refresh_failed = signal(false);
     let feedback = Feedback::new();
@@ -26,7 +31,7 @@ pub(super) fn screen(
     spawn(async move {
         let mut changes = Box::pin(runtime::observe(client.profile_changes()));
         while let Some(next) = changes.next().await {
-            if !edited.get_untracked() {
+            if draft.with_untracked(Option::is_none) {
                 name.set(next.full_name.clone());
                 biography.set(next.biography.clone());
             }
@@ -76,23 +81,15 @@ pub(super) fn screen(
                     .text_color(move || theme().muted_foreground),
             )
             .child(when(refresh_failed, move || {
-                view()
-                    .gap_2()
-                    .child(
-                        text(move || {
-                            tr(
-                                i18n,
-                                "Couldn’t refresh your profile. Your saved profile is shown.",
-                                "无法刷新个人资料，当前显示已保存的资料。",
-                            )
-                        })
-                        .text_sm()
-                        .text_color(move || theme().destructive),
-                    )
-                    .child(ui::action(
-                        move || i18n.text(Key::Retry),
-                        move || refresh.update(|r| *r += 1),
-                    ))
+                parts::failure(
+                    move || {
+                        i18n.tr(
+                            "Couldn’t refresh your profile. Your saved profile is shown.",
+                            "无法刷新个人资料，当前显示已保存的资料。",
+                        )
+                    },
+                    move || refresh.update(|r| *r += 1),
+                )
             }))
             .child(
                 section(move || i18n.text(Key::Name)).child(
@@ -102,28 +99,28 @@ pub(super) fn screen(
                         .max_length(40)
                         .readonly(move || feedback.busy.get() || signing_out.get())
                         .on_change(move |value: &str| {
-                            edited.set(true);
                             name.set(value.into());
+                            keep_draft();
                         }),
                 ),
             )
             .child(
-                section(move || tr(i18n, "Biography", "个人简介")).child(
+                section(move || i18n.tr("Biography", "个人简介")).child(
                     ui::field()
-                        .label(move || tr(i18n, "Biography", "个人简介"))
+                        .label(move || i18n.tr("Biography", "个人简介"))
                         .multiline(true)
                         .min_h_20()
                         .value(move || biography.get())
                         .max_length(140)
                         .readonly(move || feedback.busy.get() || signing_out.get())
                         .on_change(move |value: &str| {
-                            edited.set(true);
                             biography.set(value.into());
+                            keep_draft();
                         }),
                 ),
             )
             .child(
-                section(move || tr(i18n, "Phone number", "手机号码")).child(
+                section(move || i18n.tr("Phone number", "手机号码")).child(
                     text(move || profile.with(|p| p.phone.clone()))
                         .text_sm()
                         .selectable(true),
@@ -150,25 +147,25 @@ pub(super) fn screen(
                     .disabled(move || {
                         feedback.busy.get()
                             || signing_out.get()
+                            || draft.with(Option::is_none)
                             || name.with(|n| n.trim().is_empty())
                     })
-                    .child(text(move || tr(i18n, "Save", "保存")))
+                    .child(text(move || i18n.tr("Save", "保存")))
                     .on_press(move || {
                         let client = save_account.clone();
                         let next_name = name.get_untracked().trim().to_owned();
                         let next_biography = biography.get_untracked().trim().to_owned();
                         feedback.start();
+                        let task = runtime::commit(async move {
+                            client.update_profile(next_name, next_biography).await
+                        });
                         spawn(async move {
-                            match runtime::commit(async move {
-                                client.update_profile(next_name, next_biography).await
-                            })
-                            .await
-                            {
+                            match task.await {
                                 Ok(next) => {
                                     name.set(next.full_name.clone());
                                     biography.set(next.biography.clone());
                                     profile.set(next);
-                                    edited.set(false);
+                                    draft.set(None);
                                     feedback.finish(true);
                                 }
                                 Err(_) => feedback.finish(false),
@@ -176,90 +173,116 @@ pub(super) fn screen(
                         });
                     }),
             )
-            .child(feedback.view(move || tr(i18n, "Saving…", "正在保存…")))
-            .child(section(move || i18n.text(Key::Language)).child(i18n.picker()))
+            .child(feedback.view(move || i18n.tr("Saving…", "正在保存…")))
             .child(
                 ui::command()
                     .text_color(move || theme().destructive)
                     .disabled(move || feedback.busy.get() || signing_out.get())
-                    .child(text(move || tr(i18n, "Sign out…", "退出登录…")))
+                    .child(text(move || i18n.tr("Sign out…", "退出登录…")))
                     .on_press(move || confirming.set(true)),
             )
             .child(when(
                 move || presence.mounted(),
                 move || {
-                    let client = sign_out_account.clone();
-                    let sign_out = sign_out.clone();
-                    ui::modal(
-                        presence,
-                        move || {
-                            if !signing_out.get_untracked() {
-                                confirming.set(false);
-                            }
+                    sign_out_dialog(
+                        sign_out_account.clone(),
+                        sign_out.clone(),
+                        SignOut {
+                            presence,
+                            confirming,
+                            signing_out,
+                            feedback,
+                            session_owner,
+                            profile_owner,
                         },
-                        view()
-                            .w_96()
-                            .max_w(relative(1.0))
-                            .gap_3()
-                            .p_6()
-                            .rounded_lg()
-                            .bg(move || theme().popover)
-                            .child(
-                                text(move || {
-                                    tr(
-                                        i18n,
-                                        "Sign out and remove this account’s local data?",
-                                        "退出登录并移除此账号的本地数据？",
-                                    )
-                                })
-                                .text_sm(),
-                            )
-                            .child(
-                                view()
-                                    .flex_row()
-                                    .gap_3()
-                                    .child(
-                                        ui::action(
-                                            move || i18n.text(Key::Cancel),
-                                            move || confirming.set(false),
-                                        )
-                                        .disabled(signing_out),
-                                    )
-                                    .child(
-                                        ui::command()
-                                            .disabled(signing_out)
-                                            .text_color(move || theme().destructive)
-                                            .child(text(move || tr(i18n, "Sign out", "退出登录")))
-                                            .on_press(move || {
-                                                if !presence.interactive() {
-                                                    return;
-                                                }
-                                                let client = client.clone();
-                                                signing_out.set(true);
-                                                feedback.failed.set(false);
-                                                let sign_out = sign_out.clone();
-                                                session_owner.run(|| {
-                                                    spawn(async move {
-                                                        match runtime::commit(async move {
-                                                            client.sign_out().await
-                                                        })
-                                                        .await
-                                                        {
-                                                            Ok(()) => sign_out(),
-                                                            Err(_) => {
-                                                                if profile_owner.is_live() {
-                                                                    signing_out.set(false);
-                                                                    feedback.failed.set(true);
-                                                                }
-                                                            }
-                                                        }
-                                                    })
-                                                });
-                                            }),
-                                    ),
-                            ),
                     )
                 },
             )),
+    )
+}
+
+#[derive(Clone, Copy)]
+struct SignOut {
+    presence: crate::motion::Presence,
+    confirming: Signal<bool>,
+    signing_out: Signal<bool>,
+    feedback: Feedback,
+    session_owner: Owner,
+    profile_owner: Owner,
+}
+
+fn sign_out_dialog(
+    account: Arc<AccountClient>,
+    on_signed_out: Arc<impl Fn() + 'static>,
+    state: SignOut,
+) -> impl IntoElement {
+    let i18n = i18n::current();
+    let SignOut {
+        presence,
+        confirming,
+        signing_out,
+        feedback,
+        session_owner,
+        profile_owner,
+    } = state;
+    ui::modal(
+        presence,
+        move || {
+            if !signing_out.get_untracked() {
+                confirming.set(false);
+            }
+        },
+        parts::dialog_card()
+            .child(
+                text(move || {
+                    i18n.tr(
+                        "Sign out and remove this account’s local data?",
+                        "退出登录并移除此账号的本地数据？",
+                    )
+                })
+                .text_sm(),
+            )
+            .child(
+                parts::dialog_actions()
+                    .child(
+                        ui::action(
+                            move || i18n.text(Key::Cancel),
+                            move || confirming.set(false),
+                        )
+                        .disabled(signing_out),
+                    )
+                    .child(
+                        ui::command()
+                            .disabled(signing_out)
+                            .text_color(move || theme().destructive)
+                            .child(text(move || i18n.tr("Sign out", "退出登录")))
+                            .on_press(move || {
+                                if !presence.interactive() {
+                                    return;
+                                }
+                                let client = account.clone();
+                                signing_out.set(true);
+                                feedback.failed.set(false);
+                                let on_signed_out = on_signed_out.clone();
+                                session_owner.run(|| {
+                                    spawn(async move {
+                                        let result =
+                                            runtime::commit(async move { client.sign_out().await })
+                                                .await;
+                                        match result {
+                                            Ok(()) => on_signed_out(),
+                                            // The failure shows on the page beneath this dialog.
+                                            Err(_) if profile_owner.is_live() => {
+                                                signing_out.set(false);
+                                                confirming.set(false);
+                                                feedback.failed.set(true);
+                                            }
+                                            Err(_) => {}
+                                        }
+                                    })
+                                });
+                            }),
+                    ),
+            ),
     )
 }

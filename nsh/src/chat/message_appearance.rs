@@ -1,13 +1,29 @@
-//! Shared sender and delivery presentation for timeline rows.
+//! Shared sender, delivery and surface presentation for timeline rows.
 use mixin_desktop_api::MessageListView;
 use nsh_base::theme;
-use nsh_core::prelude::*;
+use nsh_core::{element::AdaptiveColor, prelude::*};
 
-use super::message_actions::{Actions, label};
+use super::message_actions::Actions;
 use crate::{
     appearance::{Appearance, identity_badge},
     ui,
 };
+
+/// Timestamps and delivery marks stay at one size when message text scales.
+pub(super) const METADATA_SIZE: f32 = 10.0;
+
+pub(super) fn bubble_surface(mine: bool) -> AdaptiveColor {
+    if mine {
+        theme().color("bubble-out").unwrap_or(theme().accent)
+    } else {
+        floating_surface()
+    }
+}
+
+/// Bubbles and the controls floating over the timeline share one surface.
+pub(super) fn floating_surface() -> AdaptiveColor {
+    theme().color("bubble-in").unwrap_or(theme().card)
+}
 
 pub(super) fn sender(
     message: impl Fn() -> Option<MessageListView> + Copy + 'static,
@@ -17,6 +33,7 @@ pub(super) fn sender(
     ui::command()
         .justify_start()
         .min_w_0()
+        .min_h_0()
         .px_0()
         .py_0()
         .gap_1()
@@ -41,7 +58,7 @@ pub(super) fn sender(
                         .map(|id| format!("@{id}"))
                         .unwrap_or_default()
                 })
-                .text_size(px(10.0))
+                .text_size(px(METADATA_SIZE))
                 .text_color(move || theme().muted_foreground)
             },
         ))
@@ -60,19 +77,16 @@ pub(super) fn sender(
         .child(when(
             move || message().is_some_and(|row| row.sender_is_scam),
             move || {
-                text(move || label(actions.i18n, "SCAM", "诈骗风险"))
+                text(move || actions.i18n.tr("SCAM", "诈骗风险"))
                     .text_xs()
                     .text_color(move || theme().destructive)
             },
         ))
 }
 
-pub(super) fn delivery_status(
-    status: impl Fn() -> String + Copy + 'static,
-    _actions: Actions,
-) -> impl IntoElement {
+pub(super) fn delivery_status(status: Memo<String>) -> impl IntoElement {
     dynamic(move || {
-        let status = status();
+        let status = status.get();
         untracked(|| crate::appearance::delivery_icon(&status))
     })
 }

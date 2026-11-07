@@ -83,7 +83,8 @@ pub(super) fn banner(
             move || {
                 ui::command()
                     .justify_start()
-                    .px_4()
+                    .mx_2()
+                    .px_3()
                     .py_3()
                     .gap_3()
                     .on_press(move || {
@@ -139,7 +140,8 @@ pub(super) fn banner(
             move || {
                 ui::command()
                     .justify_start()
-                    .px_4()
+                    .mx_2()
+                    .px_3()
                     .py_3()
                     .disabled(busy)
                     .on_press(lookup)
@@ -160,7 +162,8 @@ pub(super) fn banner(
             move || {
                 ui::command()
                     .justify_start()
-                    .px_4()
+                    .mx_2()
+                    .px_3()
                     .py_3()
                     .disabled(busy)
                     .on_press(move || {
@@ -178,15 +181,13 @@ pub(super) fn banner(
             },
         ))
         .child(when(failed, || {
-            text(move || {
+            ui::error_text(move || {
                 tr(
                     "Couldn’t open this result. Check it and try again.",
                     "无法打开此结果，请检查后重试。",
                 )
             })
-            .px_4()
-            .text_sm()
-            .text_color(move || theme().destructive)
+            .px_5()
         }))
 }
 

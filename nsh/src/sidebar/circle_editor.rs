@@ -5,11 +5,9 @@ use mixin_desktop_api::{AccountClient, CircleConversationEdit, CircleItem, Conve
 use nsh_base::theme;
 use nsh_core::prelude::*;
 
-use crate::{runtime, ui};
+use crate::{i18n::tr, runtime, ui};
 
-fn tr(en: &'static str, zh: &'static str) -> &'static str {
-    crate::i18n::tr(en, zh)
-}
+const PAGE_SIZE: i64 = 60;
 
 type Changes = BTreeMap<String, (ConversationListData, bool)>;
 
@@ -47,30 +45,39 @@ pub(super) fn screen(
     let loading = signal(true);
     let busy = signal(false);
     let failed = signal(false);
+    let load_failed = signal(false);
     let reconcile = signal(false);
     let refresh = signal(0_u64);
-    let request = signal(0_u64);
-    const PAGE_SIZE: i64 = 60;
     let observer = account.with(|account| account.clone());
     spawn(async move {
-        let mut stream = Box::pin(runtime::observe(observer.conversation_changes()));
+        let mut stream = Box::pin(runtime::throttled(
+            observer.conversation_changes(),
+            std::time::Duration::from_millis(333),
+        ));
         while stream.next().await.is_some() {
             refresh.update(|refresh| *refresh += 1);
         }
     });
+    let seen_refresh = stored(0_u64);
     effect(move || {
         if composing.get() {
             return;
         }
         let keyword = query.get();
         let page = page.get();
-        let _refresh = refresh.get();
-        let ticket = request.get_untracked().wrapping_add(1);
-        request.set(ticket);
+        let revision = refresh.get();
+        // A live update replaces the rows quietly; only a new query shows loading.
+        let background = seen_refresh.replace(revision) != revision
+            && !load_failed.get_untracked()
+            && !loading.get_untracked();
         let client = account.with(|account| account.clone());
-        loading.set(true);
+        if !background {
+            loading.set(true);
+            load_failed.set(false);
+        }
+        // Rerunning this effect cancels the previous task and its business call.
         spawn(async move {
-            if !keyword.trim().is_empty() {
+            if !background && !keyword.trim().is_empty() {
                 timer(std::time::Duration::from_millis(150)).await;
             }
             let result = runtime::run(async move {
@@ -87,16 +94,13 @@ pub(super) fn screen(
                     .await
             })
             .await;
-            if request.get_untracked() != ticket {
-                return;
-            }
             match result {
                 Ok(mut values) => {
                     more.set(values.len() > PAGE_SIZE as usize);
                     values.truncate(PAGE_SIZE as usize);
                     rows.set(values);
                 }
-                Err(_) => failed.set(true),
+                Err(_) => load_failed.set(true),
             }
             loading.set(false);
         });
@@ -197,39 +201,163 @@ pub(super) fn screen(
             }
         });
     };
-    ui::modal(presence, move || { if !busy.get_untracked() { close(); } },view().w_96().max_w(relative(1.0)).h(px(640.0)).max_h(relative(0.9)).p_4().gap_3().rounded_xl().bg(move || theme().popover)
-            .child(text(move || tr("Edit conversations", "编辑聊天")).text_lg().font_weight(FontWeight::SEMIBOLD))
-            .child(text(move || title.with(|title| title.clone())).text_sm())
-            .child(ui::field().label(move || tr("Search chats", "搜索聊天")).placeholder(move || tr("Search chats", "搜索聊天").to_owned())
-                .value(move || query.get()).on_change(move |text: &str| batch(|| { query.set(text.into()); page.set(0); }))
-                .on_composition_change(move |event: &Composition| composing.set(event.composing)))
-            .child(when(loading, || text(move || tr("Loading…", "加载中…")).text_sm()))
-            .child(when(failed, move || view().gap_2()
-                .child(text(move || if reconcile.get() {
-                    tr("Couldn’t refresh saved changes. Reload before saving again.", "无法刷新已保存的更改，请先重新加载。")
-                } else { tr("Some changes could not be saved. Check the remaining selections.", "部分更改未能保存，请检查剩余选择。") }).text_sm().text_color(move || theme().destructive))
-                .child(ui::action(move || tr("Reload", "重新加载"), reload_choices).disabled(busy))))
-            .child(virtual_list(move || rows.with(Vec::len), move |at| {
-                let row = move || rows.with(|rows| rows.get(at.index()).cloned());
-                let selected = move || row().is_some_and(|row| changes.with(|changes| changes.get(&row.conversation_id).map(|(_, add)| *add)).unwrap_or_else(|| circle_id.with(|id| row.circle_ids.contains(id))));
-                ui::command().justify_start().min_h_16().gap_3().selected(selected).selected_style(|style| style.bg(move || theme().accent)).disabled(move || busy.get() || reconcile.get())
-                    .child(ui::conversation_avatar(row, px(40.0)))
-                    .child(text(move || row().map(|row| row.name).unwrap_or_default()).text_sm().flex_1().number_of_lines(1))
-                    .child(when(selected, || ui::icon(ui::Icon::Check)))
-                    .on_press(move || if let Some(row) = row() {
-                        let next = !selected(); let persisted = circle_id.with(|id| row.circle_ids.contains(id));
-                        changes.update(|changes| {
-                            if next == persisted { changes.remove(&row.conversation_id); }
-                            else { changes.insert(row.conversation_id.clone(), (row, next)); }
-                        });
+    let card = ui::modal_card()
+        .w_96()
+        .h(px(640.0))
+        .child(ui::modal_title(move || {
+            tr("Edit conversations", "编辑聊天")
+        }))
+        .child(text(move || title.with(|title| title.clone())).text_sm())
+        .child(
+            ui::field()
+                .label(move || tr("Search chats", "搜索聊天"))
+                .placeholder(move || tr("Search chats", "搜索聊天").to_owned())
+                .value(move || query.get())
+                .on_change(move |text: &str| {
+                    batch(|| {
+                        query.set(text.into());
+                        page.set(0);
                     })
-            }).keys(move || rows.with(|rows| rows.iter().map(|row| row.conversation_id.clone()).collect::<Vec<_>>())).estimated_item_size(px(64.0)).flex_1().min_h_0())
-            .child(view().flex_row().gap_2().justify_between()
-                .child(ui::action(move || tr("Previous", "上一页"), move || page.update(|page| *page = page.saturating_sub(1))).disabled(move || busy.get() || loading.get() || page.get() == 0))
+                })
+                .on_composition_change(move |event: &Composition| composing.set(event.composing)),
+        )
+        .child(when(
+            move || loading.get() && rows.with(Vec::is_empty),
+            || {
+                text(move || tr("Loading…", "加载中…"))
+                    .text_sm()
+                    .text_color(move || theme().muted_foreground)
+            },
+        ))
+        .child(when(load_failed, move || {
+            view()
+                .gap_2()
+                .child(ui::error_text(move || {
+                    tr("Couldn’t load chats.", "无法加载聊天。")
+                }))
+                .child(ui::action(
+                    move || tr("Reload", "重新加载"),
+                    move || refresh.update(|refresh| *refresh += 1),
+                ))
+        }))
+        .child(when(failed, move || {
+            view()
+                .gap_2()
+                .child(ui::error_text(move || {
+                    if reconcile.get() {
+                        tr(
+                            "Couldn’t refresh saved changes. Reload before saving again.",
+                            "无法刷新已保存的更改，请先重新加载。",
+                        )
+                    } else {
+                        tr(
+                            "Some changes could not be saved. Check the remaining selections.",
+                            "部分更改未能保存，请检查剩余选择。",
+                        )
+                    }
+                }))
+                .child(ui::action(move || tr("Reload", "重新加载"), reload_choices).disabled(busy))
+        }))
+        .child(
+            virtual_list(
+                move || rows.with(Vec::len),
+                move |at| {
+                    let row = move || rows.with(|rows| rows.get(at.index()).cloned());
+                    let selected = move || {
+                        row().is_some_and(|row| {
+                            changes
+                                .with(|changes| {
+                                    changes.get(&row.conversation_id).map(|(_, add)| *add)
+                                })
+                                .unwrap_or_else(|| circle_id.with(|id| row.circle_ids.contains(id)))
+                        })
+                    };
+                    ui::command()
+                        .justify_start()
+                        .min_h_16()
+                        .gap_3()
+                        .selected(selected)
+                        .disabled(move || busy.get() || reconcile.get())
+                        .child(ui::conversation_avatar(row, px(40.0)))
+                        .child(
+                            text(move || row().map(|row| row.name).unwrap_or_default())
+                                .text_sm()
+                                .flex_1()
+                                .number_of_lines(1),
+                        )
+                        .child(when(selected, || ui::icon(ui::Icon::Check)))
+                        .on_press(move || {
+                            if let Some(row) = row() {
+                                let next = !selected();
+                                let persisted = circle_id.with(|id| row.circle_ids.contains(id));
+                                changes.update(|changes| {
+                                    if next == persisted {
+                                        changes.remove(&row.conversation_id);
+                                    } else {
+                                        changes.insert(row.conversation_id.clone(), (row, next));
+                                    }
+                                });
+                            }
+                        })
+                },
+            )
+            .keys(move || {
+                rows.with(|rows| {
+                    rows.iter()
+                        .map(|row| row.conversation_id.clone())
+                        .collect::<Vec<_>>()
+                })
+            })
+            .estimated_item_size(px(64.0))
+            .flex_1()
+            .min_h_0(),
+        )
+        .child(
+            view()
+                .flex_row()
+                .gap_2()
+                .justify_between()
+                .items_center()
+                .child(
+                    ui::action(
+                        move || tr("Previous", "上一页"),
+                        move || page.update(|page| *page = page.saturating_sub(1)),
+                    )
+                    .disabled(move || busy.get() || loading.get() || page.get() == 0),
+                )
                 .child(text(move || (page.get() + 1).to_string()).text_sm())
-                .child(ui::action(move || tr("Next", "下一页"), move || page.update(|page| *page += 1)).disabled(move || busy.get() || loading.get() || !more.get())))
-            .child(view().flex_row().gap_2().justify_end()
+                .child(
+                    ui::action(
+                        move || tr("Next", "下一页"),
+                        move || page.update(|page| *page += 1),
+                    )
+                    .disabled(move || busy.get() || loading.get() || !more.get()),
+                ),
+        )
+        .child(
+            view()
+                .flex_row()
+                .gap_2()
+                .justify_end()
                 .child(ui::action(move || tr("Cancel", "取消"), close).disabled(busy))
-                .child(ui::primary().disabled(move || busy.get() || reconcile.get() || changes.with(BTreeMap::is_empty)).on_press(save)
-                    .child(text(move || format!("{} ({})", tr("Save", "保存"), changes.with(BTreeMap::len)))))))
+                .child(
+                    ui::primary()
+                        .disabled(move || {
+                            busy.get() || reconcile.get() || changes.with(BTreeMap::is_empty)
+                        })
+                        .on_press(save)
+                        .child(text(move || {
+                            format!("{} ({})", tr("Save", "保存"), changes.with(BTreeMap::len))
+                        })),
+                ),
+        );
+    ui::modal(
+        presence,
+        move || {
+            if !busy.get_untracked() {
+                close();
+            }
+        },
+        card,
+    )
 }

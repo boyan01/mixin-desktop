@@ -3,7 +3,7 @@ use nsh_base::theme;
 use nsh_core::{PointerEvents, element::ImageSrc, prelude::*};
 use serde_json::Value;
 
-use super::message_actions::{Actions, label};
+use super::message_actions::Actions;
 use crate::{i18n::Key, ui};
 
 const WIDTH: f32 = 260.0;
@@ -111,7 +111,7 @@ pub(super) fn location(row: &MessageListView, actions: Actions) -> AnyElement {
 }
 
 fn invalid(actions: Actions) -> AnyElement {
-    text(move || label(actions.i18n, "Invalid location", "无法读取位置"))
+    text(move || actions.i18n.tr("Invalid location", "无法读取位置"))
         .text_sm()
         .into_element()
 }
@@ -128,7 +128,7 @@ fn preview(
     ));
     let open = move || {
         let target = target.with(|value| value.clone());
-        spawn(async move {
+        actions.task(async move {
             actions.failed.set(!open_url(target).await);
         });
     };

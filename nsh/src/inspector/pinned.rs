@@ -9,6 +9,7 @@ use nsh_core::{element::ViewableItems, prelude::*};
 
 use crate::{
     chat::MediaPreview,
+    conversation::parts,
     i18n::{self, Key},
     presentation, runtime, ui,
 };
@@ -58,68 +59,71 @@ impl Pinned {
             })
             .flatten();
         let selected = self.preview.selection_ids();
-        spawn(async move {
-            let result = runtime::run(async move {
-                let messages = account.message();
-                let total =
-                    usize::try_from(messages.pinned_message_count(conversation.clone()).await?)
-                        .unwrap_or_default();
-                let offset = if let Some(anchor) = anchor {
-                    messages
-                        .pinned_message_offset(conversation.clone(), anchor)
-                        .await?
-                        .unwrap_or(previous_offset)
-                } else {
-                    previous_offset
-                }
-                .min(total.saturating_sub(1));
-                let rows = messages
-                    .pinned_messages_page(conversation.clone(), offset as i64, count as i64)
-                    .await?;
-                let mut ids: Vec<String> = rows
-                    .iter()
-                    .map(|row| row.message_id.clone())
-                    .chain(selected)
-                    .collect();
-                let mut seen = HashSet::new();
-                ids.retain(|id| seen.insert(id.clone()));
-                let mut policies = Vec::new();
-                for ids in ids.chunks(200) {
-                    policies.extend(
+        // Retry calls this from a branch that clearing `failed` disposes at once.
+        self.owner.run(|| {
+            spawn(async move {
+                let result = runtime::run(async move {
+                    let messages = account.message();
+                    let total =
+                        usize::try_from(messages.pinned_message_count(conversation.clone()).await?)
+                            .unwrap_or_default();
+                    let offset = if let Some(anchor) = anchor {
                         messages
-                            .message_actions(conversation.clone(), ids.to_vec())
-                            .await?,
-                    );
-                }
-                let can_unpin = messages.can_unpin_messages(conversation.clone()).await?;
-                let can_send = account.conversation().can_send(conversation).await?;
-                Ok((rows, offset, total, policies, can_unpin, can_send))
-            })
-            .await;
-            if !self.owner.is_live() || self.request.get_untracked() != ticket {
-                return;
-            }
-            match result {
-                Ok((rows, offset, total, policies, can_unpin, can_send)) => {
-                    self.offset.set(offset);
-                    self.total.set(total);
-                    self.can_unpin.set(can_unpin);
-                    self.preview.pinned_permissions(policies, can_send);
-                    if total == 0 {
-                        close();
-                        return;
+                            .pinned_message_offset(conversation.clone(), anchor)
+                            .await?
+                            .unwrap_or(previous_offset)
+                    } else {
+                        previous_offset
                     }
-                    self.apply(rows, ticket, close);
+                    .min(total.saturating_sub(1));
+                    let rows = messages
+                        .pinned_messages_page(conversation.clone(), offset as i64, count as i64)
+                        .await?;
+                    let mut ids: Vec<String> = rows
+                        .iter()
+                        .map(|row| row.message_id.clone())
+                        .chain(selected)
+                        .collect();
+                    let mut seen = HashSet::new();
+                    ids.retain(|id| seen.insert(id.clone()));
+                    let mut policies = Vec::new();
+                    for ids in ids.chunks(200) {
+                        policies.extend(
+                            messages
+                                .message_actions(conversation.clone(), ids.to_vec())
+                                .await?,
+                        );
+                    }
+                    let can_unpin = messages.can_unpin_messages(conversation.clone()).await?;
+                    let can_send = account.conversation().can_send(conversation).await?;
+                    Ok((rows, offset, total, policies, can_unpin, can_send))
+                })
+                .await;
+                if self.request.get_untracked() != ticket {
+                    return;
                 }
-                Err(error) => {
-                    log::warn!("Could not load pinned messages: {error}");
-                    self.can_unpin.set(false);
-                    self.preview.pinned_permissions(Vec::new(), false);
-                    self.failed.set(true);
-                    self.loading.set(false);
-                    self.deferred.replace(None);
+                match result {
+                    Ok((rows, offset, total, policies, can_unpin, can_send)) => {
+                        self.offset.set(offset);
+                        self.total.set(total);
+                        self.can_unpin.set(can_unpin);
+                        self.preview.pinned_permissions(policies, can_send);
+                        if total == 0 {
+                            close();
+                            return;
+                        }
+                        self.apply(rows, ticket, close);
+                    }
+                    Err(error) => {
+                        log::warn!("Could not load pinned messages: {error}");
+                        self.can_unpin.set(false);
+                        self.preview.pinned_permissions(Vec::new(), false);
+                        self.failed.set(true);
+                        self.loading.set(false);
+                        self.deferred.replace(None);
+                    }
                 }
-            }
+            })
         });
     }
 
@@ -193,18 +197,13 @@ impl Pinned {
                     account.message().unpin_all_messages(conversation).await
                 });
                 let result = command.await;
-                if !self.owner.is_live() {
-                    return;
-                }
                 self.failed.set(result.is_err());
                 if result.is_ok() {
                     self.preview.prune_selection(&self.preview.selection_ids());
                     self.load(true, close);
                 }
             }
-            if self.owner.is_live() {
-                self.mutating.set(false);
-            }
+            self.mutating.set(false);
         });
     }
 }
@@ -256,9 +255,6 @@ fn reader(
         let mut changes = Box::pin(runtime::observe(account.conversation_changes()));
         state.load(false, close);
         while let Some(change) = changes.next().await {
-            if !state.owner.is_live() {
-                return;
-            }
             if change.reload_all || change.conversation_ids.contains(&conversation) {
                 state.load(true, close);
             }
@@ -267,59 +263,30 @@ fn reader(
     view()
         .flex_1()
         .min_h_0()
-        .child(
-            view()
-                .h_16()
-                .px_4()
-                .gap_3()
-                .flex_row()
-                .items_center()
-                .child(
-                    ui::command()
-                        .size_8()
-                        .px_1()
-                        .on_press(close)
-                        .accessibility_label(move || Some(i18n.text(Key::Back).into()))
-                        .child(ui::icon(ui::Icon::ArrowLeft)),
-                )
-                .child(
-                    text(move || format!("{} ({})", i18n.text(Key::Pinned), state.total.get()))
-                        .text_sm()
-                        .font_weight(FontWeight::SEMIBOLD),
-                ),
-        )
-        .child(when(state.loading, move || {
-            view()
-                .px_4()
-                .py_2()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .child(ui::busy_indicator(
-                    move || true,
-                    move || i18n.text(Key::LoadingMessages).into(),
-                ))
-                .child(text(move || i18n.text(Key::LoadingMessages)).text_sm())
-        }))
+        .child(parts::page_header(
+            move || format!("{} ({})", i18n.text(Key::Pinned), state.total.get()),
+            parts::back_button(close),
+        ))
+        .child(when(
+            move || state.loading.get() && state.rows.with(Vec::is_empty),
+            move || {
+                parts::status(move || i18n.text(Key::LoadingMessages))
+                    .px_4()
+                    .py_2()
+            },
+        ))
         .child(when(
             move || state.failed.get() || state.preview.failed.get(),
             move || {
-                view()
-                    .px_4()
-                    .py_2()
-                    .gap_2()
-                    .child(
-                        text(move || i18n.text(Key::CommandFailed))
-                            .text_sm()
-                            .text_color(move || theme().destructive),
-                    )
-                    .child(ui::action(
-                        move || i18n.text(Key::Retry),
-                        move || {
-                            state.preview.failed.set(false);
-                            state.load(true, close);
-                        },
-                    ))
+                parts::failure(
+                    move || i18n.text(Key::CommandFailed),
+                    move || {
+                        state.preview.failed.set(false);
+                        state.load(true, close);
+                    },
+                )
+                .px_4()
+                .py_2()
             },
         ))
         .child(
@@ -335,110 +302,9 @@ fn reader(
                             && !state.mutating.get()
                     });
                     let row = move || state.rows.with(|rows| rows.get(at.index()).cloned());
-                    let mine = move || {
-                        row().is_some_and(|row| {
-                            state.account.with(|account| account.account_id()) == row.sender_id
-                        })
-                    };
                     state.preview.pinned_row(
                         row,
-                        view()
-                            .flex_1()
-                            .min_w_0()
-                            .px_3()
-                            .py_2()
-                            .gap_2()
-                            .child(when(
-                                move || {
-                                    state.rows.with(|rows| {
-                                        let current = rows.get(at.index()).map(|row| {
-                                            presentation::day(i18n, row.created_at_micros)
-                                        });
-                                        let previous = rows.get(at.index() + 1).map(|row| {
-                                            presentation::day(i18n, row.created_at_micros)
-                                        });
-                                        current.is_some() && current != previous
-                                    })
-                                },
-                                move || {
-                                    text(move || {
-                                        row()
-                                            .map(|row| {
-                                                presentation::day(i18n, row.created_at_micros)
-                                            })
-                                            .unwrap_or_default()
-                                    })
-                                    .text_xs()
-                                    .text_color(move || theme().muted_foreground)
-                                },
-                            ))
-                            .child(
-                                text(move || row().map(|row| row.sender_name).unwrap_or_default())
-                                    .text_sm()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .style_when(mine, |style| style.hidden()),
-                            )
-                            .child(
-                                view()
-                                    .flex_row()
-                                    .style_when(mine, |style| style.flex_row_reverse())
-                                    .items_center()
-                                    .gap_2()
-                                    .child(dynamic(move || {
-                                        let row = row();
-                                        untracked(move || match row {
-                                            Some(row) => view()
-                                                .min_w_0()
-                                                .flex_1()
-                                                .p_2()
-                                                .style_when({ let media = crate::chat::message_media::inline_metadata(&row); move || media }, |style| style.p_0().flex_none())
-                                                .rounded_lg()
-                                                .bg(move || {
-                                                    if mine() {
-                                                        theme()
-                                                            .color("bubble-out")
-                                                            .unwrap_or(theme().accent)
-                                                    } else {
-                                                        theme()
-                                                            .color("bubble-in")
-                                                            .unwrap_or(theme().card)
-                                                    }
-                                                })
-                                                .child(state.preview.content(row))
-                                                .into_element(),
-                                            None => view().hidden().into_element(),
-                                        })
-                                    }))
-                                    .child(
-                                        ui::command()
-                                            .size_8()
-                                            .px_1()
-                                            .on_press(move || {
-                                                if let Some(row) = row() {
-                                                    locate(row.message_id);
-                                                }
-                                            })
-                                            .accessibility_label(move || {
-                                                Some(
-                                                    i18n.tr("Locate in chat", "在聊天中定位")
-                                                        .into(),
-                                                )
-                                            })
-                                            .child(ui::icon(ui::Icon::ArrowLeft)),
-                                    ),
-                            )
-                            .child(
-                                text(move || {
-                                    row()
-                                        .map(|row| {
-                                            presentation::time(i18n, row.created_at_micros / 1000)
-                                        })
-                                        .unwrap_or_default()
-                                })
-                                .text_xs()
-                                .style_when(move || row().is_some_and(|row| crate::chat::message_media::inline_metadata(&row)), |style| style.hidden())
-                                .text_color(move || theme().muted_foreground),
-                            ),
+                        row_body(state, move || at.index(), row, locate),
                         locate,
                     )
                 },
@@ -483,4 +349,109 @@ fn reader(
                 ),
         )
         .child(state.preview.surface())
+}
+
+fn row_body(
+    state: Pinned,
+    index: impl Fn() -> usize + Copy + 'static,
+    row: impl Fn() -> Option<MessageListView> + Copy + 'static,
+    locate: impl Fn(String) + Copy + 'static,
+) -> View {
+    let i18n = i18n::current();
+    let mine = move || {
+        row().is_some_and(|row| state.account.with(|account| account.account_id()) == row.sender_id)
+    };
+    let inline_media =
+        move || row().is_some_and(|row| crate::chat::message_media::inline_metadata(&row));
+    view()
+        .flex_1()
+        .min_w_0()
+        .px_3()
+        .py_2()
+        .gap_2()
+        .child(when(
+            move || {
+                state.rows.with(|rows| {
+                    let day =
+                        |row: &MessageListView| presentation::day(i18n, row.created_at_micros);
+                    let current = rows.get(index()).map(day);
+                    current.is_some() && current != rows.get(index() + 1).map(day)
+                })
+            },
+            move || {
+                text(move || {
+                    row()
+                        .map(|row| presentation::day(i18n, row.created_at_micros))
+                        .unwrap_or_default()
+                })
+                .text_xs()
+                .text_color(move || theme().muted_foreground)
+            },
+        ))
+        .child(
+            text(move || row().map(|row| row.sender_name).unwrap_or_default())
+                .text_sm()
+                .font_weight(FontWeight::SEMIBOLD)
+                .style_when(mine, |style| style.hidden()),
+        )
+        .child(
+            view()
+                .flex_row()
+                .style_when(mine, |style| style.flex_row_reverse())
+                .items_center()
+                .gap_2()
+                .child(dynamic(move || {
+                    let row = row();
+                    untracked(move || match row {
+                        Some(row) => bubble(state, row, mine).into_element(),
+                        None => view().hidden().into_element(),
+                    })
+                }))
+                .child(
+                    ui::icon_button()
+                        .size_8()
+                        .px_1()
+                        .on_press(move || {
+                            if let Some(row) = row() {
+                                locate(row.message_id);
+                            }
+                        })
+                        .accessibility_label(move || {
+                            Some(i18n.tr("Locate in chat", "在聊天中定位").into())
+                        })
+                        .child(ui::icon(ui::Icon::ArrowLeft)),
+                ),
+        )
+        .child(
+            text(move || {
+                row()
+                    .map(|row| presentation::time(i18n, row.created_at_micros / 1000))
+                    .unwrap_or_default()
+            })
+            .text_xs()
+            .style_when(inline_media, |style| style.hidden())
+            .text_color(move || theme().muted_foreground),
+        )
+}
+
+fn bubble(
+    state: Pinned,
+    row: MessageListView,
+    mine: impl Fn() -> bool + 'static,
+) -> impl IntoElement {
+    let media = crate::chat::message_media::inline_metadata(&row);
+    view()
+        .min_w_0()
+        .flex_1()
+        .p_2()
+        .style_when(move || media, |style| style.p_0().flex_none())
+        .rounded_lg()
+        .bg(move || {
+            if mine() {
+                theme().color("bubble-out").unwrap_or(theme().accent)
+            } else {
+                theme().color("bubble-in").unwrap_or(theme().card)
+            }
+        })
+        .child(state.preview.content(row))
 }

@@ -79,6 +79,16 @@
     "zh-HK": "鎖屏密碼可隱藏賬號內容。鎖屏後，Mixin 仍會在後台同步消息。",
     "zh-TW": "鎖屏密碼可隱藏賬號內容。鎖屏後，Mixin 仍會在背景同步訊息。"
   },
+  "Account content will no longer be hidden when Mixin locks.": {
+    "es": "El contenido de la cuenta ya no se ocultará cuando Mixin se bloquee.",
+    "id": "Konten akun tidak lagi disembunyikan saat Mixin terkunci.",
+    "ja": "Mixin のロック時にアカウントの内容が非表示にならなくなります。",
+    "ms": "Kandungan akaun tidak lagi disembunyikan apabila Mixin dikunci.",
+    "ru": "Содержимое аккаунта больше не будет скрываться при блокировке Mixin.",
+    "zh-CN": "关闭后，将不再隐藏账号内容。",
+    "zh-HK": "關閉後，將不再隱藏帳號內容。",
+    "zh-TW": "關閉後，將不再隱藏帳號內容。"
+  },
   "Action": {
     "es": "Acción",
     "id": "Tindakan",
@@ -174,6 +184,16 @@
   "Added": {
     "id": "Ditambahkan",
     "ms": "Ditambah"
+  },
+  "Adding chat…": {
+    "es": "Añadiendo chat…",
+    "id": "Menambahkan chat…",
+    "ja": "チャットを追加中…",
+    "ms": "Menambah sembang…",
+    "ru": "Добавление чата…",
+    "zh-CN": "正在添加聊天…",
+    "zh-HK": "正在加入聊天…",
+    "zh-TW": "正在加入聊天…"
   },
   "All": {
     "es": "Todo",
@@ -625,6 +645,16 @@
     "zh-HK": "選擇接收方…",
     "zh-TW": "選擇接收方…"
   },
+  "Circle created, but this chat couldn’t be added. Retry adding it.": {
+    "es": "El círculo se creó, pero no se pudo añadir este chat. Vuelve a intentarlo.",
+    "id": "Lingkaran dibuat, tetapi chat ini tidak dapat ditambahkan. Coba tambahkan lagi.",
+    "ja": "サークルは作成されましたが、このチャットを追加できませんでした。もう一度追加してください。",
+    "ms": "Bulatan dicipta, tetapi sembang ini tidak dapat ditambah. Cuba tambah semula.",
+    "ru": "Круг создан, но этот чат добавить не удалось. Повторите попытку.",
+    "zh-CN": "圈子已创建，但未能添加此聊天。请重试添加。",
+    "zh-HK": "圈子已建立，但無法加入此聊天。請重試加入。",
+    "zh-TW": "圈子已建立，但無法加入此聊天。請重試加入。"
+  },
   "Circle name": {
     "es": "Nombre del círculo",
     "id": "Nama lingkaran",
@@ -849,6 +879,46 @@
     "zh-HK": "會話",
     "zh-TW": "會話"
   },
+  "Conversations added to this circle will appear here.": {
+    "es": "Las conversaciones añadidas a este círculo aparecerán aquí.",
+    "id": "Percakapan yang ditambahkan ke lingkaran ini akan muncul di sini.",
+    "ja": "このサークルに追加した会話がここに表示されます。",
+    "ms": "Perbualan yang ditambah ke bulatan ini akan dipaparkan di sini.",
+    "ru": "Беседы, добавленные в этот круг, появятся здесь.",
+    "zh-CN": "加入此圈子的会话会显示在这里。",
+    "zh-HK": "加入此圈子的會話會顯示在這裡。",
+    "zh-TW": "加入此圈子的會話會顯示在這裡。"
+  },
+  "Conversations with bots will appear here.": {
+    "es": "Las conversaciones con bots aparecerán aquí.",
+    "id": "Percakapan dengan bot akan muncul di sini.",
+    "ja": "ボットとの会話がここに表示されます。",
+    "ms": "Perbualan dengan bot akan dipaparkan di sini.",
+    "ru": "Беседы с ботами появятся здесь.",
+    "zh-CN": "与机器人的会话会显示在这里。",
+    "zh-HK": "與機器人的會話會顯示在這裡。",
+    "zh-TW": "與機器人的會話會顯示在這裡。"
+  },
+  "Conversations with people outside your contacts will appear here.": {
+    "es": "Las conversaciones con personas fuera de tus contactos aparecerán aquí.",
+    "id": "Percakapan dengan orang di luar kontak Anda akan muncul di sini.",
+    "ja": "連絡先以外の人との会話がここに表示されます。",
+    "ms": "Perbualan dengan orang di luar kenalan anda akan dipaparkan di sini.",
+    "ru": "Беседы с людьми не из ваших контактов появятся здесь.",
+    "zh-CN": "与非联系人的会话会显示在这里。",
+    "zh-HK": "與非聯絡人的會話會顯示在這裡。",
+    "zh-TW": "與非聯絡人的會話會顯示在這裡。"
+  },
+  "Conversations with your contacts will appear here.": {
+    "es": "Las conversaciones con tus contactos aparecerán aquí.",
+    "id": "Percakapan dengan kontak Anda akan muncul di sini.",
+    "ja": "連絡先との会話がここに表示されます。",
+    "ms": "Perbualan dengan kenalan anda akan dipaparkan di sini.",
+    "ru": "Беседы с вашими контактами появятся здесь.",
+    "zh-CN": "与联系人的会话会显示在这里。",
+    "zh-HK": "與聯絡人的會話會顯示在這裡。",
+    "zh-TW": "與聯絡人的會話會顯示在這裡。"
+  },
   "Copy image": {
     "es": "Copiar imagen",
     "id": "Salin gambar",
@@ -979,6 +1049,16 @@
     "zh-HK": "無法加入羣組，請重試。",
     "zh-TW": "無法加入群組，請重試。"
   },
+  "Couldn’t load chats.": {
+    "es": "No se pudieron cargar los chats.",
+    "id": "Tidak dapat memuat chat.",
+    "ja": "チャットを読み込めませんでした。",
+    "ms": "Tidak dapat memuatkan sembang.",
+    "ru": "Не удалось загрузить чаты.",
+    "zh-CN": "无法加载聊天。",
+    "zh-HK": "無法載入聊天。",
+    "zh-TW": "無法載入聊天。"
+  },
   "Couldn’t load chats. Try again.": {
     "es": "No se pudieron cargar los chats. Inténtalo de nuevo.",
     "id": "Tidak dapat memuat obrolan. Coba lagi.",
@@ -1039,6 +1119,16 @@
     "zh-HK": "快速搜索加載失敗",
     "zh-TW": "快速搜尋載入失敗"
   },
+  "Couldn’t load recent emoji.": {
+    "es": "No se pudieron cargar los emojis recientes.",
+    "id": "Tidak dapat memuat emoji terbaru.",
+    "ja": "最近使った絵文字を読み込めませんでした。",
+    "ms": "Tidak dapat memuatkan emoji terkini.",
+    "ru": "Не удалось загрузить недавние эмодзи.",
+    "zh-CN": "无法加载最近使用的表情。",
+    "zh-HK": "無法載入最近使用的表情符號。",
+    "zh-TW": "無法載入最近使用的表情符號。"
+  },
   "Couldn’t load recipients.": {
     "es": "No se pudieron cargar los destinatarios.",
     "id": "Tidak dapat memuat penerima.",
@@ -1058,6 +1148,16 @@
     "zh-CN": "无法加载发送者",
     "zh-HK": "無法載入發送者",
     "zh-TW": "無法載入傳送者"
+  },
+  "Couldn’t load this recipient.": {
+    "es": "No se pudo cargar este destinatario.",
+    "id": "Tidak dapat memuat penerima ini.",
+    "ja": "この宛先を読み込めませんでした。",
+    "ms": "Tidak dapat memuatkan penerima ini.",
+    "ru": "Не удалось загрузить получателя.",
+    "zh-CN": "无法加载此接收方。",
+    "zh-HK": "無法載入此接收方。",
+    "zh-TW": "無法載入此接收方。"
   },
   "Couldn’t load unread messages.": {
     "es": "No se pudieron cargar los mensajes no leídos.",
@@ -1158,6 +1258,16 @@
     "zh-CN": "无法处理头像，请重试。",
     "zh-HK": "無法處理頭像，請重試。",
     "zh-TW": "無法處理頭像，請重試。"
+  },
+  "Couldn’t prepare this file. Remove it or send as files.": {
+    "es": "No se pudo preparar este archivo. Quítalo o envíalo como archivo.",
+    "id": "Tidak dapat menyiapkan file ini. Hapus atau kirim sebagai file.",
+    "ja": "このファイルを準備できませんでした。削除するか、ファイルとして送信してください。",
+    "ms": "Tidak dapat menyediakan fail ini. Alih keluar atau hantar sebagai fail.",
+    "ru": "Не удалось подготовить этот файл. Удалите его или отправьте как файл.",
+    "zh-CN": "无法准备此文件。可以将其移除，或改为文件发送。",
+    "zh-HK": "無法準備此檔案。可將其移除，或改為以檔案傳送。",
+    "zh-TW": "無法準備此檔案。可將其移除，或改為以檔案傳送。"
   },
   "Couldn’t prepare this media. Send as files or choose other files.": {
     "es": "No se pudo preparar este contenido. Envíalo como archivos o elige otros archivos.",
@@ -1360,6 +1470,16 @@
     "ms": "Dicipta pada {arg0}",
     "ru": "Создано {arg0}"
   },
+  "Creating circle and adding chat…": {
+    "es": "Creando el círculo y añadiendo el chat…",
+    "id": "Membuat lingkaran dan menambahkan chat…",
+    "ja": "サークルを作成してチャットを追加中…",
+    "ms": "Mencipta bulatan dan menambah sembang…",
+    "ru": "Создание круга и добавление чата…",
+    "zh-CN": "正在创建圈子并添加聊天…",
+    "zh-HK": "正在建立圈子並加入聊天…",
+    "zh-TW": "正在建立圈子並加入聊天…"
+  },
   "Creating…": {
     "es": "Creando…",
     "id": "Membuat…",
@@ -1479,6 +1599,26 @@
     "zh-CN": "为我删除消息？",
     "zh-HK": "為我刪除消息？",
     "zh-TW": "為我刪除訊息？"
+  },
+  "Delete group?": {
+    "es": "¿Eliminar el grupo?",
+    "id": "Hapus grup?",
+    "ja": "グループを削除しますか？",
+    "ms": "Padam kumpulan?",
+    "ru": "Удалить группу?",
+    "zh-CN": "删除群组？",
+    "zh-HK": "刪除群組？",
+    "zh-TW": "刪除群組？"
+  },
+  "Delete group…": {
+    "es": "Eliminar grupo…",
+    "id": "Hapus grup…",
+    "ja": "グループを削除…",
+    "ms": "Padam kumpulan…",
+    "ru": "Удалить группу…",
+    "zh-CN": "删除群组…",
+    "zh-HK": "刪除群組…",
+    "zh-TW": "刪除群組…"
   },
   "Delete “{name}”?": {
     "es": "¿Eliminar «{name}»?",
@@ -1837,6 +1977,16 @@
     "zh-HK": "羣組",
     "zh-TW": "群組"
   },
+  "Group conversations will appear here.": {
+    "es": "Las conversaciones de grupo aparecerán aquí.",
+    "id": "Percakapan grup akan muncul di sini.",
+    "ja": "グループの会話がここに表示されます。",
+    "ms": "Perbualan kumpulan akan dipaparkan di sini.",
+    "ru": "Групповые беседы появятся здесь.",
+    "zh-CN": "群组会话会显示在这里。",
+    "zh-HK": "群組會話會顯示在這裡。",
+    "zh-TW": "群組會話會顯示在這裡。"
+  },
   "Group participants": {
     "id": "Peserta grup",
     "ms": "Peserta kumpulan"
@@ -2087,6 +2237,16 @@
     "zh-CN": "正在加载 GIF…",
     "zh-HK": "正在加載 GIF…",
     "zh-TW": "正在載入 GIF…"
+  },
+  "Loading contacts…": {
+    "es": "Cargando contactos…",
+    "id": "Memuat kontak…",
+    "ja": "連絡先を読み込み中…",
+    "ms": "Memuatkan kenalan…",
+    "ru": "Загрузка контактов…",
+    "zh-CN": "正在加载联系人…",
+    "zh-HK": "正在載入聯絡人…",
+    "zh-TW": "正在載入聯絡人…"
   },
   "Loading content…": {
     "es": "Cargando contenido…",
@@ -2400,6 +2560,16 @@
     "zh-HK": "下一頁",
     "zh-TW": "下一頁"
   },
+  "Next photo": {
+    "es": "Foto siguiente",
+    "id": "Foto berikutnya",
+    "ja": "次の写真",
+    "ms": "Foto seterusnya",
+    "ru": "Следующее фото",
+    "zh-CN": "下一张",
+    "zh-HK": "下一張",
+    "zh-TW": "下一張"
+  },
   "Next unread mention": {
     "es": "Siguiente mención no leída",
     "id": "Sebutan belum dibaca berikutnya",
@@ -2409,6 +2579,16 @@
     "zh-CN": "下一条未读提及",
     "zh-HK": "下一條未讀提及",
     "zh-TW": "下一條未讀提及"
+  },
+  "No GIFs found": {
+    "es": "No se encontraron GIF",
+    "id": "GIF tidak ditemukan",
+    "ja": "GIF が見つかりません",
+    "ms": "GIF tidak ditemui",
+    "ru": "GIF не найдены",
+    "zh-CN": "未找到 GIF",
+    "zh-HK": "找不到 GIF",
+    "zh-TW": "找不到 GIF"
   },
   "No app permission prompt is required on this system.": {
     "es": "Este sistema no requiere solicitar permiso de notificaciones para la aplicación.",
@@ -2430,6 +2610,16 @@
     "zh-HK": "沒有可添加的聯繫人",
     "zh-TW": "沒有可新增的聯絡人"
   },
+  "No bot conversations": {
+    "es": "No hay conversaciones con bots",
+    "id": "Tidak ada percakapan bot",
+    "ja": "ボットとの会話はありません",
+    "ms": "Tiada perbualan bot",
+    "ru": "Нет бесед с ботами",
+    "zh-CN": "暂无机器人会话",
+    "zh-HK": "暫無機器人會話",
+    "zh-TW": "暫無機器人會話"
+  },
   "No chats found": {
     "es": "No se encontraron chats",
     "id": "Obrolan tidak ditemukan",
@@ -2439,6 +2629,26 @@
     "zh-CN": "没有找到聊天",
     "zh-HK": "沒有找到聊天",
     "zh-TW": "沒有找到聊天"
+  },
+  "No circles yet": {
+    "es": "Aún no hay círculos",
+    "id": "Belum ada lingkaran",
+    "ja": "サークルはまだありません",
+    "ms": "Belum ada bulatan",
+    "ru": "Кругов пока нет",
+    "zh-CN": "暂无圈子",
+    "zh-HK": "暫無圈子",
+    "zh-TW": "暫無圈子"
+  },
+  "No contact conversations": {
+    "es": "No hay conversaciones con contactos",
+    "id": "Tidak ada percakapan kontak",
+    "ja": "連絡先との会話はありません",
+    "ms": "Tiada perbualan kenalan",
+    "ru": "Нет бесед с контактами",
+    "zh-CN": "暂无联系人会话",
+    "zh-HK": "暫無聯絡人會話",
+    "zh-TW": "暫無聯絡人會話"
   },
   "No contacts found": {
     "es": "No se encontraron contactos",
@@ -2460,6 +2670,16 @@
     "zh-HK": "未找到會話",
     "zh-TW": "未找到會話"
   },
+  "No conversations in this circle": {
+    "es": "No hay conversaciones en este círculo",
+    "id": "Tidak ada percakapan di lingkaran ini",
+    "ja": "このサークルに会話はありません",
+    "ms": "Tiada perbualan dalam bulatan ini",
+    "ru": "В этом круге нет бесед",
+    "zh-CN": "此圈子暂无会话",
+    "zh-HK": "此圈子暫無會話",
+    "zh-TW": "此圈子暫無會話"
+  },
   "No conversations yet": {
     "es": "Aún no hay conversaciones",
     "id": "Belum ada percakapan",
@@ -2470,6 +2690,16 @@
     "zh-HK": "暫無會話",
     "zh-TW": "暫無會話"
   },
+  "No emoji found": {
+    "es": "No se encontraron emojis",
+    "id": "Emoji tidak ditemukan",
+    "ja": "絵文字が見つかりません",
+    "ms": "Emoji tidak ditemui",
+    "ru": "Эмодзи не найдены",
+    "zh-CN": "未找到表情",
+    "zh-HK": "找不到表情符號",
+    "zh-TW": "找不到表情符號"
+  },
   "No files": {
     "es": "No hay archivos",
     "id": "Tidak ada berkas",
@@ -2479,6 +2709,16 @@
     "zh-CN": "暂无文件",
     "zh-HK": "暫無檔案",
     "zh-TW": "尚無檔案"
+  },
+  "No group conversations": {
+    "es": "No hay conversaciones de grupo",
+    "id": "Tidak ada percakapan grup",
+    "ja": "グループの会話はありません",
+    "ms": "Tiada perbualan kumpulan",
+    "ru": "Нет групповых бесед",
+    "zh-CN": "暂无群组会话",
+    "zh-HK": "暫無群組會話",
+    "zh-TW": "暫無群組會話"
   },
   "No groups in common": {
     "es": "No hay grupos en común",
@@ -2520,6 +2760,16 @@
     "zh-HK": "暫無文章",
     "zh-TW": "尚無文章"
   },
+  "No recent emoji": {
+    "es": "Sin emojis recientes",
+    "id": "Tidak ada emoji terbaru",
+    "ja": "最近使った絵文字はありません",
+    "ms": "Tiada emoji terkini",
+    "ru": "Нет недавних эмодзи",
+    "zh-CN": "暂无最近使用的表情",
+    "zh-HK": "暫無最近使用的表情符號",
+    "zh-TW": "暫無最近使用的表情符號"
+  },
   "No recipients found": {
     "es": "No se encontraron destinatarios",
     "id": "Penerima tidak ditemukan",
@@ -2560,6 +2810,16 @@
     "zh-HK": "暫無共享媒體",
     "zh-TW": "暫無共享媒體"
   },
+  "No sticker albums available": {
+    "es": "No hay álbumes de stickers disponibles",
+    "id": "Tidak ada album stiker",
+    "ja": "利用できるステッカーアルバムはありません",
+    "ms": "Tiada album pelekat tersedia",
+    "ru": "Нет доступных альбомов стикеров",
+    "zh-CN": "暂无贴纸专辑",
+    "zh-HK": "暫無貼圖專輯",
+    "zh-TW": "暫無貼圖專輯"
+  },
   "No stickers yet": {
     "es": "Aún no hay stickers",
     "id": "Belum ada stiker",
@@ -2579,6 +2839,26 @@
     "zh-CN": "暂无媒体缓存",
     "zh-HK": "暫無媒體緩存",
     "zh-TW": "暫無媒體快取"
+  },
+  "No stranger conversations": {
+    "es": "No hay conversaciones con desconocidos",
+    "id": "Tidak ada percakapan orang asing",
+    "ja": "知らない人との会話はありません",
+    "ms": "Tiada perbualan orang asing",
+    "ru": "Нет бесед с незнакомцами",
+    "zh-CN": "暂无陌生人会话",
+    "zh-HK": "暫無陌生人會話",
+    "zh-TW": "暫無陌生人會話"
+  },
+  "No unread conversations": {
+    "es": "No hay conversaciones sin leer",
+    "id": "Tidak ada percakapan belum dibaca",
+    "ja": "未読の会話はありません",
+    "ms": "Tiada perbualan belum dibaca",
+    "ru": "Нет непрочитанных бесед",
+    "zh-CN": "暂无未读会话",
+    "zh-HK": "暫無未讀會話",
+    "zh-TW": "暫無未讀會話"
   },
   "Not added": {
     "es": "No añadido",
@@ -2888,6 +3168,16 @@
     "id": "Pilih percakapan",
     "ms": "Pilih perbualan"
   },
+  "Pictures and videos": {
+    "es": "Imágenes y vídeos",
+    "id": "Gambar dan video",
+    "ja": "写真と動画",
+    "ms": "Gambar dan video",
+    "ru": "Фото и видео",
+    "zh-CN": "图片和视频",
+    "zh-HK": "圖片和影片",
+    "zh-TW": "圖片和影片"
+  },
   "Pictures and videos…": {
     "es": "Fotos y vídeos…",
     "id": "Gambar dan video…",
@@ -3025,6 +3315,16 @@
     "zh-CN": "上一页",
     "zh-HK": "上一頁",
     "zh-TW": "上一頁"
+  },
+  "Previous photo": {
+    "es": "Foto anterior",
+    "id": "Foto sebelumnya",
+    "ja": "前の写真",
+    "ms": "Foto sebelumnya",
+    "ru": "Предыдущее фото",
+    "zh-CN": "上一张",
+    "zh-HK": "上一張",
+    "zh-TW": "上一張"
   },
   "Previous results": {
     "es": "Resultados anteriores",
@@ -3305,6 +3605,16 @@
     "zh-HK": "移除羣成員？",
     "zh-TW": "移除群成員？"
   },
+  "Remove proxy?": {
+    "es": "¿Quitar el proxy?",
+    "id": "Hapus proxy?",
+    "ja": "プロキシを削除しますか？",
+    "ms": "Alih keluar proksi?",
+    "ru": "Удалить прокси?",
+    "zh-CN": "移除代理？",
+    "zh-HK": "移除代理？",
+    "zh-TW": "移除代理？"
+  },
   "Remove selected file": {
     "es": "Quitar archivo seleccionado",
     "id": "Hapus berkas terpilih",
@@ -3324,6 +3634,16 @@
     "zh-CN": "移除贴纸",
     "zh-HK": "移除貼紙",
     "zh-TW": "移除貼紙"
+  },
+  "Remove…": {
+    "es": "Quitar…",
+    "id": "Hapus…",
+    "ja": "削除…",
+    "ms": "Alih keluar…",
+    "ru": "Удалить…",
+    "zh-CN": "移除…",
+    "zh-HK": "移除…",
+    "zh-TW": "移除…"
   },
   "Rename…": {
     "es": "Cambiar nombre…",
@@ -3380,6 +3700,16 @@
   "Reset link…": {
     "id": "Setel ulang tautan…",
     "ms": "Tetapkan semula pautan…"
+  },
+  "Retry adding chat": {
+    "es": "Reintentar añadir el chat",
+    "id": "Coba tambahkan chat lagi",
+    "ja": "チャットの追加を再試行",
+    "ms": "Cuba tambah sembang semula",
+    "ru": "Повторить добавление чата",
+    "zh-CN": "重试添加聊天",
+    "zh-HK": "重試加入聊天",
+    "zh-TW": "重試加入聊天"
   },
   "Retry preview": {
     "es": "Reintentar vista previa",
@@ -3589,6 +3919,16 @@
     "zh-HK": "搜索發送者",
     "zh-TW": "搜尋傳送者"
   },
+  "Searching…": {
+    "es": "Buscando…",
+    "id": "Mencari…",
+    "ja": "検索中…",
+    "ms": "Mencari…",
+    "ru": "Поиск…",
+    "zh-CN": "正在搜索…",
+    "zh-HK": "正在搜尋…",
+    "zh-TW": "正在搜尋…"
+  },
   "Search…": {
     "es": "Buscar…",
     "id": "Cari…",
@@ -3628,6 +3968,36 @@
     "zh-CN": "秒数（最长 4 周）",
     "zh-HK": "秒數（最長 4 周）",
     "zh-TW": "秒數（最長 4 周）"
+  },
+  "Select message": {
+    "es": "Seleccionar mensaje",
+    "id": "Pilih pesan",
+    "ja": "メッセージを選択",
+    "ms": "Pilih mesej",
+    "ru": "Выбрать сообщение",
+    "zh-CN": "选择消息",
+    "zh-HK": "選擇訊息",
+    "zh-TW": "選擇訊息"
+  },
+  "Send 1 file": {
+    "es": "Enviar 1 archivo",
+    "id": "Kirim 1 file",
+    "ja": "1 件のファイルを送信",
+    "ms": "Hantar 1 fail",
+    "ru": "Отправить 1 файл",
+    "zh-CN": "发送 1 个文件",
+    "zh-HK": "傳送 1 個檔案",
+    "zh-TW": "傳送 1 個檔案"
+  },
+  "Send GIF": {
+    "es": "Enviar GIF",
+    "id": "Kirim GIF",
+    "ja": "GIF を送信",
+    "ms": "Hantar GIF",
+    "ru": "Отправить GIF",
+    "zh-CN": "发送 GIF",
+    "zh-HK": "傳送 GIF",
+    "zh-TW": "傳送 GIF"
   },
   "Send a message to say hello.": {
     "es": "Envía un mensaje para saludar.",
@@ -4090,6 +4460,26 @@
     "zh-HK": "系統返回了未知的通知權限狀態。",
     "zh-TW": "系統返回了未知的通知權限狀態。"
   },
+  "There are no unread conversations in this category.": {
+    "es": "No hay conversaciones sin leer en esta categoría.",
+    "id": "Tidak ada percakapan belum dibaca di kategori ini.",
+    "ja": "このカテゴリに未読の会話はありません。",
+    "ms": "Tiada perbualan belum dibaca dalam kategori ini.",
+    "ru": "В этой категории нет непрочитанных бесед.",
+    "zh-CN": "当前分类中没有未读会话。",
+    "zh-HK": "目前分類中沒有未讀會話。",
+    "zh-TW": "目前分類中沒有未讀會話。"
+  },
+  "There are no unread conversations in this circle.": {
+    "es": "No hay conversaciones sin leer en este círculo.",
+    "id": "Tidak ada percakapan belum dibaca di lingkaran ini.",
+    "ja": "このサークルに未読の会話はありません。",
+    "ms": "Tiada perbualan belum dibaca dalam bulatan ini.",
+    "ru": "В этом круге нет непрочитанных бесед.",
+    "zh-CN": "此圈子中没有未读会话。",
+    "zh-HK": "此圈子中沒有未讀會話。",
+    "zh-TW": "此圈子中沒有未讀會話。"
+  },
   "These messages will be removed for everyone in this conversation.": {
     "es": "Estos mensajes se eliminarán para todos en esta conversación.",
     "id": "Pesan ini akan dihapus untuk semua orang dalam percakapan ini.",
@@ -4315,6 +4705,26 @@
     "zh-HK": "試試其他名稱，或清除篩選條件。",
     "zh-TW": "試試其他名稱，或清除篩選條件。"
   },
+  "Turn off": {
+    "es": "Desactivar",
+    "id": "Matikan",
+    "ja": "オフにする",
+    "ms": "Matikan",
+    "ru": "Отключить",
+    "zh-CN": "关闭",
+    "zh-HK": "關閉",
+    "zh-TW": "關閉"
+  },
+  "Turn off screen passcode?": {
+    "es": "¿Desactivar el código de pantalla?",
+    "id": "Matikan kode sandi layar?",
+    "ja": "画面パスコードをオフにしますか？",
+    "ms": "Matikan kod laluan skrin?",
+    "ru": "Отключить код блокировки экрана?",
+    "zh-CN": "关闭锁屏密码？",
+    "zh-HK": "關閉鎖定畫面密碼？",
+    "zh-TW": "關閉鎖定畫面密碼？"
+  },
   "Unable to open file: {arg0}": {
     "id": "Tidak dapat membuka berkas: {arg0}",
     "ms": "Tidak dapat membuka fail: {arg0}"
@@ -4379,6 +4789,16 @@
     "zh-CN": "未读",
     "zh-HK": "未讀",
     "zh-TW": "未讀"
+  },
+  "Unread mention": {
+    "es": "Mención sin leer",
+    "id": "Sebutan belum dibaca",
+    "ja": "未読のメンション",
+    "ms": "Sebutan belum dibaca",
+    "ru": "Непрочитанное упоминание",
+    "zh-CN": "未读提及",
+    "zh-HK": "未讀提及",
+    "zh-TW": "未讀提及"
   },
   "Unread messages": {
     "id": "Pesan belum dibaca",
@@ -4584,6 +5004,16 @@
     "zh-CN": "你删除了这条消息",
     "zh-HK": "你已刪除此訊息",
     "zh-TW": "你已刪除此訊息"
+  },
+  "You have no unread conversations.": {
+    "es": "No tienes conversaciones sin leer.",
+    "id": "Anda tidak memiliki percakapan belum dibaca.",
+    "ja": "未読の会話はありません。",
+    "ms": "Anda tiada perbualan belum dibaca.",
+    "ru": "У вас нет непрочитанных бесед.",
+    "zh-CN": "当前没有未读会话。",
+    "zh-HK": "目前沒有未讀會話。",
+    "zh-TW": "目前沒有未讀會話。"
   },
   "You will leave this group and remove its local conversation.": {
     "es": "Saldrás de este grupo y se eliminará su conversación local.",

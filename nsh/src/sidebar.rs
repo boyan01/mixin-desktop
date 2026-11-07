@@ -1,11 +1,11 @@
 use futures::StreamExt as _;
-use mixin_desktop_api::{AccountClient, ConversationUnseenCount};
+use mixin_desktop_api::{AccountClient, AccountProfile, ConversationUnseenCount};
 use nsh_base::theme;
 use nsh_core::{animation::Easing, element::AnimatedValue, prelude::*};
 use std::sync::Arc;
 
 use crate::{
-    i18n::{self, I18n, Key},
+    i18n::{self, Key},
     runtime, ui,
 };
 
@@ -14,6 +14,9 @@ mod circles;
 mod preference;
 
 pub(crate) use circles::{Circles, membership_item as circle_membership_item};
+
+const DRAWER_MAX_WIDTH: f32 = 384.0;
+const COMPACT_MAX_WIDTH: f32 = 496.0;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Navigation {
@@ -37,18 +40,21 @@ impl Navigation {
         }
     }
     pub fn drawer(self) -> bool {
-        window().width.0 <= 384.0
+        window().width.0 <= DRAWER_MAX_WIDTH
+    }
+    fn forced_compact(self) -> bool {
+        window().width.0 < COMPACT_MAX_WIDTH
     }
     pub fn compact(self) -> bool {
-        !self.drawer() && (self.collapsed.get() || window().width.0 < 496.0)
+        !self.drawer() && (self.collapsed.get() || self.forced_compact())
     }
     pub fn width(self) -> Points {
         if self.drawer() {
             px(0.0)
         } else if self.compact() {
-            px(64.0)
+            ui::navigation_compact_width()
         } else {
-            px(176.0)
+            ui::navigation_width()
         }
     }
     pub fn open_drawer(self) {
@@ -77,7 +83,6 @@ pub(crate) fn screen(
     circles: Circles,
 ) -> impl IntoElement {
     let profile = signal_with(account.profile(), SignalEquals::Never);
-    let preference = preference::Preference::new(nav);
     let counts = signal(Vec::<ConversationUnseenCount>::new());
     let client = account.clone();
     spawn(async move {
@@ -92,7 +97,14 @@ pub(crate) fn screen(
             counts.set(value);
         }
     });
-    let labels = Labels::new(nav);
+    let rail = Rail {
+        nav,
+        profile,
+        counts,
+        circles,
+        preference: preference::Preference::new(nav),
+        labels: Labels::new(nav),
+    };
     effect(move || {
         if !nav.drawer() {
             nav.close_drawer();
@@ -107,52 +119,13 @@ pub(crate) fn screen(
             // The account subscriptions above remain owned by this session.
             untracked(|| {
                 if drawer {
-                    drawer_surface(nav, profile, counts, circles, preference, labels).into_element()
+                    rail.drawer().into_element()
                 } else {
-                    content(nav, profile, counts, circles, preference, labels).into_element()
+                    rail.content().into_element()
                 }
             })
         }))
         .child(circles.surface())
-}
-
-fn drawer_surface(
-    nav: Navigation,
-    profile: Signal<mixin_desktop_api::AccountProfile>,
-    counts: Signal<Vec<ConversationUnseenCount>>,
-    circles: circles::Circles,
-    preference: preference::Preference,
-    labels: Labels,
-) -> impl IntoElement {
-    let presence = crate::motion::Presence::panel(move || nav.drawer_open.get());
-    when(
-        move || presence.mounted(),
-        move || {
-            nsh_base::dialog()
-                .animation(nsh_core::ModalAnimation::None)
-                .close_on_escape(false)
-                .close_on_backdrop_press(false)
-                .on_cancel(move || nav.close_drawer())
-                .flex_1()
-                .child(
-                    view()
-                        .flex_1()
-                        .flex_row()
-                        .child(
-                            presence.backdrop(
-                                view()
-                                    .absolute()
-                                    .inset_0()
-                                    .bg(move || theme().foreground.opacity(0.2))
-                                    .on_press(move || nav.close_drawer()),
-                            ),
-                        )
-                        .child(presence.surface(
-                            content(nav, profile, counts, circles, preference, labels).w(px(176.0)),
-                        )),
-                )
-        },
-    )
 }
 
 pub(crate) fn trigger(nav: Navigation) -> impl IntoElement {
@@ -214,267 +187,225 @@ impl Labels {
         });
         labels
     }
+
+    fn bind(self, content: View) -> View {
+        content
+            .bind_opacity(&self.opacity)
+            .style_when(move || !self.visible.get(), |style| style.hidden())
+    }
+
+    fn bind_text(self, label: Text) -> Text {
+        label
+            .text_sm()
+            .flex_1()
+            .number_of_lines(1)
+            .bind_opacity(&self.opacity)
+            .style_when(move || !self.visible.get(), |style| style.hidden())
+    }
 }
 
-fn content(
+#[derive(Clone, Copy)]
+struct Rail {
     nav: Navigation,
-    profile: Signal<mixin_desktop_api::AccountProfile>,
+    profile: Signal<AccountProfile>,
     counts: Signal<Vec<ConversationUnseenCount>>,
-    circles: circles::Circles,
+    circles: Circles,
     preference: preference::Preference,
     labels: Labels,
-) -> View {
-    let i18n = i18n::current();
-    view()
-        .w(move || if nav.drawer() { px(176.0) } else { nav.width() })
-        .h_full()
-        .flex_shrink_0()
-        .overflow_hidden()
-        .bg(move || theme().sidebar)
-        .border_r_1()
-        .border_color(move || theme().border)
-        .px_3()
-        .gap_1()
-        .child(view().h_16().window_drag(true))
-        .child(
-            ui::command()
-                .justify_start()
-                .gap_3()
-                .px_2()
-                .py_3()
-                .min_h_16()
-                .selected(nav.settings)
-                .selected_style(|s| s.bg(move || theme().accent))
-                .transition_colors()
-                .duration(|| crate::motion::duration(160.0))
-                .ease_out()
-                .on_press(move || {
-                    batch(|| {
-                        nav.settings.set(true);
-                        nav.close_drawer();
-                    })
-                })
-                .accessibility_label(move || Some(i18n.text(Key::Settings).into()))
-                .child(
-                    ui::avatar_view(
-                        move || profile.with(|p| p.full_name.clone().into()),
-                        move || profile.with(|p| p.avatar_url.clone()),
-                    )
-                    .size_6(),
-                )
-                .child(
-                    view()
-                        .flex_1()
-                        .min_w_0()
-                        .gap_1()
-                        .bind_opacity(&labels.opacity)
-                        .style_when(move || !labels.visible.get(), |s| s.hidden())
-                        .child(
-                            text(move || profile.with(|p| p.full_name.clone()))
-                                .text_sm()
-                                .font_weight(FontWeight::MEDIUM)
-                                .number_of_lines(1),
-                        )
-                        .child(
-                            text(move || profile.with(|p| p.identity_number.clone()))
-                                .text_xs()
-                                .text_color(move || theme().muted_foreground),
-                        ),
-                ),
-        )
-        .child(view().h_4())
-        .child(category(
-            i18n,
-            nav,
-            ui::Icon::Chat,
-            Key::AllChats,
-            "chats",
-            counts,
-            labels,
-        ))
-        .child(divider())
-        .child(category(
-            i18n,
-            nav,
-            ui::Icon::Contacts,
-            Key::Contacts,
-            "contacts",
-            counts,
-            labels,
-        ))
-        .child(category(
-            i18n,
-            nav,
-            ui::Icon::Groups,
-            Key::Groups,
-            "groups",
-            counts,
-            labels,
-        ))
-        .child(category(
-            i18n,
-            nav,
-            ui::Icon::Bot,
-            Key::Bots,
-            "bots",
-            counts,
-            labels,
-        ))
-        .child(category(
-            i18n,
-            nav,
-            ui::Icon::Strangers,
-            Key::Strangers,
-            "strangers",
-            counts,
-            labels,
-        ))
-        .child(circles.list(counts, labels))
-        .child(
-            ui::command()
-                .justify_start()
-                .px_2()
-                .gap_3()
-                .min_h_12()
-                .accessibility_label(move || {
-                    Some(
-                        i18n.text(if nav.compact() {
-                            Key::Expand
-                        } else {
-                            Key::Collapse
-                        })
-                        .into(),
-                    )
-                })
-                .disabled(move || preference.disabled())
-                .style_when(move || window().width.0 < 496.0, |style| style.hidden())
-                .on_press(move || preference.toggle())
-                .child(dynamic(move || {
-                    ui::icon(if nav.compact() {
-                        ui::Icon::Expand
-                    } else {
-                        ui::Icon::Collapse
-                    })
-                }))
-                .child(
-                    text(move || i18n.text(Key::Collapse))
-                        .text_sm()
-                        .bind_opacity(&labels.opacity)
-                        .style_when(move || !labels.visible.get(), |s| s.hidden()),
-                ),
-        )
-        .child(preference.feedback())
-        .child(circles.feedback())
 }
 
-fn category(
-    i18n: I18n,
-    nav: Navigation,
-    icon: ui::Icon,
-    label: Key,
-    value: &'static str,
-    counts: Signal<Vec<ConversationUnseenCount>>,
-    labels: Labels,
-) -> impl IntoElement {
-    let count = move || {
-        counts.with(|counts| {
-            counts
-                .iter()
-                .find(|c| c.category == value && c.circle_id.is_none())
-                .map_or(0, |c| c.count)
-        })
-    };
-    let muted = move || {
-        counts.with(|counts| {
-            counts
-                .iter()
-                .find(|count| count.category == value && count.circle_id.is_none())
-                .map_or(0, |count| count.muted_count)
-        })
-    };
-    let item = ui::command()
-        .min_h_11()
-        .justify_start()
-        .px_2()
-        .gap_3()
-        .accessibility_label(move || Some(i18n.text(label).into()))
-        .selected(move || !nav.settings.get() && nav.category.get() == value)
-        .selected_style(|s| s.bg(move || theme().accent))
-        .transition_colors()
-        .duration(|| crate::motion::duration(160.0))
-        .ease_out()
-        .on_press(move || nav.select(value, None))
-        .child(navigation_icon(icon, nav, count, muted))
-        .child(
-            text(move || i18n.text(label))
-                .text_sm()
-                .flex_1()
-                .number_of_lines(1)
-                .bind_opacity(&labels.opacity)
-                .style_when(move || !labels.visible.get(), |s| s.hidden()),
-        )
-        .child(when(
-            move || count() > 0 && !nav.compact(),
+impl Rail {
+    fn drawer(self) -> impl IntoElement {
+        let nav = self.nav;
+        let presence = crate::motion::Presence::panel(move || nav.drawer_open.get());
+        when(
+            move || presence.mounted(),
             move || {
-                view()
-                    .min_w_6()
-                    .h_5()
-                    .px_1()
-                    .rounded_full()
-                    .items_center()
-                    .justify_center()
-                    .bg(move || theme().muted_foreground.opacity(0.7))
+                nsh_base::dialog()
+                    .animation(nsh_core::ModalAnimation::None)
+                    .close_on_escape(false)
+                    .close_on_backdrop_press(false)
+                    .on_cancel(move || nav.close_drawer())
+                    .flex_1()
                     .child(
-                        text(move || count().to_string())
-                            .text_xs()
-                            .text_color(move || theme().background),
+                        view()
+                            .flex_1()
+                            .flex_row()
+                            .child(
+                                presence.backdrop(ui::scrim().on_press(move || nav.close_drawer())),
+                            )
+                            .child(presence.surface(self.content())),
                     )
             },
-        ));
-    view()
-        .w_full()
-        .tooltip(
-            nsh_base::tooltip()
-                .disabled(move || !nav.compact())
-                .px_3()
-                .py_2()
-                .rounded_md()
-                .bg(move || theme().popover)
-                .text_color(move || theme().popover_foreground)
-                .border_1()
-                .border_color(move || theme().border)
-                .child(
-                    text(move || {
-                        if count() > 0 {
-                            format!("{} ({})", i18n.text(label), count())
-                        } else {
-                            i18n.text(label).into()
-                        }
-                    })
-                    .text_sm(),
-                ),
         )
-        .child(item.w_full())
+    }
+
+    fn content(self) -> View {
+        let nav = self.nav;
+        view()
+            .w(move || {
+                if nav.drawer() {
+                    ui::navigation_width()
+                } else {
+                    nav.width()
+                }
+            })
+            .h_full()
+            .flex_shrink_0()
+            .overflow_hidden()
+            .bg(move || theme().sidebar)
+            .border_r_1()
+            .border_color(move || theme().border)
+            .px_3()
+            .gap_1()
+            .child(view().h_16().window_drag(true))
+            .child(self.account_item())
+            .child(view().h_4())
+            .child(self.category(ui::Icon::Chat, Key::AllChats, "chats"))
+            .child(divider())
+            .child(self.category(ui::Icon::Contacts, Key::Contacts, "contacts"))
+            .child(self.category(ui::Icon::Groups, Key::Groups, "groups"))
+            .child(self.category(ui::Icon::Bot, Key::Bots, "bots"))
+            .child(self.category(ui::Icon::Strangers, Key::Strangers, "strangers"))
+            .child(self.circles.list(self.counts, self.labels))
+            .child(self.collapse_item())
+            .child(self.preference.feedback())
+            .child(self.circles.feedback())
+    }
+
+    fn account_item(self) -> impl IntoElement {
+        let i18n = i18n::current();
+        let Self {
+            nav,
+            profile,
+            labels,
+            ..
+        } = self;
+        ui::command()
+            .justify_start()
+            .gap_3()
+            .px_2()
+            .py_3()
+            .min_h_16()
+            .selected(nav.settings)
+            .on_press(move || {
+                batch(|| {
+                    nav.settings.set(true);
+                    nav.close_drawer();
+                })
+            })
+            .accessibility_label(move || Some(i18n.text(Key::Settings).into()))
+            .child(
+                ui::avatar_view(
+                    move || profile.with(|p| p.full_name.clone().into()),
+                    move || profile.with(|p| p.avatar_url.clone()),
+                )
+                .size_6(),
+            )
+            .child(
+                labels
+                    .bind(view().flex_1().min_w_0().gap_1())
+                    .child(
+                        text(move || profile.with(|p| p.full_name.clone()))
+                            .text_sm()
+                            .font_weight(FontWeight::MEDIUM)
+                            .number_of_lines(1),
+                    )
+                    .child(
+                        text(move || profile.with(|p| p.identity_number.clone()))
+                            .text_xs()
+                            .text_color(move || theme().muted_foreground),
+                    ),
+            )
+    }
+
+    fn category(self, icon: ui::Icon, label: Key, value: &'static str) -> impl IntoElement {
+        let i18n = i18n::current();
+        let Self {
+            nav,
+            counts,
+            labels,
+            ..
+        } = self;
+        let unseen = computed(move || {
+            counts.with(|counts| {
+                counts
+                    .iter()
+                    .find(|count| count.category == value && count.circle_id.is_none())
+                    .map_or((0, 0), |count| (count.count, count.muted_count))
+            })
+        });
+        let count = move || unseen.get().0;
+        let muted = move || unseen.get().1;
+        let item = rail_item()
+            .accessibility_label(move || Some(i18n.text(label).into()))
+            .selected(move || !nav.settings.get() && nav.category.get() == value)
+            .on_press(move || nav.select(value, None))
+            .child(navigation_icon(icon, nav, count, muted))
+            .child(labels.bind_text(text(move || i18n.text(label))))
+            .child(when(
+                move || count() > 0 && !nav.compact(),
+                move || ui::count_badge(move || count().to_string(), || false),
+            ));
+        view()
+            .w_full()
+            .tooltip(
+                ui::hint(move || {
+                    if count() > 0 {
+                        format!("{} ({})", i18n.text(label), count())
+                    } else {
+                        i18n.text(label).into()
+                    }
+                })
+                .disabled(move || !nav.compact()),
+            )
+            .child(item.w_full())
+    }
+
+    fn collapse_item(self) -> impl IntoElement {
+        let i18n = i18n::current();
+        let Self {
+            nav,
+            preference,
+            labels,
+            ..
+        } = self;
+        ui::command()
+            .justify_start()
+            .px_2()
+            .gap_3()
+            .min_h_12()
+            .accessibility_label(move || {
+                Some(
+                    i18n.text(if nav.compact() {
+                        Key::Expand
+                    } else {
+                        Key::Collapse
+                    })
+                    .into(),
+                )
+            })
+            .disabled(move || preference.disabled())
+            .style_when(move || nav.forced_compact(), |style| style.hidden())
+            .on_press(move || preference.toggle())
+            .child(dynamic(move || {
+                ui::icon(if nav.compact() {
+                    ui::Icon::Expand
+                } else {
+                    ui::Icon::Collapse
+                })
+            }))
+            .child(labels.bind_text(text(move || i18n.text(Key::Collapse))))
+    }
+}
+
+/// The geometry shared by category and circle rows.
+fn rail_item() -> nsh_base::ButtonElement {
+    ui::command().min_h_11().justify_start().px_2().gap_3()
 }
 
 fn divider() -> View {
     view().h(px(1.0)).mx_2().my_3().bg(move || theme().border)
-}
-
-fn badge(count: impl Fn() -> i64 + Copy + 'static) -> View {
-    view()
-        .min_w_6()
-        .h_5()
-        .px_1()
-        .rounded_full()
-        .items_center()
-        .justify_center()
-        .bg(move || theme().muted_foreground)
-        .child(
-            text(move || count().to_string())
-                .text_xs()
-                .text_color(move || theme().background),
-        )
 }
 
 fn navigation_icon(

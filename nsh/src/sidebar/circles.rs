@@ -1,10 +1,10 @@
 use mixin_desktop_api::{CircleItem, ClientResult, ConversationListData};
-use nsh_base::{alert_dialog, menu_item};
-use nsh_core::{TouchEvent, TouchPhase};
+use nsh_base::alert_dialog;
+use nsh_core::{TouchEvent, TouchPhase, element::desktop::MenuItem};
 use std::{future::Future, time::Duration};
 
 use super::*;
-use crate::runtime;
+use crate::{i18n::tr, runtime};
 
 const CIRCLE_ROW_HEIGHT: f32 = 48.0;
 
@@ -50,6 +50,7 @@ enum Editing {
 
 #[derive(Clone, Copy)]
 pub(crate) struct Circles {
+    owner: Owner,
     account: Stored<Arc<AccountClient>>,
     rows: Signal<Vec<CircleItem>>,
     editing: Signal<Option<Editing>>,
@@ -58,13 +59,10 @@ pub(crate) struct Circles {
     nav: Navigation,
 }
 
-fn tr(en: &'static str, zh: &'static str) -> &'static str {
-    crate::i18n::tr(en, zh)
-}
-
 impl Circles {
     pub(crate) fn new(account: Arc<AccountClient>, nav: Navigation) -> Self {
         let state = Self {
+            owner: Owner::current(),
             account: stored(account.clone()),
             rows: signal(Vec::new()),
             editing: signal_with(None, SignalEquals::Never),
@@ -106,13 +104,16 @@ impl Circles {
         self.busy.set(true);
         self.failed.set(false);
         let command = runtime::commit(command);
-        spawn(async move {
-            let result = command.await;
-            self.busy.set(false);
-            self.failed.set(result.is_err());
-            if result.is_ok() {
-                self.editing.set(None);
-            }
+        // Not the caller's owner: deleting a circle disposes the row that asked.
+        self.owner.run(|| {
+            spawn(async move {
+                let result = command.await;
+                self.busy.set(false);
+                self.failed.set(result.is_err());
+                if result.is_ok() {
+                    self.editing.set(None);
+                }
+            });
         });
     }
 
@@ -144,11 +145,22 @@ impl Circles {
         labels: super::Labels,
     ) -> impl IntoElement {
         let nav = self.nav;
-        let drag = signal(None::<CircleDrag>);
-        let candidate = stored(None::<(f64, String)>);
-        let offset = signal(0.0_f32);
-        let viewport = signal((0.0_f32, 0.0_f32));
-        let list_ref = element_ref();
+        let reorder = Reorder {
+            circles: self,
+            drag: signal(None),
+            candidate: stored(None),
+            offset: signal(0.0),
+            viewport: signal((0.0, 0.0)),
+            list: element_ref(),
+        };
+        let Reorder {
+            drag,
+            candidate,
+            offset,
+            viewport,
+            list,
+            ..
+        } = reorder;
         // Any authoritative change invalidates the order captured at pointer-down.
         effect(move || {
             let _ = (
@@ -160,168 +172,143 @@ impl Circles {
             );
             drag.set(None);
         });
-        let edge = computed(move || {
-            drag.with(|drag| match drag.as_ref().filter(|drag| drag.active()) {
-                Some(drag) if drag.top() < 24.0 => -1_i8,
-                Some(drag) if drag.top() + CIRCLE_ROW_HEIGHT > viewport.get().1 - 24.0 => 1,
-                _ => 0,
-            })
-        });
-        effect(move || {
-            let direction = edge.get();
-            if direction == 0 {
-                return;
-            }
-            // This task exists only while dragging at an edge; no drawing-frame polling.
+        reorder.scroll_at_edges();
+        view()
+            .flex_1()
+            .min_h_0()
+            .child(when(move || !self.rows.with(Vec::is_empty), super::divider))
+            .child(
+                view()
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_hidden()
+                    .on_layout(move |bounds: &Bounds<Points>| {
+                        let size = (bounds.size.width.0, bounds.size.height.0);
+                        if viewport.get_untracked() != size {
+                            drag.set(None);
+                            viewport.set(size);
+                        }
+                    })
+                    .claim_touches(TouchClaim::on_start().capture().ask(
+                        move |request: &ClaimRequest| {
+                            let pressed = candidate.with(|candidate| {
+                                candidate
+                                    .as_ref()
+                                    .is_some_and(|(time, _)| *time == request.event.timestamp)
+                            });
+                            if !self.busy.get_untracked()
+                                && request.event.gesture.active_touches == 1
+                                && self.rows.with_untracked(Vec::len) > 1
+                                && pressed
+                            {
+                                request.claim();
+                            }
+                        },
+                    ))
+                    .keep_touches(true)
+                    .on_responder_grant(move |_: &ResponderEvent| reorder.begin())
+                    .on_responder_start(move |event: &ResponderEvent| {
+                        if event.gesture.active_touches != 1 {
+                            drag.set(None);
+                        }
+                    })
+                    .on_responder_move(move |event: &ResponderEvent| {
+                        let Some(mut current) = drag.get_untracked() else {
+                            return;
+                        };
+                        current.delta = event.gesture.delta.y.0;
+                        current.started |= current.delta.abs() > 4.0;
+                        current.update_target(offset.get_untracked());
+                        drag.set(Some(current));
+                    })
+                    .on_responder_release(move |_: &ResponderEvent| reorder.finish())
+                    .on_responder_terminate(move |_: &ResponderEvent| drag.set(None))
+                    .child(when(
+                        move || drag.with(Option::is_some),
+                        move || {
+                            on_key("escape", move |_| drag.set(None));
+                            view().hidden()
+                        },
+                    ))
+                    .child(
+                        virtual_list(
+                            move || self.rows.with(Vec::len),
+                            move |at| {
+                                reorder.row(
+                                    counts,
+                                    labels,
+                                    computed(move || {
+                                        self.rows.with(|rows| rows.get(at.index()).cloned())
+                                    }),
+                                )
+                            },
+                        )
+                        .keys(move || self.ids())
+                        .estimated_item_size(px(CIRCLE_ROW_HEIGHT))
+                        .flex_1()
+                        .min_h_0()
+                        .element_ref(&list)
+                        .on_scroll(move |event: &ScrollEvent| {
+                            offset.set(event.offset.y.0);
+                            if let Some(mut current) = drag.get_untracked() {
+                                current.update_target(event.offset.y.0);
+                                drag.set(Some(current));
+                            }
+                        }),
+                    )
+                    .child(when(
+                        move || drag.with(|drag| drag.as_ref().is_some_and(CircleDrag::active)),
+                        move || reorder.preview(labels),
+                    )),
+            )
+    }
+
+    fn ids(self) -> Vec<String> {
+        self.rows.with(|rows| {
+            rows.iter()
+                .map(|circle| circle.circle_id.clone())
+                .collect::<Vec<_>>()
+        })
+    }
+
+    fn confirm_delete(self, circle: CircleItem) {
+        self.owner.run(|| {
             spawn(async move {
-                loop {
-                    timer(Duration::from_millis(50)).await;
-                    if drag.with_untracked(|drag| drag.as_ref().is_none_or(|drag| !drag.active())) {
-                        break;
-                    }
-                    let maximum = (self.rows.with_untracked(Vec::len) as f32 * CIRCLE_ROW_HEIGHT
-                        - viewport.get_untracked().1)
-                        .max(0.0);
-                    let next =
-                        (offset.get_untracked() + f32::from(direction) * 12.0).clamp(0.0, maximum);
-                    if (next - offset.get_untracked()).abs() <= 0.5 {
-                        break;
-                    }
-                    list_ref.scroll_to_offset(px(next), false);
+                let title = i18n::current().format(
+                    "Delete “{name}”?",
+                    "删除“{name}”？",
+                    &[("name", &circle.name)],
+                );
+                let answer = alert_dialog()
+                    .title(title)
+                    .description(tr(
+                        "Chats in this circle will remain available in All chats.",
+                        "圈子中的聊天仍会保留在“全部聊天”中。",
+                    ))
+                    .cancel("cancel", tr("Cancel", "取消"))
+                    .destructive("delete", tr("Delete", "删除"))
+                    .show()
+                    .await;
+                if matches!(answer, Ok(answer) if answer.action.as_deref() == Some("delete")) {
+                    let account = self.client();
+                    self.execute(async move {
+                        account.conversation().delete_circle(circle.circle_id).await
+                    });
                 }
             });
         });
-        view().flex_1().min_h_0()
-            .child(when(move || !self.rows.with(Vec::is_empty), super::divider))
-            .child(view().flex_1().min_h_0().overflow_hidden()
-                .on_layout(move |bounds: &Bounds<Points>| {
-                    let size = (bounds.size.width.0, bounds.size.height.0);
-                    if viewport.get_untracked() != size { drag.set(None); viewport.set(size); }
-                })
-                .claim_touches(TouchClaim::on_start().capture().ask(move |request: &ClaimRequest| {
-                    if !self.busy.get_untracked() && request.event.gesture.active_touches == 1
-                        && self.rows.with_untracked(Vec::len) > 1
-                        && candidate.with(|candidate| candidate.as_ref().is_some_and(|(time, _)| *time == request.event.timestamp)) {
-                        request.claim();
-                    }
-                }))
-                .keep_touches(true)
-                .on_responder_grant(move |_: &ResponderEvent| {
-                    let Some((_, id)) = candidate.replace(None) else { return; };
-                    if self.busy.get_untracked() { return; }
-                    let rows = self.rows.get_untracked();
-                    let Some(from) = rows.iter().position(|row| row.circle_id == id) else { return; };
-                    drag.set(Some(CircleDrag {
-                        circle: rows[from].clone(), order: rows.into_iter().map(|row| row.circle_id).collect(),
-                        from, target: from, start_scroll: offset.get_untracked(), delta: 0.0, started: false,
-                    }));
-                })
-                .on_responder_start(move |event: &ResponderEvent| {
-                    if event.gesture.active_touches != 1 { drag.set(None); }
-                })
-                .on_responder_move(move |event: &ResponderEvent| {
-                    let Some(mut current) = drag.get_untracked() else { return; };
-                    current.delta = event.gesture.delta.y.0;
-                    current.started |= current.delta.abs() > 4.0;
-                    current.update_target(offset.get_untracked());
-                    drag.set(Some(current));
-                })
-                .on_responder_release(move |_: &ResponderEvent| {
-                    let Some(current) = drag.get_untracked() else { return; };
-                    drag.set(None);
-                    let ids = self.rows.with_untracked(|rows| rows.iter().map(|row| row.circle_id.clone()).collect::<Vec<_>>());
-                    if self.busy.get_untracked() || current.order.as_ref() != ids.as_slice() || !current.active() || current.from == current.target { return; }
-                    let mut order = current.order.to_vec();
-                    let id = order.remove(current.from);
-                    order.insert(current.target, id);
-                    let account = self.client();
-                    self.execute(async move { account.conversation().reorder_circles(order).await });
-                })
-                .on_responder_terminate(move |_: &ResponderEvent| drag.set(None))
-                .child(when(move || drag.with(Option::is_some), move || {
-                    on_key("escape", move |_| drag.set(None));
-                    view().hidden()
-                }))
-                .child(virtual_list(move || self.rows.with(Vec::len), move |at| {
-                let circle = move || self.rows.with(|rows| rows.get(at.index()).cloned());
-                let id = move || circle().map(|circle| circle.circle_id);
-                let count = move || counts.with(|counts| counts.iter().find(|count| count.circle_id == id()).map_or(0, |count| count.count));
-                let muted = move || counts.with(|counts| counts.iter().find(|count| count.circle_id == id()).map_or(0, |count| count.muted_count));
-                let content = ui::command().justify_start().px_2().h(px(CIRCLE_ROW_HEIGHT)).gap_3()
-                    .accessibility_label(move || circle().map(|circle| circle.name.into()))
-                    .selected(move || !nav.settings.get() && nav.category.get() == "circle" && nav.circle.get() == id())
-                    .selected_style(|style| style.bg(move || theme().accent))
-                    .transition_colors().duration(|| crate::motion::duration(160.0)).ease_out()
-                    .on_press(move || if let Some(id) = id() { nav.select("circle", Some(id)); })
-                    .child(super::navigation_icon(ui::Icon::Circle, nav, count, muted))
-                    .child(text(move || circle().map(|circle| circle.name).unwrap_or_default()).flex_1().text_sm().number_of_lines(1).bind_opacity(&labels.opacity).style_when(move || !labels.visible.get(), |style| style.hidden()))
-                    .child(when(move || !nav.compact() && count() > 0, move || super::badge(count)));
-                let content = view().w_full()
-                    .on_touch(move |event: &TouchEvent| {
-                        if event.phase == TouchPhase::Start && let Some(id) = id() { candidate.replace(Some((event.timestamp, id))); }
-                    })
-                    .opacity(move || if drag.with(|drag| drag.as_ref().is_some_and(|drag| drag.active() && Some(drag.circle.circle_id.clone()) == id())) { 0.25_f32 } else { 1.0_f32 })
-                    .tooltip(nsh_base::tooltip().disabled(move || !nav.compact() || drag.with(Option::is_some)).px_3().py_2().rounded_md()
-                        .bg(move || theme().popover).text_color(move || theme().popover_foreground).border_1().border_color(move || theme().border)
-                        .child(text(move || circle().map(|circle| circle.name).unwrap_or_default()).text_sm()))
-                    .child(content.w_full());
-                ui::context_menu().trigger(content)
-                    .child(menu_item().px_3().py_2().hover(|style| style.bg(move || theme().accent)).disabled(self.busy)
-                        .child(text(move || tr("Rename…", "重命名…"))).on_select(move || { if let Some(circle) = circle() { nav.close_drawer(); self.editing.set(Some(Editing::Rename(circle))); } }))
-                    .child(menu_item().px_3().py_2().hover(|style| style.bg(move || theme().accent)).disabled(self.busy)
-                        .child(text(move || tr("Edit conversations…", "编辑聊天…"))).on_select(move || { if let Some(circle) = circle() { nav.close_drawer(); self.editing.set(Some(Editing::Manage(circle))); } }))
-                    .child(menu_item().px_3().py_2().hover(|style| style.bg(move || theme().accent))
-                        .disabled(move || self.busy.get() || self.rows.with(|rows| rows.first().map(|row| row.circle_id.clone())) == id())
-                        .child(text(move || tr("Move up", "上移"))).on_select(move || { if let Some(id) = id() { self.move_circle(id, true); } }))
-                    .child(menu_item().px_3().py_2().hover(|style| style.bg(move || theme().accent))
-                        .disabled(move || self.busy.get() || self.rows.with(|rows| rows.last().map(|row| row.circle_id.clone())) == id())
-                        .child(text(move || tr("Move down", "下移"))).on_select(move || { if let Some(id) = id() { self.move_circle(id, false); } }))
-                    .child(menu_item().px_3().py_2().hover(|style| style.bg(move || theme().accent)).text_color(move || theme().destructive).disabled(self.busy)
-                        .child(text(move || tr("Delete circle…", "删除圈子…"))).on_select(move || {
-                            if let Some(circle) = circle() { nav.close_drawer(); spawn(async move {
-                                let title = i18n::current().format("Delete “{name}”?", "删除“{name}”？", &[("name", &circle.name)]);
-                                let answer = alert_dialog().title(title).description(tr("Chats in this circle will remain available in All chats.", "圈子中的聊天仍会保留在“全部聊天”中。"))
-                                    .cancel("cancel", tr("Cancel", "取消")).destructive("delete", tr("Delete", "删除")).show().await;
-                                if matches!(answer, Ok(answer) if answer.action.as_deref() == Some("delete")) {
-                                    let account = self.client(); self.execute(async move { account.conversation().delete_circle(circle.circle_id).await });
-                                }
-                            }); }
-                        }))
-            }).keys(move || self.rows.with(|rows| rows.iter().map(|circle| circle.circle_id.clone()).collect::<Vec<_>>()))
-                    .estimated_item_size(px(CIRCLE_ROW_HEIGHT)).flex_1().min_h_0().element_ref(&list_ref)
-                    .on_scroll(move |event: &ScrollEvent| {
-                        offset.set(event.offset.y.0);
-                        if let Some(mut current) = drag.get_untracked() {
-                            current.update_target(event.offset.y.0);
-                            drag.set(Some(current));
-                        }
-                    }))
-                .child(when(move || drag.with(|drag| drag.as_ref().is_some_and(CircleDrag::active)), move || {
-                    let name = move || drag.with(|drag| drag.as_ref().map(|drag| drag.circle.name.clone()).unwrap_or_default());
-                    view().absolute().inset_0().pointer_events(nsh_core::PointerEvents::None).accessibility_elements_hidden(true)
-                        .child(view().absolute().top_0().left_0().right_0().h(px(CIRCLE_ROW_HEIGHT)).px_2().gap_3().flex_row().items_center().rounded_md()
-                            .bg(move || theme().popover).border_1().border_color(move || theme().border)
-                            .translate_y(move || px(drag.with(|drag| drag.as_ref().map_or(0.0, CircleDrag::top))))
-                            .child(ui::icon(ui::Icon::Circle).size_5())
-                            .child(text(name).flex_1().text_sm().number_of_lines(1).bind_opacity(&labels.opacity).style_when(move || !labels.visible.get(), |style| style.hidden())))
-                        .child(when(move || drag.with(|drag| drag.as_ref().is_some_and(|drag| drag.from != drag.target)), move || {
-                            view().absolute().top_0().left_2().right_2().h(px(2.0)).bg(move || theme().primary)
-                                .translate_y(move || px(drag.with(|drag| drag.as_ref().map_or(0.0, |drag| (drag.marker(offset.get()) - 1.0).max(0.0)))))
-                        }))
-                })))
     }
 
     pub(super) fn feedback(self) -> impl IntoElement {
         view().child(when(self.failed, move || {
             view().px_2().py_2().child(
-                text(move || {
+                ui::error_text(move || {
                     tr(
                         "Couldn’t update circles. Try again.",
                         "更新圈子失败，请重试。",
                     )
                 })
-                .text_xs()
-                .text_color(move || theme().destructive),
+                .text_xs(),
             )
         }))
     }
@@ -373,22 +360,10 @@ impl Circles {
                     self.editing.set(None);
                 }
             },
-            view()
-                .w_80()
-                .max_w(relative(1.0))
-                .p_5()
-                .gap_4()
-                .rounded_xl()
-                .bg(move || theme().popover)
-                .child(
-                    text(move || tr("Rename circle", "重命名圈子"))
-                        .text_lg()
-                        .font_weight(FontWeight::SEMIBOLD),
-                )
+            ui::modal_card()
+                .child(ui::modal_title(move || tr("Rename circle", "重命名圈子")))
                 .child(when(self.failed, || {
-                    text(move || tr("Couldn’t save. Try again.", "保存失败，请重试。"))
-                        .text_sm()
-                        .text_color(move || theme().destructive)
+                    ui::error_text(move || tr("Couldn’t save. Try again.", "保存失败，请重试。"))
                 }))
                 .child(
                     ui::field()
@@ -447,11 +422,11 @@ impl Circles {
             let mut changes = Box::pin(runtime::observe(account.conversation_changes()));
             loop {
                 let account = self.client();
-                let query_id = query_id.clone();
+                let requested_id = query_id.clone();
                 if let Ok(rows) = runtime::run(async move {
                     account
                         .conversation()
-                        .conversation_items_by_ids(vec![query_id])
+                        .conversation_items_by_ids(vec![requested_id])
                         .await
                 })
                 .await
@@ -459,8 +434,16 @@ impl Circles {
                 {
                     current.set(row.circle_ids);
                 }
-                if changes.next().await.is_none() {
-                    break;
+                loop {
+                    match changes.next().await {
+                        Some(event)
+                            if event.reload_all || event.conversation_ids.contains(&query_id) =>
+                        {
+                            break;
+                        }
+                        Some(_) => {}
+                        None => return,
+                    }
                 }
             }
         });
@@ -471,22 +454,9 @@ impl Circles {
                     self.editing.set(None);
                 }
             },
-            view()
-                .w_80()
-                .max_w(relative(1.0))
-                .max_h(relative(0.9))
-                .min_h_0()
+            ui::modal_card()
                 .overflow_hidden()
-                .p_4()
-                .gap_3()
-                .rounded_xl()
-                .bg(move || theme().popover)
-                .child(
-                    text(move || tr("Circles", "圈子"))
-                        .flex_none()
-                        .text_lg()
-                        .font_weight(FontWeight::SEMIBOLD),
-                )
+                .child(ui::modal_title(move || tr("Circles", "圈子")))
                 .child(
                     text(move || name.with(|name| name.clone()))
                         .flex_none()
@@ -494,10 +464,8 @@ impl Circles {
                         .number_of_lines(1),
                 )
                 .child(when(self.failed, || {
-                    text(move || tr("Couldn’t update. Try again.", "更新失败，请重试。"))
+                    ui::error_text(move || tr("Couldn’t update. Try again.", "更新失败，请重试。"))
                         .flex_none()
-                        .text_sm()
-                        .text_color(move || theme().destructive)
                 }))
                 .child(
                     virtual_list(
@@ -515,7 +483,6 @@ impl Circles {
                                 .min_h_12()
                                 .gap_3()
                                 .selected(checked)
-                                .selected_style(|style| style.bg(move || theme().accent))
                                 .disabled(self.busy)
                                 .child(
                                     text(move || {
@@ -532,9 +499,6 @@ impl Circles {
                                         }
                                         self.busy.set(true);
                                         self.failed.set(false);
-                                        if !presence.interactive() {
-                                            return;
-                                        }
                                         let account = self.client();
                                         let id = id.with(|id| id.clone());
                                         let owner = owner.with(|owner| owner.clone());
@@ -562,13 +526,7 @@ impl Circles {
                                 })
                         },
                     )
-                    .keys(move || {
-                        self.rows.with(|rows| {
-                            rows.iter()
-                                .map(|circle| circle.circle_id.clone())
-                                .collect::<Vec<_>>()
-                        })
-                    })
+                    .keys(move || self.ids())
                     .estimated_item_size(px(CIRCLE_ROW_HEIGHT))
                     .h(move || {
                         px(self.rows.with(|rows| rows.len().min(5)) as f32 * CIRCLE_ROW_HEIGHT)
@@ -604,19 +562,290 @@ impl Circles {
     }
 }
 
-pub(crate) fn membership_item(
-    state: Circles,
-    conversation: impl Fn() -> Option<ConversationListData> + Copy + 'static,
-) -> impl IntoElement {
-    menu_item()
-        .px_3()
-        .py_2()
-        .hover(|style| style.bg(move || theme().accent))
-        .disabled(state.busy)
-        .child(text(move || tr("Circles…", "圈子…")))
-        .on_select(move || {
-            if let Some(row) = conversation() {
-                state.editing.set(Some(Editing::Membership(Box::new(row))));
+/// Pointer reordering of the circle rail. Its state lives only for one list.
+#[derive(Clone, Copy)]
+struct Reorder {
+    circles: Circles,
+    drag: Signal<Option<CircleDrag>>,
+    candidate: Stored<Option<(f64, String)>>,
+    offset: Signal<f32>,
+    viewport: Signal<(f32, f32)>,
+    list: ElementRef,
+}
+
+impl Reorder {
+    fn begin(self) {
+        let Some((_, id)) = self.candidate.replace(None) else {
+            return;
+        };
+        if self.circles.busy.get_untracked() {
+            return;
+        }
+        let rows = self.circles.rows.get_untracked();
+        let Some(from) = rows.iter().position(|row| row.circle_id == id) else {
+            return;
+        };
+        self.drag.set(Some(CircleDrag {
+            circle: rows[from].clone(),
+            order: rows.into_iter().map(|row| row.circle_id).collect(),
+            from,
+            target: from,
+            start_scroll: self.offset.get_untracked(),
+            delta: 0.0,
+            started: false,
+        }));
+    }
+
+    fn finish(self) {
+        let Some(current) = self.drag.get_untracked() else {
+            return;
+        };
+        self.drag.set(None);
+        let circles = self.circles;
+        if circles.busy.get_untracked()
+            || current.order.as_ref() != untracked(|| circles.ids()).as_slice()
+            || !current.active()
+            || current.from == current.target
+        {
+            return;
+        }
+        let mut order = current.order.to_vec();
+        let id = order.remove(current.from);
+        order.insert(current.target, id);
+        let account = circles.client();
+        circles.execute(async move { account.conversation().reorder_circles(order).await });
+    }
+
+    fn scroll_at_edges(self) {
+        let Self {
+            circles,
+            drag,
+            offset,
+            viewport,
+            list,
+            ..
+        } = self;
+        let edge = computed(move || {
+            drag.with(|drag| match drag.as_ref().filter(|drag| drag.active()) {
+                Some(drag) if drag.top() < 24.0 => -1_i8,
+                Some(drag) if drag.top() + CIRCLE_ROW_HEIGHT > viewport.get().1 - 24.0 => 1,
+                _ => 0,
+            })
+        });
+        effect(move || {
+            let direction = edge.get();
+            if direction == 0 {
+                return;
             }
+            // This task exists only while dragging at an edge; no drawing-frame polling.
+            spawn(async move {
+                loop {
+                    timer(Duration::from_millis(50)).await;
+                    if drag.with_untracked(|drag| drag.as_ref().is_none_or(|drag| !drag.active())) {
+                        break;
+                    }
+                    let maximum = (circles.rows.with_untracked(Vec::len) as f32
+                        * CIRCLE_ROW_HEIGHT
+                        - viewport.get_untracked().1)
+                        .max(0.0);
+                    let next =
+                        (offset.get_untracked() + f32::from(direction) * 12.0).clamp(0.0, maximum);
+                    if (next - offset.get_untracked()).abs() <= 0.5 {
+                        break;
+                    }
+                    list.scroll_to_offset(px(next), false);
+                }
+            });
+        });
+    }
+
+    fn row(
+        self,
+        counts: Signal<Vec<ConversationUnseenCount>>,
+        labels: super::Labels,
+        circle: Memo<Option<CircleItem>>,
+    ) -> impl IntoElement {
+        let Self {
+            circles,
+            drag,
+            candidate,
+            ..
+        } = self;
+        let nav = circles.nav;
+        let id = move || circle.with(|circle| circle.as_ref().map(|c| c.circle_id.clone()));
+        let name = move || {
+            circle.with(|circle| {
+                circle
+                    .as_ref()
+                    .map(|circle| circle.name.clone())
+                    .unwrap_or_default()
+            })
+        };
+        let unseen = computed(move || {
+            let id = id();
+            counts.with(|counts| {
+                counts
+                    .iter()
+                    .find(|count| count.circle_id == id)
+                    .map_or((0, 0), |count| (count.count, count.muted_count))
+            })
+        });
+        let count = move || unseen.get().0;
+        let muted = move || unseen.get().1;
+        let item = super::rail_item()
+            .h(px(CIRCLE_ROW_HEIGHT))
+            .accessibility_label(move || Some(name().into()))
+            .selected(move || {
+                !nav.settings.get() && nav.category.get() == "circle" && nav.circle.get() == id()
+            })
+            .on_press(move || {
+                if let Some(id) = id() {
+                    nav.select("circle", Some(id));
+                }
+            })
+            .child(super::navigation_icon(ui::Icon::Circle, nav, count, muted))
+            .child(labels.bind_text(text(name)))
+            .child(when(
+                move || !nav.compact() && count() > 0,
+                move || ui::count_badge(move || count().to_string(), || false),
+            ));
+        let dragged = move || {
+            drag.with(|drag| {
+                drag.as_ref().is_some_and(|drag| {
+                    drag.active() && Some(&drag.circle.circle_id) == id().as_ref()
+                })
+            })
+        };
+        let content = view()
+            .w_full()
+            .on_touch(move |event: &TouchEvent| {
+                if event.phase == TouchPhase::Start
+                    && let Some(id) = id()
+                {
+                    candidate.replace(Some((event.timestamp, id)));
+                }
+            })
+            .opacity(move || if dragged() { 0.25_f32 } else { 1.0_f32 })
+            .tooltip(ui::hint(name).disabled(move || !nav.compact() || drag.with(Option::is_some)))
+            .child(item.w_full());
+        circles.row_menu(circle, content)
+    }
+
+    fn preview(self, labels: super::Labels) -> impl IntoElement {
+        let Self { drag, offset, .. } = self;
+        let name = move || {
+            drag.with(|drag| {
+                drag.as_ref()
+                    .map(|drag| drag.circle.name.clone())
+                    .unwrap_or_default()
+            })
+        };
+        view()
+            .absolute()
+            .inset_0()
+            .pointer_events(nsh_core::PointerEvents::None)
+            .accessibility_elements_hidden(true)
+            .child(
+                view()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .right_0()
+                    .h(px(CIRCLE_ROW_HEIGHT))
+                    .px_2()
+                    .gap_3()
+                    .flex_row()
+                    .items_center()
+                    .rounded_md()
+                    .bg(move || theme().popover)
+                    .border_1()
+                    .border_color(move || theme().border)
+                    .translate_y(move || {
+                        px(drag.with(|drag| drag.as_ref().map_or(0.0, CircleDrag::top)))
+                    })
+                    .child(ui::icon(ui::Icon::Circle))
+                    .child(labels.bind_text(text(name))),
+            )
+            .child(when(
+                move || {
+                    drag.with(|drag| drag.as_ref().is_some_and(|drag| drag.from != drag.target))
+                },
+                move || {
+                    view()
+                        .absolute()
+                        .top_0()
+                        .left_2()
+                        .right_2()
+                        .h(px(2.0))
+                        .bg(move || theme().primary)
+                        .translate_y(move || {
+                            px(drag.with(|drag| {
+                                drag.as_ref()
+                                    .map_or(0.0, |drag| (drag.marker(offset.get()) - 1.0).max(0.0))
+                            }))
+                        })
+                },
+            ))
+    }
+}
+
+impl Circles {
+    fn row_menu(
+        self,
+        circle: Memo<Option<CircleItem>>,
+        content: impl IntoElement + 'static,
+    ) -> impl IntoElement {
+        let nav = self.nav;
+        ui::native_context_menu(content, move || {
+            let Some(circle) = circle.get_untracked() else {
+                return Vec::new();
+            };
+            let busy = self.busy.get_untracked();
+            let (first, last) = self.rows.with_untracked(|rows| {
+                let is = |row: &CircleItem| row.circle_id == circle.circle_id;
+                (rows.first().is_some_and(is), rows.last().is_some_and(is))
+            });
+            let edit = |editing: fn(CircleItem) -> Editing| {
+                let circle = circle.clone();
+                move || {
+                    nav.close_drawer();
+                    self.editing.set(Some(editing(circle.clone())));
+                }
+            };
+            let reorder = |up: bool| {
+                let id = circle.circle_id.clone();
+                move || self.move_circle(id.clone(), up)
+            };
+            vec![
+                MenuItem::new(tr("Rename…", "重命名…"))
+                    .disabled(busy)
+                    .on_select(edit(Editing::Rename)),
+                MenuItem::new(tr("Edit conversations…", "编辑聊天…"))
+                    .disabled(busy)
+                    .on_select(edit(Editing::Manage)),
+                MenuItem::new(tr("Move up", "上移"))
+                    .disabled(busy || first)
+                    .on_select(reorder(true)),
+                MenuItem::new(tr("Move down", "下移"))
+                    .disabled(busy || last)
+                    .on_select(reorder(false)),
+                MenuItem::new(tr("Delete circle…", "删除圈子…"))
+                    .disabled(busy)
+                    .on_select(move || {
+                        nav.close_drawer();
+                        self.confirm_delete(circle.clone());
+                    }),
+            ]
+        })
+    }
+}
+
+pub(crate) fn membership_item(state: Circles, row: ConversationListData) -> MenuItem {
+    MenuItem::new(tr("Circles…", "圈子…"))
+        .disabled(state.busy.get_untracked())
+        .on_select(move || {
+            state
+                .editing
+                .set(Some(Editing::Membership(Box::new(row.clone()))));
         })
 }

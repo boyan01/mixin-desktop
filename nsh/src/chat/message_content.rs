@@ -1,14 +1,14 @@
 use super::{
-    message_actions::{Actions, label},
-    message_detail, message_system, message_text,
+    message_actions::Actions, message_detail, message_media::Transfer, message_system, message_text,
 };
 use crate::{
-    i18n::{self, Key},
-    presentation, runtime, ui,
+    appearance::Appearance,
+    i18n::{I18n, Key},
+    presentation, ui,
 };
 use mixin_desktop_api::MessageListView;
 use nsh_base::{text_view, theme};
-use nsh_core::prelude::*;
+use nsh_core::{element::ImageSrc, prelude::*};
 
 pub(super) fn is_attachment(row: &MessageListView) -> bool {
     ["_IMAGE", "_VIDEO", "_AUDIO", "_DATA"]
@@ -29,22 +29,28 @@ pub(super) fn is_markdown(row: &MessageListView) -> bool {
             .is_some_and(|extension| extension.eq_ignore_ascii_case("md"))
 }
 
-pub(super) fn body(
-    row: MessageListView,
-    actions: Actions,
-    target: Option<Signal<Option<String>>>,
-    transcript: Option<String>,
-) -> AnyElement {
-    let i18n = i18n::current();
+fn appearance() -> Appearance {
+    use_context::<Appearance>().expect("Home provides chat appearance")
+}
+
+/// Where a body is shown. A timeline row passes a live delivery status so that
+/// status changes do not rebuild its media.
+#[derive(Clone, Default)]
+pub(super) struct Placement {
+    pub target: Option<Signal<Option<String>>>,
+    pub transcript: Option<String>,
+    pub status: Option<Memo<String>>,
+}
+
+pub(super) fn body(row: MessageListView, actions: Actions, placement: Placement) -> AnyElement {
     if let Some(unavailable) = message_system::unavailable(&row, actions) {
         return unavailable;
     }
     if message_system::centered(&row.category) {
-        return message_system::notice(&row, actions, target);
+        return message_system::notice(&row, actions, placement.target);
     }
-    let caption_root = transcript.clone();
-    let appearance =
-        use_context::<crate::appearance::Appearance>().expect("Home provides chat appearance");
+    let appearance = appearance();
+    let transcript = placement.transcript.clone();
     let mut content = view()
         .min_w_0()
         .gap_2()
@@ -57,259 +63,309 @@ pub(super) fn body(
         content = content.child(super::message_quote::quoted(
             &row,
             actions,
-            target,
+            placement.target,
             transcript.is_some(),
         ));
     }
-    if row.category.ends_with("_TEXT") {
-        content = content.child(message_text::read(
-            &row,
-            &row.content,
-            actions,
-            transcript.clone(),
-        ));
-    } else if row.category == "MESSAGE_RECALL" {
-        let reedit = use_context::<super::reedit::Reedit>().expect("Home provides recall editing");
-        let mine = actions.account.with(|account| account.account_id()) == row.sender_id;
-        let id = stored(row.message_id.clone());
-        content = content
-            .child(
-                text(move || {
-                    if mine {
-                        label(i18n, "You deleted this message", "你删除了这条消息")
-                    } else {
-                        label(i18n, "This message was deleted", "这条消息已被删除")
-                    }
-                })
-                .text_color(move || theme().muted_foreground),
-            )
-            .child(when(
-                move || mine && id.with(|id| reedit.available(id)),
-                move || {
-                    ui::action(
-                        move || label(i18n, "Re-edit", "重新编辑"),
-                        move || id.with(|id| reedit.request(id)),
-                    )
-                    .px_0()
-                    .py_0()
-                    .text_color(move || theme().primary)
-                },
-            ));
-    } else if row.category.ends_with("_POST") {
+    content = content.child(kind_body(&row, actions, placement));
+    if let Some(caption) = row.caption.as_deref().filter(|s| !s.is_empty()) {
+        content = content.child(message_text::read(&row, caption, actions, transcript));
+    }
+    content.into_element()
+}
+
+fn kind_body(row: &MessageListView, actions: Actions, placement: Placement) -> AnyElement {
+    let category = row.category.as_str();
+    let Placement {
+        transcript, status, ..
+    } = placement;
+    if category.ends_with("_TEXT") {
+        message_text::read(row, &row.content, actions, transcript).into_element()
+    } else if category == "MESSAGE_RECALL" {
+        recalled(row, actions)
+    } else if category.ends_with("_POST") {
+        post(row, actions)
+    } else if category.ends_with("_STICKER") {
+        sticker(row, actions)
+    } else if category.ends_with("_IMAGE") || category.ends_with("_VIDEO") {
+        super::message_media::card(row.clone(), transcript, actions, status).into_element()
+    } else if category.ends_with("_AUDIO") && available(row) {
+        super::audio::body(row.clone(), transcript, actions).into_element()
+    } else if is_attachment(row) {
+        file(row.clone(), transcript, actions)
+    } else if category.ends_with("_CONTACT") {
+        contact(row, actions)
+    } else if category.ends_with("_TRANSCRIPT") {
+        transcript_card(row, actions, transcript)
+    } else if category.ends_with("_LIVE") {
         let preview = row.clone();
-        content = content.child(
-            ui::command()
-                .p_0()
-                .min_h(px(48.0))
+        ui::action(
+            move || actions.i18n.tr("Watch live", "观看直播"),
+            move || actions.open_preview(preview.clone()),
+        )
+        .into_element()
+    } else if category == "APP_CARD" || category == "APP_BUTTON_GROUP" {
+        message_detail::card(row, actions)
+    } else if category.ends_with("_LOCATION") {
+        super::message_location::location(row, actions)
+    } else if category == "SYSTEM_SAFE_INSCRIPTION" {
+        message_system::inscription(row, actions).into_element()
+    } else if category == "SYSTEM_ACCOUNT_SNAPSHOT" || category == "SYSTEM_SAFE_SNAPSHOT" {
+        snapshot(row, actions)
+    } else {
+        text(presentation::preview(actions.i18n, category, &row.content)).into_element()
+    }
+}
+
+fn recalled(row: &MessageListView, actions: Actions) -> AnyElement {
+    let i18n = actions.i18n;
+    let reedit = use_context::<super::reedit::Reedit>().expect("Home provides recall editing");
+    let mine = actions.account.with(|account| account.account_id()) == row.sender_id;
+    let id = stored(row.message_id.clone());
+    view()
+        .gap_2()
+        .child(
+            text(move || {
+                if mine {
+                    i18n.tr("You deleted this message", "你删除了这条消息")
+                } else {
+                    i18n.tr("This message was deleted", "这条消息已被删除")
+                }
+            })
+            .text_color(move || theme().muted_foreground),
+        )
+        .child(when(
+            move || mine && id.with(|id| reedit.available(id)),
+            move || {
+                ui::action(
+                    move || i18n.tr("Re-edit", "重新编辑"),
+                    move || id.with(|id| reedit.request(id)),
+                )
+                .px_0()
+                .py_0()
+                .text_color(move || theme().primary)
+            },
+        ))
+        .into_element()
+}
+
+fn post(row: &MessageListView, actions: Actions) -> AnyElement {
+    let i18n = actions.i18n;
+    let appearance = appearance();
+    let preview = row.clone();
+    ui::command()
+        .p_0()
+        .min_h(px(48.0))
+        .min_w_0()
+        .w(px(400.0))
+        .max_w(relative(1.0))
+        .flex_col()
+        .items_stretch()
+        .max_h(px(400.0))
+        .overflow_hidden()
+        .accessibility_label(move || Some(i18n.text(Key::Post).into()))
+        .on_press(move || actions.open_preview(preview.clone()))
+        .child(
+            view()
+                .w_full()
                 .min_w_0()
-                .w(px(400.0))
-                .max_w(relative(1.0))
-                .flex_col()
-                .items_stretch()
-                .max_h(px(400.0))
+                .min_h_0()
+                .max_h(px(376.0))
                 .overflow_hidden()
-                .accessibility_label(move || Some(i18n.text(Key::Post).into()))
-                .on_press(move || actions.open_preview(preview.clone()))
+                .pointer_events(PointerEvents::None)
                 .child(
-                    view()
+                    text_view()
                         .w_full()
                         .min_w_0()
-                        .min_h_0()
-                        .max_h(px(376.0))
-                        .overflow_hidden()
-                        .pointer_events(PointerEvents::None)
-                        .child(
-                            text_view()
-                                .w_full()
-                                .min_w_0()
-                                .max_w(relative(1.0))
-                                .markdown(Some(SharedString::from(post_preview(&row.content))))
-                                .selectable(false)
-                                .code_block_scrollbar(false)
-                                .table_scrollbar(false)
-                                .text_size(move || appearance.primary_size()),
-                        ),
+                        .max_w(relative(1.0))
+                        .markdown(Some(SharedString::from(post_preview(&row.content))))
+                        .selectable(false)
+                        .code_block_scrollbar(false)
+                        .table_scrollbar(false)
+                        .text_size(move || appearance.primary_size()),
+                ),
+        )
+        .child(
+            text(move || i18n.text(Key::Post))
+                .flex_shrink_0()
+                .text_xs()
+                .text_color(move || theme().muted_foreground),
+        )
+        .into_element()
+}
+
+fn sticker(row: &MessageListView, actions: Actions) -> AnyElement {
+    let i18n = actions.i18n;
+    let id = row.sticker_id.clone().filter(|id| !id.is_empty());
+    let url = row.sticker_asset_url.clone().unwrap_or_default();
+    if id.is_none() && url.is_empty() {
+        return text(move || i18n.text(Key::Sticker)).into_element();
+    }
+    let kind = row.sticker_asset_type.clone().unwrap_or_default();
+    let pressed = id.clone().unwrap_or_default();
+    ui::command()
+        .p_0()
+        .min_h_0()
+        .disabled(id.is_none())
+        .accessibility_label(move || Some(i18n.text(Key::Sticker).into()))
+        .on_press(move || actions.open_sticker(pressed.clone()))
+        .child(crate::sticker::asset(
+            actions.account.with(|value| value.clone()),
+            move || (id.clone(), url.clone(), kind.clone()),
+            160.0,
+        ))
+        .into_element()
+}
+
+/// One pressable card for a file in any state: the press opens, transfers or
+/// retries it, and the glyph and second line say which. Undownloaded audio uses
+/// it too, until its player has a file to play.
+fn file(row: MessageListView, transcript: Option<String>, actions: Actions) -> AnyElement {
+    let i18n = actions.i18n;
+    let appearance = appearance();
+    let done = available(&row);
+    let transfer = Transfer::of(&row, transcript.clone());
+    let retry = transcript.is_some()
+        || (row.sender_id == actions.account.with(|account| account.account_id())
+            && matches!(row.status.as_str(), "SENDING" | "FAILED"));
+    let name = row
+        .media_name
+        .clone()
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| presentation::preview(i18n, &row.category, &row.content));
+    let size = row
+        .media_size
+        .filter(|size| *size >= 0)
+        .map(|size| file_size(size as u64))
+        .unwrap_or_default();
+    let markdown = is_markdown(&row);
+    let row = stored(row);
+    let root = stored(transcript);
+    let action = move || {
+        if done {
+            i18n.tr("Open", "打开")
+        } else if transfer.active() {
+            i18n.tr("Cancel transfer", "取消传输")
+        } else if retry {
+            i18n.tr("Retry", "重试")
+        } else {
+            i18n.tr("Download", "下载")
+        }
+    };
+    ui::command()
+        .min_w_0()
+        .max_w(relative(1.0))
+        .w(px(260.0))
+        .p_1()
+        .gap_3()
+        .justify_start()
+        .accessibility_label(move || Some(action().into()))
+        .on_press(move || {
+            if !done {
+                transfer.toggle(actions);
+            } else if markdown {
+                actions.open_markdown(row.with(|row| row.clone()), root.with(|root| root.clone()));
+            } else {
+                let path = row.with(|row| row.media_url.clone().unwrap_or_default());
+                actions.task(async move {
+                    actions.failed.set(open_path(path).await.is_err());
+                });
+            }
+        })
+        .child(
+            view()
+                .size_10()
+                .flex_shrink_0()
+                .rounded_full()
+                .items_center()
+                .justify_center()
+                .bg(move || theme().muted)
+                .text_color(move || theme().muted_foreground)
+                .child(when(
+                    move || done,
+                    || {
+                        svg(ImageSrc::svg_markup(include_str!(
+                            "../../assets/quote/file.svg"
+                        )))
+                        .size_5()
+                    },
+                ))
+                .child(when(
+                    move || !done && !transfer.active(),
+                    move || {
+                        ui::icon(if retry {
+                            ui::Icon::Upload
+                        } else {
+                            ui::Icon::Download
+                        })
+                    },
+                ))
+                .child(when(
+                    move || !done && transfer.active(),
+                    || ui::icon(ui::Icon::Close),
+                )),
+        )
+        .child(
+            view()
+                .flex_1()
+                .min_w_0()
+                .gap_1()
+                .child(
+                    text(name)
+                        .text_size(move || appearance.secondary_size())
+                        .number_of_lines(2),
                 )
                 .child(
-                    text(move || i18n.text(Key::Post))
-                        .flex_shrink_0()
-                        .text_xs()
+                    text(move || transfer.percent().unwrap_or_else(|| size.clone()))
+                        .text_size(move || appearance.tertiary_size())
                         .text_color(move || theme().muted_foreground),
                 ),
-        );
-    } else if row.category.ends_with("_STICKER") {
-        if row.sticker_id.as_ref().is_some_and(|id| !id.is_empty())
-            || row
-                .sticker_asset_url
-                .as_ref()
-                .is_some_and(|url| !url.is_empty())
-        {
-            content = content.child(
-                ui::command()
-                    .p_0()
-                    .min_h_0()
-                    .disabled(row.sticker_id.as_ref().is_none_or(String::is_empty))
-                    .accessibility_label(move || Some(i18n.text(Key::Sticker).into()))
-                    .on_press({
-                        let sticker = row.sticker_id.clone().unwrap_or_default();
-                        move || actions.open_sticker(sticker.clone())
-                    })
-                    .child(crate::sticker::asset(
-                        actions.account.with(|value| value.clone()),
-                        {
-                            let id = row.sticker_id.clone();
-                            let url = row.sticker_asset_url.clone().unwrap_or_default();
-                            let kind = row.sticker_asset_type.clone().unwrap_or_default();
-                            move || (id.clone(), url.clone(), kind.clone())
-                        },
-                        160.0,
-                    )),
-            );
-        } else {
-            content = content.child(text(move || i18n.text(Key::Sticker)));
-        }
-    } else if row.category.ends_with("_IMAGE") || row.category.ends_with("_VIDEO") {
-        content = content.child(super::message_media::card(
-            row.clone(),
-            transcript.clone(),
-            actions,
-        ));
-    } else if is_attachment(&row) {
-        if available(&row) {
-            let path = row.media_url.clone().unwrap_or_default();
-            if row.category.ends_with("_AUDIO") {
-                content =
-                    content.child(super::audio::body(row.clone(), transcript.clone(), actions));
+        )
+        .into_element()
+}
+
+fn file_size(bytes: u64) -> String {
+    const UNITS: [&str; 4] = ["B", "KB", "MB", "GB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit + 1 < UNITS.len() {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
+}
+
+fn contact(row: &MessageListView, actions: Actions) -> AnyElement {
+    let appearance = appearance();
+    let user_id = row.shared_user_id.clone();
+    let name = row.shared_user_full_name.clone().unwrap_or_default();
+    let avatar = row.shared_user_avatar_url.clone().unwrap_or_default();
+    let avatar_name = name.clone();
+    ui::command()
+        .justify_start()
+        .gap_3()
+        .p_1()
+        .min_w_0()
+        .on_press(move || {
+            if let Some(id) = user_id.clone() {
+                actions.show_user(id);
             }
-            let filename = row
-                .media_name
-                .clone()
-                .filter(|s| !s.is_empty())
-                .unwrap_or_else(|| presentation::preview(i18n, &row.category, &row.content));
-            if !row.category.ends_with("_AUDIO") {
-                let markdown = is_markdown(&row);
-                let preview = row.clone();
-                let root = transcript.clone();
-                content = content.child(
-                    ui::action(
-                        move || label(i18n, "Open", "打开"),
-                        move || {
-                            if markdown {
-                                actions.open_markdown(preview.clone(), root.clone());
-                                return;
-                            }
-                            let path = path.clone();
-                            spawn(async move {
-                                actions.failed.set(open_path(path).await.is_err());
-                            });
-                        },
-                    )
-                    .child(
-                        text(filename)
-                            .text_size(move || appearance.secondary_size())
-                            .number_of_lines(2),
-                    ),
-                );
-            }
-            if let Some(size) = row.media_size.filter(|size| *size >= 0)
-                && !row.category.ends_with("_AUDIO")
-            {
-                content = content.child(
-                    text(format!("{} KB", (size as u64).div_ceil(1024)))
-                        .text_size(move || appearance.tertiary_size())
-                        .text_color(move || theme().muted_foreground),
-                );
-            }
-        } else {
-            let id = row.message_id.clone();
-            let retry_upload = transcript.is_some()
-                || (row.sender_id == actions.account.with(|account| account.account_id())
-                    && matches!(row.status.as_str(), "SENDING" | "FAILED"));
-            let pending = matches!(row.media_status.as_str(), "PENDING" | "PROCESSING");
-            let transfers = use_context::<crate::home::AttachmentProgress>()
-                .expect("Home provides attachment progress");
-            let progress_key = stored((transcript.clone(), row.message_id.clone()));
-            let bytes =
-                move || progress_key.with(|(root, id)| transfers.bytes(root.as_deref(), id));
-            let transferring = move || pending || bytes().is_some();
-            content = content.child(
-                text(presentation::preview(i18n, &row.category, &row.content))
-                    .text_size(move || appearance.primary_size()),
-            );
-            content = content.child(when(transferring, move || {
-                view()
-                    .flex_row()
-                    .items_center()
-                    .gap_2()
-                    .child(ui::busy_indicator(
-                        move || bytes().is_none_or(|(_, total)| total == 0),
-                        move || i18n.tr("Transferring…", "正在传输…").into(),
-                    ))
-                    .child(
-                        text(move || match bytes() {
-                            Some((completed, total)) if total > 0 => {
-                                format!(
-                                    "{:.0}%",
-                                    (completed as f64 / total as f64 * 100.0).clamp(0.0, 100.0)
-                                )
-                            }
-                            _ => i18n.tr("Transferring…", "正在传输…").into(),
-                        })
-                        .text_size(move || appearance.tertiary_size())
-                        .text_color(move || theme().muted_foreground),
-                    )
-            }));
-            content = content.child(ui::action(
-                move || {
-                    if transferring() {
-                        i18n.tr("Cancel transfer", "取消传输")
-                    } else if retry_upload {
-                        i18n.tr("Retry", "重试")
-                    } else {
-                        i18n.tr("Download", "下载")
-                    }
-                },
-                move || {
-                    let client = actions.account.with(|a| a.clone());
-                    let id = id.clone();
-                    let transcript = transcript.clone();
-                    let transferring = transferring();
-                    spawn(async move {
-                        actions.failed.set(
-                            runtime::commit(async move {
-                                if transferring {
-                                    if let Some(transcript) = transcript {
-                                        client
-                                            .attachment()
-                                            .cancel_transcript_attachment(transcript, id)
-                                            .await
-                                    } else {
-                                        client.attachment().cancel_attachment(id).await
-                                    }
-                                } else {
-                                    client.attachment().resume_attachment(id, transcript).await
-                                }
-                            })
-                            .await
-                            .is_err(),
-                        );
-                    });
-                },
-            ));
-        }
-    } else if row.category.ends_with("_CONTACT") {
-        let user_id = row.shared_user_id.clone();
-        content = content.child(
-            ui::command()
-                .flex_col()
-                .items_start()
-                .on_press(move || {
-                    if let Some(id) = user_id.clone() {
-                        actions.show_user(id);
-                    }
-                })
+        })
+        .child(ui::avatar_view(
+            move || avatar_name.clone().into(),
+            move || avatar.clone(),
+        ))
+        .child(
+            view()
+                .min_w_0()
+                .gap_1()
                 .child(
-                    text(row.shared_user_full_name.clone().unwrap_or_default())
+                    text(name)
+                        .number_of_lines(1)
                         .font_weight(FontWeight::MEDIUM),
                 )
                 .child(
@@ -319,114 +375,112 @@ pub(super) fn body(
                             .map(|id| format!("Mixin ID: {id}"))
                             .unwrap_or_default(),
                     )
-                    .text_size(move || appearance.secondary_size()),
+                    .text_size(move || appearance.tertiary_size())
+                    .text_color(move || theme().muted_foreground),
                 ),
-        );
-    } else if row.category.ends_with("_TRANSCRIPT") {
-        if transcript.is_none()
-            && row.media_status == "CANCELED"
-            && matches!(row.status.as_str(), "SENDING" | "FAILED")
-            && row.sender_id == actions.account.with(|account| account.account_id())
-        {
-            let id = row.message_id.clone();
-            content = content.child(ui::action(
-                move || i18n.tr("Retry", "重试"),
-                move || {
-                    let client = actions.account.with(|account| account.clone());
-                    let id = id.clone();
-                    spawn(async move {
-                        actions.failed.set(
-                            runtime::commit(async move {
-                                client.attachment().resume_attachment(id, None).await
-                            })
-                            .await
-                            .is_err(),
-                        );
-                    });
-                },
-            ));
-        }
-        let preview_row = row.clone();
-        content = content.child(ui::action(
-            move || i18n.text(Key::Transcript),
-            move || {
-                if let Some(root) = transcript.clone() {
-                    actions.open_transcript_summary(root, preview_row.message_id.clone());
-                } else {
-                    actions.open_preview(preview_row.clone());
-                }
-            },
-        ));
-        if let Ok(serde_json::Value::Array(previews)) = serde_json::from_str(&row.content) {
-            for preview in previews.iter().take(4) {
-                let name = preview
-                    .get("name")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default();
-                let category = preview
-                    .get("category")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default();
-                let text = preview
-                    .get("content")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default();
-                content = content.child(
-                    nsh_core::prelude::text(format!(
-                        "{name}: {}",
-                        presentation::preview(i18n, category, text)
-                    ))
-                    .text_size(move || appearance.primary_size())
-                    .number_of_lines(1),
-                );
+        )
+        .into_element()
+}
+
+fn transcript_card(
+    row: &MessageListView,
+    actions: Actions,
+    transcript: Option<String>,
+) -> AnyElement {
+    let i18n = actions.i18n;
+    let appearance = appearance();
+    let retry = transcript.is_none()
+        && row.media_status == "CANCELED"
+        && matches!(row.status.as_str(), "SENDING" | "FAILED")
+        && row.sender_id == actions.account.with(|account| account.account_id());
+    let id = row.message_id.clone();
+    let opened = row.clone();
+    let mut card = ui::command()
+        .flex_col()
+        .items_start()
+        .gap_1()
+        .p_1()
+        .min_w_0()
+        .accessibility_label(move || Some(i18n.text(Key::Transcript).into()))
+        .on_press(move || {
+            if let Some(root) = transcript.clone() {
+                actions.open_transcript_summary(root, opened.message_id.clone());
+            } else {
+                actions.open_preview(opened.clone());
             }
-        }
-    } else if row.category.ends_with("_LIVE") {
-        let preview_row = row.clone();
-        content = content.child(ui::action(
-            move || label(i18n, "Watch live", "观看直播"),
-            move || actions.open_preview(preview_row.clone()),
-        ));
-    } else if row.category == "APP_CARD" || row.category == "APP_BUTTON_GROUP" {
-        content = content.child(message_detail::card(&row, actions));
-    } else if row.category.ends_with("_LOCATION") {
-        content = content.child(super::message_location::location(&row, actions));
-    } else if row.category == "SYSTEM_SAFE_INSCRIPTION" {
-        content = content.child(message_system::inscription(&row, actions));
-    } else if row.category == "SYSTEM_ACCOUNT_SNAPSHOT" || row.category == "SYSTEM_SAFE_SNAPSHOT" {
-        let snapshot = row.clone();
-        content = content.child(
-            ui::command()
-                .flex_col()
-                .items_start()
-                .disabled(row.snapshot_id.is_none())
-                .on_press(move || actions.open_preview(snapshot.clone()))
-                .child(
-                    text(format!(
-                        "{} {}",
-                        row.snapshot_amount.clone().unwrap_or_default(),
-                        row.snapshot_asset_symbol.clone().unwrap_or_default()
-                    ))
-                    .font_weight(FontWeight::MEDIUM),
-                ),
+        })
+        .child(
+            text(move || i18n.text(Key::Transcript))
+                .text_size(move || appearance.secondary_size())
+                .font_weight(FontWeight::MEDIUM),
         );
-        if let Some(memo) = row.snapshot_memo.clone().filter(|s| !s.is_empty()) {
-            content = content.child(
-                text(memo)
-                    .text_size(move || appearance.primary_size())
-                    .select_text(),
-            );
+    if let Ok(serde_json::Value::Array(previews)) = serde_json::from_str(&row.content) {
+        for preview in previews.iter().take(4) {
+            card = card.child(transcript_line(i18n, preview, appearance));
         }
-    } else {
-        content = content.child(
-            text(presentation::preview(i18n, &row.category, &row.content))
-                .text_size(move || appearance.primary_size()),
+    }
+    let card = view().gap_2().min_w_0().child(card);
+    if !retry {
+        return card.into_element();
+    }
+    card.child(ui::action(
+        move || i18n.tr("Retry", "重试"),
+        move || {
+            let client = actions.account.with(|account| account.clone());
+            let id = id.clone();
+            actions.commit(async move { client.attachment().resume_attachment(id, None).await });
+        },
+    ))
+    .into_element()
+}
+
+fn transcript_line(
+    i18n: I18n,
+    preview: &serde_json::Value,
+    appearance: Appearance,
+) -> impl IntoElement {
+    let field = |key| {
+        preview
+            .get(key)
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+    };
+    text(format!(
+        "{}: {}",
+        field("name"),
+        presentation::preview(i18n, field("category"), field("content"))
+    ))
+    .text_size(move || appearance.tertiary_size())
+    .text_color(move || theme().muted_foreground)
+    .number_of_lines(1)
+}
+
+fn snapshot(row: &MessageListView, actions: Actions) -> AnyElement {
+    let appearance = appearance();
+    let opened = row.clone();
+    let mut card = view().gap_2().min_w_0().child(
+        ui::command()
+            .flex_col()
+            .items_start()
+            .disabled(row.snapshot_id.is_none())
+            .on_press(move || actions.open_preview(opened.clone()))
+            .child(
+                text(format!(
+                    "{} {}",
+                    row.snapshot_amount.clone().unwrap_or_default(),
+                    row.snapshot_asset_symbol.clone().unwrap_or_default()
+                ))
+                .font_weight(FontWeight::MEDIUM),
+            ),
+    );
+    if let Some(memo) = row.snapshot_memo.clone().filter(|s| !s.is_empty()) {
+        card = card.child(
+            text(memo)
+                .text_size(move || appearance.primary_size())
+                .select_text(),
         );
     }
-    if let Some(caption) = row.caption.as_deref().filter(|s| !s.is_empty()) {
-        content = content.child(message_text::read(&row, caption, actions, caption_root));
-    }
-    content.into_element()
+    card.into_element()
 }
 
 fn post_preview(content: &str) -> String {

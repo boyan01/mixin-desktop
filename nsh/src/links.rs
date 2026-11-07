@@ -7,10 +7,10 @@ mod view;
 
 use mixin_desktop_api::{AccountClient, CodeResult, WebShareContent};
 use nsh_core::prelude::*;
-use std::{rc::Rc, sync::Arc};
+use std::{future::Future, rc::Rc, sync::Arc};
 use url::Url;
 
-use crate::{navigation::ChatNavigation, runtime};
+use crate::{i18n::tr, navigation::ChatNavigation, runtime};
 use parse::Target;
 
 #[derive(Clone)]
@@ -31,7 +31,6 @@ enum Panel {
     Code(String, Box<CodeResult>),
     Snapshot(crate::snapshot::Reference),
     Send(parse::Send),
-    App(AppLink),
     Unsupported(String),
 }
 
@@ -46,10 +45,6 @@ pub(crate) struct LinkNavigation {
     request: Signal<u64>,
     app_opener: Stored<Option<AppOpener>>,
     failed: Signal<bool>,
-}
-
-fn tr(en: &'static str, zh: &'static str) -> &'static str {
-    crate::i18n::tr(en, zh)
 }
 
 impl LinkNavigation {
@@ -98,95 +93,107 @@ impl LinkNavigation {
                 return;
             }
         };
-        self.panel.set(Some(Panel::Loading));
-        self.owner.run(|| {
-            spawn(async move {
-                match target {
-                    Target::User(id) => self.show(ticket, Panel::Profile(id)),
-                    Target::Snapshot(reference) => self.show(ticket, Panel::Snapshot(reference)),
-                    Target::Send(send) => self.show(ticket, Panel::Send(send)),
-                    Target::Unsupported(raw) => self.show(ticket, Panel::Unsupported(raw)),
-                    Target::External(url) => {
+        match target {
+            Target::User(id) => self.panel.set(Some(Panel::Profile(id))),
+            Target::Snapshot(reference) => self.panel.set(Some(Panel::Snapshot(reference))),
+            Target::Send(send) => self.panel.set(Some(Panel::Send(send))),
+            Target::Unsupported(raw) => self.panel.set(Some(Panel::Unsupported(raw))),
+            // The browser takes over, so only a failure needs a panel.
+            Target::External(url) => {
+                self.panel.set(None);
+                self.owner.run(|| {
+                    spawn(async move {
                         let opened = open_url(url.to_string()).await;
-                        if self.current(ticket) {
-                            self.panel.set((!opened).then_some(Panel::Error));
+                        if !opened {
+                            self.show(ticket, Panel::Error);
                         }
-                    }
-                    Target::Code(code) => {
-                        let client = self.client();
-                        let value = code.clone();
-                        let result =
-                            runtime::run(
-                                async move { client.conversation().resolve_code(value).await },
-                            )
-                            .await;
-                        match result {
-                            Ok(value) if value.kind == "user" => {
-                                if let Some(id) = value.user_id {
-                                    self.show(ticket, Panel::Profile(id));
-                                } else {
-                                    self.show(ticket, Panel::Error);
-                                }
-                            }
-                            Ok(value) => self.show(ticket, Panel::Code(code, Box::new(value))),
-                            Err(_) => self.show(ticket, Panel::Error),
-                        }
-                    }
-                    Target::Conversation { id, user, message } => {
-                        let client = self.client();
-                        let result = runtime::run(async move {
-                            client
-                                .conversation()
-                                .resolve_conversation_link(id, user)
-                                .await
-                        })
-                        .await;
-                        match result {
-                            Ok(row) if self.current(ticket) => {
-                                self.panel.set(None);
-                                if let Some(message) = message {
-                                    let failed = self.failure_signal();
-                                    self.navigation.open_conversation(
-                                        self.client(),
-                                        row.conversation_id,
-                                        Some(message),
-                                        failed,
-                                    );
-                                } else {
-                                    self.navigation.select(row);
-                                }
-                            }
-                            Ok(_) => {}
-                            Err(_) => self.show(ticket, Panel::Error),
-                        }
-                    }
-                    Target::Message(id) => {
-                        let client = self.client();
-                        let result = runtime::run(async move {
-                            client.message().message_items_by_ids(vec![id]).await
-                        })
-                        .await;
-                        match result {
-                            Ok(mut rows) if self.current(ticket) && !rows.is_empty() => {
-                                let message = rows.remove(0);
-                                self.panel.set(None);
-                                self.navigation.open_conversation(
-                                    self.client(),
-                                    message.conversation_id,
-                                    Some(message.message_id),
-                                    self.failure_signal(),
-                                );
-                            }
-                            Ok(_) if !self.current(ticket) => {}
-                            _ => self.show(ticket, Panel::Error),
-                        }
-                    }
-                    Target::App(id, url) => {
-                        self.open_app(ticket, id, url, source_conversation).await
-                    }
+                    })
+                });
+            }
+            Target::Code(code) => self.resolve(self.open_code(ticket, code)),
+            Target::Conversation { id, user, message } => {
+                self.resolve(self.open_chat(ticket, id, user, message))
+            }
+            Target::Message(id) => self.resolve(self.open_message(ticket, id)),
+            Target::App(id, url) => {
+                self.resolve(self.open_app(ticket, id, url, source_conversation))
+            }
+        }
+    }
+
+    fn resolve(self, task: impl Future<Output = ()> + 'static) {
+        self.panel.set(Some(Panel::Loading));
+        self.owner.run(|| spawn(task));
+    }
+
+    async fn open_code(self, ticket: u64, code: String) {
+        let client = self.client();
+        let value = code.clone();
+        let result =
+            runtime::run(async move { client.conversation().resolve_code(value).await }).await;
+        match result {
+            Ok(value) if value.kind == "user" => match value.user_id {
+                Some(id) => self.show(ticket, Panel::Profile(id)),
+                None => self.show(ticket, Panel::Error),
+            },
+            Ok(value) => self.show(ticket, Panel::Code(code, Box::new(value))),
+            Err(_) => self.show(ticket, Panel::Error),
+        }
+    }
+
+    async fn open_chat(
+        self,
+        ticket: u64,
+        id: String,
+        user: Option<String>,
+        message: Option<String>,
+    ) {
+        let client = self.client();
+        let result = runtime::run(async move {
+            client
+                .conversation()
+                .resolve_conversation_link(id, user)
+                .await
+        })
+        .await;
+        match result {
+            Ok(row) if self.current(ticket) => {
+                self.panel.set(None);
+                if let Some(message) = message {
+                    self.navigation.open_conversation(
+                        self.client(),
+                        row.conversation_id,
+                        Some(message),
+                        self.failed,
+                    );
+                } else {
+                    self.navigation.select(row);
                 }
-            });
-        });
+            }
+            Ok(_) => {}
+            Err(_) => self.show(ticket, Panel::Error),
+        }
+    }
+
+    async fn open_message(self, ticket: u64, id: String) {
+        let client = self.client();
+        let result =
+            runtime::run(async move { client.message().message_items_by_ids(vec![id]).await })
+                .await;
+        match result {
+            Ok(mut rows) if self.current(ticket) && !rows.is_empty() => {
+                let message = rows.remove(0);
+                self.panel.set(None);
+                self.navigation.open_conversation(
+                    self.client(),
+                    message.conversation_id,
+                    Some(message.message_id),
+                    self.failed,
+                );
+            }
+            Ok(_) if !self.current(ticket) => {}
+            _ => self.show(ticket, Panel::Error),
+        }
     }
 
     /// Opens the existing recipient picker and send confirmation for a native page action.
@@ -241,10 +248,6 @@ impl LinkNavigation {
         }
     }
 
-    fn failure_signal(self) -> Signal<bool> {
-        self.failed
-    }
-
     async fn open_app(
         self,
         ticket: u64,
@@ -297,13 +300,15 @@ impl LinkNavigation {
             source_conversation,
             app_card_data: None,
         };
-        if self.current(ticket) {
-            if let Some(open) = self.app_opener.with(|open| open.clone()) {
+        if !self.current(ticket) {
+            return;
+        }
+        match self.app_opener.with(|open| open.clone()) {
+            Some(open) => {
                 self.panel.set(None);
                 open(link);
-            } else {
-                self.panel.set(Some(Panel::App(link)));
             }
+            None => self.panel.set(Some(Panel::Error)),
         }
     }
 

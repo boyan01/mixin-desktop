@@ -79,7 +79,7 @@ pub(super) fn card_action(
                     .send_text(conversation, content, None, false)
                     .await
             });
-            spawn(async move {
+            actions.task(async move {
                 actions.failed.set(sent.await.is_err());
                 actions.busy.set(false);
             });

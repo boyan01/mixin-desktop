@@ -1,21 +1,37 @@
 use nsh_base::{dialog, theme};
 use nsh_core::prelude::*;
 
-use super::{Handle, passcode, tr};
+use super::{Handle, passcode};
 use crate::{
+    conversation::parts,
     i18n::{self, Key},
     ui,
 };
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Hidden,
+    Locked,
+    Unavailable,
+}
+
 pub(crate) fn surface(handle: Handle) -> impl IntoElement {
-    dynamic(move || {
-        let state = handle.state.get();
+    // A memo: rebuilding on every state change would wipe a passcode being typed.
+    let mode = computed(move || {
         let pending = handle.lock_pending.get();
-        untracked(|| match state {
-            Some(_) if pending => unavailable(handle).into_element(),
-            Some(state) if state.locked => lock_screen(handle).into_element(),
-            Some(_) => view().hidden().into_element(),
-            None => unavailable(handle).into_element(),
+        handle.state.with(|state| match state {
+            Some(_) if pending => Mode::Unavailable,
+            Some(state) if state.locked => Mode::Locked,
+            Some(_) => Mode::Hidden,
+            None => Mode::Unavailable,
+        })
+    });
+    dynamic(move || {
+        let mode = mode.get();
+        untracked(|| match mode {
+            Mode::Unavailable => unavailable(handle).into_element(),
+            Mode::Locked => lock_screen(handle).into_element(),
+            Mode::Hidden => view().hidden().into_element(),
         })
     })
 }
@@ -33,16 +49,15 @@ fn unavailable(handle: Handle) -> impl IntoElement {
         .child(
             text(move || {
                 if handle.load_failed.get() {
-                    tr(
-                        i18n,
+                    i18n.tr(
                         "Couldn’t read screen privacy settings. Account content stays hidden.",
                         "无法读取锁屏设置，账号内容将保持隐藏。",
                     )
                 } else {
                     if handle.lock_pending.get() {
-                        tr(i18n, "Locking Mixin…", "正在锁定 Mixin…")
+                        i18n.tr("Locking Mixin…", "正在锁定 Mixin…")
                     } else {
-                        tr(i18n, "Checking screen privacy…", "正在检查锁屏设置…")
+                        i18n.tr("Checking screen privacy…", "正在检查锁屏设置…")
                     }
                 }
             })
@@ -78,7 +93,7 @@ fn lock_screen(handle: Handle) -> impl IntoElement {
                         .text_color(move || theme().muted_foreground),
                 )
                 .child(
-                    text(move || tr(i18n, "Unlock with passcode", "输入锁屏密码解锁"))
+                    text(move || i18n.tr("Unlock with passcode", "输入锁屏密码解锁"))
                         .text_xl()
                         .font_weight(FontWeight::SEMIBOLD),
                 )
@@ -92,21 +107,16 @@ fn lock_screen(handle: Handle) -> impl IntoElement {
                     },
                 ))
                 .child(when(handle.busy, move || {
-                    text(move || tr(i18n, "Unlocking…", "正在解锁…"))
-                        .text_sm()
-                        .text_color(move || theme().muted_foreground)
+                    parts::status(move || i18n.tr("Unlocking…", "正在解锁…"))
                 }))
                 .child(when(handle.failed, move || {
-                    text(move || {
-                        tr(
-                            i18n,
+                    ui::error_text(move || {
+                        i18n.tr(
                             "Couldn’t unlock. Check your passcode and try again.",
                             "无法解锁，请检查锁屏密码后重试。",
                         )
                     })
-                    .text_sm()
                     .text_center()
-                    .text_color(move || theme().destructive)
                 }))
                 .child(when(
                     move || handle.cooldown_seconds.get() > 0,
@@ -133,7 +143,7 @@ fn lock_screen(handle: Handle) -> impl IntoElement {
                     },
                     move || {
                         ui::action(
-                            move || tr(i18n, "Use biometrics", "使用生物识别"),
+                            move || i18n.tr("Use biometrics", "使用生物识别"),
                             move || handle.authenticate(),
                         )
                         .disabled(handle.busy)

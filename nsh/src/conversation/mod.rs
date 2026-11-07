@@ -1,12 +1,15 @@
 mod circles;
 mod info;
 mod members;
+pub(crate) mod parts;
 mod shared;
 mod user;
 
 pub(crate) use user::{profile, profile_with_opened};
 
-use std::{future::Future, sync::Arc};
+use parts::{Prompt, confirm};
+
+use std::{future::Future, rc::Rc, sync::Arc};
 
 use futures::StreamExt as _;
 use mixin_desktop_api::{
@@ -16,7 +19,10 @@ use mixin_desktop_api::{
 use nsh_base::{alert_dialog, theme};
 use nsh_core::prelude::*;
 
-use crate::{i18n, runtime, ui};
+use crate::{
+    i18n::{self, tr},
+    runtime, ui,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
@@ -32,10 +38,34 @@ enum Page {
     EditName,
 }
 
+impl Page {
+    fn title(self) -> &'static str {
+        match self {
+            Self::Info => tr("Chat info", "聊天详情"),
+            Self::Edit => tr("Edit group", "编辑群组"),
+            Self::Members => tr("Group participants", "群组成员"),
+            Self::Expiry => tr("Disappearing messages", "阅后即焚"),
+            Self::Circles => tr("Circles", "圈子"),
+            Self::Shared => tr("Shared media", "共享媒体"),
+            Self::Invite => tr("Invite to group", "邀请加入群组"),
+            Self::Profile => tr("Profile", "个人资料"),
+            Self::Apps => tr("Shared apps", "共享应用"),
+            Self::EditName => tr("Edit name", "编辑名称"),
+        }
+    }
+
+    /// The profile flow draws its own header and Back behavior.
+    fn profile_flow(self) -> bool {
+        matches!(self, Self::Profile | Self::Apps | Self::EditName)
+    }
+}
+
 #[derive(Clone, Copy)]
 struct State {
+    owner: Owner,
     account: Stored<Arc<AccountClient>>,
     id: Stored<String>,
+    close: Stored<Rc<dyn Fn()>>,
     row: Signal<Option<ConversationListData>>,
     detail: Signal<Option<ConversationDetailItem>>,
     biography: Signal<String>,
@@ -47,6 +77,8 @@ struct State {
     loading: Signal<bool>,
     refreshing: Signal<bool>,
     failed: Signal<bool>,
+    /// Survives Back from Edit group, so an unsaved edit is not lost.
+    edit_draft: Stored<Option<(String, String)>>,
 }
 
 impl State {
@@ -58,13 +90,29 @@ impl State {
         self.id.with(|id| id.clone())
     }
 
+    fn own_id(self) -> String {
+        self.account.with(|account| account.account_id())
+    }
+
+    fn owner_id(self) -> String {
+        self.row.with_untracked(|row| {
+            row.as_ref()
+                .map(|row| row.owner_id.clone())
+                .unwrap_or_default()
+        })
+    }
+
+    fn close(self) {
+        self.close.with(|close| close.clone())();
+    }
+
     fn group(self) -> bool {
         self.row
             .with(|row| row.as_ref().is_some_and(|row| row.category == "GROUP"))
     }
 
     fn role(self) -> Option<String> {
-        let current = self.account.with(|account| account.account_id());
+        let current = self.own_id();
         self.members.with(|members| {
             members
                 .iter()
@@ -77,6 +125,10 @@ impl State {
         matches!(self.role().as_deref(), Some("OWNER" | "ADMIN"))
     }
 
+    fn reload(self) {
+        self.refresh.update(|value| *value += 1);
+    }
+
     fn refresh_from_server(self) {
         if self.refreshing.get_untracked() {
             return;
@@ -84,20 +136,24 @@ impl State {
         self.refreshing.set(true);
         let client = self.client();
         let id = self.id();
-        spawn(async move {
-            match runtime::run(async move { client.conversation().conversation_detail(id).await })
-                .await
-            {
-                Ok(_) => {
-                    self.failed.set(false);
-                    self.refresh.update(|value| *value += 1);
+        self.owner.run(|| {
+            spawn(async move {
+                let result =
+                    runtime::run(
+                        async move { client.conversation().conversation_detail(id).await },
+                    )
+                    .await;
+                self.refreshing.set(false);
+                self.failed.set(result.is_err());
+                if result.is_ok() {
+                    self.reload();
                 }
-                Err(_) => self.failed.set(true),
-            }
-            self.refreshing.set(false);
+            })
         });
     }
 
+    /// Runs under the screen owner: a press handler's own owner, such as a menu
+    /// popup or list cell, can end first and would leave `busy` set for good.
     fn submit(
         self,
         command: impl Future<Output = ClientResult<()>> + Send + 'static,
@@ -109,21 +165,44 @@ impl State {
         self.busy.set(true);
         self.failed.set(false);
         let task = runtime::commit(command);
-        spawn(async move {
-            match task.await {
-                Ok(()) => {
-                    self.refresh.update(|value| *value += 1);
-                    done();
+        self.owner.run(|| {
+            spawn(async move {
+                let result = task.await;
+                self.busy.set(false);
+                match result {
+                    Ok(()) => {
+                        self.reload();
+                        done();
+                    }
+                    Err(_) => self.failed.set(true),
                 }
-                Err(_) => self.failed.set(true),
-            }
-            self.busy.set(false);
+            })
         });
     }
-}
 
-fn tr(en: &'static str, zh: &'static str) -> &'static str {
-    crate::i18n::tr(en, zh)
+    fn confirm_then<F>(self, prompt: Prompt, command: impl FnOnce() -> F + 'static)
+    where
+        F: Future<Output = ClientResult<()>> + Send + 'static,
+    {
+        self.confirm_then_finish(prompt, command, || {});
+    }
+
+    fn confirm_then_finish<F>(
+        self,
+        prompt: Prompt,
+        command: impl FnOnce() -> F + 'static,
+        done: impl FnOnce() + 'static,
+    ) where
+        F: Future<Output = ClientResult<()>> + Send + 'static,
+    {
+        self.owner.run(|| {
+            spawn(async move {
+                if confirm(prompt).await {
+                    self.submit(command(), done);
+                }
+            })
+        });
+    }
 }
 
 fn row(
@@ -147,15 +226,6 @@ fn section(title: impl Fn() -> &'static str + 'static) -> View {
     )
 }
 
-async fn confirm(title: &'static str, description: String, action: &'static str) -> bool {
-    matches!(
-        alert_dialog().title(title).description(description)
-            .cancel("cancel", tr("Cancel", "取消"))
-            .destructive("apply", action).show().await,
-        Ok(answer) if answer.action.as_deref() == Some("apply")
-    )
-}
-
 pub(crate) fn screen(
     account: Arc<AccountClient>,
     id: String,
@@ -163,8 +233,10 @@ pub(crate) fn screen(
     close: impl Fn() + Copy + 'static,
 ) -> impl IntoElement {
     let state = State {
+        owner: Owner::current(),
         account: stored(account.clone()),
         id: stored(id.clone()),
+        close: stored(Rc::new(close) as Rc<dyn Fn()>),
         row: signal_with(None, SignalEquals::Never),
         detail: signal_with(None, SignalEquals::Never),
         biography: signal(String::new()),
@@ -176,12 +248,10 @@ pub(crate) fn screen(
         loading: signal(true),
         refreshing: signal(false),
         failed: signal(false),
+        edit_draft: stored(None),
     };
-    let version = signal(0_u64);
     effect(move || {
         let _refresh = state.refresh.get();
-        let ticket = version.get_untracked().wrapping_add(1);
-        version.set(ticket);
         let client = state.client();
         let id = state.id();
         state.loading.set(true);
@@ -211,159 +281,109 @@ pub(crate) fn screen(
                 Ok((detail, row, members, biography, shared_apps_preview))
             })
             .await;
-            if version.get_untracked() != ticket {
-                return;
-            }
+            let mut removed = false;
             match result {
-                Ok((detail, row, members, biography, shared_apps_preview)) => batch(|| {
-                    state.detail.set(Some(detail));
-                    state.row.set(row);
-                    state.members.set(members);
-                    state.biography.set(biography);
-                    state.shared_apps_preview.set(shared_apps_preview);
-                }),
+                Ok((detail, row, members, biography, shared_apps_preview)) => {
+                    removed = row.is_none() && state.row.with_untracked(Option::is_some);
+                    batch(|| {
+                        state.detail.set(Some(detail));
+                        state.row.set(row);
+                        state.members.set(members);
+                        state.biography.set(biography);
+                        state.shared_apps_preview.set(shared_apps_preview);
+                    });
+                }
                 Err(_) => state.failed.set(true),
             }
             state.loading.set(false);
+            // Closing disposes this screen, so nothing may follow it.
+            if removed {
+                state.close();
+            }
         });
     });
     state.refresh_from_server();
     spawn(async move {
-        let mut changes = Box::pin(crate::runtime::observe(account.conversation_changes()));
+        let mut changes = Box::pin(runtime::observe(account.conversation_changes()));
         while let Some(change) = changes.next().await {
             if change.reload_all || change.conversation_ids.contains(&id) {
-                state.refresh.update(|value| *value += 1);
+                state.reload();
             }
         }
     });
+    let back = move || {
+        if state.page.get_untracked() == Page::Info {
+            state.close();
+        } else {
+            state.page.set(Page::Info);
+        }
+    };
     view()
         .flex_1()
         .min_h_0()
         .child(
-            view()
-                .h_16()
-                .px_4()
-                .flex_row()
-                .items_center()
-                .gap_3()
+            parts::page_header(move || state.page.get().title(), parts::back_button(back))
                 .style_when(
-                    move || {
-                        matches!(
-                            state.page.get(),
-                            Page::Profile | Page::Apps | Page::EditName
-                        )
-                    },
+                    move || state.page.get().profile_flow(),
                     |style| style.hidden(),
-                )
-                .child(
-                    ui::icon_button()
-                        .size_8()
-                        .px_1()
-                        .accessibility_label(move || Some(tr("Back", "返回").into()))
-                        .on_press(move || {
-                            if state.page.get_untracked() == Page::Info {
-                                close();
-                            } else {
-                                state.page.set(Page::Info);
-                            }
-                        })
-                        .child(ui::icon(ui::Icon::ArrowLeft)),
-                )
-                .child(
-                    text(move || match state.page.get() {
-                        Page::Info => tr("Chat info", "聊天详情"),
-                        Page::Edit => tr("Edit group", "编辑群组"),
-                        Page::Members => tr("Group participants", "群组成员"),
-                        Page::Expiry => tr("Disappearing messages", "阅后即焚"),
-                        Page::Circles => tr("Circles", "圈子"),
-                        Page::Shared => tr("Shared media", "共享媒体"),
-                        Page::Invite => tr("Invite to group", "邀请加入群组"),
-                        Page::Profile => tr("Profile", "个人资料"),
-                        Page::Apps => tr("Shared apps", "共享应用"),
-                        Page::EditName => tr("Edit name", "编辑名称"),
-                    })
-                    .text_sm()
-                    .font_weight(FontWeight::SEMIBOLD),
                 ),
         )
-        .child(when(state.loading, move || {
-            view()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .px_4()
-                .py_2()
-                .text_color(move || theme().muted_foreground)
-                .child(ui::busy_indicator(
-                    move || state.loading.get(),
-                    move || tr("Loading…", "加载中…").into(),
-                ))
-                .child(text(move || tr("Loading…", "加载中…")).text_sm())
-        }))
+        .child(when(
+            move || state.loading.get() && state.row.with(Option::is_none),
+            || {
+                parts::status(move || tr("Loading…", "加载中…"))
+                    .px_4()
+                    .py_2()
+            },
+        ))
         .child(when(state.failed, move || {
-            view()
-                .px_4()
-                .py_2()
-                .gap_2()
-                .child(
-                    text(move || tr("Couldn’t update. Try again.", "更新失败，请重试。"))
-                        .text_sm()
-                        .text_color(move || theme().destructive),
-                )
-                .child(
-                    ui::action(
-                        move || tr("Retry", "重试"),
-                        move || state.refresh_from_server(),
-                    )
-                    .disabled(state.refreshing),
-                )
+            parts::failure(
+                move || tr("Couldn’t update. Try again.", "更新失败，请重试。"),
+                move || state.refresh_from_server(),
+            )
+            .px_4()
+            .py_2()
         }))
         .child(when(
             move || state.row.with(Option::is_some),
             move || {
                 dynamic(move || {
                     let page = state.page.get();
-                    untracked(|| match page {
-                        Page::Info => info::screen(state).into_element(),
-                        Page::Edit => info::edit(state).into_element(),
-                        Page::Members => members::screen(state).into_element(),
-                        Page::Expiry => info::expiry(state).into_element(),
-                        Page::Circles => circles::screen(state).into_element(),
-                        Page::Shared => shared::screen(state, target, close).into_element(),
-                        Page::Invite => info::invite(state).into_element(),
-                        Page::Profile => user::profile(
-                            state.client(),
-                            state.row.with_untracked(|row| {
-                                row.as_ref()
-                                    .map(|row| row.owner_id.clone())
-                                    .unwrap_or_default()
-                            }),
-                            move || state.page.set(Page::Info),
-                        )
-                        .into_element(),
-                        Page::Apps | Page::EditName => user::profile_at(
-                            state.client(),
-                            state.row.with_untracked(|row| {
-                                row.as_ref()
-                                    .map(|row| row.owner_id.clone())
-                                    .unwrap_or_default()
-                            }),
-                            if page == Page::Apps {
-                                user::Destination::Apps
-                            } else {
-                                user::Destination::EditName
-                            },
-                            move || {
-                                batch(|| {
-                                    state.refresh.update(|value| *value += 1);
-                                    state.page.set(Page::Info);
-                                });
-                            },
-                            || {},
-                        )
-                        .into_element(),
-                    })
+                    untracked(|| page_body(state, page, target))
                 })
             },
         ))
+}
+
+fn page_body(state: State, page: Page, target: Signal<Option<String>>) -> AnyElement {
+    match page {
+        Page::Info => info::screen(state).into_element(),
+        Page::Edit => info::edit(state).into_element(),
+        Page::Members => members::screen(state).into_element(),
+        Page::Expiry => info::expiry(state).into_element(),
+        Page::Circles => circles::screen(state).into_element(),
+        Page::Shared => shared::screen(state, target).into_element(),
+        Page::Invite => info::invite(state).into_element(),
+        Page::Profile => user::profile(state.client(), state.owner_id(), move || {
+            state.page.set(Page::Info)
+        })
+        .into_element(),
+        Page::Apps | Page::EditName => user::profile_at(
+            state.client(),
+            state.owner_id(),
+            if page == Page::Apps {
+                user::Destination::Apps
+            } else {
+                user::Destination::EditName
+            },
+            move || {
+                batch(|| {
+                    state.reload();
+                    state.page.set(Page::Info);
+                });
+            },
+            || {},
+        )
+        .into_element(),
+    }
 }

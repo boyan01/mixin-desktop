@@ -1,4 +1,4 @@
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase", rename = "Conversation")]
 pub struct ConversationListData {
     pub conversation_id: String,
@@ -44,7 +44,7 @@ pub struct ConversationUnseenCount {
     pub muted_count: i64,
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase", rename = "GroupAvatar")]
 pub struct GroupAvatar {
     pub user_id: String,
@@ -398,7 +398,7 @@ pub struct TranscriptSummaryItem {
 }
 
 /// Shared message read model used by the desktop UI bridges.
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase", rename = "Message")]
 pub struct MessageListView {
     pub message_id: String,

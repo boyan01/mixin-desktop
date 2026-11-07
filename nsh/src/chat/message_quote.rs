@@ -274,7 +274,7 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
         .flex_row()
         .items_center()
         .gap_2()
-        .rounded(px(if input { 0.0 } else { 8.0 }))
+        .style_when(move || !input, |style| style.rounded_lg())
         .overflow_hidden()
         .bg(move || theme().foreground.opacity(if input { 0.0 } else { 0.04 }))
         .border_l(px(6.0))
@@ -417,7 +417,7 @@ fn thumbnail_image(source: String, data: String) -> impl IntoElement {
     view()
         .size_12()
         .flex_shrink_0()
-        .rounded(px(6.0))
+        .rounded(move || theme().radius)
         .overflow_hidden()
         .bg(move || theme().muted)
         .child(dynamic(move || {

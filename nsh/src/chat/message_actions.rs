@@ -1,10 +1,11 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, future::Future, sync::Arc};
 
 use mixin_desktop_api::{
-    AccountClient, AudioPlaybackSnapshot, MediaClient, MessageActions, MessageListView,
+    AccountClient, AudioPlaybackSnapshot, ClientResult, MediaClient, MessageActions,
+    MessageListView,
 };
-use nsh_base::{alert_dialog, menu_item, theme};
-use nsh_core::{file_dialog::SaveDialog, prelude::*};
+use nsh_base::alert_dialog;
+use nsh_core::{element::desktop::MenuItem, file_dialog::SaveDialog, prelude::*};
 
 use super::message_content::{available, is_attachment};
 use super::reedit::Reedit;
@@ -36,6 +37,7 @@ pub(super) enum Detail {
 
 #[derive(Clone, Copy)]
 pub(super) struct Actions {
+    pub owner: Owner,
     pub account: Stored<Arc<AccountClient>>,
     pub i18n: I18n,
     pub quote: Signal<Option<MessageListView>>,
@@ -55,87 +57,96 @@ pub(super) struct Actions {
 }
 
 impl Actions {
-    pub fn open_text_qr(self, content: String) {
+    /// Runs under the surface, not the caller: a menu closes and a list cell is
+    /// recycled before the command answers, and either would end the task with
+    /// `busy` still set.
+    pub fn task(self, future: impl Future<Output = ()> + 'static) {
+        self.owner.run(|| {
+            spawn(future);
+        });
+    }
+
+    /// Reports a committed command's outcome, which outlives this surface.
+    pub fn commit(self, command: impl Future<Output = ClientResult<()>> + Send + 'static) {
+        let command = runtime::commit(command);
+        self.task(async move {
+            self.failed.set(command.await.is_err());
+        });
+    }
+
+    /// As [`Self::commit`], for commands that exclude each other.
+    fn commit_exclusive(self, command: impl Future<Output = ClientResult<()>> + Send + 'static) {
+        if self.busy.get_untracked() {
+            return;
+        }
+        self.busy.set(true);
+        let command = runtime::commit(command);
+        self.task(async move {
+            self.failed.set(command.await.is_err());
+            self.busy.set(false);
+        });
+    }
+
+    fn open(self, detail: Detail) {
         self.failed.set(false);
         if let Some(current) = self.preview.get_untracked() {
             self.preview_history.update(|history| history.push(current));
         }
-        self.preview.set(Some(Detail::Qr(content)));
+        self.preview.set(Some(detail));
+    }
+
+    pub fn open_text_qr(self, content: String) {
+        self.open(Detail::Qr(content));
     }
 
     pub fn open_sticker(self, sticker_id: String) {
-        self.failed.set(false);
-        if let Some(current) = self.preview.get_untracked() {
-            self.preview_history.update(|history| history.push(current));
-        }
-        self.preview.set(Some(Detail::Sticker(sticker_id)));
+        self.open(Detail::Sticker(sticker_id));
     }
 
     pub fn open_transcript_summary(self, transcript_id: String, child_message_id: String) {
-        self.failed.set(false);
-        if let Some(current) = self.preview.get_untracked() {
-            self.preview_history.update(|history| history.push(current));
-        }
-        self.preview.set(Some(Detail::TranscriptSummary {
+        self.open(Detail::TranscriptSummary {
             transcript_id,
             child_message_id,
-        }));
+        });
     }
 
     pub fn open_preview(self, row: MessageListView) {
-        self.failed.set(false);
-        if let Some(current) = self.preview.get_untracked() {
-            self.preview_history.update(|history| history.push(current));
-        }
-        self.preview.set(Some(Detail::Message(Box::new(row))));
+        self.open(Detail::Message(Box::new(row)));
     }
+
     pub fn open_image(self, row: MessageListView, transcript: Option<String>) {
-        self.failed.set(false);
-        if let Some(current) = self.preview.get_untracked() {
-            self.preview_history.update(|history| history.push(current));
-        }
-        self.preview.set(Some(Detail::Image {
+        self.open(Detail::Image {
             message: Box::new(row),
             transcript,
-        }));
+        });
     }
+
     pub fn open_markdown(self, row: MessageListView, transcript: Option<String>) {
-        self.failed.set(false);
-        if let Some(current) = self.preview.get_untracked() {
-            self.preview_history.update(|history| history.push(current));
-        }
-        self.preview.set(Some(Detail::Markdown {
+        self.open(Detail::Markdown {
             message: Box::new(row),
             transcript,
-        }));
+        });
     }
+
     pub fn show_user(self, id: String) {
-        if let Some(current) = self.preview.get_untracked() {
-            self.preview_history.update(|history| history.push(current));
-        }
-        self.preview.set(Some(Detail::User(id)));
+        self.open(Detail::User(id));
     }
+
     pub fn add_image_sticker(self, row: MessageListView) {
-        self.failed.set(false);
-        if let Some(current) = self.preview.get_untracked() {
-            self.preview_history.update(|history| history.push(current));
-        }
-        self.preview.set(Some(Detail::AddSticker(Box::new(row))));
+        self.open(Detail::AddSticker(Box::new(row)));
     }
+
     pub fn close_preview(self) {
         self.preview.set(None);
         self.preview_history.set(Vec::new());
     }
+
     pub fn back_preview(self) {
         let mut previous = None;
         self.preview_history
             .update(|history| previous = history.pop());
         self.preview.set(previous);
     }
-}
-
-pub(super) fn label(i18n: I18n, english: &'static str, chinese: &'static str) -> &'static str {
-    i18n.tr(english, chinese)
 }
 
 pub(super) fn attachment_name(row: &MessageListView) -> String {
@@ -159,15 +170,8 @@ pub(super) fn attachment_name(row: &MessageListView) -> String {
         })
 }
 
-pub(super) fn item(title: &'static str, action: impl Fn() + 'static) -> impl IntoElement {
-    menu_item()
-        .px_3()
-        .py_2()
-        .rounded_md()
-        .hover(|s| s.bg(move || theme().accent))
-        .focus(|s| s.bg(move || theme().accent))
-        .on_select(action)
-        .child(text(title).text_sm())
+pub(super) fn item(title: &'static str, action: impl Fn() + 'static) -> MenuItem {
+    MenuItem::new(title).on_select(action)
 }
 
 pub(super) fn menu(
@@ -196,289 +200,217 @@ fn menu_with_context(
 ) -> impl IntoElement {
     let i18n = i18n::current();
     let reedit = use_context::<Reedit>().expect("Home provides recall editing");
-    // The popup snapshots its object on opening. Recycled list cells must not
+    // The menu snapshots its object on opening. Recycled list cells must not
     // retarget an already open destructive command to another message.
-    ui::context_menu()
-        .min_w_0()
-        .flex_shrink(1.0)
-        .disabled(move || actions.busy.get() || !actions.selected.with(Vec::is_empty))
-        .trigger(body)
-        .child(dynamic(move || {
-            let row = untracked(message);
-            let Some(row) = row else {
-                return view().hidden().into_element();
-            };
-            let policy = untracked(|| actions.policies.with(|p| p.get(&row.message_id).cloned()));
-            let mut items = Vec::<AnyElement>::new();
-            if pinned_page {
-                let id = row.message_id.clone();
-                items.push(
-                    item(
-                        label(i18n, "Locate in chat", "在聊天中定位"),
-                        move || locate(id.clone()),
-                    )
-                    .into_element(),
-                );
-            }
-            let readable = !matches!(row.status.as_str(), "UNKNOWN" | "FAILED")
-                && super::message_system::supported(&row.category);
-            if readable && (row.category.ends_with("_TEXT") || row.category.ends_with("_POST")) {
-                let selected = if row.category.ends_with("_TEXT") {
-                    actions.text_selection.selected(&row.message_id, None)
-                } else {
-                    None
-                };
-                let has_selection = selected.is_some();
-                let content = selected.unwrap_or_else(|| row.content.clone());
-                let qr_content = content.clone();
-                items.push(
-                    item(
-                        if has_selection {
-                            label(i18n, "Copy selected text", "复制选中文字")
-                        } else {
-                            label(i18n, "Copy", "复制")
-                        },
-                        move || set_clipboard(content.clone()),
-                    )
-                    .into_element(),
-                );
-                if row.category.ends_with("_TEXT") && !row.content.is_empty() {
-                    items.push(
-                        item(
-                            label(i18n, "Generate QR code", "生成二维码"),
-                            move || {
-                                actions.open_text_qr(qr_content.clone());
-                            },
-                        )
-                        .into_element(),
-                    );
-                }
-            } else if let Some(caption) = row.caption.clone().filter(|s| readable && !s.is_empty())
-            {
-                let selected = actions.text_selection.selected(&row.message_id, None);
-                let has_selection = selected.is_some();
-                let caption = selected.unwrap_or(caption);
-                items.push(
-                    item(
-                        if has_selection {
-                            label(i18n, "Copy selected text", "复制选中文字")
-                        } else {
-                            label(i18n, "Copy text", "复制文字")
-                        },
-                        move || set_clipboard(caption.clone()),
-                    )
-                    .into_element(),
-                );
-            }
-            if !pinned_page
-                && actions.can_send.get()
-                && policy.as_ref().is_some_and(|p| p.can_reply)
-            {
-                let reply = row.clone();
-                items.push(
-                    item(label(i18n, "Reply", "回复"), move || {
-                        if actions.can_send.get_untracked() {
-                            actions.quote.set(Some(reply.clone()));
-                        }
-                    })
-                    .into_element(),
-                );
-            }
-            if policy.as_ref().is_some_and(|p| p.can_forward) {
-                let id = row.message_id.clone();
-                items.push(
-                    item(label(i18n, "Forward…", "转发…"), move || {
-                        actions.combine.set(false);
-                        actions.forwarding.set(vec![id.clone()]);
-                    })
-                    .into_element(),
-                );
-            }
+    ui::native_context_menu(body, move || {
+        if actions.busy.get_untracked() || !actions.selected.with_untracked(Vec::is_empty) {
+            return Vec::new();
+        }
+        let Some(row) = message() else {
+            return Vec::new();
+        };
+        let policy = actions
+            .policies
+            .with_untracked(|p| p.get(&row.message_id).cloned());
+        let mut items = Vec::new();
+        if pinned_page {
             let id = row.message_id.clone();
-            items.push(
-                item(label(i18n, "Select", "选择"), move || {
-                    actions.selected.update(|ids| {
-                        if !ids.contains(&id) {
-                            ids.push(id.clone());
-                        }
-                    })
-                })
-                .into_element(),
-            );
-            if policy.as_ref().is_some_and(|p| p.can_pin) {
-                let message_id = row.message_id.clone();
-                let conversation_id = row.conversation_id.clone();
-                let pin = !row.pinned;
-                items.push(
-                    item(
-                        label(
-                            i18n,
-                            if pin { "Pin" } else { "Unpin" },
-                            if pin { "置顶" } else { "取消置顶" },
-                        ),
-                        move || {
-                            if actions.busy.get_untracked() {
-                                return;
-                            }
-                            let client = actions.account.with(|a| a.clone());
-                            let id = message_id.clone();
-                            let conversation_id = conversation_id.clone();
-                            actions.busy.set(true);
-                            spawn(async move {
-                                actions.failed.set(
-                                    runtime::commit(async move {
-                                        client
-                                            .message()
-                                            .set_message_pinned(conversation_id.clone(), id, pin)
-                                            .await
-                                    })
-                                    .await
-                                    .is_err(),
-                                );
-                                actions.busy.set(false);
-                            });
-                        },
-                    )
-                    .into_element(),
-                );
+            items.push(item(
+                i18n.tr("Locate in chat", "在聊天中定位"),
+                move || locate(id.clone()),
+            ));
+        }
+        let readable = !matches!(row.status.as_str(), "UNKNOWN" | "FAILED")
+            && super::message_system::supported(&row.category);
+        if readable && (row.category.ends_with("_TEXT") || row.category.ends_with("_POST")) {
+            let selected = if row.category.ends_with("_TEXT") {
+                actions.text_selection.selected(&row.message_id, None)
+            } else {
+                None
+            };
+            let has_selection = selected.is_some();
+            let content = selected.unwrap_or_else(|| row.content.clone());
+            let qr_content = content.clone();
+            items.push(item(
+                if has_selection {
+                    i18n.tr("Copy selected text", "复制选中文字")
+                } else {
+                    i18n.tr("Copy", "复制")
+                },
+                move || set_clipboard(content.clone()),
+            ));
+            if row.category.ends_with("_TEXT") && !row.content.is_empty() {
+                items.push(item(
+                    i18n.tr("Generate QR code", "生成二维码"),
+                    move || {
+                        actions.open_text_qr(qr_content.clone());
+                    },
+                ));
             }
-            if is_attachment(&row) && available(&row) {
-                if row.category.ends_with("_IMAGE") {
-                    let id = row.message_id.clone();
-                    items.push(
-                        item(label(i18n, "Copy image", "复制图片"), move || {
-                            if actions.busy.get_untracked() {
-                                return;
-                            }
-                            let id = id.clone();
-                            let client = actions.account.with(|a| a.clone());
-                            actions.busy.set(true);
-                            spawn(async move {
-                                match runtime::run(async move {
-                                    client
-                                        .attachment()
-                                        .attachment_image_data_uri(id, None)
-                                        .await
-                                })
-                                .await
-                                {
-                                    Ok(uri) => {
-                                        set_clipboard_image(uri);
-                                        actions.failed.set(false);
-                                    }
-                                    Err(_) => actions.failed.set(true),
-                                }
-                                actions.busy.set(false);
-                            });
-                        })
-                        .into_element(),
-                    );
+        } else if let Some(caption) = row.caption.clone().filter(|s| readable && !s.is_empty()) {
+            let selected = actions.text_selection.selected(&row.message_id, None);
+            let has_selection = selected.is_some();
+            let caption = selected.unwrap_or(caption);
+            items.push(item(
+                if has_selection {
+                    i18n.tr("Copy selected text", "复制选中文字")
+                } else {
+                    i18n.tr("Copy text", "复制文字")
+                },
+                move || set_clipboard(caption.clone()),
+            ));
+        }
+        if !pinned_page && actions.can_send.get() && policy.as_ref().is_some_and(|p| p.can_reply) {
+            let reply = row.clone();
+            items.push(item(i18n.tr("Reply", "回复"), move || {
+                if actions.can_send.get_untracked() {
+                    actions.quote.set(Some(reply.clone()));
                 }
-                let account = actions.account;
+            }));
+        }
+        if policy.as_ref().is_some_and(|p| p.can_forward) {
+            let id = row.message_id.clone();
+            items.push(item(i18n.tr("Forward…", "转发…"), move || {
+                actions.combine.set(false);
+                actions.forwarding.set(vec![id.clone()]);
+            }));
+        }
+        let id = row.message_id.clone();
+        items.push(item(i18n.tr("Select", "选择"), move || {
+            actions.selected.update(|ids| {
+                if !ids.contains(&id) {
+                    ids.push(id.clone());
+                }
+            })
+        }));
+        if policy.as_ref().is_some_and(|p| p.can_pin) {
+            let message_id = row.message_id.clone();
+            let conversation_id = row.conversation_id.clone();
+            let pin = !row.pinned;
+            items.push(item(
+                i18n.tr(
+                    if pin { "Pin" } else { "Unpin" },
+                    if pin { "置顶" } else { "取消置顶" },
+                ),
+                move || {
+                    let client = actions.account.with(|a| a.clone());
+                    let id = message_id.clone();
+                    let conversation_id = conversation_id.clone();
+                    actions.commit_exclusive(async move {
+                        client
+                            .message()
+                            .set_message_pinned(conversation_id, id, pin)
+                            .await
+                    });
+                },
+            ));
+        }
+        if is_attachment(&row) && available(&row) {
+            if row.category.ends_with("_IMAGE") {
                 let id = row.message_id.clone();
-                let name = attachment_name(&row);
-                items.push(
-                    item(label(i18n, "Save as…", "另存为…"), move || {
-                        let id = id.clone();
-                        let name = name.clone();
-                        let client = account.with(|a| a.clone());
-                        spawn(async move {
-                            match pick_save_path(SaveDialog::new().file_name(name)).await {
-                                Ok(Some(path)) => actions.failed.set(
-                                    runtime::commit(async move {
-                                        client
-                                            .attachment()
-                                            .save_attachment_as(
-                                                id,
-                                                path.to_string_lossy().into_owned(),
-                                            )
-                                            .await
-                                    })
-                                    .await
-                                    .is_err(),
-                                ),
-                                Ok(None) => {}
-                                Err(_) => actions.failed.set(true),
-                            }
-                        });
-                    })
-                    .into_element(),
-                );
-            }
-            if row.category.ends_with("_STICKER")
-                && let Some(id) = row.sticker_id.clone()
-            {
-                items.push(
-                    item(label(i18n, "Add sticker", "添加贴纸"), move || {
-                        let client = actions.account.with(|a| a.clone());
-                        let id = id.clone();
-                        spawn(async move {
-                            actions.failed.set(
-                                runtime::commit(
-                                    async move { client.sticker().add_sticker(id).await },
-                                )
+                items.push(item(i18n.tr("Copy image", "复制图片"), move || {
+                    if actions.busy.get_untracked() {
+                        return;
+                    }
+                    let id = id.clone();
+                    let client = actions.account.with(|a| a.clone());
+                    actions.busy.set(true);
+                    actions.task(async move {
+                        match runtime::run(async move {
+                            client
+                                .attachment()
+                                .attachment_image_data_uri(id, None)
                                 .await
-                                .is_err(),
-                            );
-                        });
-                    })
-                    .into_element(),
-                );
+                        })
+                        .await
+                        {
+                            Ok(uri) => {
+                                set_clipboard_image(uri);
+                                actions.failed.set(false);
+                            }
+                            Err(_) => actions.failed.set(true),
+                        }
+                        actions.busy.set(false);
+                    });
+                }));
             }
-            if row.category.ends_with("_IMAGE")
-                && available(&row)
-                && policy.as_ref().is_some_and(|p| p.can_forward)
-            {
-                let image = row.clone();
-                items.push(
-                    item(label(i18n, "Add sticker", "添加贴纸"), move || {
-                        actions.add_image_sticker(image.clone());
-                    })
-                    .into_element(),
-                );
-            }
-            if policy.as_ref().is_some_and(|p| p.can_recall) {
-                let row = row.clone();
-                let recover = (row.category.ends_with("_TEXT")
-                    && actions.account.with(|account| account.account_id()) == row.sender_id)
-                    .then(|| row.content.clone());
-                items.push(
-                    item(
-                        label(i18n, "Delete for everyone…", "为所有人删除…"),
-                        move || {
-                            remove_with_reedit(
-                                actions,
-                                row.conversation_id.clone(),
-                                vec![row.message_id.clone()],
-                                true,
-                                recover
-                                    .clone()
-                                    .map(|text| (reedit, row.message_id.clone(), text)),
-                            )
-                        },
+            let account = actions.account;
+            let id = row.message_id.clone();
+            let name = attachment_name(&row);
+            items.push(item(i18n.tr("Save as…", "另存为…"), move || {
+                let id = id.clone();
+                let name = name.clone();
+                let client = account.with(|a| a.clone());
+                actions.task(async move {
+                    match pick_save_path(SaveDialog::new().file_name(name)).await {
+                        Ok(Some(path)) => actions.commit(async move {
+                            client
+                                .attachment()
+                                .save_attachment_as(id, path.to_string_lossy().into_owned())
+                                .await
+                        }),
+                        Ok(None) => {}
+                        Err(_) => actions.failed.set(true),
+                    }
+                });
+            }));
+        }
+        if row.category.ends_with("_STICKER")
+            && let Some(id) = row.sticker_id.clone()
+        {
+            items.push(item(i18n.tr("Add sticker", "添加贴纸"), move || {
+                let client = actions.account.with(|a| a.clone());
+                let id = id.clone();
+                actions.commit(async move { client.sticker().add_sticker(id).await });
+            }));
+        }
+        if row.category.ends_with("_IMAGE")
+            && available(&row)
+            && policy.as_ref().is_some_and(|p| p.can_forward)
+        {
+            let image = row.clone();
+            items.push(item(i18n.tr("Add sticker", "添加贴纸"), move || {
+                actions.add_image_sticker(image.clone());
+            }));
+        }
+        if policy.as_ref().is_some_and(|p| p.can_recall) {
+            let row = row.clone();
+            let recover = (row.category.ends_with("_TEXT")
+                && actions.account.with(|account| account.account_id()) == row.sender_id)
+                .then(|| row.content.clone());
+            items.push(item(
+                i18n.tr("Delete for everyone…", "为所有人删除…"),
+                move || {
+                    remove_with_reedit(
+                        actions,
+                        row.conversation_id.clone(),
+                        vec![row.message_id.clone()],
+                        true,
+                        recover
+                            .clone()
+                            .map(|text| (reedit, row.message_id.clone(), text)),
                     )
-                    .into_element(),
-                );
-            }
-            if !pinned_page {
-                let row = row.clone();
-                items.push(
-                    item(
-                        label(i18n, "Delete for me…", "为我删除…"),
-                        move || {
-                            remove(
-                                actions,
-                                row.conversation_id.clone(),
-                                vec![row.message_id.clone()],
-                                false,
-                            )
-                        },
+                },
+            ));
+        }
+        if !pinned_page {
+            let row = row.clone();
+            items.push(item(
+                i18n.tr("Delete for me…", "为我删除…"),
+                move || {
+                    remove(
+                        actions,
+                        row.conversation_id.clone(),
+                        vec![row.message_id.clone()],
+                        false,
                     )
-                    .into_element(),
-                );
-            }
-            view().children(items).into_element()
-        }))
+                },
+            ));
+        }
+        items
+    })
+    .min_w_0()
+    .flex_shrink(1.0)
 }
 
 pub(super) fn remove(actions: Actions, conversation_id: String, ids: Vec<String>, recall: bool) {
@@ -497,29 +429,27 @@ fn remove_with_reedit(
     }
     let i18n = actions.i18n;
     let client = actions.account.with(|a| a.clone());
-    spawn(async move {
+    actions.task(async move {
         let title = if recall {
-            label(i18n, "Delete for everyone?", "为所有人删除消息？")
+            i18n.tr("Delete for everyone?", "为所有人删除消息？")
         } else {
-            label(i18n, "Delete for me?", "为我删除消息？")
+            i18n.tr("Delete for me?", "为我删除消息？")
         };
         let result = alert_dialog()
             .title(title)
             .description(if recall {
-                label(
-                    i18n,
+                i18n.tr(
                     "These messages will be removed for everyone in this conversation.",
                     "这些消息将从此会话所有人的聊天记录中删除。",
                 )
             } else {
-                label(
-                    i18n,
+                i18n.tr(
                     "These messages will be removed from this device.",
                     "这些消息将从此设备的聊天记录中删除。",
                 )
             })
             .cancel("cancel", i18n.text(Key::Cancel))
-            .destructive("delete", label(i18n, "Delete", "删除"))
+            .destructive("delete", i18n.tr("Delete", "删除"))
             .show()
             .await;
         if !matches!(result, Ok(answer) if answer.action.as_deref() == Some("delete")) {

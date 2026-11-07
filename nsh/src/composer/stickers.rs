@@ -1,13 +1,37 @@
-use mixin_desktop_api::{AccountClient, MessageListView, StickerAlbumItem, StickerItem};
-use nsh_base::{PopoverEvent, menu_item, theme};
-use nsh_core::prelude::*;
-use std::{rc::Rc, sync::Arc};
+use mixin_desktop_api::{
+    AccountClient, ClientResult, MessageListView, StickerAlbumItem, StickerItem,
+};
+use nsh_base::{ButtonElement, PopoverEvent, theme};
+use nsh_core::{element::desktop::MenuItem, prelude::*};
+use std::{future::Future, rc::Rc, sync::Arc};
 
-use super::{emoji, gifs, sticker_store, tr};
+use super::{emoji, gifs, sticker_store, tool_button, tr};
 use crate::{
     i18n::{self, Key},
     runtime, ui,
 };
+
+const PANEL_WIDTH: f32 = 464.0;
+const PANEL_HEIGHT: f32 = 407.0;
+const PANEL_PADDING: f32 = 12.0;
+
+/// How many `cell`-sized columns fit the panel at the current window width.
+pub(super) fn columns(cell: f32) -> u32 {
+    (((window().width.0 * 0.95).min(PANEL_WIDTH) - PANEL_PADDING * 2.0) / cell)
+        .floor()
+        .max(1.0) as u32
+}
+
+/// A compact tab of the panel, with the shared selected treatment.
+pub(super) fn panel_tab() -> ButtonElement {
+    ui::command()
+        .min_w_8()
+        .min_h_8()
+        .h_8()
+        .px_1()
+        .py_1()
+        .selected_style(|style| style.bg(move || theme().accent))
+}
 
 #[derive(Clone, PartialEq)]
 pub(super) enum Tab {
@@ -22,65 +46,104 @@ pub(super) enum Tab {
 pub(super) struct State {
     pub account: Stored<Arc<AccountClient>>,
     pub conversation: Stored<String>,
+    // Commands outlive the tab or cell that started them, so `busy` always settles.
+    owner: Owner,
     pub open: Signal<bool>,
     pub tab: Signal<Tab>,
     pub revision: Signal<u64>,
     pub busy: Signal<bool>,
     pub failed: Signal<bool>,
     pub albums: Signal<Vec<StickerAlbumItem>>,
-    pub quote: Signal<Option<MessageListView>>,
 }
 impl State {
+    pub(super) fn new(
+        account: Arc<AccountClient>,
+        conversation: String,
+        open: bool,
+        failed: Signal<bool>,
+    ) -> Self {
+        Self {
+            account: stored(account),
+            conversation: stored(conversation),
+            owner: Owner::current(),
+            open: signal(open),
+            tab: signal(Tab::Recent),
+            revision: signal(0),
+            busy: signal(false),
+            failed,
+            albums: signal_with(Vec::new(), SignalEquals::Never),
+        }
+    }
+
+    pub(super) fn client(self) -> Arc<AccountClient> {
+        self.account.with(|account| account.clone())
+    }
+
+    pub(super) fn reload(self) {
+        self.revision
+            .update(|revision| *revision = revision.wrapping_add(1));
+    }
+
     pub(super) fn observe_updates(self) {
         use futures::StreamExt as _;
         // Subscribe before the initial queries. A metadata update completing
         // during the first read must still invalidate the visible projections.
-        let account = self.account.with(|account| account.clone());
-        let changes = runtime::observe(account.conversation_changes());
+        let changes = runtime::observe(self.client().conversation_changes());
         spawn(async move {
             futures::pin_mut!(changes);
             while let Some(change) = changes.next().await {
                 if change.reload_all {
-                    self.revision
-                        .update(|revision| *revision = revision.wrapping_add(1));
+                    self.reload();
                 }
             }
         });
     }
 
-    pub fn clear_quote(self, sent: Option<String>) {
-        if self
-            .quote
-            .with(|q| q.as_ref().map(|m| m.message_id.clone()))
-            == sent
-        {
-            self.quote.set(None);
-        }
-    }
-    pub fn send(self, sticker: String) {
+    /// Runs one durable command at a time, then `done` with its success.
+    fn run<T: Send + 'static>(
+        self,
+        work: impl Future<Output = ClientResult<T>> + Send + 'static,
+        done: impl FnOnce(bool) + 'static,
+    ) {
         if self.busy.get_untracked() {
             return;
         }
-        let client = self.account.with(|a| a.clone());
-        let id = self.conversation.with(|id| id.clone());
-        let sent_quote = self
-            .quote
-            .with(|q| q.as_ref().map(|m| m.message_id.clone()));
         self.busy.set(true);
         self.failed.set(false);
-        spawn(async move {
-            match runtime::commit(async move { client.message().send_sticker(id, sticker).await })
-                .await
-            {
-                Ok(_) => {
-                    self.clear_quote(sent_quote);
-                    self.revision.update(|v| *v += 1);
-                    self.open.set(false);
-                }
-                Err(_) => self.failed.set(true),
-            }
-            self.busy.set(false);
+        self.owner.run(|| {
+            spawn(async move {
+                let succeeded = runtime::commit(work).await.is_ok();
+                self.failed.set(!succeeded);
+                self.busy.set(false);
+                done(succeeded);
+            });
         });
+    }
+
+    /// Changes sticker data and refreshes what the panel shows.
+    pub(super) fn update<T: Send + 'static>(
+        self,
+        work: impl Future<Output = ClientResult<T>> + Send + 'static,
+    ) {
+        self.run(work, move |_| self.reload());
+    }
+
+    /// Sends a message from the panel, which closes once it is accepted.
+    pub(super) fn send<T: Send + 'static>(
+        self,
+        work: impl Future<Output = ClientResult<T>> + Send + 'static,
+    ) {
+        self.run(work, move |succeeded| {
+            if succeeded {
+                self.open.set(false);
+            }
+        });
+    }
+
+    fn send_sticker(self, sticker: String) {
+        let client = self.client();
+        let id = self.conversation.with(|id| id.clone());
+        self.send(async move { client.message().send_sticker(id, sticker).await });
     }
 }
 
@@ -89,20 +152,11 @@ pub(crate) fn stickers(
     id: String,
     failed: Signal<bool>,
     insert: Rc<dyn Fn(String)>,
-    quote: Signal<Option<MessageListView>>,
+    // Stickers and GIFs carry no quote, so a pending reply stays in the composer.
+    _quote: Signal<Option<MessageListView>>,
 ) -> impl IntoElement {
     let i18n = i18n::current();
-    let state = State {
-        account: stored(account),
-        conversation: stored(id),
-        open: signal(false),
-        tab: signal(Tab::Recent),
-        revision: signal(0),
-        busy: signal(false),
-        failed,
-        albums: signal_with(Vec::new(), SignalEquals::Never),
-        quote,
-    };
+    let state = State::new(account, id, false, failed);
     let insert = stored(insert);
     ui::popover()
         .open(move || Some(state.open.get()))
@@ -115,18 +169,19 @@ pub(crate) fn stickers(
         })
         .offset(px(8.0))
         .trigger(
-            ui::icon_button()
-                .size_10()
-                .px_1()
-                .py_1()
+            tool_button()
                 .accessibility_label(move || Some(i18n.text(Key::Emoji).into()))
                 .child(ui::icon(ui::Icon::Sticker).size_6()),
         )
         .child(when(state.open, move || {
             state.observe_updates();
+            // Panel errors belong to the panel, not to the composer behind it.
+            cleanup(move || {
+                let _ = state.failed.try_set(false);
+            });
             effect(move || {
                 state.revision.get();
-                let client = state.account.with(|a| a.clone());
+                let client = state.client();
                 spawn(async move {
                     match runtime::run(async move { client.sticker().sticker_albums().await }).await
                     {
@@ -136,18 +191,20 @@ pub(crate) fn stickers(
                 });
             });
             view()
-                .w(px(464.0))
+                .w(px(PANEL_WIDTH))
                 .max_w(relative(0.95))
-                .h(px(407.0))
+                .h(px(PANEL_HEIGHT))
                 .min_h_0()
                 .p_3()
                 .gap_2()
                 .child(when(state.failed, move || {
                     view()
                         .flex_row()
+                        .items_center()
                         .gap_2()
                         .child(
                             text(move || i18n.text(Key::CommandFailed))
+                                .flex_1()
                                 .text_xs()
                                 .text_color(move || theme().destructive),
                         )
@@ -155,7 +212,7 @@ pub(crate) fn stickers(
                             move || i18n.text(Key::Retry),
                             move || {
                                 state.failed.set(false);
-                                state.revision.update(|v| *v += 1);
+                                state.reload();
                             },
                         ))
                 }))
@@ -179,26 +236,29 @@ pub(crate) fn stickers(
                             .gap_1()
                             .children(
                                 [
-                                    (Tab::Store, "+"),
-                                    (Tab::Emoji, "😀"),
-                                    (Tab::Recent, "◷"),
-                                    (Tab::Personal, "☆"),
-                                    (Tab::Gif, "GIF"),
+                                    (Tab::Store, "+", "Sticker store", "贴纸商店"),
+                                    (Tab::Emoji, "😀", "Emoji", "表情"),
+                                    (Tab::Recent, "◷", "Recent stickers", "最近使用的贴纸"),
+                                    (Tab::Personal, "☆", "My stickers", "我的贴纸"),
+                                    (Tab::Gif, "GIF", "GIFs", "GIF"),
                                 ]
                                 .into_iter()
-                                .map(move |(tab, title)| {
-                                    let tab = stored(tab);
-                                    ui::command()
-                                        .min_w_8()
-                                        .px_2()
-                                        .py_1()
-                                        .style_when(
-                                            move || state.tab.get() == tab.with(|t| t.clone()),
-                                            |s| s.bg(move || theme().accent),
-                                        )
-                                        .on_press(move || state.tab.set(tab.with(|t| t.clone())))
-                                        .child(text(title).text_sm())
-                                }),
+                                .map(
+                                    move |(tab, title, en, zh)| {
+                                        let tab = stored(tab);
+                                        panel_tab()
+                                            .accessibility_label(move || {
+                                                Some(tr(i18n, en, zh).into())
+                                            })
+                                            .selected(move || {
+                                                state.tab.get() == tab.with(|t| t.clone())
+                                            })
+                                            .on_press(move || {
+                                                state.tab.set(tab.with(|t| t.clone()))
+                                            })
+                                            .child(text(title).text_sm())
+                                    },
+                                ),
                             )
                             .child(each(
                                 move || {
@@ -216,25 +276,19 @@ pub(crate) fn stickers(
                                 },
                                 |album| album.0.clone(),
                                 move |album, _| {
-                                    ui::command()
-                                        .size_8()
-                                        .px_1()
-                                        .py_1()
+                                    panel_tab()
                                         .accessibility_label(move || {
                                             Some(album.with(|a| a.1.clone()).into())
                                         })
                                         .on_press(move || {
                                             state.tab.set(Tab::Album(album.with(|a| a.0.clone())))
                                         })
-                                        .style_when(
-                                            move || {
-                                                state.tab.get()
-                                                    == Tab::Album(album.with(|a| a.0.clone()))
-                                            },
-                                            |s| s.bg(move || theme().accent),
-                                        )
+                                        .selected(move || {
+                                            state.tab.get()
+                                                == Tab::Album(album.with(|a| a.0.clone()))
+                                        })
                                         .child(crate::sticker::album_icon(
-                                            state.account.with(|value| value.clone()),
+                                            state.client(),
                                             move || album.with(|a| a.2.clone()),
                                             24.0,
                                         ))
@@ -251,7 +305,7 @@ pub(super) fn grid(state: State, tab: Tab) -> impl IntoElement {
     let tab = stored(tab);
     effect(move || {
         state.revision.get();
-        let client = state.account.with(|a| a.clone());
+        let client = state.client();
         let tab = tab.with(|t| t.clone());
         loading.set(true);
         spawn(async move {
@@ -272,7 +326,7 @@ pub(super) fn grid(state: State, tab: Tab) -> impl IntoElement {
         });
     });
     grid_items(state, tab, items, loading, None, move |sticker| {
-        state.send(sticker.sticker_id)
+        state.send_sticker(sticker.sticker_id)
     })
 }
 
@@ -303,7 +357,7 @@ pub(super) fn grid_items(
                 .child(text(move || tr(i18n, "Loading stickers…", "正在加载贴纸…")).text_sm())
         }))
         .child(when(
-            move || !loading.get() && items.with(Vec::is_empty),
+            move || !loading.get() && !state.failed.get() && items.with(Vec::is_empty),
             move || {
                 view()
                     .flex_1()
@@ -327,66 +381,63 @@ pub(super) fn grid_items(
                             .get()
                             .is_some_and(|(first, last)| (first..=last).contains(&at.index()))
                     });
-                    ui::context_menu()
-                        .trigger(
-                            ui::command()
-                                .size_20()
-                                .px_1()
-                                .py_1()
-                                .disabled(state.busy)
-                                .style_when(
-                                    move || {
-                                        selected.is_some_and(|selected| {
-                                            items.with(|rows| {
-                                                rows.get(at.index()).is_some_and(|sticker| {
-                                                    selected.with(|id| *id == sticker.sticker_id)
-                                                })
+                    ui::native_context_menu(
+                        ui::command()
+                            .size_20()
+                            .px_1()
+                            .py_1()
+                            .disabled(state.busy)
+                            .style_when(
+                                move || {
+                                    selected.is_some_and(|selected| {
+                                        items.with(|rows| {
+                                            rows.get(at.index()).is_some_and(|sticker| {
+                                                selected.with(|id| *id == sticker.sticker_id)
                                             })
                                         })
-                                    },
-                                    |style| style.bg(move || theme().accent),
-                                )
-                                .on_press(move || {
-                                    if let Some(sticker) =
-                                        items.with(|rows| rows.get(at.index()).cloned())
-                                    {
-                                        select(sticker);
-                                    }
-                                })
-                                .accessibility_label(move || {
-                                    Some(
-                                        items
-                                            .with(|rows| {
-                                                rows.get(at.index())
-                                                    .map(|s| s.name.clone())
-                                                    .unwrap_or_default()
-                                            })
-                                            .into(),
-                                    )
-                                })
-                                .child(crate::sticker::asset(
-                                    state.account.with(|value| value.clone()),
-                                    move || {
-                                        items.with(|rows| {
+                                    })
+                                },
+                                |style| style.bg(move || theme().accent),
+                            )
+                            .on_press(move || {
+                                if let Some(sticker) =
+                                    items.with(|rows| rows.get(at.index()).cloned())
+                                {
+                                    select(sticker);
+                                }
+                            })
+                            .accessibility_label(move || {
+                                Some(
+                                    items
+                                        .with(|rows| {
                                             rows.get(at.index())
-                                                .map(|s| {
-                                                    (
-                                                        Some(s.sticker_id.clone()),
-                                                        s.asset_url.clone(),
-                                                        s.asset_type.clone(),
-                                                    )
-                                                })
+                                                .map(|s| s.name.clone())
                                                 .unwrap_or_default()
                                         })
-                                    },
-                                    64.0,
-                                )),
-                        )
-                        .child(dynamic(move || {
-                            let sticker =
-                                untracked(|| items.with(|rows| rows.get(at.index()).cloned()));
-                            let Some(sticker) = sticker else {
-                                return view().hidden().into_element();
+                                        .into(),
+                                )
+                            })
+                            .child(crate::sticker::asset(
+                                state.client(),
+                                move || {
+                                    items.with(|rows| {
+                                        rows.get(at.index())
+                                            .map(|s| {
+                                                (
+                                                    Some(s.sticker_id.clone()),
+                                                    s.asset_url.clone(),
+                                                    s.asset_type.clone(),
+                                                )
+                                            })
+                                            .unwrap_or_default()
+                                    })
+                                },
+                                64.0,
+                            )),
+                        move || {
+                            let Some(sticker) = items.with(|rows| rows.get(at.index()).cloned())
+                            else {
+                                return Vec::new();
                             };
                             let personal = tab.with(|t| *t == Tab::Personal);
                             let title = if personal {
@@ -394,37 +445,19 @@ pub(super) fn grid_items(
                             } else {
                                 tr(i18n, "Add sticker", "添加贴纸")
                             };
-                            menu_item()
-                                .px_3()
-                                .py_2()
-                                .rounded_md()
-                                .hover(|s| s.bg(move || theme().accent))
-                                .child(text(title).text_sm())
-                                .on_select(move || {
-                                    if state.busy.get_untracked() {
-                                        return;
+                            vec![MenuItem::new(title).on_select(move || {
+                                let client = state.client();
+                                let id = sticker.sticker_id.clone();
+                                state.update(async move {
+                                    if personal {
+                                        client.sticker().remove_sticker(id).await
+                                    } else {
+                                        client.sticker().add_sticker(id).await
                                     }
-                                    let client = state.account.with(|a| a.clone());
-                                    let id = sticker.sticker_id.clone();
-                                    state.busy.set(true);
-                                    spawn(async move {
-                                        state.failed.set(
-                                            runtime::commit(async move {
-                                                if personal {
-                                                    client.sticker().remove_sticker(id).await
-                                                } else {
-                                                    client.sticker().add_sticker(id).await
-                                                }
-                                            })
-                                            .await
-                                            .is_err(),
-                                        );
-                                        state.busy.set(false);
-                                        state.revision.update(|v| *v += 1);
-                                    });
-                                })
-                                .into_element()
-                        }))
+                                });
+                            })]
+                        },
+                    )
                 },
             )
             .keys(move || {
@@ -435,11 +468,7 @@ pub(super) fn grid_items(
                 })
             })
             .on_viewable_items_change(move |event: &ViewableItems| viewable.set(event.viewable))
-            .columns(move || {
-                (((window().width.0 * 0.95).min(464.0) - 24.0) / 80.0)
-                    .floor()
-                    .max(1.0) as u32
-            })
+            .columns(move || columns(80.0))
             .estimated_item_size(px(80.0))
             .flex_1()
             .min_h_0()
@@ -457,25 +486,20 @@ pub(super) fn grid_items(
                         if state.busy.get_untracked() {
                             return;
                         }
-                        let client = state.account.with(|a| a.clone());
-                        spawn(async move {
-                            match pick_paths(nsh_core::file_dialog::OpenDialog::files()).await {
-                                Ok(Some(paths)) if !paths.is_empty() => {
-                                    let path = paths[0].to_string_lossy().into_owned();
-                                    state.busy.set(true);
-                                    state.failed.set(
-                                        runtime::commit(async move {
+                        let client = state.client();
+                        state.owner.run(|| {
+                            spawn(async move {
+                                match pick_paths(nsh_core::file_dialog::OpenDialog::files()).await {
+                                    Ok(Some(paths)) if !paths.is_empty() => {
+                                        let path = paths[0].to_string_lossy().into_owned();
+                                        state.update(async move {
                                             client.sticker().add_sticker_from_path(path).await
-                                        })
-                                        .await
-                                        .is_err(),
-                                    );
-                                    state.busy.set(false);
-                                    state.revision.update(|v| *v += 1);
+                                        });
+                                    }
+                                    Ok(_) => {}
+                                    Err(_) => state.failed.set(true),
                                 }
-                                Ok(_) => {}
-                                Err(_) => state.failed.set(true),
-                            }
+                            });
                         });
                     },
                 )

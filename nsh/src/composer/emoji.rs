@@ -3,12 +3,18 @@ use nsh_base::theme;
 use nsh_core::prelude::*;
 use serde_json::Value;
 use std::{rc::Rc, sync::OnceLock};
+use tokio::sync::watch;
 
-use super::tr;
+use super::{
+    stickers::{columns, panel_tab},
+    tr,
+};
 use crate::{
     i18n::{self, Key},
     runtime, ui,
 };
+
+const RECENT_LIMIT: usize = 64;
 
 struct Emoji {
     character: String,
@@ -62,63 +68,100 @@ fn dictionary() -> &'static [Emoji] {
 struct Preferences {
     recent: Signal<Vec<String>>,
     skin: Signal<usize>,
-    busy: Signal<bool>,
-    failed: Signal<bool>,
-    settings: Stored<SettingsClient>,
     loaded: Signal<bool>,
-    key: Stored<String>,
+    failed: Signal<bool>,
+    retry: Signal<u64>,
+    writes: Stored<watch::Sender<Option<String>>>,
 }
 impl Preferences {
-    fn load(self) {
-        let settings = self.settings.with(|settings| settings.clone());
-        let key = self.key.with(|key| key.clone());
-        self.busy.set(true);
-        self.failed.set(false);
-        spawn(async move {
-            match runtime::run(async move { settings.setting(key).await }).await {
-                Ok(value) => {
-                    if let Some(value) =
-                        value.and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
-                    {
-                        self.recent.set(
-                            value["recent"]
-                                .as_array()
-                                .into_iter()
-                                .flatten()
-                                .filter_map(Value::as_str)
-                                .take(64)
-                                .map(str::to_owned)
-                                .collect(),
-                        );
-                        self.skin.set(
-                            value["skin"]
-                                .as_u64()
-                                .filter(|v| *v < 6)
-                                .unwrap_or_default() as usize,
-                        );
+    fn mount(settings: SettingsClient, key: String) -> Self {
+        let preferences = Self {
+            recent: signal(Vec::new()),
+            skin: signal(0),
+            loaded: signal(false),
+            failed: signal(false),
+            retry: signal(0),
+            writes: stored(writer(settings.clone(), key.clone())),
+        };
+        let settings = stored(settings);
+        let key = stored(key);
+        effect(move || {
+            preferences.retry.get();
+            let settings = settings.with(|settings| settings.clone());
+            let key = key.with(|key| key.clone());
+            preferences.failed.set(false);
+            spawn(async move {
+                match runtime::run(async move { settings.setting(key).await }).await {
+                    Ok(value) => {
+                        preferences.apply(value);
+                        preferences.loaded.set(true);
                     }
-                    self.loaded.set(true);
+                    Err(_) => preferences.failed.set(true),
                 }
-                Err(_) => self.failed.set(true),
-            }
-            self.busy.set(false);
+            });
         });
+        preferences
     }
+
+    fn apply(self, stored: Option<String>) {
+        let Some(value) = stored.and_then(|raw| serde_json::from_str::<Value>(&raw).ok()) else {
+            return;
+        };
+        self.recent.set(
+            value["recent"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .take(RECENT_LIMIT)
+                .map(str::to_owned)
+                .collect(),
+        );
+        self.skin.set(
+            value["skin"]
+                .as_u64()
+                .filter(|v| *v < 6)
+                .unwrap_or_default() as usize,
+        );
+    }
+
+    fn remember(self, emoji: String) {
+        self.recent.update(|recent| {
+            recent.retain(|value| value != &emoji);
+            recent.insert(0, emoji);
+            recent.truncate(RECENT_LIMIT);
+        });
+        self.save();
+    }
+
+    /// Never overwrites preferences that could not be read.
     fn save(self) {
-        let client = self.settings.with(|s| s.clone());
-        let key = self.key.with(|key| key.clone());
-        let value = serde_json::json!({"recent": self.recent.get_untracked(), "skin": self.skin.get_untracked()}).to_string();
-        self.busy.set(true);
-        self.failed.set(false);
-        spawn(async move {
-            self.failed.set(
-                runtime::commit(async move { client.set_setting(key, Some(value)).await })
-                    .await
-                    .is_err(),
-            );
-            self.busy.set(false);
-        });
+        if !self.loaded.get_untracked() {
+            return;
+        }
+        let value = serde_json::json!({
+            "recent": self.recent.get_untracked(),
+            "skin": self.skin.get_untracked(),
+        })
+        .to_string();
+        self.writes.with(|writes| writes.send_replace(Some(value)));
     }
+}
+
+/// One ordered writer keeps only the newest value, so quick picks never race.
+/// Disposing the panel closes the channel after its last value is written.
+fn writer(settings: SettingsClient, key: String) -> watch::Sender<Option<String>> {
+    let (sender, mut values) = watch::channel(None);
+    drop(runtime::commit(async move {
+        while values.changed().await.is_ok() {
+            let value = values.borrow_and_update().clone();
+            if let Err(error) = settings.set_setting(key.clone(), value).await {
+                log::warn!("Could not save emoji preferences: {error}");
+            }
+        }
+        Ok(())
+    }));
+    sender
 }
 
 pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl IntoElement {
@@ -127,16 +170,8 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
         .expect("App provides settings")
         .with(|s| s.clone())
         .expect("Desktop settings initialized");
-    let preferences = Preferences {
-        recent: signal(Vec::new()),
-        skin: signal(0),
-        busy: signal(true),
-        failed: signal(false),
-        settings: stored(settings),
-        loaded: signal(false),
-        key: stored(format!("desktop_emoji_preferences_{account_id}")),
-    };
-    preferences.load();
+    let preferences =
+        Preferences::mount(settings, format!("desktop_emoji_preferences_{account_id}"));
     let query = signal(String::new());
     let group = signal("smileysEmotion");
     let filtered = computed(move || {
@@ -197,31 +232,24 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
         .child(when(preferences.failed, move || {
             view()
                 .flex_row()
+                .items_center()
                 .gap_2()
                 .child(
                     text(move || {
                         tr(
                             i18n,
-                            "Couldn’t save emoji preferences.",
-                            "无法保存表情偏好。",
+                            "Couldn’t load recent emoji.",
+                            "无法加载最近使用的表情。",
                         )
                     })
+                    .flex_1()
                     .text_xs()
                     .text_color(move || theme().destructive),
                 )
-                .child(
-                    ui::action(
-                        move || i18n.text(Key::Retry),
-                        move || {
-                            if preferences.loaded.get_untracked() {
-                                preferences.save();
-                            } else {
-                                preferences.load();
-                            }
-                        },
-                    )
-                    .disabled(preferences.busy),
-                )
+                .child(ui::action(
+                    move || i18n.text(Key::Retry),
+                    move || preferences.retry.update(|value| *value += 1),
+                ))
         }))
         .child(
             virtual_list(
@@ -231,7 +259,6 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
                         .size_10()
                         .px_1()
                         .py_1()
-                        .disabled(move || preferences.busy.get() || !preferences.loaded.get())
                         .accessibility_label(move || {
                             Some(
                                 filtered
@@ -260,12 +287,7 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
                             });
                             if let Some(selected) = selected {
                                 insert.with(|insert| insert(selected.clone()));
-                                preferences.recent.update(|recent| {
-                                    recent.retain(|s| s != &selected);
-                                    recent.insert(0, selected);
-                                    recent.truncate(64);
-                                });
-                                preferences.save();
+                                preferences.remember(selected);
                             }
                         })
                 },
@@ -278,11 +300,7 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
                         .collect::<Vec<_>>()
                 })
             })
-            .columns(move || {
-                (((window().width.0 * 0.95).min(464.0) - 24.0) / 40.0)
-                    .floor()
-                    .max(1.0) as u32
-            })
+            .columns(move || columns(40.0))
             .estimated_item_size(px(40.0))
             .flex_1()
             .min_h_0()
@@ -325,19 +343,10 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
                     ]
                     .into_iter()
                     .map(move |(value, title, en, zh)| {
-                        ui::command()
-                            .size_8()
-                            .px_1()
-                            .py_1()
+                        panel_tab()
                             .accessibility_label(move || Some(tr(i18n, en, zh).into()))
                             .selected(move || group.get() == value)
                             .on_press(move || group.set(value))
-                            .selected_style(|style| {
-                                style
-                                    .bg(move || theme().accent)
-                                    .outline(px(1.0))
-                                    .outline_color(move || theme().primary)
-                            })
                             .child(text(title))
                     }),
                 ),
@@ -356,19 +365,10 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
                 .into_iter()
                 .enumerate()
                 .map(move |(index, (title, en, zh))| {
-                    ui::command()
-                        .size_8()
-                        .px_1()
-                        .py_1()
-                        .disabled(move || preferences.busy.get() || !preferences.loaded.get())
+                    panel_tab()
+                        .disabled(move || !preferences.loaded.get())
                         .accessibility_label(move || Some(tr(i18n, en, zh).into()))
                         .selected(move || preferences.skin.get() == index)
-                        .selected_style(|style| {
-                            style
-                                .bg(move || theme().accent)
-                                .outline(px(1.0))
-                                .outline_color(move || theme().primary)
-                        })
                         .child(text(title))
                         .on_press(move || {
                             preferences.skin.set(index);

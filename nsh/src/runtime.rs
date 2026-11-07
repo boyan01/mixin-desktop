@@ -48,6 +48,25 @@ where
     })
 }
 
+/// Wakes once per burst of `source` events, so a busy sync cannot keep restarting
+/// debounced UI queries or queue one reload per message.
+pub(crate) fn throttled<S>(source: S, interval: Duration) -> impl futures::Stream<Item = ()>
+where
+    S: futures::Stream + Send + 'static,
+    S::Item: Send,
+{
+    use futures::{FutureExt as _, StreamExt as _};
+    observe(futures::stream::unfold(
+        Box::pin(source),
+        move |mut source| async move {
+            source.next().await?;
+            tokio::time::sleep(interval).await;
+            while source.next().now_or_never().flatten().is_some() {}
+            Some(((), source))
+        },
+    ))
+}
+
 // A user-committed write must finish even if navigation disposes its view.
 pub(crate) fn commit<T: Send + 'static>(
     future: impl Future<Output = ClientResult<T>> + Send + 'static,

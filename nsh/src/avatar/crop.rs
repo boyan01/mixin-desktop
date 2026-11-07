@@ -1,13 +1,9 @@
 //! Native Canvas uses the same raster coordinates and ImageEdit contract as the composer.
 use super::Picker;
-use crate::{runtime, ui};
+use crate::{i18n::tr, runtime, ui};
 use mixin_desktop_api::{ImageEdit, PreparedAttachment};
 use nsh_base::{SliderValue, dialog, slider, theme};
 use nsh_core::prelude::*;
-
-fn tr(en: &'static str, zh: &'static str) -> &'static str {
-    crate::i18n::tr(en, zh)
-}
 
 #[derive(Clone, Copy)]
 struct Crop {
@@ -120,7 +116,7 @@ pub(super) fn screen(
         .close_on_escape(false).close_on_backdrop_press(false).on_cancel(cancel)
         .flex_1()
         .child(view().flex_1().p_6().items_center().justify_center()
-            .child(picker.presence.backdrop(view().absolute().inset_0().bg(move || theme().foreground.opacity(0.2)).on_press(cancel)))
+            .child(picker.presence.backdrop(ui::scrim().on_press(cancel)))
             .child(picker.presence.surface(view().w(px(400.0)).max_w(relative(1.0)).max_h(relative(1.0)).p_6().gap_4().rounded_lg().bg(move || theme().popover)
                 .child(text(move || tr("Crop photo", "裁剪头像")).text_lg().font_weight(FontWeight::SEMIBOLD))
                 .child(text(move || tr("Drag to move. Use the slider to zoom. Images up to 10 MB.", "拖动调整位置，使用滑块缩放。图片最大 10 MB。")).text_sm().text_color(move || theme().muted_foreground))

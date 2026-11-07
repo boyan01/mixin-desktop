@@ -1,4 +1,4 @@
-use mixin_desktop_api::{DesktopClient, SettingsClient};
+use mixin_desktop_api::SettingsClient;
 
 use super::*;
 use crate::runtime;
@@ -7,7 +7,7 @@ const SETTING: &str = "desktop_ui_sidebar_collapsed";
 
 #[derive(Clone, Copy)]
 pub(super) struct Preference {
-    settings: Stored<Option<SettingsClient>>,
+    settings: Stored<SettingsClient>,
     nav: Navigation,
     loading: Signal<bool>,
     busy: Signal<bool>,
@@ -17,8 +17,11 @@ pub(super) struct Preference {
 
 impl Preference {
     pub(super) fn new(nav: Navigation) -> Self {
+        let settings = use_context::<Stored<Option<SettingsClient>>>()
+            .and_then(|client| client.with(|client| client.clone()))
+            .expect("App provides settings before the account presentation");
         let state = Self {
-            settings: stored(None),
+            settings: stored(settings),
             nav,
             loading: signal(true),
             busy: signal(false),
@@ -29,29 +32,19 @@ impl Preference {
             let _revision = state.revision.get();
             state.loading.set(true);
             state.failed.set(false);
+            let settings = state.settings.with(|settings| settings.clone());
             spawn(async move {
-                let settings =
-                    runtime::run(async { Ok(DesktopClient::open().await?.settings()) }).await;
-                match settings {
-                    Ok(settings) => {
-                        state.settings.replace(Some(settings.clone()));
-                        let mut changes =
-                            Box::pin(runtime::observe(settings.subscribe_setting(SETTING.into())));
-                        while let Some(value) = changes.next().await {
-                            match value {
-                                Ok(value) => {
-                                    state.nav.collapsed.set(value.as_deref() == Some("true"));
-                                    state.failed.set(false);
-                                }
-                                Err(_) => state.failed.set(true),
-                            }
-                            state.loading.set(false);
+                let mut changes =
+                    Box::pin(runtime::observe(settings.subscribe_setting(SETTING.into())));
+                while let Some(value) = changes.next().await {
+                    match value {
+                        Ok(value) => {
+                            state.nav.collapsed.set(value.as_deref() == Some("true"));
+                            state.failed.set(false);
                         }
+                        Err(_) => state.failed.set(true),
                     }
-                    Err(_) => {
-                        state.loading.set(false);
-                        state.failed.set(true);
-                    }
+                    state.loading.set(false);
                 }
             });
         });
@@ -59,16 +52,14 @@ impl Preference {
     }
 
     pub(super) fn disabled(self) -> bool {
-        self.loading.get() || self.busy.get() || self.settings.with(|settings| settings.is_none())
+        self.loading.get() || self.busy.get()
     }
 
     pub(super) fn toggle(self) {
         if self.disabled() {
             return;
         }
-        let Some(settings) = self.settings.with(|settings| settings.clone()) else {
-            return;
-        };
+        let settings = self.settings.with(|settings| settings.clone());
         let previous = self.nav.collapsed.get_untracked();
         self.nav.collapsed.set(!previous);
         self.busy.set(true);
@@ -94,11 +85,10 @@ impl Preference {
                 .py_2()
                 .gap_1()
                 .child(
-                    text(move || {
-                        crate::i18n::tr("Couldn’t save sidebar settings", "侧栏设置保存失败")
+                    ui::error_text(move || {
+                        i18n::tr("Couldn’t save sidebar settings", "侧栏设置保存失败")
                     })
-                    .text_xs()
-                    .text_color(move || theme().destructive),
+                    .text_xs(),
                 )
                 .child(ui::action(
                     move || i18n::current().text(Key::Retry),

@@ -5,7 +5,7 @@ use nsh_base::theme;
 use nsh_core::{file_dialog::SaveDialog, prelude::*};
 
 use super::{
-    message_actions::{Actions, Detail, attachment_name, item, label},
+    message_actions::{Actions, Detail, attachment_name, item},
     message_content,
 };
 use crate::{i18n::Key, presentation, runtime, ui};
@@ -52,11 +52,11 @@ pub(super) fn summary(root: String, child: String, actions: Actions) -> impl Int
     });
     view().flex_1().w_full().min_h_0().gap_3()
         .child(text(move || i18n.text(Key::Transcript)).text_lg().font_weight(FontWeight::SEMIBOLD))
-        .child(text(move || label(i18n, "This forwarded message contains a summary only. Original messages and attachments are unavailable.", "这条转发消息只保留了摘要，无法查看原始消息和附件。"))
+        .child(text(move || i18n.tr("This forwarded message contains a summary only. Original messages and attachments are unavailable.", "这条转发消息只保留了摘要，无法查看原始消息和附件。"))
             .text_sm().text_color(move || theme().muted_foreground))
         .child(when(loading, move || text(move || i18n.text(Key::LoadingMessages))))
         .child(when(failed, move || view().gap_2()
-            .child(text(move || label(i18n, "This forwarded summary is unavailable.", "无法读取这条转发摘要。")))
+            .child(text(move || i18n.tr("This forwarded summary is unavailable.", "无法读取这条转发摘要。")))
             .child(ui::action(move || i18n.text(Key::Retry), move || retry.update(|retry| *retry += 1)))))
         .child(virtual_list(move || rows.with(Vec::len), move |at| {
             view().px_4().py_2().gap_1()
@@ -76,7 +76,7 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
     let i18n = actions.i18n;
     let media_viewport = super::message_media::viewport();
     let id = stored(id);
-    let rows = signal_with(Vec::<MessageListView>::new(), SignalEquals::Never);
+    let rows = signal(Vec::<MessageListView>::new());
     super::mentions::MentionNames::mount(
         actions.account.with(|account| account.clone()),
         rows,
@@ -244,15 +244,11 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
                                     text(move || {
                                         rows.with(|rows| {
                                             rows.get(at.index())
-                                                .and_then(|row| {
-                                                    chrono::DateTime::from_timestamp_micros(
-                                                        row.created_at_micros,
+                                                .map(|row| {
+                                                    presentation::time(
+                                                        i18n,
+                                                        row.created_at_micros / 1000,
                                                     )
-                                                })
-                                                .map(|time| {
-                                                    time.with_timezone(&chrono::Local)
-                                                        .format("%H:%M")
-                                                        .to_string()
                                                 })
                                                 .unwrap_or_default()
                                         })
@@ -272,7 +268,14 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
                                         actions,
                                         busy,
                                         owner,
-                                        message_content::body(row, actions, None, Some(root)),
+                                        message_content::body(
+                                            row,
+                                            actions,
+                                            message_content::Placement {
+                                                transcript: Some(root),
+                                                ..Default::default()
+                                            },
+                                        ),
                                     )
                                     .into_element()
                                 }
@@ -301,14 +304,14 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
                 .gap_2()
                 .child(
                     ui::action(
-                        move || label(i18n, "Previous", "上一页"),
+                        move || i18n.tr("Previous", "上一页"),
                         move || offset.update(|v| *v = (*v - 100).max(0)),
                     )
                     .disabled(move || offset.get() == 0 || loading.get()),
                 )
                 .child(
                     ui::action(
-                        move || label(i18n, "Next", "下一页"),
+                        move || i18n.tr("Next", "下一页"),
                         move || offset.update(|v| *v += 100),
                     )
                     .disabled(move || !more.get() || loading.get()),
@@ -339,174 +342,159 @@ fn attachment_menu(
                 .caption
                 .as_ref()
                 .is_some_and(|caption| !caption.is_empty()));
-    ui::context_menu()
-        .disabled(move || busy.get() || !active() || (!copyable && !downloadable))
-        .trigger(body)
-        .child(dynamic(move || {
-            let mut items = Vec::<AnyElement>::new();
-            let is_text = row.category.ends_with("_TEXT");
-            let has_caption = row
-                .caption
-                .as_ref()
-                .is_some_and(|caption| !caption.is_empty());
-            let selected = (is_text || has_caption)
-                .then(|| {
-                    root.with(|root| actions.text_selection.selected(&row.message_id, Some(root)))
-                })
-                .flatten();
-            let has_selection = selected.is_some();
-            let copy = if matches!(row.status.as_str(), "UNKNOWN" | "FAILED") {
-                String::new()
-            } else if is_text || row.category.ends_with("_POST") {
-                selected.unwrap_or_else(|| row.content.clone())
-            } else {
-                selected.unwrap_or_else(|| row.caption.clone().unwrap_or_default())
-            };
-            if !copy.is_empty() {
-                if is_text {
-                    let qr = copy.clone();
-                    items.push(
-                        item(
-                            label(i18n, "Generate QR code", "生成二维码"),
-                            move || {
-                                if !busy.get_untracked() && active() {
-                                    actions.open_text_qr(qr.clone());
-                                }
-                            },
-                        )
-                        .into_element(),
-                    );
-                }
-                items.push(
-                    item(
-                        if has_selection {
-                            label(i18n, "Copy selected text", "复制选中文字")
-                        } else {
-                            label(i18n, "Copy text", "复制文字")
-                        },
-                        move || {
-                            if busy.get_untracked() || !active() {
-                                return;
-                            }
-                            busy.set(true);
-                            let content = copy.clone();
-                            let account = actions.account.with(|account| account.clone());
-                            owner.run(move || {
-                                spawn(async move {
-                                    let result = if is_text && !has_selection {
-                                        runtime::run(async move {
-                                            Ok(account
-                                                .user()
-                                                .replace_mentions(vec![content])
-                                                .await?
-                                                .into_iter()
-                                                .next()
-                                                .unwrap_or_default())
-                                        })
-                                        .await
-                                    } else {
-                                        Ok(content)
-                                    };
-                                    if owner.is_live() {
-                                        match result {
-                                            Ok(content) => {
-                                                set_clipboard(content);
-                                                actions.failed.set(false);
-                                            }
-                                            Err(_) => actions.failed.set(true),
-                                        }
-                                        busy.set(false);
-                                    }
-                                })
-                            });
-                        },
-                    )
-                    .into_element(),
-                );
+    ui::native_context_menu(body, move || {
+        if busy.get_untracked() || !active() || (!copyable && !downloadable) {
+            return Vec::new();
+        }
+        let mut items = Vec::new();
+        let is_text = row.category.ends_with("_TEXT");
+        let has_caption = row
+            .caption
+            .as_ref()
+            .is_some_and(|caption| !caption.is_empty());
+        let selected = (is_text || has_caption)
+            .then(|| root.with(|root| actions.text_selection.selected(&row.message_id, Some(root))))
+            .flatten();
+        let has_selection = selected.is_some();
+        let copy = if matches!(row.status.as_str(), "UNKNOWN" | "FAILED") {
+            String::new()
+        } else if is_text || row.category.ends_with("_POST") {
+            selected.unwrap_or_else(|| row.content.clone())
+        } else {
+            selected.unwrap_or_else(|| row.caption.clone().unwrap_or_default())
+        };
+        if !copy.is_empty() {
+            if is_text {
+                let qr = copy.clone();
+                items.push(item(
+                    i18n.tr("Generate QR code", "生成二维码"),
+                    move || {
+                        if !busy.get_untracked() && active() {
+                            actions.open_text_qr(qr.clone());
+                        }
+                    },
+                ));
             }
-            if message_content::is_attachment(&row) && message_content::available(&row) {
-                if row.category.ends_with("_IMAGE") {
-                    let root = root.with(|root| root.clone());
-                    let id = row.message_id.clone();
-                    items.push(
-                        item(label(i18n, "Copy image", "复制图片"), move || {
-                            if busy.get_untracked() || !active() {
-                                return;
-                            }
-                            busy.set(true);
-                            let root = root.clone();
-                            let id = id.clone();
-                            let account = actions.account.with(|account| account.clone());
-                            owner.run(move || {
-                                spawn(async move {
-                                    let result = runtime::run(async move {
-                                        account
-                                            .attachment()
-                                            .attachment_image_data_uri(id, Some(root))
-                                            .await
-                                    })
-                                    .await;
-                                    if owner.is_live() {
-                                        match result {
-                                            Ok(uri) => {
-                                                set_clipboard_image(uri);
-                                                actions.failed.set(false);
-                                            }
-                                            Err(_) => actions.failed.set(true),
-                                        }
-                                        busy.set(false);
-                                    }
+            items.push(item(
+                if has_selection {
+                    i18n.tr("Copy selected text", "复制选中文字")
+                } else {
+                    i18n.tr("Copy text", "复制文字")
+                },
+                move || {
+                    if busy.get_untracked() || !active() {
+                        return;
+                    }
+                    busy.set(true);
+                    let content = copy.clone();
+                    let account = actions.account.with(|account| account.clone());
+                    owner.run(move || {
+                        spawn(async move {
+                            let result = if is_text && !has_selection {
+                                runtime::run(async move {
+                                    Ok(account
+                                        .user()
+                                        .replace_mentions(vec![content])
+                                        .await?
+                                        .into_iter()
+                                        .next()
+                                        .unwrap_or_default())
                                 })
-                            });
+                                .await
+                            } else {
+                                Ok(content)
+                            };
+                            if owner.is_live() {
+                                match result {
+                                    Ok(content) => {
+                                        set_clipboard(content);
+                                        actions.failed.set(false);
+                                    }
+                                    Err(_) => actions.failed.set(true),
+                                }
+                                busy.set(false);
+                            }
                         })
-                        .into_element(),
-                    );
-                }
+                    });
+                },
+            ));
+        }
+        if message_content::is_attachment(&row) && message_content::available(&row) {
+            if row.category.ends_with("_IMAGE") {
                 let root = root.with(|root| root.clone());
                 let id = row.message_id.clone();
-                let name = attachment_name(&row);
-                items.push(
-                    item(label(i18n, "Save as…", "另存为…"), move || {
-                        if busy.get_untracked() || !active() {
-                            return;
-                        }
-                        busy.set(true);
-                        let root = root.clone();
-                        let id = id.clone();
-                        let name = name.clone();
-                        let account = actions.account.with(|account| account.clone());
-                        owner.run(move || {
-                            spawn(async move {
-                                let result =
-                                    match pick_save_path(SaveDialog::new().file_name(name)).await {
-                                        Ok(Some(path)) => {
-                                            runtime::commit(async move {
-                                                account
-                                                    .attachment()
-                                                    .save_transcript_attachment_as(
-                                                        root,
-                                                        id,
-                                                        path.to_string_lossy().into_owned(),
-                                                    )
-                                                    .await
-                                            })
-                                            .await
-                                        }
-                                        Ok(None) => Ok(()),
-                                        Err(_) => Err(mixin_desktop_api::ClientError::Internal(
-                                            "Could not choose an attachment destination".into(),
-                                        )),
-                                    };
-                                if owner.is_live() {
-                                    actions.failed.set(result.is_err());
-                                    busy.set(false);
-                                }
+                items.push(item(i18n.tr("Copy image", "复制图片"), move || {
+                    if busy.get_untracked() || !active() {
+                        return;
+                    }
+                    busy.set(true);
+                    let root = root.clone();
+                    let id = id.clone();
+                    let account = actions.account.with(|account| account.clone());
+                    owner.run(move || {
+                        spawn(async move {
+                            let result = runtime::run(async move {
+                                account
+                                    .attachment()
+                                    .attachment_image_data_uri(id, Some(root))
+                                    .await
                             })
-                        });
-                    })
-                    .into_element(),
-                );
+                            .await;
+                            if owner.is_live() {
+                                match result {
+                                    Ok(uri) => {
+                                        set_clipboard_image(uri);
+                                        actions.failed.set(false);
+                                    }
+                                    Err(_) => actions.failed.set(true),
+                                }
+                                busy.set(false);
+                            }
+                        })
+                    });
+                }));
             }
-            view().children(items).into_element()
-        }))
+            let root = root.with(|root| root.clone());
+            let id = row.message_id.clone();
+            let name = attachment_name(&row);
+            items.push(item(i18n.tr("Save as…", "另存为…"), move || {
+                if busy.get_untracked() || !active() {
+                    return;
+                }
+                busy.set(true);
+                let root = root.clone();
+                let id = id.clone();
+                let name = name.clone();
+                let account = actions.account.with(|account| account.clone());
+                owner.run(move || {
+                    spawn(async move {
+                        let result = match pick_save_path(SaveDialog::new().file_name(name)).await {
+                            Ok(Some(path)) => {
+                                runtime::commit(async move {
+                                    account
+                                        .attachment()
+                                        .save_transcript_attachment_as(
+                                            root,
+                                            id,
+                                            path.to_string_lossy().into_owned(),
+                                        )
+                                        .await
+                                })
+                                .await
+                            }
+                            Ok(None) => Ok(()),
+                            Err(_) => Err(mixin_desktop_api::ClientError::Internal(
+                                "Could not choose an attachment destination".into(),
+                            )),
+                        };
+                        if owner.is_live() {
+                            actions.failed.set(result.is_err());
+                            busy.set(false);
+                        }
+                    })
+                });
+            }));
+        }
+        items
+    })
 }

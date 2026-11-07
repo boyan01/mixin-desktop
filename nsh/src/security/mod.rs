@@ -171,7 +171,9 @@ impl Handle {
         }
         let client = self.client();
         let i18n = i18n::current();
-        let reason = tr(i18n, "Unlock Mixin Messenger", "解锁 Mixin Messenger").to_owned();
+        let reason = i18n
+            .tr("Unlock Mixin Messenger", "解锁 Mixin Messenger")
+            .to_owned();
         self.busy.set(true);
         self.failed.set(false);
         self.owner.run(|| {
@@ -196,8 +198,4 @@ impl Handle {
         self.failed.set(result.is_err());
         self.busy.set(false);
     }
-}
-
-fn tr(i18n: i18n::I18n, en: &'static str, zh: &'static str) -> &'static str {
-    i18n.tr(en, zh)
 }

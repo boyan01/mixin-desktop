@@ -7,8 +7,9 @@ use mixin_desktop_api::{
 use nsh_base::{checkbox, theme};
 use nsh_core::prelude::*;
 
-use super::{Feedback, body, client, section, toggle, tr};
+use super::{Feedback, body, client, section, toggle};
 use crate::{
+    conversation::parts,
     i18n::{self, Key},
     runtime, ui,
 };
@@ -74,21 +75,18 @@ fn overview(
             loading.set(false);
         });
     });
-    view()
+    body()
         .flex_1()
         .min_h_0()
-        .p_6()
-        .gap_4()
         .child(
-            section(move || tr(i18n, "Automatic media download", "自动下载媒体"))
+            section(move || i18n.tr("Automatic media download", "自动下载媒体"))
                 .child(download_toggle(Download::Photos))
                 .child(download_toggle(Download::Videos))
                 .child(download_toggle(Download::Files)),
         )
         .child(
             text(move || {
-                tr(
-                    i18n,
+                i18n.tr(
                     "Automatically download media when messages arrive.",
                     "收到消息时自动下载媒体文件。",
                 )
@@ -102,7 +100,7 @@ fn overview(
                 .items_center()
                 .gap_3()
                 .child(
-                    text(move || tr(i18n, "Storage usage", "存储用量"))
+                    text(move || i18n.tr("Storage usage", "存储用量"))
                         .font_weight(FontWeight::MEDIUM)
                         .flex_1(),
                 )
@@ -115,27 +113,23 @@ fn overview(
                     ui::command()
                         .disabled(loading)
                         .on_press(move || revision.update(|v| *v += 1))
-                        .child(text(move || tr(i18n, "Refresh", "刷新"))),
+                        .child(text(move || i18n.tr("Refresh", "刷新"))),
                 ),
         )
-        .child(when(loading, move || {
-            text(move || tr(i18n, "Calculating storage…", "正在计算存储用量…")).text_sm()
-        }))
+        .child(when(
+            move || loading.get() && rows.with(Vec::is_empty),
+            move || parts::status(move || i18n.tr("Calculating storage…", "正在计算存储用量…")),
+        ))
         .child(when(failed, move || {
-            text(move || i18n.text(Key::CommandFailed))
-                .text_sm()
-                .text_color(move || theme().destructive)
-        }))
-        .child(when(failed, move || {
-            ui::action(
-                move || i18n.text(Key::Retry),
+            parts::failure(
+                move || i18n.text(Key::CommandFailed),
                 move || revision.update(|r| *r += 1),
             )
         }))
         .child(when(
             move || !loading.get() && !failed.get() && rows.with(Vec::is_empty),
             move || {
-                text(move || tr(i18n, "No stored media", "暂无媒体缓存"))
+                text(move || i18n.tr("No stored media", "暂无媒体缓存"))
                     .text_sm()
                     .text_color(move || theme().muted_foreground)
             },
@@ -198,7 +192,7 @@ fn overview(
                         .collect::<Vec<_>>()
                 })
             })
-            .estimated_item_size(px(64.0))
+            .estimated_item_size(parts::row_height())
             .flex_1()
             .min_h_0(),
         )
@@ -246,9 +240,9 @@ fn download_toggle(kind: Download) -> impl IntoElement {
         .gap_1()
         .child(toggle(
             move || match kind {
-                Download::Photos => tr(i18n, "Photos", "图片"),
-                Download::Videos => tr(i18n, "Videos", "视频"),
-                Download::Files => tr(i18n, "Files", "文件"),
+                Download::Photos => i18n.tr("Photos", "图片"),
+                Download::Videos => i18n.tr("Videos", "视频"),
+                Download::Files => i18n.tr("Files", "文件"),
             },
             move || checked.get(),
             move || !ready.get() || busy.get(),
@@ -257,11 +251,9 @@ fn download_toggle(kind: Download) -> impl IntoElement {
                 checked.set(value);
                 busy.set(true);
                 failed.set(false);
+                let task = runtime::commit(async move { kind.save(client().await?, value).await });
                 spawn(async move {
-                    if runtime::commit(async move { kind.save(client().await?, value).await })
-                        .await
-                        .is_err()
-                    {
+                    if task.await.is_err() {
                         checked.set(previous);
                         failed.set(true);
                     }
@@ -270,13 +262,8 @@ fn download_toggle(kind: Download) -> impl IntoElement {
             },
         ))
         .child(when(failed, move || {
-            text(move || i18n.text(Key::CommandFailed))
-                .text_sm()
-                .text_color(move || theme().destructive)
-        }))
-        .child(when(failed, move || {
-            ui::action(
-                move || i18n.text(Key::Retry),
+            parts::failure(
+                move || i18n.text(Key::CommandFailed),
                 move || retry.update(|r| *r += 1),
             )
         }))
@@ -293,6 +280,7 @@ fn detail(
     let selected = signal(HashSet::<String>::new());
     let revision = signal(0_u64);
     let loading = signal(true);
+    let load_failed = signal(false);
     let feedback = Feedback::new();
     let confirming = signal(false);
     let presence = crate::motion::Presence::modal(move || confirming.get());
@@ -312,70 +300,210 @@ fn detail(
         let client = client.clone();
         let id = conversation.clone();
         loading.set(true);
+        load_failed.set(false);
         spawn(async move {
             match runtime::run(async move { client.conversation_storage_usage(id).await }).await {
                 Ok(next) => rows.set(next),
-                Err(_) => feedback.failed.set(true),
+                Err(_) => load_failed.set(true),
             }
             loading.set(false);
         });
     });
-    scroll().flex_1().min_h_0().child(body()
-        .child(ui::command().justify_start().on_press(on_back)
-            .child(ui::icon(ui::Icon::ArrowLeft)).child(text(move || tr(i18n, "Storage usage", "存储用量"))))
-        .child(text(name).text_lg().font_weight(FontWeight::SEMIBOLD))
-        .child(text(move || tr(i18n, "Clear cached media from this device. Messages stay in the conversation.", "清除此设备上的媒体缓存，会话中的消息会保留。")).text_sm().text_color(move || theme().muted_foreground))
-        .child(when(loading, move || text(move || tr(i18n, "Calculating storage…", "正在计算存储用量…")).text_sm()))
-        .children(["photos", "videos", "audio", "files"].into_iter().map(move |category| {
-            let unavailable = move || !rows.with(|rows| {
-                rows.iter().any(|row| row.category == category && row.size_bytes > 0)
-            });
-            checkbox().checked(move || selected.with(|s| s.contains(category)))
-                .disabled(move || loading.get() || feedback.busy.get() || unavailable())
-                .style_when(unavailable, |style| style.opacity(0.5))
-                .flex_row().items_center().gap_3().py_3()
-                .indicator_class("size-5 rounded border border-input checked:bg-primary checked:border-primary items-center justify-center")
-                .indicator(text(move || if selected.with(|s| s.contains(category)) { "✓" } else { "" }).text_color(move || theme().primary_foreground))
-                .child(text(move || match category {
-                    "photos" => tr(i18n, "Photos", "图片"), "videos" => tr(i18n, "Videos", "视频"),
-                    "audio" => tr(i18n, "Audio", "音频"), _ => tr(i18n, "Files", "文件"),
-                }).flex_1().text_sm())
-                .child(text(move || rows.with(|r| r.iter().find(|r| r.category == category).map(|r| bytes(r.size_bytes)).unwrap_or_default())).text_sm().text_color(move || theme().muted_foreground))
-                .on_change(move |checked: &bool| selected.update(|s| {
-                    if *checked { s.insert(category.into()); } else { s.remove(category); }
-                }))
-        }))
-        .child(ui::command().text_color(move || theme().destructive)
-            .disabled(clear_disabled)
-            .on_press(move || {
-                if !untracked(clear_disabled) { confirming.set(true); }
+    let clear = move || {
+        if !presence.interactive() || untracked(clear_disabled) {
+            return;
+        }
+        let account = account.clone();
+        let id = id.clone();
+        let categories = selected.with(|s| s.iter().cloned().collect());
+        feedback.start();
+        let task =
+            runtime::commit(
+                async move { account.clear_conversation_storage(id, categories).await },
+            );
+        feedback.owner.run(|| {
+            spawn(async move {
+                let result = task.await;
+                if result.is_ok() {
+                    selected.set(HashSet::new());
+                    confirming.set(false);
+                }
+                feedback.finish(result.is_ok());
+                // A failed clear may have removed some categories already.
+                revision.update(|v| *v += 1);
             })
-            .child(text(move || tr(i18n, "Clear selected cache…", "清除选中的缓存…"))))
-        .child(feedback.view(move || tr(i18n, "Clearing cache…", "正在清除缓存…")))
-        .child(when(move || presence.mounted(), move || {
-            let account = account.clone();
-            let id = id.clone();
-            ui::modal(presence, move || { if !feedback.busy.get_untracked() { confirming.set(false); } },view().max_w_96().p_6().gap_4().rounded_lg().bg(move || theme().popover)
-                    .child(text(move || tr(i18n, "Clear the selected media cache?", "清除选中的媒体缓存？")).font_weight(FontWeight::MEDIUM))
-                    .child(text(move || tr(i18n, "Files saved only on this device may not be downloadable again.", "仅保存在此设备上的文件可能无法再次下载。")).text_sm())
-                    .child(view().flex_row().justify_end().gap_3()
-                        .child(ui::action(move || i18n.text(Key::Cancel), move || confirming.set(false)).disabled(feedback.busy))
-                        .child(ui::command().disabled(clear_disabled).text_color(move || theme().destructive)
-                            .child(text(move || tr(i18n, "Clear cache", "清除缓存")))
+        });
+    };
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(parts::page_header(
+            name,
+            parts::back_button(on_back).disabled(feedback.busy),
+        ))
+        .child(
+            scroll().flex_1().min_h_0().child(
+                body()
+                    .child(
+                        text(move || {
+                            i18n.tr(
+                                "Clear cached media from this device. Messages stay in the conversation.",
+                                "清除此设备上的媒体缓存，会话中的消息会保留。",
+                            )
+                        })
+                        .text_sm()
+                        .text_color(move || theme().muted_foreground),
+                    )
+                    .child(when(
+                        move || loading.get() && rows.with(Vec::is_empty),
+                        move || {
+                            parts::status(move || {
+                                i18n.tr("Calculating storage…", "正在计算存储用量…")
+                            })
+                        },
+                    ))
+                    .child(when(load_failed, move || {
+                        parts::failure(
+                            move || i18n.text(Key::CommandFailed),
+                            move || revision.update(|v| *v += 1),
+                        )
+                    }))
+                    .children(["photos", "videos", "audio", "files"].into_iter().map(
+                        move |category| {
+                            category_row(category, rows, selected, move || {
+                                loading.get() || feedback.busy.get()
+                            })
+                        },
+                    ))
+                    .child(
+                        ui::command()
+                            .text_color(move || theme().destructive)
+                            .disabled(clear_disabled)
                             .on_press(move || {
-                                if !presence.interactive() || untracked(clear_disabled) { return; }
-                                let account = account.clone(); let id = id.clone();
-                                let categories = selected.with(|s| s.iter().cloned().collect());
-                                feedback.start();
-                                spawn(async move {
-                                    let result = runtime::commit(async move { account.clear_conversation_storage(id, categories).await }).await;
-                                    if result.is_ok() { selected.set(HashSet::new()); confirming.set(false); }
-                                    feedback.finish(result.is_ok());
-                                    // A failed clear may have removed some categories already.
-                                    revision.update(|v| *v += 1);
-                                });
-                            }))))
-        })))
+                                if !untracked(clear_disabled) {
+                                    confirming.set(true);
+                                }
+                            })
+                            .child(text(move || i18n.tr("Clear selected cache…", "清除选中的缓存…"))),
+                    )
+                    .child(feedback.view(move || i18n.tr("Clearing cache…", "正在清除缓存…")))
+                    .child(when(
+                        move || presence.mounted(),
+                        move || clear_dialog(presence, confirming, feedback, clear_disabled, clear.clone()),
+                    )),
+            ),
+        )
+}
+
+fn category_row(
+    category: &'static str,
+    rows: Signal<Vec<StorageCategoryUsage>>,
+    selected: Signal<HashSet<String>>,
+    busy: impl Fn() -> bool + 'static,
+) -> impl IntoElement {
+    let i18n = i18n::current();
+    let chosen = move || selected.with(|s| s.contains(category));
+    let unavailable = move || {
+        !rows.with(|rows| {
+            rows.iter()
+                .any(|row| row.category == category && row.size_bytes > 0)
+        })
+    };
+    checkbox()
+        .checked(chosen)
+        .disabled(move || busy() || unavailable())
+        .style_when(unavailable, |style| style.opacity(0.5))
+        .flex_row()
+        .items_center()
+        .gap_3()
+        .py_3()
+        .indicator_class(
+            "size-5 rounded border border-input checked:bg-primary checked:border-primary items-center justify-center",
+        )
+        .indicator(when(chosen, move || {
+            ui::icon(ui::Icon::Check)
+                .size_4()
+                .text_color(move || theme().primary_foreground)
+        }))
+        .child(
+            text(move || match category {
+                "photos" => i18n.tr("Photos", "图片"),
+                "videos" => i18n.tr("Videos", "视频"),
+                "audio" => i18n.tr("Audio", "音频"),
+                _ => i18n.tr("Files", "文件"),
+            })
+            .flex_1()
+            .text_sm(),
+        )
+        .child(
+            text(move || {
+                rows.with(|rows| {
+                    rows.iter()
+                        .find(|row| row.category == category)
+                        .map(|row| bytes(row.size_bytes))
+                        .unwrap_or_default()
+                })
+            })
+            .text_sm()
+            .text_color(move || theme().muted_foreground),
+        )
+        .on_change(move |checked: &bool| {
+            selected.update(|s| {
+                if *checked {
+                    s.insert(category.into());
+                } else {
+                    s.remove(category);
+                }
+            })
+        })
+}
+
+fn clear_dialog(
+    presence: crate::motion::Presence,
+    confirming: Signal<bool>,
+    feedback: Feedback,
+    disabled: impl Fn() -> bool + 'static,
+    clear: impl Fn() + 'static,
+) -> impl IntoElement {
+    let i18n = i18n::current();
+    ui::modal(
+        presence,
+        move || {
+            if !feedback.busy.get_untracked() {
+                confirming.set(false);
+            }
+        },
+        parts::dialog_card()
+            .child(ui::modal_title(move || {
+                i18n.tr("Clear the selected media cache?", "清除选中的媒体缓存？")
+            }))
+            .child(
+                text(move || {
+                    i18n.tr(
+                        "Files saved only on this device may not be downloadable again.",
+                        "仅保存在此设备上的文件可能无法再次下载。",
+                    )
+                })
+                .text_sm(),
+            )
+            .child(
+                parts::dialog_actions()
+                    .child(
+                        ui::action(
+                            move || i18n.text(Key::Cancel),
+                            move || confirming.set(false),
+                        )
+                        .disabled(feedback.busy),
+                    )
+                    .child(
+                        ui::command()
+                            .disabled(disabled)
+                            .text_color(move || theme().destructive)
+                            .child(text(move || i18n.tr("Clear cache", "清除缓存")))
+                            .on_press(clear),
+                    ),
+            ),
+    )
 }
 
 fn bytes(value: i64) -> String {

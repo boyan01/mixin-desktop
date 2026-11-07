@@ -1,19 +1,51 @@
 use mixin_desktop_api::{AccountClient, MessageListView};
-use nsh_base::{menu_item, theme};
-use nsh_core::{file_dialog::OpenDialog, prelude::*};
+use nsh_core::{
+    file_dialog::{FileFilter, OpenDialog},
+    prelude::*,
+};
 use std::sync::Arc;
 
-use super::{AttachmentSource, files, forms, tr};
+use super::{AttachmentSource, files, forms, menu_row, tool_button, tr};
 use crate::{
     i18n::{self, Key},
+    motion::Presence,
     ui,
 };
+
+const MEDIA_EXTENSIONS: [&str; 13] = [
+    "jpg", "jpeg", "png", "gif", "webp", "heic", "bmp", "mp4", "mov", "m4v", "webm", "mkv", "avi",
+];
 
 #[derive(Clone, PartialEq)]
 enum Action {
     Contact,
     Post,
     Files(Vec<AttachmentSource>, files::Mode),
+}
+
+/// What every attachment dialog shares with the composer that opened it.
+#[derive(Clone, Copy)]
+pub(super) struct Host {
+    account: Stored<Arc<AccountClient>>,
+    conversation: Stored<String>,
+    pub quote: Signal<Option<MessageListView>>,
+    pub failed: Signal<bool>,
+    pub presence: Presence,
+    action: Signal<Option<Action>>,
+}
+
+impl Host {
+    pub fn account(self) -> Arc<AccountClient> {
+        self.account.with(|account| account.clone())
+    }
+
+    pub fn conversation(self) -> String {
+        self.conversation.with(|id| id.clone())
+    }
+
+    pub fn close(self) {
+        self.action.set(None);
+    }
 }
 
 pub(crate) fn attachments(
@@ -47,84 +79,73 @@ pub(crate) fn attachments(
             shown.set(Some(selected));
         }
     });
-    let presence = crate::motion::Presence::modal(move || action.with(Option::is_some));
-    let account = stored(account);
-    let id = stored(id);
+    let host = Host {
+        account: stored(account),
+        conversation: stored(id),
+        quote,
+        failed,
+        presence: Presence::modal(move || action.with(Option::is_some)),
+        action,
+    };
+    let pick = move |media: bool| {
+        let dialog = OpenDialog::files().multiple(true);
+        let dialog = if media {
+            dialog.filter(FileFilter::new(
+                tr(i18n, "Pictures and videos", "图片和视频"),
+                MEDIA_EXTENSIONS,
+            ))
+        } else {
+            dialog
+        };
+        spawn(async move {
+            match pick_paths(dialog).await {
+                Ok(Some(paths)) if !paths.is_empty() => {
+                    let mode = if media {
+                        files::Mode::Media
+                    } else {
+                        files::Mode::Files
+                    };
+                    action.set(Some(Action::Files(
+                        paths
+                            .into_iter()
+                            .map(|path| AttachmentSource::Path(path.to_string_lossy().into_owned()))
+                            .collect(),
+                        mode,
+                    )));
+                }
+                Ok(_) => {}
+                Err(_) => failed.set(true),
+            }
+        });
+    };
     view()
         .child(
             ui::menu()
                 .offset(px(8.0))
                 .trigger(
-                    ui::icon_button()
-                        .size_10()
-                        .px_1()
-                        .py_1()
+                    tool_button()
                         .accessibility_label(move || Some(i18n.text(Key::Attachment).into()))
                         .child(ui::icon(ui::Icon::Add).size_6()),
                 )
-                .child(
-                    menu_item()
-                        .px_3()
-                        .py_2()
-                        .rounded_md()
-                        .hover(|s| s.bg(move || theme().accent))
-                        .child(text(move || tr(i18n, "Contact…", "联系人…")).text_sm())
-                        .on_select(move || action.set(Some(Action::Contact))),
-                )
-                .children([false, true].into_iter().map(move |media| {
-                    menu_item()
-                        .px_3()
-                        .py_2()
-                        .rounded_md()
-                        .hover(|s| s.bg(move || theme().accent))
-                        .child(
-                            text(move || {
-                                if media {
-                                    tr(i18n, "Pictures and videos…", "图片和视频…")
-                                } else {
-                                    tr(i18n, "Files…", "文件…")
-                                }
-                            })
-                            .text_sm(),
-                        )
-                        .on_select(move || {
-                            spawn(async move {
-                                match pick_paths(OpenDialog::files().multiple(true)).await {
-                                    Ok(Some(paths)) if !paths.is_empty() => {
-                                        action.set(Some(Action::Files(
-                                            paths
-                                                .into_iter()
-                                                .map(|p| {
-                                                    AttachmentSource::Path(
-                                                        p.to_string_lossy().into_owned(),
-                                                    )
-                                                })
-                                                .collect(),
-                                            if media {
-                                                files::Mode::Media
-                                            } else {
-                                                files::Mode::Files
-                                            },
-                                        )))
-                                    }
-                                    Ok(_) => {}
-                                    Err(_) => failed.set(true),
-                                }
-                            });
-                        })
-                }))
-                .child(
-                    menu_item()
-                        .px_3()
-                        .py_2()
-                        .rounded_md()
-                        .hover(|s| s.bg(move || theme().accent))
-                        .child(text(move || tr(i18n, "Post…", "文章…")).text_sm())
-                        .on_select(move || action.set(Some(Action::Post))),
-                ),
+                .child(menu_row(
+                    move || tr(i18n, "Contact…", "联系人…"),
+                    move || action.set(Some(Action::Contact)),
+                ))
+                .child(menu_row(
+                    move || tr(i18n, "Files…", "文件…"),
+                    move || pick(false),
+                ))
+                .child(menu_row(
+                    move || tr(i18n, "Pictures and videos…", "图片和视频…"),
+                    move || pick(true),
+                ))
+                .child(menu_row(
+                    move || tr(i18n, "Post…", "文章…"),
+                    move || action.set(Some(Action::Post)),
+                )),
         )
         .child(when(
-            move || presence.mounted(),
+            move || host.presence.mounted(),
             move || {
                 cleanup(move || {
                     let _ = shown.try_set(None);
@@ -132,35 +153,11 @@ pub(crate) fn attachments(
                 dynamic(move || {
                     let selected = shown.get();
                     untracked(|| match selected {
-                        Some(Action::Contact) => forms::contact(
-                            account.with(|a| a.clone()),
-                            id.with(|id| id.clone()),
-                            quote,
-                            move || action.set(None),
-                            failed,
-                            presence,
-                        )
-                        .into_element(),
-                        Some(Action::Post) => forms::post(
-                            account.with(|a| a.clone()),
-                            id.with(|id| id.clone()),
-                            move || action.set(None),
-                            quote,
-                            presence,
-                        )
-                        .into_element(),
-                        Some(Action::Files(paths, mode)) => files::preview(
-                            account.with(|a| a.clone()),
-                            id.with(|id| id.clone()),
-                            paths,
-                            mode,
-                            incoming,
-                            quote,
-                            move || action.set(None),
-                            failed,
-                            presence,
-                        )
-                        .into_element(),
+                        Some(Action::Contact) => forms::contact(host).into_element(),
+                        Some(Action::Post) => forms::post(host).into_element(),
+                        Some(Action::Files(paths, mode)) => {
+                            files::preview(host, paths, mode, incoming).into_element()
+                        }
                         None => view().hidden().into_element(),
                     })
                 })

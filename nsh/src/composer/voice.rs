@@ -11,7 +11,7 @@ use std::sync::{
 
 mod surface;
 
-use super::tr;
+use super::{clear_quote, media_client, quote_id, tr};
 use crate::{
     i18n::{self, Key},
     runtime,
@@ -19,6 +19,9 @@ use crate::{
 
 #[derive(Clone, Copy)]
 pub(crate) struct Voice {
+    // Commands start under the surface branch for the current status, and a
+    // status event can dispose that branch before their result arrives.
+    owner: Owner,
     media: Stored<Arc<MediaClient>>,
     playback_context: crate::playback::Playback,
     account: Stored<Arc<AccountClient>>,
@@ -36,9 +39,25 @@ pub(crate) struct Voice {
     bounds: Signal<Option<Measurement>>,
     measuring: Signal<u64>,
 }
+fn idle() -> VoiceRecorderSnapshot {
+    VoiceRecorderSnapshot {
+        session_id: None,
+        status: VoiceRecorderStatus::Idle,
+        recording: None,
+        duration_millis: 0,
+        waveform: Vec::new(),
+    }
+}
+
 impl Voice {
     fn active(self) -> bool {
         self.open.get()
+    }
+
+    fn task(self, work: impl std::future::Future<Output = ()> + 'static) {
+        self.owner.run(|| {
+            spawn(work);
+        });
     }
 
     fn measure(self) {
@@ -46,7 +65,7 @@ impl Voice {
             .update(|version| *version = version.wrapping_add(1));
         let version = self.measuring.get_untracked();
         after_answer(move || {
-            spawn(async move {
+            self.task(async move {
                 let measured = self.anchor.measure().await;
                 if self.measuring.get_untracked() == version {
                     self.bounds.set(measured);
@@ -68,7 +87,7 @@ impl Voice {
         let id = self.session.with(|id| id.load(Ordering::Acquire));
         let i18n = i18n::current();
         self.discarding.set(true);
-        spawn(async move {
+        self.task(async move {
             let result = nsh_base::alert_dialog()
                 .title(tr(i18n, "Discard recording?", "放弃录音？"))
                 .description(tr(
@@ -107,20 +126,14 @@ impl Voice {
         let preview = self
             .snapshot
             .with(|s| s.recording.as_ref().map(|r| r.path.clone()));
-        self.snapshot.update(|snapshot| {
-            snapshot.status = VoiceRecorderStatus::Idle;
-            snapshot.recording = None;
-            snapshot.session_id = None;
-            snapshot.duration_millis = 0;
-            snapshot.waveform.clear();
-        });
+        self.snapshot.set(idle());
         let media = self.media.with(|m| m.clone());
         let session = self.session.with(|s| s.clone());
         let disposed = self.disposed.with(|d| d.clone());
         self.busy.set(true);
         self.failed.set(false);
         self.open.set(true);
-        spawn(async move {
+        self.task(async move {
             let result = runtime::commit(async move {
                 stop_preview(&media, preview.as_deref()).await?;
                 let id = media.start_voice_session().await?;
@@ -153,7 +166,7 @@ impl Voice {
         let media = self.media.with(|m| m.clone());
         let disposed = self.disposed.with(|d| d.clone());
         self.busy.set(true);
-        spawn(async move {
+        self.task(async move {
             let result = runtime::commit(async move {
                 let recording = media.stop_voice_session(id).await?;
                 if disposed.load(Ordering::Acquire) {
@@ -198,7 +211,7 @@ impl Voice {
             .snapshot
             .with(|s| s.recording.as_ref().map(|r| r.path.clone()));
         self.busy.set(true);
-        spawn(async move {
+        self.task(async move {
             self.failed.set(
                 runtime::commit(async move {
                     let stopping = stop_preview(&media, preview.as_deref()).await;
@@ -224,7 +237,7 @@ impl Voice {
         let current = self.playback.get_untracked();
         self.playback_context.cancel_pending();
         let disposed = self.disposed.with(|d| d.clone());
-        spawn(async move {
+        self.task(async move {
             self.failed.set(
                 runtime::run(async move {
                     if disposed.load(Ordering::Acquire) {
@@ -273,13 +286,11 @@ impl Voice {
         let media = self.media.with(|m| m.clone());
         let client = self.account.with(|a| a.clone());
         let conversation = self.conversation.with(|id| id.clone());
-        let sent_quote = self
-            .quote
-            .with(|q| q.as_ref().map(|m| m.message_id.clone()));
-        let quote_id = sent_quote.clone();
+        let sent_quote = quote_id(self.quote);
+        let quote = sent_quote.clone();
         self.busy.set(true);
         self.failed.set(false);
-        spawn(async move {
+        self.task(async move {
             let result = runtime::commit(async move {
                 // The click already holds the immutable source lease. Cancelling
                 // this session releases capture without deleting the leased file.
@@ -292,7 +303,7 @@ impl Voice {
                         recording.path.clone(),
                         recording.duration_millis as i64,
                         recording.waveform.clone(),
-                        quote_id,
+                        quote,
                     )
                     .await;
                 drop(recording);
@@ -303,13 +314,7 @@ impl Voice {
             match result {
                 Ok(receipt) => {
                     self.failed.set(receipt.upload_error.is_some());
-                    if self
-                        .quote
-                        .with(|q| q.as_ref().map(|m| m.message_id.clone()))
-                        == sent_quote
-                    {
-                        self.quote.set(None);
-                    }
+                    clear_quote(self.quote, sent_quote);
                     self.clear();
                 }
                 Err(_) => self.failed.set(true),
@@ -340,28 +345,20 @@ impl Voice {
         failed: Signal<bool>,
         quote: Signal<Option<MessageListView>>,
     ) -> Self {
-        let media = use_context::<Stored<Option<Arc<MediaClient>>>>()
-            .expect("App provides media")
-            .with(|m| m.clone())
-            .expect("Desktop media initialized");
+        let media = media_client();
         let session = Arc::new(AtomicU64::new(0));
         let disposed = Arc::new(AtomicBool::new(false));
         let playback_context =
             use_context::<crate::playback::Playback>().expect("Home provides playback");
         let voice = Voice {
+            owner: Owner::current(),
             media: stored(media.clone()),
             playback_context,
             account: stored(account),
             conversation: stored(conversation),
             session: stored(session.clone()),
             disposed: stored(disposed.clone()),
-            snapshot: signal(VoiceRecorderSnapshot {
-                session_id: None,
-                status: VoiceRecorderStatus::Idle,
-                recording: None,
-                duration_millis: 0,
-                waveform: Vec::new(),
-            }),
+            snapshot: signal(idle()),
             playback: playback_context.snapshot_signal(),
             open: signal(false),
             busy: signal(false),

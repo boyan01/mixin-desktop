@@ -4,7 +4,7 @@ use nsh_base::theme;
 use nsh_core::prelude::*;
 use std::{rc::Rc, sync::Arc};
 
-use super::tr;
+use super::{failure, tr};
 use crate::{i18n, runtime, ui};
 
 pub(crate) fn mentions(
@@ -17,6 +17,7 @@ pub(crate) fn mentions(
     input: super::Input,
 ) -> impl IntoElement {
     const ROW_HEIGHT: f32 = 48.0;
+    const MAX_HEIGHT: f32 = ROW_HEIGHT * 3.5;
     let i18n = i18n::current();
     let candidate = computed(move || candidate(&draft.get(), selection.get()));
     let dismissed = signal(None::<(usize, usize, String)>);
@@ -33,11 +34,14 @@ pub(crate) fn mentions(
             );
             let loading = signal(false);
             let failed = signal(false);
-            let visible =
-                computed(move || loading.get() || failed.get() || !rows.with(Vec::is_empty));
-            effect(move || input.picker(visible.get()));
             let selected = signal(0_usize);
             let loaded = signal(None::<(usize, usize, String)>);
+            // Group messages refresh a settled query; only a new query is "searching".
+            let searching = computed(move || loading.get() && loaded.get() != candidate.get());
+            // The picker owns editor keys only while there is something to pick.
+            // A failed lookup leaves Enter free to send the draft.
+            let picking = computed(move || searching.get() || !rows.with(Vec::is_empty));
+            effect(move || input.picker(picking.get()));
             let refresh = signal(0_u64);
             let observer = account.with(|account| account.clone());
             spawn(async move {
@@ -67,9 +71,8 @@ pub(crate) fn mentions(
                 let id = conversation.with(|id| id.clone());
                 loading.set(true);
                 failed.set(false);
-                selected.set(0);
-                loaded.set(None);
-                rows.set(Vec::new());
+                // Rows stay until their replacement arrives: every group message
+                // refreshes this query, and `loaded` still guards choosing.
                 spawn(async move {
                     let result = runtime::run(async move {
                         if bot {
@@ -82,15 +85,22 @@ pub(crate) fn mentions(
                         }
                     })
                     .await;
-                    if candidate.get_untracked().as_ref() != Some(&request) {
-                        return;
-                    }
                     match result {
                         Ok(values) => {
-                            rows.set(values);
-                            loaded.set(Some(request));
+                            let same_query = loaded.get_untracked().as_ref() == Some(&request);
+                            let last = values.len().saturating_sub(1);
+                            batch(|| {
+                                selected.update(|at| {
+                                    *at = if same_query { (*at).min(last) } else { 0 }
+                                });
+                                rows.set(values);
+                                loaded.set(Some(request));
+                            });
                         }
-                        Err(_) => failed.set(true),
+                        Err(_) => {
+                            rows.set(Vec::new());
+                            failed.set(true);
+                        }
                     }
                     loading.set(false);
                 });
@@ -119,43 +129,49 @@ pub(crate) fn mentions(
                 let (revision, key) = input.keys.get();
                 if seen.with(|seen| seen.replace(revision)) == revision
                     || input.composing()
-                    || !visible.get_untracked()
+                    || !picking.get_untracked()
                 {
                     return;
                 }
                 match key.as_str() {
                     "Escape" => dismissed.set(candidate.get_untracked()),
-                    "ArrowDown" => selected
-                        .update(|at| *at = (*at + 1).min(rows.with(Vec::len).saturating_sub(1))),
+                    "ArrowDown" => {
+                        let last = rows.with_untracked(Vec::len).saturating_sub(1);
+                        selected.update(|at| *at = (*at + 1).min(last));
+                    }
                     "ArrowUp" => selected.update(|at| *at = at.saturating_sub(1)),
                     "Enter" | "Tab" => choose(selected.get_untracked()),
                     _ => {}
                 }
             });
             view()
-                .style_when(move || !visible.get(), |style| style.hidden())
+                .style_when(
+                    move || !picking.get() && !failed.get(),
+                    |style| style.hidden(),
+                )
                 .role(AccessibilityRole::Listbox)
-                .max_h_48()
                 .min_h_0()
                 .border_b_1()
                 .border_color(move || theme().border)
                 .bg(move || theme().popover)
-                .child(when(loading, move || {
-                    text(move || tr(i18n, "Loading members…", "正在加载群成员…"))
-                        .px_3()
-                        .text_sm()
-                }))
+                .child(when(
+                    move || searching.get() && rows.with(Vec::is_empty),
+                    move || {
+                        text(move || tr(i18n, "Loading members…", "正在加载群成员…"))
+                            .px_3()
+                            .py_2()
+                            .text_sm()
+                            .text_color(move || theme().muted_foreground)
+                    },
+                ))
                 .child(when(failed, move || {
-                    text(move || {
+                    view().px_3().py_2().child(failure(move || {
                         tr(
                             i18n,
                             "Couldn’t load members. Type again to retry.",
                             "无法加载群成员，请重新输入重试。",
                         )
-                    })
-                    .px_3()
-                    .text_sm()
-                    .text_color(move || theme().destructive)
+                    }))
                 }))
                 .child(
                     virtual_list(
@@ -228,7 +244,7 @@ pub(crate) fn mentions(
                     })
                     .element_ref(&list)
                     .estimated_item_size(px(ROW_HEIGHT))
-                    .h(move || px((rows.with(Vec::len) as f32 * ROW_HEIGHT).min(128.0))),
+                    .h(move || px((rows.with(Vec::len) as f32 * ROW_HEIGHT).min(MAX_HEIGHT))),
                 )
         },
     )

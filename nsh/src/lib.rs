@@ -34,7 +34,9 @@ mod transfer;
 pub use shell::{Launch, NotificationTarget, prepare_launch};
 mod ui;
 
-use mixin_desktop_api::{AccountClient, ClientError, DesktopClient};
+use mixin_desktop_api::{
+    AccountClient, ClientError, ClientResult, DesktopClient, MediaClient, SettingsClient,
+};
 use nsh_base::theme;
 use nsh_core::prelude::*;
 use std::sync::Arc;
@@ -65,9 +67,9 @@ pub fn App() -> impl IntoElement {
     provide_context(shell);
     let notifications = notifications::mount();
     provide_context(notifications);
-    let settings = stored(None::<mixin_desktop_api::SettingsClient>);
+    let settings = stored(None::<SettingsClient>);
     provide_context(settings);
-    let media = stored(None::<Arc<mixin_desktop_api::MediaClient>>);
+    let media = stored(None::<Arc<MediaClient>>);
     provide_context(media);
     let phase = signal_with(Phase::Launching, SignalEquals::Never);
     let retry = signal(0_u64);
@@ -76,54 +78,7 @@ pub fn App() -> impl IntoElement {
         let _revision = retry.get();
         phase.set(Phase::Launching);
         spawn(async move {
-            let result = runtime::run(async {
-                if std::env::var_os("MIXIN_DESKTOP_DATA_DIR").is_none_or(|path| path.is_empty()) {
-                    return Err(ClientError::InvalidArgument(
-                        "Launch with cargo run -p mixin_desktop_ui, or set MIXIN_DESKTOP_DATA_DIR to an isolated directory.".into(),
-                    ));
-                }
-                DesktopClient::open().await
-            }).await;
-            let result = match result {
-                Ok(desktop) => {
-                    media.replace(Some(desktop.media()));
-                    settings.replace(Some(desktop.settings()));
-                    let appearance = desktop.settings();
-                    spawn(async move {
-                        let mut updates = Box::pin(crate::runtime::observe(
-                            appearance.subscribe_setting("desktop_ui_appearance".into()),
-                        ));
-                        use futures::StreamExt as _;
-                        while let Some(update) = updates.next().await {
-                            match update {
-                                Ok(value) => set_color_scheme(match value.as_deref() {
-                                    Some("light") => nsh_core::platform::Appearance::Light,
-                                    Some("dark") => nsh_core::platform::Appearance::Dark,
-                                    _ => nsh_core::platform::Appearance::System,
-                                }),
-                                Err(error) => log::warn!("Loading appearance failed: {error}"),
-                            }
-                        }
-                    });
-                    i18n.load(desktop.settings()).await;
-                    runtime::run(async move {
-                        match desktop.restore_account().await {
-                            Ok(account) => {
-                                let account = Arc::new(account);
-                                runtime::retain_account(account.clone());
-                                Ok(Phase::SignedIn(account))
-                            }
-                            Err(ClientError::NotFound) => {
-                                runtime::release_account();
-                                Ok(Phase::SignedOut(desktop))
-                            }
-                            Err(error) => Err(error),
-                        }
-                    })
-                    .await
-                }
-                Err(error) => Err(error),
-            };
+            let result = launch(i18n, settings, media).await;
             phase.set(result.unwrap_or_else(|error| {
                 log::warn!("Opening the desktop runtime failed: {error}");
                 Phase::Failed
@@ -138,26 +93,119 @@ pub fn App() -> impl IntoElement {
         .child(dynamic(move || {
             let current = phase.get();
             untracked(|| match current {
-                Phase::Launching => {
-                    ui::centered(move || i18n.text(i18n::Key::Opening)).into_element()
-                }
+                Phase::Launching => status_screen(
+                    view()
+                        .flex_row()
+                        .items_center()
+                        .gap_2()
+                        .child(ui::busy_indicator(
+                            || true,
+                            move || i18n.text(i18n::Key::Opening).into(),
+                        ))
+                        .child(
+                            text(move || i18n.text(i18n::Key::Opening))
+                                .text_sm()
+                                .text_color(move || theme().muted_foreground),
+                        ),
+                )
+                .into_element(),
                 Phase::SignedOut(desktop) => login::screen(desktop, phase).into_element(),
                 Phase::SignedIn(account) => ui::owned(account.account_id(), move || {
                     home::screen(account.clone(), move || retry.update(|value| *value += 1))
                 })
                 .into_element(),
-                Phase::Failed => ui::centered(move || i18n.text(i18n::Key::OpenFailed))
-                    .child(
-                        text(move || i18n.text(i18n::Key::OpenFailedBody))
-                            .text_color(move || theme().muted_foreground),
-                    )
-                    .child(ui::action(
-                        move || i18n.text(i18n::Key::Retry),
-                        move || retry.update(|value| *value += 1),
-                    ))
-                    .into_element(),
+                Phase::Failed => status_screen(
+                    view()
+                        .gap_3()
+                        .items_center()
+                        .child(
+                            text(move || i18n.text(i18n::Key::OpenFailed))
+                                .text_lg()
+                                .font_weight(FontWeight::SEMIBOLD),
+                        )
+                        .child(
+                            text(move || i18n.text(i18n::Key::OpenFailedBody))
+                                .text_sm()
+                                .text_center()
+                                .text_color(move || theme().muted_foreground),
+                        )
+                        .child(ui::action(
+                            move || i18n.text(i18n::Key::Retry),
+                            move || retry.update(|value| *value += 1),
+                        )),
+                )
+                .into_element(),
             })
         }))
+}
+
+/// A signed-out window has no sidebar, so this screen keeps the title bar draggable.
+fn status_screen(content: View) -> View {
+    view()
+        .flex_1()
+        .child(view().h_12().window_drag(true))
+        .child(
+            view()
+                .flex_1()
+                .p_8()
+                .items_center()
+                .justify_center()
+                .child(content),
+        )
+}
+
+async fn launch(
+    i18n: i18n::I18n,
+    settings: Stored<Option<SettingsClient>>,
+    media: Stored<Option<Arc<MediaClient>>>,
+) -> ClientResult<Phase> {
+    let desktop = runtime::run(async {
+        if std::env::var_os("MIXIN_DESKTOP_DATA_DIR").is_none_or(|path| path.is_empty()) {
+            return Err(ClientError::InvalidArgument(
+                "Launch with cargo run -p mixin_desktop_ui, or set MIXIN_DESKTOP_DATA_DIR to an isolated directory.".into(),
+            ));
+        }
+        DesktopClient::open().await
+    })
+    .await?;
+    media.replace(Some(desktop.media()));
+    settings.replace(Some(desktop.settings()));
+    follow_appearance(desktop.settings());
+    i18n.load(desktop.settings()).await;
+    runtime::run(async move {
+        match desktop.restore_account().await {
+            Ok(account) => {
+                let account = Arc::new(account);
+                runtime::retain_account(account.clone());
+                Ok(Phase::SignedIn(account))
+            }
+            Err(ClientError::NotFound) => {
+                runtime::release_account();
+                Ok(Phase::SignedOut(desktop))
+            }
+            Err(error) => Err(error),
+        }
+    })
+    .await
+}
+
+fn follow_appearance(settings: SettingsClient) {
+    spawn(async move {
+        use futures::StreamExt as _;
+        let mut updates = Box::pin(runtime::observe(
+            settings.subscribe_setting("desktop_ui_appearance".into()),
+        ));
+        while let Some(update) = updates.next().await {
+            match update {
+                Ok(value) => set_color_scheme(match value.as_deref() {
+                    Some("light") => nsh_core::platform::Appearance::Light,
+                    Some("dark") => nsh_core::platform::Appearance::Dark,
+                    _ => nsh_core::platform::Appearance::System,
+                }),
+                Err(error) => log::warn!("Loading appearance failed: {error}"),
+            }
+        }
+    });
 }
 
 /// Registers app-owned native controls before the macOS engine starts.

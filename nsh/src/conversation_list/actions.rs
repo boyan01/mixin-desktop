@@ -1,11 +1,11 @@
 use std::{future::Future, sync::Arc};
 
 use mixin_desktop_api::{AccountClient, ClientResult, ConversationListData};
-use nsh_base::{alert_dialog, menu_item, theme};
-use nsh_core::prelude::*;
+use nsh_base::{alert_dialog, theme};
+use nsh_core::{element::desktop::MenuItem, prelude::*};
 
 use crate::{
-    i18n::{self, I18n, Key},
+    i18n::{self, Key},
     runtime, ui,
 };
 
@@ -53,38 +53,19 @@ impl State {
     }
 }
 
-fn tr(i18n: I18n, en: &'static str, zh: &'static str) -> &'static str {
-    i18n.tr(en, zh)
-}
-
-fn item(label: &'static str, action: impl Fn() + 'static) -> impl IntoElement {
-    menu_item()
-        .px_3()
-        .py_2()
-        .rounded_md()
-        .hover(|s| s.bg(move || theme().accent))
-        .focus(|s| s.bg(move || theme().accent))
-        .on_select(action)
-        .child(text(label).text_sm())
-}
-
 impl State {
     pub(crate) fn toggle_pin(self, row: ConversationListData) {
         let account = self.account.with(|account| account.clone());
         self.execute(async move {
-            let access = account.conversation();
-            let current = access
-                .conversation_items_by_ids(vec![row.conversation_id.clone()])
-                .await?
-                .into_iter()
-                .next()
-                .ok_or(mixin_desktop_api::ClientError::NotFound)?;
-            access
+            let current = latest(&account, row.conversation_id).await?;
+            account
+                .conversation()
                 .set_pinned(current.conversation_id, !current.is_pinned)
                 .await
         });
     }
 
+    /// Unmutes at once; muting first asks for how long.
     pub(crate) fn toggle_mute(self, row: ConversationListData) {
         if self.busy.get_untracked() {
             return;
@@ -95,28 +76,18 @@ impl State {
         self.owner.run(|| {
             spawn(async move {
                 let client = account.clone();
-                let result = runtime::run(async move {
-                    client
-                        .conversation()
-                        .conversation_items_by_ids(vec![row.conversation_id])
-                        .await?
-                        .into_iter()
-                        .next()
-                        .ok_or(mixin_desktop_api::ClientError::NotFound)
-                })
-                .await;
+                let result =
+                    runtime::run(async move { latest(&client, row.conversation_id).await }).await;
                 match result {
                     Ok(row) if row.is_muted => {
-                        self.failed.set(
-                            runtime::commit(async move {
-                                account
-                                    .conversation()
-                                    .set_muted(row.conversation_id, row.owner_id, row.category, 0)
-                                    .await
-                            })
-                            .await
-                            .is_err(),
-                        );
+                        let result = runtime::commit(async move {
+                            account
+                                .conversation()
+                                .set_muted(row.conversation_id, row.owner_id, row.category, 0)
+                                .await
+                        })
+                        .await;
+                        self.failed.set(result.is_err());
                     }
                     Ok(row) => self.muting.set(Some(row)),
                     Err(_) => self.failed.set(true),
@@ -138,13 +109,12 @@ impl State {
                     i18n.format("Delete “{name}”?", "删除“{name}”？", &[("name", &row.name)]);
                 let answer = alert_dialog()
                     .title(title)
-                    .description(tr(
-                        i18n,
+                    .description(i18n.tr(
                         "This removes the chat and its message history from this device.",
                         "此操作将从此设备删除会话及其聊天记录。",
                     ))
                     .cancel("cancel", i18n.text(Key::Cancel))
-                    .destructive("delete", tr(i18n, "Delete", "删除"))
+                    .destructive("delete", i18n.tr("Delete", "删除"))
                     .show()
                     .await;
                 if !answer.is_ok_and(|answer| answer.action.as_deref() == Some("delete"))
@@ -175,161 +145,155 @@ impl State {
     }
 }
 
+async fn latest(
+    account: &AccountClient,
+    conversation_id: String,
+) -> ClientResult<ConversationListData> {
+    account
+        .conversation()
+        .conversation_items_by_ids(vec![conversation_id])
+        .await?
+        .into_iter()
+        .next()
+        .ok_or(mixin_desktop_api::ClientError::NotFound)
+}
+
 pub(crate) fn wrap(
     state: State,
     row: impl Fn() -> Option<ConversationListData> + Copy + 'static,
     content: impl IntoElement + 'static,
 ) -> impl IntoElement {
     let i18n = i18n::current();
-    ui::context_menu().trigger(content).child(dynamic(move || {
-        let Some(row) = untracked(row) else {
-            return view().hidden().into_element();
+    ui::native_context_menu(content, move || {
+        let Some(row) = row() else {
+            return Vec::new();
         };
-        let pinned = row.is_pinned;
-        let muted = row.is_muted;
-        let row = stored(row);
-        view()
-            .child(item(
-                tr(
-                    i18n,
-                    if pinned { "Unpin" } else { "Pin" },
-                    if pinned { "取消置顶" } else { "置顶" },
-                ),
-                move || state.toggle_pin(row.with(|row| row.clone())),
-            ))
-            .child(item(
-                tr(
-                    i18n,
-                    if muted { "Unmute" } else { "Mute…" },
-                    if muted { "取消静音" } else { "静音…" },
-                ),
-                move || state.toggle_mute(row.with(|row| row.clone())),
-            ))
-            .child(crate::sidebar::circle_membership_item(
-                state.circles,
-                move || Some(row.with(|row| row.clone())),
-            ))
-            .child(item(
-                tr(i18n, "Delete chat…", "删除会话…"),
-                move || state.remove(row.with(|row| row.clone())),
-            ))
-            .into_element()
-    }))
+        let pin_title = if row.is_pinned {
+            i18n.tr("Unpin", "取消置顶")
+        } else {
+            i18n.tr("Pin", "置顶")
+        };
+        let mute_title = if row.is_muted {
+            i18n.tr("Unmute", "取消静音")
+        } else {
+            i18n.tr("Mute…", "静音…")
+        };
+        let pin = row.clone();
+        let mute = row.clone();
+        vec![
+            MenuItem::new(pin_title).on_select(move || state.toggle_pin(pin.clone())),
+            MenuItem::new(mute_title).on_select(move || state.toggle_mute(mute.clone())),
+            crate::sidebar::circle_membership_item(state.circles, row.clone()),
+            MenuItem::new(i18n.tr("Delete chat…", "删除会话…"))
+                .on_select(move || state.remove(row.clone())),
+        ]
+    })
 }
 
 pub(crate) fn surface(state: State) -> impl IntoElement {
-    let i18n = i18n::current();
     let presence = crate::motion::Presence::modal(move || state.muting.with(Option::is_some));
+    let i18n = i18n::current();
     view()
         .child(when(state.failed, move || {
+            // Over the panes: this surface is a sibling of the home columns.
             view()
+                .absolute()
+                .right_4()
+                .bottom_4()
+                .max_w_80()
                 .px_4()
                 .py_2()
                 .flex_row()
+                .items_center()
                 .gap_2()
-                .child(
-                    text(move || i18n.text(Key::CommandFailed))
-                        .text_sm()
-                        .text_color(move || theme().destructive)
-                        .flex_1(),
-                )
+                .rounded_lg()
+                .bg(move || theme().popover)
+                .border_1()
+                .border_color(move || theme().border)
+                .shadow_lg()
+                .child(ui::error_text(move || i18n.text(Key::CommandFailed)).flex_1())
                 .child(ui::action(
-                    move || tr(i18n, "Dismiss", "关闭"),
+                    move || i18n.tr("Dismiss", "关闭"),
                     move || state.failed.set(false),
                 ))
         }))
         .child(when(
             move || presence.mounted(),
-            move || {
-                let duration = signal(None::<i64>);
-                ui::modal(
-                    presence,
-                    move || {
-                        if !state.busy.get_untracked() {
-                            state.muting.set(None);
-                        }
-                    },
-                    view()
-                        .w_80()
-                        .max_w(relative(1.0))
-                        .p_6()
-                        .gap_4()
-                        .rounded_xl()
-                        .bg(move || theme().popover)
-                        .child(
-                            text(move || tr(i18n, "Mute notifications", "通知静音"))
-                                .text_lg()
-                                .font_weight(FontWeight::SEMIBOLD),
-                        )
-                        .children(
-                            [
-                                (3600, "1 hour", "1 小时"),
-                                (28800, "8 hours", "8 小时"),
-                                (604800, "1 week", "1 周"),
-                                (31536000, "1 year", "1 年"),
-                            ]
-                            .into_iter()
-                            .map(move |(seconds, en, zh)| {
-                                ui::command()
-                                    .justify_start()
-                                    .selected(move || duration.get() == Some(seconds))
-                                    .selected_style(|s| s.bg(move || theme().accent))
-                                    .disabled(state.busy)
-                                    .on_press(move || duration.set(Some(seconds)))
-                                    .child(text(move || tr(i18n, en, zh)))
-                            }),
-                        )
-                        .child(
-                            view()
-                                .flex_row()
-                                .justify_end()
-                                .gap_2()
-                                .child(
-                                    ui::action(
-                                        move || i18n.text(Key::Cancel),
-                                        move || state.muting.set(None),
-                                    )
-                                    .disabled(state.busy),
-                                )
-                                .child(
-                                    ui::primary()
-                                        .disabled(move || {
-                                            duration.get().is_none() || state.busy.get()
-                                        })
-                                        .child(text(move || tr(i18n, "Mute", "静音")))
-                                        .on_press(move || {
-                                            let (Some(row), Some(seconds)) = (
-                                                state.muting.get_untracked(),
-                                                duration.get_untracked(),
-                                            ) else {
-                                                return;
-                                            };
-                                            let account =
-                                                state.account.with(|account| account.clone());
-                                            state.busy.set(true);
-                                            spawn(async move {
-                                                let result = runtime::commit(async move {
-                                                    account
-                                                        .conversation()
-                                                        .set_muted(
-                                                            row.conversation_id,
-                                                            row.owner_id,
-                                                            row.category,
-                                                            seconds,
-                                                        )
-                                                        .await
-                                                })
-                                                .await;
-                                                state.busy.set(false);
-                                                state.failed.set(result.is_err());
-                                                if result.is_ok() {
-                                                    state.muting.set(None);
-                                                }
-                                            });
-                                        }),
-                                ),
-                        ),
-                )
-            },
+            move || mute_dialog(state, presence),
         ))
+}
+
+fn mute_dialog(state: State, presence: crate::motion::Presence) -> impl IntoElement {
+    let i18n = i18n::current();
+    let duration = signal(None::<i64>);
+    let confirm = move || {
+        let (Some(row), Some(seconds)) = (state.muting.get_untracked(), duration.get_untracked())
+        else {
+            return;
+        };
+        let account = state.account.with(|account| account.clone());
+        state.busy.set(true);
+        spawn(async move {
+            let result = runtime::commit(async move {
+                account
+                    .conversation()
+                    .set_muted(row.conversation_id, row.owner_id, row.category, seconds)
+                    .await
+            })
+            .await;
+            state.busy.set(false);
+            state.failed.set(result.is_err());
+            if result.is_ok() {
+                state.muting.set(None);
+            }
+        });
+    };
+    ui::modal(
+        presence,
+        move || {
+            if !state.busy.get_untracked() {
+                state.muting.set(None);
+            }
+        },
+        ui::modal_card()
+            .child(ui::modal_title(move || {
+                i18n.tr("Mute notifications", "通知静音")
+            }))
+            .children(
+                [
+                    (3600, "1 hour", "1 小时"),
+                    (28800, "8 hours", "8 小时"),
+                    (604800, "1 week", "1 周"),
+                    (31536000, "1 year", "1 年"),
+                ]
+                .into_iter()
+                .map(move |(seconds, en, zh)| {
+                    ui::command()
+                        .justify_start()
+                        .selected(move || duration.get() == Some(seconds))
+                        .disabled(state.busy)
+                        .on_press(move || duration.set(Some(seconds)))
+                        .child(text(move || i18n.tr(en, zh)))
+                }),
+            )
+            .child(
+                view()
+                    .flex_row()
+                    .justify_end()
+                    .gap_2()
+                    .child(
+                        ui::action(
+                            move || i18n.text(Key::Cancel),
+                            move || state.muting.set(None),
+                        )
+                        .disabled(state.busy),
+                    )
+                    .child(
+                        ui::primary()
+                            .disabled(move || duration.get().is_none() || state.busy.get())
+                            .child(text(move || i18n.tr("Mute", "静音")))
+                            .on_press(confirm),
+                    ),
+            ),
+    )
 }

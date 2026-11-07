@@ -6,11 +6,7 @@ use mixin_desktop_api::active_membership_plan;
 use nsh_base::theme;
 use nsh_core::{element::ImageSrc, prelude::*};
 
-use crate::i18n::{self, Key};
-
-fn tr(en: &'static str, zh: &'static str) -> &'static str {
-    crate::i18n::tr(en, zh)
-}
+use crate::i18n::{self, Key, tr};
 
 pub(crate) fn identity_badge(
     group: bool,

@@ -214,15 +214,18 @@ impl Appearance {
             Field::Font => confirmed.2 = value,
         });
     }
+    fn confirmed_value(self, field: Field) -> f64 {
+        self.confirmed.with(|confirmed| match field {
+            Field::Avatar => u8::from(confirmed.0) as f64,
+            Field::Identity => u8::from(confirmed.1) as f64,
+            Field::Font => confirmed.2,
+        })
+    }
     fn save(self, field: Field, value: f64) {
         if !self.ready() || self.busy.get_untracked() {
             return;
         }
-        let previous = self.confirmed.with(|confirmed| match field {
-            Field::Avatar => u8::from(confirmed.0) as f64,
-            Field::Identity => u8::from(confirmed.1) as f64,
-            Field::Font => confirmed.2,
-        });
+        let previous = self.confirmed_value(field);
         if !matches!(field, Field::Font) || !self.previewing.get_untracked() {
             self.display(field, value);
         }
@@ -268,14 +271,7 @@ impl Appearance {
                     }
                     None => {
                         if apply_current {
-                            self.display(
-                                field,
-                                self.confirmed.with(|confirmed| match field {
-                                    Field::Avatar => u8::from(confirmed.0) as f64,
-                                    Field::Identity => u8::from(confirmed.1) as f64,
-                                    Field::Font => confirmed.2,
-                                }),
-                            );
+                            self.display(field, self.confirmed_value(field));
                         }
                         self.failed.set(true);
                     }

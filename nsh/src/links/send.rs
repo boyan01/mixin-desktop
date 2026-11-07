@@ -3,7 +3,7 @@ use super::{
     parse::{Payload, Recipient, Send},
     tr,
 };
-use crate::{runtime, ui};
+use crate::{conversation::parts, runtime, ui};
 use mixin_desktop_api::ClientError;
 use nsh_base::theme;
 use nsh_core::prelude::*;
@@ -18,8 +18,8 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
     let content_ready = signal(true);
     let busy = signal(false);
     let failed = signal(false);
+    let load_failed = signal(false);
     let revision = signal(0_u64);
-    let generation = signal(0_u64);
     let ticket = router.request.get_untracked();
     let cancel_button = element_ref();
     let cancel_choosing = move || {
@@ -30,10 +30,8 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
         let recipient = recipient.get();
         let _revision = revision.get();
         let client = router.client();
-        let attempt = generation.get_untracked().wrapping_add(1);
-        generation.set(attempt);
         ready.set(false);
-        failed.set(false);
+        load_failed.set(false);
         if matches!(recipient, Recipient::Choose) {
             loading.set(false);
             name.set(tr("Choose recipient", "选择接收方").into());
@@ -60,15 +58,12 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                 }
             })
             .await;
-            if generation.get_untracked() != attempt {
-                return;
-            }
             match result {
                 Ok(value) => {
                     name.set(value);
                     ready.set(true);
                 }
-                Err(_) => failed.set(true),
+                Err(_) => load_failed.set(true),
             }
             loading.set(false);
         });
@@ -147,7 +142,7 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                         router.client(),
                         id,
                         Some(message),
-                        router.failure_signal(),
+                        router.failed,
                     );
                 }
                 Err(_) => failed.set(true),
@@ -186,6 +181,7 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                 .child(
                     ui::icon_button()
                         .accessibility_label(move || Some(tr("Close", "关闭").into()))
+                        .disabled(busy)
                         .on_press(move || router.close())
                         .child(ui::icon(ui::Icon::Close)),
                 ),
@@ -199,9 +195,15 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                     .gap_3()
                     .child(text(move || name.get()).flex_none().text_sm())
                     .child(when(loading, || {
-                        text(move || tr("Loading recipient…", "正在加载接收方…"))
+                        parts::status(move || tr("Loading recipient…", "正在加载接收方…"))
                             .flex_none()
-                            .text_sm()
+                    }))
+                    .child(when(load_failed, move || {
+                        parts::failure(
+                            move || tr("Couldn’t load this recipient.", "无法加载此接收方。"),
+                            move || revision.update(|revision| *revision += 1),
+                        )
+                        .flex_none()
                     }))
                     .child(
                         scroll()
@@ -234,32 +236,15 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
             })
         }))
         .child(when(failed, move || {
-            view()
-                .gap_2()
-                .child(
-                    text(move || {
-                        tr(
-                            "Couldn’t send this message. Try again.",
-                            "无法发送此消息，请重试。",
-                        )
-                    })
-                    .text_sm()
-                    .text_color(move || theme().destructive),
+            ui::error_text(move || {
+                tr(
+                    "Couldn’t send this message. Try again.",
+                    "无法发送此消息，请重试。",
                 )
-                .child(
-                    ui::action(
-                        move || tr("Reload recipient", "重新加载接收方"),
-                        move || revision.update(|revision| *revision += 1),
-                    )
-                    .disabled(busy),
-                )
+            })
         }))
         .child(
-            view()
-                .flex_none()
-                .flex_row()
-                .justify_end()
-                .gap_2()
+            parts::dialog_actions()
                 .child(
                     ui::action(
                         move || tr("Cancel", "取消"),

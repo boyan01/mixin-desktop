@@ -5,14 +5,9 @@ Signal, Blaze, sync, jobs, secure screen-lock credentials, media preparation and
 durable settings remain in the shared Rust business layer. NSH owns presentation,
 navigation, disposable editing state and native platform adapters.
 
-This migration is in progress. The [frozen parity inventory](../docs/flutter-nsh-parity.md)
-defines the 125-ID scope; the [current acceptance queue](../docs/flutter-nsh-acceptance.md)
-records remaining differences and the coordinator's independently executed evidence.
-The [roadmap](ROADMAP.md) consolidates current priorities, unfinished work,
-acceptance criteria and user-deferred scope. The [page acceptance ledger](../docs/ui-page-acceptance.md)
-records the latest native UI observations.
-The reference is `/Users/yangbin/workspace/mixin/flutter-app`, including its current
-working tree. A build or an individual agent's report does not establish parity.
+The migration from the Flutter desktop app (`/Users/yangbin/workspace/mixin/flutter-app`)
+is in progress. See [docs/parity.md](../docs/parity.md) for per-feature status and
+[ROADMAP.md](ROADMAP.md) for remaining work.
 
 ## Run
 
@@ -24,15 +19,12 @@ cargo run -p mixin_desktop_ui
 
 The native executable defaults to `~/.mixin/mixin-nsh`. Use
 `MIXIN_DESKTOP_DATA_DIR` to select an isolated test directory. Existing Flutter
-account data is not automatically imported; the user scoped local-data import as
-a separate future task. Do not open the same data directory
-with another version while a migration or live runtime check is running.
+account data is not imported (deferred). Do not open the same data directory with
+another version while a runtime check is running.
 
 The NSH CLI bypasses the native executable entry point. Prefer `cargo run` when
 validating startup, process ownership, native component registration and shutdown.
-macOS is the first UI validation target. Windows work is deferred by the user.
-Linux has isolated native evidence in the ledger, while full desktop interaction
-and current-page acceptance remain incomplete.
+macOS is the first validation target. Windows and Linux are unverified; see the roadmap.
 
 GIF discovery requires the distributor's Giphy client configuration, as the
 Flutter reference does. Set `MIXIN_GIPHY_API_KEY` in the build environment to
@@ -117,10 +109,7 @@ test session. The example requires a mixtest account and does not send messages.
 Live send/receive checks use a separately authorized test-only example; never use
 personal accounts, commit credentials, or publish authentication URLs.
 
-The ledger records actual test counts, native startup/shutdown results, live
-content oracles and remaining limitations. No Computer Use, screenshot-based
-acceptance or new UI scenario suite is required. Visual behavior that has not
-been inspected is reported separately from source, build and runtime evidence.
+Visual behavior that has not been inspected is reported separately from source, build and runtime results.
 
 ## macOS bundle
 

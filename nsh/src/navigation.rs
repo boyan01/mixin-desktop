@@ -10,6 +10,7 @@ use crate::runtime;
 pub(crate) struct ChatNavigation {
     owner: Owner,
     selected: Signal<Option<ConversationListData>>,
+    pub selected_id: Memo<Option<String>>,
     target: Signal<Option<String>>,
     settings: Signal<bool>,
     request: Signal<u64>,
@@ -31,15 +32,11 @@ impl ChatNavigation {
         let search_highlight = signal(None::<(String, String)>);
         let panel = signal(None);
         let search_from_info = signal(false);
-        let search_origin_scope = computed(move || {
-            (
-                selected.with(|row| row.as_ref().map(|row| row.conversation_id.clone())),
-                target.get(),
-                settings.get(),
-            )
+        let selected_id = computed(move || {
+            selected.with(|row| row.as_ref().map(|row| row.conversation_id.clone()))
         });
         effect(move || {
-            let _scope = search_origin_scope.get();
+            let _scope = (selected_id.get(), target.get(), settings.get());
             search_from_info.set(false);
         });
         effect(move || {
@@ -48,20 +45,15 @@ impl ChatNavigation {
             }
         });
         effect(move || {
-            let selected_id =
-                selected.with(|row| row.as_ref().map(|row| row.conversation_id.clone()));
+            let id = selected_id.get();
             if search_highlight.with_untracked(|value| {
                 value
                     .as_ref()
-                    .is_some_and(|(id, _)| Some(id) != selected_id.as_ref())
+                    .is_some_and(|(highlighted, _)| Some(highlighted) != id.as_ref())
             }) {
                 search_highlight.set(None);
             }
-        });
-        effect(move || {
-            if let Some(id) =
-                selected.with(|row| row.as_ref().map(|row| row.conversation_id.clone()))
-            {
+            if let Some(id) = id {
                 recent.update(|ids| {
                     ids.retain(|existing| existing != &id);
                     ids.insert(0, id);
@@ -80,6 +72,7 @@ impl ChatNavigation {
         Self {
             owner: Owner::current(),
             selected,
+            selected_id,
             target,
             settings,
             request,
@@ -148,10 +141,7 @@ impl ChatNavigation {
         message_id: String,
         origin: Option<String>,
     ) -> bool {
-        if !self.selected.with_untracked(|row| {
-            row.as_ref()
-                .is_some_and(|row| row.conversation_id == conversation_id)
-        }) {
+        if !self.is_selected(conversation_id) {
             return false;
         }
         batch(|| {
@@ -169,16 +159,18 @@ impl ChatNavigation {
         self.recent.get()
     }
 
+    fn is_selected(self, conversation_id: &str) -> bool {
+        self.selected_id
+            .with_untracked(|id| id.as_deref() == Some(conversation_id))
+    }
+
     pub(crate) fn track(self, account: Arc<AccountClient>) {
         use futures::StreamExt as _;
         self.owner.run(|| {
             spawn(async move {
                 let mut changes = Box::pin(runtime::observe(account.conversation_changes()));
                 while let Some(event) = changes.next().await {
-                    let Some(id) = self
-                        .selected
-                        .with(|row| row.as_ref().map(|row| row.conversation_id.clone()))
-                    else {
+                    let Some(id) = self.selected_id.get() else {
                         continue;
                     };
                     if !event.reload_all && !event.conversation_ids.contains(&id) {
@@ -194,14 +186,14 @@ impl ChatNavigation {
                     })
                     .await
                         && rows.is_empty()
-                        && self
-                            .selected
-                            .with(|row| row.as_ref().is_some_and(|row| row.conversation_id == id))
+                        && self.is_selected(&id)
                     {
-                        self.selected.set(None);
-                        self.target.set(None);
-                        self.panel.set(None);
-                        self.return_target.set(None);
+                        batch(|| {
+                            self.selected.set(None);
+                            self.target.set(None);
+                            self.panel.set(None);
+                            self.return_target.set(None);
+                        });
                     }
                 }
             });
@@ -210,7 +202,7 @@ impl ChatNavigation {
 
     pub(crate) fn select(self, conversation: ConversationListData) {
         batch(|| {
-            self.request.update(|revision| *revision += 1);
+            self.cancel_pending();
             self.target.set(None);
             self.panel.set(None);
             self.return_target.set(None);
@@ -227,7 +219,14 @@ impl ChatNavigation {
         target_message_id: Option<String>,
         failed: Signal<bool>,
     ) {
-        self.open_message(account, conversation_id, target_message_id, None, failed);
+        self.open_message(
+            account,
+            conversation_id,
+            target_message_id,
+            None,
+            failed,
+            || {},
+        );
     }
 
     pub(crate) fn open_search_message(
@@ -237,6 +236,7 @@ impl ChatNavigation {
         message_id: String,
         query: String,
         failed: Signal<bool>,
+        opened: impl FnOnce() + 'static,
     ) {
         self.open_message(
             account,
@@ -244,6 +244,7 @@ impl ChatNavigation {
             Some(message_id),
             Some(query),
             failed,
+            opened,
         );
     }
 
@@ -254,6 +255,7 @@ impl ChatNavigation {
         target_message_id: Option<String>,
         search_term: Option<String>,
         failed: Signal<bool>,
+        opened: impl FnOnce() + 'static,
     ) {
         self.request.update(|revision| *revision += 1);
         let request = self.request.get_untracked();
@@ -286,18 +288,21 @@ impl ChatNavigation {
                     return;
                 }
                 match result {
-                    Ok((row, target)) => batch(|| {
-                        self.settings.set(false);
-                        self.panel.set(None);
-                        self.return_target.set(None);
-                        self.search_highlight.set(
-                            search_term
-                                .filter(|_| target.is_some())
-                                .map(|term| (row.conversation_id.clone(), term)),
-                        );
-                        self.selected.set(Some(row));
-                        self.target.set(target);
-                    }),
+                    Ok((row, target)) => {
+                        batch(|| {
+                            self.settings.set(false);
+                            self.panel.set(None);
+                            self.return_target.set(None);
+                            self.search_highlight.set(
+                                search_term
+                                    .filter(|_| target.is_some())
+                                    .map(|term| (row.conversation_id.clone(), term)),
+                            );
+                            self.selected.set(Some(row));
+                            self.target.set(target);
+                        });
+                        opened();
+                    }
                     Err(_) => failed.set(true),
                 }
             });

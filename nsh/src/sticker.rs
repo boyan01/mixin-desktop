@@ -146,7 +146,7 @@ fn animated(
             && visible.is_none_or(|visible| visible.0.get())
             && !security.is_some_and(|security| security.blocked());
         let Some(animation) = loaded else { return };
-        frame.set(animation.first_frame().to_string().into());
+        frame.set(animation.first_frame().into());
         if !playing {
             return;
         }
@@ -154,13 +154,15 @@ fn animated(
         spawn(async move {
             let start = nsh_core::time::now();
             loop {
-                timer(nsh_core::time::FRAME).await;
+                // Stickers are authored at 30 fps or less; a faster clock only
+                // repeats frames through the one shared render worker.
+                timer(nsh_core::time::FRAME * 2).await;
                 let elapsed = nsh_core::time::now().duration_since(start).as_millis() as u64;
                 let render = animation.clone();
                 // One awaited request per owner: slow frames are skipped using
                 // elapsed time rather than building a queue of obsolete frames.
                 match runtime::run(async move { render.frame(elapsed).await }).await {
-                    Ok(value) => frame.set(value.to_string().into()),
+                    Ok(value) => frame.set(value.into()),
                     Err(_) => {
                         fail();
                         break;

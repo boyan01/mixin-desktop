@@ -40,11 +40,7 @@ pub(super) async fn load(
     let access = account.message();
     let explicit_jump = matches!(&request, Load::Jump(_));
     match request {
-        Load::Latest => {
-            let mut window = recent(&account, &conversation).await?;
-            window.tail = true;
-            Ok(window)
-        }
+        Load::Latest => latest(&account, &conversation, &previous).await,
         Load::Jump(id) | Load::InitialUnread(id) => {
             if previous.rows.iter().any(|row| row.message_id == id) {
                 return Ok(Window {
@@ -117,22 +113,7 @@ pub(super) async fn load(
             follow_tail,
         } => {
             if follow_tail {
-                // Refresh the actual contiguous latest window. Appending cached
-                // rows would preserve deleted messages or leave holes after sync.
-                let limit = previous.rows.len().clamp(RECENT, CAPACITY);
-                let rows = access
-                    .messages(conversation, None, None, limit as i64)
-                    .await?;
-                let deleted = deleted_rows(&account, &previous.rows, &rows).await?;
-                return Ok(Window {
-                    older: rows.len() == limit,
-                    rows,
-                    newer: false,
-                    missing: false,
-                    scroll: None,
-                    tail: true,
-                    deleted,
-                });
+                return latest(&account, &conversation, &previous).await;
             }
             // Find a surviving visible neighbor before reloading. A delete or
             // expiration must not strand a cursor on a row that no longer exists.
@@ -167,12 +148,93 @@ pub(super) async fn load(
                     .map(|(_, row)| row.message_id.clone())
             });
             let mut window = match anchor {
-                Some(anchor) => around(&account, &conversation, &anchor).await?,
+                Some(anchor) => {
+                    keep_range(&previous, around(&account, &conversation, &anchor).await?)
+                }
                 None => recent(&account, &conversation).await?,
             };
             window.deleted = deleted;
             Ok(window)
         }
+    }
+}
+
+/// The contiguous latest rows. Appending cached rows would preserve deleted
+/// messages or leave holes after sync, so the tail is always read again. The
+/// window grows at its newest end and keeps its oldest row: moving both ends at
+/// once would make the list rebind every cell for each new message.
+async fn latest(
+    account: &AccountClient,
+    conversation: &str,
+    previous: &Window,
+) -> ClientResult<Window> {
+    if previous.newer || previous.rows.is_empty() {
+        let mut window = recent(account, conversation).await?;
+        window.tail = true;
+        return Ok(window);
+    }
+    let limit = (previous.rows.len() + PAGE).clamp(RECENT, CAPACITY);
+    let mut rows = account
+        .message()
+        .messages(conversation.to_owned(), None, None, limit as i64)
+        .await?;
+    let mut older = rows.len() == limit;
+    let oldest = previous.rows.last().and_then(|oldest| {
+        rows.iter()
+            .position(|row| row.message_id == oldest.message_id)
+    });
+    if let Some(oldest) = oldest {
+        older |= oldest + 1 < rows.len();
+        rows.truncate(oldest + 1);
+    }
+    let deleted = deleted_rows(account, &previous.rows, &rows).await?;
+    Ok(Window {
+        older,
+        rows,
+        newer: false,
+        missing: false,
+        scroll: None,
+        tail: true,
+        deleted,
+    })
+}
+
+/// Keeps the reader's range when a read around the anchor still spans it, so a
+/// refresh changes rows in place instead of re-centering the window. An end that
+/// already reaches the conversation's edge stays open for rows that arrive there.
+fn keep_range(previous: &Window, next: Window) -> Window {
+    let position = |row: Option<&MessageListView>| {
+        row.and_then(|row| {
+            next.rows
+                .iter()
+                .position(|candidate| candidate.message_id == row.message_id)
+        })
+    };
+    let (Some(newest), Some(oldest)) = (
+        position(previous.rows.first()),
+        position(previous.rows.last()),
+    ) else {
+        return next;
+    };
+    let from = if previous.newer { newest } else { 0 };
+    let to = if previous.older {
+        oldest + 1
+    } else {
+        next.rows.len()
+    };
+    let older = previous.older || next.older;
+    let newer = previous.newer || next.newer;
+    let mut rows = next.rows;
+    rows.truncate(to);
+    rows.drain(..from);
+    Window {
+        rows,
+        older,
+        newer,
+        missing: false,
+        scroll: None,
+        tail: false,
+        deleted: HashSet::new(),
     }
 }
 

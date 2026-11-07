@@ -1,8 +1,8 @@
 use nsh_base::theme;
 use nsh_core::prelude::*;
 
-use super::{AppLink, LinkNavigation, Panel, tr};
-use crate::{runtime, ui};
+use super::{LinkNavigation, Panel, tr};
+use crate::{conversation::parts, runtime, ui};
 
 pub(super) fn surface(router: LinkNavigation) -> impl IntoElement {
     let presence = crate::motion::Presence::modal(move || router.panel.with(Option::is_some));
@@ -30,31 +30,16 @@ pub(super) fn surface(router: LinkNavigation) -> impl IntoElement {
                                 Panel::Loading | Panel::Error | Panel::Unsupported(_)
                             );
                         let content = match panel {
-                            Panel::Loading => view()
-                                .flex_row()
-                                .items_center()
+                            Panel::Loading => parts::status(move || tr("Loading…", "加载中…"))
                                 .justify_center()
-                                .gap_2()
                                 .py_4()
-                                .text_color(move || theme().muted_foreground)
-                                .child(ui::busy_indicator(
-                                    move || {
-                                        router
-                                            .panel
-                                            .with(|panel| matches!(panel, Some(Panel::Loading)))
-                                    },
-                                    move || tr("Loading…", "加载中…").into(),
-                                ))
-                                .child(text(move || tr("Loading…", "加载中…")).text_sm())
                                 .into_element(),
                             Panel::Error => view()
                                 .gap_3()
                                 .p_4()
-                                .child(
-                                    text(move || tr("Couldn’t open this link", "无法打开此链接"))
-                                        .text_lg()
-                                        .font_weight(FontWeight::SEMIBOLD),
-                                )
+                                .child(ui::modal_title(move || {
+                                    tr("Couldn’t open this link", "无法打开此链接")
+                                }))
                                 .child(
                                     text(move || {
                                         tr(
@@ -81,29 +66,25 @@ pub(super) fn surface(router: LinkNavigation) -> impl IntoElement {
                                 code_panel(router, code, *value).into_element()
                             }
                             Panel::Unsupported(raw) => unsupported(raw).into_element(),
-                            Panel::App(link) => app_panel(router, link).into_element(),
                         };
                         let mut body = view().flex_1().min_h_0();
                         if compact {
                             body = body.flex_auto().flex_grow(0.0);
                         }
-                        let mut card = view()
+                        let mut card = ui::modal_card()
                             .w(px(480.0))
-                            .max_w(relative(1.0))
                             .h(px(640.0))
-                            .max_h(relative(0.9))
                             .p_4()
                             .gap_3()
-                            .rounded_xl()
-                            .bg(move || theme().popover)
                             .child(body.child(content));
                         if compact {
                             card = card.h(auto()).min_h_0();
                         }
                         if !send {
-                            card = card.child(view().flex_none().flex_row().justify_end().child(
-                                ui::action(move || tr("Close", "关闭"), move || router.close()),
-                            ));
+                            card = card.child(parts::dialog_actions().child(ui::action(
+                                move || tr("Close", "关闭"),
+                                move || router.close(),
+                            )));
                         }
                         ui::modal(presence, move || router.close(), card).into_element()
                     }
@@ -166,14 +147,12 @@ fn code_panel(
             }),
         ))
         .child(when(failed, || {
-            text(move || {
+            ui::error_text(move || {
                 tr(
                     "Couldn’t join this group. Try again.",
                     "无法加入群组，请重试。",
                 )
             })
-            .text_sm()
-            .text_color(move || theme().destructive)
         }))
         .child(
             ui::primary()
@@ -189,7 +168,7 @@ fn code_panel(
                             router.client(),
                             id,
                             None,
-                            router.failure_signal(),
+                            router.failed,
                         );
                         return;
                     }
@@ -214,7 +193,7 @@ fn code_panel(
                                     router.client(),
                                     id,
                                     None,
-                                    router.failure_signal(),
+                                    router.failed,
                                 );
                             }
                             Err(_) => failed.set(true),
@@ -259,11 +238,7 @@ fn payment_code(value: mixin_desktop_api::CodeResult, uri: String) -> impl IntoE
         view()
             .p_4()
             .gap_4()
-            .child(
-                text(move || tr("Payment details", "付款详情"))
-                    .text_lg()
-                    .font_weight(FontWeight::SEMIBOLD),
-            )
+            .child(ui::modal_title(move || tr("Payment details", "付款详情")))
             .child(
                 text(move || {
                     tr(
@@ -322,53 +297,4 @@ fn unsupported(raw: String) -> impl IntoElement {
                 move || set_clipboard(raw.with(|raw| raw.clone())),
             )),
     )
-}
-
-fn app_panel(router: LinkNavigation, link: AppLink) -> impl IntoElement {
-    let link = stored(link);
-    let failed = signal(false);
-    view()
-        .gap_4()
-        .p_4()
-        .child(
-            text(move || tr("Open app", "打开应用"))
-                .text_lg()
-                .font_weight(FontWeight::SEMIBOLD),
-        )
-        .child(
-            text(move || link.with(|link| link.url.clone()))
-                .text_sm()
-                .select_text(),
-        )
-        .child(when(
-            move || link.with(|link| link.app_id.is_some()),
-            move || {
-                ui::action(
-                    move || tr("View profile", "查看资料"),
-                    move || {
-                        if let Some(id) = link.with(|link| link.app_id.clone()) {
-                            router.panel.set(Some(Panel::Profile(id)));
-                        }
-                    },
-                )
-            },
-        ))
-        .child(
-            ui::primary()
-                .on_press(move || {
-                    if router.panel.with_untracked(Option::is_none) {
-                        return;
-                    }
-                    let url = link.with(|link| link.url.clone());
-                    spawn(async move {
-                        failed.set(!open_url(url).await);
-                    });
-                })
-                .child(text(move || tr("Open in browser", "在浏览器中打开"))),
-        )
-        .child(when(failed, || {
-            text(move || tr("Couldn’t open the browser.", "无法打开浏览器。"))
-                .text_sm()
-                .text_color(move || theme().destructive)
-        }))
 }

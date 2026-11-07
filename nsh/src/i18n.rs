@@ -1,8 +1,8 @@
 use mixin_desktop_api::SettingsClient;
-use nsh_base::{SelectEntry, SelectItem, select, theme};
+use nsh_base::{SelectItem, theme};
 use nsh_core::prelude::*;
 
-use crate::{runtime, ui};
+use crate::{conversation::parts, runtime, ui};
 
 const LANGUAGE_SETTING: &str = "desktop_ui_language";
 
@@ -105,39 +105,57 @@ impl I18n {
         });
     }
     pub(crate) fn picker(self) -> impl IntoElement {
-        view().gap_1()
-            .child(select()
-                .on_open_change(|event: &nsh_base::SelectEvent| {
-                    if matches!(event, nsh_base::SelectEvent::OpenChange(true, _)) {
-                        dismiss_keyboard();
-                    }
-                })
-                .items(move || {
-                    let mut items = vec![SelectItem::new("system", self.text(Key::System))];
-                    items.extend(Language::SUPPORTED.into_iter()
-                        .map(|language| SelectItem::new(language.value(), language.title())));
-                    items
-                })
-                .value(move || Some(SharedString::from(self.language.get().value())))
-                .disabled(move || self.saving.get())
-                .accessibility_label(move || Some(self.text(Key::Language).into()))
-                .on_change(move |next: &Option<SharedString>| {
-                    if let Some(value) = next { self.choose(Language::parse(value.as_str())); }
-                })
-                .offset(px(4.0))
-                .popup_style(ui::popup)
-                .item_class("rounded-md focus:bg-accent selected:bg-accent selected:font-medium disabled:opacity-50")
-                .render_item(|item: &SelectEntry| view().px_3().py_2().child(text(item.title.clone()).text_sm()))
-                .trigger(view().flex_row().items_center().gap_2().px_3().py_2()
-                    .rounded(move || theme().radius)
-                    .hover(|s| s.bg(move || theme().muted))
-                    .focus(|s| s.outline(px(2.0)).outline_color(move || theme().ring))
-                    .child(ui::icon(ui::Icon::Globe))
-                    .child(text(move || match self.language.get() {
-                        Language::System => self.text(Key::System), language => language.title(),
-                    }).text_sm())
-                    .child(ui::icon(ui::Icon::ChevronDown))))
-            .child(when(move || self.failed.get(), move || text(move || self.text(Key::LanguageFailed)).text_xs().text_color(move || theme().destructive)))
+        view()
+            .gap_1()
+            .child(
+                parts::option_select()
+                    .items(move || {
+                        let mut items = vec![SelectItem::new("system", self.text(Key::System))];
+                        items.extend(
+                            Language::SUPPORTED.into_iter().map(|language| {
+                                SelectItem::new(language.value(), language.title())
+                            }),
+                        );
+                        items
+                    })
+                    .value(move || Some(SharedString::from(self.language.get().value())))
+                    .disabled(move || self.saving.get())
+                    .accessibility_label(move || Some(self.text(Key::Language).into()))
+                    .on_change(move |next: &Option<SharedString>| {
+                        if let Some(value) = next {
+                            self.choose(Language::parse(value.as_str()));
+                        }
+                    })
+                    .offset(px(4.0))
+                    .trigger(
+                        view()
+                            .flex_row()
+                            .items_center()
+                            .gap_2()
+                            .px_3()
+                            .py_2()
+                            .rounded(move || theme().radius)
+                            .hover(|s| s.bg(move || theme().muted))
+                            .focus(|s| s.outline(px(2.0)).outline_color(move || theme().ring))
+                            .child(ui::icon(ui::Icon::Globe))
+                            .child(
+                                text(move || match self.language.get() {
+                                    Language::System => self.text(Key::System),
+                                    language => language.title(),
+                                })
+                                .text_sm(),
+                            )
+                            .child(ui::icon(ui::Icon::ChevronDown)),
+                    ),
+            )
+            .child(when(
+                move || self.failed.get(),
+                move || {
+                    text(move || self.text(Key::LanguageFailed))
+                        .text_xs()
+                        .text_color(move || theme().destructive)
+                },
+            ))
     }
 }
 
@@ -226,7 +244,6 @@ messages! {
     Send => ("Send", "发送"),
     Sending => ("Sending…", "正在发送…"),
     SendFailed => ("Couldn’t send. Your message is still here. Try again.", "发送失败，消息已保留，请重试。"),
-    Earlier => ("Earlier messages", "更早的消息"),
     Latest => ("Back to latest", "回到最新"),
     Photo => ("Photo", "图片"),
     Video => ("Video", "视频"),

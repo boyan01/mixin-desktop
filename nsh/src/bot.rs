@@ -18,6 +18,12 @@ use crate::{
 };
 
 #[cfg(target_os = "macos")]
+const NATIVE_WINDOWS: bool = cfg!(any(
+    target_os = "macos",
+    target_os = "windows",
+    target_os = "linux"
+));
+
 #[path = "platform/webview_macos.rs"]
 mod native;
 #[cfg(target_os = "windows")]
@@ -97,11 +103,7 @@ impl BotWindows {
         if self.ending.get_untracked() {
             return;
         }
-        if !cfg!(any(
-            target_os = "macos",
-            target_os = "windows",
-            target_os = "linux"
-        )) {
+        if !NATIVE_WINDOWS {
             self.failed.set(true);
             return;
         }
@@ -480,20 +482,19 @@ pub(crate) fn ending_surface(windows: BotWindows) -> impl IntoElement {
         .child(
             text(move || {
                 if windows.purge_failed.get() {
-                    tr(
-                        i18n,
+                    i18n.tr(
                         "Couldn’t clear browser data. Try again.",
                         "无法清除浏览器数据，请重试。",
                     )
                 } else {
-                    tr(i18n, "Signing out…", "正在退出…")
+                    i18n.tr("Signing out…", "正在退出…")
                 }
             })
             .text_lg(),
         )
         .child(when(windows.purge_failed, move || {
             crate::ui::action(
-                move || tr(i18n, "Retry", "重试"),
+                move || i18n.tr("Retry", "重试"),
                 move || {
                     if windows.ending.get_untracked() && windows.purge_failed.get_untracked() {
                         windows.purge_failed.set(false);
@@ -512,37 +513,20 @@ pub(crate) fn surface(windows: BotWindows) -> impl IntoElement {
         }
         nsh_core::element::desktop::order_front();
         let answer = alert_dialog()
-            .title(
-                if cfg!(any(
-                    target_os = "macos",
-                    target_os = "windows",
-                    target_os = "linux"
-                )) {
-                    tr(i18n, "Couldn’t open the page", "无法打开页面")
-                } else {
-                    tr(i18n, "Bot windows unavailable", "无法打开机器人窗口")
-                },
-            )
-            .description(
-                if cfg!(any(
-                    target_os = "macos",
-                    target_os = "windows",
-                    target_os = "linux"
-                )) {
-                    tr(
-                        i18n,
-                        "Check your connection and try again.",
-                        "请检查网络连接后重试。",
-                    )
-                } else {
-                    tr(
-                        i18n,
-                        "Open this bot on your phone.",
-                        "请在手机端打开此机器人。",
-                    )
-                },
-            )
-            .action("ok", tr(i18n, "OK", "好"))
+            .title(if NATIVE_WINDOWS {
+                i18n.tr("Couldn’t open the page", "无法打开页面")
+            } else {
+                i18n.tr("Bot windows unavailable", "无法打开机器人窗口")
+            })
+            .description(if NATIVE_WINDOWS {
+                i18n.tr(
+                    "Check your connection and try again.",
+                    "请检查网络连接后重试。",
+                )
+            } else {
+                i18n.tr("Open this bot on your phone.", "请在手机端打开此机器人。")
+            })
+            .action("ok", i18n.tr("OK", "好"))
             .show();
         spawn(async move {
             let _ = answer.await;
@@ -555,22 +539,23 @@ pub(crate) fn surface(windows: BotWindows) -> impl IntoElement {
         };
         nsh_core::element::desktop::order_front();
         let answer = alert_dialog()
-            .title(tr(i18n, "Open another app?", "打开其他应用？"))
+            .title(i18n.tr("Open another app?", "打开其他应用？"))
             .description(url.clone())
-            .cancel("cancel", tr(i18n, "Cancel", "取消"))
-            .action("open", tr(i18n, "Open", "打开"))
+            .cancel("cancel", i18n.tr("Cancel", "取消"))
+            .action("open", i18n.tr("Open", "打开"))
             .show();
         spawn(async move {
             let result = answer.await;
             if windows.external.get_untracked().as_deref() != Some(&url) {
                 return;
             }
-            windows.external.set(None);
+            // Clearing reruns this effect and cancels the task, so it comes last.
             if result.is_ok_and(|answer| answer.action.as_deref() == Some("open"))
                 && !open_url(url).await
             {
                 windows.failed.set(true);
             }
+            windows.external.set(None);
         });
     });
     view().w_0().h_0().child(each(
@@ -578,8 +563,4 @@ pub(crate) fn surface(windows: BotWindows) -> impl IntoElement {
         |page| page.id,
         move |page, _index| window::host(windows, page),
     ))
-}
-
-fn tr(i18n: i18n::I18n, en: &'static str, zh: &'static str) -> &'static str {
-    i18n.tr(en, zh)
 }

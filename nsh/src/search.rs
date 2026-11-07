@@ -7,7 +7,7 @@ pub(crate) use palette::surface as palette;
 mod results;
 
 use crate::{
-    i18n::{self, Key},
+    i18n::{self, Key, tr},
     navigation::ChatNavigation,
     runtime,
     sidebar::Navigation,
@@ -52,25 +52,31 @@ impl Row {
             Self::Message(message) => format!("message:{}", message.message_id),
         }
     }
-}
 
-fn tr(en: &'static str, zh: &'static str) -> &'static str {
-    crate::i18n::tr(en, zh)
-}
+    fn title(&self) -> String {
+        match self {
+            Self::Header(..) => String::new(),
+            Self::User(user) => user.full_name.clone(),
+            Self::Conversation(row) => row.name.clone(),
+            Self::Message(message) => message.sender_name.clone(),
+        }
+    }
 
-#[derive(Clone, PartialEq)]
-enum Pending {
-    User(String),
-    Message(String),
+    fn avatar_url(&self) -> String {
+        match self {
+            Self::Header(..) => String::new(),
+            Self::User(user) => user.avatar_url.clone(),
+            Self::Conversation(row) => row.avatar_url.clone(),
+            Self::Message(message) => message.sender_avatar_url.clone(),
+        }
+    }
 }
 
 pub(crate) fn screen(
     account: Arc<AccountClient>,
     query: Signal<String>,
     composing: Signal<bool>,
-    category: Signal<&'static str>,
     selected: Signal<Option<ConversationListData>>,
-    _locate: Signal<Option<String>>,
     unread: Signal<bool>,
 ) -> impl IntoElement {
     let i18n = i18n::current();
@@ -78,85 +84,69 @@ pub(crate) fn screen(
     let navigation = use_context::<ChatNavigation>().expect("Home provides chat navigation");
     let owner = Owner::current();
     let account = stored(account);
+    let state = query::new(account, query, composing, nav.category, nav.circle, unread);
     let query::State {
         section,
         page,
-        cursors,
-        next_cursor,
         more,
         rows,
         users_empty,
         loading,
         failed,
-        revision,
-    } = query::new(account, query, composing, category, nav.circle, unread);
-    let pending = signal(None::<Pending>);
+        ..
+    } = state;
+    // An open is in flight; a second press must not race it.
+    let pending = signal(false);
     let open_failed = signal(false);
     let profile = signal(None::<String>);
     effect(move || {
-        let _query = query.get();
-        let _category = category.get();
-        let _circle = nav.circle.get();
-        let _unread = unread.get();
-        pending.set(None);
+        query.with(|_| ());
+        pending.set(false);
     });
     effect(move || {
         if open_failed.get() {
-            pending.set(None);
+            pending.set(false);
         }
-    });
-    effect(move || {
-        let current = selected.get();
-        // Observe completed navigation, including a deleted message's latest-page fallback.
-        // Starting a request alone must not dismiss the search.
-        untracked(|| {
-            let opened = match (pending.get_untracked(), current) {
-                (Some(Pending::User(user)), Some(row)) => row.owner_id == user,
-                (Some(Pending::Message(conversation)), Some(row)) => {
-                    row.conversation_id == conversation
-                }
-                _ => false,
-            };
-            if opened {
-                pending.set(None);
-                query.set(String::new());
-            }
-        });
     });
     let open = move |row: Row| {
         open_failed.set(false);
+        let keyword = query.get_untracked();
+        // Search closes on arrival, unless the reader has typed something else.
+        let opened = move || {
+            pending.set(false);
+            if query.with_untracked(|query| *query == keyword) {
+                query.set(String::new());
+            }
+        };
         match row {
-            Row::Header(next, _) => batch(|| {
-                section.set(next);
-                page.set(0);
-                cursors.set(vec![None]);
-                rows.set(Vec::new());
-            }),
+            Row::Header(next, _) => state.show(next),
             Row::Conversation(row) => {
                 navigation.select(*row);
                 query.set(String::new());
             }
             Row::User(user) => {
-                if let Some(row) = selected.with_untracked(|row| {
+                let open_chat = selected.with_untracked(|row| {
                     row.as_ref()
-                        .filter(|row| row.owner_id == user.user_id)
+                        .filter(|row| row.category != "GROUP" && row.owner_id == user.user_id)
                         .cloned()
-                }) {
+                });
+                if let Some(row) = open_chat {
                     navigation.select(row);
                     query.set(String::new());
                 } else {
-                    pending.set(Some(Pending::User(user.user_id.clone())));
+                    pending.set(true);
                     owner.run(|| {
-                        navigation.open_user(
+                        navigation.open_user_then(
                             account.with(|account| account.clone()),
                             user.user_id,
                             open_failed,
+                            opened,
                         )
                     });
                 }
             }
             Row::Message(message) => {
-                pending.set(Some(Pending::Message(message.conversation_id.clone())));
+                pending.set(true);
                 owner.run(|| {
                     navigation.open_search_message(
                         account.with(|account| account.clone()),
@@ -164,6 +154,7 @@ pub(crate) fn screen(
                         message.message_id,
                         query.get_untracked().trim().to_owned(),
                         open_failed,
+                        opened,
                     )
                 });
             }
@@ -187,15 +178,7 @@ pub(crate) fn screen(
                         .min_h_8()
                         .flex_1()
                         .selected(move || section.get() == value)
-                        .selected_style(|style| style.bg(move || theme().accent))
-                        .on_press(move || {
-                            batch(|| {
-                                section.set(value);
-                                page.set(0);
-                                cursors.set(vec![None]);
-                                rows.set(Vec::new());
-                            })
-                        })
+                        .on_press(move || state.show(value))
                         .child(text(move || value.title()).text_xs())
                 }),
             ),
@@ -208,54 +191,52 @@ pub(crate) fn screen(
             profile,
         ))
         .child(when(open_failed, move || {
-            text(move || {
+            ui::error_text(move || {
                 tr(
                     "Couldn’t open this result. Try again.",
                     "无法打开此结果，请重试。",
                 )
             })
-            .px_4()
+            .px_5()
             .py_2()
-            .text_sm()
-            .text_color(move || theme().destructive)
         }))
-        .child(when(loading, move || {
-            view()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .px_4()
-                .py_2()
-                .child(ui::busy_indicator(
-                    move || loading.get(),
-                    move || i18n.text(Key::LoadingChats).into(),
-                ))
-                .child(text(move || i18n.text(Key::LoadingChats)).text_sm())
-        }))
+        // Results stay in place while they refresh, so only a first load shows progress.
+        .child(when(
+            move || loading.get() && rows.with(Vec::is_empty),
+            move || {
+                view()
+                    .flex_row()
+                    .items_center()
+                    .gap_2()
+                    .px_5()
+                    .py_2()
+                    .child(ui::busy_indicator(
+                        move || loading.get(),
+                        move || i18n.text(Key::LoadingChats).into(),
+                    ))
+                    .child(text(move || i18n.text(Key::LoadingChats)).text_sm())
+            },
+        ))
         .child(when(failed, move || {
             view()
-                .px_4()
+                .px_5()
                 .py_2()
                 .gap_2()
-                .child(
-                    text(move || {
-                        tr(
-                            "Some results could not be loaded. Try again.",
-                            "部分搜索结果加载失败，请重试。",
-                        )
-                    })
-                    .text_sm()
-                    .text_color(move || theme().destructive),
-                )
+                .child(ui::error_text(move || {
+                    tr(
+                        "Some results could not be loaded. Try again.",
+                        "部分搜索结果加载失败，请重试。",
+                    )
+                }))
                 .child(ui::action(
                     move || i18n.text(Key::Retry),
-                    move || revision.update(|revision| *revision += 1),
+                    move || state.retry(),
                 ))
         }))
         .child(when(
             move || !loading.get() && !failed.get() && rows.with(Vec::is_empty),
             move || {
-                ui::centered(move || match section.get() {
+                ui::placeholder(move || match section.get() {
                     Section::All => tr("No results", "未找到相关结果"),
                     Section::Users => i18n.text(Key::NoContacts),
                     Section::Conversations => i18n.text(Key::NoMatches),
@@ -265,7 +246,7 @@ pub(crate) fn screen(
         ))
         .child(when(
             move || !rows.with(Vec::is_empty),
-            move || results::list(rows, section, pending, loading, open),
+            move || results::list(state, pending, open),
         ))
         .child(when(
             move || section.get() != Section::All && (page.get() > 0 || more.get()),
@@ -275,31 +256,19 @@ pub(crate) fn screen(
                     .px_3()
                     .py_2()
                     .justify_between()
+                    .items_center()
                     .gap_2()
                     .child(
                         ui::action(
                             move || tr("Previous page", "上一页"),
-                            move || page.update(|page| *page = page.saturating_sub(1)),
+                            move || state.previous_page(),
                         )
                         .disabled(move || loading.get() || page.get() == 0),
                     )
                     .child(text(move || (page.get() + 1).to_string()).text_sm())
                     .child(
-                        ui::action(
-                            move || tr("Next page", "下一页"),
-                            move || {
-                                if section.get_untracked() == Section::Messages {
-                                    let cursor = next_cursor.get_untracked();
-                                    let next = page.get_untracked() as usize + 1;
-                                    cursors.update(|cursors| {
-                                        cursors.truncate(next);
-                                        cursors.push(cursor);
-                                    });
-                                }
-                                page.update(|page| *page += 1);
-                            },
-                        )
-                        .disabled(move || loading.get() || !more.get()),
+                        ui::action(move || tr("Next page", "下一页"), move || state.next_page())
+                            .disabled(move || loading.get() || !more.get()),
                     )
             },
         ))
@@ -313,15 +282,13 @@ pub(crate) fn screen(
                     .p_6()
                     .items_center()
                     .justify_center()
-                    .bg(move || theme().foreground.opacity(0.2))
+                    .child(ui::scrim().on_press(move || profile.set(None)))
                     .child(
-                        view()
+                        ui::modal_card()
                             .w_96()
-                            .max_w(relative(1.0))
                             .h(px(640.0))
-                            .max_h(relative(0.9))
-                            .rounded_xl()
-                            .bg(move || theme().popover)
+                            .p_0()
+                            .overflow_hidden()
                             .child(crate::conversation::profile(
                                 account.with(|account| account.clone()),
                                 id,

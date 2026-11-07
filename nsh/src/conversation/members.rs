@@ -1,18 +1,21 @@
 use std::collections::HashSet;
 
 use mixin_desktop_api::{ConversationParticipantItem, UserProfileItem};
-use nsh_base::menu_item;
 
 use super::*;
+use crate::{motion::Presence, navigation::ChatNavigation};
+
+const PAGE_SIZE: i64 = 100;
+const MAX_MEMBERS: usize = 1024;
 
 pub(super) fn screen(state: State) -> impl IntoElement {
-    let navigation = use_context::<crate::navigation::ChatNavigation>()
-        .expect("The signed-in session provides navigation");
+    let navigation =
+        use_context::<ChatNavigation>().expect("The signed-in session provides navigation");
     let query = signal(String::new());
     let adding = signal(false);
     let profile = signal_with(None::<ConversationParticipantItem>, SignalEquals::Never);
-    let adding_presence = crate::motion::Presence::modal(move || adding.get());
-    let profile_presence = crate::motion::Presence::modal(move || profile.with(Option::is_some));
+    let adding_presence = Presence::modal(move || adding.get());
+    let profile_presence = Presence::modal(move || profile.with(Option::is_some));
     let filtered = computed(move || {
         let keyword = query.get().trim().to_lowercase();
         state.members.with(|members| {
@@ -65,204 +68,7 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                                 state.members.with(|members| members.get(index).cloned())
                             })
                     };
-                    ui::menu()
-                        .trigger(
-                            ui::command()
-                                .justify_start()
-                                .min_h_16()
-                                .px_4()
-                                .gap_3()
-                                .child(ui::avatar_view(
-                                    move || {
-                                        member()
-                                            .map(|member| member.full_name.into())
-                                            .unwrap_or_default()
-                                    },
-                                    move || {
-                                        member().map(|member| member.avatar_url).unwrap_or_default()
-                                    },
-                                ))
-                                .child(
-                                    view()
-                                        .flex_1()
-                                        .min_w_0()
-                                        .gap_1()
-                                        .child(
-                                            view()
-                                                .flex_row()
-                                                .items_center()
-                                                .gap_1()
-                                                .min_w_0()
-                                                .child(
-                                                    text(move || {
-                                                        member()
-                                                            .map(|member| member.full_name)
-                                                            .unwrap_or_default()
-                                                    })
-                                                    .text_sm()
-                                                    .number_of_lines(1)
-                                                    .flex_1()
-                                                    .min_w_0(),
-                                                )
-                                                .child(dynamic(move || {
-                                                    let value = member();
-                                                    untracked(|| match value {
-                                                        Some(value) => {
-                                                            crate::appearance::identity_badge(
-                                                                false,
-                                                                value.is_verified,
-                                                                value.is_bot,
-                                                                value.membership.as_deref(),
-                                                            )
-                                                        }
-                                                        None => view().hidden().into_element(),
-                                                    })
-                                                })),
-                                        )
-                                        .child(
-                                            text(move || {
-                                                member()
-                                                    .map(|member| member.identity_number)
-                                                    .unwrap_or_default()
-                                            })
-                                            .text_xs()
-                                            .text_color(move || theme().muted_foreground),
-                                        ),
-                                )
-                                .child(
-                                    text(move || {
-                                        member()
-                                            .map(|member| match member.role.as_deref() {
-                                                Some("OWNER") => tr("Owner", "群主"),
-                                                Some("ADMIN") => tr("Admin", "管理员"),
-                                                _ => "",
-                                            })
-                                            .unwrap_or_default()
-                                    })
-                                    .text_xs()
-                                    .text_color(move || theme().muted_foreground),
-                                ),
-                        )
-                        .child(
-                            menu_item()
-                                .px_3()
-                                .py_2()
-                                .hover(|style| style.bg(move || theme().accent))
-                                .child(text(move || tr("Profile", "个人资料")))
-                                .on_select(move || profile.set(member())),
-                        )
-                        .child(
-                            menu_item()
-                                .px_3()
-                                .py_2()
-                                .hover(|style| style.bg(move || theme().accent))
-                                .child(text(move || tr("Message", "发消息")))
-                                .on_select(move || {
-                                    if let Some(member) = member() {
-                                        navigation.open_user(
-                                            state.client(),
-                                            member.user_id,
-                                            state.failed,
-                                        );
-                                    }
-                                }),
-                        )
-                        .child(when(
-                            move || {
-                                state.role().as_deref() == Some("OWNER")
-                                    && member().is_some_and(|member| {
-                                        member.user_id
-                                            != state.account.with(|account| account.account_id())
-                                    })
-                            },
-                            move || {
-                                menu_item()
-                                    .px_3()
-                                    .py_2()
-                                    .hover(|style| style.bg(move || theme().accent))
-                                    .disabled(state.busy)
-                                    .child(text(move || {
-                                        if member().is_some_and(|member| {
-                                            member.role.as_deref() == Some("ADMIN")
-                                        }) {
-                                            tr("Dismiss as admin", "取消管理员")
-                                        } else {
-                                            tr("Make group admin", "设为管理员")
-                                        }
-                                    }))
-                                    .on_select(move || {
-                                        if let Some(member) = member() {
-                                            let role = (member.role.as_deref() != Some("ADMIN"))
-                                                .then(|| "ADMIN".into());
-                                            let client = state.client();
-                                            let id = state.id();
-                                            state.submit(
-                                                async move {
-                                                    client
-                                                        .conversation()
-                                                        .update_participants(
-                                                            id,
-                                                            "ROLE".into(),
-                                                            vec![member.user_id],
-                                                            role,
-                                                        )
-                                                        .await
-                                                },
-                                                || {},
-                                            );
-                                        }
-                                    })
-                            },
-                        ))
-                        .child(when(
-                            move || {
-                                member().is_some_and(|member| {
-                                    let own_id = state.account.with(|account| account.account_id());
-                                    member.user_id != own_id
-                                        && (state.role().as_deref() == Some("OWNER")
-                                            || (state.can_manage() && member.role.is_none()))
-                                })
-                            },
-                            move || {
-                                menu_item()
-                                    .px_3()
-                                    .py_2()
-                                    .text_color(move || theme().destructive)
-                                    .hover(|style| style.bg(move || theme().accent))
-                                    .disabled(state.busy)
-                                    .child(text(move || tr("Remove from group…", "移出群组…")))
-                                    .on_select(move || {
-                                        if let Some(member) = member() {
-                                            spawn(async move {
-                                                if confirm(
-                                                    tr("Remove participant?", "移除群成员？"),
-                                                    member.full_name,
-                                                    tr("Remove", "移除"),
-                                                )
-                                                .await
-                                                {
-                                                    let client = state.client();
-                                                    let id = state.id();
-                                                    state.submit(
-                                                        async move {
-                                                            client
-                                                                .conversation()
-                                                                .update_participants(
-                                                                    id,
-                                                                    "REMOVE".into(),
-                                                                    vec![member.user_id],
-                                                                    None,
-                                                                )
-                                                                .await
-                                                        },
-                                                        || {},
-                                                    );
-                                                }
-                                            });
-                                        }
-                                    })
-                            },
-                        ))
+                    member_row(state, navigation, profile, member)
                 },
             )
             .keys(move || {
@@ -277,19 +83,14 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                     })
                 })
             })
-            .estimated_item_size(px(64.0))
+            .estimated_item_size(parts::row_height())
             .flex_1()
-            .min_h_0(),
+            .min_h_0()
+            .style_when(move || filtered.with(Vec::is_empty), |style| style.hidden()),
         )
         .child(when(
             move || filtered.with(Vec::is_empty) && !state.loading.get(),
-            || {
-                view().p_4().child(
-                    text(move || tr("No participants found", "未找到群成员"))
-                        .text_sm()
-                        .text_color(move || theme().muted_foreground),
-                )
-            },
+            || ui::placeholder(move || tr("No participants found", "未找到群成员")),
         ))
         .child(when(
             move || adding_presence.mounted(),
@@ -301,10 +102,176 @@ pub(super) fn screen(state: State) -> impl IntoElement {
         ))
 }
 
+fn member_row(
+    state: State,
+    navigation: ChatNavigation,
+    profile: Signal<Option<ConversationParticipantItem>>,
+    member: impl Fn() -> Option<ConversationParticipantItem> + Copy + 'static,
+) -> impl IntoElement {
+    let other = move || member().is_some_and(|member| member.user_id != state.own_id());
+    let owner = move || state.role().as_deref() == Some("OWNER");
+    ui::menu()
+        .trigger(member_summary(member))
+        .child(
+            ui::menu_row(move || tr("Profile", "个人资料"))
+                .on_select(move || profile.set(member())),
+        )
+        .child(
+            ui::menu_row(move || tr("Message", "发消息")).on_select(move || {
+                if let Some(member) = member() {
+                    navigation.open_user(state.client(), member.user_id, state.failed);
+                }
+            }),
+        )
+        .child(when(
+            move || owner() && other(),
+            move || {
+                ui::menu_row(move || {
+                    if member().is_some_and(|member| member.role.as_deref() == Some("ADMIN")) {
+                        tr("Dismiss as admin", "取消管理员")
+                    } else {
+                        tr("Make group admin", "设为管理员")
+                    }
+                })
+                .disabled(state.busy)
+                .on_select(move || {
+                    if let Some(member) = member() {
+                        toggle_admin(state, member);
+                    }
+                })
+            },
+        ))
+        .child(when(
+            move || {
+                other()
+                    && (owner()
+                        || (state.can_manage()
+                            && member().is_some_and(|member| member.role.is_none())))
+            },
+            move || {
+                ui::menu_row(move || tr("Remove from group…", "移出群组…"))
+                    .text_color(move || theme().destructive)
+                    .disabled(state.busy)
+                    .on_select(move || {
+                        if let Some(member) = member() {
+                            remove_member(state, member);
+                        }
+                    })
+            },
+        ))
+}
+
+fn member_summary(
+    member: impl Fn() -> Option<ConversationParticipantItem> + Copy + 'static,
+) -> nsh_base::ButtonElement {
+    ui::command()
+        .justify_start()
+        .min_h_16()
+        .px_4()
+        .gap_3()
+        .child(ui::avatar_view(
+            move || {
+                member()
+                    .map(|member| member.full_name.into())
+                    .unwrap_or_default()
+            },
+            move || member().map(|member| member.avatar_url).unwrap_or_default(),
+        ))
+        .child(
+            view()
+                .flex_1()
+                .min_w_0()
+                .gap_1()
+                .child(
+                    view()
+                        .flex_row()
+                        .items_center()
+                        .gap_1()
+                        .min_w_0()
+                        .child(
+                            text(move || {
+                                member().map(|member| member.full_name).unwrap_or_default()
+                            })
+                            .text_sm()
+                            .number_of_lines(1)
+                            .flex_1()
+                            .min_w_0(),
+                        )
+                        .child(dynamic(move || {
+                            let value = member();
+                            untracked(|| match value {
+                                Some(value) => crate::appearance::identity_badge(
+                                    false,
+                                    value.is_verified,
+                                    value.is_bot,
+                                    value.membership.as_deref(),
+                                ),
+                                None => view().hidden().into_element(),
+                            })
+                        })),
+                )
+                .child(
+                    text(move || {
+                        member()
+                            .map(|member| member.identity_number)
+                            .unwrap_or_default()
+                    })
+                    .text_xs()
+                    .text_color(move || theme().muted_foreground),
+                ),
+        )
+        .child(
+            text(move || {
+                member()
+                    .map(|member| match member.role.as_deref() {
+                        Some("OWNER") => tr("Owner", "群主"),
+                        Some("ADMIN") => tr("Admin", "管理员"),
+                        _ => "",
+                    })
+                    .unwrap_or_default()
+            })
+            .text_xs()
+            .text_color(move || theme().muted_foreground),
+        )
+}
+
+fn toggle_admin(state: State, member: ConversationParticipantItem) {
+    let role = (member.role.as_deref() != Some("ADMIN")).then(|| "ADMIN".into());
+    let client = state.client();
+    let id = state.id();
+    state.submit(
+        async move {
+            client
+                .conversation()
+                .update_participants(id, "ROLE".into(), vec![member.user_id], role)
+                .await
+        },
+        || {},
+    );
+}
+
+fn remove_member(state: State, member: ConversationParticipantItem) {
+    let client = state.client();
+    let id = state.id();
+    state.confirm_then(
+        Prompt::new(
+            tr("Remove participant?", "移除群成员？"),
+            member.full_name,
+            tr("Remove", "移除"),
+        ),
+        move || async move {
+            client
+                .conversation()
+                .update_participants(id, "REMOVE".into(), vec![member.user_id], None)
+                .await
+        },
+    );
+}
+
 fn profile_dialog(
     state: State,
     profile: Signal<Option<ConversationParticipantItem>>,
-    presence: crate::motion::Presence,
+    presence: Presence,
 ) -> impl IntoElement {
     let id = profile.with_untracked(|profile| {
         profile
@@ -315,24 +282,17 @@ fn profile_dialog(
     ui::modal(
         presence,
         move || profile.set(None),
-        view()
-            .w_96()
-            .max_w(relative(1.0))
+        parts::dialog_card()
+            .p_0()
+            .gap_0()
             .h(px(640.0))
-            .max_h(relative(0.9))
-            .rounded_xl()
-            .bg(move || theme().popover)
             .child(super::profile(state.client(), id, move || {
                 profile.set(None)
             })),
     )
 }
 
-fn add_form(
-    state: State,
-    open: Signal<bool>,
-    presence: crate::motion::Presence,
-) -> impl IntoElement {
+fn add_form(state: State, open: Signal<bool>, presence: Presence) -> impl IntoElement {
     let users = signal_with(Vec::<UserProfileItem>::new(), SignalEquals::Never);
     let selected = signal(HashSet::<String>::new());
     let query = signal(String::new());
@@ -341,37 +301,32 @@ fn add_form(
     let revision = signal(0_u64);
     let page = signal(0_i64);
     let has_next = signal(false);
-    let owner = Owner::current();
-    let request = signal(0_u64);
     effect(move || {
         let _revision = revision.get();
         let keyword = query.get();
-        let page = page.get();
-        let ticket = request.get_untracked().wrapping_add(1);
-        request.set(ticket);
+        let offset = page.get() * PAGE_SIZE;
         let client = state.client();
         let conversation = state.id();
         batch(|| {
             loading.set(true);
             failed.set(false);
-            users.set(Vec::new());
-            has_next.set(false);
         });
         spawn(async move {
+            if !keyword.trim().is_empty() {
+                timer(parts::SEARCH_DELAY).await;
+            }
+            // The query already excludes participants and anyone who is not a friend.
             let result = runtime::run(async move {
                 client
                     .user()
-                    .invitable_users_page(conversation, keyword, page * 100, 101)
+                    .invitable_users_page(conversation, keyword, offset, PAGE_SIZE + 1)
                     .await
             })
             .await;
-            if !owner.is_live() || request.get_untracked() != ticket {
-                return;
-            }
             match result {
                 Ok(mut rows) => batch(|| {
-                    has_next.set(rows.len() > 100);
-                    rows.truncate(100);
+                    has_next.set(rows.len() > PAGE_SIZE as usize);
+                    rows.truncate(PAGE_SIZE as usize);
                     users.set(rows);
                 }),
                 Err(_) => failed.set(true),
@@ -379,50 +334,20 @@ fn add_form(
             loading.set(false);
         });
     });
-    let candidates = computed(move || {
-        let keyword = query.get().trim().to_lowercase();
-        let existing = state.members.with(|members| {
-            members
-                .iter()
-                .map(|member| member.user_id.clone())
-                .collect::<HashSet<_>>()
-        });
-        users.with(|users| {
-            users
-                .iter()
-                .enumerate()
-                .filter(|(_, user)| {
-                    !existing.contains(&user.user_id)
-                        && user.relationship == "FRIEND"
-                        && (keyword.is_empty()
-                            || user.full_name.to_lowercase().contains(&keyword)
-                            || user.identity_number.contains(&keyword))
-                })
-                .map(|(index, _)| index)
-                .collect::<Vec<_>>()
-        })
-    });
+    let close = move || {
+        if !state.busy.get_untracked() {
+            open.set(false);
+        }
+    };
     ui::modal(
         presence,
-        move || {
-            if !state.busy.get_untracked() {
-                open.set(false);
-            }
-        },
-        view()
-            .w_96()
-            .max_w(relative(1.0))
+        close,
+        parts::dialog_card()
             .h(px(560.0))
-            .max_h(relative(0.9))
-            .rounded_xl()
-            .bg(move || theme().popover)
-            .p_4()
             .gap_3()
-            .child(
-                text(move || tr("Add participants", "添加群成员"))
-                    .text_lg()
-                    .font_weight(FontWeight::SEMIBOLD),
-            )
+            .child(ui::modal_title(move || {
+                tr("Add participants", "添加群成员")
+            }))
             .child(
                 ui::field()
                     .label(move || tr("Search contacts", "搜索联系人"))
@@ -435,113 +360,73 @@ fn add_form(
                         })
                     }),
             )
-            .child(when(loading, || {
-                text(move || tr("Loading…", "加载中…")).text_sm()
-            }))
+            .child(when(
+                move || loading.get() && users.with(Vec::is_empty),
+                || parts::status(move || tr("Loading…", "加载中…")),
+            ))
             .child(when(failed, move || {
-                ui::action(
-                    move || tr("Retry", "重试"),
+                parts::failure(
+                    move || tr("Couldn’t load. Try again.", "加载失败，请重试。"),
                     move || revision.update(|value| *value += 1),
                 )
             }))
             .child(
                 virtual_list(
-                    move || candidates.with(Vec::len),
+                    move || users.with(Vec::len),
                     move |at| {
-                        let user = move || {
-                            candidates
-                                .with(|indices| indices.get(at.index()).copied())
-                                .and_then(|index| users.with(|users| users.get(index).cloned()))
+                        let user = move || users.with(|users| users.get(at.index()).cloned());
+                        let chosen = move || {
+                            user().is_some_and(|user| {
+                                selected.with(|ids| ids.contains(&user.user_id))
+                            })
                         };
-                        ui::command()
-                            .justify_start()
-                            .min_h_14()
-                            .gap_3()
-                            .selected(move || {
-                                user().is_some_and(|user| {
-                                    selected.with(|ids| ids.contains(&user.user_id))
-                                })
-                            })
-                            .selected_style(|style| style.bg(move || theme().accent))
-                            .disabled(move || state.busy.get() || loading.get())
-                            .on_press(move || {
-                                if let Some(user) = user() {
-                                    selected.update(|ids| {
-                                        if !ids.remove(&user.user_id)
-                                            && ids.len() + state.members.with_untracked(Vec::len)
-                                                < 1024
-                                        {
-                                            ids.insert(user.user_id);
-                                        }
-                                    });
-                                }
-                            })
-                            .child(ui::avatar_view(
-                                move || {
-                                    user().map(|user| user.full_name.into()).unwrap_or_default()
-                                },
-                                move || user().map(|user| user.avatar_url).unwrap_or_default(),
-                            ))
-                            .child(
-                                text(move || user().map(|user| user.full_name).unwrap_or_default())
-                                    .text_sm()
-                                    .number_of_lines(1),
-                            )
+                        parts::entity_row(
+                            move || user().map(|user| user.full_name).unwrap_or_default(),
+                            move || user().map(|user| user.avatar_url).unwrap_or_default(),
+                            move || user().map(|user| user.identity_number).unwrap_or_default(),
+                            chosen,
+                        )
+                        .px_3()
+                        .disabled(state.busy)
+                        .on_press(move || {
+                            if let Some(user) = user() {
+                                selected.update(|ids| {
+                                    if !ids.remove(&user.user_id)
+                                        && ids.len() + state.members.with_untracked(Vec::len)
+                                            < MAX_MEMBERS
+                                    {
+                                        ids.insert(user.user_id);
+                                    }
+                                });
+                            }
+                        })
                     },
                 )
                 .keys(move || {
-                    candidates.with(|indices| {
-                        users.with(|users| {
-                            indices
-                                .iter()
-                                .filter_map(|index| {
-                                    users.get(*index).map(|user| user.user_id.clone())
-                                })
-                                .collect::<Vec<_>>()
-                        })
+                    users.with(|users| {
+                        users
+                            .iter()
+                            .map(|user| user.user_id.clone())
+                            .collect::<Vec<_>>()
                     })
                 })
-                .estimated_item_size(px(56.0))
+                .estimated_item_size(parts::row_height())
                 .flex_1()
-                .min_h_0(),
+                .min_h_0()
+                .style_when(move || users.with(Vec::is_empty), |style| style.hidden()),
             )
             .child(when(
-                move || !loading.get() && !failed.get() && candidates.with(Vec::is_empty),
-                || {
-                    text(move || tr("No available contacts", "没有可添加的联系人"))
-                        .text_sm()
-                        .text_color(move || theme().muted_foreground)
-                },
+                move || !loading.get() && !failed.get() && users.with(Vec::is_empty),
+                || ui::placeholder(move || tr("No available contacts", "没有可添加的联系人")),
+            ))
+            .child(parts::pager(
+                page,
+                move || has_next.get(),
+                move || loading.get() || state.busy.get(),
             ))
             .child(
-                view()
-                    .flex_row()
-                    .gap_2()
-                    .child(
-                        ui::action(
-                            move || tr("Previous page", "上一页"),
-                            move || page.update(|value| *value = value.saturating_sub(1)),
-                        )
-                        .disabled(move || loading.get() || page.get() == 0 || state.busy.get()),
-                    )
-                    .child(view().flex_1())
-                    .child(
-                        ui::action(
-                            move || tr("Next page", "下一页"),
-                            move || page.update(|value| *value = value.saturating_add(1)),
-                        )
-                        .disabled(move || loading.get() || !has_next.get() || state.busy.get()),
-                    ),
-            )
-            .child(
-                view()
-                    .flex_row()
-                    .justify_end()
-                    .gap_2()
-                    .child(
-                        ui::action(move || tr("Cancel", "取消"), move || open.set(false))
-                            .disabled(state.busy),
-                    )
+                parts::dialog_actions()
+                    .child(ui::action(move || tr("Cancel", "取消"), close).disabled(state.busy))
                     .child(
                         ui::primary()
                             .disabled(move || {

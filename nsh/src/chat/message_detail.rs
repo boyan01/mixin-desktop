@@ -4,7 +4,7 @@ use nsh_core::prelude::*;
 use serde_json::Value;
 
 use super::{
-    message_actions::{Actions, Detail, label},
+    message_actions::{Actions, Detail},
     message_links,
 };
 use crate::{i18n::Key, runtime, ui};
@@ -12,7 +12,7 @@ use crate::{i18n::Key, runtime, ui};
 pub(super) fn card(row: &MessageListView, actions: Actions) -> AnyElement {
     let i18n = actions.i18n;
     let Ok(value) = serde_json::from_str::<Value>(&row.content) else {
-        return text(move || label(i18n, "Invalid card", "无法读取卡片"))
+        return text(move || i18n.tr("Invalid card", "无法读取卡片"))
             .text_sm()
             .into_element();
     };
@@ -49,7 +49,7 @@ pub(super) fn card(row: &MessageListView, actions: Actions) -> AnyElement {
     let commands = if row.category == "APP_BUTTON_GROUP" {
         value.as_array().cloned().unwrap_or_default()
     } else if single_action {
-        vec![serde_json::json!({"label": label(i18n, "Open", "打开"), "action": primary})]
+        vec![serde_json::json!({"label": i18n.tr("Open", "打开"), "action": primary})]
     } else {
         value
             .get("actions")
@@ -154,7 +154,7 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
                                 },
                             ))
                             .child(ui::action(
-                                move || label(i18n, "Close", "关闭"),
+                                move || i18n.tr("Close", "关闭"),
                                 move || actions.close_preview(),
                             )),
                     )
@@ -297,7 +297,7 @@ fn add_image_sticker(row: MessageListView, actions: Actions) -> impl IntoElement
         .justify_center()
         .gap_6()
         .child(
-            text(move || label(i18n, "Add sticker", "添加贴纸"))
+            text(move || i18n.tr("Add sticker", "添加贴纸"))
                 .text_lg()
                 .font_weight(FontWeight::SEMIBOLD),
         )
@@ -312,7 +312,7 @@ fn add_image_sticker(row: MessageListView, actions: Actions) -> impl IntoElement
         )
         .child(
             ui::action(
-                move || label(i18n, "Save", "保存"),
+                move || i18n.tr("Save", "保存"),
                 move || {
                     if !active() || actions.busy.get_untracked() {
                         return;
@@ -321,7 +321,7 @@ fn add_image_sticker(row: MessageListView, actions: Actions) -> impl IntoElement
                     let id = id.with(|id| id.clone());
                     actions.busy.set(true);
                     actions.failed.set(false);
-                    spawn(async move {
+                    actions.task(async move {
                         let result = runtime::commit(async move {
                             client.sticker().add_sticker_from_file(id).await
                         })
@@ -341,7 +341,7 @@ fn add_image_sticker(row: MessageListView, actions: Actions) -> impl IntoElement
             .disabled(move || actions.busy.get() || !active())
             .child(ui::busy_indicator(
                 move || actions.busy.get(),
-                move || label(i18n, "Saving…", "正在保存…").into(),
+                move || i18n.tr("Saving…", "正在保存…").into(),
             )),
         )
 }

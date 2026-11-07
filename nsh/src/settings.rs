@@ -5,12 +5,14 @@ use nsh_base::theme;
 use nsh_core::prelude::*;
 
 use crate::{
+    conversation::parts,
     i18n::{self, I18n, Key},
     ui,
 };
 
 mod common;
-use common::{Feedback, body, client, section, toggle, tr};
+use common::{Feedback, client, toggle};
+pub(crate) use common::{body, section};
 
 mod about;
 mod appearance;
@@ -35,14 +37,14 @@ pub(crate) enum Page {
 impl Page {
     fn title(self, i18n: I18n) -> &'static str {
         match self {
-            Self::Notifications => tr(i18n, "Notifications", "通知"),
-            Self::Security => tr(i18n, "Privacy and security", "隐私与安全"),
-            Self::Profile => tr(i18n, "Edit profile", "编辑个人资料"),
-            Self::Storage => tr(i18n, "Data and storage", "数据与存储"),
-            Self::Transfer => tr(i18n, "Chat backup and restore", "聊天备份与恢复"),
-            Self::Proxy => tr(i18n, "Proxy", "代理"),
-            Self::Appearance => tr(i18n, "Appearance", "外观"),
-            Self::About => tr(i18n, "About", "关于"),
+            Self::Notifications => i18n.tr("Notifications", "通知"),
+            Self::Security => i18n.tr("Privacy and security", "隐私与安全"),
+            Self::Profile => i18n.tr("Edit profile", "编辑个人资料"),
+            Self::Storage => i18n.tr("Data and storage", "数据与存储"),
+            Self::Transfer => i18n.tr("Chat backup and restore", "聊天备份与恢复"),
+            Self::Proxy => i18n.tr("Proxy", "代理"),
+            Self::Appearance => i18n.tr("Appearance", "外观"),
+            Self::About => i18n.tr("About", "关于"),
         }
     }
 }
@@ -80,7 +82,6 @@ pub(crate) fn navigation(
                             .justify_start()
                             .min_h_12()
                             .selected(move || page.get() == value)
-                            .selected_style(|s| s.bg(move || theme().accent))
                             .on_press(move || {
                                 batch(|| {
                                     page.set(value);
@@ -98,22 +99,9 @@ fn header(
     title: impl Fn() -> &'static str + 'static,
     on_back: impl Fn() + 'static,
 ) -> impl IntoElement {
-    let i18n = i18n::current();
-    view()
-        .h_16()
-        .flex_row()
-        .items_center()
-        .gap_3()
-        .px_4()
+    parts::page_header(title, parts::back_button(on_back))
         .border_b_1()
         .border_color(move || theme().border)
-        .child(
-            ui::icon_button()
-                .on_press(on_back)
-                .accessibility_label(move || Some(i18n.text(Key::Back).into()))
-                .child(ui::icon(ui::Icon::ArrowLeft)),
-        )
-        .child(text(title).text_lg().font_weight(FontWeight::SEMIBOLD))
 }
 
 pub(crate) fn screen(
@@ -125,6 +113,8 @@ pub(crate) fn screen(
 ) -> impl IntoElement {
     let i18n = i18n::current();
     let on_signed_out = Arc::new(on_signed_out);
+    // Held here so visiting another settings page keeps an unsaved profile edit.
+    let profile_draft = signal(None::<(String, String)>);
     view()
         .flex_1()
         .min_w_0()
@@ -135,9 +125,13 @@ pub(crate) fn screen(
             let account = account.clone();
             let on_signed_out = on_signed_out.clone();
             untracked(|| match current {
-                Page::Profile => {
-                    profile::screen(account, move || on_signed_out(), session_owner).into_element()
-                }
+                Page::Profile => profile::screen(
+                    account,
+                    profile_draft,
+                    move || on_signed_out(),
+                    session_owner,
+                )
+                .into_element(),
                 Page::Notifications => notifications::screen().into_element(),
                 Page::Security => crate::security::settings(
                     use_context::<crate::security::Handle>().expect("Home provides screen privacy"),

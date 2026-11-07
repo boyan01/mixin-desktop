@@ -1,5 +1,11 @@
 use super::*;
 
+use std::time::Duration;
+
+const DEBOUNCE: Duration = Duration::from_millis(150);
+const REFRESH_INTERVAL: Duration = Duration::from_millis(333);
+
+#[derive(Clone, Copy)]
 pub(super) struct State {
     pub(super) section: Signal<Section>,
     pub(super) page: Signal<i64>,
@@ -11,6 +17,104 @@ pub(super) struct State {
     pub(super) loading: Signal<bool>,
     pub(super) failed: Signal<bool>,
     pub(super) revision: Signal<u64>,
+    pub(super) list: ElementRef,
+}
+
+impl State {
+    pub(super) fn show(self, section: Section) {
+        batch(|| {
+            self.section.set(section);
+            self.page.set(0);
+            self.cursors.set(vec![None]);
+        });
+    }
+
+    pub(super) fn next_page(self) {
+        batch(|| {
+            if self.section.get_untracked() == Section::Messages {
+                let cursor = self.next_cursor.get_untracked();
+                let next = self.page.get_untracked() as usize + 1;
+                self.cursors.update(|cursors| {
+                    cursors.truncate(next);
+                    cursors.push(cursor);
+                });
+            }
+            self.page.update(|page| *page += 1);
+        });
+    }
+
+    pub(super) fn previous_page(self) {
+        self.page.update(|page| *page = page.saturating_sub(1));
+    }
+
+    pub(super) fn retry(self) {
+        self.revision.update(|revision| *revision += 1);
+    }
+
+    fn apply(self, results: Results, scope: Section, background: bool) {
+        batch(|| {
+            if matches!(scope, Section::All | Section::Users) {
+                self.users_empty.set(results.users_empty);
+            }
+            self.next_cursor.set(results.next_cursor);
+            self.more.set(results.more);
+            self.rows.set(results.rows);
+        });
+        if !background {
+            after_answer(move || self.list.scroll_to_offset(px(0.0), false));
+        }
+    }
+}
+
+struct Results {
+    rows: Vec<Row>,
+    more: bool,
+    next_cursor: Option<String>,
+    users_empty: bool,
+}
+
+impl Results {
+    fn new(
+        mut users: Vec<UserProfileItem>,
+        mut conversations: Vec<ConversationListData>,
+        mut messages: Vec<MessageListView>,
+        limit: usize,
+    ) -> Self {
+        let mut results = Self {
+            rows: Vec::new(),
+            more: false,
+            next_cursor: None,
+            users_empty: users.is_empty(),
+        };
+        if !users.is_empty() {
+            results.header(Section::Users, users.len() > limit);
+            users.truncate(limit);
+            results.rows.extend(users.into_iter().map(Row::User));
+        }
+        if !conversations.is_empty() {
+            results.header(Section::Conversations, conversations.len() > limit);
+            conversations.truncate(limit);
+            results.rows.extend(
+                conversations
+                    .into_iter()
+                    .map(|row| Row::Conversation(Box::new(row))),
+            );
+        }
+        if !messages.is_empty() {
+            results.header(Section::Messages, messages.len() > limit);
+            messages.truncate(limit);
+            results.next_cursor = messages.last().map(|message| message.message_id.clone());
+            results
+                .rows
+                .extend(messages.into_iter().map(|row| Row::Message(Box::new(row))));
+        }
+        results
+    }
+
+    fn header(&mut self, section: Section, more: bool) {
+        self.more |= more;
+        self.rows.push(Row::Header(section, more));
+    }
 }
 
 pub(super) fn new(
@@ -21,37 +125,38 @@ pub(super) fn new(
     circle: Signal<Option<String>>,
     unread: Signal<bool>,
 ) -> State {
-    let section = signal(Section::All);
-    let page = signal(0_i64);
-    let cursors = signal(vec![None::<String>]);
-    let next_cursor = signal(None::<String>);
-    let more = signal(false);
-    let rows = signal_with(Vec::<Row>::new(), SignalEquals::Never);
-    let users_empty = signal(true);
-    let loading = signal(true);
-    let failed = signal(false);
-    let revision = signal(0_u64);
-    let request = signal(0_u64);
+    let state = State {
+        section: signal(Section::All),
+        page: signal(0_i64),
+        cursors: signal(vec![None::<String>]),
+        next_cursor: signal(None::<String>),
+        more: signal(false),
+        rows: signal_with(Vec::<Row>::new(), SignalEquals::Never),
+        users_empty: signal(true),
+        loading: signal(true),
+        failed: signal(false),
+        revision: signal(0_u64),
+        list: element_ref(),
+    };
     effect(move || {
         let _query = query.get();
         let _category = category.get();
         let _circle = circle.get();
         let _unread = unread.get();
-        batch(|| {
-            section.set(Section::All);
-            page.set(0);
-            cursors.set(vec![None]);
-            rows.set(Vec::new());
-        });
+        state.show(Section::All);
     });
     let event_account = account.with(|account| account.clone());
     spawn(async move {
-        let mut changes = Box::pin(runtime::observe(event_account.conversation_changes()));
         use futures::StreamExt as _;
+        let mut changes = Box::pin(runtime::throttled(
+            event_account.conversation_changes(),
+            REFRESH_INTERVAL,
+        ));
         while changes.next().await.is_some() {
-            revision.update(|revision| *revision += 1);
+            state.revision.update(|revision| *revision += 1);
         }
     });
+    let seen_revision = stored(0_u64);
     effect(move || {
         if composing.get() {
             return;
@@ -60,17 +165,26 @@ pub(super) fn new(
         let category = category.get();
         let circle = circle.get();
         let unread_only = unread.get();
-        let scope = section.get();
-        let offset = page.get();
-        let cursor = cursors.with(|cursors| cursors.get(offset as usize).cloned().flatten());
-        let _revision = revision.get();
-        let ticket = request.get_untracked().wrapping_add(1);
-        request.set(ticket);
+        let scope = state.section.get();
+        let offset = state.page.get();
+        let cursor = state
+            .cursors
+            .with(|cursors| cursors.get(offset as usize).cloned().flatten());
+        let revision = state.revision.get();
+        // New data under an unchanged query updates in place: no spinner, no debounce.
+        let background = seen_revision.replace(revision) != revision
+            && !state.failed.get_untracked()
+            && !state.loading.get_untracked();
+        if !background {
+            state.loading.set(true);
+            state.failed.set(false);
+        }
         let client = account.with(|account| account.clone());
-        loading.set(true);
-        failed.set(false);
+        // Rerunning this effect cancels the previous task and its business call.
         spawn(async move {
-            timer(std::time::Duration::from_millis(150)).await;
+            if !background {
+                timer(DEBOUNCE).await;
+            }
             let count = if scope == Section::All { 3 } else { 60 };
             let result = runtime::run(async move {
                 let access = client.conversation();
@@ -125,65 +239,23 @@ pub(super) fn new(
                 Ok(futures::join!(users, conversations, messages))
             })
             .await;
-            if request.get_untracked() != ticket {
-                return;
-            }
             match result {
                 Ok((users, conversations, messages)) => {
-                    let mut values = Vec::new();
-                    let mut has_more = false;
-                    failed.set(users.is_err() || conversations.is_err() || messages.is_err());
-                    let mut users = users.unwrap_or_default();
-                    users_empty.set(users.is_empty());
-                    let mut conversations = conversations.unwrap_or_default();
-                    let mut messages = messages.unwrap_or_default();
-                    let limit = count as usize;
-                    if !users.is_empty() {
-                        let extra = users.len() > limit;
-                        has_more |= extra;
-                        values.push(Row::Header(Section::Users, extra));
-                        users.truncate(limit);
-                        values.extend(users.into_iter().map(Row::User));
-                    }
-                    if !conversations.is_empty() {
-                        let extra = conversations.len() > limit;
-                        has_more |= extra;
-                        values.push(Row::Header(Section::Conversations, extra));
-                        conversations.truncate(limit);
-                        values.extend(
-                            conversations
-                                .into_iter()
-                                .map(|row| Row::Conversation(Box::new(row))),
-                        );
-                    }
-                    if !messages.is_empty() {
-                        let extra = messages.len() > limit;
-                        has_more |= extra;
-                        values.push(Row::Header(Section::Messages, extra));
-                        messages.truncate(limit);
-                        next_cursor.set(messages.last().map(|message| message.message_id.clone()));
-                        values.extend(messages.into_iter().map(|row| Row::Message(Box::new(row))));
-                    } else {
-                        next_cursor.set(None);
-                    }
-                    rows.set(values);
-                    more.set(has_more);
+                    state
+                        .failed
+                        .set(users.is_err() || conversations.is_err() || messages.is_err());
+                    let results = Results::new(
+                        users.unwrap_or_default(),
+                        conversations.unwrap_or_default(),
+                        messages.unwrap_or_default(),
+                        count as usize,
+                    );
+                    state.apply(results, scope, background);
                 }
-                Err(_) => failed.set(true),
+                Err(_) => state.failed.set(true),
             }
-            loading.set(false);
+            state.loading.set(false);
         });
     });
-    State {
-        section,
-        page,
-        cursors,
-        next_cursor,
-        more,
-        rows,
-        users_empty,
-        loading,
-        failed,
-        revision,
-    }
+    state
 }

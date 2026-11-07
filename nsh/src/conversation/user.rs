@@ -1,5 +1,4 @@
-use futures::StreamExt as _;
-use mixin_desktop_api::{GroupConversationItem, SharedAppItem, UserProfileItem};
+use mixin_desktop_api::{GroupConversationItem, UserProfileItem};
 
 use super::*;
 use crate::navigation::ChatNavigation;
@@ -13,6 +12,22 @@ pub(super) enum Destination {
     Apps,
 }
 
+impl Destination {
+    fn title(self) -> &'static str {
+        match self {
+            Self::Profile => tr("Profile", "个人资料"),
+            Self::EditName => tr("Edit name", "编辑名称"),
+            Self::AddContact => tr("Add contact", "添加联系人"),
+            Self::Groups => tr("Groups in common", "共同群组"),
+            Self::Apps => tr("Shared apps", "共享应用"),
+        }
+    }
+
+    fn name_form(self) -> bool {
+        matches!(self, Self::EditName | Self::AddContact)
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Action {
     Add,
@@ -21,6 +36,68 @@ enum Action {
     Block,
     Unblock,
     Report,
+}
+
+#[derive(Clone, Copy)]
+struct Page {
+    owner: Owner,
+    account: Stored<Arc<AccountClient>>,
+    own_id: Stored<String>,
+    id: Signal<String>,
+    profile: Signal<Option<UserProfileItem>>,
+    creator: Signal<Option<String>>,
+    destination: Signal<Destination>,
+    history: Signal<Vec<(String, Destination)>>,
+    revision: Signal<u64>,
+    loading: Signal<bool>,
+    busy: Signal<bool>,
+    failed: Signal<bool>,
+}
+
+impl Page {
+    fn client(self) -> Arc<AccountClient> {
+        self.account.with(|account| account.clone())
+    }
+
+    fn is(self, test: impl Fn(&UserProfileItem) -> bool) -> bool {
+        self.profile
+            .with(|profile| profile.as_ref().is_some_and(&test))
+    }
+
+    fn missing_or(self, test: impl Fn(&UserProfileItem) -> bool) -> bool {
+        self.profile
+            .with(|profile| profile.as_ref().is_none_or(&test))
+    }
+
+    fn text(self, read: impl Fn(&UserProfileItem) -> String) -> String {
+        self.profile
+            .with(|profile| profile.as_ref().map(read).unwrap_or_default())
+    }
+
+    fn other_user(self) -> bool {
+        let own_id = self.own_id.with(|id| id.clone());
+        self.is(|profile| profile.user_id != own_id)
+    }
+
+    fn open_profile(self, user: String) {
+        batch(|| {
+            self.history.update(|history| {
+                history.push((self.id.get_untracked(), self.destination.get_untracked()));
+            });
+            self.id.set(user);
+            self.destination.set(Destination::Profile);
+        });
+    }
+
+    fn confirm_then(self, prompt: Prompt, apply: impl FnOnce() + 'static) {
+        self.owner.run(|| {
+            spawn(async move {
+                if confirm(prompt).await {
+                    apply();
+                }
+            })
+        });
+    }
 }
 
 pub(crate) fn profile(
@@ -53,114 +130,31 @@ pub(super) fn profile_at(
             opened();
         }
     };
-    let account = stored(account);
-    let id = signal(user_id);
-    let history = signal(Vec::<(String, Destination)>::new());
-    let profile = signal_with(None::<UserProfileItem>, SignalEquals::Never);
-    let destination = signal(initial);
-    let back_button = element_ref();
-    let revision = signal(0_u64);
-    let request = signal(0_u64);
-    let loading = signal(true);
-    let busy = signal(false);
-    let failed = signal(false);
-    let links = use_context::<crate::links::LinkNavigation>().expect("Home provides link routing");
-    let creator = signal(None::<String>);
-    let navigation =
-        use_context::<ChatNavigation>().expect("The signed-in session provides navigation");
-    let own_id = account.with(|account| account.account_id());
-    let own_id = stored(own_id);
-    effect(move || {
-        if initial == Destination::Apps && destination.get() == Destination::Apps {
-            loading.set(false);
-            failed.set(false);
-            return;
-        }
-        let user_id = id.get();
-        let _revision = revision.get();
-        let ticket = request.get_untracked().wrapping_add(1);
-        request.set(ticket);
-        loading.set(true);
-        failed.set(false);
-        profile.set(None);
-        creator.set(None);
-        let client = account.with(|account| account.clone());
-        spawn(async move {
-            let updates = client.clone();
-            let observed_id = user_id.clone();
-            let mut changes = Box::pin(runtime::observe(updates.conversation_changes()));
-            let local_client = client.clone();
-            let local_id = user_id.clone();
-            if let Ok(Some(value)) =
-                runtime::run(
-                    async move { local_client.user().user_profile(Some(local_id), None).await },
-                )
-                .await
-            {
-                if request.get_untracked() != ticket {
-                    return;
-                }
-                profile.set(Some(value));
-            }
-            let result = runtime::run(async move {
-                let value = client.user().refresh_user_profile(user_id.clone()).await?;
-                let creator = if value.as_ref().is_some_and(|user| user.is_bot) {
-                    client.user().bot_creator_id(user_id).await?
-                } else {
-                    None
-                };
-                Ok((value, creator))
-            })
-            .await;
-            if request.get_untracked() != ticket {
-                return;
-            }
-            match result {
-                Ok((Some(value), owner)) => {
-                    profile.set(Some(value));
-                    creator.set(owner);
-                }
-                _ => failed.set(true),
-            }
-            loading.set(false);
-            while let Some(change) = changes.next().await {
-                if !change.reload_all {
-                    continue;
-                }
-                let client = updates.clone();
-                let current = observed_id.clone();
-                let result =
-                    runtime::run(
-                        async move { client.user().user_profile(Some(current), None).await },
-                    )
-                    .await;
-                if request.get_untracked() != ticket {
-                    return;
-                }
-                if let Ok(Some(value)) = result {
-                    profile.set(Some(value));
-                }
-            }
-        });
-    });
-    let open_profile = move |user: String| {
-        batch(|| {
-            history.update(|history| {
-                history.push((id.get_untracked(), destination.get_untracked()));
-            });
-            id.set(user);
-            destination.set(Destination::Profile);
-        });
+    let page = Page {
+        owner,
+        own_id: stored(account.account_id()),
+        account: stored(account),
+        id: signal(user_id),
+        profile: signal_with(None, SignalEquals::Never),
+        creator: signal(None),
+        destination: signal(initial),
+        history: signal(Vec::new()),
+        revision: signal(0),
+        loading: signal(true),
+        busy: signal(false),
+        failed: signal(false),
     };
+    let back_button = element_ref();
+    effect(move || load(page, initial));
     let apply = move |action: Action, name: String| {
-        if busy.get_untracked() {
+        if page.busy.get_untracked() {
             return;
         }
-        busy.set(true);
-        failed.set(false);
-        let client = account.with(|account| account.clone());
-        let user_id = id.get_untracked();
-        let command_request = request.get_untracked();
+        page.busy.set(true);
+        page.failed.set(false);
+        let client = page.client();
+        let user_id = page.id.get_untracked();
+        let target = user_id.clone();
         let command = runtime::commit(async move {
             let access = client.user();
             match action {
@@ -172,135 +166,492 @@ pub(super) fn profile_at(
                 Action::Report => access.report_user(user_id).await,
             }
         });
-        spawn(async move {
-            let result = command.await;
-            busy.set(false);
-            if request.get_untracked() != command_request {
-                return;
-            }
-            if result.is_err() {
-                failed.set(true);
-            } else {
-                let current = destination.get_untracked();
-                let editing_name =
-                    matches!(current, Destination::EditName | Destination::AddContact);
+        // The name form owns this press, but ends before the write when its page changes.
+        owner.run(|| {
+            spawn(async move {
+                let result = command.await;
+                page.busy.set(false);
+                if page.id.get_untracked() != target {
+                    return;
+                }
+                if result.is_err() {
+                    page.failed.set(true);
+                    return;
+                }
+                let current = page.destination.get_untracked();
                 if current == Destination::EditName
                     && initial == Destination::EditName
-                    && history.with_untracked(Vec::is_empty)
+                    && page.history.with_untracked(Vec::is_empty)
                 {
                     close();
                     return;
                 }
-                revision.update(|revision| *revision += 1);
-                destination.set(Destination::Profile);
-                if editing_name {
+                page.revision.update(|revision| *revision += 1);
+                page.destination.set(Destination::Profile);
+                if current.name_form() {
                     back_button.focus();
                 }
-            }
-            busy.set(false);
+            })
         });
     };
-    view().flex_1().min_h_0()
-        .child(view().h_14().flex_row().items_center().px_4().gap_3()
-            .child(ui::icon_button().element_ref(&back_button).size_8().px_1().disabled(busy)
-                        .accessibility_label(move || Some(tr("Back", "返回").into()))
-                .on_press(move || {
-                    if destination.get_untracked() == initial && history.with_untracked(Vec::is_empty) {
-                        close();
-                    }
-                    else if destination.get_untracked() != Destination::Profile {
-                        let editing_name = matches!(destination.get_untracked(), Destination::EditName | Destination::AddContact);
-                        destination.set(Destination::Profile);
-                        if editing_name { back_button.focus(); }
-                    }
-                    else if let Some((previous, page)) = history.with_untracked(|history| history.last().cloned()) {
-                        batch(|| {
-                            history.update(|history| { history.pop(); });
-                            id.set(previous);
-                            destination.set(page);
-                        });
-                    } else { close(); }
-                }).child(ui::icon(ui::Icon::ArrowLeft)))
-            .child(text(move || match destination.get() {
-                Destination::Profile => tr("Profile", "个人资料"), Destination::EditName => tr("Edit name", "编辑名称"),
-                Destination::AddContact => tr("Add contact", "添加联系人"),
-                Destination::Groups => tr("Groups in common", "共同群组"), Destination::Apps => tr("Shared apps", "共享应用"),
-            }).text_sm().font_weight(FontWeight::SEMIBOLD)))
-        .child(when(move || loading.get() && matches!(destination.get(), Destination::Profile | Destination::EditName | Destination::AddContact), || text(move || tr("Loading…", "加载中…")).px_4().text_sm()))
-        .child(when(failed, move || view().px_4().py_2().gap_2()
-            .child(text(move || tr("Couldn’t update. Try again.", "更新失败，请重试。")).text_sm().text_color(move || theme().destructive))
-            .child(ui::action(move || tr("Retry", "重试"), move || revision.update(|revision| *revision += 1)))))
+    let back = move || {
+        let destination = page.destination.get_untracked();
+        if destination == initial && page.history.with_untracked(Vec::is_empty) {
+            close();
+        } else if destination != Destination::Profile {
+            page.destination.set(Destination::Profile);
+            if destination.name_form() {
+                back_button.focus();
+            }
+        } else if let Some((previous, destination)) = page
+            .history
+            .with_untracked(|history| history.last().cloned())
+        {
+            batch(|| {
+                page.history.update(|history| {
+                    history.pop();
+                });
+                page.id.set(previous);
+                page.destination.set(destination);
+            });
+        } else {
+            close();
+        }
+    };
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(parts::page_header(
+            move || page.destination.get().title(),
+            parts::back_button(back)
+                .element_ref(&back_button)
+                .disabled(page.busy),
+        ))
+        .child(when(
+            move || {
+                page.loading.get()
+                    && page.profile.with(Option::is_none)
+                    && !matches!(
+                        page.destination.get(),
+                        Destination::Groups | Destination::Apps
+                    )
+            },
+            || {
+                parts::status(move || tr("Loading…", "加载中…"))
+                    .px_4()
+                    .py_2()
+            },
+        ))
+        .child(when(page.failed, move || {
+            parts::failure(
+                move || tr("Couldn’t update. Try again.", "更新失败，请重试。"),
+                move || page.revision.update(|revision| *revision += 1),
+            )
+            .px_4()
+            .py_2()
+        }))
         .child(dynamic(move || {
-            let page = destination.get(); let selected = id.get();
-            untracked(|| match page {
-                Destination::Groups => groups(account.with(|account| account.clone()), selected, failed).into_element(),
-                Destination::Apps => apps(account.with(|account| account.clone()), selected, open_profile).into_element(),
+            let destination = page.destination.get();
+            let selected = page.id.get();
+            untracked(|| match destination {
+                Destination::Groups => groups(page.client(), selected, page.failed).into_element(),
+                Destination::Apps => {
+                    apps(page.client(), selected, move |id| page.open_profile(id)).into_element()
+                }
                 Destination::EditName | Destination::AddContact => when(
-                    move || profile.with(Option::is_some),
-                    move || {
-                        let name = signal(profile.with_untracked(|profile| profile.as_ref().map(|profile| profile.full_name.clone()).unwrap_or_default()));
-                        view().p_4().gap_3()
-                            .child(ui::field().label(move || tr("Name", "名称")).max_length(if page == Destination::EditName { 40 } else { 64 }).readonly(busy).auto_focus(true).value(move || name.get()).on_change(move |text: &str| name.set(text.into())))
-                            .child(ui::primary().disabled(move || busy.get() || name.with(|name| name.trim().is_empty()) || profile.with(|profile| profile.as_ref().is_none_or(|profile| profile.is_deactivated)))
-                                .on_press(move || apply(if page == Destination::EditName { Action::Rename } else { Action::Add }, name.get_untracked().trim().into())).child(text(move || tr("Save", "保存"))))
-                    },
-                ).into_element(),
-                Destination::Profile => scroll().flex_1().min_h_0().child(view().pb_5()
-                    .child(view().p_4().gap_2().items_center()
-                        .child(ui::avatar_view(move || profile.with(|profile| profile.as_ref().map(|profile| profile.full_name.clone()).unwrap_or_default().into()), move || profile.with(|profile| profile.as_ref().map(|profile| profile.avatar_url.clone()).unwrap_or_default())).size_16())
-                        .child(view().flex_row().items_center().justify_center().gap_1().min_w_0()
-                            .child(text(move || profile.with(|profile| profile.as_ref().map(|profile| profile.full_name.clone()).unwrap_or_default())).text_lg().font_weight(FontWeight::SEMIBOLD).number_of_lines(2))
-                            .child(dynamic(move || {
-                                let value = profile.get();
-                                untracked(|| match value {
-                                    Some(value) => crate::appearance::identity_badge(false, value.is_verified, value.is_bot, value.membership.as_deref()),
-                                    None => view().hidden().into_element(),
-                                })
-                            })))
-                        .child(text(move || profile.with(|profile| profile.as_ref().map(|profile| profile.identity_number.clone()).unwrap_or_default())).text_sm().select_text())
-                        .child(when(move || profile.with(|profile| profile.as_ref().is_some_and(|profile| !profile.is_deactivated)), move || text(move || profile.with(|profile| profile.as_ref().map(|profile| profile.biography.clone()).unwrap_or_default())).text_sm().text_center()))
-                        .child(when(move || profile.with(|profile| profile.as_ref().is_some_and(|profile| profile.is_deactivated)), move || text(move || tr("This user has deleted their account.", "此用户已删除账号。")).text_sm().text_center().text_color(move || theme().destructive)))
-                        .child(when(move || profile.with(|profile| profile.as_ref().is_some_and(|profile| profile.is_verified)), || text(move || tr("Verified", "已认证")).text_xs().text_color(move || theme().muted_foreground))))
-                    .child(when(move || id.get() != own_id.with(|id| id.clone()), move ||
-                        row(move || tr("Message", "发消息"), move || navigation.open_user_then(account.with(|account| account.clone()), id.get_untracked(), failed, opened))
-                            .disabled(move || busy.get() || profile.with(Option::is_none))))
-                    .child(row(move || tr("Share contact…", "分享联系人…"), move || {
-                        use base64::Engine as _;
-                        let data = base64::engine::general_purpose::STANDARD.encode(serde_json::json!({"user_id": id.get_untracked()}).to_string());
-                        let mut url = url::Url::parse("mixin://send").expect("static Mixin URI");
-                        url.query_pairs_mut().append_pair("category", "contact").append_pair("data", &data);
-                        links.open(url.into(), None);
-                    }).disabled(move || busy.get() || profile.with(Option::is_none)))
-                    .child(when(move || profile.with(|profile| profile.as_ref().is_some_and(|profile| profile.is_bot)), move || view()
-                        .child(row(move || tr("Open app", "打开应用"), move || links.open(format!("mixin://apps/{}?action=open", id.get_untracked()), None)))
-                        .child(when(move || creator.with(Option::is_some), move || row(move || tr("Created by", "开发者"), move || {
-                            if let Some(owner) = creator.get_untracked() { open_profile(owner); }
-                        })))))
-                    .child(row(move || tr("Copy link", "复制链接"), move || {
-                        if let Some(link) = profile.with(|profile| profile.as_ref().map(|profile| profile.code_url.clone())).filter(|link| !link.is_empty()) { set_clipboard(link); }
-                    }).disabled(move || profile.with(|profile| profile.as_ref().is_none_or(|profile| profile.code_url.is_empty()))))
-                    .child(when(move || profile.with(|profile| profile.as_ref().is_some_and(|profile| !profile.is_bot)), move || row(move || tr("Groups in common", "共同群组"), move || destination.set(Destination::Groups))))
-                    .child(row(move || tr("Shared apps", "共享应用"), move || destination.set(Destination::Apps)))
-                    .child(when(move || profile.with(|profile| profile.as_ref().is_some_and(|profile| profile.user_id != own_id.with(|id| id.clone()))), move ||
-                        row(move || tr("Edit name…", "编辑名称…"), move || destination.set(Destination::EditName)).disabled(move || busy.get() || profile.with(|profile| profile.as_ref().is_none_or(|profile| profile.is_deactivated)))))
-                    .child(when(move || profile.with(|profile| profile.as_ref().is_some_and(|profile| profile.user_id != own_id.with(|id| id.clone()) && profile.relationship != "BLOCKING")), move || view()
-                        .child(when(move || profile.with(|profile| profile.as_ref().is_some_and(|profile| profile.relationship != "FRIEND")), move ||
-                            row(move || tr("Add contact…", "添加联系人…"), move || destination.set(Destination::AddContact)).disabled(move || busy.get() || profile.with(|profile| profile.as_ref().is_none_or(|profile| profile.is_deactivated)))))
-                        .child(when(move || profile.with(|profile| profile.as_ref().is_some_and(|profile| profile.relationship == "FRIEND")), move || row(move || tr("Remove contact…", "移除联系人…"), move || {
-                            spawn(async move { if confirm(tr("Remove contact?", "移除联系人？"), tr("This user will be removed from your contacts.", "此用户将从联系人中移除。").into(), tr("Remove", "移除")).await { apply(Action::Remove, String::new()); } });
-                        }).disabled(busy).text_color(move || theme().destructive)))
-                        .child(row(move || tr("Block…", "屏蔽…"), move || {
-                            spawn(async move { if confirm(tr("Block this user?", "屏蔽此用户？"), tr("Messages from this user will be blocked.", "将不再接收此用户的消息。").into(), tr("Block", "屏蔽")).await { apply(Action::Block, String::new()); } });
-                        }).disabled(busy).text_color(move || theme().destructive))))
-                    .child(when(move || profile.with(|profile| profile.as_ref().is_some_and(|profile| profile.relationship == "BLOCKING")), move || row(move || tr("Unblock…", "取消屏蔽…"), move || {
-                        spawn(async move { if confirm(tr("Unblock this user?", "取消屏蔽此用户？"), String::new(), tr("Unblock", "取消屏蔽")).await { apply(Action::Unblock, String::new()); } });
-                    }).disabled(busy)))
-                    .child(when(move || profile.with(|profile| profile.as_ref().is_some_and(|profile| profile.user_id != own_id.with(|id| id.clone()))), move || row(move || tr("Report and block…", "举报并屏蔽…"), move || {
-                        spawn(async move { if confirm(tr("Report and block?", "举报并屏蔽？"), tr("This account will be reported and blocked.", "将举报并屏蔽此账号。").into(), tr("Report", "举报")).await { apply(Action::Report, String::new()); } });
-                    }).disabled(busy).text_color(move || theme().destructive))))
-                    .into_element(),
+                    move || page.profile.with(Option::is_some),
+                    move || name_form(page, destination, apply),
+                )
+                .into_element(),
+                Destination::Profile => details(page, apply, opened).into_element(),
             })
         }))
+}
+
+/// Runs inside the page effect, so a rerun cancels this load and its subscription.
+fn load(page: Page, initial: Destination) {
+    if initial == Destination::Apps && page.destination.get() == Destination::Apps {
+        page.loading.set(false);
+        page.failed.set(false);
+        return;
+    }
+    let user_id = page.id.get();
+    let _revision = page.revision.get();
+    page.loading.set(true);
+    page.failed.set(false);
+    // Keep the current user on screen through a refresh; clearing it collapses the page.
+    if page
+        .profile
+        .with_untracked(|profile| profile.as_ref().is_none_or(|p| p.user_id != user_id))
+    {
+        batch(|| {
+            page.profile.set(None);
+            page.creator.set(None);
+        });
+    }
+    let client = page.client();
+    spawn(async move {
+        let updates = client.clone();
+        let observed_id = user_id.clone();
+        let mut changes = Box::pin(runtime::observe(updates.conversation_changes()));
+        let local_client = client.clone();
+        let local_id = user_id.clone();
+        if let Ok(Some(value)) =
+            runtime::run(
+                async move { local_client.user().user_profile(Some(local_id), None).await },
+            )
+            .await
+        {
+            page.profile.set(Some(value));
+        }
+        let result = runtime::run(async move {
+            let value = client.user().refresh_user_profile(user_id.clone()).await?;
+            let creator = if value.as_ref().is_some_and(|user| user.is_bot) {
+                client.user().bot_creator_id(user_id).await?
+            } else {
+                None
+            };
+            Ok((value, creator))
+        })
+        .await;
+        match result {
+            Ok((Some(value), owner)) => {
+                page.profile.set(Some(value));
+                page.creator.set(owner);
+            }
+            _ => page.failed.set(true),
+        }
+        page.loading.set(false);
+        while let Some(change) = changes.next().await {
+            if !change.reload_all {
+                continue;
+            }
+            let client = updates.clone();
+            let current = observed_id.clone();
+            let result =
+                runtime::run(async move { client.user().user_profile(Some(current), None).await })
+                    .await;
+            if let Ok(Some(value)) = result {
+                page.profile.set(Some(value));
+            }
+        }
+    });
+}
+
+fn name_form(
+    page: Page,
+    destination: Destination,
+    apply: impl Fn(Action, String) + Copy + 'static,
+) -> impl IntoElement {
+    let name = signal(page.text(|profile| profile.full_name.clone()));
+    let editing = destination == Destination::EditName;
+    view()
+        .p_4()
+        .gap_3()
+        .child(
+            ui::field()
+                .label(move || tr("Name", "名称"))
+                .max_length(if editing { 40 } else { 64 })
+                .readonly(page.busy)
+                .auto_focus(true)
+                .value(move || name.get())
+                .on_change(move |text: &str| name.set(text.into())),
+        )
+        .child(
+            ui::primary()
+                .disabled(move || {
+                    page.busy.get()
+                        || name.with(|name| name.trim().is_empty())
+                        || page.missing_or(|profile| profile.is_deactivated)
+                })
+                .on_press(move || {
+                    apply(
+                        if editing { Action::Rename } else { Action::Add },
+                        name.get_untracked().trim().into(),
+                    )
+                })
+                .child(text(move || tr("Save", "保存"))),
+        )
+}
+
+fn details(
+    page: Page,
+    apply: impl Fn(Action, String) + Copy + 'static,
+    opened: impl Fn() + Copy + 'static,
+) -> impl IntoElement {
+    scroll().flex_1().min_h_0().child(
+        view()
+            .pb_5()
+            .child(summary(page))
+            .child(primary_rows(page, opened))
+            .child(when(
+                move || page.other_user(),
+                move || relationship_rows(page, apply),
+            )),
+    )
+}
+
+fn summary(page: Page) -> impl IntoElement {
+    view()
+        .p_4()
+        .gap_2()
+        .items_center()
+        .child(
+            ui::avatar_view(
+                move || page.text(|profile| profile.full_name.clone()).into(),
+                move || page.text(|profile| profile.avatar_url.clone()),
+            )
+            .size_16(),
+        )
+        .child(
+            view()
+                .flex_row()
+                .items_center()
+                .justify_center()
+                .gap_1()
+                .min_w_0()
+                .child(
+                    text(move || page.text(|profile| profile.full_name.clone()))
+                        .text_lg()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .number_of_lines(2),
+                )
+                .child(dynamic(move || {
+                    let value = page.profile.get();
+                    untracked(|| match value {
+                        Some(value) => crate::appearance::identity_badge(
+                            false,
+                            value.is_verified,
+                            value.is_bot,
+                            value.membership.as_deref(),
+                        ),
+                        None => view().hidden().into_element(),
+                    })
+                })),
+        )
+        .child(
+            text(move || page.text(|profile| profile.identity_number.clone()))
+                .text_sm()
+                .select_text(),
+        )
+        .child(when(
+            move || page.is(|profile| !profile.is_deactivated && !profile.biography.is_empty()),
+            move || {
+                text(move || page.text(|profile| profile.biography.clone()))
+                    .text_sm()
+                    .text_center()
+            },
+        ))
+        .child(when(
+            move || page.is(|profile| profile.is_deactivated),
+            || {
+                ui::error_text(move || {
+                    tr("This user has deleted their account.", "此用户已删除账号。")
+                })
+                .text_center()
+            },
+        ))
+        .child(when(
+            move || page.is(|profile| profile.is_verified),
+            || {
+                text(move || tr("Verified", "已认证"))
+                    .text_xs()
+                    .text_color(move || theme().muted_foreground)
+            },
+        ))
+}
+
+fn primary_rows(page: Page, opened: impl Fn() + Copy + 'static) -> impl IntoElement {
+    let links = use_context::<crate::links::LinkNavigation>().expect("Home provides link routing");
+    let navigation =
+        use_context::<ChatNavigation>().expect("The signed-in session provides navigation");
+    let unavailable = move || page.busy.get() || page.profile.with(Option::is_none);
+    view()
+        .child(when(
+            move || page.id.get() != page.own_id.with(|id| id.clone()),
+            move || {
+                row(
+                    move || tr("Message", "发消息"),
+                    move || {
+                        navigation.open_user_then(
+                            page.client(),
+                            page.id.get_untracked(),
+                            page.failed,
+                            opened,
+                        )
+                    },
+                )
+                .disabled(unavailable)
+            },
+        ))
+        .child(
+            row(
+                move || tr("Share contact…", "分享联系人…"),
+                move || links.open(contact_uri(&page.id.get_untracked()), None),
+            )
+            .disabled(unavailable),
+        )
+        .child(when(
+            move || page.is(|profile| profile.is_bot),
+            move || {
+                view()
+                    .child(row(
+                        move || tr("Open app", "打开应用"),
+                        move || {
+                            links.open(
+                                format!("mixin://apps/{}?action=open", page.id.get_untracked()),
+                                None,
+                            )
+                        },
+                    ))
+                    .child(when(
+                        move || page.creator.with(Option::is_some),
+                        move || {
+                            row(
+                                move || tr("Created by", "开发者"),
+                                move || {
+                                    if let Some(owner) = page.creator.get_untracked() {
+                                        page.open_profile(owner);
+                                    }
+                                },
+                            )
+                        },
+                    ))
+            },
+        ))
+        .child(
+            row(
+                move || tr("Copy link", "复制链接"),
+                move || set_clipboard(untracked(|| page.text(|p| p.code_url.clone()))),
+            )
+            .disabled(move || page.missing_or(|profile| profile.code_url.is_empty())),
+        )
+        .child(when(
+            move || page.is(|profile| !profile.is_bot),
+            move || {
+                row(
+                    move || tr("Groups in common", "共同群组"),
+                    move || page.destination.set(Destination::Groups),
+                )
+            },
+        ))
+        .child(row(
+            move || tr("Shared apps", "共享应用"),
+            move || page.destination.set(Destination::Apps),
+        ))
+}
+
+fn contact_uri(user_id: &str) -> String {
+    use base64::Engine as _;
+    let data = base64::engine::general_purpose::STANDARD
+        .encode(serde_json::json!({"user_id": user_id}).to_string());
+    let mut url = url::Url::parse("mixin://send").expect("static Mixin URI");
+    url.query_pairs_mut()
+        .append_pair("category", "contact")
+        .append_pair("data", &data);
+    url.into()
+}
+
+fn relationship_rows(
+    page: Page,
+    apply: impl Fn(Action, String) + Copy + 'static,
+) -> impl IntoElement {
+    let blocked = move || page.is(|profile| profile.relationship == "BLOCKING");
+    let friend = move || page.is(|profile| profile.relationship == "FRIEND");
+    let deactivated = move || page.busy.get() || page.missing_or(|p| p.is_deactivated);
+    let danger = move |title: fn() -> &'static str, prompt: fn() -> Prompt, action: Action| {
+        row(title, move || {
+            page.confirm_then(prompt(), move || apply(action, String::new()))
+        })
+        .disabled(page.busy)
+        .text_color(move || theme().destructive)
+    };
+    view()
+        .child(
+            row(
+                move || tr("Edit name…", "编辑名称…"),
+                move || page.destination.set(Destination::EditName),
+            )
+            .disabled(deactivated),
+        )
+        .child(when(
+            move || !blocked() && !friend(),
+            move || {
+                row(
+                    move || tr("Add contact…", "添加联系人…"),
+                    move || page.destination.set(Destination::AddContact),
+                )
+                .disabled(deactivated)
+            },
+        ))
+        .child(when(
+            move || !blocked() && friend(),
+            move || {
+                danger(
+                    || tr("Remove contact…", "移除联系人…"),
+                    || {
+                        Prompt::new(
+                            tr("Remove contact?", "移除联系人？"),
+                            tr(
+                                "This user will be removed from your contacts.",
+                                "此用户将从联系人中移除。",
+                            ),
+                            tr("Remove", "移除"),
+                        )
+                    },
+                    Action::Remove,
+                )
+            },
+        ))
+        .child(when(
+            move || !blocked(),
+            move || {
+                danger(
+                    || tr("Block…", "屏蔽…"),
+                    || {
+                        Prompt::new(
+                            tr("Block this user?", "屏蔽此用户？"),
+                            tr(
+                                "Messages from this user will be blocked.",
+                                "将不再接收此用户的消息。",
+                            ),
+                            tr("Block", "屏蔽"),
+                        )
+                    },
+                    Action::Block,
+                )
+            },
+        ))
+        .child(when(blocked, move || {
+            row(
+                move || tr("Unblock…", "取消屏蔽…"),
+                move || {
+                    page.confirm_then(
+                        Prompt::new(
+                            tr("Unblock this user?", "取消屏蔽此用户？"),
+                            "",
+                            tr("Unblock", "取消屏蔽"),
+                        ),
+                        move || apply(Action::Unblock, String::new()),
+                    )
+                },
+            )
+            .disabled(page.busy)
+        }))
+        .child(danger(
+            || tr("Report and block…", "举报并屏蔽…"),
+            || {
+                Prompt::new(
+                    tr("Report and block?", "举报并屏蔽？"),
+                    tr(
+                        "This account will be reported and blocked.",
+                        "将举报并屏蔽此账号。",
+                    ),
+                    tr("Report", "举报"),
+                )
+            },
+            Action::Report,
+        ))
 }
 
 fn groups(account: Arc<AccountClient>, user_id: String, failed: Signal<bool>) -> impl IntoElement {
@@ -332,80 +683,42 @@ fn groups(account: Arc<AccountClient>, user_id: String, failed: Signal<bool>) ->
         .flex_1()
         .min_h_0()
         .child(when(loading, || {
-            text(move || tr("Loading…", "加载中…")).px_4().text_sm()
+            parts::status(move || tr("Loading…", "加载中…"))
+                .px_4()
+                .py_2()
         }))
         .child(when(query_failed, move || {
-            view()
-                .p_4()
-                .gap_2()
-                .child(
-                    text(move || tr("Couldn’t load. Try again.", "加载失败，请重试。"))
-                        .text_sm()
-                        .text_color(move || theme().destructive),
-                )
-                .child(ui::action(
-                    move || tr("Retry", "重试"),
-                    move || revision.update(|value| *value = value.wrapping_add(1)),
-                ))
+            parts::failure(
+                move || tr("Couldn’t load. Try again.", "加载失败，请重试。"),
+                move || revision.update(|value| *value = value.wrapping_add(1)),
+            )
+            .p_4()
         }))
         .child(
             virtual_list(
                 move || values.with(Vec::len),
                 move |at| {
                     let value = move || values.with(|rows| rows.get(at.index()).cloned());
-                    ui::command()
-                        .justify_start()
-                        .px_4()
-                        .min_h_16()
-                        .gap_3()
-                        .child(ui::avatar_view(
-                            move || value().map(|value| value.name.into()).unwrap_or_default(),
-                            move || value().map(|value| value.avatar_url).unwrap_or_default(),
-                        ))
-                        .child(
-                            view()
-                                .flex_1()
-                                .min_w_0()
-                                .gap_1()
-                                .child(
-                                    text(move || {
-                                        value().map(|value| value.name).unwrap_or_default()
-                                    })
-                                    .text_sm()
-                                    .number_of_lines(1),
-                                )
-                                .child(
-                                    text(move || {
-                                        value()
-                                            .map(|value| {
-                                                i18n::current().members(value.participant_count)
-                                            })
-                                            .unwrap_or_default()
-                                    })
-                                    .text_xs()
-                                    .text_color(move || theme().muted_foreground),
-                                ),
-                        )
-                        .on_press(move || {
-                            if let Some(group) = value() {
-                                let account = account.with(|account| account.clone());
-                                spawn(async move {
-                                    match runtime::run(async move {
-                                        account
-                                            .conversation()
-                                            .conversation_items_by_ids(vec![group.conversation_id])
-                                            .await
-                                    })
-                                    .await
-                                    {
-                                        Ok(mut rows) if !rows.is_empty() => {
-                                            navigation.select(rows.remove(0))
-                                        }
-                                        _ => failed.set(true),
-                                    }
-                                });
-                            }
-                        })
+                    parts::entity_row(
+                        move || value().map(|value| value.name).unwrap_or_default(),
+                        move || value().map(|value| value.avatar_url).unwrap_or_default(),
+                        move || {
+                            value()
+                                .map(|value| i18n::current().members(value.participant_count))
+                                .unwrap_or_default()
+                        },
+                        || false,
+                    )
+                    .on_press(move || {
+                        if let Some(group) = value() {
+                            navigation.open_conversation(
+                                account.with(|account| account.clone()),
+                                group.conversation_id,
+                                None,
+                                failed,
+                            );
+                        }
+                    })
                 },
             )
             .keys(move || {
@@ -415,18 +728,13 @@ fn groups(account: Arc<AccountClient>, user_id: String, failed: Signal<bool>) ->
                         .collect::<Vec<_>>()
                 })
             })
-            .estimated_item_size(px(64.0))
+            .estimated_item_size(parts::row_height())
             .flex_1()
             .min_h_0(),
         )
         .child(when(
             move || !loading.get() && !query_failed.get() && values.with(Vec::is_empty),
-            || {
-                text(move || tr("No groups in common", "没有共同群组"))
-                    .p_4()
-                    .text_sm()
-                    .text_color(move || theme().muted_foreground)
-            },
+            || ui::placeholder(move || tr("No groups in common", "没有共同群组")),
         ))
 }
 
@@ -457,54 +765,33 @@ fn apps(
         .flex_1()
         .min_h_0()
         .child(when(loading, || {
-            text(move || tr("Loading…", "加载中…")).px_4().text_sm()
+            parts::status(move || tr("Loading…", "加载中…"))
+                .px_4()
+                .py_2()
         }))
         .child(when(failed, move || {
-            ui::action(
-                move || tr("Retry", "重试"),
+            parts::failure(
+                move || tr("Couldn’t load. Try again.", "加载失败，请重试。"),
                 move || revision.update(|revision| *revision += 1),
             )
+            .p_4()
         }))
         .child(
             virtual_list(
                 move || values.with(Vec::len),
                 move |at| {
                     let value = move || values.with(|rows| rows.get(at.index()).cloned());
-                    ui::command()
-                        .justify_start()
-                        .px_4()
-                        .min_h_16()
-                        .gap_3()
-                        .child(ui::avatar_view(
-                            move || value().map(|value| value.name.into()).unwrap_or_default(),
-                            move || value().map(|value| value.icon_url).unwrap_or_default(),
-                        ))
-                        .child(
-                            view()
-                                .flex_1()
-                                .min_w_0()
-                                .gap_1()
-                                .child(
-                                    text(move || {
-                                        value().map(|value| value.name).unwrap_or_default()
-                                    })
-                                    .text_sm()
-                                    .number_of_lines(1),
-                                )
-                                .child(
-                                    text(move || {
-                                        value().map(|value| value.description).unwrap_or_default()
-                                    })
-                                    .text_xs()
-                                    .number_of_lines(2)
-                                    .text_color(move || theme().muted_foreground),
-                                ),
-                        )
-                        .on_press(move || {
-                            if let Some(app) = value() {
-                                open(app.app_id);
-                            }
-                        })
+                    parts::entity_row(
+                        move || value().map(|value| value.name).unwrap_or_default(),
+                        move || value().map(|value| value.icon_url).unwrap_or_default(),
+                        move || value().map(|value| value.description).unwrap_or_default(),
+                        || false,
+                    )
+                    .on_press(move || {
+                        if let Some(app) = value() {
+                            open(app.app_id);
+                        }
+                    })
                 },
             )
             .keys(move || {
@@ -514,17 +801,12 @@ fn apps(
                         .collect::<Vec<_>>()
                 })
             })
-            .estimated_item_size(px(64.0))
+            .estimated_item_size(parts::row_height())
             .flex_1()
             .min_h_0(),
         )
         .child(when(
             move || !loading.get() && !failed.get() && values.with(Vec::is_empty),
-            || {
-                text(move || tr("No shared apps", "暂无共享应用"))
-                    .p_4()
-                    .text_sm()
-                    .text_color(move || theme().muted_foreground)
-            },
+            || ui::placeholder(move || tr("No shared apps", "暂无共享应用")),
         ))
 }

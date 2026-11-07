@@ -27,7 +27,7 @@ pub(crate) fn popup_end(style: StyleRefinement) -> StyleRefinement {
     style
         .opacity(0.0)
         .translate_y(|| if reduce_motion() { px(0.0) } else { px(4.0) })
-        .duration(80.0)
+        .duration(|| duration(80.0))
 }
 
 #[derive(Clone, Copy)]
@@ -59,6 +59,15 @@ impl Kind {
             Self::Modal => 8.0,
             Self::Panel | Self::Bottom => 12.0,
             Self::Fade => 0.0,
+        }
+    }
+
+    /// The scale a surface enters from and leaves to.
+    fn hidden_scale(self, reduced: bool) -> f32 {
+        if reduced || !matches!(self, Self::Modal) {
+            1.0
+        } else {
+            0.985
         }
     }
 }
@@ -100,11 +109,7 @@ impl Presence {
             interactive: signal(false),
             opacity: animated_value(0.0),
             offset: animated_value(if reduce_motion() { 0.0 } else { kind.offset() }),
-            scale: animated_value(if reduce_motion() || !matches!(kind, Kind::Modal) {
-                1.0
-            } else {
-                0.985
-            }),
+            scale: animated_value(kind.hidden_scale(reduce_motion())),
             backdrop: animated_value(0.0),
             kind,
         };
@@ -126,13 +131,7 @@ impl Presence {
                         presence
                             .offset
                             .set(if reduced { 0.0 } else { kind.offset() });
-                        presence
-                            .scale
-                            .set(if reduced || !matches!(kind, Kind::Modal) {
-                                1.0
-                            } else {
-                                0.985
-                            });
+                        presence.scale.set(kind.hidden_scale(reduced));
                     }
                     presence.mounted.set(true);
                 }
@@ -143,10 +142,10 @@ impl Presence {
                 });
                 let target = if open { 1.0 } else { 0.0 };
                 let offset = if open || reduced { 0.0 } else { kind.offset() };
-                let scale = if open || reduced || !matches!(kind, Kind::Modal) {
+                let scale = if open {
                     1.0
                 } else {
-                    0.985
+                    kind.hidden_scale(reduced)
                 };
                 // Timing starts from the native value currently being sampled.
                 // Setting transforms also stops a run if reduced motion changes.

@@ -1,9 +1,8 @@
-use super::{body, tr};
+use super::body;
 use crate::{
     i18n::{self, Key},
     ui,
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use nsh_base::theme;
 use nsh_core::prelude::*;
 pub(super) fn screen() -> impl IntoElement {
@@ -11,13 +10,7 @@ pub(super) fn screen() -> impl IntoElement {
     let failed = signal(false);
     scroll().flex_1().min_h_0().child(
         body()
-            .child(
-                image(format!(
-                    "data:image/png;base64,{}",
-                    STANDARD.encode(include_bytes!("../../assets/logo.png"))
-                ))
-                .size_16(),
-            )
+            .child(ui::logo().size_16())
             .child(
                 text("Mixin Messenger")
                     .text_xl()
@@ -52,7 +45,7 @@ pub(super) fn screen() -> impl IntoElement {
                 .map(move |(en, zh, url)| {
                     ui::command()
                         .justify_start()
-                        .child(text(move || tr(i18n, en, zh)))
+                        .child(text(move || i18n.tr(en, zh)))
                         .on_press(move || {
                             spawn(async move {
                                 failed.set(!open_url(url).await);
@@ -65,7 +58,7 @@ pub(super) fn screen() -> impl IntoElement {
                 move || {
                     ui::command()
                     .justify_start()
-                    .child(text(move || tr(i18n, "Check for updates", "检查更新")))
+                    .child(text(move || i18n.tr("Check for updates", "检查更新")))
                     .on_press(move || {
                         spawn(async move {
                             let destination = if cfg!(target_os = "windows") {
@@ -81,7 +74,7 @@ pub(super) fn screen() -> impl IntoElement {
             .child(
                 ui::command()
                     .justify_start()
-                    .child(text(move || tr(i18n, "Open log directory", "打开日志目录")))
+                    .child(text(move || i18n.tr("Open log directory", "打开日志目录")))
                     .on_press(move || {
                         spawn(async move {
                             match mixin_desktop_api::log_directory() {
@@ -92,9 +85,7 @@ pub(super) fn screen() -> impl IntoElement {
                     }),
             )
             .child(when(failed, move || {
-                text(move || i18n.text(Key::CommandFailed))
-                    .text_sm()
-                    .text_color(move || theme().destructive)
+                ui::error_text(move || i18n.text(Key::CommandFailed))
             })),
     )
 }

@@ -1,5 +1,5 @@
 //! A bounded account conversation window; the database owns filtering and ordering.
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, ConversationListData};
@@ -12,8 +12,9 @@ use crate::{
 
 const PAGE_SIZE: i64 = 100;
 const WINDOW_SIZE: i64 = PAGE_SIZE * 3;
+const REFRESH_INTERVAL: Duration = Duration::from_millis(100);
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct Scope {
     category: &'static str,
     circle: Option<String>,
@@ -36,13 +37,17 @@ struct Loaded {
     more: bool,
     locate: Option<String>,
     paging: bool,
+    reset: bool,
+    // The reader is at the list's top: what arrives above must show, not push it down.
+    top: bool,
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct Window {
     account: Stored<Arc<AccountClient>>,
-    scope: Stored<Option<Scope>>,
-    selected: Signal<Option<ConversationListData>>,
+    // The list's scope and its reset revision; kept while search covers the list.
+    scope: Stored<Option<(u64, Scope)>>,
+    searching: Stored<bool>,
     navigation: ChatNavigation,
     pub rows: Signal<Vec<ConversationListData>>,
     pub loading: Signal<bool>,
@@ -54,6 +59,7 @@ pub(crate) struct Window {
     request: Signal<u64>,
     step_request: Signal<u64>,
     visible: Stored<Option<String>>,
+    viewable: Stored<Option<(usize, usize)>>,
     dirty: Stored<bool>,
     deferred: Stored<Option<Load>>,
     running: Stored<Option<Spawned<()>>>,
@@ -67,14 +73,14 @@ impl Window {
         query: Signal<String>,
         composing: Signal<bool>,
         unread: Signal<bool>,
-        selected: Signal<Option<ConversationListData>>,
     ) -> Self {
+        let navigation = use_context::<ChatNavigation>().expect("Home provides chat navigation");
         let state = Self {
             account: stored(account.clone()),
             scope: stored(None),
-            selected,
-            navigation: use_context::<ChatNavigation>().expect("Home provides chat navigation"),
-            rows: signal_with(Vec::new(), SignalEquals::Never),
+            searching: stored(false),
+            navigation,
+            rows: signal(Vec::new()),
             loading: signal(false),
             failed: signal(false),
             list: element_ref(),
@@ -84,38 +90,43 @@ impl Window {
             request: signal(0),
             step_request: signal(0),
             visible: stored(None),
+            viewable: stored(None),
             dirty: stored(false),
             deferred: stored(None),
             running: stored(None),
             owner: Owner::current(),
         };
         effect(move || {
-            nav.list_reset.get();
-            let category = nav.category.get();
-            let circle = nav.circle.get();
-            let unread = unread.get();
+            let revision = nav.list_reset.get();
+            let scope = Scope {
+                category: nav.category.get(),
+                circle: nav.circle.get(),
+                unread: unread.get(),
+            };
             let searching = composing.get() || !query.with(|query| query.trim().is_empty());
             state.cancel();
-            state.scope.replace((!searching).then_some(Scope {
-                category,
-                circle,
-                unread,
-            }));
+            let unchanged = state.scope.with(|current| {
+                current
+                    .as_ref()
+                    .is_some_and(|c| c.0 == revision && c.1 == scope)
+            });
+            state.scope.replace(Some((revision, scope)));
+            state.searching.replace(searching);
             if searching {
                 state.failed.set(false);
-            } else {
+            } else if !unchanged {
                 state.load(Load::Reset);
+            } else {
+                // Leaving search keeps the reader's place, and shows what it opened.
+                match navigation.selected_id.get_untracked() {
+                    Some(id) if !state.contains(&id) => state.load(Load::Locate(id)),
+                    _ => state.load(Load::Refresh),
+                }
             }
         });
-        let selected_id = computed(move || {
-            selected.with(|row| row.as_ref().map(|row| row.conversation_id.clone()))
-        });
         effect(move || {
-            if let Some(id) = selected_id.get() {
-                if state
-                    .rows
-                    .with_untracked(|rows| rows.iter().any(|row| row.conversation_id == id))
-                {
+            if let Some(id) = navigation.selected_id.get() {
+                if state.contains(&id) {
                     state.scroll_to(id);
                 } else {
                     state.load(Load::Locate(id));
@@ -124,15 +135,34 @@ impl Window {
         });
         state.owner.run(move || {
             spawn(async move {
-                let mut changes = Box::pin(runtime::observe(account.conversation_changes()));
+                let mut changes = Box::pin(runtime::throttled(
+                    account.conversation_changes(),
+                    REFRESH_INTERVAL,
+                ));
                 while changes.next().await.is_some() {
-                    if state.scope.with(|scope| scope.is_some()) {
-                        state.load(Load::Refresh);
-                    }
+                    state.load(Load::Refresh);
                 }
             });
         });
         state
+    }
+
+    fn is_selected(self, id: &str) -> bool {
+        self.navigation
+            .selected_id
+            .with_untracked(|selected| selected.as_deref() == Some(id))
+    }
+
+    fn contains(self, id: &str) -> bool {
+        self.rows
+            .with_untracked(|rows| rows.iter().any(|row| row.conversation_id == id))
+    }
+
+    fn active_scope(self) -> Option<Scope> {
+        if self.searching.get() {
+            return None;
+        }
+        self.scope.with(|scope| scope.as_ref().map(|s| s.1.clone()))
     }
 
     fn cancel(self) {
@@ -161,14 +191,19 @@ impl Window {
     }
 
     pub(crate) fn viewable(self, items: &ViewableItems) {
-        self.visible.replace(items.viewable.and_then(|(first, _)| {
+        // A list hidden behind search or Settings reports no rows; keep the place.
+        let Some((first, last)) = items.viewable else {
+            return;
+        };
+        self.viewable.replace(Some((first, last)));
+        self.visible.replace(
             self.rows
-                .with(|rows| rows.get(first).map(|row| row.conversation_id.clone()))
-        }));
+                .with_untracked(|rows| rows.get(first).map(|row| row.conversation_id.clone())),
+        );
     }
 
     fn load(self, load: Load) {
-        let Some(scope) = self.scope.with(|scope| scope.clone()) else {
+        let Some(scope) = self.active_scope() else {
             return;
         };
         if matches!(load, Load::Next) && !self.more.get_untracked()
@@ -189,34 +224,31 @@ impl Window {
                 _ => self.cancel(),
             }
         }
-        let previous = self.rows.get_untracked();
         let previous_offset = self.offset.get_untracked();
         let current_count = self.count.get_untracked();
-        let anchor = self
-            .visible
-            .with(|id| id.clone())
-            .or_else(|| previous.first().map(|row| row.conversation_id.clone()));
-        let anchor_at = anchor
-            .as_ref()
-            .and_then(|id| previous.iter().position(|row| row.conversation_id == *id))
-            .unwrap_or_default() as i64;
-        let selected = self
-            .selected
-            .with_untracked(|row| row.as_ref().map(|row| row.conversation_id.clone()));
+        let (anchor, anchor_at) = self.rows.with_untracked(|rows| {
+            let anchor = self
+                .visible
+                .with(|id| id.clone())
+                .or_else(|| rows.first().map(|row| row.conversation_id.clone()));
+            let at = anchor
+                .as_ref()
+                .and_then(|id| rows.iter().position(|row| row.conversation_id == *id));
+            (anchor, at.unwrap_or_default() as i64)
+        });
+        let reset = matches!(load, Load::Reset);
+        let top = matches!(load, Load::Refresh) && previous_offset == 0 && anchor_at == 0;
+        let selected = self.navigation.selected_id.get_untracked();
         let ticket = self.request.get_untracked().wrapping_add(1);
         batch(|| {
             self.request.set(ticket);
             self.loading.set(true);
             self.failed.set(false);
         });
-        if matches!(load, Load::Reset) {
-            batch(|| {
-                self.rows.set(Vec::new());
-                self.offset.set(0);
-                self.count.set(PAGE_SIZE);
-                self.more.set(false);
-            });
+        // Reset keeps the old rows until the new ones arrive, without a blank frame.
+        if reset {
             self.visible.replace(None);
+            self.viewable.replace(None);
         }
         let account = self.account.with(|account| account.clone());
         let task = self.owner.run(move || {
@@ -241,19 +273,20 @@ impl Window {
                         Load::Previous => previous_offset.saturating_sub(PAGE_SIZE).max(0),
                         _ => previous_offset,
                     };
-                    if let Some(id) = locate.as_ref().or_else(|| {
-                        matches!(load, Load::Refresh)
-                            .then_some(anchor.as_ref())
-                            .flatten()
-                    }) && let Some(position) = access
-                        .conversation_position(
-                            scope.category.into(),
-                            scope.circle.clone(),
-                            String::new(),
-                            scope.unread,
-                            id.clone(),
-                        )
-                        .await?
+                    // At the top a new conversation must appear above the reader.
+                    let anchored = matches!(load, Load::Refresh) && !top;
+                    if let Some(id) = locate
+                        .as_ref()
+                        .or_else(|| anchored.then_some(anchor.as_ref()).flatten())
+                        && let Some(position) = access
+                            .conversation_position(
+                                scope.category.into(),
+                                scope.circle.clone(),
+                                String::new(),
+                                scope.unread,
+                                id.clone(),
+                            )
+                            .await?
                     {
                         offset = if locate.is_some() {
                             position.saturating_sub(count / 2).max(0)
@@ -301,6 +334,8 @@ impl Window {
                         more,
                         locate,
                         paging: matches!(load, Load::Next | Load::Previous),
+                        reset,
+                        top,
                     })
                 })
                 .await;
@@ -311,7 +346,15 @@ impl Window {
                     Ok(page) => self.apply(page, ticket),
                     Err(error) => {
                         log::warn!("Could not load conversation window: {error}");
-                        self.failed.set(true);
+                        batch(|| {
+                            if reset {
+                                self.rows.set(Vec::new());
+                                self.offset.set(0);
+                                self.count.set(PAGE_SIZE);
+                                self.more.set(false);
+                            }
+                            self.failed.set(true);
+                        });
                         self.complete();
                     }
                 }
@@ -322,7 +365,10 @@ impl Window {
 
     fn apply(self, page: Loaded, ticket: u64) {
         let previous = self.rows.get_untracked();
-        let anchor = self.visible.with(|id| id.clone());
+        let anchor = self
+            .visible
+            .with(|id| id.clone())
+            .filter(|_| !page.reset && !page.top);
         // An opposite-edge scroll must not evict the row reached meanwhile.
         if page.paging
             && anchor
@@ -343,11 +389,13 @@ impl Window {
             });
             return;
         }
-        log::info!(
+        log::debug!(
             "NSH conversation window loaded: {} rows at offset {}",
             page.rows.len(),
             page.offset
         );
+        let new_first = previous.first().map(|row| &row.conversation_id)
+            != page.rows.first().map(|row| &row.conversation_id);
         batch(|| {
             self.offset.set(page.offset);
             self.count.set(page.count);
@@ -356,6 +404,12 @@ impl Window {
         });
         if let Some(id) = page.locate {
             self.scroll_to(id);
+        } else if page.reset || (page.top && new_first) {
+            after_answer(move || {
+                if self.owner.is_live() {
+                    self.list.scroll_to_offset(px(0.0), false);
+                }
+            });
         }
         self.complete();
     }
@@ -376,16 +430,17 @@ impl Window {
 
     fn scroll_to(self, id: String) {
         after_answer(move || {
-            if !self.owner.is_live()
-                || !self
-                    .selected
-                    .with_untracked(|row| row.as_ref().is_some_and(|row| row.conversation_id == id))
-            {
+            if !self.owner.is_live() || !self.is_selected(&id) {
                 return;
             }
+            // A row already in view stays under the pointer that chose it.
             if let Some(index) = self
                 .rows
                 .with_untracked(|rows| rows.iter().position(|row| row.conversation_id == id))
+                && !self
+                    .viewable
+                    .get()
+                    .is_some_and(|(first, last)| (first..=last).contains(&index))
             {
                 self.list
                     .scroll_to_index(index as u32, percentage(0.5), px(0.0), false);
@@ -394,13 +449,10 @@ impl Window {
     }
 
     pub(crate) fn step(self, forward: bool) {
-        let Some(scope) = self.scope.with(|scope| scope.clone()) else {
+        let Some(scope) = self.active_scope() else {
             return;
         };
-        let Some(id) = self
-            .selected
-            .with_untracked(|row| row.as_ref().map(|row| row.conversation_id.clone()))
-        else {
+        let Some(id) = self.navigation.selected_id.get_untracked() else {
             return;
         };
         let local = self.rows.with_untracked(|rows| {
@@ -460,9 +512,7 @@ impl Window {
                 if !self.owner.is_live()
                     || self.step_request.get_untracked() != ticket
                     || self.request.get_untracked() != version
-                    || !self.selected.with_untracked(|row| {
-                        row.as_ref().is_some_and(|row| row.conversation_id == id)
-                    })
+                    || !self.is_selected(&id)
                 {
                     return;
                 }

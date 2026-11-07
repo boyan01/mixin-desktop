@@ -15,10 +15,6 @@ pub(crate) enum Reference {
     Trace(String),
 }
 
-fn label(i18n: i18n::I18n, en: &'static str, zh: &'static str) -> &'static str {
-    i18n.tr(en, zh)
-}
-
 pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl IntoElement {
     let i18n = i18n::current();
     let detail = signal_with(None::<SnapshotDetailItem>, SignalEquals::Never);
@@ -71,7 +67,7 @@ pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl 
                 .font_weight(FontWeight::SEMIBOLD),
             )
             .child(when(loading, move || {
-                text(move || label(i18n, "Loading transfer…", "正在加载转账…"))
+                text(move || i18n.tr("Loading transfer…", "正在加载转账…"))
             }))
             .child(when(failed, move || {
                 view()
@@ -118,25 +114,25 @@ pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl 
                     };
                     let mut fields = vec![
                         (
-                            label(i18n, "Amount", "金额"),
+                            i18n.tr("Amount", "金额"),
                             format!("{} {}", value.amount, value.symbol),
                         ),
-                        (label(i18n, "Asset", "资产"), value.asset_name),
+                        (i18n.tr("Asset", "资产"), value.asset_name),
                         (
-                            label(i18n, "Date", "时间"),
+                            i18n.tr("Date", "时间"),
                             presentation::day(i18n, value.created_at_millis * 1000),
                         ),
-                        (label(i18n, "Transfer ID", "转账 ID"), value.snapshot_id),
+                        (i18n.tr("Transfer ID", "转账 ID"), value.snapshot_id),
                     ];
                     for (title, content) in [
-                        (label(i18n, "Sender", "发送者"), value.sender),
-                        (label(i18n, "Recipient", "接收者"), value.receiver),
-                        (label(i18n, "Contact", "联系人"), value.opponent_name),
+                        (i18n.tr("Sender", "发送者"), value.sender),
+                        (i18n.tr("Recipient", "接收者"), value.receiver),
+                        (i18n.tr("Contact", "联系人"), value.opponent_name),
                         (
-                            label(i18n, "Transaction hash", "交易哈希"),
+                            i18n.tr("Transaction hash", "交易哈希"),
                             value.transaction_hash,
                         ),
-                        (label(i18n, "Memo", "备注"), Some(memo)),
+                        (i18n.tr("Memo", "备注"), Some(memo)),
                     ] {
                         if let Some(content) = content.filter(|s| !s.is_empty()) {
                             fields.push((title, content));
@@ -169,7 +165,7 @@ pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl 
                     }
                     if let Some(confirmations) = value.confirmations {
                         fields.push((
-                            label(i18n, "Confirmations", "确认数"),
+                            i18n.tr("Confirmations", "确认数"),
                             confirmations.to_string(),
                         ));
                     }

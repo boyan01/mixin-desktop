@@ -1,4 +1,4 @@
-use super::message_actions::{Actions, label};
+use super::message_actions::Actions;
 use crate::{
     i18n::{self, Key},
     recipients::{self, Recipient},
@@ -33,7 +33,7 @@ pub(super) fn forwarding(actions: Actions) -> impl IntoElement {
                     .rounded_xl()
                     .bg(move || theme().popover)
                     .child(
-                        text(move || label(i18n, "Forward messages", "转发消息"))
+                        text(move || i18n.tr("Forward messages", "转发消息"))
                             .flex_none()
                             .text_lg()
                             .font_weight(FontWeight::SEMIBOLD),

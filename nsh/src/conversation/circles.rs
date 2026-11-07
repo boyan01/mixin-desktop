@@ -4,11 +4,15 @@ use super::*;
 
 pub(super) fn screen(state: State) -> impl IntoElement {
     let circles = signal(Vec::<CircleItem>::new());
+    let loaded = signal(false);
     let client = state.client();
     spawn(async move {
         let mut changes = Box::pin(crate::runtime::observe(client.circle_changes()));
         while let Some(rows) = changes.next().await {
-            circles.set(rows);
+            batch(|| {
+                circles.set(rows);
+                loaded.set(true);
+            });
         }
     });
     let name = signal(String::new());
@@ -54,7 +58,7 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                 Ok((_, true)) => {
                     created.set(None);
                     name.set(String::new());
-                    state.refresh.update(|value| *value += 1);
+                    state.reload();
                 }
                 Ok((id, false)) => {
                     created.set(Some(id));
@@ -101,22 +105,20 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                         busy.get() || state.busy.get() || name.with(|name| name.trim().is_empty())
                     }),
                 )
-                .child(ui::busy_indicator(
-                    move || busy.get(),
-                    move || {
-                        if created.with(Option::is_some) {
-                            tr("Adding chat…", "正在添加聊天…").into()
+                .child(when(busy, move || {
+                    parts::status(move || {
+                        if created.with_untracked(Option::is_some) {
+                            tr("Adding chat…", "正在添加聊天…")
                         } else {
                             tr(
                                 "Creating circle and adding chat…",
                                 "正在创建圈子并添加聊天…",
                             )
-                            .into()
                         }
-                    },
-                ))
+                    })
+                }))
                 .child(when(failed, move || {
-                    text(move || {
+                    ui::error_text(move || {
                         if created.with(Option::is_some) {
                             tr(
                                 "Circle created, but this chat couldn’t be added. Retry adding it.",
@@ -129,8 +131,6 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                             )
                         }
                     })
-                    .text_sm()
-                    .text_color(move || theme().destructive)
                 })),
         )
         .child(
@@ -152,7 +152,6 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                         .min_h_12()
                         .gap_3()
                         .selected(checked)
-                        .selected_style(|style| style.bg(move || theme().accent))
                         .disabled(move || state.busy.get() || busy.get())
                         .accessibility_label(move || {
                             circle().map(|circle| {
@@ -208,6 +207,11 @@ pub(super) fn screen(state: State) -> impl IntoElement {
             })
             .estimated_item_size(px(48.0))
             .flex_1()
-            .min_h_0(),
+            .min_h_0()
+            .style_when(move || circles.with(Vec::is_empty), |style| style.hidden()),
         )
+        .child(when(
+            move || loaded.get() && circles.with(Vec::is_empty),
+            || ui::placeholder(move || tr("No circles yet", "暂无圈子")),
+        ))
 }

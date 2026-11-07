@@ -1,4 +1,4 @@
-use super::message_actions::{Actions, label, remove};
+use super::message_actions::{Actions, remove};
 use crate::{i18n::Key, ui};
 use nsh_base::theme;
 use nsh_core::prelude::*;
@@ -56,7 +56,7 @@ fn selection(
                 )
                 .child(
                     ui::action(
-                        move || label(i18n, "Forward…", "转发…"),
+                        move || i18n.tr("Forward…", "转发…"),
                         move || {
                             let ids = actions.selected.with(|ids| ids.to_vec());
                             actions.combine.set(false);
@@ -77,14 +77,14 @@ fn selection(
                 )
                 .child(
                     ui::action(
-                        move || label(i18n, "Copy", "复制"),
+                        move || i18n.tr("Copy", "复制"),
                         move || copy::selected(actions, conversation_id.with(|id| id.clone())),
                     )
                     .disabled(actions.busy),
                 )
                 .child(
                     ui::action(
-                        move || label(i18n, "Combine and forward…", "合并转发…"),
+                        move || i18n.tr("Combine and forward…", "合并转发…"),
                         move || {
                             actions.combine.set(true);
                             actions.forwarding.set(actions.selected.get_untracked());
@@ -104,7 +104,7 @@ fn selection(
                 )
                 .child(
                     ui::action(
-                        move || label(i18n, "Delete for everyone…", "为所有人删除…"),
+                        move || i18n.tr("Delete for everyone…", "为所有人删除…"),
                         move || {
                             remove(
                                 actions,
@@ -128,7 +128,7 @@ fn selection(
                 )
                 .child(
                     ui::action(
-                        move || label(i18n, "Delete…", "删除…"),
+                        move || i18n.tr("Delete…", "删除…"),
                         move || {
                             let ids = actions.selected.with(|ids| ids.to_vec());
                             remove(

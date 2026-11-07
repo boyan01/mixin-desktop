@@ -8,7 +8,7 @@ use mixin_desktop_api::{
     AccountClient, AudioPlaybackEvent, AudioPlaybackSnapshot, AudioPlaybackStatus, ClientError,
     ClientResult, MediaClient, MessageListView,
 };
-use nsh_base::{SliderValue, menu, menu_item, slider, theme};
+use nsh_base::{SliderValue, menu_item, slider, theme};
 use nsh_core::prelude::*;
 
 use crate::{navigation::ChatNavigation, runtime, ui};
@@ -33,6 +33,13 @@ impl Playback {
 
     pub(crate) fn cancel_pending(self) {
         self.request.update(|value| *value = value.wrapping_add(1));
+    }
+
+    /// Runs under the account owner: the bar that started it may unmount first.
+    fn command(self, work: impl std::future::Future<Output = ClientResult<()>> + Send + 'static) {
+        self.owner.run(move || {
+            spawn(async move { self.failed.set(runtime::run(work).await.is_err()) });
+        });
     }
 
     pub(crate) fn stop(self) {
@@ -139,12 +146,12 @@ pub(crate) fn mount(account: Arc<AccountClient>) -> Playback {
             return;
         }
         let client = query_account.clone();
+        // A newer item reruns this effect, which cancels this query.
         spawn(async move {
-            let requested_id = id.clone();
             let result = runtime::run(async move {
                 let message = client
                     .message()
-                    .message_items_by_ids(vec![requested_id])
+                    .message_items_by_ids(vec![id])
                     .await?
                     .into_iter()
                     .find(|row| row.category.ends_with("_AUDIO"));
@@ -163,9 +170,6 @@ pub(crate) fn mount(account: Arc<AccountClient>) -> Playback {
                 Ok((message, title))
             })
             .await;
-            if item.get_untracked().as_deref() != Some(&id) {
-                return;
-            }
             match result {
                 Ok((row, title)) => {
                     state.row.set(row);
@@ -241,10 +245,9 @@ pub(crate) fn bar(
     let navigation = use_context::<ChatNavigation>().expect("Home provides navigation");
     view().flex_none().min_w_0().child(when(
         move || {
-            state.row.with(Option::is_some)
-                && state
-                    .snapshot
-                    .with(|s| s.status != AudioPlaybackStatus::Idle)
+            state
+                .snapshot
+                .with(|s| s.status != AudioPlaybackStatus::Idle)
                 && state.row.with(|row| {
                     row.as_ref().is_some_and(|row| {
                         !selected.with(|selected| {
@@ -286,8 +289,7 @@ pub(crate) fn bar(
                                 .child(text(move || state.title.get()).text_sm().truncate()),
                         )
                         .child(
-                            menu()
-                                .popup_style(ui::popup)
+                            ui::menu()
                                 .trigger(
                                     ui::command()
                                         .accessibility_label(|| {
@@ -312,16 +314,8 @@ pub(crate) fn bar(
                                         .child(text(format!("{speed}×")).text_sm())
                                         .on_select(move || {
                                             let media = state.media.with(|media| media.clone());
-                                            state.owner.run(move || {
-                                                spawn(async move {
-                                                    state.failed.set(
-                                                        runtime::run(async move {
-                                                            media.set_audio_speed(speed).await
-                                                        })
-                                                        .await
-                                                        .is_err(),
-                                                    );
-                                                });
+                                            state.command(async move {
+                                                media.set_audio_speed(speed).await
                                             });
                                         })
                                 })),
@@ -335,18 +329,12 @@ pub(crate) fn bar(
                                     let playing = state
                                         .snapshot
                                         .with(|s| s.status == AudioPlaybackStatus::Playing);
-                                    spawn(async move {
-                                        state.failed.set(
-                                            runtime::run(async move {
-                                                if playing {
-                                                    media.pause_audio().await
-                                                } else {
-                                                    media.resume_audio().await
-                                                }
-                                            })
-                                            .await
-                                            .is_err(),
-                                        );
+                                    state.command(async move {
+                                        if playing {
+                                            media.pause_audio().await
+                                        } else {
+                                            media.resume_audio().await
+                                        }
                                     });
                                 })
                                 .child(

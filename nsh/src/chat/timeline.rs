@@ -1,14 +1,18 @@
 //! View-owned bounded history, edge loading and message jumps.
 mod query;
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 use futures::StreamExt as _;
 use mixin_desktop_api::{ConversationListData, MessageActions, MessageListView};
 use nsh_base::theme;
 use nsh_core::{element::ImageSrc, prelude::*};
 
-use super::message_actions::{Actions, label};
+use super::message_actions::Actions;
+use super::message_appearance::floating_surface;
 use crate::presentation::message_window::splice_phase;
 use crate::{
     i18n::{I18n, Key},
@@ -16,11 +20,22 @@ use crate::{
 };
 use query::{Load, Window};
 
+/// Coalesces a sync burst into one window read; short enough to read as instant.
+const REFRESH_INTERVAL: Duration = Duration::from_millis(60);
+
+/// How a read's rows reach the list, across its splice phases.
+#[derive(Clone, Copy)]
+struct Replacement {
+    ticket: u64,
+    tail: bool,
+    /// The position revision to scroll to the latest row under.
+    scroll_latest: Option<u64>,
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct Timeline {
     conversation: Stored<String>,
     actions: Actions,
-    header: Signal<ConversationListData>,
     messages: Signal<Vec<MessageListView>>,
     history: ElementRef,
     target: Signal<Option<String>>,
@@ -31,7 +46,7 @@ pub(super) struct Timeline {
     last_load: Stored<Load>,
     dirty: Signal<bool>,
     deferred_edge: Stored<Option<bool>>,
-    pub busy: Signal<bool>,
+    busy: Signal<bool>,
     pub loading: Signal<bool>,
     pub failed: Signal<bool>,
     missing_target: Signal<bool>,
@@ -45,19 +60,18 @@ pub(super) struct Timeline {
 }
 
 impl Timeline {
+    /// `target` notifies on every write: writing it, even with the same value,
+    /// is how a surface asks for a jump (`Some`) or the latest rows (`None`).
     pub fn mount(
         conversation: ConversationListData,
         target: Signal<Option<String>>,
-        retry: Signal<u64>,
         history: ElementRef,
         messages: Signal<Vec<MessageListView>>,
-        header: Signal<ConversationListData>,
         actions: Actions,
     ) -> Self {
         let state = Self {
             conversation: stored(conversation.conversation_id),
             actions,
-            header,
             messages,
             history,
             target,
@@ -110,22 +124,16 @@ impl Timeline {
                         .iter()
                         .map(|row| row.message_id.clone())
                         .collect();
-                    let permissions = client.message().message_actions(id.clone(), ids).await?;
-                    let metadata = client
-                        .conversation()
-                        .conversation_items_by_ids(vec![id])
-                        .await?
-                        .into_iter()
-                        .next();
-                    Ok((window, permissions, metadata))
+                    let permissions = client.message().message_actions(id, ids).await?;
+                    Ok((window, permissions))
                 })
                 .await;
                 if state.revision.get_untracked() != ticket {
                     return;
                 }
                 match result {
-                    Ok((window, permissions, metadata)) => {
-                        if state.apply(window, permissions, metadata, highlight, explicit, ticket) {
+                    Ok((window, permissions)) => {
+                        if state.apply(window, permissions, highlight, explicit, ticket) {
                             return;
                         }
                     }
@@ -152,7 +160,6 @@ impl Timeline {
         let first = stored(true);
         effect(move || {
             let requested = target.get();
-            retry.get();
             let initial = first.with(|first| std::mem::replace(first, false));
             let load = if let Some(id) = requested {
                 Load::Jump(id)
@@ -169,7 +176,10 @@ impl Timeline {
         });
         spawn(async move {
             let client = actions.account.with(|account| account.clone());
-            let mut changes = Box::pin(runtime::observe(client.message_changes()));
+            let mut changes = Box::pin(runtime::throttled(
+                client.message_changes(),
+                REFRESH_INTERVAL,
+            ));
             while changes.next().await.is_some() {
                 state.refresh();
             }
@@ -199,9 +209,13 @@ impl Timeline {
             self.deferred_edge.replace(None);
             self.position_revision
                 .update(|revision| *revision = revision.wrapping_add(1));
-            let tail = matches!(&load, Load::Latest);
-            self.following_tail.set(tail);
-            self.show_latest.set(!tail);
+            // A jump within the rows may not scroll at all, so only the next
+            // scroll report can say where the reader is.
+            if !self.in_window(&load) {
+                let tail = matches!(&load, Load::Latest);
+                self.following_tail.set(tail);
+                self.show_latest.set(!tail);
+            }
         }
         self.revision
             .update(|revision| *revision = revision.wrapping_add(1));
@@ -214,6 +228,14 @@ impl Timeline {
             self.request
                 .set(Some((self.revision.get_untracked(), load)));
         });
+    }
+
+    fn in_window(self, load: &Load) -> bool {
+        let (Load::Jump(id) | Load::InitialUnread(id)) = load else {
+            return false;
+        };
+        self.messages
+            .with_untracked(|rows| rows.iter().any(|row| &row.message_id == id))
     }
 
     fn refresh(self) {
@@ -230,7 +252,6 @@ impl Timeline {
         self,
         window: Window,
         permissions: Vec<MessageActions>,
-        metadata: Option<ConversationListData>,
         highlight: bool,
         explicit: bool,
         ticket: u64,
@@ -253,9 +274,6 @@ impl Timeline {
         let position_revision = self.position_revision.get_untracked();
         let scroll = window.scroll;
         batch(|| {
-            if let Some(metadata) = metadata {
-                self.header.set(metadata);
-            }
             self.actions.policies.update(|cache: &mut HashMap<_, _>| {
                 cache.retain(|id, _| self.actions.selected.with_untracked(|ids| ids.contains(id)));
                 cache.extend(
@@ -268,31 +286,46 @@ impl Timeline {
             self.has_newer.set(window.newer);
             self.missing_target.set(window.missing);
         });
-        if !explicit && !tail {
-            return self.apply_rows(window.rows, window.deleted, ticket);
-        }
-        self.messages.set(window.rows);
         if let Some(id) = scroll {
+            self.messages.set(window.rows);
             self.visible_anchor.set(Some(id.clone()));
             if highlight {
                 self.highlight.set(Some(id.clone()));
             }
             self.scroll_to(id, position_revision);
-        } else if tail {
-            after_answer(move || {
-                if self.position_revision.get_untracked() == position_revision {
-                    self.history
-                        .scroll_to_index(0, percentage(0.0), px(0.0), false);
-                }
-            });
+            return false;
         }
-        false
+        // A status update must not pull a reader who is a few points up.
+        let moved = explicit
+            || self.messages.with_untracked(|rows| {
+                rows.first().map(|row| &row.message_id)
+                    != window.rows.first().map(|row| &row.message_id)
+            });
+        self.apply_rows(
+            window.rows,
+            window.deleted,
+            Replacement {
+                ticket,
+                tail,
+                scroll_latest: (tail && moved).then_some(position_revision),
+            },
+        )
     }
 
-    fn apply_rows(self, rows: Vec<MessageListView>, deleted: HashSet<String>, ticket: u64) -> bool {
+    fn apply_rows(
+        self,
+        rows: Vec<MessageListView>,
+        deleted: HashSet<String>,
+        replacement: Replacement,
+    ) -> bool {
         let previous = self.messages.get_untracked();
-        let anchor = self.visible_anchor.get_untracked();
-        if let Some(anchor) = anchor.as_deref()
+        let anchor = if replacement.tail {
+            previous.first().map(|row| row.message_id.clone())
+        } else {
+            self.visible_anchor.get_untracked()
+        };
+        if !replacement.tail
+            && let Some(anchor) = anchor.as_deref()
             && previous.iter().any(|row| row.message_id == anchor)
             && !rows.iter().any(|row| row.message_id == anchor)
             && !deleted.contains(anchor)
@@ -306,8 +339,8 @@ impl Timeline {
             // both ends at once would discard their shared middle, including
             // its measured anchor. Each answer keeps that row at a common end.
             after_answer(move || {
-                if self.revision.get_untracked() == ticket
-                    && !self.apply_rows(rows, deleted, ticket)
+                if self.revision.get_untracked() == replacement.ticket
+                    && !self.apply_rows(rows, deleted, replacement)
                 {
                     self.complete();
                 }
@@ -315,6 +348,14 @@ impl Timeline {
             return true;
         }
         self.messages.set(rows);
+        if let Some(revision) = replacement.scroll_latest {
+            after_answer(move || {
+                if self.position_revision.get_untracked() == revision {
+                    self.history
+                        .scroll_to_index(0, percentage(0.0), px(0.0), false);
+                }
+            });
+        }
         false
     }
 
@@ -403,21 +444,10 @@ impl Timeline {
         self.highlight.set(None);
         let source = self.return_target.get_untracked();
         self.return_target.set(None);
-        if let Some(id) = source {
-            if self.target.get_untracked().as_ref() == Some(&id) {
-                self.schedule(Load::Jump(id), true);
-            } else {
-                self.target.set(Some(id));
-            }
-            return;
-        }
-        if self.target.get_untracked().is_some() {
-            self.target.set(None);
-        } else {
-            self.schedule(Load::Latest, true);
-        }
+        self.target.set(source);
     }
 
+    /// Failures and missing targets stay in the layout: they need an answer.
     pub fn controls(self, i18n: I18n) -> impl IntoElement {
         view()
             .flex_row()
@@ -425,32 +455,10 @@ impl Timeline {
             .items_center()
             .justify_center()
             .gap_2()
-            .child(when(
-                move || self.busy.get() && !self.loading.get(),
-                move || {
-                    text(move || {
-                        self.last_load.with(|load| {
-                            if matches!(load, Load::Older) {
-                                format!("{}…", i18n.text(Key::Earlier))
-                            } else {
-                                i18n.text(Key::LoadingMessages).to_owned()
-                            }
-                        })
-                    })
+            .child(when(self.missing_target, move || {
+                text(move || i18n.tr("This message is no longer available.", "此消息已不可用。"))
                     .text_xs()
                     .text_color(move || theme().muted_foreground)
-                },
-            ))
-            .child(when(self.missing_target, move || {
-                text(move || {
-                    label(
-                        i18n,
-                        "This message is no longer available.",
-                        "此消息已不可用。",
-                    )
-                })
-                .text_xs()
-                .text_color(move || theme().muted_foreground)
             }))
             .child(when(self.failed, move || {
                 view()
@@ -474,6 +482,48 @@ impl Timeline {
                     ))
             }))
     }
+
+    /// Floats over the rows: a page load must not resize the list it extends,
+    /// and a background refresh has nothing to report.
+    pub fn paging_indicator(self, i18n: I18n) -> impl IntoElement {
+        view()
+            .absolute()
+            .top_2()
+            .left_0()
+            .right_0()
+            .items_center()
+            .pointer_events(PointerEvents::None)
+            .child(when(
+                move || {
+                    self.busy.get()
+                        && !self.loading.get()
+                        && self
+                            .last_load
+                            .with(|load| matches!(load, Load::Older | Load::Newer | Load::Jump(_)))
+                },
+                move || {
+                    view()
+                        .flex_row()
+                        .items_center()
+                        .gap_2()
+                        .px_3()
+                        .py_1()
+                        .rounded_full()
+                        .shadow_md()
+                        .bg(floating_surface)
+                        .child(ui::busy_indicator(
+                            || true,
+                            move || i18n.text(Key::LoadingMessages).into(),
+                        ))
+                        .child(
+                            text(move || i18n.text(Key::LoadingMessages))
+                                .text_xs()
+                                .text_color(move || theme().muted_foreground),
+                        )
+                },
+            ))
+    }
+
     pub fn jump_button(self, i18n: I18n) -> impl IntoElement {
         when(
             move || {
@@ -489,10 +539,10 @@ impl Timeline {
                     .py_0()
                     .rounded_full()
                     .shadow_md()
-                    .bg(move || theme().color("bubble-in").unwrap_or(theme().card))
+                    .bg(floating_surface)
                     .accessibility_label(move || {
                         Some(if self.return_target.with(Option::is_some) {
-                            label(i18n, "Return to message", "返回消息").into()
+                            i18n.tr("Return to message", "返回消息").into()
                         } else {
                             i18n.text(Key::Latest).into()
                         })

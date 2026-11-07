@@ -1,4 +1,4 @@
-use super::{Feedback, tr};
+use super::Feedback;
 use crate::{i18n, runtime, ui};
 use mixin_desktop_api::{AccountClient, AccountProfile};
 use nsh_core::prelude::*;
@@ -18,7 +18,7 @@ pub(super) fn picker(
             ui::command()
                 .justify_start()
                 .disabled(move || feedback.busy.get() || signing_out.get() || picker.busy())
-                .child(text(move || tr(i18n, "Change photo…", "更换头像…")))
+                .child(text(move || i18n.tr("Change photo…", "更换头像…")))
                 .on_press(move || {
                     feedback.failed.set(false);
                     spawn(async move {

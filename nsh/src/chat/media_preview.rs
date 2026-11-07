@@ -7,14 +7,13 @@ use nsh_core::{file_dialog::SaveDialog, prelude::*};
 
 use super::{
     message_actions::{self, Actions, attachment_name},
-    message_content, message_detail, message_forward, message_selection,
+    message_content, message_detail, message_forward, message_media, message_selection,
 };
 use crate::{i18n, runtime};
 
 #[derive(Clone, Copy)]
 pub(crate) struct MediaPreview {
     actions: Actions,
-    progress: crate::home::AttachmentProgress,
     pub failed: Signal<bool>,
 }
 
@@ -50,9 +49,8 @@ impl MediaPreview {
             .expect("Home provides playback")
             .snapshot_signal();
         Self {
-            progress: use_context::<crate::home::AttachmentProgress>()
-                .expect("Home provides attachment progress"),
             actions: Actions {
+                owner: Owner::current(),
                 text_selection: super::message_text::Selection::new(),
                 account: stored(account),
                 i18n: i18n::current(),
@@ -86,38 +84,20 @@ impl MediaPreview {
         } else if message_content::is_markdown(&row) {
             self.actions.open_markdown(row, None);
         } else if let Some(path) = row.media_url {
-            spawn(async move {
+            self.actions.task(async move {
                 self.failed.set(open_path(path).await.is_err());
             });
         }
     }
 
     pub fn transfer(self, row: MessageListView) {
-        let client = self.actions.account.with(|account| account.clone());
-        let cancel = matches!(row.media_status.as_str(), "PENDING" | "PROCESSING")
-            || self.progress.bytes(None, &row.message_id).is_some();
-        spawn(async move {
-            self.failed.set(
-                runtime::commit(async move {
-                    if cancel {
-                        client.attachment().cancel_attachment(row.message_id).await
-                    } else {
-                        client
-                            .attachment()
-                            .resume_attachment(row.message_id, None)
-                            .await
-                    }
-                })
-                .await
-                .is_err(),
-            );
-        });
+        message_media::Transfer::of(&row, None).toggle(self.actions);
     }
 
     pub fn save(self, row: MessageListView) {
         let name = attachment_name(&row);
         let client = self.actions.account.with(|account| account.clone());
-        spawn(async move {
+        self.actions.task(async move {
             match pick_save_path(SaveDialog::new().file_name(name)).await {
                 Ok(Some(path)) => self.failed.set(
                     runtime::commit(async move {
@@ -136,7 +116,7 @@ impl MediaPreview {
     }
 
     pub fn content(self, row: MessageListView) -> AnyElement {
-        message_content::body(row, self.actions, None, None)
+        message_content::body(row, self.actions, Default::default())
     }
 
     pub fn animation_visible(self) -> bool {

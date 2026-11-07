@@ -4,10 +4,7 @@ use nsh_base::theme;
 use nsh_core::{file_dialog::SaveDialog, prelude::*};
 use std::collections::HashMap;
 
-use super::{
-    message_actions::{Actions, label},
-    message_content::available,
-};
+use super::{message_actions::Actions, message_content::available};
 use crate::{i18n::Key, runtime, ui};
 
 pub(super) fn screen(
@@ -19,7 +16,7 @@ pub(super) fn screen(
     let owner = Owner::current();
     let current = signal(initial.message_id.clone());
     let conversation = stored(initial.conversation_id.clone());
-    let rows = signal_with(Vec::<MessageListView>::new(), SignalEquals::Never);
+    let rows = signal(Vec::<MessageListView>::new());
     let loading = signal(true);
     let failed = signal(false);
     let busy = signal(false);
@@ -192,11 +189,9 @@ pub(super) fn screen(
                 view()
                     .gap_2()
                     .child(
-                        text(move || {
-                            label(i18n, "Couldn’t display this photo.", "无法显示此图片。")
-                        })
-                        .text_sm()
-                        .text_color(move || theme().destructive),
+                        text(move || i18n.tr("Couldn’t display this photo.", "无法显示此图片。"))
+                            .text_sm()
+                            .text_color(move || theme().destructive),
                     )
                     .child(ui::action(
                         move || i18n.text(Key::Retry),
@@ -301,7 +296,7 @@ pub(super) fn screen(
                 .gap_2()
                 .child(
                     ui::action(
-                        move || label(i18n, "Rotate", "旋转"),
+                        move || i18n.tr("Rotate", "旋转"),
                         move || rotation.update(|value| *value = (*value + 1) % 4),
                     )
                     .disabled(move || {
@@ -315,7 +310,7 @@ pub(super) fn screen(
                     move || source.with(|value| value.is_none()),
                     move || {
                         ui::action(
-                            move || label(i18n, "Forward…", "转发…"),
+                            move || i18n.tr("Forward…", "转发…"),
                             move || {
                                 if !forward_allowed.get_untracked() {
                                     return;
@@ -331,42 +326,39 @@ pub(super) fn screen(
                     },
                 ))
                 .child(
-                    ui::action(
-                        move || label(i18n, "Previous photo", "上一张"),
-                        move || go(-1),
-                    )
-                    .disabled(move || loading.get() || neighbor(-1).is_none()),
+                    ui::action(move || i18n.tr("Previous photo", "上一张"), move || go(-1))
+                        .disabled(move || loading.get() || neighbor(-1).is_none()),
                 )
                 .child(
                     ui::action(
-                        move || label(i18n, "Zoom out", "缩小"),
+                        move || i18n.tr("Zoom out", "缩小"),
                         move || zoom.update(|z| *z = (*z / 1.25).max(1.0)),
                     )
                     .disabled(move || zoom.get() <= 1.0),
                 )
                 .child(
                     ui::action(
-                        move || label(i18n, "Actual fit", "适应窗口"),
+                        move || i18n.tr("Actual fit", "适应窗口"),
                         move || zoom.set(1.0),
                     )
                     .child(text(move || format!("{:.0}%", zoom.get() * 100.0)).text_xs()),
                 )
                 .child(
                     ui::action(
-                        move || label(i18n, "Zoom in", "放大"),
+                        move || i18n.tr("Zoom in", "放大"),
                         move || zoom.update(|z| *z = (*z * 1.25).min(8.0)),
                     )
                     .disabled(move || zoom.get() >= 8.0),
                 )
                 .child(
-                    ui::action(move || label(i18n, "Next photo", "下一张"), move || go(1))
+                    ui::action(move || i18n.tr("Next photo", "下一张"), move || go(1))
                         .disabled(move || loading.get() || neighbor(1).is_none()),
                 )
                 .child(when(
                     move || selected().is_some_and(|row| !available(&row)) || image_failed.get(),
                     move || {
                         ui::action(
-                            move || label(i18n, "Download photo", "下载图片"),
+                            move || i18n.tr("Download photo", "下载图片"),
                             move || {
                                 let Some(row) = selected() else {
                                     return;
@@ -406,7 +398,7 @@ pub(super) fn screen(
                 ))
                 .child(
                     ui::action(
-                        move || label(i18n, "Copy image", "复制图片"),
+                        move || i18n.tr("Copy image", "复制图片"),
                         move || {
                             let Some(row) = selected() else {
                                 return;
@@ -439,7 +431,7 @@ pub(super) fn screen(
                 )
                 .child(
                     ui::action(
-                        move || label(i18n, "Save as…", "另存为…"),
+                        move || i18n.tr("Save as…", "另存为…"),
                         move || {
                             let Some(row) = selected() else {
                                 return;

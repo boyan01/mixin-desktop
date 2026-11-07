@@ -4,12 +4,13 @@ mod contacts;
 mod lookup;
 
 use crate::{
-    i18n::{self, Key},
+    conversation::parts,
+    i18n::{self, Key, tr},
     navigation::ChatNavigation,
     ui,
 };
 use mixin_desktop_api::{AccountClient, ConversationListData};
-use nsh_base::{dialog, menu_item, theme};
+use nsh_base::{dialog, theme};
 use nsh_core::prelude::*;
 use std::sync::Arc;
 
@@ -32,25 +33,12 @@ impl Action {
     }
 }
 
-fn tr(en: &'static str, zh: &'static str) -> &'static str {
-    crate::i18n::tr(en, zh)
-}
 fn panel() -> View {
     let presence =
         use_context::<crate::motion::Presence>().expect("Creation surface provides motion");
-    presence.surface(
-        view()
-            .w_96()
-            .max_w(relative(1.0))
-            .h(px(600.0))
-            .max_h(relative(0.9))
-            .p_5()
-            .gap_3()
-            .rounded_xl()
-            .shadow_lg()
-            .bg(move || theme().popover),
-    )
+    presence.surface(parts::dialog_card().overflow_hidden())
 }
+/// Unlike `ui::modal`, a stray backdrop press must not discard a selection in progress.
 fn modal(close: impl Fn() + 'static) -> nsh_core::element::Modal {
     dismiss_keyboard();
     let presence =
@@ -68,21 +56,13 @@ fn modal(close: impl Fn() + 'static) -> nsh_core::element::Modal {
         .p_6()
         .items_center()
         .justify_center()
-        .child(
-            presence.backdrop(
-                view()
-                    .absolute()
-                    .inset_0()
-                    .bg(move || theme().foreground.opacity(0.2)),
-            ),
-        )
+        .child(presence.backdrop(ui::scrim()))
 }
 
 pub(crate) fn trigger(action: Signal<Option<Action>>) -> impl IntoElement {
     let i18n = i18n::current();
     ui::menu()
         .offset(px(4.0))
-        .popup_style(ui::popup)
         .trigger(
             ui::icon_button()
                 .size_8()
@@ -95,13 +75,8 @@ pub(crate) fn trigger(action: Signal<Option<Action>>) -> impl IntoElement {
             [Action::Search, Action::Chat, Action::Group, Action::Circle]
                 .into_iter()
                 .map(move |value| {
-                    menu_item()
+                    ui::menu_row(move || i18n.text(value.title()))
                         .on_select(move || action.set(Some(value)))
-                        .px_3()
-                        .py_2()
-                        .rounded_md()
-                        .hover(|style| style.bg(move || theme().accent))
-                        .child(text(move || i18n.text(value.title())).text_sm())
                 }),
         )
 }
@@ -128,16 +103,19 @@ pub(crate) fn surface(
     effect(move || {
         if failed.get() {
             failed.set(false);
-            spawn(async move {
-                let _ = nsh_base::alert_dialog()
-                    .title(tr("Couldn’t open conversation", "无法打开会话"))
-                    .description(tr(
-                        "Check your connection and try again.",
-                        "请检查网络连接后重试。",
-                    ))
-                    .action("close", tr("Close", "关闭"))
-                    .show()
-                    .await;
+            // Clearing `failed` reruns this effect, which would cancel a task it owns.
+            owner.run(|| {
+                spawn(async move {
+                    let _ = nsh_base::alert_dialog()
+                        .title(tr("Couldn’t open conversation", "无法打开会话"))
+                        .description(tr(
+                            "Check your connection and try again.",
+                            "请检查网络连接后重试。",
+                        ))
+                        .action("close", tr("Close", "关闭"))
+                        .show()
+                        .await;
+                })
             });
         }
     });

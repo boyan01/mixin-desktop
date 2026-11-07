@@ -11,7 +11,9 @@ use nsh_core::prelude::*;
 
 use crate::presentation::message_window::splice_phase;
 use crate::{
+    conversation::parts,
     i18n::{self, Key, tr},
+    navigation::ChatNavigation,
     presentation, runtime, ui,
 };
 
@@ -57,7 +59,15 @@ struct Results {
 }
 
 impl Results {
+    fn idle(self) -> bool {
+        self.query.with_untracked(|query| query.trim().is_empty())
+            && self.sender.with_untracked(Option::is_none)
+    }
+
     fn schedule(self, load: Load) {
+        if matches!(load, Load::Refresh) && self.idle() {
+            return;
+        }
         if self.busy.get_untracked() && !matches!(load, Load::Reset) {
             if matches!(load, Load::Refresh) {
                 self.dirty.replace(true);
@@ -165,34 +175,155 @@ impl Results {
     }
 }
 
-async fn load_page(
+#[derive(Clone)]
+struct Search {
     account: Arc<AccountClient>,
     id: String,
     query: String,
     sender: Option<String>,
     category: Option<&'static str>,
-    index: usize,
-    anchor: Option<String>,
-) -> ClientResult<Page> {
-    let categories = category
-        .map(|kind| {
-            ["PLAIN", "SIGNAL", "ENCRYPTED"]
-                .map(|prefix| format!("{prefix}_{kind}"))
-                .to_vec()
+}
+
+impl Search {
+    async fn page(&self, index: usize, anchor: Option<String>) -> ClientResult<Page> {
+        let categories = self
+            .category
+            .map(|kind| {
+                ["PLAIN", "SIGNAL", "ENCRYPTED"]
+                    .map(|prefix| format!("{prefix}_{kind}"))
+                    .to_vec()
+            })
+            .unwrap_or_default();
+        let mut rows = self
+            .account
+            .message()
+            .search_messages(
+                self.id.clone(),
+                self.query.clone(),
+                self.sender.clone(),
+                categories,
+                anchor.clone(),
+                PAGE_SIZE + 1,
+            )
+            .await?;
+        let more = rows.len() > PAGE_SIZE as usize;
+        rows.truncate(PAGE_SIZE as usize);
+        Ok(Page {
+            index,
+            anchor,
+            rows,
+            more,
         })
-        .unwrap_or_default();
-    let mut rows = account
-        .message()
-        .search_messages(id, query, sender, categories, anchor.clone(), PAGE_SIZE + 1)
-        .await?;
-    let more = rows.len() > PAGE_SIZE as usize;
-    rows.truncate(PAGE_SIZE as usize);
-    Ok(Page {
-        index,
-        anchor,
-        rows,
-        more,
-    })
+    }
+
+    async fn refresh(&self, pages: Vec<Page>) -> ClientResult<Vec<Page>> {
+        let mut refreshed = Vec::new();
+        let mut anchor = pages.first().and_then(|page| page.anchor.clone());
+        for page in pages {
+            let page = self.page(page.index, anchor).await?;
+            anchor = page.rows.last().map(|row| row.message_id.clone());
+            let more = page.more;
+            refreshed.push(page);
+            if !more {
+                break;
+            }
+        }
+        if refreshed
+            .first()
+            .is_some_and(|page| page.index > 0 && page.rows.is_empty())
+        {
+            // A deleted cursor can no longer locate the retained window.
+            // Recover from a valid boundary instead of a false empty search.
+            return Ok(vec![self.page(0, None).await?]);
+        }
+        Ok(refreshed)
+    }
+
+    async fn older(&self, mut pages: Vec<Page>) -> ClientResult<Vec<Page>> {
+        let index = pages.last().map_or(0, |page| page.index + 1);
+        let anchor = pages
+            .last()
+            .and_then(|page| page.rows.last().map(|row| row.message_id.clone()));
+        let page = self.page(index, anchor).await?;
+        if page.rows.is_empty() {
+            if let Some(last) = pages.last_mut() {
+                last.more = false;
+            }
+            return Ok(pages);
+        }
+        pages.push(page);
+        if pages.len() > WINDOW_PAGES {
+            pages.remove(0);
+        }
+        Ok(pages)
+    }
+
+    async fn newer(
+        &self,
+        retained: Vec<Page>,
+        cursors: Vec<Option<String>>,
+    ) -> ClientResult<Vec<Page>> {
+        let index = retained
+            .first()
+            .map_or(0, |page| page.index.saturating_sub(1));
+        let page = self
+            .page(index, cursors.get(index).cloned().flatten())
+            .await?;
+        if page.index > 0 && page.rows.is_empty() {
+            return Ok(vec![self.page(0, None).await?]);
+        }
+        let count = (retained.len() + 1).min(WINDOW_PAGES);
+        let mut pages = vec![page];
+        // Rebuild adjacent boundaries after inserts/deletions so the
+        // restored page cannot leave a hole before retained results.
+        while pages.len() < count && pages.last().is_some_and(|page| page.more) {
+            let anchor = pages
+                .last()
+                .and_then(|page| page.rows.last())
+                .map(|row| row.message_id.clone());
+            pages.push(self.page(index + pages.len(), anchor).await?);
+        }
+        Ok(pages)
+    }
+
+    async fn load(
+        self,
+        load: Load,
+        pages: Vec<Page>,
+        cursors: Vec<Option<String>>,
+    ) -> ClientResult<Vec<Page>> {
+        match load {
+            Load::Reset => Ok(vec![self.page(0, None).await?]),
+            Load::Older => self.older(pages).await,
+            Load::Newer => self.newer(pages, cursors).await,
+            Load::Refresh => self.refresh(pages).await,
+        }
+    }
+}
+
+/// The sender picker, which reloads through `retry` while it is open.
+#[derive(Clone, Copy)]
+struct Senders {
+    open: Signal<bool>,
+    query: Signal<String>,
+    selected: Signal<Option<ConversationParticipantItem>>,
+    rows: Signal<Vec<ConversationParticipantItem>>,
+    busy: Signal<bool>,
+    failed: Signal<bool>,
+    retry: Signal<u64>,
+}
+
+impl Senders {
+    fn reload(self) {
+        self.retry.update(|revision| *revision += 1);
+    }
+
+    fn close(self) {
+        batch(|| {
+            self.open.set(false);
+            self.query.set(String::new());
+        });
+    }
 }
 
 pub(super) fn screen(
@@ -202,19 +333,15 @@ pub(super) fn screen(
     target: Signal<Option<String>>,
 ) -> impl IntoElement {
     let i18n = i18n::current();
-    let navigation =
-        use_context::<crate::navigation::ChatNavigation>().expect("Home provides chat navigation");
-    let picker = signal(false);
-    let sender_query = signal(String::new());
-    let selected = signal_with(None::<ConversationParticipantItem>, SignalEquals::Never);
-    let candidates = signal_with(
-        Vec::<ConversationParticipantItem>::new(),
-        SignalEquals::Never,
-    );
-    let candidates_busy = signal(false);
-    let candidates_failed = signal(false);
-    let candidates_retry = signal(0_u64);
-    let candidate_revision = signal(0_u64);
+    let senders = Senders {
+        open: signal(false),
+        query: signal(String::new()),
+        selected: signal_with(None, SignalEquals::Never),
+        rows: signal_with(Vec::new(), SignalEquals::Never),
+        busy: signal(false),
+        failed: signal(false),
+        retry: signal(0),
+    };
     let input = element_ref();
     let results = Results {
         account: stored(account.clone()),
@@ -246,124 +373,24 @@ pub(super) fn screen(
         let Some((ticket, load)) = results.request.get() else {
             return;
         };
-        let query = results.query.get_untracked().trim().to_owned();
-        let sender = results.sender.get_untracked();
-        let category = results.category.get_untracked();
-        let account = results.account.with(|account| account.clone());
-        let id = results.conversation.with(|id| id.clone());
-        let mut pages = results.pages.with(|pages| pages.clone());
+        let search = Search {
+            account: results.account.with(|account| account.clone()),
+            id: results.conversation.with(|id| id.clone()),
+            query: results.query.get_untracked().trim().to_owned(),
+            sender: results.sender.get_untracked(),
+            category: results.category.get_untracked(),
+        };
+        let pages = results.pages.with(|pages| pages.clone());
         let cursors = results.cursors.with(|cursors| cursors.clone());
         spawn(async move {
-            if query.is_empty() && sender.is_none() {
+            if search.query.is_empty() && search.sender.is_none() {
                 results.complete();
                 return;
             }
             if matches!(load, Load::Reset) {
-                timer(std::time::Duration::from_millis(150)).await;
+                timer(parts::SEARCH_DELAY).await;
             }
-            let loaded = runtime::run(async move {
-                let index = match load {
-                    Load::Reset => 0,
-                    Load::Older => pages.last().map_or(0, |page| page.index + 1),
-                    Load::Newer => pages.first().map_or(0, |page| page.index.saturating_sub(1)),
-                    Load::Refresh => {
-                        let mut refreshed = Vec::new();
-                        let mut anchor = pages.first().and_then(|page| page.anchor.clone());
-                        for page in pages {
-                            let page = load_page(
-                                account.clone(),
-                                id.clone(),
-                                query.clone(),
-                                sender.clone(),
-                                category,
-                                page.index,
-                                anchor,
-                            )
-                            .await?;
-                            anchor = page.rows.last().map(|row| row.message_id.clone());
-                            let more = page.more;
-                            refreshed.push(page);
-                            if !more {
-                                break;
-                            }
-                        }
-                        if refreshed
-                            .first()
-                            .is_some_and(|page| page.index > 0 && page.rows.is_empty())
-                        {
-                            // A deleted cursor can no longer locate the retained window.
-                            // Recover from a valid boundary instead of a false empty search.
-                            return Ok(vec![
-                                load_page(account, id, query, sender, category, 0, None).await?,
-                            ]);
-                        }
-                        return Ok(refreshed);
-                    }
-                };
-                let anchor = if matches!(load, Load::Older) {
-                    pages
-                        .last()
-                        .and_then(|page| page.rows.last().map(|row| row.message_id.clone()))
-                } else {
-                    cursors.get(index).cloned().flatten()
-                };
-                let page = load_page(
-                    account.clone(),
-                    id.clone(),
-                    query.clone(),
-                    sender.clone(),
-                    category,
-                    index,
-                    anchor,
-                )
-                .await?;
-                match load {
-                    Load::Reset => pages = vec![page],
-                    Load::Older => {
-                        if page.rows.is_empty() {
-                            if let Some(last) = pages.last_mut() {
-                                last.more = false;
-                            }
-                            return Ok(pages);
-                        }
-                        pages.push(page);
-                        if pages.len() > WINDOW_PAGES {
-                            pages.remove(0);
-                        }
-                    }
-                    Load::Newer => {
-                        if page.index > 0 && page.rows.is_empty() {
-                            return Ok(vec![
-                                load_page(account, id, query, sender, category, 0, None).await?,
-                            ]);
-                        }
-                        let count = (pages.len() + 1).min(WINDOW_PAGES);
-                        pages = vec![page];
-                        // Rebuild adjacent boundaries after inserts/deletions so the
-                        // restored page cannot leave a hole before retained results.
-                        while pages.len() < count && pages.last().is_some_and(|page| page.more) {
-                            let anchor = pages
-                                .last()
-                                .and_then(|page| page.rows.last())
-                                .map(|row| row.message_id.clone());
-                            let page = load_page(
-                                account.clone(),
-                                id.clone(),
-                                query.clone(),
-                                sender.clone(),
-                                category,
-                                index + pages.len(),
-                                anchor,
-                            )
-                            .await?;
-                            pages.push(page);
-                        }
-                    }
-                    Load::Refresh => unreachable!(),
-                }
-                Ok(pages)
-            })
-            .await;
+            let loaded = runtime::run(search.load(load, pages, cursors)).await;
             if results.revision.get_untracked() != ticket {
                 return;
             }
@@ -376,26 +403,75 @@ pub(super) fn screen(
             }
         });
     });
-    let picker_account = account.clone();
-    let picker_id = id.clone();
+    load_senders(account.clone(), id.clone(), senders);
+    let changes_account = account.clone();
+    spawn(async move {
+        let mut changes = Box::pin(runtime::observe(changes_account.conversation_changes()));
+        while let Some(change) = changes.next().await {
+            if senders.open.get_untracked()
+                && (change.reload_all || change.conversation_ids.contains(&id))
+            {
+                senders.reload();
+            }
+        }
+    });
+    // The stream covers every conversation, so a busy account would requery constantly.
+    spawn(async move {
+        parts::throttled(
+            Box::pin(runtime::observe(account.message_changes())),
+            move || {
+                results.schedule(Load::Refresh);
+                if senders.open.get_untracked() {
+                    senders.reload();
+                }
+            },
+        )
+        .await;
+    });
+    let back = move || {
+        if senders.open.get_untracked() {
+            dismiss_keyboard();
+            senders.close();
+        } else {
+            close();
+        }
+    };
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(parts::page_header(
+            move || {
+                if senders.open.get() {
+                    tr("Choose a sender", "选择发送者")
+                } else {
+                    i18n.text(Key::SearchMessages)
+                }
+            },
+            parts::back_button(back),
+        ))
+        .child(filters(results, senders, input, back))
+        .child(
+            when(senders.open, move || sender_list(results, senders))
+                .otherwise(move || result_list(results, target)),
+        )
+}
+
+fn load_senders(account: Arc<AccountClient>, id: String, senders: Senders) {
     effect(move || {
-        let is_open = picker.get();
-        let keyword = sender_query.get();
-        candidates_retry.get();
-        let ticket = candidate_revision.get_untracked().wrapping_add(1);
-        candidate_revision.set(ticket);
+        let is_open = senders.open.get();
+        let keyword = senders.query.get();
+        senders.retry.get();
         if !is_open {
             return;
         }
-        let account = picker_account.clone();
-        let id = picker_id.clone();
+        let account = account.clone();
+        let id = id.clone();
         batch(|| {
-            candidates.set(Vec::new());
-            candidates_busy.set(true);
-            candidates_failed.set(false);
+            senders.busy.set(true);
+            senders.failed.set(false);
         });
         spawn(async move {
-            timer(std::time::Duration::from_millis(100)).await;
+            timer(parts::SEARCH_DELAY).await;
             let answer = runtime::run(async move {
                 let access = account.conversation();
                 let conversation = access
@@ -412,427 +488,358 @@ pub(super) fn screen(
                 }
             })
             .await;
-            if candidate_revision.get_untracked() != ticket {
-                return;
-            }
             batch(|| {
                 match answer {
-                    Ok(rows) => candidates.set(rows),
-                    Err(_) => candidates_failed.set(true),
+                    Ok(rows) => senders.rows.set(rows),
+                    Err(_) => senders.failed.set(true),
                 }
-                candidates_busy.set(false);
+                senders.busy.set(false);
             });
         });
     });
-    let changes_account = account.clone();
-    let changes_id = id.clone();
-    spawn(async move {
-        let mut changes = Box::pin(runtime::observe(changes_account.conversation_changes()));
-        while let Some(change) = changes.next().await {
-            if picker.get_untracked()
-                && (change.reload_all || change.conversation_ids.contains(&changes_id))
-            {
-                candidates_retry.update(|revision| *revision += 1);
-            }
-        }
-    });
-    spawn(async move {
-        let mut messages = Box::pin(runtime::observe(account.message_changes()));
-        while messages.next().await.is_some() {
-            results.schedule(Load::Refresh);
-            if picker.get_untracked() {
-                candidates_retry.update(|revision| *revision += 1);
-            }
-        }
-    });
-    let back = move || {
-        if picker.get_untracked() {
-            dismiss_keyboard();
-            batch(|| {
-                picker.set(false);
-                sender_query.set(String::new());
-            });
-        } else {
-            close();
-        }
-    };
+}
+
+fn filters(
+    results: Results,
+    senders: Senders,
+    input: ElementRef,
+    back: impl Fn() + Copy + 'static,
+) -> impl IntoElement {
+    let picker = senders.open;
     view()
-        .flex_1()
-        .min_h_0()
+        .flex_none()
+        .px_4()
+        .pb_3()
+        .gap_2()
+        .child(when(
+            move || !picker.get() && senders.selected.with(Option::is_some),
+            move || sender_chip(results, senders, input),
+        ))
         .child(
             view()
-                .h_16()
-                .px_4()
-                .gap_3()
                 .flex_row()
                 .items_center()
-                .child(
-                    ui::icon_button()
-                        .size_8()
-                        .px_1()
-                        .on_press(back)
-                        .accessibility_label(move || Some(i18n.text(Key::Back).into()))
-                        .child(ui::icon(ui::Icon::ArrowLeft)),
-                )
-                .child(
-                    text(move || {
-                        if picker.get() {
-                            tr("Choose a sender", "选择发送者")
-                        } else {
-                            i18n.text(Key::SearchMessages)
-                        }
-                    })
-                    .text_sm()
-                    .font_weight(FontWeight::SEMIBOLD),
-                ),
-        )
-        .child(
-            view()
-                .px_4()
-                .pb_3()
                 .gap_2()
+                .child(dynamic(move || {
+                    let is_picker = picker.get();
+                    search_field(results, senders, input, is_picker, back)
+                }))
                 .child(when(
-                    move || !picker.get() && selected.with(Option::is_some),
+                    move || !picker.get(),
                     move || {
-                        ui::command()
-                            .justify_start()
-                            .w_full()
-                            .bg(move || theme().muted)
+                        ui::icon_button()
+                            .size_10()
+                            .px_2()
                             .accessibility_label(move || {
-                                Some(tr("Clear sender", "清除发送者").into())
+                                Some(tr("Choose a sender", "选择发送者").into())
                             })
                             .on_press(move || {
-                                selected.set(None);
-                                results.sender.set(None);
-                                input.focus();
+                                dismiss_keyboard();
+                                batch(|| {
+                                    senders.query.set(String::new());
+                                    picker.set(true);
+                                });
                             })
-                            .child(
-                                text(move || {
-                                    format!(
-                                        "{}: {} ×",
-                                        tr("From", "发送者"),
-                                        selected.with(|sender| sender
-                                            .as_ref()
-                                            .map(|sender| sender.full_name.clone())
-                                            .unwrap_or_default())
-                                    )
-                                })
-                                .text_sm()
-                                .number_of_lines(1),
-                            )
-                    },
-                ))
-                .child(
-                    view()
-                        .flex_row()
-                        .items_center()
-                        .gap_2()
-                        .child(dynamic(move || {
-                            let is_picker = picker.get();
-                            ui::field()
-                                .key(if is_picker {
-                                    "sender-search"
-                                } else {
-                                    "message-search"
-                                })
-                                .flex_1()
-                                .min_w_0()
-                                .element_ref(&input)
-                                .auto_focus(true)
-                                .placeholder(move || {
-                                    if is_picker {
-                                        tr("Search senders", "搜索发送者").to_owned()
-                                    } else {
-                                        i18n.text(Key::SearchMessages).to_owned()
-                                    }
-                                })
-                                .label(move || {
-                                    if is_picker {
-                                        tr("Search senders", "搜索发送者")
-                                    } else {
-                                        i18n.text(Key::SearchMessages)
-                                    }
-                                })
-                                .value(move || {
-                                    if is_picker {
-                                        sender_query.get()
-                                    } else {
-                                        results.query.get()
-                                    }
-                                })
-                                .on_change(move |value: &str| {
-                                    if is_picker {
-                                        sender_query.set(value.to_owned());
-                                    } else {
-                                        batch(|| {
-                                            results.query.set(value.to_owned());
-                                            if value.is_empty() {
-                                                results.category.set(None);
-                                            }
-                                        });
-                                    }
-                                })
-                                .on_key_press(move |key: &str| {
-                                    if key != "Backspace" {
-                                        return;
-                                    }
-                                    if is_picker && sender_query.with_untracked(String::is_empty) {
-                                        back();
-                                    } else if !is_picker
-                                        && results.query.with_untracked(String::is_empty)
-                                        && results.sender.with_untracked(Option::is_some)
-                                    {
-                                        batch(|| {
-                                            selected.set(None);
-                                            results.sender.set(None);
-                                        });
-                                    }
-                                })
-                        }))
-                        .child(when(
-                            move || !picker.get(),
-                            move || {
-                                ui::icon_button()
-                                    .size_10()
-                                    .px_2()
-                                    .accessibility_label(move || {
-                                        Some(tr("Choose a sender", "选择发送者").into())
-                                    })
-                                    .on_press(move || {
-                                        dismiss_keyboard();
-                                        batch(|| {
-                                            sender_query.set(String::new());
-                                            picker.set(true);
-                                        });
-                                    })
-                                    .child(ui::icon(ui::Icon::Contacts))
-                            },
-                        )),
-                )
-                .child(when(
-                    move || !picker.get() && !results.query.with(|query| query.trim().is_empty()),
-                    move || {
-                        view()
-                            .flex_row()
-                            .gap_2()
-                            .child(category_button(results, "TEXT", move || tr("Text", "文字")))
-                            .child(category_button(results, "POST", move || tr("Post", "长文")))
+                            .child(ui::icon(ui::Icon::Contacts))
                     },
                 )),
         )
+        .child(when(
+            move || !picker.get() && !results.query.with(|query| query.trim().is_empty()),
+            move || {
+                view()
+                    .flex_row()
+                    .gap_2()
+                    .child(category_button(results, "TEXT", move || tr("Text", "文字")))
+                    .child(category_button(results, "POST", move || tr("Post", "长文")))
+            },
+        ))
+}
+
+fn sender_chip(results: Results, senders: Senders, input: ElementRef) -> impl IntoElement {
+    ui::command()
+        .justify_start()
+        .w_full()
+        .bg(move || theme().muted)
+        .accessibility_label(move || Some(tr("Clear sender", "清除发送者").into()))
+        .on_press(move || {
+            senders.selected.set(None);
+            results.sender.set(None);
+            input.focus();
+        })
         .child(
-            when(picker, move || {
-                view()
-                    .flex_1()
-                    .min_h_0()
-                    .child(feedback(
-                        candidates_busy,
-                        candidates_failed,
-                        true,
-                        move || candidates_retry.update(|n| *n += 1),
-                    ))
-                    .child(when(
-                        move || {
-                            !candidates_busy.get()
-                                && !candidates_failed.get()
-                                && candidates.with(Vec::is_empty)
-                        },
-                        move || empty(move || tr("No senders found", "未找到发送者")),
-                    ))
-                    .child(when(
-                        move || !candidates.with(Vec::is_empty),
-                        move || {
-                            virtual_list(
-                                move || candidates.with(Vec::len),
-                                move |at| {
-                                    ui::command()
-                                        .justify_start()
-                                        .px_4()
-                                        .py_3()
-                                        .min_h_16()
-                                        .on_press(move || {
-                                            if let Some(sender) =
-                                                candidates.with_untracked(|rows| {
-                                                    rows.get(at.index()).cloned()
-                                                })
-                                            {
-                                                dismiss_keyboard();
-                                                batch(|| {
-                                                    results
-                                                        .sender
-                                                        .set(Some(sender.user_id.clone()));
-                                                    selected.set(Some(sender));
-                                                    picker.set(false);
-                                                    sender_query.set(String::new());
-                                                });
-                                            }
-                                        })
-                                        .child(ui::avatar_view(
-                                            move || {
-                                                candidates.with(|rows| {
-                                                    rows.get(at.index())
-                                                        .map(|sender| sender.full_name.clone())
-                                                        .unwrap_or_default()
-                                                        .into()
-                                                })
-                                            },
-                                            move || {
-                                                candidates.with(|rows| {
-                                                    rows.get(at.index())
-                                                        .map(|sender| sender.avatar_url.clone())
-                                                        .unwrap_or_default()
-                                                })
-                                            },
-                                        ))
-                                        .child(
-                                            text(move || {
-                                                candidates.with(|rows| {
-                                                    rows.get(at.index())
-                                                        .map(|sender| sender.full_name.clone())
-                                                        .unwrap_or_default()
-                                                })
-                                            })
-                                            .text_sm()
-                                            .number_of_lines(1)
-                                            .flex_1()
-                                            .min_w_0(),
-                                        )
-                                },
-                            )
-                            .keys(move || {
-                                candidates.with(|rows| {
-                                    rows.iter()
-                                        .map(|row| row.user_id.clone())
-                                        .collect::<Vec<_>>()
-                                })
-                            })
-                            .estimated_item_size(px(64.0))
-                            .flex_1()
-                            .min_h_0()
-                        },
-                    ))
+            text(move || {
+                format!(
+                    "{}: {}",
+                    tr("From", "发送者"),
+                    senders.selected.with(|sender| sender
+                        .as_ref()
+                        .map(|sender| sender.full_name.clone())
+                        .unwrap_or_default())
+                )
             })
-            .otherwise(move || {
-                view()
-                    .flex_1()
-                    .min_h_0()
-                    .child(feedback(results.busy, results.failed, false, move || {
-                        results.schedule(results.last.with(|load| *load))
-                    }))
-                    .child(when(
-                        move || {
-                            !results.busy.get()
-                                && !results.failed.get()
-                                && results.rows.with(Vec::is_empty)
-                        },
-                        move || {
-                            empty(move || {
-                                if results.query.with(|query| query.trim().is_empty())
-                                    && results.sender.with(Option::is_none)
-                                {
-                                    tr("Enter a keyword to search", "输入关键词搜索")
-                                } else {
-                                    tr("No messages found", "未找到消息")
-                                }
-                            })
-                        },
-                    ))
-                    .child(when(
-                        move || !results.rows.with(Vec::is_empty),
-                        move || {
-                            virtual_list(
-                                move || results.rows.with(Vec::len),
-                                move |at| {
-                                    ui::command()
-                                        .justify_start()
-                                        .px_4()
-                                        .py_3()
-                                        .min_h_16()
-                                        .on_press(move || {
-                                            if let Some(id) = results.rows.with_untracked(|rows| {
-                                                rows.get(at.index())
-                                                    .map(|row| row.message_id.clone())
-                                            }) {
-                                                batch(|| {
-                                                    navigation.highlight_search(
-                                                        results
-                                                            .conversation
-                                                            .with(|value| value.clone()),
-                                                        results.query.get_untracked(),
-                                                    );
-                                                    target.set(Some(id));
-                                                    navigation.panel.set(None);
-                                                });
-                                            }
-                                        })
-                                        .child(
-                                            view()
-                                                .gap_1()
-                                                .flex_1()
-                                                .min_w_0()
-                                                .child(
-                                                    text(move || {
-                                                        results.rows.with(|rows| {
-                                                            rows.get(at.index())
-                                                                .map(|row| row.sender_name.clone())
-                                                                .unwrap_or_default()
-                                                        })
-                                                    })
-                                                    .text_sm()
-                                                    .number_of_lines(1),
-                                                )
-                                                .child(
-                                                    text(move || {
-                                                        results.rows.with(|rows| {
-                                                            rows.get(at.index())
-                                                                .map(|row| {
-                                                                    presentation::preview(
-                                                                        i18n,
-                                                                        &row.category,
-                                                                        &row.content,
-                                                                    )
-                                                                })
-                                                                .unwrap_or_default()
-                                                        })
-                                                    })
-                                                    .text_xs()
-                                                    .number_of_lines(2)
-                                                    .text_color(move || theme().muted_foreground),
-                                                ),
-                                        )
-                                },
-                            )
-                            .keys(move || {
-                                results.rows.with(|rows| {
-                                    rows.iter()
-                                        .map(|row| row.message_id.clone())
-                                        .collect::<Vec<_>>()
-                                })
-                            })
-                            .estimated_item_size(px(64.0))
-                            .flex_1()
-                            .min_h_0()
-                            .on_viewable_items_change(move |event: &ViewableItems| {
-                                if let Some((first, _)) = event.viewable {
-                                    results.visible.replace(results.rows.with_untracked(|rows| {
-                                        rows.get(first).map(|row| row.message_id.clone())
-                                    }));
-                                }
-                            })
-                            .on_load_more(move || {
-                                if results.older.get_untracked() {
-                                    results.schedule(Load::Older);
-                                }
-                            })
-                            .on_load_more_at_start(move || {
-                                if results.newer.get_untracked() {
-                                    results.schedule(Load::Newer);
-                                }
-                            })
-                        },
-                    ))
-            }),
+            .text_sm()
+            .number_of_lines(1)
+            .flex_1()
+            .min_w_0(),
         )
+        .child(ui::icon(ui::Icon::Close))
+}
+
+fn search_field(
+    results: Results,
+    senders: Senders,
+    input: ElementRef,
+    is_picker: bool,
+    back: impl Fn() + Copy + 'static,
+) -> Input {
+    let i18n = i18n::current();
+    let label = move || {
+        if is_picker {
+            tr("Search senders", "搜索发送者")
+        } else {
+            i18n.text(Key::SearchMessages)
+        }
+    };
+    ui::field()
+        .key(if is_picker {
+            "sender-search"
+        } else {
+            "message-search"
+        })
+        .flex_1()
+        .min_w_0()
+        .element_ref(&input)
+        .auto_focus(true)
+        .placeholder(move || label().to_owned())
+        .label(label)
+        .value(move || {
+            if is_picker {
+                senders.query.get()
+            } else {
+                results.query.get()
+            }
+        })
+        .on_change(move |value: &str| {
+            if is_picker {
+                senders.query.set(value.to_owned());
+            } else {
+                batch(|| {
+                    results.query.set(value.to_owned());
+                    if value.is_empty() {
+                        results.category.set(None);
+                    }
+                });
+            }
+        })
+        .on_key_press(move |key: &str| {
+            if key != "Backspace" {
+                return;
+            }
+            if is_picker && senders.query.with_untracked(String::is_empty) {
+                back();
+            } else if !is_picker
+                && results.query.with_untracked(String::is_empty)
+                && results.sender.with_untracked(Option::is_some)
+            {
+                batch(|| {
+                    senders.selected.set(None);
+                    results.sender.set(None);
+                });
+            }
+        })
+}
+
+fn sender_list(results: Results, senders: Senders) -> impl IntoElement {
+    let rows = senders.rows;
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(when(
+            move || senders.busy.get() && rows.with(Vec::is_empty),
+            || {
+                parts::status(move || tr("Loading senders…", "正在加载发送者…"))
+                    .px_4()
+                    .py_2()
+            },
+        ))
+        .child(when(senders.failed, move || {
+            parts::failure(
+                move || tr("Couldn’t load senders", "无法加载发送者"),
+                move || senders.reload(),
+            )
+            .px_4()
+            .py_2()
+        }))
+        .child(when(
+            move || !senders.busy.get() && !senders.failed.get() && rows.with(Vec::is_empty),
+            || ui::placeholder(move || tr("No senders found", "未找到发送者")),
+        ))
+        .child(when(
+            move || !rows.with(Vec::is_empty),
+            move || {
+                virtual_list(
+                    move || rows.with(Vec::len),
+                    move |at| {
+                        let sender = move || rows.with(|rows| rows.get(at.index()).cloned());
+                        parts::entity_row(
+                            move || sender().map(|sender| sender.full_name).unwrap_or_default(),
+                            move || sender().map(|sender| sender.avatar_url).unwrap_or_default(),
+                            String::new,
+                            || false,
+                        )
+                        .on_press(move || {
+                            if let Some(sender) = untracked(sender) {
+                                dismiss_keyboard();
+                                batch(|| {
+                                    results.sender.set(Some(sender.user_id.clone()));
+                                    senders.selected.set(Some(sender));
+                                    senders.close();
+                                });
+                            }
+                        })
+                    },
+                )
+                .keys(move || {
+                    rows.with(|rows| {
+                        rows.iter()
+                            .map(|row| row.user_id.clone())
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .estimated_item_size(parts::row_height())
+                .flex_1()
+                .min_h_0()
+            },
+        ))
+}
+
+fn result_list(results: Results, target: Signal<Option<String>>) -> impl IntoElement {
+    let i18n = i18n::current();
+    let navigation = use_context::<ChatNavigation>().expect("Home provides chat navigation");
+    let rows = results.rows;
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(when(
+            move || results.busy.get() && rows.with(Vec::is_empty),
+            move || {
+                parts::status(move || i18n.text(Key::LoadingMessages))
+                    .px_4()
+                    .py_2()
+            },
+        ))
+        .child(when(results.failed, move || {
+            parts::failure(
+                move || i18n.text(Key::MessagesFailed),
+                move || results.schedule(results.last.with(|load| *load)),
+            )
+            .px_4()
+            .py_2()
+        }))
+        .child(when(
+            move || !results.busy.get() && !results.failed.get() && rows.with(Vec::is_empty),
+            move || {
+                ui::placeholder(move || {
+                    if results.query.with(|query| query.trim().is_empty())
+                        && results.sender.with(Option::is_none)
+                    {
+                        tr("Enter a keyword to search", "输入关键词搜索")
+                    } else {
+                        tr("No messages found", "未找到消息")
+                    }
+                })
+            },
+        ))
+        .child(when(
+            move || !rows.with(Vec::is_empty),
+            move || {
+                virtual_list(
+                    move || rows.with(Vec::len),
+                    move |at| {
+                        let field = move |read: fn(&MessageListView) -> String| {
+                            rows.with(|rows| rows.get(at.index()).map(read).unwrap_or_default())
+                        };
+                        ui::command()
+                            .justify_start()
+                            .px_4()
+                            .py_3()
+                            .min_h_16()
+                            .on_press(move || {
+                                let id = rows.with_untracked(|rows| {
+                                    rows.get(at.index()).map(|row| row.message_id.clone())
+                                });
+                                if let Some(id) = id {
+                                    batch(|| {
+                                        navigation.highlight_search(
+                                            results.conversation.with(|value| value.clone()),
+                                            results.query.get_untracked(),
+                                        );
+                                        target.set(Some(id));
+                                        navigation.panel.set(None);
+                                    });
+                                }
+                            })
+                            .child(
+                                view()
+                                    .gap_1()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .child(
+                                        text(move || field(|row| row.sender_name.clone()))
+                                            .text_sm()
+                                            .number_of_lines(1),
+                                    )
+                                    .child(
+                                        text(move || {
+                                            rows.with(|rows| {
+                                                rows.get(at.index())
+                                                    .map(|row| {
+                                                        presentation::preview(
+                                                            i18n,
+                                                            &row.category,
+                                                            &row.content,
+                                                        )
+                                                    })
+                                                    .unwrap_or_default()
+                                            })
+                                        })
+                                        .text_xs()
+                                        .number_of_lines(2)
+                                        .text_color(move || theme().muted_foreground),
+                                    ),
+                            )
+                    },
+                )
+                .keys(move || {
+                    rows.with(|rows| {
+                        rows.iter()
+                            .map(|row| row.message_id.clone())
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .estimated_item_size(parts::row_height())
+                .flex_1()
+                .min_h_0()
+                .on_viewable_items_change(move |event: &ViewableItems| {
+                    if let Some((first, _)) = event.viewable {
+                        results.visible.replace(rows.with_untracked(|rows| {
+                            rows.get(first).map(|row| row.message_id.clone())
+                        }));
+                    }
+                })
+                .on_load_more(move || {
+                    if results.older.get_untracked() {
+                        results.schedule(Load::Older);
+                    }
+                })
+                .on_load_more_at_start(move || {
+                    if results.newer.get_untracked() {
+                        results.schedule(Load::Newer);
+                    }
+                })
+            },
+        ))
 }
 
 fn category_button(
@@ -869,77 +876,4 @@ fn category_button(
             })
         })
         .child(text(label).text_sm())
-}
-
-fn empty(label: impl Fn() -> &'static str + 'static) -> impl IntoElement {
-    view()
-        .flex_1()
-        .min_h_0()
-        .min_w_0()
-        .p_4()
-        .items_center()
-        .justify_center()
-        .child(
-            text(label)
-                .text_sm()
-                .text_color(move || theme().muted_foreground),
-        )
-}
-
-fn feedback(
-    busy: Signal<bool>,
-    failed: Signal<bool>,
-    senders: bool,
-    retry: impl Fn() + Copy + 'static,
-) -> impl IntoElement {
-    let i18n = i18n::current();
-    view()
-        .px_4()
-        .gap_2()
-        .child(when(busy, move || {
-            view()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .py_2()
-                .child(ui::busy_indicator(
-                    move || busy.get(),
-                    move || {
-                        if senders {
-                            tr("Loading senders…", "正在加载发送者…")
-                        } else {
-                            i18n.text(Key::LoadingMessages)
-                        }
-                        .into()
-                    },
-                ))
-                .child(
-                    text(move || {
-                        if senders {
-                            tr("Loading senders…", "正在加载发送者…")
-                        } else {
-                            i18n.text(Key::LoadingMessages)
-                        }
-                    })
-                    .text_sm()
-                    .text_color(move || theme().muted_foreground),
-                )
-        }))
-        .child(when(failed, move || {
-            view()
-                .gap_2()
-                .py_2()
-                .child(
-                    text(move || {
-                        if senders {
-                            tr("Couldn’t load senders", "无法加载发送者")
-                        } else {
-                            i18n.text(Key::MessagesFailed)
-                        }
-                    })
-                    .text_sm()
-                    .text_color(move || theme().destructive),
-                )
-                .child(ui::action(move || i18n.text(Key::Retry), retry))
-        }))
 }

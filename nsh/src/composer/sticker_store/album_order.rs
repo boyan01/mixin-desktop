@@ -3,7 +3,7 @@ use nsh_core::{PointerEvents, TouchEvent, TouchPhase, prelude::*};
 use std::{sync::Arc, time::Duration};
 
 use super::{State, tr};
-use crate::{i18n, motion, runtime, ui};
+use crate::{i18n, motion, ui};
 
 const ROW_HEIGHT: f32 = 36.0;
 
@@ -41,19 +41,8 @@ fn order(state: State) -> Vec<String> {
 }
 
 fn save(state: State, ids: Vec<String>) {
-    if state.busy.get_untracked() {
-        return;
-    }
-    let client = state.account.with(|account| account.clone());
-    state.busy.set(true);
-    state.failed.set(false);
-    let command =
-        runtime::commit(async move { client.sticker().set_sticker_album_order(ids).await });
-    spawn(async move {
-        state.failed.set(command.await.is_err());
-        state.busy.set(false);
-        state.revision.update(|revision| *revision += 1);
-    });
+    let client = state.client();
+    state.update(async move { client.sticker().set_sticker_album_order(ids).await });
 }
 
 pub(super) fn list(state: State) -> impl IntoElement {

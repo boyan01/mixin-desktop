@@ -1,12 +1,12 @@
 use super::Handle;
 use crate::{
-    i18n::{self, Key},
+    i18n::{self, I18n, Key},
     navigation::ChatNavigation,
     platform::notifications::{self as native, Permission},
     presentation, runtime,
 };
 use futures::StreamExt as _;
-use mixin_desktop_api::{AccountClient, ConversationListData};
+use mixin_desktop_api::{AccountClient, ConversationListData, NotificationEvent};
 use nsh_core::{platform::Lifecycle, prelude::*};
 use std::{collections::VecDeque, sync::Arc};
 const MAX_SESSION_NOTIFICATIONS: usize = 256;
@@ -114,62 +114,7 @@ pub(crate) fn attach(
                 }
                 let id = notification_id(&account_id, &event.message_id);
                 let preview = if handle.preview.get_untracked() {
-                    let content = event.content.chars().take(512).collect::<String>();
-                    let body = if matches!(event.status.as_str(), "UNKNOWN" | "FAILED") {
-                        i18n.format("Waiting for {sender} to get online and establish an encrypted session.",
-                            "正在等待{sender}上线以建立加密会话。", &[("sender", &event.sender_name)])
-                    } else if event.category == "SYSTEM_CONVERSATION" {
-                        let sender = presentation::system_message::actor(
-                            i18n,
-                            &event.sender_id,
-                            &event.sender_name,
-                            &account_id,
-                        );
-                        let participant = presentation::system_message::actor(
-                            i18n,
-                            event.participant_id.as_deref().unwrap_or_default(),
-                            event.participant_name.as_deref().unwrap_or_default(),
-                            &account_id,
-                        );
-                        presentation::system_message::text(
-                            i18n,
-                            &sender,
-                            &participant,
-                            event.action.as_deref(),
-                            &event.content,
-                        )
-                    } else if event.category == "MESSAGE_PIN" {
-                        let pin = serde_json::from_str::<serde_json::Value>(&event.content).ok();
-                        let message = pin
-                            .as_ref()
-                            .map(|pin| {
-                                presentation::preview(
-                                    i18n,
-                                    pin["category"].as_str().unwrap_or_default(),
-                                    pin["content"].as_str().unwrap_or_default(),
-                                )
-                            })
-                            .filter(|value| !value.is_empty())
-                            .unwrap_or_else(|| i18n.tr("a message", "一条消息").into());
-                        i18n.format(
-                            "{sender} pinned {message}",
-                            "{sender}置顶了{message}",
-                            &[("sender", &event.sender_name), ("message", &message)],
-                        )
-                    } else {
-                        presentation::preview(i18n, &event.category, &content)
-                    };
-                    if event.conversation_category == "GROUP"
-                        && !event.sender_name.is_empty()
-                        && !matches!(
-                            event.category.as_str(),
-                            "MESSAGE_PIN" | "SYSTEM_CONVERSATION"
-                        )
-                    {
-                        format!("{}: {body}", event.sender_name)
-                    } else {
-                        body
-                    }
+                    preview_body(i18n, &event, &account_id)
                 } else {
                     i18n.text(Key::Message).to_owned()
                 };
@@ -232,6 +177,68 @@ pub(crate) fn attach(
         handle.dismiss(&ids);
         handle.clear_account(account_id);
     });
+}
+
+fn preview_body(i18n: I18n, event: &NotificationEvent, account_id: &str) -> String {
+    let content = event.content.chars().take(512).collect::<String>();
+    let body = if matches!(event.status.as_str(), "UNKNOWN" | "FAILED") {
+        i18n.format(
+            "Waiting for {sender} to get online and establish an encrypted session.",
+            "正在等待{sender}上线以建立加密会话。",
+            &[("sender", &event.sender_name)],
+        )
+    } else if event.category == "SYSTEM_CONVERSATION" {
+        let sender = presentation::system_message::actor(
+            i18n,
+            &event.sender_id,
+            &event.sender_name,
+            account_id,
+        );
+        let participant = presentation::system_message::actor(
+            i18n,
+            event.participant_id.as_deref().unwrap_or_default(),
+            event.participant_name.as_deref().unwrap_or_default(),
+            account_id,
+        );
+        presentation::system_message::text(
+            i18n,
+            &sender,
+            &participant,
+            event.action.as_deref(),
+            &event.content,
+        )
+    } else if event.category == "MESSAGE_PIN" {
+        let pin = serde_json::from_str::<serde_json::Value>(&event.content).ok();
+        let message = pin
+            .as_ref()
+            .map(|pin| {
+                presentation::preview(
+                    i18n,
+                    pin["category"].as_str().unwrap_or_default(),
+                    pin["content"].as_str().unwrap_or_default(),
+                )
+            })
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| i18n.tr("a message", "一条消息").into());
+        i18n.format(
+            "{sender} pinned {message}",
+            "{sender}置顶了{message}",
+            &[("sender", &event.sender_name), ("message", &message)],
+        )
+    } else {
+        presentation::preview(i18n, &event.category, &content)
+    };
+    if event.conversation_category == "GROUP"
+        && !event.sender_name.is_empty()
+        && !matches!(
+            event.category.as_str(),
+            "MESSAGE_PIN" | "SYSTEM_CONVERSATION"
+        )
+    {
+        format!("{}: {body}", event.sender_name)
+    } else {
+        body
+    }
 }
 
 fn notification_id(account_id: &str, message_id: &str) -> String {

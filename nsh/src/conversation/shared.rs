@@ -1,6 +1,6 @@
 use mixin_desktop_api::MessageListView;
-use nsh_base::{menu_item, tab, tabs};
-use nsh_core::element::ViewableItems;
+use nsh_base::{tab, tabs};
+use nsh_core::element::{ViewableItems, desktop::MenuItem};
 
 use super::*;
 use crate::{chat::MediaPreview, presentation};
@@ -11,6 +11,7 @@ const WINDOW_SIZE: usize = PAGE_SIZE * 3;
 
 #[derive(Clone, Copy)]
 struct Shared {
+    owner: Owner,
     kind: &'static str,
     rows: Signal<Vec<MessageListView>>,
     offset: Signal<usize>,
@@ -79,11 +80,7 @@ impl Shared {
     }
 }
 
-pub(super) fn screen(
-    state: State,
-    target: Signal<Option<String>>,
-    close: impl Fn() + Copy + 'static,
-) -> impl IntoElement {
+pub(super) fn screen(state: State, target: Signal<Option<String>>) -> impl IntoElement {
     let i18n = i18n::current();
     let selected = signal("media");
     let shown = signal(vec!["media"]);
@@ -104,7 +101,7 @@ pub(super) fn screen(
                             move || selected.get() != kind,
                             |style| style.hidden().invisible(),
                         )
-                        .child(panel(state, target, close, kind, preview))
+                        .child(panel(state, target, kind, preview))
                 },
             )
         }))
@@ -156,12 +153,12 @@ pub(super) fn screen(
 fn panel(
     state: State,
     target: Signal<Option<String>>,
-    close: impl Fn() + Copy + 'static,
     kind: &'static str,
     preview: MediaPreview,
 ) -> impl IntoElement {
     let i18n = i18n::current();
     let shared = Shared {
+        owner: Owner::current(),
         kind,
         rows: signal_with(Vec::new(), SignalEquals::Never),
         offset: signal(0),
@@ -213,62 +210,49 @@ fn panel(
         });
     });
     let account = state.client();
+    // The stream covers every conversation and every attachment state change.
     spawn(async move {
-        let mut changes = Box::pin(runtime::observe(account.message_changes()));
-        while changes.next().await.is_some() {
-            shared.revision.update(|revision| *revision += 1);
-        }
+        parts::throttled(
+            Box::pin(runtime::observe(account.message_changes())),
+            move || shared.revision.update(|revision| *revision += 1),
+        )
+        .await;
     });
     let navigation = use_context::<crate::sidebar::Navigation>().expect("Home provides navigation");
-    let columns = move || {
+    // A memo, so resizing the window rebuilds the list only when the count changes.
+    let columns = computed(move || {
         let content = window().width.0 - navigation.width().0;
-        if (if content < 620.0 {
+        let panel = if content < 620.0 {
             content
         } else {
-            content - 300.0
-        }) < 620.0
-        {
-            4
-        } else {
-            3
-        }
-    };
+            content - ui::sidebar_width().0
+        };
+        if panel < 620.0 { 4 } else { 3 }
+    });
     view()
         .flex_1()
         .min_w_0()
         .min_h_0()
-        .child(when(shared.loading, move || {
-            view()
-                .px_4()
-                .py_2()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .child(ui::busy_indicator(
-                    move || true,
-                    move || i18n.tr("Loading…", "加载中…").into(),
-                ))
-                .child(text(move || i18n.tr("Loading…", "加载中…")).text_sm())
-        }))
+        .child(when(
+            move || shared.loading.get() && shared.rows.with(Vec::is_empty),
+            move || {
+                parts::status(move || i18n.tr("Loading…", "加载中…"))
+                    .px_4()
+                    .py_2()
+            },
+        ))
         .child(when(
             move || shared.failed.get() || shared.preview.failed.get(),
             move || {
-                view()
-                    .px_4()
-                    .py_2()
-                    .gap_2()
-                    .child(
-                        text(move || i18n.text(crate::i18n::Key::CommandFailed))
-                            .text_sm()
-                            .text_color(move || theme().destructive),
-                    )
-                    .child(ui::action(
-                        move || i18n.tr("Retry", "重试"),
-                        move || {
-                            shared.preview.failed.set(false);
-                            shared.revision.update(|revision| *revision += 1);
-                        },
-                    ))
+                parts::failure(
+                    move || i18n.text(crate::i18n::Key::CommandFailed),
+                    move || {
+                        shared.preview.failed.set(false);
+                        shared.revision.update(|revision| *revision += 1);
+                    },
+                )
+                .px_4()
+                .py_2()
             },
         ))
         .child(when(
@@ -276,22 +260,11 @@ fn panel(
                 !shared.loading.get() && !shared.failed.get() && shared.rows.with(Vec::is_empty)
             },
             move || {
-                view()
-                    .flex_1()
-                    .min_w_0()
-                    .min_h_0()
-                    .p_4()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        text(move || match kind {
-                            "post" => i18n.tr("No posts", "暂无文章"),
-                            "file" => i18n.tr("No files", "暂无文件"),
-                            _ => i18n.tr("No shared media", "暂无共享媒体"),
-                        })
-                        .text_sm()
-                        .text_color(move || theme().muted_foreground),
-                    )
+                ui::placeholder(move || match kind {
+                    "post" => i18n.tr("No posts", "暂无文章"),
+                    "file" => i18n.tr("No files", "暂无文件"),
+                    _ => i18n.tr("No shared media", "暂无共享媒体"),
+                })
             },
         ))
         .child(when(
@@ -299,7 +272,7 @@ fn panel(
             move || {
                 dynamic(move || {
                     let kind = shared.kind;
-                    let columns = if kind == "media" { columns() } else { 1 };
+                    let columns = if kind == "media" { columns.get() } else { 1 };
                     untracked(move || {
                         let first = shared
                             .first
@@ -318,9 +291,9 @@ fn panel(
                                     move || shared.rows.with(|rows| rows.get(at.index()).cloned());
                                 item_menu(
                                     message,
+                                    state,
                                     shared,
                                     target,
-                                    close,
                                     if kind == "media" {
                                         media(message, shared).into_element()
                                     } else {
@@ -468,7 +441,12 @@ fn media(
                 .right_0()
                 .px_1()
                 .py_1()
-                .bg(move || theme().background.opacity(0.85))
+                .bg(move || theme().color("media-overlay").unwrap_or(theme().muted))
+                .text_color(move || {
+                    theme()
+                        .color("media-overlay-foreground")
+                        .unwrap_or(theme().foreground)
+                })
                 .style_when(
                     move || {
                         message().is_none_or(|row| {
@@ -518,63 +496,45 @@ fn media(
 
 fn item_menu(
     message: impl Fn() -> Option<MessageListView> + Copy + 'static,
+    state: State,
     shared: Shared,
     target: Signal<Option<String>>,
-    close: impl Fn() + Copy + 'static,
     body: AnyElement,
 ) -> impl IntoElement {
     let i18n = i18n::current();
-    ui::context_menu().trigger(body).child(dynamic(move || {
-        let Some(message) = untracked(message) else {
-            return view().hidden().into_element();
+    ui::native_context_menu(body, move || {
+        let Some(message) = message() else {
+            return Vec::new();
         };
         let locate = message.message_id.clone();
         let mut items = vec![
-            menu_item()
-                .px_3()
-                .py_2()
-                .rounded_md()
-                .hover(|style| style.bg(move || theme().accent))
-                .focus(|style| style.bg(move || theme().accent))
-                .on_select(move || {
-                    target.set(Some(locate.clone()));
-                    close();
-                })
-                .child(text(move || i18n.tr("Locate in chat", "在聊天中定位")).text_sm())
-                .into_element(),
+            MenuItem::new(i18n.tr("Locate in chat", "在聊天中定位")).on_select(move || {
+                target.set(Some(locate.clone()));
+                state.close();
+            }),
         ];
         if Shared::available(&message) {
             let save = message.clone();
             items.push(
-                menu_item()
-                    .px_3()
-                    .py_2()
-                    .rounded_md()
-                    .hover(|style| style.bg(move || theme().accent))
-                    .focus(|style| style.bg(move || theme().accent))
-                    .on_select(move || shared.preview.save(save.clone()))
-                    .child(text(move || i18n.tr("Save as…", "另存为…")).text_sm())
-                    .into_element(),
+                MenuItem::new(i18n.tr("Save as…", "另存为…"))
+                    .on_select(move || shared.preview.save(save.clone())),
             );
             if let Some(path) = message.media_url {
                 items.push(
-                    menu_item()
-                        .px_3()
-                        .py_2()
-                        .rounded_md()
-                        .hover(|style| style.bg(move || theme().accent))
-                        .focus(|style| style.bg(move || theme().accent))
-                        .on_select(move || {
+                    MenuItem::new(i18n.tr("Show in folder", "在文件夹中显示")).on_select(
+                        move || {
                             let path = path.clone();
-                            spawn(async move {
-                                shared.preview.failed.set(reveal_path(path).await.is_err());
+                            // The list cell showing this menu can go before the reveal completes.
+                            shared.owner.run(|| {
+                                spawn(async move {
+                                    shared.preview.failed.set(reveal_path(path).await.is_err());
+                                })
                             });
-                        })
-                        .child(text(move || i18n.tr("Show in folder", "在文件夹中显示")).text_sm())
-                        .into_element(),
+                        },
+                    ),
                 );
             }
         }
-        view().children(items).into_element()
-    }))
+        items
+    })
 }

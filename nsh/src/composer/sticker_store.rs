@@ -29,26 +29,12 @@ pub(super) fn album_toggle(state: State, album: String) -> impl IntoElement {
             }
         },
         move || {
-            if state.busy.get_untracked() {
-                return;
-            }
             let id = album.with(|id| id.clone());
             let added = state
                 .albums
                 .with(|albums| albums.iter().any(|a| a.album_id == id));
-            let client = state.account.with(|a| a.clone());
-            state.busy.set(true);
-            spawn(async move {
-                state.failed.set(
-                    runtime::commit(async move {
-                        client.sticker().set_sticker_album_added(id, !added).await
-                    })
-                    .await
-                    .is_err(),
-                );
-                state.busy.set(false);
-                state.revision.update(|v| *v += 1);
-            });
+            let client = state.client();
+            state.update(async move { client.sticker().set_sticker_album_added(id, !added).await });
         },
     )
     .disabled(state.busy)
@@ -61,7 +47,7 @@ pub(super) fn panel(state: State) -> impl IntoElement {
     let viewable = signal(None::<(usize, usize)>);
     effect(move || {
         state.revision.get();
-        let client = state.account.with(|a| a.clone());
+        let client = state.client();
         loading.set(true);
         spawn(async move {
             match runtime::run(async move { client.sticker().sticker_store_albums().await }).await {
@@ -89,26 +75,17 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                     ui::action(
                         move || tr(i18n, "Refresh", "刷新"),
                         move || {
-                            let client = state.account.with(|a| a.clone());
-                            state.busy.set(true);
-                            spawn(async move {
-                                state.failed.set(
-                                    runtime::commit(async move {
-                                        client.sticker().refresh_stickers().await
-                                    })
-                                    .await
-                                    .is_err(),
-                                );
-                                state.busy.set(false);
-                                state.revision.update(|v| *v += 1);
-                            });
+                            let client = state.client();
+                            state.update(async move { client.sticker().refresh_stickers().await });
                         },
                     )
                     .disabled(state.busy),
                 ),
         )
         .child(when(loading, move || {
-            text(move || i18n.text(Key::LoadingChats)).text_sm()
+            text(move || tr(i18n, "Loading stickers…", "正在加载贴纸…"))
+                .text_sm()
+                .text_color(move || theme().muted_foreground)
         }))
         .child(when(
             move || !loading.get() && !state.failed.get() && store.with(Vec::is_empty),
@@ -146,7 +123,7 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                             }
                         })
                         .child(crate::sticker::album_icon(
-                            state.account.with(|value| value.clone()),
+                            state.client(),
                             move || {
                                 store.with(|rows| {
                                     rows.get(at.index())
@@ -218,17 +195,7 @@ pub(super) fn panel(state: State) -> impl IntoElement {
 pub(crate) fn detail(account: Arc<AccountClient>, sticker_id: String) -> impl IntoElement {
     let i18n = i18n::current();
     // The detail grid selects a preview. Its callbacks never send a message.
-    let state = State {
-        account: stored(account),
-        conversation: stored(String::new()),
-        open: signal(true),
-        tab: signal(Tab::Recent),
-        revision: signal(0),
-        busy: signal(false),
-        failed: signal(false),
-        albums: signal_with(Vec::new(), SignalEquals::Never),
-        quote: signal_with(None, SignalEquals::Never),
-    };
+    let state = State::new(account, String::new(), true, signal(false));
     state.observe_updates();
     let selected = signal(sticker_id);
     let details = signal_with(None::<StickerDetailItem>, SignalEquals::Never);
@@ -237,7 +204,7 @@ pub(crate) fn detail(account: Arc<AccountClient>, sticker_id: String) -> impl In
     effect(move || {
         state.revision.get();
         let id = selected.get();
-        let client = state.account.with(|value| value.clone());
+        let client = state.client();
         loading.set(true);
         spawn(async move {
             match runtime::run(async move {
@@ -283,7 +250,7 @@ pub(crate) fn detail(account: Arc<AccountClient>, sticker_id: String) -> impl In
             .font_weight(FontWeight::MEDIUM),
         )
         .child(view().items_center().child(crate::sticker::asset(
-            state.account.with(|value| value.clone()),
+            state.client(),
             move || {
                 details.with(|detail| {
                     detail
@@ -316,11 +283,11 @@ pub(crate) fn detail(account: Arc<AccountClient>, sticker_id: String) -> impl In
                 .into_element(),
                 Some(_) => view().hidden().into_element(),
                 None => text(move || {
-                    i18n.text(if state.failed.get() {
-                        Key::CommandFailed
+                    if state.failed.get() {
+                        i18n.text(Key::CommandFailed)
                     } else {
-                        Key::LoadingChats
-                    })
+                        tr(i18n, "Loading stickers…", "正在加载贴纸…")
+                    }
                 })
                 .text_sm()
                 .into_element(),
@@ -331,7 +298,7 @@ pub(crate) fn detail(account: Arc<AccountClient>, sticker_id: String) -> impl In
                 move || i18n.text(Key::Retry),
                 move || {
                     state.failed.set(false);
-                    state.revision.update(|revision| *revision += 1);
+                    state.reload();
                 },
             )
         }))

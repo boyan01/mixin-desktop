@@ -1,13 +1,9 @@
 use crate::i18n::{self, Key};
-use crate::{Phase, runtime, ui};
-use base64::{Engine as _, engine::general_purpose::STANDARD};
-use image::{DynamicImage, ImageFormat, Luma};
+use crate::{Phase, qr, runtime, ui};
 use mixin_desktop_api::{ClientError, ClientResult, DesktopClient, LoginClient};
 use nsh_base::theme;
 use nsh_core::prelude::*;
-use qrcode::QrCode;
 use std::cell::RefCell;
-use std::io::Cursor;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -71,17 +67,34 @@ pub(crate) fn screen(desktop: DesktopClient, phase: Signal<Phase>) -> impl IntoE
                                     .gap_3()
                                     .items_center()
                                     .justify_center()
-                                    .child(ui::icon(ui::Icon::Chat).size_8())
-                                    .child(text(move || i18n.text(Key::Preparing)).text_sm())
+                                    .child(ui::busy_indicator(
+                                        || true,
+                                        move || i18n.text(Key::Preparing).into(),
+                                    ))
+                                    .child(
+                                        text(move || i18n.text(Key::Preparing))
+                                            .text_sm()
+                                            .text_center()
+                                            .text_color(move || theme().muted_foreground),
+                                    )
                                     .into_element(),
                                 LoginPhase::Waiting(source) => image(source)
                                     .size_40()
                                     .label(move || i18n.text(Key::ScanTitle))
                                     .into_element(),
-                                LoginPhase::Failed => ui::command()
+                                LoginPhase::Failed => view()
                                     .size_40()
-                                    .on_press(move || retry.update(|v| *v += 1))
-                                    .child(text(move || i18n.text(Key::Retry)))
+                                    .gap_3()
+                                    .items_center()
+                                    .justify_center()
+                                    .child(
+                                        ui::error_text(move || i18n.text(Key::LoginFailed))
+                                            .text_center(),
+                                    )
+                                    .child(ui::action(
+                                        move || i18n.text(Key::Retry),
+                                        move || retry.update(|v| *v += 1),
+                                    ))
                                     .into_element(),
                             })),
                     )
@@ -100,15 +113,7 @@ pub(crate) fn screen(desktop: DesktopClient, phase: Signal<Phase>) -> impl IntoE
                                     .text_sm()
                                     .text_color(move || theme().muted_foreground),
                             ),
-                    )
-                    .child(when(
-                        move || state.get() == LoginPhase::Failed,
-                        move || {
-                            text(move || i18n.text(Key::LoginFailed))
-                                .text_xs()
-                                .text_color(move || theme().destructive)
-                        },
-                    )),
+                    ),
             ),
         )
         .child(
@@ -140,7 +145,11 @@ async fn authorize(
             previous.cancel();
         }
         let url = login.auth_url();
-        let source = runtime::run(async move { qr_source(&url) }).await?;
+        let source = runtime::run(async move {
+            qr::source(&url, 256)
+                .ok_or_else(|| ClientError::Internal("Could not render the sign-in code".into()))
+        })
+        .await?;
         state.set(LoginPhase::Waiting(source.into()));
         log::info!("NSH sign-in QR code ready");
         match runtime::run(async move {
@@ -164,21 +173,4 @@ async fn authorize(
             }
         }
     }
-}
-
-fn qr_source(url: &str) -> ClientResult<String> {
-    let code = QrCode::new(url).map_err(|error| ClientError::Internal(error.to_string()))?;
-    let image = code
-        .render::<Luma<u8>>()
-        .min_dimensions(256, 256)
-        .quiet_zone(true)
-        .build();
-    let mut png = Cursor::new(Vec::new());
-    DynamicImage::ImageLuma8(image)
-        .write_to(&mut png, ImageFormat::Png)
-        .map_err(|error| ClientError::Internal(error.to_string()))?;
-    Ok(format!(
-        "data:image/png;base64,{}",
-        STANDARD.encode(png.into_inner())
-    ))
 }

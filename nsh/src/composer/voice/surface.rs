@@ -1,5 +1,5 @@
 use super::*;
-use crate::ui;
+use crate::{composer::tool_button, ui};
 use nsh_base::theme;
 
 impl Voice {
@@ -14,10 +14,7 @@ impl Voice {
 
     pub(crate) fn button(self) -> impl IntoElement {
         let i18n = i18n::current();
-        ui::command()
-            .size_10()
-            .px_1()
-            .py_1()
+        tool_button()
             .disabled(move || self.busy.get() || self.open.get())
             .accessibility_label(move || Some(i18n.text(Key::Record).into()))
             .child(ui::icon(ui::Icon::Microphone).size_6())
@@ -32,13 +29,7 @@ impl Voice {
             move || {
                 cleanup(move || {
                     if voice.open.try_get() == Some(false) {
-                        let _ = voice.snapshot.try_set(VoiceRecorderSnapshot {
-                            session_id: None,
-                            status: VoiceRecorderStatus::Idle,
-                            recording: None,
-                            duration_millis: 0,
-                            waveform: Vec::new(),
-                        });
+                        let _ = voice.snapshot.try_set(idle());
                     }
                 });
                 view()
@@ -135,10 +126,7 @@ fn bar(voice: Voice) -> impl IntoElement {
                 .items_center()
                 .gap_3()
                 .child(
-                    ui::command()
-                        .size_10()
-                        .px_1()
-                        .py_1()
+                    tool_button()
                         .disabled(voice.busy)
                         .accessibility_label(move || Some(i18n.text(Key::Cancel).into()))
                         .child(ui::icon(ui::Icon::Close).size_5())

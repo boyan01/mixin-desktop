@@ -7,12 +7,16 @@ use nsh_base::theme;
 use nsh_core::prelude::*;
 
 use crate::{
-    chat, create,
-    i18n::{self, Key},
+    chat, conversation_list, create,
+    i18n::{self, I18n, Key},
+    playback::Playback,
     runtime, settings,
+    shell::Command,
     sidebar::{self, Navigation},
     ui,
 };
+
+const NARROW_CONTENT_WIDTH: f32 = 620.0;
 
 /// Transient presentation of the account's authoritative transfer snapshots.
 #[derive(Clone, Copy)]
@@ -32,11 +36,34 @@ impl AttachmentProgress {
     }
 }
 
+/// The signed-in session's view state. Business state stays in the account.
+#[derive(Clone, Copy)]
+struct Home {
+    owner: Owner,
+    i18n: I18n,
+    account: Stored<Arc<AccountClient>>,
+    nav: Navigation,
+    selected: Signal<Option<ConversationListData>>,
+    selected_id: Memo<Option<String>>,
+    locate: Signal<Option<String>>,
+    drafts: Signal<HashMap<String, String>>,
+    pending: Signal<HashSet<String>>,
+    window: conversation_list::Window,
+    query: Signal<String>,
+    composing: Signal<bool>,
+    unread: Signal<bool>,
+    search: ElementRef,
+    online: Signal<bool>,
+    health: Signal<String>,
+    create_action: Signal<Option<create::Action>>,
+    settings_page: Signal<settings::Page>,
+    settings_detail: Signal<bool>,
+}
+
 pub(crate) fn screen(
     account: Arc<AccountClient>,
     on_signed_out: impl Fn() + Copy + 'static,
 ) -> impl IntoElement {
-    let i18n = i18n::current();
     let attachment_progress = signal(Vec::new());
     provide_context(AttachmentProgress(attachment_progress));
     let progress_changes = runtime::observe(account.attachment_progress_changes());
@@ -46,15 +73,8 @@ pub(crate) fn screen(
             attachment_progress.set(snapshot);
         }
     });
-    let settings_page = signal(settings::Page::Profile);
-    let settings_detail = signal(false);
     let locate = signal_with(None::<String>, SignalEquals::Never);
-    let owner = Owner::current();
-    let drafts = signal(HashMap::<String, String>::new());
-    let pending = signal(HashSet::<String>::new());
     let selected = signal_with(None::<ConversationListData>, SignalEquals::Never);
-    let selected_id =
-        computed(move || selected.with(|row| row.as_ref().map(|row| row.conversation_id.clone())));
     let security = crate::security::mount(account.clone());
     provide_context(security);
     let reedit = crate::chat::reedit::Reedit::mount();
@@ -71,7 +91,7 @@ pub(crate) fn screen(
     let nav = Navigation::new();
     provide_context(nav);
     let circles = sidebar::Circles::new(account.clone(), nav);
-    let commands = crate::conversation_list::Commands::new(account.clone(), selected, circles);
+    let commands = conversation_list::Commands::new(account.clone(), selected, circles);
     provide_context(commands);
     let chat_navigation = crate::navigation::ChatNavigation::new(selected, locate, nav.settings);
     provide_context(chat_navigation);
@@ -95,30 +115,37 @@ pub(crate) fn screen(
             crate::notifications::attach(notification_account.clone(), selected, chat_navigation);
         }
     });
-    let category = nav.category;
     let query = signal(String::new());
     let composing = signal(false);
     let unread = signal(false);
-    let conversation_window = crate::conversation_list::Window::mount(
-        account.clone(),
+    let home = Home {
+        owner: Owner::current(),
+        i18n: i18n::current(),
+        account: stored(account.clone()),
         nav,
+        selected,
+        selected_id: chat_navigation.selected_id,
+        locate,
+        drafts: signal(HashMap::new()),
+        pending: signal(HashSet::new()),
+        window: conversation_list::Window::mount(account.clone(), nav, query, composing, unread),
         query,
         composing,
         unread,
-        selected,
-    );
-    let rows = conversation_window.rows;
-    let loading = conversation_window.loading;
-    let failed = conversation_window.failed;
-    let online = signal(false);
-    let health = signal(String::from("ready"));
-    let search = element_ref();
-    let narrow = move || window().width.0 - nav.width().0 < 620.0;
-    let search_hidden =
-        computed(move || nav.settings.get() || (narrow() && selected_id.with(Option::is_some)));
+        search: element_ref(),
+        // The status stream reports the truth at once; do not flash a banner first.
+        online: signal(true),
+        health: signal(String::from("ready")),
+        create_action: signal(None),
+        settings_page: signal(settings::Page::Profile),
+        settings_detail: signal(false),
+    };
+    let search_hidden = computed(move || {
+        nav.settings.get() || (home.narrow() && home.selected_id.with(Option::is_some))
+    });
     effect(move || {
         if search_hidden.get() {
-            search.blur();
+            home.search.blur();
             composing.set(false);
         }
     });
@@ -128,7 +155,6 @@ pub(crate) fn screen(
             palette_open.set(true);
         }
     });
-    let create_action = signal(None::<create::Action>);
     let shell = use_context::<crate::shell::Handle>().expect("App provides the native shell");
     crate::shell::attach(
         shell,
@@ -136,108 +162,37 @@ pub(crate) fn screen(
         selected,
         move || security.blocked() || bots.ending(),
         move || security.enabled(),
-        move |command| {
-            use crate::shell::Command;
-            match command {
-                Command::Preferences => nav.settings.set(true),
-                Command::NewChat => {
-                    if create_action.get_untracked().is_none() {
-                        create_action.set(Some(create::Action::Chat));
+        move |command| match command {
+            Command::QuickSearch => palette_open.set(true),
+            Command::Lock => security.lock(),
+            Command::Mute | Command::Pin | Command::DeleteConversation => {
+                if let Some(row) = selected.get_untracked() {
+                    match command {
+                        Command::Mute => commands.toggle_mute(row),
+                        Command::Pin => commands.toggle_pin(row),
+                        _ => commands.remove(row),
                     }
-                }
-                Command::NewGroup => {
-                    if create_action.get_untracked().is_none() {
-                        create_action.set(Some(create::Action::Group));
-                    }
-                }
-                Command::NewCircle => {
-                    if create_action.get_untracked().is_none() {
-                        create_action.set(Some(create::Action::Circle));
-                    }
-                }
-                Command::QuickSearch => palette_open.set(true),
-                Command::Lock => security.lock(),
-                #[cfg(debug_assertions)]
-                Command::Transfer => {
-                    batch(|| {
-                        settings_page.set(settings::Page::Transfer);
-                        settings_detail.set(true);
-                        nav.settings.set(true);
-                    });
-                }
-                Command::SearchConversation => chat_navigation
-                    .panel
-                    .set(Some(crate::inspector::Mode::Search)),
-                Command::ToggleInfo => chat_navigation.panel.update(|panel| {
-                    *panel = if *panel == Some(crate::inspector::Mode::Info) {
-                        None
-                    } else {
-                        Some(crate::inspector::Mode::Info)
-                    }
-                }),
-                Command::Mute => {
-                    if let Some(row) = selected.get_untracked() {
-                        commands.toggle_mute(row);
-                    }
-                }
-                Command::Pin => {
-                    if let Some(row) = selected.get_untracked() {
-                        commands.toggle_pin(row);
-                    }
-                }
-                Command::DeleteConversation => {
-                    if let Some(row) = selected.get_untracked() {
-                        commands.remove(row);
-                    }
-                }
-                Command::PreviousChat | Command::NextChat => {
-                    if nav.settings.get_untracked()
-                        || !query.with_untracked(|query| query.trim().is_empty())
-                    {
-                        return;
-                    }
-                    conversation_window.step(matches!(command, Command::NextChat));
                 }
             }
+            Command::SearchConversation => chat_navigation
+                .panel
+                .set(Some(crate::inspector::Mode::Search)),
+            Command::ToggleInfo => chat_navigation.panel.update(|panel| {
+                *panel = if *panel == Some(crate::inspector::Mode::Info) {
+                    None
+                } else {
+                    Some(crate::inspector::Mode::Info)
+                }
+            }),
+            command => home.dispatch(command),
         },
     );
-
-    let client = account.clone();
-    spawn(async move {
-        let mut status = Box::pin(crate::runtime::observe(client.connection_status()));
-        while let Some(connected) = status.next().await {
-            online.set(connected);
-            log::info!(
-                "NSH connection state: {}",
-                if connected {
-                    "connected"
-                } else {
-                    "reconnecting"
-                }
-            );
-        }
-        online.set(false);
-    });
-    let health_account = account.clone();
-    spawn(async move {
-        let mut updates = Box::pin(runtime::observe(health_account.account_health()));
-        while let Some(value) = updates.next().await {
-            if value == "unauthorized" {
-                on_account_ended();
-                break;
-            }
-            health.set(value);
-        }
-    });
-    let retry_connection = account.clone();
-    let modal_account = account.clone();
-    let search_account = account.clone();
-    let palette_account = account.clone();
+    home.observe_account(account, on_account_ended);
     effect(move || {
         if !nav.settings.get() {
-            settings_detail.set(false);
-        } else if !narrow() {
-            settings_detail.set(true);
+            home.settings_detail.set(false);
+        } else if !home.narrow() {
+            home.settings_detail.set(true);
         }
     });
     view()
@@ -246,427 +201,16 @@ pub(crate) fn screen(
         .child(when(
             move || !security.blocked() && !bots.ending(),
             move || {
-                let account = account.clone();
-                let retry_connection = retry_connection.clone();
-                let modal_account = modal_account.clone();
-                let search_account = search_account.clone();
-                let palette_account = palette_account.clone();
                 view()
                     .flex_1()
                     .flex_row()
-                    .child(sidebar::screen(account.clone(), nav, circles))
-                    .child(
-                        view()
-                            .w(ui::sidebar_width)
-                            .flex_shrink_0()
-                            .min_h_0()
-                            .bg(move || theme().background)
-                            .border_r_1()
-                            .border_color(move || theme().border)
-                            .style_with(move |s| if narrow() { s.flex_1().min_w_0() } else { s })
-                            .style_when(
-                                move || {
-                                    narrow()
-                                        && if nav.settings.get() {
-                                            settings_detail.get()
-                                        } else {
-                                            selected.with(Option::is_some)
-                                        }
-                                },
-                                |s| s.hidden(),
-                            )
-                            .child(when(
-                                move || nav.settings.get() && (!narrow() || !settings_detail.get()),
-                                move || settings::navigation(
-                                    settings_page,
-                                    narrow,
-                                    move || settings_detail.set(true),
-                                    move || nav.settings.set(false),
-                                ),
-                            ))
-                            .child({
-                                let account = account.clone();
-                                when(move || !nav.settings.get(), move || {
-                                    let account = account.clone();
-                                    let retry_connection = retry_connection.clone();
-                                    let search_account = search_account.clone();
-                                    view()
-                                    .flex_1()
-                                    .min_h_0()
-                                    .child(
-                                        view()
-                                            .h_16()
-                                            .flex_row()
-                                            .items_center()
-                                            .px_4()
-                                            .gap_2()
-                                            .child(sidebar::trigger(nav))
-                                            .child(
-                                                view()
-                                                    .flex_1()
-                                                    .min_w_0()
-                                                    .flex_row()
-                                                    .items_center()
-                                                    .gap_2()
-                                                    .px_3()
-                                                    .rounded_full()
-                                                    .bg(move || theme().muted)
-                                                    .child(ui::icon(ui::Icon::Search).text_color(
-                                                        move || theme().muted_foreground,
-                                                    ))
-                                                    .child(
-                                                        ui::field()
-                                                            .flex_1()
-                                                            .min_w_0()
-                                                            .border(px(0.0))
-                                                            .px_0()
-                                                            .bg(move || theme().muted)
-                                                            .element_ref(&search)
-                                                            .placeholder(move || {
-                                                                if unread.get() {
-                                                                    i18n.tr("Search Unread", "搜索未读会话").to_owned()
-                                                                } else {
-                                                                    format!(
-                                                                        "{} ({})",
-                                                                        i18n.text(Key::Search),
-                                                                        key_label("mod+k")
-                                                                    )
-                                                                }
-                                                            })
-                                                            .label(move || i18n.text(Key::Search))
-                                                            .value(move || query.get())
-                                                            .on_change(move |value: &str| {
-                                                                batch(|| {
-                                                                    query.set(value.to_owned());
-                                                                })
-                                                            })
-                                                            .on_key_press(move |key: &str| {
-                                                                if key == "Escape"
-                                                                    && !composing.get_untracked()
-                                                                {
-                                                                    query.set(String::new());
-                                                                }
-                                                            })
-                                                            .on_composition_change(
-                                                                move |event: &Composition| {
-                                                                    composing.set(event.composing)
-                                                                },
-                                                            ),
-                                                    )
-                                                    .child(when(
-                                                        move || !query.with(String::is_empty),
-                                                        move || {
-                                                            ui::icon_button()
-                                                                .size_6()
-                                                                .px_0()
-                                                                .py_0()
-                                                                .disabled(composing)
-                                                                .accessibility_label(move || {
-                                                                    Some(i18n.tr("Clear", "清除").into())
-                                                                })
-                                                                .on_press(move || {
-                                                                    query.set(String::new());
-                                                                    search.focus();
-                                                                })
-                                                                .child(ui::icon(ui::Icon::Close).size_4())
-                                                        },
-                                                    )),
-                                            )
-                                            .child(
-                                                ui::command()
-                                                    .size_8()
-                                                    .px_1()
-                                                    .py_1()
-                                                    .selected(unread)
-                                                    .accessibility_label(move || {
-                                                        Some(i18n.text(Key::Unread).into())
-                                                    })
-                                                    .selected_style(|s| {
-                                                        s.text_color(move || theme().primary)
-                                                    })
-                                                    .on_press(move || {
-                                                        batch(|| {
-                                                            unread.update(|value| *value = !*value);
-                                                        })
-                                                    })
-                                                    .child(ui::icon(ui::Icon::Filter)),
-                                            )
-                                            .child(create::trigger(create_action)),
-                                    )
-                                    .child(when(
-                                        move || health.get() != "ready",
-                                        move || {
-                                            view().px_4().py_2().bg(move || theme().muted).child(
-                                                text(move || match health.get().as_str() {
-                                                    "time_inaccurate" => i18n.tr(
-                                                        "Check your system clock and try again.",
-                                                        "系统时间不准确，请校准后重试。",
-                                                    ),
-                                                    "update_required" => i18n.tr(
-                                                        "Update Mixin Messenger to continue.",
-                                                        "当前版本需要更新。",
-                                                    ),
-                                                    _ => i18n.tr(
-                                                        "The account is temporarily unavailable.",
-                                                        "账号暂时不可用。",
-                                                    ),
-                                                })
-                                                .text_sm()
-                                                .text_color(move || theme().destructive),
-                                            )
-                                        },
-                                    ))
-                                    .child(when(
-                                        move || !online.get(),
-                                        move || {
-                                            let account = retry_connection.clone();
-                                            view()
-                                                .px_4()
-                                                .py_2()
-                                                .gap_2()
-                                                .flex_row()
-                                                .items_center()
-                                                .bg(move || theme().muted)
-                                                .child(
-                                                    text(move || i18n.text(Key::Connecting))
-                                                        .text_xs()
-                                                        .flex_1(),
-                                                )
-                                                .child(
-                                                    ui::command()
-                                                        .min_h_6()
-                                                        .py_0()
-                                                        .on_press(move || {
-                                                            account.retry_connection()
-                                                        })
-                                                        .child(
-                                                            text(move || i18n.text(Key::Reconnect))
-                                                                .text_xs(),
-                                                        ),
-                                                )
-                                        },
-                                    ))
-                                    .child(when(
-                                        move || !query.with(|q| q.trim().is_empty()),
-                                        move || {
-                                            crate::search::screen(
-                                                search_account.clone(),
-                                                query,
-                                                composing,
-                                                category,
-                                                selected,
-                                                locate,
-                                                unread,
-                                            )
-                                        },
-                                    ))
-                                    .child(when(
-                                        move || loading.get() && rows.with(Vec::is_empty),
-                                        move || {
-                                            view().flex_1().p_6().child(
-                                                text(move || i18n.text(Key::LoadingChats))
-                                                    .text_sm()
-                                                    .text_color(move || theme().muted_foreground),
-                                            )
-                                        },
-                                    ))
-                                    .child(when(failed, move || {
-                                        view()
-                                            .flex_1()
-                                            .p_5()
-                                            .gap_3()
-                                            .child(
-                                                text(move || i18n.text(Key::ChatsFailed))
-                                                    .text_sm()
-                                                    .text_color(move || theme().destructive),
-                                            )
-                                            .child(ui::action(
-                                                move || i18n.text(Key::Retry),
-                                                move || conversation_window.retry(),
-                                            ))
-                                    }))
-                                    .child(when(
-                                        move || {
-                                            !loading.get()
-                                                && !failed.get()
-                                                && rows.with(Vec::is_empty)
-                                                && query.with(|q| q.trim().is_empty())
-                                        },
-                                        move || {
-                                            let filtered = move || {
-                                                !query.with(|q| q.trim().is_empty()) || unread.get()
-                                            };
-                                            view()
-                                                .flex_1()
-                                                .p_6()
-                                                .gap_3()
-                                                .items_center()
-                                                .justify_center()
-                                                .child(
-                                                    ui::icon(ui::Icon::Chat).size_8().text_color(
-                                                        move || theme().muted_foreground,
-                                                    ),
-                                                )
-                                                .child(
-                                                    text(move || {
-                                                        if filtered() {
-                                                            return i18n.tr("No unread conversations", "暂无未读会话");
-                                                        }
-                                                        match (category.get(), nav.circle.with(Option::is_some)) {
-                                                            ("circle", _) | (_, true) => i18n.tr("No conversations in this circle", "此圈子暂无会话"),
-                                                            ("contacts", _) => i18n.tr("No contact conversations", "暂无联系人会话"),
-                                                            ("groups", _) => i18n.tr("No group conversations", "暂无群组会话"),
-                                                            ("bots", _) => i18n.tr("No bot conversations", "暂无机器人会话"),
-                                                            ("strangers", _) => i18n.tr("No stranger conversations", "暂无陌生人会话"),
-                                                            _ => i18n.text(Key::NoChats),
-                                                        }
-                                                    })
-                                                    .text_sm()
-                                                    .font_weight(FontWeight::MEDIUM),
-                                                )
-                                                .child(
-                                                    text(move || {
-                                                        let in_circle = nav.circle.with(Option::is_some) || category.get() == "circle";
-                                                        if filtered() {
-                                                            return if in_circle {
-                                                                i18n.tr("There are no unread conversations in this circle.", "此圈子中没有未读会话。")
-                                                            } else if category.get() == "chats" {
-                                                                i18n.tr("You have no unread conversations.", "当前没有未读会话。")
-                                                            } else {
-                                                                i18n.tr("There are no unread conversations in this category.", "当前分类中没有未读会话。")
-                                                            };
-                                                        }
-                                                        if in_circle {
-                                                            return i18n.tr("Conversations added to this circle will appear here.", "加入此圈子的会话会显示在这里。");
-                                                        }
-                                                        match category.get() {
-                                                            "contacts" => i18n.tr("Conversations with your contacts will appear here.", "与联系人的会话会显示在这里。"),
-                                                            "groups" => i18n.tr("Group conversations will appear here.", "群组会话会显示在这里。"),
-                                                            "bots" => i18n.tr("Conversations with bots will appear here.", "与机器人的会话会显示在这里。"),
-                                                            "strangers" => i18n.tr("Conversations with people outside your contacts will appear here.", "与非联系人的会话会显示在这里。"),
-                                                            _ => i18n.text(Key::NoChatsBody),
-                                                        }
-                                                    })
-                                                    .text_sm()
-                                                    .text_center()
-                                                    .text_color(move || theme().muted_foreground),
-                                                )
-                                                .child(when(filtered, move || {
-                                                    ui::action(
-                                                        move || i18n.text(Key::ClearFilters),
-                                                        move || {
-                                                            batch(|| {
-                                                                query.set(String::new());
-                                                                unread.set(false);
-                                                            })
-                                                        },
-                                                    )
-                                                }))
-                                        },
-                                    ))
-                                    .child(
-                                        crate::conversation_list::screen(
-                                            account.clone(),
-                                            rows,
-                                            drafts,
-                                            selected,
-                                            conversation_window,
-                                        )
-                                        .style_when(
-                                            move || {
-                                                rows.with(Vec::is_empty)
-                                                    || (!query.with(|q| q.trim().is_empty()))
-                                            },
-                                            |s| s.hidden(),
-                                        ),
-                                    )
-                                    .child(crate::playback::bar(playback, selected))
-                                })
-                            }),
-                    )
-                    .child(
-                        view()
-                            .flex_1()
-                            .min_w_0()
-                            .min_h_0()
-                            .style_when(
-                                move || {
-                                    narrow()
-                                        && if nav.settings.get() {
-                                            !settings_detail.get()
-                                        } else {
-                                            selected.with(Option::is_none)
-                                        }
-                                },
-                                |s| s.hidden(),
-                            )
-                            .child(dynamic(move || {
-                                let settings = nav.settings.get();
-                                let _conversation_id = selected_id.get();
-                                let conversation = selected.get_untracked();
-                                let account = account.clone();
-                                untracked(|| {
-                                    if settings {
-                                        view().flex_1().min_w_0().min_h_0().child(when(
-                                            move || !narrow() || settings_detail.get(),
-                                            move || settings::screen(
-                                                account.clone(),
-                                                settings_page,
-                                                move || {
-                                                    if narrow() {
-                                                        settings_detail.set(false);
-                                                    } else {
-                                                        nav.settings.set(false);
-                                                    }
-                                                },
-                                                on_account_ended,
-                                                owner,
-                                            ),
-                                        ))
-                                        .into_element()
-                                    } else {
-                                        match conversation {
-                                            Some(conversation) => ui::owned(
-                                                conversation.conversation_id.clone(),
-                                                move || {
-                                                    chat::screen(
-                                                        account.clone(),
-                                                        conversation.clone(),
-                                                        locate,
-                                                        drafts,
-                                                        pending,
-                                                        owner,
-                                                        move || selected.set(None),
-                                                    )
-                                                },
-                                            )
-                                            .into_element(),
-                                            None => view()
-                                                .flex_1()
-                                                .items_center()
-                                                .justify_center()
-                                                .bg(move || {
-                                                    theme()
-                                                        .color("chat-background")
-                                                        .unwrap_or(theme().background)
-                                                })
-                                                .child(
-                                                    text(move || i18n.text(Key::PickConversation))
-                                                        .text_sm()
-                                                        .text_color(move || {
-                                                            theme().muted_foreground
-                                                        }),
-                                                )
-                                                .into_element(),
-                                        }
-                                    }
-                                })
-                            })),
-                    )
-                    .child(create::surface(modal_account, create_action, selected))
+                    .child(sidebar::screen(home.client(), nav, circles))
+                    .child(home.list_column(playback))
+                    .child(home.detail_pane(on_account_ended))
+                    .child(create::surface(home.client(), home.create_action, selected))
                     .child(crate::transfer::surface(transfer))
-                    .child(crate::conversation_list::command_surface(commands))
-                    .child(crate::search::palette(palette_account, palette_open))
+                    .child(conversation_list::command_surface(commands))
+                    .child(crate::search::palette(home.client(), palette_open))
                     .child(links.surface())
                     .child(crate::bot::surface(bots))
             },
@@ -676,4 +220,510 @@ pub(crate) fn screen(
             move || bots.ending(),
             move || crate::bot::ending_surface(bots),
         ))
+}
+
+impl Home {
+    fn client(self) -> Arc<AccountClient> {
+        self.account.with(|account| account.clone())
+    }
+
+    fn narrow(self) -> bool {
+        window().width.0 - self.nav.width().0 < NARROW_CONTENT_WIDTH
+    }
+
+    fn searching(self) -> bool {
+        !self.query.with(|query| query.trim().is_empty())
+    }
+
+    fn dispatch(self, command: Command) {
+        let nav = self.nav;
+        let create = move |action| {
+            if self.create_action.get_untracked().is_none() {
+                self.create_action.set(Some(action));
+            }
+        };
+        match command {
+            Command::Preferences => nav.settings.set(true),
+            Command::NewChat => create(create::Action::Chat),
+            Command::NewGroup => create(create::Action::Group),
+            Command::NewCircle => create(create::Action::Circle),
+            #[cfg(debug_assertions)]
+            Command::Transfer => batch(|| {
+                self.settings_page.set(settings::Page::Transfer);
+                self.settings_detail.set(true);
+                nav.settings.set(true);
+            }),
+            Command::PreviousChat | Command::NextChat
+                if !nav.settings.get_untracked() && !untracked(|| self.searching()) =>
+            {
+                self.window.step(matches!(command, Command::NextChat));
+            }
+            _ => {}
+        }
+    }
+
+    fn observe_account(self, account: Arc<AccountClient>, on_account_ended: impl Fn() + 'static) {
+        let client = account.clone();
+        spawn(async move {
+            let mut status = Box::pin(runtime::observe(client.connection_status()));
+            while let Some(connected) = status.next().await {
+                self.online.set(connected);
+                log::info!(
+                    "NSH connection state: {}",
+                    if connected {
+                        "connected"
+                    } else {
+                        "reconnecting"
+                    }
+                );
+            }
+            self.online.set(false);
+        });
+        spawn(async move {
+            let mut updates = Box::pin(runtime::observe(account.account_health()));
+            while let Some(value) = updates.next().await {
+                if value == "unauthorized" {
+                    on_account_ended();
+                    break;
+                }
+                self.health.set(value);
+            }
+        });
+    }
+
+    fn list_column(self, playback: Playback) -> impl IntoElement {
+        let Self {
+            nav,
+            settings_page,
+            settings_detail,
+            selected,
+            ..
+        } = self;
+        view()
+            .w(ui::sidebar_width)
+            .flex_shrink_0()
+            .min_h_0()
+            .bg(move || theme().background)
+            .border_r_1()
+            .border_color(move || theme().border)
+            .style_with(move |s| {
+                if self.narrow() {
+                    s.flex_1().min_w_0()
+                } else {
+                    s
+                }
+            })
+            .style_when(
+                move || {
+                    self.narrow()
+                        && if nav.settings.get() {
+                            settings_detail.get()
+                        } else {
+                            selected.with(Option::is_some)
+                        }
+                },
+                |s| s.hidden(),
+            )
+            .child(when(
+                move || nav.settings.get() && (!self.narrow() || !settings_detail.get()),
+                move || {
+                    settings::navigation(
+                        settings_page,
+                        move || self.narrow(),
+                        move || settings_detail.set(true),
+                        move || nav.settings.set(false),
+                    )
+                },
+            ))
+            // Stays mounted under Settings: returning keeps the list's scroll position.
+            .child(
+                self.conversations(playback)
+                    .style_when(move || nav.settings.get(), |s| s.hidden()),
+            )
+    }
+
+    fn conversations(self, playback: Playback) -> View {
+        let Self {
+            i18n,
+            window,
+            selected,
+            ..
+        } = self;
+        let rows = window.rows;
+        view()
+            .flex_1()
+            .min_h_0()
+            .child(self.list_header())
+            .child(self.health_banner())
+            .child(self.connection_banner())
+            .child(when(
+                move || self.searching(),
+                move || {
+                    crate::search::screen(
+                        self.client(),
+                        self.query,
+                        self.composing,
+                        selected,
+                        self.unread,
+                    )
+                },
+            ))
+            .child(when(
+                move || window.loading.get() && rows.with(Vec::is_empty),
+                move || ui::placeholder(move || i18n.text(Key::LoadingChats)),
+            ))
+            .child(when(window.failed, move || {
+                view()
+                    .p_4()
+                    .gap_3()
+                    .style_when(move || rows.with(Vec::is_empty), |s| s.flex_1())
+                    .child(ui::error_text(move || i18n.text(Key::ChatsFailed)))
+                    .child(ui::action(
+                        move || i18n.text(Key::Retry),
+                        move || window.retry(),
+                    ))
+            }))
+            .child(when(
+                move || {
+                    !window.loading.get()
+                        && !window.failed.get()
+                        && rows.with(Vec::is_empty)
+                        && !self.searching()
+                },
+                move || self.list_empty(),
+            ))
+            .child(
+                conversation_list::screen(self.client(), rows, self.drafts, selected, window)
+                    .style_when(
+                        move || rows.with(Vec::is_empty) || self.searching(),
+                        |s| s.hidden(),
+                    ),
+            )
+            .child(crate::playback::bar(playback, selected))
+    }
+
+    fn list_header(self) -> impl IntoElement {
+        let Self {
+            i18n, nav, unread, ..
+        } = self;
+        view()
+            .h_16()
+            .flex_row()
+            .items_center()
+            .px_4()
+            .gap_2()
+            .child(sidebar::trigger(nav))
+            .child(self.search_field())
+            .child(
+                ui::command()
+                    .size_8()
+                    .px_1()
+                    .py_1()
+                    .selected(unread)
+                    .accessibility_label(move || Some(i18n.text(Key::Unread).into()))
+                    .selected_style(|s| {
+                        s.bg(move || theme().accent)
+                            .text_color(move || theme().primary)
+                    })
+                    .on_press(move || unread.update(|value| *value = !*value))
+                    .child(ui::icon(ui::Icon::Filter)),
+            )
+            .child(create::trigger(self.create_action))
+    }
+
+    fn search_field(self) -> impl IntoElement {
+        let Self {
+            i18n,
+            query,
+            composing,
+            unread,
+            search,
+            ..
+        } = self;
+        view()
+            .flex_1()
+            .min_w_0()
+            .flex_row()
+            .items_center()
+            .gap_2()
+            .px_3()
+            .rounded_full()
+            .bg(move || theme().muted)
+            .child(ui::icon(ui::Icon::Search).text_color(move || theme().muted_foreground))
+            .child(
+                ui::field()
+                    .flex_1()
+                    .min_w_0()
+                    .border(px(0.0))
+                    .px_0()
+                    .bg(move || theme().muted)
+                    .element_ref(&search)
+                    .placeholder(move || {
+                        if unread.get() {
+                            i18n.tr("Search Unread", "搜索未读会话").to_owned()
+                        } else {
+                            format!("{} ({})", i18n.text(Key::Search), key_label("mod+k"))
+                        }
+                    })
+                    .label(move || i18n.text(Key::Search))
+                    .value(move || query.get())
+                    .on_change(move |value: &str| query.set(value.to_owned()))
+                    .on_key_press(move |key: &str| {
+                        if key == "Escape" && !composing.get_untracked() {
+                            query.set(String::new());
+                        }
+                    })
+                    .on_composition_change(move |event: &Composition| {
+                        composing.set(event.composing)
+                    }),
+            )
+            .child(when(
+                move || !query.with(String::is_empty),
+                move || {
+                    ui::icon_button()
+                        .size_6()
+                        .px_0()
+                        .py_0()
+                        .disabled(composing)
+                        .accessibility_label(move || Some(i18n.tr("Clear", "清除").into()))
+                        .on_press(move || {
+                            query.set(String::new());
+                            search.focus();
+                        })
+                        .child(ui::icon(ui::Icon::Close).size_4())
+                },
+            ))
+    }
+
+    fn health_banner(self) -> impl IntoElement {
+        let Self { i18n, health, .. } = self;
+        when(
+            move || health.get() != "ready",
+            move || {
+                view().px_4().py_2().bg(move || theme().muted).child(
+                    ui::error_text(move || match health.get().as_str() {
+                        "time_inaccurate" => i18n.tr(
+                            "Check your system clock and try again.",
+                            "系统时间不准确，请校准后重试。",
+                        ),
+                        "update_required" => {
+                            i18n.tr("Update Mixin Messenger to continue.", "当前版本需要更新。")
+                        }
+                        _ => i18n.tr(
+                            "The account is temporarily unavailable.",
+                            "账号暂时不可用。",
+                        ),
+                    })
+                    .text_xs(),
+                )
+            },
+        )
+    }
+
+    fn connection_banner(self) -> impl IntoElement {
+        let Self { i18n, online, .. } = self;
+        when(
+            move || !online.get(),
+            move || {
+                view()
+                    .px_4()
+                    .py_2()
+                    .gap_2()
+                    .flex_row()
+                    .items_center()
+                    .bg(move || theme().muted)
+                    .child(text(move || i18n.text(Key::Connecting)).text_xs().flex_1())
+                    .child(
+                        ui::command()
+                            .min_h_6()
+                            .py_0()
+                            .on_press(move || self.client().retry_connection())
+                            .child(text(move || i18n.text(Key::Reconnect)).text_xs()),
+                    )
+            },
+        )
+    }
+
+    fn list_empty(self) -> impl IntoElement {
+        let Self {
+            i18n, nav, unread, ..
+        } = self;
+        let scope = move || {
+            let circle = nav.circle.with(Option::is_some) || nav.category.get() == "circle";
+            (nav.category.get(), circle)
+        };
+        view()
+            .flex_1()
+            .p_6()
+            .gap_3()
+            .items_center()
+            .justify_center()
+            .child(
+                ui::icon(ui::Icon::Chat)
+                    .size_8()
+                    .text_color(move || theme().muted_foreground),
+            )
+            .child(
+                text(move || {
+                    let (category, circle) = scope();
+                    empty_title(i18n, category, circle, unread.get())
+                })
+                .text_sm()
+                .font_weight(FontWeight::MEDIUM),
+            )
+            .child(
+                text(move || {
+                    let (category, circle) = scope();
+                    empty_body(i18n, category, circle, unread.get())
+                })
+                .text_sm()
+                .text_center()
+                .text_color(move || theme().muted_foreground),
+            )
+            .child(when(unread, move || {
+                ui::action(
+                    move || i18n.text(Key::ClearFilters),
+                    move || unread.set(false),
+                )
+            }))
+    }
+
+    fn detail_pane(self, on_account_ended: impl Fn() + Copy + 'static) -> impl IntoElement {
+        let Self {
+            owner,
+            i18n,
+            nav,
+            selected,
+            selected_id,
+            locate,
+            drafts,
+            pending,
+            settings_page,
+            settings_detail,
+            ..
+        } = self;
+        view()
+            .flex_1()
+            .min_w_0()
+            .min_h_0()
+            .style_when(
+                move || {
+                    self.narrow()
+                        && if nav.settings.get() {
+                            !settings_detail.get()
+                        } else {
+                            selected.with(Option::is_none)
+                        }
+                },
+                |s| s.hidden(),
+            )
+            .child(dynamic(move || {
+                let in_settings = nav.settings.get();
+                let _conversation_id = selected_id.get();
+                let conversation = selected.get_untracked();
+                untracked(|| {
+                    if in_settings {
+                        return view()
+                            .flex_1()
+                            .min_w_0()
+                            .min_h_0()
+                            .child(when(
+                                move || !self.narrow() || settings_detail.get(),
+                                move || {
+                                    settings::screen(
+                                        self.client(),
+                                        settings_page,
+                                        move || {
+                                            if self.narrow() {
+                                                settings_detail.set(false);
+                                            } else {
+                                                nav.settings.set(false);
+                                            }
+                                        },
+                                        on_account_ended,
+                                        owner,
+                                    )
+                                },
+                            ))
+                            .into_element();
+                    }
+                    match conversation {
+                        Some(conversation) => {
+                            ui::owned(conversation.conversation_id.clone(), move || {
+                                chat::screen(
+                                    self.client(),
+                                    conversation.clone(),
+                                    locate,
+                                    drafts,
+                                    pending,
+                                    owner,
+                                    move || selected.set(None),
+                                )
+                            })
+                            .into_element()
+                        }
+                        None => ui::placeholder(move || i18n.text(Key::PickConversation))
+                            .bg(move || {
+                                theme()
+                                    .color("chat-background")
+                                    .unwrap_or(theme().background)
+                            })
+                            .into_element(),
+                    }
+                })
+            }))
+    }
+}
+
+fn empty_title(i18n: I18n, category: &str, circle: bool, unread: bool) -> &'static str {
+    if unread {
+        return i18n.tr("No unread conversations", "暂无未读会话");
+    }
+    if circle {
+        return i18n.tr("No conversations in this circle", "此圈子暂无会话");
+    }
+    match category {
+        "contacts" => i18n.tr("No contact conversations", "暂无联系人会话"),
+        "groups" => i18n.tr("No group conversations", "暂无群组会话"),
+        "bots" => i18n.tr("No bot conversations", "暂无机器人会话"),
+        "strangers" => i18n.tr("No stranger conversations", "暂无陌生人会话"),
+        _ => i18n.text(Key::NoChats),
+    }
+}
+
+fn empty_body(i18n: I18n, category: &str, circle: bool, unread: bool) -> &'static str {
+    match (unread, circle, category) {
+        (true, true, _) => i18n.tr(
+            "There are no unread conversations in this circle.",
+            "此圈子中没有未读会话。",
+        ),
+        (true, false, "chats") => {
+            i18n.tr("You have no unread conversations.", "当前没有未读会话。")
+        }
+        (true, false, _) => i18n.tr(
+            "There are no unread conversations in this category.",
+            "当前分类中没有未读会话。",
+        ),
+        (false, true, _) => i18n.tr(
+            "Conversations added to this circle will appear here.",
+            "加入此圈子的会话会显示在这里。",
+        ),
+        (false, false, "contacts") => i18n.tr(
+            "Conversations with your contacts will appear here.",
+            "与联系人的会话会显示在这里。",
+        ),
+        (false, false, "groups") => i18n.tr(
+            "Group conversations will appear here.",
+            "群组会话会显示在这里。",
+        ),
+        (false, false, "bots") => i18n.tr(
+            "Conversations with bots will appear here.",
+            "与机器人的会话会显示在这里。",
+        ),
+        (false, false, "strangers") => i18n.tr(
+            "Conversations with people outside your contacts will appear here.",
+            "与非联系人的会话会显示在这里。",
+        ),
+        (false, false, _) => i18n.text(Key::NoChatsBody),
+    }
 }

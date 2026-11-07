@@ -1,28 +1,29 @@
-use crate::i18n::{self, I18n, Key};
+use crate::{
+    conversation::parts,
+    i18n::{self, Key},
+    ui,
+};
 use mixin_desktop_api::{DesktopClient, SettingsClient};
-use nsh_base::theme;
 use nsh_core::prelude::*;
-
-pub(in crate::settings) fn tr(i18n: I18n, en: &'static str, zh: &'static str) -> &'static str {
-    i18n.tr(en, zh)
-}
 
 pub(in crate::settings) async fn client() -> mixin_desktop_api::ClientResult<SettingsClient> {
     Ok(DesktopClient::open().await?.settings())
 }
 
-pub(in crate::settings) fn section(title: impl Fn() -> &'static str + 'static) -> View {
+pub(crate) fn section(title: impl Fn() -> &'static str + 'static) -> View {
     view()
         .gap_3()
         .child(text(title).text_sm().font_weight(FontWeight::MEDIUM))
 }
 
-pub(in crate::settings) fn body() -> View {
+pub(crate) fn body() -> View {
     view().w_full().max_w(px(600.0)).p_6().gap_6()
 }
 
 #[derive(Clone, Copy)]
 pub(in crate::settings) struct Feedback {
+    /// The page, which outlives the list cell or dialog that starts a save.
+    pub(in crate::settings) owner: Owner,
     pub(in crate::settings) busy: Signal<bool>,
     pub(in crate::settings) failed: Signal<bool>,
 }
@@ -30,6 +31,7 @@ pub(in crate::settings) struct Feedback {
 impl Feedback {
     pub(in crate::settings) fn new() -> Self {
         Self {
+            owner: Owner::current(),
             busy: signal(false),
             failed: signal(false),
         }
@@ -53,22 +55,9 @@ impl Feedback {
         let i18n = i18n::current();
         view()
             .gap_2()
-            .child(when(self.busy, move || {
-                view()
-                    .flex_row()
-                    .items_center()
-                    .gap_2()
-                    .text_color(move || theme().muted_foreground)
-                    .child(crate::ui::busy_indicator(
-                        move || self.busy.get(),
-                        move || busy_label().into(),
-                    ))
-                    .child(text(busy_label).text_sm())
-            }))
+            .child(when(self.busy, move || parts::status(busy_label)))
             .child(when(self.failed, move || {
-                text(move || i18n.text(Key::CommandFailed))
-                    .text_sm()
-                    .text_color(move || theme().destructive)
+                ui::error_text(move || i18n.text(Key::CommandFailed))
             }))
     }
 }

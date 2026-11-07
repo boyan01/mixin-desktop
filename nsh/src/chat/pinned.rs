@@ -8,6 +8,7 @@ use nsh_base::theme;
 use nsh_core::prelude::*;
 use serde_json::Value;
 
+use super::message_appearance::floating_surface;
 use crate::{
     i18n::{self, Key},
     inspector, presentation, runtime, ui,
@@ -16,12 +17,12 @@ use crate::{
 pub(super) fn banner(
     account: Arc<AccountClient>,
     conversation_id: String,
-    pinned: Signal<bool>,
     target: Signal<Option<String>>,
     side: Signal<Option<inspector::Mode>>,
 ) -> impl IntoElement {
     let i18n = i18n::current();
     let owner = Owner::current();
+    let pinned = signal(false);
     let preview = signal_with(
         None::<(PinMessagePreviewItem, Option<String>)>,
         SignalEquals::Never,
@@ -166,7 +167,7 @@ pub(super) fn banner(
                                 .min_h_14()
                                 .min_w_0()
                                 .rounded_lg()
-                                .bg(move || theme().color("bubble-in").unwrap_or(theme().card))
+                                .bg(floating_surface)
                                 .child(
                                     ui::command()
                                         .size_9()
@@ -198,7 +199,7 @@ pub(super) fn banner(
                                                 }
                                             });
                                         })
-                                        .child(text("×").text_lg()),
+                                        .child(ui::icon(ui::Icon::Close).size_4()),
                                 )
                                 .child(
                                     ui::command()
@@ -233,7 +234,7 @@ pub(super) fn banner(
                         .px_1()
                         .py_1()
                         .rounded_full()
-                        .bg(move || theme().color("bubble-in").unwrap_or(theme().card))
+                        .bg(floating_surface)
                         .accessibility_label(move || Some(i18n.text(Key::Pinned).into()))
                         .on_press(move || {
                             side.set(if side.get_untracked() == Some(inspector::Mode::Pinned) {

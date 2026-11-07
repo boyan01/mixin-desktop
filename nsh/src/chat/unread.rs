@@ -1,10 +1,10 @@
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, MessageListView};
-use nsh_base::{context_menu, menu_item, theme};
-use nsh_core::prelude::*;
+use nsh_base::theme;
+use nsh_core::{element::desktop::MenuItem, prelude::*};
 use std::sync::Arc;
 
-use super::message_actions::label;
+use super::message_appearance::floating_surface;
 use crate::{
     i18n::{I18n, Key},
     runtime, ui,
@@ -38,9 +38,8 @@ pub(super) struct Unread {
     last_viewable: Stored<(ViewableItems, Vec<String>)>,
     first: Signal<Option<String>>,
     mentions: Signal<Vec<String>>,
-    pending: Signal<Option<String>>,
-    pub ready: Signal<bool>,
-    pub latest_visible: Memo<bool>,
+    ready: Signal<bool>,
+    latest_visible: Memo<bool>,
     latest_observed: Signal<Option<String>>,
     loading_failed: Signal<bool>,
     marking: Signal<bool>,
@@ -48,8 +47,9 @@ pub(super) struct Unread {
     account: Stored<Arc<AccountClient>>,
     conversation: Stored<String>,
     target: Signal<Option<String>>,
-    reload: Signal<u64>,
     failed: Signal<bool>,
+    /// Whether the person can see these rows now.
+    attentive: Memo<bool>,
 }
 impl Unread {
     pub fn mount(
@@ -57,9 +57,9 @@ impl Unread {
         conversation: String,
         unseen: i64,
         target: Signal<Option<String>>,
-        reload: Signal<u64>,
         failed: Signal<bool>,
         messages: Signal<Vec<MessageListView>>,
+        attentive: Memo<bool>,
     ) -> Self {
         let latest_observed = signal(None::<String>);
         let state = Self {
@@ -67,7 +67,6 @@ impl Unread {
             last_viewable: stored((ViewableItems::default(), Vec::new())),
             first: signal(None),
             mentions: signal(Vec::new()),
-            pending: signal(None),
             ready: signal(unseen == 0),
             latest_visible: computed(move || {
                 latest_observed.with(|observed| {
@@ -83,27 +82,30 @@ impl Unread {
             account: stored(account),
             conversation: stored(conversation),
             target,
-            reload,
             failed,
+            attentive,
         };
         effect(move || {
             state.retry.get();
             let client = state.account.with(|a| a.clone());
             let id = state.conversation.with(|id| id.clone());
             spawn(async move {
-                let mut changes = Box::pin(runtime::observe(client.message_changes()));
+                let mut changes = Box::pin(runtime::observe(client.conversation_changes()));
                 loop {
-                    let client = client.clone();
-                    let id = id.clone();
+                    let reader = client.clone();
+                    let conversation = id.clone();
                     let first_needed = state.first.with_untracked(Option::is_none)
                         && (!state.ready.get_untracked() || !state.latest_visible.get_untracked());
                     match runtime::run(async move {
-                        let mentions = client
+                        let mentions = reader
                             .message()
-                            .unread_mention_message_ids(id.clone())
+                            .unread_mention_message_ids(conversation.clone())
                             .await?;
                         let first = if first_needed {
-                            client.message().first_unread_message_id(id).await?
+                            reader
+                                .message()
+                                .first_unread_message_id(conversation)
+                                .await?
                         } else {
                             None
                         };
@@ -121,14 +123,19 @@ impl Unread {
                         }),
                         Err(_) => state.loading_failed.set(true),
                     }
-                    if changes.next().await.is_none() {
-                        break;
+                    loop {
+                        let Some(event) = changes.next().await else {
+                            return;
+                        };
+                        if event.reload_all || event.conversation_ids.contains(&id) {
+                            break;
+                        }
                     }
                 }
             });
         });
         effect(move || {
-            if lifecycle() == nsh_core::platform::Lifecycle::Active {
+            if attentive.get() {
                 let (last, ids) = state.last_viewable.with(|last| last.clone());
                 if ids == visible_ids(&last, messages) {
                     state.handle_viewable(&last, messages);
@@ -139,19 +146,65 @@ impl Unread {
         });
         state
     }
+
+    /// Marks the conversation read while its newest row is in front of the
+    /// person, and again only when that row or the rows awaiting a read change.
+    pub fn mark_read_while_visible(
+        self,
+        messages: Signal<Vec<MessageListView>>,
+        caught_up: impl Fn() -> bool + 'static,
+    ) {
+        let own_id = self.account.with(|account| account.account_id());
+        let reading = computed(move || {
+            let visible = self.attentive.get()
+                && self.ready.get()
+                && self.latest_visible.get()
+                && caught_up();
+            visible.then(|| {
+                messages.with(|rows| {
+                    let waiting = rows
+                        .iter()
+                        .filter(|row| {
+                            row.sender_id != own_id
+                                && matches!(row.status.as_str(), "SENT" | "DELIVERED")
+                        })
+                        .count();
+                    (rows.first().map(|row| row.message_id.clone()), waiting)
+                })
+            })
+        });
+        effect(move || {
+            if reading.with(Option::is_none) {
+                return;
+            }
+            let client = self.account.with(|account| account.clone());
+            let id = self.conversation.with(|id| id.clone());
+            spawn(async move {
+                if let Err(error) =
+                    runtime::run(async move { client.message().mark_conversation_read(id).await })
+                        .await
+                {
+                    log::warn!("Could not mark the visible conversation read: {error}");
+                }
+            });
+        });
+    }
+
     pub fn viewable(self, event: &ViewableItems, messages: Signal<Vec<MessageListView>>) {
         self.last_viewable
             .replace((*event, visible_ids(event, messages)));
         self.handle_viewable(event, messages);
     }
 
+    /// A range callback only reports changed indices. After recycling replaces
+    /// a row at the same index, measure the committed row and viewport instead
+    /// of replaying an old visibility range.
     pub fn observe_row(
         self,
         message: impl Fn() -> Option<String> + Copy + 'static,
         first: impl Fn() -> bool + Copy + 'static,
         row: ElementRef,
         viewport: ElementRef,
-        allowed: impl Fn() -> bool + Copy + 'static,
     ) {
         let version = stored(0_u64);
         effect(move || {
@@ -161,19 +214,15 @@ impl Unread {
             });
             let id = message();
             let latest = first();
-            let pending = self.pending.get();
-            if !allowed() || lifecycle() != nsh_core::platform::Lifecycle::Active {
+            if !self.attentive.get() {
                 if latest {
                     self.latest_observed.set(None);
                 }
                 return;
             }
-            let Some(id) = id.filter(|id| latest || pending.as_ref() == Some(id)) else {
+            let Some(id) = id.filter(|id| latest || self.has_mention(id)) else {
                 return;
             };
-            // A range callback only reports changed indices. After recycling
-            // replaces row 0 at the same indices, measure the real committed
-            // row and viewport rather than replaying an old visibility range.
             after_answer(move || {
                 spawn(async move {
                     let row_measure = row.measure();
@@ -184,8 +233,7 @@ impl Unread {
                     };
                     if untracked(message).as_ref() != Some(&id)
                         || version.with(|version| *version) != ticket
-                        || !untracked(allowed)
-                        || lifecycle() != nsh_core::platform::Lifecycle::Active
+                        || !self.attentive.get_untracked()
                     {
                         return;
                     }
@@ -193,12 +241,17 @@ impl Unread {
                     if latest && untracked(first) {
                         self.latest_observed.set(visible.then(|| id.clone()));
                     }
-                    if visible && self.pending.get_untracked().as_ref() == Some(&id) {
+                    if visible && self.mentions.with_untracked(|ids| ids.contains(&id)) {
                         self.mark_visible(id);
                     }
                 });
             });
         });
+    }
+
+    fn has_mention(self, id: &str) -> bool {
+        self.mentions
+            .with(|ids| ids.iter().any(|mention| mention == id))
     }
 
     fn handle_viewable(self, event: &ViewableItems, messages: Signal<Vec<MessageListView>>) {
@@ -208,22 +261,17 @@ impl Unread {
             } else {
                 None
             });
-        if lifecycle() != nsh_core::platform::Lifecycle::Active {
+        if !self.attentive.get_untracked() {
             return;
         }
-        let Some(target) = self.pending.get_untracked() else {
-            return;
-        };
-        if !event.viewable.is_some_and(|(first, last)| {
-            messages.with_untracked(|rows| {
-                rows.iter()
-                    .enumerate()
-                    .any(|(index, row)| index >= first && index <= last && row.message_id == target)
-            })
-        }) {
-            return;
+        let mention = self.mentions.with_untracked(|mentions| {
+            visible_ids(event, messages)
+                .into_iter()
+                .find(|id| mentions.contains(id))
+        });
+        if let Some(mention) = mention {
+            self.mark_visible(mention);
         }
-        self.mark_visible(target);
     }
 
     fn mark_visible(self, target: String) {
@@ -243,9 +291,6 @@ impl Unread {
                     .await;
                 if result.is_ok() {
                     self.mentions.update(|ids| ids.retain(|id| id != &target));
-                    if self.pending.get_untracked().as_ref() == Some(&target) {
-                        self.pending.set(None);
-                    }
                 } else {
                     self.failed.set(true);
                 }
@@ -266,7 +311,7 @@ impl Unread {
                     .gap_2()
                     .child(
                         text(move || {
-                            label(i18n, "Couldn’t load unread messages.", "无法加载未读消息。")
+                            i18n.tr("Couldn’t load unread messages.", "无法加载未读消息。")
                         })
                         .text_xs()
                         .text_color(move || theme().destructive),
@@ -294,7 +339,7 @@ impl Unread {
                         Some(
                             format!(
                                 "{} ({})",
-                                label(i18n, "Next unread mention", "下一条未读提及"),
+                                i18n.tr("Next unread mention", "下一条未读提及"),
                                 self.mentions.with(Vec::len)
                             )
                             .into(),
@@ -304,11 +349,7 @@ impl Unread {
                         let Some(id) = self.mentions.with(|ids| ids.first().cloned()) else {
                             return;
                         };
-                        batch(|| {
-                            self.pending.set(Some(id.clone()));
-                            self.target.set(Some(id));
-                            self.reload.update(|value| *value += 1);
-                        });
+                        self.target.set(Some(id));
                     })
                     .child(
                         view()
@@ -319,12 +360,8 @@ impl Unread {
                             .shadow_md()
                             .items_center()
                             .justify_center()
-                            .bg(move || theme().color("bubble-in").unwrap_or(theme().card))
-                            .child(
-                                text("@")
-                                    .text_size(px(17.0))
-                                    .text_color(move || theme().foreground),
-                            ),
+                            .bg(floating_surface)
+                            .child(text("@").text_lg().text_color(move || theme().foreground)),
                     )
                     .child(
                         view()
@@ -353,26 +390,20 @@ impl Unread {
                                                 count.to_string()
                                             }
                                         })
-                                        .text_size(px(14.0))
+                                        .text_xs()
                                         .text_color(move || theme().primary_foreground),
                                     ),
                             ),
                     );
-                context_menu()
-                    .disabled(self.marking)
-                    .popup_style(ui::popup)
-                    .trigger(button)
-                    .child(
-                        menu_item()
-                            .px_3()
-                            .py_2()
-                            .rounded_md()
-                            .hover(|style| style.bg(move || theme().accent))
-                            .focus(|style| style.bg(move || theme().accent))
-                            .disabled(self.marking)
-                            .on_select(move || self.clear_mentions())
-                            .child(text(move || label(i18n, "Clear", "清除")).text_sm()),
-                    )
+                ui::native_context_menu(button, move || {
+                    if self.marking.get_untracked() {
+                        return Vec::new();
+                    }
+                    vec![
+                        MenuItem::new(i18n.tr("Clear", "清除"))
+                            .on_select(move || self.clear_mentions()),
+                    ]
+                })
             },
         )
     }
@@ -389,7 +420,6 @@ impl Unread {
         self.owner.run(|| {
             spawn(async move {
                 if committed.await.is_ok() {
-                    self.pending.set(None);
                     // Query again: incoming mentions may race this command.
                     self.retry.update(|value| *value += 1);
                 } else {
@@ -403,41 +433,29 @@ impl Unread {
     pub fn divider(
         self,
         i18n: I18n,
-        messages: Signal<Vec<MessageListView>>,
-        index: impl Fn() -> usize + Copy + 'static,
+        id: impl Fn() -> Option<String> + 'static,
     ) -> impl IntoElement {
         when(
+            move || self.first.with(|first| first.is_some() && *first == id()),
             move || {
-                self.first.with(|id| {
-                    id.as_ref().is_some_and(|id| {
-                        messages
-                            .with(|rows| rows.get(index()).is_some_and(|row| &row.message_id == id))
-                    })
-                })
-            },
-            move || {
+                let rule = || {
+                    view()
+                        .flex_1()
+                        .h(px(1.0))
+                        .bg(move || theme().primary.opacity(0.35))
+                };
                 view()
                     .flex_row()
                     .items_center()
                     .gap_3()
                     .py_2()
+                    .child(rule())
                     .child(
-                        view()
-                            .flex_1()
-                            .h(px(1.0))
-                            .bg(move || theme().primary.opacity(0.35)),
-                    )
-                    .child(
-                        text(move || label(i18n, "Unread messages", "未读消息"))
+                        text(move || i18n.tr("Unread messages", "未读消息"))
                             .text_xs()
                             .text_color(move || theme().primary),
                     )
-                    .child(
-                        view()
-                            .flex_1()
-                            .h(px(1.0))
-                            .bg(move || theme().primary.opacity(0.35)),
-                    )
+                    .child(rule())
             },
         )
     }
