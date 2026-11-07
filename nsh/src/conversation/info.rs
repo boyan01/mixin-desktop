@@ -50,8 +50,8 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                     ))
                 },
             ))
-            .child(ui::section(move || tr("Chats", "聊天")).child(chat_rows(state)))
-            .child(ui::section(move || tr("History", "聊天记录")).child(history_rows(state)))
+            .child(chat_rows(state))
+            .child(history_rows(state))
             .child(when(
                 move || state.group(),
                 move || {
@@ -95,9 +95,12 @@ fn identity(state: State) -> impl IntoElement {
         }
     };
     view()
-        .gap(ui::space_sm())
+        .gap(ui::space_xs())
         .items_center()
-        .child(ui::conversation_avatar(move || state.row.get(), ui::AvatarSize::Medium).size_16())
+        .child(ui::conversation_avatar(
+            move || state.row.get(),
+            ui::AvatarSize::Profile,
+        ))
         .child(
             text(move || row_text(state, |row| row.name.clone()))
                 .text_role(ui::TextRole::Headline)

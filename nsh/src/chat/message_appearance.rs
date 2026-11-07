@@ -205,6 +205,8 @@ pub(super) fn media_disc() -> View {
 pub(super) fn nip(
     mine: impl Fn() -> bool + Copy + 'static,
     neutral: Memo<bool>,
+    highlighted: impl Fn() -> bool + Copy + 'static,
+    highlight_opacity: nsh_core::element::AnimatedValue,
 ) -> impl IntoElement {
     let shape = move |source: &'static str| {
         svg(ImageSrc::svg_markup(source))
@@ -212,18 +214,51 @@ pub(super) fn nip(
             .bottom(ui::bubble_nip_offset())
             .w(ui::bubble_nip_width() + ui::hairline_width())
             .h(ui::bubble_nip_height())
-            .text_color(move || bubble_surface(mine() && !neutral.get()))
             .accessibility_elements_hidden(true)
+    };
+    // The nip is part of the bubble: it casts the bubble's shadow and takes its highlight.
+    let layers = move |source: &'static str, side: View| {
+        side.child(
+            shape(source)
+                .bottom(ui::bubble_nip_offset() - ui::hairline_width())
+                .text_color(ui::bubble_shadow),
+        )
+        .child(shape(source).text_color(move || bubble_surface(mine() && !neutral.get())))
+        .child(when(highlighted, move || {
+            shape(source)
+                .text_color(move || {
+                    if mine() {
+                        ui::bubble_highlight_out()
+                    } else {
+                        ui::bubble_highlight_in()
+                    }
+                })
+                .bind_opacity(&highlight_opacity)
+        }))
     };
     dynamic(move || {
         if mine() {
-            shape(include_str!("../../assets/message/nip_right.svg"))
-                .right(-ui::bubble_nip_width())
-                .into_element()
+            layers(
+                include_str!("../../assets/message/nip_right.svg"),
+                view()
+                    .absolute()
+                    .right(-ui::bubble_nip_width())
+                    .w(ui::bubble_nip_width() + ui::hairline_width())
+                    .top(px(0.0))
+                    .bottom(px(0.0)),
+            )
+            .into_element()
         } else {
-            shape(include_str!("../../assets/message/nip_left.svg"))
-                .left(-ui::bubble_nip_width())
-                .into_element()
+            layers(
+                include_str!("../../assets/message/nip_left.svg"),
+                view()
+                    .absolute()
+                    .left(-ui::bubble_nip_width())
+                    .w(ui::bubble_nip_width() + ui::hairline_width())
+                    .top(px(0.0))
+                    .bottom(px(0.0)),
+            )
+            .into_element()
         }
     })
 }

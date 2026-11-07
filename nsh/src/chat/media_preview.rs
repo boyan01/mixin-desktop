@@ -67,6 +67,7 @@ impl MediaPreview {
                 playback,
                 preview: signal_with(None, SignalEquals::Never),
                 preview_history: signal_with(Vec::new(), SignalEquals::Never),
+                toasts: use_context::<crate::ui::Toasts>().expect("Home provides toasts"),
             },
             failed,
         }

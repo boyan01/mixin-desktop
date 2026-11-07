@@ -4,7 +4,9 @@ use std::sync::LazyLock;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use mixin_desktop_api::active_membership_plan;
 use nsh_core::{
-    element::{AdaptiveColor, ImageSrc},
+    TransformKind,
+    animation::Easing,
+    element::{AdaptiveColor, AnimatedValue, ImageSrc, Timing},
     prelude::*,
 };
 
@@ -149,16 +151,7 @@ fn delivery(status: &str, on_media: bool) -> AnyElement {
             .text_color(ui::danger)
             .into_element();
         }
-        _ => {
-            return svg(ImageSrc::svg_markup(include_str!(
-                "../../assets/message/sending.svg"
-            )))
-            .size(ui::icon_xs())
-            .flex_shrink_0()
-            .label(tr("Sending", "发送中"))
-            .text_color(move || quiet_foreground(on_media))
-            .into_element();
-        }
+        _ => return sending_clock(on_media).into_element(),
     };
     let read = status == "READ";
     svg(ImageSrc::svg_markup(asset))
@@ -174,4 +167,53 @@ fn delivery(status: &str, on_media: bool) -> AnyElement {
             }
         })
         .into_element()
+}
+
+/// The clock of a message on its way. Its hands turn as in the reference client: the
+/// minute hand once in 600 ms, the hour hand once in 2.4 s.
+fn sending_clock(on_media: bool) -> View {
+    let hand = |markup: &'static str, turn: &AnimatedValue| {
+        svg(ImageSrc::svg_markup(markup))
+            .absolute()
+            .inset_0()
+            .text_color(move || quiet_foreground(on_media))
+            .bind_transform(TransformKind::Rotate, turn)
+    };
+    let minute = animated_value(0.0);
+    let hour = animated_value(0.0);
+    if !reduce_motion() {
+        let spin = |turn: &AnimatedValue, ms: f32| {
+            Animation::timing(turn, 360.0, Timing::new(ms, Easing::Linear))
+                .looped(None)
+                .start()
+        };
+        // Both runs end only when they are stopped with the row.
+        drop(spin(&minute, 600.0));
+        drop(spin(&hour, 2400.0));
+        cleanup(move || {
+            minute.stop();
+            hour.stop();
+        });
+    }
+    view()
+        .size(ui::icon_xs())
+        .flex_shrink_0()
+        .relative()
+        .child(
+            svg(ImageSrc::svg_markup(include_str!(
+                "../../assets/message/sending_frame.svg"
+            )))
+            .absolute()
+            .inset_0()
+            .label(tr("Sending", "发送中"))
+            .text_color(move || quiet_foreground(on_media)),
+        )
+        .child(hand(
+            include_str!("../../assets/message/sending_hour.svg"),
+            &hour,
+        ))
+        .child(hand(
+            include_str!("../../assets/message/sending_minute.svg"),
+            &minute,
+        ))
 }

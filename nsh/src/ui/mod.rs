@@ -14,6 +14,7 @@ mod overlay;
 mod owned;
 mod rows;
 mod state;
+mod toast;
 mod tokens;
 
 pub(crate) use avatar::{
@@ -42,4 +43,5 @@ pub(crate) use overlay::{hint, menu, menu_groups, menu_row, native_context_menu,
 pub(crate) use owned::owned;
 pub(crate) use rows::{list_row, nav_row, option_row};
 pub(crate) use state::ring;
+pub(crate) use toast::Toasts;
 pub(crate) use tokens::*;

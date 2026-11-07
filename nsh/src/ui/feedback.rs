@@ -6,8 +6,8 @@ use super::{
     icon::logo,
     tokens::{
         TextRole, Typography, accent, badge_height, badge_min_width, badge_quiet, danger,
-        fg_on_accent, fg_primary, fg_secondary, hairline, hairline_width, icon_sm, space_lg,
-        space_md, space_sm, space_xl, space_xs, state_selected,
+        fg_on_accent, fg_primary, fg_secondary, hairline, hairline_width, icon_sm, space_md,
+        space_sm, space_xl, space_xs, state_selected,
     },
 };
 
@@ -48,16 +48,15 @@ pub(crate) fn count_pill(
 /// The heading of a group, lined up with the labels of its rows.
 pub(crate) fn section_label(title: impl Fn() -> &'static str + 'static) -> Text {
     text(title)
-        .px(space_lg())
+        .px(space_md())
         .text_role(TextRole::Body)
-        .text_emphasis()
         .text_color(fg_secondary)
         .role(AccessibilityRole::Header)
 }
 
 /// A headed group of cards.
 pub(crate) fn section(title: impl Fn() -> &'static str + 'static) -> View {
-    view().gap(space_sm()).child(section_label(title))
+    view().gap(space_md()).child(section_label(title))
 }
 
 /// A boundary between groups in one pane.

@@ -54,6 +54,7 @@ pub(super) struct Actions {
     pub playback: Signal<AudioPlaybackSnapshot>,
     pub preview: Signal<Option<Detail>>,
     pub preview_history: Signal<Vec<Detail>>,
+    pub toasts: ui::Toasts,
 }
 
 impl Actions {
@@ -70,8 +71,32 @@ impl Actions {
     pub fn commit(self, command: impl Future<Output = ClientResult<()>> + Send + 'static) {
         let command = runtime::commit(command);
         self.task(async move {
-            self.failed.set(command.await.is_err());
+            self.finish(command.await.is_ok());
         });
+    }
+
+    /// As [`Self::commit`], confirming success with a notice.
+    pub fn commit_with(
+        self,
+        command: impl Future<Output = ClientResult<()>> + Send + 'static,
+        done: &'static str,
+    ) {
+        let command = runtime::commit(command);
+        self.task(async move {
+            let ok = command.await.is_ok();
+            self.finish(ok);
+            if ok {
+                self.toasts.success(done);
+            }
+        });
+    }
+
+    /// A command outside a dialog reports a failure as a notice, which does not stay.
+    fn finish(self, ok: bool) {
+        self.failed.set(false);
+        if !ok {
+            self.toasts.error(self.i18n.text(Key::CommandFailed));
+        }
     }
 
     /// As [`Self::commit`], for commands that exclude each other.
@@ -82,7 +107,7 @@ impl Actions {
         self.busy.set(true);
         let command = runtime::commit(command);
         self.task(async move {
-            self.failed.set(command.await.is_err());
+            self.finish(command.await.is_ok());
             self.busy.set(false);
         });
     }
@@ -243,9 +268,11 @@ fn menu_with_context(
                         {
                             Ok(uri) => {
                                 set_clipboard_image(uri);
-                                actions.failed.set(false);
+                                actions
+                                    .toasts
+                                    .success(i18n.tr("Image copied", "图片已复制"));
                             }
-                            Err(_) => actions.failed.set(true),
+                            Err(_) => actions.finish(false),
                         }
                         actions.busy.set(false);
                     });
@@ -270,7 +297,10 @@ fn menu_with_context(
                 } else {
                     i18n.tr("Copy", "复制")
                 },
-                move || set_clipboard(content.clone()),
+                move || {
+                    set_clipboard(content.clone());
+                    actions.toasts.success(i18n.tr("Copied", "已复制"));
+                },
             ));
             if row.category.ends_with("_TEXT") && !row.content.is_empty() {
                 copy.push(item(
@@ -290,7 +320,10 @@ fn menu_with_context(
                 } else {
                     i18n.tr("Copy Text", "复制文字")
                 },
-                move || set_clipboard(caption.clone()),
+                move || {
+                    set_clipboard(caption.clone());
+                    actions.toasts.success(i18n.tr("Copied", "已复制"));
+                },
             ));
         }
         let mut message_group = Vec::new();
@@ -348,14 +381,17 @@ fn menu_with_context(
                 let client = account.with(|a| a.clone());
                 actions.task(async move {
                     match pick_save_path(SaveDialog::new().file_name(name)).await {
-                        Ok(Some(path)) => actions.commit(async move {
-                            client
-                                .attachment()
-                                .save_attachment_as(id, path.to_string_lossy().into_owned())
-                                .await
-                        }),
+                        Ok(Some(path)) => actions.commit_with(
+                            async move {
+                                client
+                                    .attachment()
+                                    .save_attachment_as(id, path.to_string_lossy().into_owned())
+                                    .await
+                            },
+                            i18n.tr("Saved", "已保存"),
+                        ),
                         Ok(None) => {}
-                        Err(_) => actions.failed.set(true),
+                        Err(_) => actions.finish(false),
                     }
                 });
             }));
@@ -367,7 +403,10 @@ fn menu_with_context(
             sticker.push(item(i18n.tr("Add Sticker", "添加贴纸"), move || {
                 let client = actions.account.with(|a| a.clone());
                 let id = id.clone();
-                actions.commit(async move { client.sticker().add_sticker(id).await });
+                actions.commit_with(
+                    async move { client.sticker().add_sticker(id).await },
+                    i18n.tr("Sticker added", "已添加贴纸"),
+                );
             }));
         }
         if row.category.ends_with("_IMAGE")

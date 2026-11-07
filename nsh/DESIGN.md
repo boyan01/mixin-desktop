@@ -1,7 +1,9 @@
 # Design baseline
 
 `nsh/theme.json` is the one design baseline and `nsh/src/ui/` the one styled layer
-over `nsh_base`. Values follow the Flutter app; the dark theme tracks it closely.
+over `nsh_base`. Values follow the Flutter app; the dark theme tracks it closely. Where the desktop reads better differently, the
+desktop wins: transient feedback is a bottom-centered `ui::Toasts` card (2s success,
+5s error), and the send dialog is a thumbnail grid (`thumbnail-grid-size`) instead of a list.
 
 **The rule: screens use `ui::` components and tokens only. No raw `px`, colors or
 radii in screen modules.** A missing role or variant goes into `theme.json` or

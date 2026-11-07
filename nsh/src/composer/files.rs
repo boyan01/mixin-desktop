@@ -24,8 +24,6 @@ pub(super) enum Mode {
 mod preparation;
 use preparation::{Cache, Source, prepare_source, prepare_sources};
 
-const VISIBLE_ROWS: usize = 5;
-
 struct Outcome {
     accepted: usize,
     upload_failed: bool,
@@ -265,8 +263,10 @@ impl Preview {
         });
     }
 
-    fn remove_selected(self) {
-        let index = self.selected.get_untracked();
+    fn remove_at(self, index: usize) {
+        if self.busy.get_untracked() || self.loading.get_untracked() {
+            return;
+        }
         self.sources.update(|sources| {
             if index < sources.len() {
                 sources.remove(index);
@@ -274,8 +274,25 @@ impl Preview {
         });
         match self.sources.with_untracked(Vec::len) {
             0 => self.host.close(),
-            remaining => self.selected.set(index.min(remaining - 1)),
+            remaining => {
+                let selected = self.selected.get_untracked();
+                let selected = if index < selected {
+                    selected - 1
+                } else {
+                    selected
+                };
+                self.selected.set(selected.min(remaining - 1));
+            }
         }
+    }
+
+    /// Whether the files are prepared and nothing else holds the dialog.
+    fn ready(self) -> bool {
+        !(self.busy.get()
+            || self.picking.get()
+            || self.loading.get()
+            || self.prepare_error.with(Option::is_some)
+            || self.prepared.with(Vec::is_empty))
     }
 
     fn edit_selected(self) {
@@ -436,8 +453,25 @@ impl Preview {
 
     fn body(self) -> View {
         let i18n = self.i18n;
+        let dragging = signal(false);
+        on_key_with(
+            "enter",
+            KeyOptions {
+                when: nsh_core::keymap::When::NotEditing,
+                ..KeyOptions::default()
+            },
+            move |_| {
+                if self.ready() {
+                    self.send();
+                }
+            },
+        );
         wide_dialog()
+            .relative()
+            .on_file_drag_enter(move |_: &()| dragging.set(true))
+            .on_file_drag_leave(move |_: &()| dragging.set(false))
             .on_file_drop(move |event: &FileDropEvent| {
+                dragging.set(false);
                 self.append(preparation::local_sources(&event.uris))
             })
             .child(ui::dialog_title(move || {
@@ -457,14 +491,30 @@ impl Preview {
                     view()
                         .gap_3()
                         .child(self.selected_preview())
-                        .child(self.file_list())
-                        .child(self.file_actions())
+                        .child(self.thumbnails())
                         .child(self.mode_picker())
                         .child(self.options())
                         .child(self.status()),
                 ),
             )
             .child(self.footer())
+            .child(when(dragging, move || {
+                view()
+                    .absolute()
+                    .inset_0()
+                    .items_center()
+                    .justify_center()
+                    .rounded(ui::radius_lg())
+                    .border_2()
+                    .border_color(ui::accent)
+                    .bg(|| ui::accent().opacity(0.12))
+                    .pointer_events(PointerEvents::None)
+                    .child(
+                        text(move || tr(i18n, "Drop to add files", "拖拽到此处添加文件"))
+                            .text_role(ui::TextRole::Title)
+                            .text_color(ui::accent),
+                    )
+            }))
     }
 
     fn selected_preview(self) -> impl IntoElement {
@@ -508,94 +558,178 @@ impl Preview {
             ))
     }
 
-    fn file_list(self) -> impl IntoElement {
-        virtual_list(
-            move || self.sources.with(Vec::len),
-            move |at| {
-                ui::command()
-                    .justify_start()
-                    .disabled(self.busy)
-                    .selected(move || self.selected.get() == at.index())
-                    .on_press(move || self.selected.set(at.index()))
-                    .child(
-                        text(move || {
-                            self.prepared.with(|_| ());
-                            self.sources.with(|rows| {
-                                rows.get(at.index())
-                                    .map(|source| {
-                                        self.cache
-                                            .with(|cache| cache.item(source.id))
-                                            .map(|item| {
-                                                format!("{} · {}", item.name, size_label(item.size))
-                                            })
-                                            .unwrap_or_else(|| source.name())
-                                    })
-                                    .unwrap_or_default()
-                            })
-                        })
-                        .text_role(ui::TextRole::Body)
-                        .number_of_lines(1),
-                    )
-            },
-        )
-        .keys(move || {
-            self.sources
-                .with(|sources| sources.iter().map(|source| source.id).collect::<Vec<_>>())
-        })
-        .estimated_item_size(ui::button_height())
-        .h(move || {
-            ui::button_height() * self.sources.with(|rows| rows.len().min(VISIBLE_ROWS)) as f32
-        })
-    }
-
-    fn file_actions(self) -> impl IntoElement {
+    /// The files as a grid of thumbnails: select one to preview it, remove it with its
+    /// corner button, and add more with the last cell.
+    fn thumbnails(self) -> impl IntoElement {
         let i18n = self.i18n;
+        let cell = ui::thumbnail_grid_size;
         view()
             .flex_row()
+            .flex_wrap()
             .gap_2()
+            .child(each(
+                move || {
+                    self.sources
+                        .with(|rows| rows.iter().map(|source| source.id).collect::<Vec<_>>())
+                },
+                |id| *id,
+                move |id, _| {
+                    let id = id.with(|id| *id);
+                    let index = move || {
+                        self.sources
+                            .with(|rows| rows.iter().position(|source| source.id == id))
+                    };
+                    let item = move || {
+                        self.prepared.with(|_| ());
+                        self.cache.with(|cache| cache.item(id))
+                    };
+                    view()
+                        .relative()
+                        .size(cell())
+                        .flex_shrink_0()
+                        .rounded(ui::radius_thumb())
+                        .overflow_hidden()
+                        .bg(ui::surface_list)
+                        .child(
+                            ui::command()
+                                .absolute()
+                                .inset_0()
+                                .p_0()
+                                .disabled(self.busy)
+                                .accessibility_label(move || {
+                                    Some(item().map(|item| item.name).unwrap_or_default().into())
+                                })
+                                .on_press(move || {
+                                    if let Some(index) = index() {
+                                        self.selected.set(index);
+                                    }
+                                })
+                                .child(dynamic(move || {
+                                    let current = item();
+                                    untracked(|| match current {
+                                        Some(item) if item.kind == "IMAGE" => image(item.path)
+                                            .size_full()
+                                            .object_fit(ResizeMode::Cover)
+                                            .into_element(),
+                                        Some(item) => view()
+                                            .size_full()
+                                            .items_center()
+                                            .justify_center()
+                                            .p_1()
+                                            .gap_1()
+                                            .child(ui::icon(if item.kind == "VIDEO" {
+                                                ui::Icon::Play
+                                            } else {
+                                                ui::Icon::Save
+                                            }))
+                                            .child(
+                                                text(item.name)
+                                                    .text_role(ui::TextRole::Caption)
+                                                    .number_of_lines(2),
+                                            )
+                                            .child(
+                                                text(size_label(item.size))
+                                                    .text_role(ui::TextRole::Caption)
+                                                    .text_color(ui::fg_secondary),
+                                            )
+                                            .into_element(),
+                                        None => ui::busy_indicator(
+                                            || true,
+                                            move || tr(i18n, "Preparing…", "准备中…").into(),
+                                        )
+                                        .into_element(),
+                                    })
+                                })),
+                        )
+                        .child(when(
+                            move || index().is_some_and(|index| self.selected.get() == index),
+                            move || {
+                                view()
+                                    .absolute()
+                                    .inset_0()
+                                    .rounded(ui::radius_thumb())
+                                    .border_2()
+                                    .border_color(ui::accent)
+                                    .pointer_events(PointerEvents::None)
+                            },
+                        ))
+                        .child(
+                            ui::icon_button()
+                                .absolute()
+                                .top_1()
+                                .right_1()
+                                .size_5()
+                                .px_0()
+                                .py_0()
+                                .rounded_full()
+                                .bg(ui::media_overlay)
+                                .disabled(move || self.busy.get() || self.loading.get())
+                                .accessibility_label(move || {
+                                    Some(tr(i18n, "Remove", "移除").into())
+                                })
+                                .on_press(move || {
+                                    if let Some(index) = index() {
+                                        self.remove_at(index);
+                                    }
+                                })
+                                .child(
+                                    ui::icon(ui::Icon::Close)
+                                        .size(ui::icon_sm())
+                                        .text_color(ui::media_overlay_foreground),
+                                ),
+                        )
+                },
+            ))
             .child(
-                ui::action(
-                    move || tr(i18n, "Add files…", "添加文件…"),
-                    move || self.pick_more(),
-                )
-                .disabled(move || self.busy.get() || self.picking.get()),
-            )
-            .child(
-                ui::action(
-                    move || tr(i18n, "Remove selected file", "移除选中文件"),
-                    move || self.remove_selected(),
-                )
-                .disabled(move || self.busy.get() || self.loading.get()),
+                ui::command()
+                    .size(cell())
+                    .flex_shrink_0()
+                    .rounded(ui::radius_thumb())
+                    .bg(ui::surface_list)
+                    .disabled(move || self.busy.get() || self.picking.get())
+                    .accessibility_label(move || Some(tr(i18n, "Add files…", "添加文件…").into()))
+                    .on_press(move || self.pick_more())
+                    .child(ui::icon(ui::Icon::Add).size(ui::icon_lg())),
             )
     }
 
     fn mode_picker(self) -> impl IntoElement {
         let i18n = self.i18n;
-        radio_group().flex_row().flex_wrap().gap_2().children(
-            [
-                (Mode::Media, "Photos and videos", "图片和视频"),
-                (Mode::Files, "Files", "文件"),
-                (Mode::Archive, "ZIP archive", "ZIP 压缩包"),
-            ]
-            .into_iter()
-            .map(move |(choice, english, chinese)| {
-                let checked = move || self.mode_value() == choice;
-                ui::radio(
-                    Some(move || tr(i18n, english, chinese)),
-                    checked,
-                    move || {
-                        self.busy.get()
-                            || self.preparing_edit.get()
-                            || (choice == Mode::Archive && self.sources.with(Vec::len) < 2)
-                    },
-                    move |selected| {
-                        if selected {
-                            self.mode.set(choice);
-                        }
-                    },
-                )
-            }),
-        )
+        let choice = move || {
+            self.sources.with(Vec::len) >= 2
+                || self.prepared.with(|items| {
+                    items
+                        .iter()
+                        .any(|item| matches!(item.kind.as_str(), "IMAGE" | "VIDEO"))
+                })
+        };
+        when(choice, move || {
+            radio_group().flex_row().flex_wrap().gap_2().children(
+                [
+                    (Mode::Media, "Photos and videos", "图片和视频"),
+                    (Mode::Files, "Files", "文件"),
+                    (Mode::Archive, "ZIP archive", "ZIP 压缩包"),
+                ]
+                .into_iter()
+                .map(move |(choice, english, chinese)| {
+                    let checked = move || self.mode_value() == choice;
+                    ui::radio(
+                        Some(move || tr(i18n, english, chinese)),
+                        checked,
+                        move || {
+                            self.busy.get()
+                                || self.preparing_edit.get()
+                                || (choice == Mode::Archive && self.sources.with(Vec::len) < 2)
+                        },
+                        move |selected| {
+                            if selected {
+                                self.mode.set(choice);
+                            }
+                        },
+                    )
+                }),
+            )
+        })
     }
 
     fn options(self) -> impl IntoElement {
@@ -728,13 +862,7 @@ impl Preview {
             )
             .child(
                 ui::primary()
-                    .disabled(move || {
-                        self.busy.get()
-                            || self.picking.get()
-                            || self.loading.get()
-                            || self.prepare_error.with(Option::is_some)
-                            || self.prepared.with(Vec::is_empty)
-                    })
+                    .disabled(move || !self.ready())
                     .child(text(move || {
                         i18n.text(if self.busy.get() {
                             Key::Sending

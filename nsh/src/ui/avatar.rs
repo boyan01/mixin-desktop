@@ -90,6 +90,8 @@ pub(crate) enum AvatarSize {
     Large,
     /// The person a dialog is about.
     Hero,
+    /// The identity at the head of a page.
+    Profile,
 }
 
 impl AvatarSize {
@@ -101,6 +103,7 @@ impl AvatarSize {
             Self::Medium => "avatar-md",
             Self::Large => "avatar-lg",
             Self::Hero => "avatar-hero",
+            Self::Profile => "avatar-profile",
         }))
     }
 }

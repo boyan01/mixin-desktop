@@ -251,6 +251,9 @@ pub(super) fn screen(
                 Ok(uri) => {
                     set_clipboard_image(uri);
                     actions.failed.set(false);
+                    actions
+                        .toasts
+                        .success(i18n.tr("Image copied", "图片已复制"));
                 }
                 Err(_) => actions.failed.set(true),
             }
@@ -267,8 +270,8 @@ pub(super) fn screen(
         spawn(async move {
             let name = super::message_actions::attachment_name(&row);
             match pick_save_path(SaveDialog::new().file_name(name)).await {
-                Ok(Some(path)) => actions.failed.set(
-                    runtime::commit(async move {
+                Ok(Some(path)) => {
+                    let saved = runtime::commit(async move {
                         let path = path.to_string_lossy().into_owned();
                         if let Some(root) = transcript {
                             return client
@@ -282,8 +285,12 @@ pub(super) fn screen(
                             .await
                     })
                     .await
-                    .is_err(),
-                ),
+                    .is_ok();
+                    actions.failed.set(!saved);
+                    if saved {
+                        actions.toasts.success(i18n.tr("Saved", "已保存"));
+                    }
+                }
                 Ok(None) => {}
                 Err(_) => actions.failed.set(true),
             }

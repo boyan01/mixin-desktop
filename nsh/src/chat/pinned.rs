@@ -4,10 +4,9 @@ use std::sync::Arc;
 
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, PinMessagePreviewItem, SettingsClient};
-use nsh_core::prelude::*;
+use nsh_core::{element::ImageSrc, prelude::*};
 use serde_json::Value;
 
-use super::message_appearance::floating_disc;
 use crate::{
     i18n::{self, Key},
     inspector, presentation, runtime,
@@ -145,107 +144,108 @@ pub(super) fn banner(
         crate::motion::Presence::fade(move || shown.get() && content.with(Option::is_some));
     let settings = stored(settings);
     view()
-        .px_4()
-        .py_2()
+        .absolute()
+        .top(ui::space_md())
+        .left(ui::pin_banner_inset())
+        .right(ui::space_md())
         .gap_2()
         .style_when(
             move || !pinned.get() && !failed.get() && !preference_failed.get(),
             |style| style.hidden(),
         )
-        .child(
-            view()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .child(view().flex_1().min_w_0().child(when(
-                    move || presence.mounted(),
-                    move || {
-                        presence.surface(
-                            view()
-                                .flex_row()
-                                .items_center()
-                                .min_h_14()
+        .child(when(
+            move || presence.mounted(),
+            move || {
+                presence.surface(
+                    view()
+                        .relative()
+                        .flex_row()
+                        .items_center()
+                        .gap_2()
+                        .h(ui::pin_banner_height())
+                        .px(ui::space_md())
+                        .rounded(ui::radius_md())
+                        .bg(ui::bubble_in)
+                        .shadow_xs()
+                        .shadow_color(ui::bubble_shadow())
+                        .child(
+                            ui::icon_button()
+                                .size(ui::pin_close_size())
+                                .px_0()
+                                .py_0()
+                                .disabled(busy)
+                                .accessibility_label(move || Some(i18n.tr("Close", "关闭").into()))
+                                .on_press(move || {
+                                    if busy.get_untracked() {
+                                        return;
+                                    }
+                                    let settings = settings.with(|settings| settings.clone());
+                                    let key = setting_key.with(|key| key.clone());
+                                    busy.set(true);
+                                    preference_failed.set(false);
+                                    let command = runtime::commit(async move {
+                                        settings.set_setting(key, Some("false".into())).await
+                                    });
+                                    spawn(async move {
+                                        let result = command.await;
+                                        if owner.is_live() {
+                                            busy.set(false);
+                                            preference_failed.set(result.is_err());
+                                        }
+                                    });
+                                })
+                                .child(ui::icon(ui::Icon::Close).size(ui::icon_sm())),
+                        )
+                        .child(
+                            ui::command()
+                                .flex_1()
                                 .min_w_0()
-                                .rounded(ui::radius_md())
-                                .bg(ui::bubble_in)
+                                .h_full()
+                                .justify_start()
+                                .accessibility_label(move || Some(i18n.text(Key::Pinned).into()))
+                                .on_press(move || {
+                                    if let Some(id) = preview.with(|preview| {
+                                        preview.as_ref().map(|(item, _)| item.message_id.clone())
+                                    }) {
+                                        target.set(Some(id));
+                                    }
+                                })
                                 .child(
-                                    ui::icon_button()
-                                        .size_9()
-                                        .px_1()
-                                        .py_1()
-                                        .disabled(busy)
-                                        .accessibility_label(move || {
-                                            Some(i18n.tr("Close", "关闭").into())
-                                        })
-                                        .on_press(move || {
-                                            if busy.get_untracked() {
-                                                return;
-                                            }
-                                            let settings =
-                                                settings.with(|settings| settings.clone());
-                                            let key = setting_key.with(|key| key.clone());
-                                            busy.set(true);
-                                            preference_failed.set(false);
-                                            let command = runtime::commit(async move {
-                                                settings
-                                                    .set_setting(key, Some("false".into()))
-                                                    .await
-                                            });
-                                            spawn(async move {
-                                                let result = command.await;
-                                                if owner.is_live() {
-                                                    busy.set(false);
-                                                    preference_failed.set(result.is_err());
-                                                }
-                                            });
-                                        })
-                                        .child(ui::icon(ui::Icon::Close).size(ui::icon_sm())),
-                                )
-                                .child(
-                                    ui::command()
-                                        .flex_1()
-                                        .min_w_0()
-                                        .min_h_14()
-                                        .justify_start()
-                                        .accessibility_label(move || {
-                                            Some(i18n.text(Key::Pinned).into())
-                                        })
-                                        .on_press(move || {
-                                            if let Some(id) = preview.with(|preview| {
-                                                preview
-                                                    .as_ref()
-                                                    .map(|(item, _)| item.message_id.clone())
-                                            }) {
-                                                target.set(Some(id));
-                                            }
-                                        })
-                                        .child(
-                                            text(move || content.get().unwrap_or_default())
-                                                .text_role(ui::TextRole::Body)
-                                                .number_of_lines(2),
-                                        ),
+                                    text(move || content.get().unwrap_or_default())
+                                        .text_role(ui::TextRole::Body)
+                                        .number_of_lines(2),
                                 ),
                         )
-                    },
-                )))
-                .child(when(pinned, move || {
-                    floating_disc().child(
-                        ui::round_button()
-                            .size_9()
-                            .accessibility_label(move || Some(i18n.text(Key::Pinned).into()))
-                            .on_press(move || {
-                                side.set(
-                                    if side.get_untracked() == Some(inspector::Mode::Pinned) {
-                                        None
-                                    } else {
-                                        Some(inspector::Mode::Pinned)
-                                    },
-                                );
-                            })
-                            .child(ui::icon(ui::Icon::Pin)),
-                    )
-                })),
-        )
+                        .child(
+                            ui::round_button()
+                                .size(ui::pin_button_size())
+                                .accessibility_label(move || Some(i18n.text(Key::Pinned).into()))
+                                .on_press(move || {
+                                    side.set(
+                                        if side.get_untracked() == Some(inspector::Mode::Pinned) {
+                                            None
+                                        } else {
+                                            Some(inspector::Mode::Pinned)
+                                        },
+                                    );
+                                })
+                                .child(ui::icon(ui::Icon::Pin)),
+                        )
+                        .child(
+                            svg(ImageSrc::svg_markup(include_str!(
+                                "../../assets/message/nip_left.svg"
+                            )))
+                            .absolute()
+                            .left(-ui::pin_nip_width())
+                            .bottom(ui::space_md())
+                            .w(ui::pin_nip_width())
+                            .h(ui::pin_nip_height())
+                            .text_color(ui::bubble_in)
+                            .accessibility_elements_hidden(true),
+                        ),
+                )
+            },
+        ))
         .child(when(
             move || failed.get() || preference_failed.get(),
             move || {

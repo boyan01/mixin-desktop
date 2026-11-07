@@ -189,6 +189,11 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
             input.focus();
         }
     });
+    on_key("escape", move |_| {
+        if !input.composing() && quote.with_untracked(Option::is_some) {
+            quote.set(None);
+        }
+    });
     let send = send_command(SendContext {
         account: account.clone(),
         conversation_id: conversation_id.clone(),
@@ -343,23 +348,38 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
                             );
                         }
                     }),
-                    send.clone(),
+                    {
+                        let send = send.clone();
+                        Rc::new(move || send(false))
+                    },
                 ))
                 .child(
                     when(
                         move || !draft.with(|s| s.trim().is_empty()) && !input.composing(),
                         move || {
                             let send = send.clone();
-                            ui::primary()
-                                .size_10()
-                                .min_h_0()
-                                .px_0()
-                                .py_0()
-                                .rounded(ui::radius_full())
-                                .disabled(sending)
-                                .accessibility_label(move || Some(i18n.text(Key::Send).into()))
-                                .on_press(move || send())
-                                .child(ui::icon(ui::Icon::Send).text_color(ui::fg_on_accent))
+                            let silent = send.clone();
+                            ui::native_context_menu(
+                                ui::primary()
+                                    .size_10()
+                                    .min_h_0()
+                                    .px_0()
+                                    .py_0()
+                                    .rounded(ui::radius_full())
+                                    .disabled(sending)
+                                    .accessibility_label(move || Some(i18n.text(Key::Send).into()))
+                                    .on_press(move || send(false))
+                                    .child(ui::icon(ui::Icon::Send).text_color(ui::fg_on_accent)),
+                                move || {
+                                    let silent = silent.clone();
+                                    vec![
+                                        nsh_core::element::desktop::MenuItem::new(
+                                            i18n.tr("Send Without Notification", "静音发送"),
+                                        )
+                                        .on_select(move || silent(true)),
+                                    ]
+                                },
+                            )
                         },
                     )
                     .otherwise(move || voice.button()),
@@ -388,7 +408,11 @@ struct SendContext {
     eligibility: Eligibility,
 }
 
-fn send_command(context: SendContext) -> Rc<dyn Fn()> {
+/// The most UTF-16 units one text message carries, as in the sender.
+const MAX_TEXT_UNITS: usize = 64 * 1024;
+
+/// Sends the draft; `true` sends it without a notification.
+fn send_command(context: SendContext) -> Rc<dyn Fn(bool)> {
     let SendContext {
         account,
         conversation_id,
@@ -406,12 +430,19 @@ fn send_command(context: SendContext) -> Rc<dyn Fn()> {
         eligibility,
     } = context;
     let owner = Owner::current();
-    Rc::new(move || {
+    let toasts = use_context::<ui::Toasts>().expect("Home provides toasts");
+    let i18n = i18n::current();
+    Rc::new(move |silent| {
         if !can_send.get_untracked() || sending.get_untracked() || input.composing() {
             return;
         }
         let body = draft.get_untracked();
         if body.trim().is_empty() {
+            return;
+        }
+        // The sender would cut the rest off silently: keep the draft and say so.
+        if body.encode_utf16().count() > MAX_TEXT_UNITS {
+            toasts.error(i18n.tr("Content too long", "内容过长"));
             return;
         }
         let client = account.clone();
@@ -428,7 +459,7 @@ fn send_command(context: SendContext) -> Rc<dyn Fn()> {
             spawn(async move {
                 let text = body.clone();
                 let result = runtime::commit(async move {
-                    client.message().send_text(id, text, quote_id, false).await
+                    client.message().send_text(id, text, quote_id, silent).await
                 })
                 .await;
                 pending.update(|ids| {

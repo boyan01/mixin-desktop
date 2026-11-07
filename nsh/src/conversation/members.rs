@@ -174,7 +174,7 @@ fn member_summary(
                     .unwrap_or_default()
             },
             move || member().map(|member| member.avatar_url).unwrap_or_default(),
-            ui::AvatarSize::Medium,
+            ui::AvatarSize::Large,
         ))
         .child(
             view()

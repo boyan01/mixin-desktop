@@ -224,13 +224,27 @@ impl Rows {
             })
         };
         let edge = ui::space_lg() + ui::bubble_nip_width();
+        let selecting = move || !actions.selected.with(Vec::is_empty);
         view()
             .flex_row()
             .items_start()
-            .child(when(
-                move || !actions.selected.with(Vec::is_empty),
-                move || selection_box(message, actions),
-            ))
+            // The check column opens and closes by width, so the message slides over.
+            .child(
+                view()
+                    .flex_shrink_0()
+                    .overflow_hidden()
+                    .w(move || {
+                        if selecting() {
+                            ui::selection_column_width()
+                        } else {
+                            Points::ZERO
+                        }
+                    })
+                    .transition_all()
+                    .duration(|| crate::motion::duration(crate::motion::PANEL_WIDTH.duration_ms))
+                    .ease_out()
+                    .child(when(selecting, move || selection_box(message, actions))),
+            )
             .child(when(avatar, move || {
                 view()
                     .ml_2()
@@ -275,7 +289,12 @@ impl Rows {
                                         .min_w_0()
                                         .max_w(relative(1.0))
                                         .child(when(nip, move || {
-                                            message_appearance::nip(mine, neutral)
+                                            message_appearance::nip(
+                                                mine,
+                                                neutral,
+                                                highlighted,
+                                                timeline.highlight_opacity,
+                                            )
                                         }))
                                         .child(
                                             view()

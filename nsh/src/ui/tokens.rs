@@ -136,6 +136,15 @@ lengths! {
     bubble_nip_width = "bubble-nip-width";
     bubble_nip_height = "bubble-nip-height";
     bubble_nip_offset = "bubble-nip-offset";
+    /// The floating pinned-message card: its height, side inset, nip and buttons.
+    pin_banner_height = "pin-banner-height";
+    /// One thumbnail in the send dialog's attachment grid.
+    thumbnail_grid_size = "thumbnail-grid-size";
+    pin_banner_inset = "pin-banner-inset";
+    pin_nip_width = "pin-nip-width";
+    pin_nip_height = "pin-nip-height";
+    pin_button_size = "pin-button-size";
+    pin_close_size = "pin-close-size";
     /// What a bubble leaves free on the side away from its sender.
     message_far_edge = "message-far-edge";
     /// Where a sender's name starts, from the bubble's nip gutter.
@@ -158,6 +167,8 @@ lengths! {
     stamp_inset_y = "stamp-inset-y";
     /// The disc of a media state: play, download, a file's extension.
     status_disc = "status-disc";
+    /// The check column that opens beside messages while selecting.
+    selection_column_width = "selection-column";
     audio_wave_width = "audio-wave-width";
     audio_wave_height = "audio-wave-height";
     /// The play and stop marks of a voice message.

@@ -66,8 +66,8 @@ pub(crate) fn page_body() -> View {
         .w_full()
         .max_w(ui::content_max_width())
         .self_center()
-        .p(ui::space_lg())
-        .gap(ui::space_lg())
+        .p(ui::space_md())
+        .gap(ui::space_md())
 }
 
 /// Supporting text beside a card, lined up with the rows' labels.

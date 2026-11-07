@@ -89,6 +89,8 @@ pub(crate) fn screen(
     provide_context(crate::drafts::Drafts::mount(account.clone()));
     let transfer = crate::transfer::mount(account.clone());
     provide_context(transfer);
+    let toasts = ui::Toasts::mount();
+    provide_context(toasts);
     let nav = Navigation::new();
     provide_context(nav);
     let circles = sidebar::Circles::new(account.clone(), nav);
@@ -218,6 +220,7 @@ pub(crate) fn screen(
                     .child(crate::bot::surface(bots))
             },
         ))
+        .child(toasts.surface())
         .child(crate::security::surface(security))
         .child(when(
             move || bots.ending(),
@@ -506,31 +509,42 @@ impl Home {
 
     fn connection_banner(self) -> impl IntoElement {
         let Self { i18n, online, .. } = self;
-        when(
-            move || !online.get(),
+        // The banner fades in, and the list below eases down to make room for it.
+        let presence = crate::motion::Presence::fade(move || !online.get());
+        let slot = element_ref();
+        effect(move || {
+            online.get();
+            if !reduce_motion() {
+                slot.animate_layout(crate::motion::PANEL_WIDTH);
+            }
+        });
+        view().element_ref(&slot).child(when(
+            move || presence.mounted(),
             move || {
-                view()
-                    .px_4()
-                    .py_2()
-                    .gap_2()
-                    .flex_row()
-                    .items_center()
-                    .bg(ui::surface_card)
-                    .child(
-                        text(move || i18n.text(Key::Connecting))
-                            .text_role(ui::TextRole::Caption)
-                            .flex_1(),
-                    )
-                    .child(
-                        ui::button(ui::ButtonTone::Ghost, ui::ButtonSize::Small)
-                            .on_press(move || self.client().retry_connection())
-                            .child(
-                                text(move || i18n.text(Key::Reconnect))
-                                    .text_role(ui::TextRole::Caption),
-                            ),
-                    )
+                presence.surface(
+                    view()
+                        .px_4()
+                        .py_2()
+                        .gap_2()
+                        .flex_row()
+                        .items_center()
+                        .bg(ui::surface_card)
+                        .child(
+                            text(move || i18n.text(Key::Connecting))
+                                .text_role(ui::TextRole::Caption)
+                                .flex_1(),
+                        )
+                        .child(
+                            ui::button(ui::ButtonTone::Ghost, ui::ButtonSize::Small)
+                                .on_press(move || self.client().retry_connection())
+                                .child(
+                                    text(move || i18n.text(Key::Reconnect))
+                                        .text_role(ui::TextRole::Caption),
+                                ),
+                        ),
+                )
             },
-        )
+        ))
     }
 
     fn list_empty(self) -> impl IntoElement {

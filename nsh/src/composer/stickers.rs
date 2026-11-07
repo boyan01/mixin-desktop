@@ -13,7 +13,7 @@ use crate::{
 };
 
 /// A sticker bitmap and its margin, which the grid's column count depends on.
-const STICKER_CELL: f32 = 80.0;
+const STICKER_CELL: f32 = 104.0;
 
 /// How many `cell`-sized columns fit the panel at the current window width.
 pub(super) fn columns(cell: f32) -> u32 {
@@ -212,40 +212,49 @@ pub(crate) fn stickers(
                 .max_w(relative(0.95))
                 .h(ui::sticker_panel_height())
                 .min_h_0()
-                .p_3()
-                .gap_2()
-                .child(when(state.failed, move || {
-                    view()
-                        .flex_row()
-                        .items_center()
-                        .gap_2()
-                        .child(ui::error_text(move || i18n.text(Key::CommandFailed)).flex_1())
-                        .child(ui::action(
-                            move || i18n.text(Key::Retry),
-                            move || {
-                                state.failed.set(false);
-                                state.reload();
-                            },
-                        ))
-                }))
-                .child(dynamic(move || {
-                    let tab = state.tab.get();
-                    untracked(|| match tab {
-                        Tab::Emoji => emoji::panel(
-                            insert.with(|i| i.clone()),
-                            state.account.with(|a| a.account_id()),
-                        )
-                        .into_element(),
-                        Tab::Store => sticker_store::panel(state).into_element(),
-                        Tab::Gif => gifs::panel(state).into_element(),
-                        tab => grid(state, tab).into_element(),
-                    })
-                }))
                 .child(
-                    scroll().horizontal().child(
+                    view()
+                        .flex_1()
+                        .min_h_0()
+                        .p_3()
+                        .gap_2()
+                        .child(when(state.failed, move || {
+                            view()
+                                .flex_row()
+                                .items_center()
+                                .gap_2()
+                                .child(
+                                    ui::error_text(move || i18n.text(Key::CommandFailed)).flex_1(),
+                                )
+                                .child(ui::action(
+                                    move || i18n.text(Key::Retry),
+                                    move || {
+                                        state.failed.set(false);
+                                        state.reload();
+                                    },
+                                ))
+                        }))
+                        .child(dynamic(move || {
+                            let tab = state.tab.get();
+                            untracked(|| match tab {
+                                Tab::Emoji => emoji::panel(
+                                    insert.with(|i| i.clone()),
+                                    state.account.with(|a| a.account_id()),
+                                )
+                                .into_element(),
+                                Tab::Store => sticker_store::panel(state).into_element(),
+                                Tab::Gif => gifs::panel(state).into_element(),
+                                tab => grid(state, tab).into_element(),
+                            })
+                        })),
+                )
+                .child(ui::divider())
+                .child(
+                    scroll().horizontal().bg(ui::surface_list).child(
                         view()
                             .flex_row()
                             .gap_1()
+                            .p_1()
                             .children(
                                 [
                                     (
@@ -390,6 +399,41 @@ pub(super) fn grid_items(
             move || !loading.get() && !state.failed.get() && items.with(Vec::is_empty),
             move || ui::placeholder(move || i18n.text(Key::NoStickers)),
         ))
+        .child(when(
+            move || tab.with(|t| *t == Tab::Personal),
+            move || {
+                ui::command()
+                    .size(px(STICKER_CELL))
+                    .flex_shrink_0()
+                    .rounded(ui::radius_md())
+                    .bg(ui::surface_list)
+                    .accessibility_label(move || {
+                        Some(tr(i18n, "Import sticker…", "导入贴纸…").into())
+                    })
+                    .child(ui::icon(ui::Icon::Add).size(ui::icon_lg()))
+                    .on_press(move || {
+                        if state.busy.get_untracked() {
+                            return;
+                        }
+                        let client = state.client();
+                        state.owner.run(|| {
+                            spawn(async move {
+                                match pick_paths(nsh_core::file_dialog::OpenDialog::files()).await {
+                                    Ok(Some(paths)) if !paths.is_empty() => {
+                                        let path = paths[0].to_string_lossy().into_owned();
+                                        state.update(async move {
+                                            client.sticker().add_sticker_from_path(path).await
+                                        });
+                                    }
+                                    Ok(_) => {}
+                                    Err(_) => state.failed.set(true),
+                                }
+                            });
+                        });
+                    })
+                    .disabled(state.busy)
+            },
+        ))
         .child(
             virtual_list(
                 move || items.with(Vec::len),
@@ -402,7 +446,7 @@ pub(super) fn grid_items(
                     });
                     ui::native_context_menu(
                         ui::command()
-                            .size_20()
+                            .size(px(STICKER_CELL))
                             .px_1()
                             .py_1()
                             .disabled(state.busy)
@@ -448,7 +492,7 @@ pub(super) fn grid_items(
                                             .unwrap_or_default()
                                     })
                                 },
-                                64.0,
+                                STICKER_CELL - 24.0,
                             )),
                         move || {
                             let Some(sticker) = items.with(|rows| rows.get(at.index()).cloned())
@@ -493,35 +537,6 @@ pub(super) fn grid_items(
                 |style| style.hidden().invisible(),
             ),
         )
-        .child(when(
-            move || tab.with(|t| *t == Tab::Personal),
-            move || {
-                ui::action(
-                    move || tr(i18n, "Import sticker…", "导入贴纸…"),
-                    move || {
-                        if state.busy.get_untracked() {
-                            return;
-                        }
-                        let client = state.client();
-                        state.owner.run(|| {
-                            spawn(async move {
-                                match pick_paths(nsh_core::file_dialog::OpenDialog::files()).await {
-                                    Ok(Some(paths)) if !paths.is_empty() => {
-                                        let path = paths[0].to_string_lossy().into_owned();
-                                        state.update(async move {
-                                            client.sticker().add_sticker_from_path(path).await
-                                        });
-                                    }
-                                    Ok(_) => {}
-                                    Err(_) => state.failed.set(true),
-                                }
-                            });
-                        });
-                    },
-                )
-                .disabled(state.busy)
-            },
-        ))
         .child(when(
             move || matches!(tab.with(|t| t.clone()), Tab::Album(_)),
             move || {

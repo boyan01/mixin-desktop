@@ -37,7 +37,8 @@ use nsh_core::{platform::Lifecycle, prelude::*};
 use crate::{
     composer,
     i18n::{self, Key},
-    inspector, runtime, ui,
+    inspector, runtime,
+    ui::{self, Typography as _},
 };
 
 pub(crate) fn screen(
@@ -50,7 +51,6 @@ pub(crate) fn screen(
     back: impl Fn() + 'static,
 ) -> impl IntoElement {
     let i18n = i18n::current();
-    let chat_presence = crate::motion::Presence::fade(|| true);
     let navigation = use_context::<crate::sidebar::Navigation>().expect("Home provides navigation");
     let narrow = move || window().width.0 - navigation.width().0 < 620.0;
     let narrow_detail = move || {
@@ -135,6 +135,7 @@ pub(crate) fn screen(
         playback,
         preview: signal_with(None, SignalEquals::Never),
         preview_history: signal_with(Vec::new(), SignalEquals::Never),
+        toasts: use_context::<ui::Toasts>().expect("Home provides toasts"),
     };
     let unobstructed = computed(move || {
         actions.preview.with(Option::is_none)
@@ -174,77 +175,96 @@ pub(crate) fn screen(
         viewable,
         unobstructed,
     };
+    // Escape steps back one layer: the selection, then the side panel. The composer takes
+    // its own Escape for a quote, and inputs keep theirs.
+    on_key_with(
+        "escape",
+        KeyOptions {
+            when: nsh_core::keymap::When::NotEditing,
+            ..KeyOptions::default()
+        },
+        move |_| {
+            if navigation.settings.get_untracked()
+                || actions.preview.with_untracked(Option::is_some)
+                || actions.forwarding.with_untracked(|ids| !ids.is_empty())
+            {
+                return;
+            }
+            if actions.selected.with_untracked(|ids| !ids.is_empty()) {
+                if !actions.busy.get_untracked() {
+                    actions.selected.set(Vec::new());
+                }
+            } else if side.get_untracked().is_some() {
+                chat_navigation.back_panel();
+            }
+        },
+    );
     let focus_layout = computed(move || (narrow(), covered.get(), side.get().is_none()));
+    let dragging = signal(false);
     let incoming_files = signal(Vec::<composer::AttachmentSource>::new());
     let no_rows = move || !loading.get() && !failed.get() && messages.with(Vec::is_empty);
     let show_encryption = move || encrypted.get() && !header.with(|row| row.is_bot);
-    chat_presence.surface(
-        view()
-            .on_file_drop(move |event: &FileDropEvent| {
-                if can_send.get_untracked() {
-                    incoming_files.set(local_paths(&event.uris));
-                }
-            })
-            .flex_1()
-            .flex_row()
-            .min_w_0()
-            .child(
-                view()
-                    .flex_1()
-                    .min_w_0()
-                    .min_h_0()
-                    .relative()
-                    .style_when(move || covered.get(), |style| style.hidden())
-                    .child(
-                        ui::wallpaper()
-                            .absolute()
-                            .inset_0()
-                            .size_full()
-                            .object_fit(ResizeMode::Cover)
-                            .opacity(ui::chat_pattern_opacity()),
+    view()
+        .on_file_drag_enter(move |_: &()| dragging.set(true))
+        .on_file_drag_leave(move |_: &()| dragging.set(false))
+        .on_file_drop(move |event: &FileDropEvent| {
+            dragging.set(false);
+            if can_send.get_untracked() {
+                incoming_files.set(local_paths(&event.uris));
+            }
+        })
+        .flex_1()
+        .flex_row()
+        .min_w_0()
+        .relative()
+        .child(
+            view()
+                .flex_1()
+                .min_w_0()
+                .min_h_0()
+                .relative()
+                .style_when(move || covered.get(), |style| style.hidden())
+                .child(
+                    ui::wallpaper()
+                        .absolute()
+                        .inset_0()
+                        .size_full()
+                        .object_fit(ResizeMode::Cover)
+                        .opacity(ui::chat_pattern_opacity()),
+                )
+                .bg(ui::surface_chat)
+                .child(header::bar(header, group, narrow, back))
+                .child(timeline.controls(i18n))
+                .child(unread.controls(i18n))
+                .child(message_selection::selection_bar(actions, detail_id))
+                .child(when(loading, move || {
+                    view()
+                        .flex_1()
+                        .items_center()
+                        .justify_center()
+                        .child(ui::busy_indicator(
+                            || true,
+                            move || i18n.text(Key::LoadingMessages).into(),
+                        ))
+                }))
+                .child(when(no_rows, move || {
+                    ui::empty(
+                        move || i18n.text(Key::NoMessages),
+                        move || i18n.text(Key::NoMessagesBody),
                     )
-                    .bg(ui::surface_chat)
-                    .child(header::bar(header, group, narrow, back))
-                    .child(timeline.controls(i18n))
-                    .child(unread.controls(i18n))
-                    .child(message_selection::selection_bar(actions, detail_id))
-                    .child(pinned::banner(
-                        account.clone(),
-                        conversation.conversation_id.clone(),
-                        target,
-                        side,
-                    ))
-                    .child(when(loading, move || {
-                        view()
-                            .flex_1()
-                            .items_center()
-                            .justify_center()
-                            .child(ui::busy_indicator(
-                                || true,
-                                move || i18n.text(Key::LoadingMessages).into(),
-                            ))
-                    }))
-                    .child(when(no_rows, move || {
-                        ui::empty(
-                            move || i18n.text(Key::NoMessages),
-                            move || i18n.text(Key::NoMessagesBody),
-                        )
-                    }))
-                    .child(when(
-                        move || no_rows() && show_encryption(),
-                        move || message_system::encryption_notice(actions),
-                    ))
-                    .child(
-                        view()
-                            .flex_1()
-                            .min_h_0()
-                            .relative()
-                            .on_layout(media_viewport)
-                            .child(
-                                virtual_list(
-                                    move || messages.with(Vec::len),
-                                    move |at| rows.row(at),
-                                )
+                }))
+                .child(when(
+                    move || no_rows() && show_encryption(),
+                    move || message_system::encryption_notice(actions),
+                ))
+                .child(
+                    view()
+                        .flex_1()
+                        .min_h_0()
+                        .relative()
+                        .on_layout(media_viewport)
+                        .child(
+                            virtual_list(move || messages.with(Vec::len), move |at| rows.row(at))
                                 .footer(when(
                                     move || {
                                         !loading.get()
@@ -275,84 +295,117 @@ pub(crate) fn screen(
                                 .estimated_item_size(ui::list_row_height())
                                 .flex_1()
                                 .min_h_0(),
-                            )
-                            .child(timeline.paging_indicator(i18n))
-                            .child(
-                                view()
-                                    .absolute()
-                                    .right_4()
-                                    .bottom_4()
-                                    .gap_2()
-                                    .items_end()
-                                    .child(unread.jump_button(i18n))
-                                    .child(timeline.jump_button(i18n)),
-                            )
-                            .style_when(
-                                move || messages.with(Vec::is_empty) || loading.get(),
-                                |style| style.hidden(),
-                            ),
-                    )
-                    .child(compose::bar(compose::Props {
-                        account: account.clone(),
-                        conversation_id: conversation.conversation_id.clone(),
-                        header,
-                        group,
-                        encrypted,
-                        actions,
-                        eligibility,
-                        target,
-                        drafts,
-                        pending,
-                        session_owner,
-                        incoming_files,
-                        focus_layout,
-                    })),
-            )
-            .child(message_forward::forwarding(actions))
-            .child(message_detail::preview(actions))
-            .child(
+                        )
+                        .child(timeline.paging_indicator(i18n))
+                        .child(pinned::banner(
+                            account.clone(),
+                            conversation.conversation_id.clone(),
+                            target,
+                            side,
+                        ))
+                        .child(
+                            view()
+                                .absolute()
+                                .right_4()
+                                .bottom_4()
+                                .gap_2()
+                                .items_end()
+                                .child(unread.jump_button(i18n))
+                                .child(timeline.jump_button(i18n)),
+                        )
+                        .style_when(
+                            move || messages.with(Vec::is_empty) || loading.get(),
+                            |style| style.hidden(),
+                        ),
+                )
+                .child(compose::bar(compose::Props {
+                    account: account.clone(),
+                    conversation_id: conversation.conversation_id.clone(),
+                    header,
+                    group,
+                    encrypted,
+                    actions,
+                    eligibility,
+                    target,
+                    drafts,
+                    pending,
+                    session_owner,
+                    incoming_files,
+                    focus_layout,
+                })),
+        )
+        .child(when(
+            move || dragging.get() && can_send.get(),
+            move || {
+                // Files held over the chat: say where they will go.
                 view()
-                    .element_ref(&panel_slot)
-                    .flex_row()
-                    .min_h_0()
-                    .overflow_hidden()
-                    .style_with(move |style| {
-                        if !panel_open.get() {
-                            style.w(px(0.0)).flex_shrink_0()
-                        } else if narrow_detail() {
-                            style.flex_1().min_w_0()
-                        } else {
-                            style.w(ui::sidebar_width).flex_shrink_0()
-                        }
-                    })
-                    .child(when(
-                        move || panel_presence.mounted(),
-                        move || {
-                            panel_presence.surface(
-                                view()
-                                    .flex_row()
-                                    .min_h_0()
-                                    .style_when(narrow_detail, |style| style.flex_1().min_w_0())
-                                    .child(dynamic(move || {
-                                        let mode = shown_panel.get();
-                                        untracked(|| match mode {
-                                            Some(mode) => inspector::screen(
-                                                detail_account.with(|account| account.clone()),
-                                                detail_id.with(|id| id.clone()),
-                                                mode,
-                                                move || chat_navigation.back_panel(),
-                                                target,
-                                                narrow_detail,
-                                            )
-                                            .into_element(),
-                                            None => view().hidden().into_element(),
-                                        })
-                                    })),
-                            )
-                        },
-                    )),
-            ),
-    )
+                    .absolute()
+                    .inset_0()
+                    .m_2()
+                    .items_center()
+                    .justify_center()
+                    .gap_2()
+                    .rounded(ui::radius_lg())
+                    .border_2()
+                    .border_color(ui::accent)
+                    .bg(|| ui::accent().opacity(0.12))
+                    .pointer_events(PointerEvents::None)
+                    .child(
+                        ui::icon(ui::Icon::Upload)
+                            .size(ui::icon_lg())
+                            .text_color(ui::accent),
+                    )
+                    .child(
+                        text(move || i18n.tr("Drop files to send", "拖拽文件到此处"))
+                            .text_role(ui::TextRole::Title)
+                            .text_color(ui::accent),
+                    )
+            },
+        ))
+        .child(message_forward::forwarding(actions))
+        .child(message_detail::preview(actions))
+        .child(
+            view()
+                .element_ref(&panel_slot)
+                .flex_row()
+                .min_h_0()
+                .overflow_hidden()
+                .style_with(move |style| {
+                    if !panel_open.get() {
+                        style.w(px(0.0)).flex_shrink_0()
+                    } else if narrow_detail() {
+                        style.flex_1().min_w_0()
+                    } else {
+                        style.w(ui::sidebar_width).flex_shrink_0()
+                    }
+                })
+                .child(when(
+                    move || panel_presence.mounted(),
+                    move || {
+                        panel_presence.surface(
+                            view()
+                                .flex_row()
+                                .min_h_0()
+                                .style_when(narrow_detail, |style| style.flex_1().min_w_0())
+                                .child(dynamic(move || {
+                                    let mode = shown_panel.get();
+                                    untracked(|| match mode {
+                                        Some(mode) => inspector::screen(
+                                            detail_account.with(|account| account.clone()),
+                                            detail_id.with(|id| id.clone()),
+                                            mode,
+                                            move || chat_navigation.back_panel(),
+                                            target,
+                                            narrow_detail,
+                                        )
+                                        .into_element(),
+                                        None => view().hidden().into_element(),
+                                    })
+                                })),
+                        )
+                    },
+                )),
+        )
 }
 
 fn local_paths(uris: &[String]) -> Vec<composer::AttachmentSource> {
