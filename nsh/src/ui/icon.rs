@@ -14,6 +14,12 @@ pub(crate) enum Icon {
     Search,
     ChevronDown,
     ChevronRight,
+    ChevronLeft,
+    Rotate,
+    ZoomIn,
+    ZoomOut,
+    Copy,
+    Save,
     ArrowLeft,
     Send,
     Globe,
@@ -82,6 +88,16 @@ pub(crate) fn icon(icon: Icon) -> Svg {
         Icon::Profile => asset(include_str!("../../assets/profile_info.svg")),
         Icon::ChevronDown => stroke("<path d='m6 9 6 6 6-6'/>"),
         Icon::ChevronRight => stroke("<path d='m9 6 6 6-6 6'/>"),
+        Icon::ChevronLeft => stroke("<path d='m15 6-6 6 6 6'/>"),
+        Icon::Rotate => stroke("<path d='M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7'/>"),
+        Icon::ZoomIn => {
+            stroke("<circle cx='11' cy='11' r='7'/><path d='m20 20-4-4M8 11h6M11 8v6'/>")
+        }
+        Icon::ZoomOut => stroke("<circle cx='11' cy='11' r='7'/><path d='m20 20-4-4M8 11h6'/>"),
+        Icon::Copy => stroke(
+            "<rect x='9' y='9' width='11' height='11' rx='2'/><path d='M5 15V6a2 2 0 0 1 2-2h9'/>",
+        ),
+        Icon::Save => stroke("<path d='M5 4h11l3 3v13H5Z'/><path d='M8 4v5h7V4M8 20v-6h8v6'/>"),
         Icon::ArrowLeft => stroke("<path d='M19 12H5m6-6-6 6 6 6'/>"),
         Icon::Menu => stroke("<path d='M4 6h16M4 12h16M4 18h16'/>"),
         Icon::Play => stroke("<path d='m8 5 11 7-11 7Z'/>"),

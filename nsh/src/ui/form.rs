@@ -30,14 +30,16 @@ fn text_input() -> Input {
 }
 
 pub(crate) fn field() -> Input {
-    text_input()
+    // A soft filled plate, as in the search pill; the border only appears on focus.
+    feedback_transition(text_input())
         .min_h(field_height())
         .px(space_md())
         .py(space_sm())
         .border_1()
-        .border_color(input_border)
-        .rounded(radius_sm())
+        .border_color(move || input_border().opacity(0.0))
+        .rounded(radius_md())
         .bg(input_fill)
+        .hover(|s| s.border_color(input_border))
         .focus(|s| s.border_color(focus_ring))
 }
 
@@ -242,7 +244,7 @@ pub(crate) fn slider() -> SliderElement {
 pub(crate) fn slider_compact() -> SliderElement {
     slider()
         .track_class("h-6 justify-center disabled:opacity-40")
-        .thumb_class("size-3 rounded-full bg-primary focus:outline-2 focus:outline-ring")
+        .thumb_class("size-3 rounded-full bg-transparent focus:outline-2 focus:outline-ring")
 }
 
 /// A `slider` over a scale the caller draws, of which it shows only the thumb.
@@ -255,13 +257,14 @@ pub(crate) fn slider_over_scale() -> SliderElement {
         )
 }
 
-/// A `slider` over a waveform, as tall as it, of which it shows only the thumb.
+/// A `slider` over a waveform, as tall as it, which draws nothing: the waveform shows
+/// the progress by filling its bars, and the slider only takes the seeking.
 pub(crate) fn slider_over_wave() -> SliderElement {
     slider()
         .track_class("h-3 justify-center disabled:opacity-40")
         .indicator_class("h-3 bg-transparent")
         .range_class("bg-transparent")
-        .thumb_class("size-3 rounded-full bg-primary focus:outline-2 focus:outline-ring")
+        .thumb_class("size-3 rounded-full bg-transparent focus:outline-2 focus:outline-ring")
 }
 
 /// One tab of a `tabs` row, sharing its width with the others. The accent label

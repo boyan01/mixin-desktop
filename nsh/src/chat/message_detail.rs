@@ -210,6 +210,7 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
     });
     let qr = move || shown.with(|detail| matches!(detail, Some(Detail::Qr(_))));
     let user_profile = move || shown.with(|detail| matches!(detail, Some(Detail::User(_))));
+    let photo = move || shown.with(|detail| matches!(detail, Some(Detail::Image { .. })));
     when(
         move || presence.mounted(),
         move || {
@@ -233,6 +234,14 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
                             .rounded(ui::radius_lg())
                             .shadow_lg()
                     })
+                    .style_when(photo, |style| {
+                        style
+                            .bg(ui::viewer_background)
+                            .p_0()
+                            .gap_0()
+                            .rounded(ui::radius_lg())
+                            .overflow_hidden()
+                    })
                     .style_when(user_profile, |style| {
                         ui::dialog_surface(style, ui::DialogWidth::Compact)
                             .flex_auto()
@@ -247,7 +256,7 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
                             .justify_end()
                             .gap_2()
                             .style_when(qr, |style| style.items_center())
-                            .style_when(user_profile, |style| style.hidden())
+                            .style_when(move || user_profile() || photo(), |style| style.hidden())
                             .child(when(qr, move || {
                                 ui::dialog_title(move || i18n.tr("QR code", "二维码"))
                                     .flex_1()
@@ -383,7 +392,7 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
                         })
                         .text_role(ui::TextRole::Body)
                         .select_text()
-                        .style_when(user_profile, |style| style.hidden()),
+                        .style_when(move || user_profile() || photo(), |style| style.hidden()),
                     ),
             )
         },

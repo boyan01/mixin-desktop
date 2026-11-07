@@ -9,6 +9,10 @@ use nsh_core::{
 
 pub(crate) const FEEDBACK_MS: f32 = 120.0;
 
+/// A pane that grows or shrinks: it and the panes beside it ease to their new frames.
+pub(crate) const PANEL_WIDTH: nsh_core::LayoutTransition =
+    nsh_core::LayoutTransition::new(nsh_core::LayoutCurve::EaseOut, 220.0);
+
 pub(crate) fn duration(ms: f32) -> f32 {
     if reduce_motion() { ms.min(80.0) } else { ms }
 }

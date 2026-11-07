@@ -57,6 +57,15 @@ impl Navigation {
             ui::navigation_width()
         }
     }
+    /// The next width change eases every frame it moves, titles inside the panes included.
+    pub fn animate_width(self) {
+        if !reduce_motion() {
+            nsh_core::element::animate_layout(nsh_core::LayoutAnimation {
+                update: Some(crate::motion::PANEL_WIDTH),
+                ..Default::default()
+            });
+        }
+    }
     pub fn open_drawer(self) {
         if self.drawer() {
             self.drawer_open.set(true);

@@ -37,16 +37,27 @@ pub(crate) fn page_header(title: impl IntoReactive<SharedString>, back: ButtonEl
         .border_b_1()
         .border_color(ui::hairline)
         .child(back)
+        // The title keeps its own width and the slot centers it, so a resize moves the
+        // text, which eases like any frame, instead of re-centering glyphs in a resized one.
         .child(
-            text(title)
-                .flex_1()
-                .min_w_0()
-                .number_of_lines(1)
-                .text_center()
-                .text_role(ui::TextRole::Title),
+            view().flex_1().min_w_0().flex_row().justify_center().child(
+                text(title)
+                    .min_w_0()
+                    .number_of_lines(1)
+                    .text_role(ui::TextRole::Title),
+            ),
         )
         .child(view().size_8().flex_shrink_0())
-        .pl(move || ui::title_bar_leading(nav.width()))
+        // Clears the window controls beside the narrowest rail, so the bar does not shift
+        // while the rail eases between its widths.
+        .pl(move || {
+            let rail = if nav.width().0 > 0.0 {
+                ui::navigation_compact_width()
+            } else {
+                nav.width()
+            };
+            ui::title_bar_leading(rail)
+        })
 }
 
 /// The column of a page: one width of cards and sections, centered in a wide pane.

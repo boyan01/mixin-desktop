@@ -60,7 +60,7 @@ pub(crate) fn screen(
     let chat_navigation =
         use_context::<crate::navigation::ChatNavigation>().expect("Home provides chat navigation");
     let side = chat_navigation.panel;
-    let panel_presence = crate::motion::Presence::panel(move || side.get().is_some());
+    let panel_presence = crate::motion::Presence::fade(move || side.get().is_some());
     let shown_panel = signal(side.get_untracked());
     effect(move || {
         if let Some(mode) = side.get() {
@@ -68,6 +68,16 @@ pub(crate) fn screen(
         }
     });
     let covered = computed(move || panel_presence.mounted() && narrow_detail());
+    // The panel's slot eases its width, and the conversation beside it follows.
+    let panel_slot = element_ref();
+    let panel_open = computed(move || side.get().is_some());
+    let first_panel_state = stored(true);
+    effect(move || {
+        panel_open.get();
+        if !first_panel_state.replace(false) && !reduce_motion() {
+            panel_slot.animate_layout(crate::motion::PANEL_WIDTH);
+        }
+    });
     let group = conversation.category == "GROUP";
     let header = signal(conversation.clone());
     let detail_account = stored(account.clone());
@@ -300,32 +310,48 @@ pub(crate) fn screen(
             )
             .child(message_forward::forwarding(actions))
             .child(message_detail::preview(actions))
-            .child(when(
-                move || panel_presence.mounted(),
-                move || {
-                    panel_presence.surface(
-                        view()
-                            .flex_row()
-                            .min_h_0()
-                            .style_when(narrow_detail, |style| style.flex_1().min_w_0())
-                            .child(dynamic(move || {
-                                let mode = shown_panel.get();
-                                untracked(|| match mode {
-                                    Some(mode) => inspector::screen(
-                                        detail_account.with(|account| account.clone()),
-                                        detail_id.with(|id| id.clone()),
-                                        mode,
-                                        move || chat_navigation.back_panel(),
-                                        target,
-                                        narrow_detail,
-                                    )
-                                    .into_element(),
-                                    None => view().hidden().into_element(),
-                                })
-                            })),
-                    )
-                },
-            )),
+            .child(
+                view()
+                    .element_ref(&panel_slot)
+                    .flex_row()
+                    .min_h_0()
+                    .overflow_hidden()
+                    .style_with(move |style| {
+                        if !panel_open.get() {
+                            style.w(px(0.0)).flex_shrink_0()
+                        } else if narrow_detail() {
+                            style.flex_1().min_w_0()
+                        } else {
+                            style.w(ui::sidebar_width).flex_shrink_0()
+                        }
+                    })
+                    .child(when(
+                        move || panel_presence.mounted(),
+                        move || {
+                            panel_presence.surface(
+                                view()
+                                    .flex_row()
+                                    .min_h_0()
+                                    .style_when(narrow_detail, |style| style.flex_1().min_w_0())
+                                    .child(dynamic(move || {
+                                        let mode = shown_panel.get();
+                                        untracked(|| match mode {
+                                            Some(mode) => inspector::screen(
+                                                detail_account.with(|account| account.clone()),
+                                                detail_id.with(|id| id.clone()),
+                                                mode,
+                                                move || chat_navigation.back_panel(),
+                                                target,
+                                                narrow_detail,
+                                            )
+                                            .into_element(),
+                                            None => view().hidden().into_element(),
+                                        })
+                                    })),
+                            )
+                        },
+                    )),
+            ),
     )
 }
 

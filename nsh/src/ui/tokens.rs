@@ -273,6 +273,7 @@ colors! {
     input_border = "input";
     /// The dimming layer behind modal surfaces, dark in either appearance.
     scrim_fill = "scrim";
+    viewer_background = "viewer-background";
     /// A count pill that does not ask for attention.
     badge_quiet = "badge-quiet";
     /// The placeholder of an avatar with no id to pick a color from.

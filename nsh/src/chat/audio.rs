@@ -1,7 +1,7 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use mixin_desktop_api::{AudioPlaybackStatus, MessageListView};
 use nsh_base::SliderValue;
-use nsh_core::{element::ImageSrc, prelude::*};
+use nsh_core::{TransformKind, animation::Easing, element::ImageSrc, prelude::*};
 
 use super::{message_actions::Actions, message_appearance};
 use crate::{i18n::Key, runtime, ui};
@@ -66,15 +66,6 @@ pub(super) fn body(
         }
     };
     let busy = signal(false);
-    // Bars follow one number, so playback does not touch the rows that aren't playing.
-    let progress = computed(move || {
-        let duration = duration();
-        if duration == 0 {
-            0.0
-        } else {
-            position() as f64 / duration as f64
-        }
-    });
     let playing = move || {
         active()
             && actions
@@ -82,36 +73,102 @@ pub(super) fn body(
                 .with(|p| p.status == AudioPlaybackStatus::Playing)
     };
     let scale = ui::audio_wave_height().0;
+    let strip = move |lit: bool| {
+        view()
+            .absolute()
+            .inset_0()
+            .flex_row()
+            .items_end()
+            .gap(ui::space_2xs())
+            .overflow_hidden()
+            .children(waveform.into_iter().map(move |level| {
+                view()
+                    .w(ui::space_2xs())
+                    .flex_shrink_0()
+                    // A bar is as tall as its sample's level, within the strip.
+                    .h(px((f32::from(level) / 255.0 * scale).max(ui::space_2xs().0)))
+                    .rounded_t(ui::hairline_width())
+                    .bg(move || {
+                        if lit {
+                            ui::waveform_progress()
+                        } else if heard {
+                            ui::waveform_track()
+                        } else {
+                            ui::accent()
+                        }
+                    })
+            }))
+    };
+    // The played part is a blue strip under a grey one, which a window uncovers from the left
+    // edge. The window and the grey strip move by opposite amounts on the native clock, so the
+    // edge glides between the player's reports instead of stepping with them.
+    let width = signal(ui::audio_wave_width().0);
+    let shift = animated_value(0.0);
+    let unshift = animated_value(0.0);
+    let run = stored(None::<(std::time::Instant, u64, f64, u64, f32)>);
+    effect(move || {
+        let (active, playing, position, duration, speed, width) = (
+            active(),
+            playing(),
+            position(),
+            duration(),
+            actions.playback.with(|p| p.speed),
+            width.get(),
+        );
+        untracked(move || {
+            let place = |at: f32| {
+                shift.set(at);
+                unshift.set(-at);
+            };
+            if !active || duration == 0 {
+                run.replace(None);
+                return place(0.0);
+            }
+            let at = position as f32 / duration as f32 * width;
+            if !playing {
+                run.replace(None);
+                return place(at);
+            }
+            let current = run.get();
+            let keeps = current.is_some_and(|(since, from, rate, total, wide)| {
+                let expected = from as f64 + since.elapsed().as_millis() as f64 * rate;
+                total == duration
+                    && wide == width
+                    && rate == speed
+                    && (expected - position as f64).abs() < 400.0
+            });
+            if keeps {
+                return;
+            }
+            run.replace(Some((
+                std::time::Instant::now(),
+                position,
+                speed,
+                duration,
+                width,
+            )));
+            place(at);
+            let ms = (duration - position.min(duration)) as f32 / speed.max(0.1) as f32;
+            let _ = shift.timing(width, ms, Easing::Linear);
+            let _ = unshift.timing(-width, ms, Easing::Linear);
+        });
+    });
     let wave = view()
         .relative()
         .w(ui::audio_wave_width())
         .max_w(relative(1.0))
         .h(ui::audio_wave_height())
+        .on_layout(move |bounds: &Bounds<Points>| width.set(bounds.size.width.0.max(1.0)))
+        .child(when(move || heard, move || strip(true)))
         .child(
-            view()
-                .absolute()
-                .inset_0()
-                .flex_row()
-                .items_end()
-                .gap(ui::space_2xs())
-                .overflow_hidden()
-                .children(waveform.into_iter().enumerate().map(move |(index, level)| {
-                    view()
-                        .w(ui::space_2xs())
-                        .flex_shrink_0()
-                        // A bar is as tall as its sample's level, within the strip.
-                        .h(px((f32::from(level) / 255.0 * scale).max(ui::space_2xs().0)))
-                        .rounded_t(ui::hairline_width())
-                        .bg(move || {
-                            if !heard {
-                                ui::accent()
-                            } else if (index as f64 / BARS as f64) < progress.get() {
-                                ui::waveform_progress()
-                            } else {
-                                ui::waveform_track()
-                            }
-                        })
-                })),
+            view().absolute().inset_0().overflow_hidden().child(
+                view()
+                    .absolute()
+                    .inset_0()
+                    .overflow_hidden()
+                    .bind_transform(TransformKind::TranslateX, &shift)
+                    .child(strip(false).bind_transform(TransformKind::TranslateX, &unshift)),
+            ),
         )
         .child(when(active, move || {
             ui::slider_over_wave()

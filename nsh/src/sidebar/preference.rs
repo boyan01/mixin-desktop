@@ -61,6 +61,7 @@ impl Preference {
         }
         let settings = self.settings.with(|settings| settings.clone());
         let previous = self.nav.collapsed.get_untracked();
+        self.nav.animate_width();
         self.nav.collapsed.set(!previous);
         self.busy.set(true);
         self.failed.set(false);
