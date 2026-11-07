@@ -1,4 +1,5 @@
 use mixin_desktop_api::{GroupConversationItem, UserProfileItem};
+use nsh_core::element::desktop::MenuItem;
 
 use super::*;
 use crate::navigation::ChatNavigation;
@@ -28,13 +29,8 @@ impl Destination {
     }
 }
 
-/// Where a profile sits, which decides whether its bar is a title bar.
-#[derive(Clone, Copy)]
-pub(super) enum Frame {
-    /// The window's right-hand pane.
-    Pane,
-    Dialog,
-}
+/// Flutter's marker for an account with no public identity.
+const ANONYMOUS_ID: &str = "0";
 
 #[derive(Clone, Copy)]
 enum Action {
@@ -63,6 +59,23 @@ struct Page {
 }
 
 impl Page {
+    fn new(account: Arc<AccountClient>, user_id: String, initial: Destination) -> Self {
+        Self {
+            owner: Owner::current(),
+            own_id: stored(account.account_id()),
+            account: stored(account),
+            id: signal(user_id),
+            profile: signal_with(None, SignalEquals::Never),
+            creator: signal(None),
+            destination: signal(initial),
+            history: signal(Vec::new()),
+            revision: signal(0),
+            loading: signal(true),
+            busy: signal(false),
+            failed: signal(false),
+        }
+    }
+
     fn client(self) -> Arc<AccountClient> {
         self.account.with(|account| account.clone())
     }
@@ -108,106 +121,282 @@ impl Page {
     }
 }
 
+/// The profile dialog's content, for a `Compact` card with no insets. Opening
+/// the chat ends the dialog.
 pub(crate) fn profile(
     account: Arc<AccountClient>,
     user_id: String,
     close: impl Fn() + Copy + 'static,
 ) -> impl IntoElement {
-    profile_with_opened(account, user_id, close, || {})
+    profile_with_opened(account, user_id, close, close)
 }
 
+/// A `profile` whose host does more than `close` once the chat opens.
 pub(crate) fn profile_with_opened(
     account: Arc<AccountClient>,
     user_id: String,
     close: impl Fn() + Copy + 'static,
     opened: impl Fn() + Copy + 'static,
 ) -> impl IntoElement {
-    profile_at(
-        account,
-        user_id,
-        Destination::Profile,
-        close,
-        opened,
-        Frame::Dialog,
-    )
+    let page = Page::new(account, user_id, Destination::Profile);
+    let opened = move || {
+        if page.owner.is_live() {
+            opened();
+        }
+    };
+    effect(move || load(page, Destination::Profile));
+    view()
+        .flex_shrink(1.0)
+        .min_h_0()
+        .child(ui::dialog_close(close).disabled(page.busy))
+        .child(when(
+            move || page.loading.get() && page.profile.with(Option::is_none),
+            || {
+                parts::status(move || tr("Loading…", "加载中…"))
+                    .justify_center()
+                    .pt(ui::space_sm())
+                    .pb(ui::space_xl())
+            },
+        ))
+        .child(when(page.failed, move || {
+            parts::failure(
+                move || tr("Couldn’t update. Try again.", "更新失败，请重试。"),
+                move || page.revision.update(|revision| *revision += 1),
+            )
+            .px(ui::space_lg())
+            .pb(ui::space_sm())
+        }))
+        .child(when(
+            move || page.profile.with(Option::is_some),
+            move || dialog_body(page, opened),
+        ))
 }
 
+fn dialog_body(page: Page, opened: impl Fn() + Copy + 'static) -> impl IntoElement {
+    let links = use_context::<crate::links::LinkNavigation>().expect("Home provides link routing");
+    let navigation =
+        use_context::<ChatNavigation>().expect("The signed-in session provides navigation");
+    let unavailable = move || page.busy.get();
+    let known = move || page.is(|profile| profile.identity_number != ANONYMOUS_ID);
+    let open = move |panel: Option<crate::inspector::Mode>| {
+        navigation.open_user_then(
+            page.client(),
+            page.id.get_untracked(),
+            page.failed,
+            move || {
+                navigation.panel.set(panel);
+                opened();
+            },
+        )
+    };
+    let subtitle = move || {
+        let id = page.text(|profile| profile.identity_number.clone());
+        if id == ANONYMOUS_ID {
+            return String::new();
+        }
+        i18n::current().format("Mixin ID: {arg0}", "Mixin ID：{arg0}", &[("arg0", &id)])
+    };
+    let card = ui::profile_card(
+        ui::AvatarSize::Hero,
+        move || page.id.get(),
+        move || page.text(|profile| profile.full_name.clone()),
+        move || page.text(|profile| profile.avatar_url.clone()),
+        subtitle,
+        identity_badge(page),
+    )
+    .pb_14()
+    .child(when(
+        move || {
+            page.is(|profile| {
+                profile.identity_number != ANONYMOUS_ID
+                    && profile.relationship == "STRANGER"
+                    && !profile.is_deactivated
+            })
+        },
+        move || {
+            ui::pill(
+                move || {
+                    if page.is(|profile| profile.is_bot) {
+                        tr("+ Add Bot", "+ 添加机器人")
+                    } else {
+                        tr("+ Add Contact", "+ 添加联系人")
+                    }
+                },
+                move || {
+                    let name = untracked(|| page.text(|profile| profile.full_name.clone()));
+                    run(page, Action::Add, name, move || refresh(page));
+                },
+            )
+            .mt(ui::space_sm())
+            .disabled(unavailable)
+        },
+    ))
+    .child(when(
+        move || page.is(|profile| !profile.is_deactivated && !profile.biography.is_empty()),
+        move || ui::profile_bio(move || page.text(|profile| profile.biography.clone())),
+    ))
+    .child(when(
+        move || page.is(|profile| profile.is_deactivated),
+        move || {
+            ui::profile_notice(move || {
+                tr("This user has deleted their account.", "此用户已删除账号。")
+            })
+        },
+    ))
+    .child(when(known, move || {
+        ui::profile_actions()
+            .style_when(move || !page.other_user(), |style| style.justify_center())
+            .child(
+                ui::profile_action(
+                    ui::Icon::Share,
+                    move || tr("Share contact…", "分享联系人…"),
+                    move || links.open(contact_uri(&page.id.get_untracked()), None),
+                )
+                .disabled(unavailable),
+            )
+            .child(when(
+                move || page.other_user(),
+                move || {
+                    ui::profile_action(
+                        ui::Icon::Conversation,
+                        move || tr("Message", "发消息"),
+                        move || open(None),
+                    )
+                    .disabled(unavailable)
+                },
+            ))
+            .child(when(
+                move || page.other_user(),
+                move || {
+                    ui::profile_action(
+                        ui::Icon::Profile,
+                        move || tr("Profile", "个人资料"),
+                        move || open(Some(crate::inspector::Mode::Info)),
+                    )
+                    .disabled(unavailable)
+                },
+            ))
+    }));
+    ui::native_context_menu(scroll().flex_shrink(1.0).min_h_0().child(card), move || {
+        dialog_menu(page)
+    })
+    .flex_shrink(1.0)
+    .min_h_0()
+}
+
+/// What Flutter keeps on the chat info page: the dialog offers it on a secondary
+/// click, so it stays one step from a person with no chat yet.
+fn dialog_menu(page: Page) -> Vec<MenuItem> {
+    let Some(profile) = page.profile.get_untracked() else {
+        return Vec::new();
+    };
+    let disabled = page.busy.get_untracked();
+    let ask = move |title: &'static str, prompt: fn() -> Prompt, action: Action| {
+        MenuItem::new(title).disabled(disabled).on_select(move || {
+            page.confirm_then(prompt(), move || {
+                run(page, action, String::new(), move || refresh(page));
+            });
+        })
+    };
+    let link = (!profile.code_url.is_empty()).then(|| {
+        let url = profile.code_url.clone();
+        MenuItem::new(tr("Copy link", "复制链接")).on_select(move || set_clipboard(url.clone()))
+    });
+    let mut relationship = Vec::new();
+    if profile.identity_number != ANONYMOUS_ID && untracked(|| page.other_user()) {
+        if profile.relationship == "BLOCKING" {
+            relationship.push(ask(
+                tr("Unblock…", "取消屏蔽…"),
+                unblock_prompt,
+                Action::Unblock,
+            ));
+        } else {
+            if profile.relationship == "FRIEND" {
+                relationship.push(ask(
+                    tr("Remove contact…", "移除联系人…"),
+                    remove_prompt,
+                    Action::Remove,
+                ));
+            }
+            relationship.push(ask(tr("Block…", "屏蔽…"), block_prompt, Action::Block));
+        }
+        relationship.push(ask(
+            tr("Report and block…", "举报并屏蔽…"),
+            report_prompt,
+            Action::Report,
+        ));
+    }
+    ui::menu_groups([link.into_iter().collect(), relationship])
+}
+
+/// Loads the user again after a command changed them.
+fn refresh(page: Page) {
+    page.revision.update(|revision| *revision += 1);
+}
+
+/// Runs `action` for the user on screen, then `done` if it applied and they still are.
+fn run(page: Page, action: Action, name: String, done: impl FnOnce() + 'static) {
+    if page.busy.get_untracked() {
+        return;
+    }
+    page.busy.set(true);
+    page.failed.set(false);
+    let client = page.client();
+    let user_id = page.id.get_untracked();
+    let target = user_id.clone();
+    let command = runtime::commit(async move {
+        let access = client.user();
+        match action {
+            Action::Add => access.add_contact(user_id, name).await,
+            Action::Rename => access.rename_contact(user_id, name).await,
+            Action::Remove => access.remove_contact(user_id).await,
+            Action::Block => access.block_user(user_id).await,
+            Action::Unblock => access.unblock_user(user_id).await,
+            Action::Report => access.report_user(user_id).await,
+        }
+    });
+    // The name form owns this press, but ends before the write when its page changes.
+    page.owner.run(|| {
+        spawn(async move {
+            let result = command.await;
+            page.busy.set(false);
+            if page.id.get_untracked() != target {
+                return;
+            }
+            if result.is_err() {
+                page.failed.set(true);
+                return;
+            }
+            done();
+        })
+    });
+}
+
+/// The whole profile, in the window's right-hand pane.
 pub(super) fn profile_at(
     account: Arc<AccountClient>,
     user_id: String,
     initial: Destination,
     close: impl Fn() + Copy + 'static,
-    opened: impl Fn() + Copy + 'static,
-    frame: Frame,
 ) -> impl IntoElement {
-    let owner = Owner::current();
-    let opened = move || {
-        if owner.is_live() {
-            opened();
-        }
-    };
-    let page = Page {
-        owner,
-        own_id: stored(account.account_id()),
-        account: stored(account),
-        id: signal(user_id),
-        profile: signal_with(None, SignalEquals::Never),
-        creator: signal(None),
-        destination: signal(initial),
-        history: signal(Vec::new()),
-        revision: signal(0),
-        loading: signal(true),
-        busy: signal(false),
-        failed: signal(false),
-    };
+    let page = Page::new(account, user_id, initial);
     let back_button = element_ref();
     effect(move || load(page, initial));
     let apply = move |action: Action, name: String| {
-        if page.busy.get_untracked() {
-            return;
-        }
-        page.busy.set(true);
-        page.failed.set(false);
-        let client = page.client();
-        let user_id = page.id.get_untracked();
-        let target = user_id.clone();
-        let command = runtime::commit(async move {
-            let access = client.user();
-            match action {
-                Action::Add => access.add_contact(user_id, name).await,
-                Action::Rename => access.rename_contact(user_id, name).await,
-                Action::Remove => access.remove_contact(user_id).await,
-                Action::Block => access.block_user(user_id).await,
-                Action::Unblock => access.unblock_user(user_id).await,
-                Action::Report => access.report_user(user_id).await,
+        run(page, action, name, move || {
+            let current = page.destination.get_untracked();
+            if current == Destination::EditName
+                && initial == Destination::EditName
+                && page.history.with_untracked(Vec::is_empty)
+            {
+                close();
+                return;
             }
-        });
-        // The name form owns this press, but ends before the write when its page changes.
-        owner.run(|| {
-            spawn(async move {
-                let result = command.await;
-                page.busy.set(false);
-                if page.id.get_untracked() != target {
-                    return;
-                }
-                if result.is_err() {
-                    page.failed.set(true);
-                    return;
-                }
-                let current = page.destination.get_untracked();
-                if current == Destination::EditName
-                    && initial == Destination::EditName
-                    && page.history.with_untracked(Vec::is_empty)
-                {
-                    close();
-                    return;
-                }
-                page.revision.update(|revision| *revision += 1);
-                page.destination.set(Destination::Profile);
-                if current.name_form() {
-                    back_button.focus();
-                }
-            })
+            refresh(page);
+            page.destination.set(Destination::Profile);
+            if current.name_form() {
+                back_button.focus();
+            }
         });
     };
     let back = move || {
@@ -241,10 +430,7 @@ pub(super) fn profile_at(
     view()
         .flex_1()
         .min_h_0()
-        .child(match frame {
-            Frame::Pane => parts::page_header(title, back),
-            Frame::Dialog => parts::dialog_header(title, back),
-        })
+        .child(parts::page_header(title, back))
         .child(when(
             move || {
                 page.loading.get()
@@ -281,7 +467,7 @@ pub(super) fn profile_at(
                     move || name_form(page, destination, apply),
                 )
                 .into_element(),
-                Destination::Profile => details(page, apply, opened).into_element(),
+                Destination::Profile => details(page, apply).into_element(),
             })
         }))
 }
@@ -390,15 +576,11 @@ fn name_form(
         )
 }
 
-fn details(
-    page: Page,
-    apply: impl Fn(Action, String) + Copy + 'static,
-    opened: impl Fn() + Copy + 'static,
-) -> impl IntoElement {
+fn details(page: Page, apply: impl Fn(Action, String) + Copy + 'static) -> impl IntoElement {
     scroll().flex_1().min_h_0().child(
         parts::page_body()
             .child(summary(page))
-            .child(primary_rows(page, opened))
+            .child(primary_rows(page))
             .child(when(
                 move || page.other_user(),
                 move || relationship_rows(page, apply),
@@ -412,6 +594,7 @@ fn summary(page: Page) -> impl IntoElement {
         .items_center()
         .child(
             ui::avatar_view(
+                move || page.text(|profile| profile.user_id.clone()),
                 move || page.text(|profile| profile.full_name.clone()).into(),
                 move || page.text(|profile| profile.avatar_url.clone()),
                 ui::AvatarSize::Medium,
@@ -430,18 +613,7 @@ fn summary(page: Page) -> impl IntoElement {
                         .text_role(ui::TextRole::Headline)
                         .number_of_lines(2),
                 )
-                .child(dynamic(move || {
-                    let value = page.profile.get();
-                    untracked(|| match value {
-                        Some(value) => crate::appearance::identity_badge(
-                            false,
-                            value.is_verified,
-                            value.is_bot,
-                            value.membership.as_deref(),
-                        ),
-                        None => view().hidden().into_element(),
-                    })
-                })),
+                .child(identity_badge(page)),
         )
         .child(
             text(move || page.text(|profile| profile.identity_number.clone()))
@@ -475,7 +647,22 @@ fn summary(page: Page) -> impl IntoElement {
         ))
 }
 
-fn primary_rows(page: Page, opened: impl Fn() + Copy + 'static) -> impl IntoElement {
+fn identity_badge(page: Page) -> impl IntoElement {
+    dynamic(move || {
+        let value = page.profile.get();
+        untracked(|| match value {
+            Some(value) => crate::appearance::identity_badge(
+                false,
+                value.is_verified,
+                value.is_bot && value.identity_number != ANONYMOUS_ID,
+                value.membership.as_deref(),
+            ),
+            None => view().hidden().into_element(),
+        })
+    })
+}
+
+fn primary_rows(page: Page) -> impl IntoElement {
     let links = use_context::<crate::links::LinkNavigation>().expect("Home provides link routing");
     let navigation =
         use_context::<ChatNavigation>().expect("The signed-in session provides navigation");
@@ -487,12 +674,7 @@ fn primary_rows(page: Page, opened: impl Fn() + Copy + 'static) -> impl IntoElem
                 row(
                     move || tr("Message", "发消息"),
                     move || {
-                        navigation.open_user_then(
-                            page.client(),
-                            page.id.get_untracked(),
-                            page.failed,
-                            opened,
-                        )
+                        navigation.open_user(page.client(), page.id.get_untracked(), page.failed)
                     },
                 )
                 .disabled(unavailable)
@@ -603,69 +785,72 @@ fn relationship_rows(
             move || {
                 danger(
                     || tr("Remove contact…", "移除联系人…"),
-                    || {
-                        Prompt::new(
-                            tr("Remove contact?", "移除联系人？"),
-                            tr(
-                                "This user will be removed from your contacts.",
-                                "此用户将从联系人中移除。",
-                            ),
-                            tr("Remove", "移除"),
-                        )
-                    },
+                    remove_prompt,
                     Action::Remove,
                 )
             },
         ))
         .child(when(
             move || !blocked(),
-            move || {
-                danger(
-                    || tr("Block…", "屏蔽…"),
-                    || {
-                        Prompt::new(
-                            tr("Block this user?", "屏蔽此用户？"),
-                            tr(
-                                "Messages from this user will be blocked.",
-                                "将不再接收此用户的消息。",
-                            ),
-                            tr("Block", "屏蔽"),
-                        )
-                    },
-                    Action::Block,
-                )
-            },
+            move || danger(|| tr("Block…", "屏蔽…"), block_prompt, Action::Block),
         ))
         .child(when(blocked, move || {
             row(
                 move || tr("Unblock…", "取消屏蔽…"),
                 move || {
-                    page.confirm_then(
-                        Prompt::new(
-                            tr("Unblock this user?", "取消屏蔽此用户？"),
-                            "",
-                            tr("Unblock", "取消屏蔽"),
-                        ),
-                        move || apply(Action::Unblock, String::new()),
-                    )
+                    page.confirm_then(unblock_prompt(), move || {
+                        apply(Action::Unblock, String::new())
+                    })
                 },
             )
             .disabled(page.busy)
         }))
         .child(danger(
             || tr("Report and block…", "举报并屏蔽…"),
-            || {
-                Prompt::new(
-                    tr("Report and block?", "举报并屏蔽？"),
-                    tr(
-                        "This account will be reported and blocked.",
-                        "将举报并屏蔽此账号。",
-                    ),
-                    tr("Report", "举报"),
-                )
-            },
+            report_prompt,
             Action::Report,
         ))
+}
+
+fn remove_prompt() -> Prompt {
+    Prompt::new(
+        tr("Remove contact?", "移除联系人？"),
+        tr(
+            "This user will be removed from your contacts.",
+            "此用户将从联系人中移除。",
+        ),
+        tr("Remove", "移除"),
+    )
+}
+
+fn block_prompt() -> Prompt {
+    Prompt::new(
+        tr("Block this user?", "屏蔽此用户？"),
+        tr(
+            "Messages from this user will be blocked.",
+            "将不再接收此用户的消息。",
+        ),
+        tr("Block", "屏蔽"),
+    )
+}
+
+fn unblock_prompt() -> Prompt {
+    Prompt::new(
+        tr("Unblock this user?", "取消屏蔽此用户？"),
+        "",
+        tr("Unblock", "取消屏蔽"),
+    )
+}
+
+fn report_prompt() -> Prompt {
+    Prompt::new(
+        tr("Report and block?", "举报并屏蔽？"),
+        tr(
+            "This account will be reported and blocked.",
+            "将举报并屏蔽此账号。",
+        ),
+        tr("Report", "举报"),
+    )
 }
 
 fn groups(account: Arc<AccountClient>, user_id: String, failed: Signal<bool>) -> impl IntoElement {
@@ -714,6 +899,11 @@ fn groups(account: Arc<AccountClient>, user_id: String, failed: Signal<bool>) ->
                 move |at| {
                     let value = move || values.with(|rows| rows.get(at.index()).cloned());
                     parts::entity_row(
+                        move || {
+                            value()
+                                .map(|value| value.conversation_id)
+                                .unwrap_or_default()
+                        },
                         move || value().map(|value| value.name).unwrap_or_default(),
                         move || value().map(|value| value.avatar_url).unwrap_or_default(),
                         move || {
@@ -796,6 +986,7 @@ fn apps(
                 move |at| {
                     let value = move || values.with(|rows| rows.get(at.index()).cloned());
                     parts::entity_row(
+                        move || value().map(|value| value.app_id).unwrap_or_default(),
                         move || value().map(|value| value.name).unwrap_or_default(),
                         move || value().map(|value| value.icon_url).unwrap_or_default(),
                         move || value().map(|value| value.description).unwrap_or_default(),

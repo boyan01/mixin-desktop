@@ -54,7 +54,7 @@ pub(super) fn summary(root: String, child: String, actions: Actions) -> impl Int
         });
     });
     view().flex_1().w_full().min_h_0().gap_3()
-        .child(ui::modal_title(move || i18n.text(Key::Transcript)))
+        .child(ui::dialog_title(move || i18n.text(Key::Transcript)))
         .child(text(move || i18n.tr("This forwarded message contains a summary only. Original messages and attachments are unavailable.", "这条转发消息只保留了摘要，无法查看原始消息和附件。"))
             .text_role(ui::TextRole::Body).text_color(ui::fg_secondary))
         .child(when(loading, move || text(move || i18n.text(Key::LoadingMessages))))
@@ -154,7 +154,7 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
                 .flex_row()
                 .items_center()
                 .gap_2()
-                .child(ui::modal_title(move || i18n.text(Key::Transcript)).flex_1())
+                .child(ui::dialog_title(move || i18n.text(Key::Transcript)).flex_1())
                 .child(ui::busy_indicator(
                     move || busy.get(),
                     move || i18n.tr("Loading…", "加载中…").into(),
@@ -332,20 +332,50 @@ fn attachment_menu(
             if message.category.ends_with("_TRANSCRIPT") && root.with(|root| message.message_id == *root))
     })
     };
-    let downloadable = message_content::is_attachment(&row) && message_content::available(&row);
-    let copyable = !matches!(row.status.as_str(), "UNKNOWN" | "FAILED")
-        && (((row.category.ends_with("_TEXT") || row.category.ends_with("_POST"))
-            && !row.content.is_empty())
-            || row
-                .caption
-                .as_ref()
-                .is_some_and(|caption| !caption.is_empty()));
     ui::native_context_menu(body, move || {
-        if busy.get_untracked() || !active() || (!copyable && !downloadable) {
+        if busy.get_untracked() || !active() {
             return Vec::new();
         }
-        let mut items = Vec::new();
+        let mut copy_group = Vec::new();
+        if row.category.ends_with("_IMAGE") {
+            let root = root.with(|root| root.clone());
+            let id = row.message_id.clone();
+            copy_group.push(
+                item(i18n.tr("Copy Image", "复制图片"), move || {
+                    if busy.get_untracked() || !active() {
+                        return;
+                    }
+                    busy.set(true);
+                    let root = root.clone();
+                    let id = id.clone();
+                    let account = actions.account.with(|account| account.clone());
+                    owner.run(move || {
+                        spawn(async move {
+                            let result = runtime::run(async move {
+                                account
+                                    .attachment()
+                                    .attachment_image_data_uri(id, Some(root))
+                                    .await
+                            })
+                            .await;
+                            if owner.is_live() {
+                                match result {
+                                    Ok(uri) => {
+                                        set_clipboard_image(uri);
+                                        actions.failed.set(false);
+                                    }
+                                    Err(_) => actions.failed.set(true),
+                                }
+                                busy.set(false);
+                            }
+                        })
+                    });
+                })
+                .disabled(!message_content::available(&row)),
+            );
+        }
         let is_text = row.category.ends_with("_TEXT");
+        let is_post = row.category.ends_with("_POST");
         let has_caption = row
             .caption
             .as_ref()
@@ -356,28 +386,20 @@ fn attachment_menu(
         let has_selection = selected.is_some();
         let copy = if matches!(row.status.as_str(), "UNKNOWN" | "FAILED") {
             String::new()
-        } else if is_text || row.category.ends_with("_POST") {
+        } else if is_text || is_post {
             selected.unwrap_or_else(|| row.content.clone())
         } else {
             selected.unwrap_or_else(|| row.caption.clone().unwrap_or_default())
         };
         if !copy.is_empty() {
-            if is_text {
-                let qr = copy.clone();
-                items.push(item(
-                    i18n.tr("Generate QR code", "生成二维码"),
-                    move || {
-                        if !busy.get_untracked() && active() {
-                            actions.open_text_qr(qr.clone());
-                        }
-                    },
-                ));
-            }
-            items.push(item(
+            let qr = is_text.then(|| copy.clone());
+            copy_group.push(item(
                 if has_selection {
-                    i18n.tr("Copy selected text", "复制选中文字")
+                    i18n.tr("Copy Selected Text", "复制已选择的文本")
+                } else if is_text || is_post {
+                    i18n.tr("Copy", "复制")
                 } else {
-                    i18n.tr("Copy text", "复制文字")
+                    i18n.tr("Copy Text", "复制文字")
                 },
                 move || {
                     if busy.get_untracked() || !active() {
@@ -416,46 +438,23 @@ fn attachment_menu(
                     });
                 },
             ));
-        }
-        if message_content::is_attachment(&row) && message_content::available(&row) {
-            if row.category.ends_with("_IMAGE") {
-                let root = root.with(|root| root.clone());
-                let id = row.message_id.clone();
-                items.push(item(i18n.tr("Copy image", "复制图片"), move || {
-                    if busy.get_untracked() || !active() {
-                        return;
-                    }
-                    busy.set(true);
-                    let root = root.clone();
-                    let id = id.clone();
-                    let account = actions.account.with(|account| account.clone());
-                    owner.run(move || {
-                        spawn(async move {
-                            let result = runtime::run(async move {
-                                account
-                                    .attachment()
-                                    .attachment_image_data_uri(id, Some(root))
-                                    .await
-                            })
-                            .await;
-                            if owner.is_live() {
-                                match result {
-                                    Ok(uri) => {
-                                        set_clipboard_image(uri);
-                                        actions.failed.set(false);
-                                    }
-                                    Err(_) => actions.failed.set(true),
-                                }
-                                busy.set(false);
-                            }
-                        })
-                    });
-                }));
+            if let Some(qr) = qr {
+                copy_group.push(item(
+                    i18n.tr("Generate QR Code", "生成二维码"),
+                    move || {
+                        if !busy.get_untracked() && active() {
+                            actions.open_text_qr(qr.clone());
+                        }
+                    },
+                ));
             }
+        }
+        let mut save = Vec::new();
+        if message_content::is_attachment(&row) && message_content::available(&row) {
             let root = root.with(|root| root.clone());
             let id = row.message_id.clone();
             let name = attachment_name(&row);
-            items.push(item(i18n.tr("Save as…", "另存为…"), move || {
+            save.push(item(i18n.tr("Save as", "另存为"), move || {
                 if busy.get_untracked() || !active() {
                     return;
                 }
@@ -493,6 +492,19 @@ fn attachment_menu(
                 });
             }));
         }
-        items
+        let mut sticker = Vec::new();
+        if row.category.ends_with("_STICKER")
+            && let Some(id) = row.sticker_id.clone()
+        {
+            sticker.push(item(i18n.tr("Add Sticker", "添加贴纸"), move || {
+                if busy.get_untracked() || !active() {
+                    return;
+                }
+                let client = actions.account.with(|account| account.clone());
+                let id = id.clone();
+                actions.commit(async move { client.sticker().add_sticker(id).await });
+            }));
+        }
+        ui::menu_groups([copy_group, save, sticker])
     })
 }

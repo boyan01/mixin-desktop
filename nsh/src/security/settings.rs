@@ -216,11 +216,11 @@ fn setup_dialog(
             setup.set(false);
         }
     };
-    ui::modal(
+    ui::dialog(
         presence,
         cancel,
-        ui::modal_card()
-            .child(ui::modal_title(move || {
+        ui::dialog_card(ui::DialogWidth::Compact)
+            .child(ui::dialog_title(move || {
                 if first.with(Option::is_some) {
                     i18n.tr("Confirm your passcode", "确认锁屏密码")
                 } else {

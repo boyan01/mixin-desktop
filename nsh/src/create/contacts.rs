@@ -1,4 +1,4 @@
-use mixin_desktop_api::{AccountClient, UserProfileItem};
+use mixin_desktop_api::{AccountClient, GroupAvatar, UserProfileItem};
 use nsh_core::prelude::*;
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -135,9 +135,10 @@ pub(super) fn screen(
             }
         });
     };
-    modal(cancel).child(
+    modal(
+        cancel,
         panel()
-            .child(ui::modal_title(move || i18n.text(kind.title())))
+            .child(ui::dialog_title(move || i18n.text(kind.title())))
             .child(when(
                 move || !form.naming.get(),
                 move || contact_list(form, cancel, open_user),
@@ -213,6 +214,7 @@ fn contact_list(
                 move |at| {
                     let user = move || rows.with(|rows| rows.get(at.index()).cloned());
                     parts::entity_row(
+                        move || user().map(|user| user.user_id).unwrap_or_default(),
                         move || user().map(|user| user.full_name).unwrap_or_default(),
                         move || user().map(|user| user.avatar_url).unwrap_or_default(),
                         move || user().map(|user| user.identity_number).unwrap_or_default(),
@@ -385,12 +387,20 @@ fn group_preview(
         .overflow_hidden()
         .child(dynamic(move || {
             let profile = account.with(|account| account.profile());
-            let mut avatars = vec![(profile.full_name, profile.avatar_url)];
+            let mut avatars = vec![GroupAvatar {
+                user_id: profile.user_id,
+                name: profile.full_name,
+                avatar_url: profile.avatar_url,
+            }];
             avatars.extend(selected.with(|users| {
                 users
                     .values()
                     .take(3)
-                    .map(|user| (user.full_name.clone(), user.avatar_url.clone()))
+                    .map(|user| GroupAvatar {
+                        user_id: user.user_id.clone(),
+                        name: user.full_name.clone(),
+                        avatar_url: user.avatar_url.clone(),
+                    })
                     .collect::<Vec<_>>()
             }));
             untracked(|| ui::avatar_puzzle(avatars).into_element())

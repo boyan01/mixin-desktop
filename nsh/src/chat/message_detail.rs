@@ -1,19 +1,28 @@
 use mixin_desktop_api::MessageListView;
-use nsh_core::prelude::*;
+use nsh_core::{LineHeight, prelude::*};
 use serde_json::Value;
 
 use super::{
     message_actions::{Actions, Detail},
+    message_appearance::bubble_surface,
     message_links,
 };
 use crate::{
+    appearance::Appearance,
     i18n::Key,
     runtime,
     ui::{self, Typography},
 };
 
-/// The profile dialog: Flutter's width, and a fixed height for its scrolling body.
-const PROFILE_SIZE: (f32, f32) = (340.0, 560.0);
+fn appearance() -> Appearance {
+    use_context::<Appearance>().expect("Home provides chat appearance")
+}
+
+/// Whether an `APP_CARD` holds a title and its own actions, not one action of its own.
+pub(super) fn actions_card(content: &str) -> bool {
+    serde_json::from_str::<Value>(content)
+        .is_ok_and(|card| card["action"].as_str().is_none_or(str::is_empty))
+}
 
 pub(super) fn card(row: &MessageListView, actions: Actions) -> AnyElement {
     let i18n = actions.i18n;
@@ -22,73 +31,172 @@ pub(super) fn card(row: &MessageListView, actions: Actions) -> AnyElement {
             .text_role(ui::TextRole::Body)
             .into_element();
     };
-    let string = |key| {
-        value
-            .get(key)
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned()
-    };
-    let mut card = view().w_64().max_w(relative(1.0)).gap_2();
-    let cover = value
-        .get("cover")
-        .and_then(|c| c.get("url"))
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    let cover = if cover.is_empty() {
-        string("cover_url")
-    } else {
-        cover.to_owned()
-    };
-    if !cover.is_empty() {
-        card = card.child(image(cover).w_full().h_32().object_fit(ResizeMode::Cover));
+    if row.category == "APP_BUTTON_GROUP" {
+        return commands(row, value.as_array().cloned().unwrap_or_default(), actions)
+            .min_w(ui::action_group_min_width())
+            .max_w(ui::action_group_max_width())
+            .into_element();
     }
-    card = card
-        .child(text(string("title")).text_emphasis().select_text())
+    match value["action"].as_str().filter(|action| !action.is_empty()) {
+        Some(action) => app_card(row, action.to_owned(), &value, actions),
+        None => titled_card(row, &value, actions),
+    }
+}
+
+fn app_card(row: &MessageListView, action: String, value: &Value, actions: Actions) -> AnyElement {
+    let appearance = appearance();
+    let string = |key: &str| value[key].as_str().unwrap_or_default().to_owned();
+    let description = string("description");
+    let description = description.lines().next().unwrap_or_default().to_owned();
+    let input = action.starts_with("input:");
+    ui::command()
+        .justify_start()
+        .gap_2()
+        .p_0()
+        .min_h_0()
+        .min_w_0()
+        .disabled(move || input && (!actions.can_send.get() || actions.busy.get()))
+        .on_press(message_links::card_action(
+            actions,
+            row,
+            action,
+            Some(value.clone()),
+        ))
         .child(
-            text(string("description"))
-                .text_role(ui::TextRole::Body)
-                .select_text(),
-        );
-    let primary = string("action");
-    let single_action = row.category != "APP_BUTTON_GROUP" && !primary.is_empty();
-    let commands = if row.category == "APP_BUTTON_GROUP" {
-        value.as_array().cloned().unwrap_or_default()
-    } else if single_action {
-        vec![serde_json::json!({"label": i18n.tr("Open", "打开"), "action": primary})]
-    } else {
-        value
-            .get("actions")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default()
+            image(string("icon_url"))
+                .size_10()
+                .flex_shrink_0()
+                .rounded(ui::radius_app_icon())
+                .object_fit(ResizeMode::Cover),
+        )
+        .child(
+            view()
+                .min_w_0()
+                .flex_shrink(1.0)
+                .child(
+                    text(string("title"))
+                        .number_of_lines(1)
+                        .text_size(move || appearance.secondary_size()),
+                )
+                .child(
+                    text(description)
+                        .number_of_lines(1)
+                        .text_size(move || appearance.tertiary_size())
+                        .text_color(ui::message_secondary),
+                ),
+        )
+        .into_element()
+}
+
+/// A card with its own surface, and its actions under it, outside the bubble.
+fn titled_card(row: &MessageListView, value: &Value, actions: Actions) -> AnyElement {
+    let appearance = appearance();
+    let region = super::message_media::region();
+    let mine = row.sender_id == actions.account.with(|account| account.account_id());
+    let string = |key: &str| value[key].as_str().unwrap_or_default().to_owned();
+    let cover = &value["cover"];
+    let (source, aspect) = match cover["url"].as_str().filter(|url| !url.is_empty()) {
+        Some(url) => {
+            let side = |key: &str| cover[key].as_f64().filter(|side| *side > 0.0);
+            let aspect = side("width").zip(side("height"));
+            let aspect = aspect.map_or(1.5, |(width, height)| (width / height).max(1.5));
+            (url.to_owned(), aspect as f32)
+        }
+        None => (string("cover_url"), 1.0),
     };
+    let mut surface = view()
+        .rounded(ui::radius_md())
+        .overflow_hidden()
+        .pb(ui::chip_inset());
+    if !source.is_empty() {
+        surface = surface.child(
+            image(source)
+                .w_full()
+                .aspect_ratio(aspect)
+                .object_fit(ResizeMode::Cover),
+        );
+    }
+    surface = surface.child(
+        view()
+            .pt(ui::chip_inset())
+            .px(ui::space_md())
+            .gap_2()
+            .child(
+                text(string("title"))
+                    .text_size(move || appearance.primary_size())
+                    .text_emphasis()
+                    .select_text(),
+            )
+            .child(
+                text(string("description"))
+                    .text_size(move || appearance.primary_size())
+                    .select_text(),
+            ),
+    );
+    let least = ui::actions_card_min_width().0;
+    let most = ui::actions_card_max_width().0;
+    view()
+        .w(move || px((region() * 0.5).clamp(least, most)))
+        .max_w(relative(1.0))
+        .gap_2()
+        .child(
+            view()
+                .rounded(ui::radius_md())
+                .bg(move || bubble_surface(mine))
+                .shadow_xs()
+                .shadow_color(ui::bubble_shadow())
+                .child(surface),
+        )
+        .child(commands(
+            row,
+            value["actions"].as_array().cloned().unwrap_or_default(),
+            actions,
+        ))
+        .into_element()
+}
+
+fn commands(row: &MessageListView, commands: Vec<Value>, actions: Actions) -> View {
+    let appearance = appearance();
+    let mut group = view().flex_row().flex_wrap().gap_2();
     for command in commands {
-        let Some(action) = command
-            .get("action")
-            .and_then(Value::as_str)
-            .filter(|s| !s.is_empty())
-        else {
+        let Some(action) = command["action"].as_str().filter(|s| !s.is_empty()) else {
             continue;
         };
         let action = action.to_owned();
-        let title = command
-            .get("label")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned();
+        let title = command["label"].as_str().unwrap_or_default().to_owned();
+        let color = command["color"]
+            .as_str()
+            .map(|color| color.trim_start_matches('#'))
+            .filter(|color| color.len() == 6)
+            .and_then(|color| u32::from_str_radix(color, 16).ok())
+            .map_or_else(ui::fg_primary, |color| rgb(color).into());
         let input = action.starts_with("input:");
-        let on_press =
-            message_links::card_action(actions, row, action, single_action.then(|| value.clone()));
-        card = card.child(
-            ui::command()
-                .justify_start()
-                .disabled(move || input && (!actions.can_send.get() || actions.busy.get()))
-                .on_press(on_press)
-                .child(text(title).text_role(ui::TextRole::Body)),
+        let on_press = message_links::card_action(actions, row, action, None);
+        // A state fill replaces a button's own, so the plate sits on a parent.
+        group = group.child(
+            view()
+                .rounded(ui::radius_md())
+                .bg(ui::surface_list)
+                .shadow_xs()
+                .shadow_color(ui::bubble_shadow())
+                .child(
+                    ui::command()
+                        .min_h_0()
+                        .px(ui::action_button_inset_x())
+                        .py_2()
+                        .rounded(ui::radius_md())
+                        .disabled(move || input && (!actions.can_send.get() || actions.busy.get()))
+                        .on_press(on_press)
+                        .child(
+                            text(title)
+                                .text_size(move || appearance.secondary_size())
+                                .line_height(LineHeight::Multiple(1.0))
+                                .text_color(move || color),
+                        ),
+                ),
         );
     }
-    card.into_element()
+    group
 }
 
 pub(super) fn preview(actions: Actions) -> impl IntoElement {
@@ -105,7 +213,7 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
     when(
         move || presence.mounted(),
         move || {
-            ui::modal(
+            ui::dialog(
                 presence,
                 move || actions.close_preview(),
                 view()
@@ -126,14 +234,11 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
                             .shadow_lg()
                     })
                     .style_when(user_profile, |style| {
-                        style
+                        ui::dialog_surface(style, ui::DialogWidth::Compact)
                             .flex_auto()
                             .flex_grow(0.0)
-                            .w(px(PROFILE_SIZE.0))
-                            .max_w(relative(1.0))
-                            .h(px(PROFILE_SIZE.1))
-                            .max_h(relative(0.9))
-                            .rounded(ui::radius_lg())
+                            .p_0()
+                            .gap_0()
                             .overflow_hidden()
                     })
                     .child(
@@ -142,9 +247,9 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
                             .justify_end()
                             .gap_2()
                             .style_when(qr, |style| style.items_center())
-                            .style_when(user_profile, |style| style.flex_none())
+                            .style_when(user_profile, |style| style.hidden())
                             .child(when(qr, move || {
-                                ui::modal_title(move || i18n.tr("QR code", "二维码"))
+                                ui::dialog_title(move || i18n.tr("QR code", "二维码"))
                                     .flex_1()
                                     .min_w_0()
                             }))
@@ -277,7 +382,8 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
                             })
                         })
                         .text_role(ui::TextRole::Body)
-                        .select_text(),
+                        .select_text()
+                        .style_when(user_profile, |style| style.hidden()),
                     ),
             )
         },
@@ -299,7 +405,7 @@ fn add_image_sticker(row: MessageListView, actions: Actions) -> impl IntoElement
         .items_center()
         .justify_center()
         .gap_6()
-        .child(ui::modal_title(move || i18n.tr("Add sticker", "添加贴纸")))
+        .child(ui::dialog_title(move || i18n.tr("Add sticker", "添加贴纸")))
         .child(
             image(row.media_url.unwrap_or_default())
                 .size_96()

@@ -255,6 +255,15 @@ pub(crate) fn slider_over_scale() -> SliderElement {
         )
 }
 
+/// A `slider` over a waveform, as tall as it, of which it shows only the thumb.
+pub(crate) fn slider_over_wave() -> SliderElement {
+    slider()
+        .track_class("h-3 justify-center disabled:opacity-40")
+        .indicator_class("h-3 bg-transparent")
+        .range_class("bg-transparent")
+        .thumb_class("size-3 rounded-full bg-primary focus:outline-2 focus:outline-ring")
+}
+
 /// One tab of a `tabs` row, sharing its width with the others. The accent label
 /// marks the selected one; the caller changes it on press.
 pub(crate) fn tab(

@@ -2,15 +2,10 @@
 use std::sync::Arc;
 
 use mixin_desktop_api::{MediaClient, MessageListView};
-use nsh_core::prelude::*;
+use nsh_core::{element::ImageSrc, prelude::*};
 
-use super::{message_actions::Actions, message_content::available};
-use crate::{
-    appearance,
-    i18n::Key,
-    presentation, runtime,
-    ui::{self, Typography},
-};
+use super::{message_actions::Actions, message_appearance, message_content::available};
+use crate::{i18n::Key, runtime, ui};
 
 #[derive(Clone, Copy)]
 struct Viewport(Signal<f32>);
@@ -20,6 +15,12 @@ pub(crate) fn viewport() -> impl Fn(&Bounds<Points>) + Copy + 'static {
     let width = signal(640.0_f32);
     provide_context(Viewport(width));
     move |bounds: &Bounds<Points>| width.set(bounds.size.width.0.max(1.0))
+}
+
+/// The width of the message region, for what Flutter sizes against it.
+pub(super) fn region() -> impl Fn() -> f32 + Copy + 'static {
+    let viewport = use_context::<Viewport>();
+    move || viewport.map_or(640.0, |viewport| viewport.0.get()).max(1.0)
 }
 
 /// The source memo prevents unrelated message/progress updates from decoding again.
@@ -128,7 +129,7 @@ impl Transfer {
 
 fn overlay_label(
     label: impl Fn() -> &'static str + 'static,
-    appearance: appearance::Appearance,
+    appearance: crate::appearance::Appearance,
 ) -> impl IntoElement {
     text(label)
         .px_2()
@@ -146,11 +147,12 @@ pub(super) fn card(
     transcript: Option<String>,
     actions: Actions,
     status: Option<Memo<String>>,
+    framed: bool,
 ) -> impl IntoElement {
     let i18n = actions.i18n;
     let appearance =
         use_context::<crate::appearance::Appearance>().expect("Home provides chat appearance");
-    let viewport = use_context::<Viewport>();
+    let region = region();
     let video = row.category.ends_with("_VIDEO");
     let done = available(&row);
     let transfer = Transfer::of(&row, transcript.clone());
@@ -158,6 +160,20 @@ pub(super) fn card(
     let metadata = transcript.is_none() && inline_metadata(&row);
     let mine = row.sender_id == actions.account.with(|account| account.account_id());
     let retry_upload = mine && matches!(row.status.as_str(), "SENDING" | "FAILED");
+    let delivery = mine.then(|| {
+        status.unwrap_or_else(|| {
+            let status = row.status.clone();
+            computed(move || status.clone())
+        })
+    });
+    // Flutter sizes a bare picture with its nip's gutter, which stays empty.
+    let gutter = if framed
+        && message_appearance::Frame::of(&row).inset == message_appearance::Inset::Flush
+    {
+        ui::bubble_nip_width().0
+    } else {
+        0.0
+    };
     let (width, height) = match (row.media_width, row.media_height) {
         (Some(width), Some(height)) if width > 0 && height > 0 => (width as f32, height as f32),
         _ => (200.0, 200.0),
@@ -169,7 +185,7 @@ pub(super) fn card(
         1.0
     };
     let size = move || {
-        let available = viewport.map_or(640.0, |viewport| viewport.0.get()).max(1.0);
+        let available = region();
         let maximum = (available * 0.6).min(if video { 200.0 } else { 300.0 });
         let width = if video {
             width.min(maximum)
@@ -186,7 +202,7 @@ pub(super) fn card(
             (width / aspect).min(window().height.0 * 2.0 / 3.0)
         }
         .max(1.0);
-        (width.max(1.0), height)
+        ((width - gutter).max(1.0), height)
     };
     let row = stored(row);
     let root = stored(transcript);
@@ -256,7 +272,8 @@ pub(super) fn card(
                 .w_full()
                 .h_full()
                 .relative()
-                .rounded(ui::radius_md())
+                // A framed picture takes the corners its bubble clips.
+                .style_when(move || !framed, |style| style.rounded(ui::radius_md()))
                 .overflow_hidden()
                 .bg(ui::surface_card)
                 .child(
@@ -330,9 +347,9 @@ pub(super) fn card(
                             .gap_1()
                             .child(
                                 view()
-                                    .min_w_11()
-                                    .min_h_11()
-                                    .p_2()
+                                    .min_w(ui::status_disc())
+                                    .min_h(ui::status_disc())
+                                    .p_1()
                                     .rounded(ui::radius_full())
                                     .bg(ui::media_overlay)
                                     .items_center()
@@ -364,9 +381,12 @@ pub(super) fn card(
                                         move || !transferring(),
                                         move || {
                                             if expired || local_failed.get() {
-                                                text("!")
-                                                    .text_role(ui::TextRole::Label)
-                                                    .into_element()
+                                                svg(ImageSrc::svg_markup(include_str!(
+                                                    "../../assets/message/warning.svg"
+                                                )))
+                                                .size(ui::icon_lg())
+                                                .text_color(ui::media_overlay_foreground)
+                                                .into_element()
                                             } else {
                                                 ui::icon(if done {
                                                     ui::Icon::Play
@@ -400,14 +420,19 @@ pub(super) fn card(
                 .child(when(
                     move || video,
                     move || {
+                        // Flutter's 6 from the picture's edge; 5 past an incoming nip.
+                        let chip_left = if mine {
+                            ui::space_xs() + ui::space_2xs()
+                        } else {
+                            ui::stamp_inset_x()
+                        };
                         view()
                             .absolute()
-                            .top_1()
-                            .left_1()
-                            .px_1()
-                            .py_1()
+                            .top(ui::space_xs() + ui::space_2xs())
+                            .left(chip_left)
+                            .p_1()
                             .rounded(ui::radius_sm())
-                            .bg(ui::media_overlay)
+                            .bg(ui::media_stamp)
                             .child(
                                 text(row.with(|row| duration(&row.media_duration)))
                                     .text_color(ui::media_overlay_foreground)
@@ -418,54 +443,16 @@ pub(super) fn card(
                 .child(when(
                     move || metadata,
                     move || {
-                        view()
+                        // Flutter's 12 and 4 from the end of the bubble's box.
+                        let end = if mine {
+                            ui::stamp_inset_y()
+                        } else {
+                            ui::space_xs()
+                        };
+                        row.with(|row| message_appearance::media_stamp(row, delivery))
                             .absolute()
                             .bottom_1()
-                            .right_1()
-                            .px_1()
-                            .py_1()
-                            .rounded(ui::radius_full())
-                            .bg(ui::media_overlay)
-                            .flex_row()
-                            .items_center()
-                            .gap_1()
-                            .child(when(
-                                move || {
-                                    row.with(|row| {
-                                        row.category.starts_with("SIGNAL_")
-                                            || row.category.starts_with("ENCRYPTED_")
-                                    })
-                                },
-                                move || {
-                                    ui::icon(ui::Icon::Lock)
-                                        .size_3()
-                                        .text_color(ui::media_overlay_foreground)
-                                },
-                            ))
-                            .child(
-                                text(move || {
-                                    row.with(|row| {
-                                        presentation::time(i18n, row.created_at_micros / 1000)
-                                    })
-                                })
-                                .text_size(move || appearance.tertiary_size())
-                                .text_color(ui::media_overlay_foreground),
-                            )
-                            .child(when(
-                                move || mine,
-                                move || {
-                                    dynamic(move || {
-                                        let current = status.map(|status| status.get());
-                                        untracked(|| {
-                                            row.with(|row| {
-                                                appearance::delivery_icon_on_media(
-                                                    current.as_deref().unwrap_or(&row.status),
-                                                )
-                                            })
-                                        })
-                                    })
-                                },
-                            ))
+                            .right(end)
                     },
                 )),
         )

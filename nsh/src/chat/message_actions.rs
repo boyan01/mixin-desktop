@@ -212,103 +212,20 @@ fn menu_with_context(
         let policy = actions
             .policies
             .with_untracked(|p| p.get(&row.message_id).cloned());
-        let mut items = Vec::new();
-        if pinned_page {
-            let id = row.message_id.clone();
-            items.push(item(
-                i18n.tr("Locate in chat", "在聊天中定位"),
-                move || locate(id.clone()),
-            ));
-        }
-        let readable = !matches!(row.status.as_str(), "UNKNOWN" | "FAILED")
-            && super::message_system::supported(&row.category);
-        if readable && (row.category.ends_with("_TEXT") || row.category.ends_with("_POST")) {
-            let selected = if row.category.ends_with("_TEXT") {
-                actions.text_selection.selected(&row.message_id, None)
-            } else {
-                None
-            };
-            let has_selection = selected.is_some();
-            let content = selected.unwrap_or_else(|| row.content.clone());
-            let qr_content = content.clone();
-            items.push(item(
-                if has_selection {
-                    i18n.tr("Copy selected text", "复制选中文字")
-                } else {
-                    i18n.tr("Copy", "复制")
-                },
-                move || set_clipboard(content.clone()),
-            ));
-            if row.category.ends_with("_TEXT") && !row.content.is_empty() {
-                items.push(item(
-                    i18n.tr("Generate QR code", "生成二维码"),
-                    move || {
-                        actions.open_text_qr(qr_content.clone());
-                    },
-                ));
-            }
-        } else if let Some(caption) = row.caption.clone().filter(|s| readable && !s.is_empty()) {
-            let selected = actions.text_selection.selected(&row.message_id, None);
-            let has_selection = selected.is_some();
-            let caption = selected.unwrap_or(caption);
-            items.push(item(
-                if has_selection {
-                    i18n.tr("Copy selected text", "复制选中文字")
-                } else {
-                    i18n.tr("Copy text", "复制文字")
-                },
-                move || set_clipboard(caption.clone()),
-            ));
-        }
+        let mut reply = Vec::new();
         if !pinned_page && actions.can_send.get() && policy.as_ref().is_some_and(|p| p.can_reply) {
-            let reply = row.clone();
-            items.push(item(i18n.tr("Reply", "回复"), move || {
+            let quoted = row.clone();
+            reply.push(item(i18n.tr("Reply", "回复"), move || {
                 if actions.can_send.get_untracked() {
-                    actions.quote.set(Some(reply.clone()));
+                    actions.quote.set(Some(quoted.clone()));
                 }
             }));
         }
-        if policy.as_ref().is_some_and(|p| p.can_forward) {
+        let mut copy = Vec::new();
+        if row.category.ends_with("_IMAGE") {
             let id = row.message_id.clone();
-            items.push(item(i18n.tr("Forward…", "转发…"), move || {
-                actions.combine.set(false);
-                actions.forwarding.set(vec![id.clone()]);
-            }));
-        }
-        let id = row.message_id.clone();
-        items.push(item(i18n.tr("Select", "选择"), move || {
-            actions.selected.update(|ids| {
-                if !ids.contains(&id) {
-                    ids.push(id.clone());
-                }
-            })
-        }));
-        if policy.as_ref().is_some_and(|p| p.can_pin) {
-            let message_id = row.message_id.clone();
-            let conversation_id = row.conversation_id.clone();
-            let pin = !row.pinned;
-            items.push(item(
-                i18n.tr(
-                    if pin { "Pin" } else { "Unpin" },
-                    if pin { "置顶" } else { "取消置顶" },
-                ),
-                move || {
-                    let client = actions.account.with(|a| a.clone());
-                    let id = message_id.clone();
-                    let conversation_id = conversation_id.clone();
-                    actions.commit_exclusive(async move {
-                        client
-                            .message()
-                            .set_message_pinned(conversation_id, id, pin)
-                            .await
-                    });
-                },
-            ));
-        }
-        if is_attachment(&row) && available(&row) {
-            if row.category.ends_with("_IMAGE") {
-                let id = row.message_id.clone();
-                items.push(item(i18n.tr("Copy image", "复制图片"), move || {
+            copy.push(
+                item(i18n.tr("Copy Image", "复制图片"), move || {
                     if actions.busy.get_untracked() {
                         return;
                     }
@@ -332,12 +249,100 @@ fn menu_with_context(
                         }
                         actions.busy.set(false);
                     });
-                }));
+                })
+                .disabled(!available(&row)),
+            );
+        }
+        let readable = !matches!(row.status.as_str(), "UNKNOWN" | "FAILED")
+            && super::message_system::supported(&row.category);
+        if readable && (row.category.ends_with("_TEXT") || row.category.ends_with("_POST")) {
+            let selected = if row.category.ends_with("_TEXT") {
+                actions.text_selection.selected(&row.message_id, None)
+            } else {
+                None
+            };
+            let has_selection = selected.is_some();
+            let content = selected.unwrap_or_else(|| row.content.clone());
+            let qr_content = content.clone();
+            copy.push(item(
+                if has_selection {
+                    i18n.tr("Copy Selected Text", "复制已选择的文本")
+                } else {
+                    i18n.tr("Copy", "复制")
+                },
+                move || set_clipboard(content.clone()),
+            ));
+            if row.category.ends_with("_TEXT") && !row.content.is_empty() {
+                copy.push(item(
+                    i18n.tr("Generate QR Code", "生成二维码"),
+                    move || {
+                        actions.open_text_qr(qr_content.clone());
+                    },
+                ));
             }
+        } else if let Some(caption) = row.caption.clone().filter(|s| readable && !s.is_empty()) {
+            let selected = actions.text_selection.selected(&row.message_id, None);
+            let has_selection = selected.is_some();
+            let caption = selected.unwrap_or(caption);
+            copy.push(item(
+                if has_selection {
+                    i18n.tr("Copy Selected Text", "复制已选择的文本")
+                } else {
+                    i18n.tr("Copy Text", "复制文字")
+                },
+                move || set_clipboard(caption.clone()),
+            ));
+        }
+        let mut message_group = Vec::new();
+        if pinned_page {
+            let id = row.message_id.clone();
+            message_group.push(item(i18n.tr("Locate in Chat", "前往聊天"), move || {
+                locate(id.clone())
+            }));
+        }
+        if policy.as_ref().is_some_and(|p| p.can_forward) {
+            let id = row.message_id.clone();
+            message_group.push(item(i18n.tr("Forward", "转发"), move || {
+                actions.combine.set(false);
+                actions.forwarding.set(vec![id.clone()]);
+            }));
+        }
+        let id = row.message_id.clone();
+        message_group.push(item(i18n.tr("Select", "选择"), move || {
+            actions.selected.update(|ids| {
+                if !ids.contains(&id) {
+                    ids.push(id.clone());
+                }
+            })
+        }));
+        if policy.as_ref().is_some_and(|p| p.can_pin) {
+            let message_id = row.message_id.clone();
+            let conversation_id = row.conversation_id.clone();
+            let pin = !row.pinned;
+            message_group.push(item(
+                i18n.tr(
+                    if pin { "Pin" } else { "Unpin" },
+                    if pin { "置顶" } else { "取消置顶" },
+                ),
+                move || {
+                    let client = actions.account.with(|a| a.clone());
+                    let id = message_id.clone();
+                    let conversation_id = conversation_id.clone();
+                    actions.commit_exclusive(async move {
+                        client
+                            .message()
+                            .set_message_pinned(conversation_id, id, pin)
+                            .await
+                    });
+                },
+            ));
+        }
+        let mut save = Vec::new();
+        if is_attachment(&row) && available(&row) {
             let account = actions.account;
             let id = row.message_id.clone();
             let name = attachment_name(&row);
-            items.push(item(i18n.tr("Save as…", "另存为…"), move || {
+            save.push(item(i18n.tr("Save as", "另存为"), move || {
                 let id = id.clone();
                 let name = name.clone();
                 let client = account.with(|a| a.clone());
@@ -355,10 +360,11 @@ fn menu_with_context(
                 });
             }));
         }
+        let mut sticker = Vec::new();
         if row.category.ends_with("_STICKER")
             && let Some(id) = row.sticker_id.clone()
         {
-            items.push(item(i18n.tr("Add sticker", "添加贴纸"), move || {
+            sticker.push(item(i18n.tr("Add Sticker", "添加贴纸"), move || {
                 let client = actions.account.with(|a| a.clone());
                 let id = id.clone();
                 actions.commit(async move { client.sticker().add_sticker(id).await });
@@ -369,45 +375,40 @@ fn menu_with_context(
             && policy.as_ref().is_some_and(|p| p.can_forward)
         {
             let image = row.clone();
-            items.push(item(i18n.tr("Add sticker", "添加贴纸"), move || {
+            sticker.push(item(i18n.tr("Add Sticker", "添加贴纸"), move || {
                 actions.add_image_sticker(image.clone());
             }));
         }
+        let mut delete = Vec::new();
         if policy.as_ref().is_some_and(|p| p.can_recall) {
             let row = row.clone();
             let recover = (row.category.ends_with("_TEXT")
                 && actions.account.with(|account| account.account_id()) == row.sender_id)
                 .then(|| row.content.clone());
-            items.push(item(
-                i18n.tr("Delete for everyone…", "为所有人删除…"),
-                move || {
-                    remove_with_reedit(
-                        actions,
-                        row.conversation_id.clone(),
-                        vec![row.message_id.clone()],
-                        true,
-                        recover
-                            .clone()
-                            .map(|text| (reedit, row.message_id.clone(), text)),
-                    )
-                },
-            ));
+            delete.push(item(i18n.tr("Delete for Everyone", "撤回"), move || {
+                remove_with_reedit(
+                    actions,
+                    row.conversation_id.clone(),
+                    vec![row.message_id.clone()],
+                    true,
+                    recover
+                        .clone()
+                        .map(|text| (reedit, row.message_id.clone(), text)),
+                )
+            }));
         }
         if !pinned_page {
             let row = row.clone();
-            items.push(item(
-                i18n.tr("Delete for me…", "为我删除…"),
-                move || {
-                    remove(
-                        actions,
-                        row.conversation_id.clone(),
-                        vec![row.message_id.clone()],
-                        false,
-                    )
-                },
-            ));
+            delete.push(item(i18n.tr("Delete for me", "删除"), move || {
+                remove(
+                    actions,
+                    row.conversation_id.clone(),
+                    vec![row.message_id.clone()],
+                    false,
+                )
+            }));
         }
-        items
+        ui::menu_groups([reply, copy, message_group, save, sticker, delete])
     })
     .min_w_0()
     .flex_shrink(1.0)

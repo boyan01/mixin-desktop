@@ -23,9 +23,18 @@ pub(crate) fn asset(
     source: impl Fn() -> (Option<String>, String, String) + 'static,
     size: f32,
 ) -> impl IntoElement {
+    framed_asset(account, source, (size, size))
+}
+
+/// A sticker in a frame of the caller's `(width, height)`.
+pub(crate) fn framed_asset(
+    account: Arc<AccountClient>,
+    source: impl Fn() -> (Option<String>, String, String) + 'static,
+    frame: (f32, f32),
+) -> impl IntoElement {
     let i18n = i18n::current();
     // The caller's bitmap size: physical geometry, not a design token.
-    let frame = px(size);
+    let (width, height) = (px(frame.0), px(frame.1));
     let account = stored(account);
     let source = computed(source);
     let requested = stored(None::<(String, String)>);
@@ -63,19 +72,27 @@ pub(crate) fn asset(
                 effect(move || fail());
                 view().hidden().into_element()
             } else if kind.eq_ignore_ascii_case("json") {
-                animated(account.with(|value| value.clone()), url, size, failed, fail)
-                    .into_element()
+                animated(
+                    account.with(|value| value.clone()),
+                    url,
+                    frame,
+                    failed,
+                    fail,
+                )
+                .into_element()
             } else {
                 let fail = fail.clone();
                 image(url)
-                    .size(frame)
+                    .w(width)
+                    .h(height)
                     .object_fit(ResizeMode::Contain)
                     .label(move || i18n.text(Key::Sticker))
                     .on_error(move |_: &str| fail())
                     .into_element()
             };
             view()
-                .size(frame)
+                .w(width)
+                .h(height)
                 .relative()
                 .child(child)
                 .child(when(failed, move || {
@@ -116,7 +133,7 @@ pub(crate) fn album_icon(
 fn animated(
     account: Arc<AccountClient>,
     url: String,
-    size: f32,
+    size: (f32, f32),
     failed: Signal<bool>,
     fail: Rc<dyn Fn()>,
 ) -> impl IntoElement {
@@ -131,7 +148,9 @@ fn animated(
         let account = account.clone();
         let url = url.clone();
         let fail = load_fail.clone();
-        let pixels = (size * pixel_ratio()).ceil().clamp(1.0, 512.0) as u32;
+        let pixels = (size.0.max(size.1) * pixel_ratio())
+            .ceil()
+            .clamp(1.0, 512.0) as u32;
         spawn(async move {
             match runtime::run(async move { account.sticker_animation(url, pixels).await }).await {
                 Ok(value) => animation.set(Some(value)),
@@ -175,7 +194,8 @@ fn animated(
     });
     image(move || frame.get())
         // The caller's bitmap size: physical geometry, not a design token.
-        .size(px(size))
+        .w(px(size.0))
+        .h(px(size.1))
         .object_fit(ResizeMode::Contain)
         .label(move || i18n.text(Key::Sticker))
         .on_error(move |_: &str| {

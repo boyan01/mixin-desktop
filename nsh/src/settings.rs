@@ -136,6 +136,7 @@ fn account_header(profile: Signal<AccountProfile>) -> impl IntoElement {
         .pb_2()
         .child(
             ui::avatar_view(
+                move || profile.with(|p| p.user_id.clone()),
                 move || name().into(),
                 move || profile.with(|p| p.avatar_url.clone()),
                 ui::AvatarSize::Medium,

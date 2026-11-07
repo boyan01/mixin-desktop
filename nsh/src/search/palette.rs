@@ -92,7 +92,7 @@ fn content(
                 .child(presence.backdrop(ui::scrim().on_press(close)))
                 .child(
                     presence.surface(
-                        parts::dialog_card()
+                        ui::dialog_card(ui::DialogWidth::Regular)
                             .p_0()
                             .gap_0()
                             .overflow_hidden()
@@ -348,6 +348,7 @@ impl Palette {
                         move || row().is_some(),
                         move || {
                             ui::avatar_view(
+                                move || row().map(|row| row.avatar_id()).unwrap_or_default(),
                                 move || row().map(|row| row.title()).unwrap_or_default().into(),
                                 move || row().map(|row| row.avatar_url()).unwrap_or_default(), ui::AvatarSize::Medium)
                         },

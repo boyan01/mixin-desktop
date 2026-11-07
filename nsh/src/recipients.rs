@@ -20,6 +20,12 @@ impl Recipient {
             Self::User(user) => format!("user:{}", user.user_id),
         }
     }
+    fn avatar_id(&self) -> String {
+        match self {
+            Self::Chat(row) => row.owner_id.clone(),
+            Self::User(user) => user.user_id.clone(),
+        }
+    }
     fn name(&self) -> String {
         match self {
             Self::Chat(row) => row.name.clone(),
@@ -189,6 +195,7 @@ pub(crate) fn picker(
                 move |at| {
                     let value = move || rows.with(|rows| rows.get(at.index()).cloned());
                     parts::entity_row(
+                        move || value().map(|value| value.avatar_id()).unwrap_or_default(),
                         move || value().map(|value| value.name()).unwrap_or_default(),
                         move || value().map(|value| value.avatar()).unwrap_or_default(),
                         String::new,

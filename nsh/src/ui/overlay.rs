@@ -1,4 +1,4 @@
-//! Floating surfaces: popups, menus, tooltips and dialogs. They share one
+//! Floating surfaces: popups, menus and tooltips. They and dialogs share one
 //! treatment: `surface_popover`, the `border` and one shadow, at `radius_lg`, or
 //! `radius_md` for a tooltip, which is too small for the larger corners.
 
@@ -15,9 +15,8 @@ use nsh_core::{
 use super::{
     state::feedback_transition,
     tokens::{
-        TextRole, Typography, border, fg_primary, opacity_disabled, radius_lg, radius_md,
-        scrim_fill, space_lg, space_md, space_sm, space_xl, space_xs, state_hover, state_pressed,
-        surface_popover,
+        TextRole, Typography, border, fg_primary, opacity_disabled, radius_lg, radius_md, space_md,
+        space_sm, space_xs, state_hover, state_pressed, surface_popover,
     },
 };
 use crate::motion;
@@ -84,69 +83,22 @@ pub(crate) fn native_context_menu(
         .child(content)
 }
 
+/// Joins the non-empty `groups` with separators, so a hidden group leaves no
+/// leading, trailing or doubled line.
+pub(crate) fn menu_groups(groups: impl IntoIterator<Item = Vec<MenuItem>>) -> Vec<MenuItem> {
+    let mut items = Vec::new();
+    for group in groups.into_iter().filter(|group| !group.is_empty()) {
+        if !items.is_empty() {
+            items.push(MenuItem::separator());
+        }
+        items.extend(group);
+    }
+    items
+}
+
 pub(crate) fn popover() -> PopoverElement {
     nsh_base::popover()
         .popup_style(popup)
         .popup_starting_style(motion::popup_start)
         .popup_ending_style(motion::popup_end)
-}
-
-/// The owner retains the surface for exit; callers guard keyboard submissions.
-pub(crate) fn modal(
-    presence: motion::Presence,
-    close: impl Fn() + 'static,
-    card: View,
-) -> nsh_core::element::Modal {
-    // Release background editing after native presentation records its restore target.
-    dismiss_keyboard();
-    let close = stored(close);
-    nsh_base::dialog()
-        .animation(nsh_core::ModalAnimation::None)
-        .close_on_escape(false)
-        .close_on_backdrop_press(false)
-        .on_cancel(move || {
-            if presence.interactive() {
-                close.with(|close| close());
-            }
-        })
-        .flex_1()
-        .child(
-            view()
-                .flex_1()
-                .p(space_xl())
-                .items_center()
-                .justify_center()
-                .child(presence.backdrop(scrim().on_press(move || {
-                    if presence.interactive() {
-                        close.with(|close| close());
-                    }
-                })))
-                .child(presence.surface(card)),
-        )
-}
-
-/// The dimming layer behind modal surfaces.
-pub(crate) fn scrim() -> View {
-    view().absolute().inset_0().bg(scrim_fill)
-}
-
-/// The surface of a small dialog; size it further at the call site.
-pub(crate) fn modal_card() -> View {
-    view()
-        .w_80()
-        .max_w(relative(1.0))
-        .max_h(relative(0.9))
-        .min_h_0()
-        .p(space_xl())
-        .gap(space_lg())
-        .rounded(radius_lg())
-        .bg(surface_popover)
-        .text_color(fg_primary)
-        .border_1()
-        .border_color(border)
-        .shadow_lg()
-}
-
-pub(crate) fn modal_title(title: impl IntoReactive<SharedString>) -> Text {
-    text(title).flex_none().text_role(TextRole::Headline)
 }

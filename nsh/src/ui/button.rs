@@ -7,8 +7,8 @@ use super::{
     state::{press_scale, pressable},
     tokens::{
         TextRole, Typography, accent, border, button_height, button_height_small, danger,
-        fg_on_accent, fg_primary, opacity_solid_hover, opacity_solid_pressed, radius_md, radius_sm,
-        space_lg, space_md, space_sm, space_xs,
+        fg_on_accent, fg_primary, opacity_solid_hover, opacity_solid_pressed, radius_full,
+        radius_md, radius_sm, space_lg, space_md, space_sm, space_xs, status_fill,
     },
 };
 
@@ -84,6 +84,29 @@ pub(crate) fn action(
     on_press: impl Fn() + 'static,
 ) -> ButtonElement {
     button(ButtonTone::Secondary, ButtonSize::Regular)
+        .on_press(on_press)
+        .child(text(label))
+}
+
+/// A light, accent-labeled command that invites rather than commits, such as
+/// adding a contact. Flutter's `DialogAddOrJoinButton`.
+pub(crate) fn pill(
+    label: impl IntoReactive<SharedString>,
+    on_press: impl Fn() + 'static,
+) -> ButtonElement {
+    pressable()
+        .flex_row()
+        .items_center()
+        .justify_center()
+        .transition()
+        .min_h(button_height_small())
+        .px(space_lg())
+        .rounded(radius_full())
+        .bg(status_fill)
+        .text_color(accent)
+        .text_role(TextRole::Caption)
+        .hover(|s| s.bg(move || status_fill().opacity(opacity_solid_hover())))
+        .active(|s| press_scale(s.bg(move || status_fill().opacity(opacity_solid_pressed()))))
         .on_press(on_press)
         .child(text(label))
 }

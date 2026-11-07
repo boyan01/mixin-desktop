@@ -1,7 +1,7 @@
 //! Shared presentation for persisted reply quotations and the pending reply bar.
 use mixin_desktop_api::MessageListView;
 use nsh_base::text_view::Parser;
-use nsh_core::{element::ImageSrc, prelude::*};
+use nsh_core::{LineHeight, element::ImageSrc, prelude::*};
 use serde_json::Value;
 
 use super::{mentions::MentionNames, message_actions::Actions, message_text};
@@ -9,6 +9,7 @@ use crate::{appearance::identity_badge, i18n::Key, presentation, ui};
 
 struct Quote {
     author: String,
+    author_id: String,
     category: String,
     content: String,
     membership: Option<String>,
@@ -36,6 +37,7 @@ impl Quote {
     fn selected(row: &MessageListView) -> Self {
         let value = serde_json::json!({
             "type": row.category, "status": row.status, "content": row.content, "user_full_name": row.sender_name,
+            "user_id": row.sender_id,
             "thumb_image": row.thumb_image, "thumb_url": row.thumb_url,
             "media_url": row.media_url, "media_name": row.media_name,
             "asset_url": row.sticker_asset_url, "asset_type": row.sticker_asset_type,
@@ -147,6 +149,7 @@ impl Quote {
         };
         Self {
             author: string("user_full_name"),
+            author_id: string("user_id"),
             category,
             content,
             membership,
@@ -269,28 +272,28 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
     let i18n = actions.i18n;
     let names = use_context::<MentionNames>();
     let quote = stored(quote);
+    let color = move || quote.with(|quote| ui::name_color(&quote.author_id));
+    let inset = ui::quote_bar_width();
     view()
-        .min_h_12()
+        .min_h(ui::quote_min_height())
         .min_w_0()
         .flex_1()
         .flex_row()
-        .items_center()
-        .gap_2()
+        .items_stretch()
         .style_when(
             move || !input,
-            |style| style.rounded(ui::radius_md()).bg(ui::surface_card),
+            |style| style.rounded(ui::radius_md()).bg(ui::quote_background),
         )
         .overflow_hidden()
-        // Flutter's 6pt quote rule.
-        .border_l(ui::space_xs() + ui::space_2xs())
-        .border_color(ui::accent)
+        .child(view().w(ui::quote_bar_width()).flex_shrink_0().bg(color))
         .child(
             view()
                 .flex_1()
                 .min_w_0()
-                .py_1()
-                .pl_2()
-                .gap_1()
+                .justify_center()
+                .pt(inset)
+                .pb(inset)
+                .pl(inset)
                 .child(when(
                     move || quote.with(|quote| quote.valid && !quote.author.is_empty()),
                     move || {
@@ -299,11 +302,13 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
                             .items_center()
                             .gap_1()
                             .min_w_0()
+                            .pb_1()
                             .child(
                                 text(quote.with(|quote| quote.author.clone()))
                                     .number_of_lines(1)
                                     .text_size(move || appearance.secondary_size())
-                                    .text_color(ui::accent),
+                                    .line_height(LineHeight::Multiple(1.0))
+                                    .text_color(color),
                             )
                             .child(quote.with(|quote| {
                                 identity_badge(false, false, false, quote.membership.as_deref())
@@ -314,7 +319,6 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
                     view()
                         .flex_row()
                         .items_center()
-                        .gap_1()
                         .min_w_0()
                         .child(quote.with(|quote| category_icon(&quote.category)))
                         .child(
@@ -379,41 +383,56 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
                             .flex_1()
                             .number_of_lines(1)
                             .text_size(move || appearance.tertiary_size())
-                            .text_color(ui::fg_secondary),
+                            .text_color(ui::message_secondary),
                         ),
                 ),
         )
         .child(quote.with(|quote| match &quote.artwork {
             Some(Artwork::Image { source, thumbnail }) => {
-                thumbnail_image(source.clone(), thumbnail.clone()).into_element()
+                artwork(thumbnail_image(source.clone(), thumbnail.clone()).into_element())
             }
             Some(Artwork::Sticker { id, source, kind }) => {
                 let id = id.clone();
                 let source = source.clone();
                 let kind = kind.clone();
-                crate::sticker::asset(
-                    actions.account.with(|account| account.clone()),
-                    move || (id.clone(), source.clone(), kind.clone()),
-                    48.0,
+                artwork(
+                    crate::sticker::asset(
+                        actions.account.with(|account| account.clone()),
+                        move || (id.clone(), source.clone(), kind.clone()),
+                        48.0,
+                    )
+                    .into_element(),
                 )
-                .into_element()
             }
             Some(Artwork::Contact { name, avatar }) => {
                 let name = name.clone();
                 let avatar = avatar.clone();
-                view()
-                    .size_12()
-                    .items_center()
-                    .justify_center()
-                    .child(ui::avatar_view(
-                        move || name.clone().into(),
-                        move || avatar.clone(),
-                        ui::AvatarSize::Bar,
-                    ))
-                    .into_element()
+                artwork(
+                    view()
+                        .size_12()
+                        .items_center()
+                        .justify_center()
+                        .child(ui::avatar_view(
+                            String::new,
+                            move || name.clone().into(),
+                            move || avatar.clone(),
+                            ui::AvatarSize::Bar,
+                        ))
+                        .into_element(),
+                )
             }
             _ => view().hidden().into_element(),
         }))
+}
+
+/// What a quotation shows beside its text, centered against the bar's height.
+fn artwork(content: AnyElement) -> AnyElement {
+    view()
+        .ml_2()
+        .flex_shrink_0()
+        .justify_center()
+        .child(content)
+        .into_element()
 }
 
 fn thumbnail_image(source: String, data: String) -> impl IntoElement {
@@ -423,7 +442,7 @@ fn thumbnail_image(source: String, data: String) -> impl IntoElement {
     view()
         .size_12()
         .flex_shrink_0()
-        .rounded(ui::radius_sm())
+        .rounded(ui::radius_thumb())
         .overflow_hidden()
         .bg(ui::surface_card)
         .child(dynamic(move || {
@@ -455,7 +474,8 @@ fn category_icon(category: &str) -> AnyElement {
     } else if category.ends_with("_STICKER") {
         return ui::icon(ui::Icon::Sticker)
             .size_3p5()
-            .text_color(ui::fg_secondary)
+            .mr_1()
+            .text_color(ui::message_secondary)
             .into_element();
     } else if category.ends_with("_IMAGE") {
         include_str!("../../assets/quote/image.svg")
@@ -482,6 +502,7 @@ fn category_icon(category: &str) -> AnyElement {
     svg(ImageSrc::svg_markup(source))
         .size_3p5()
         .flex_shrink_0()
-        .text_color(ui::fg_secondary)
+        .mr_1()
+        .text_color(ui::message_secondary)
         .into_element()
 }

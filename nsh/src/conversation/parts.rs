@@ -26,8 +26,10 @@ pub(crate) fn back_button(on_press: impl Fn() + 'static) -> ButtonElement {
         .child(ui::icon(ui::Icon::ArrowLeft))
 }
 
-/// What the page bars share. The spacer balances `back` so the title centers.
-fn page_bar(title: impl IntoReactive<SharedString>, back: ButtonElement) -> View {
+/// The bar of a page, in the row shared with the native window controls. The
+/// spacer balances `back` so the title centers.
+pub(crate) fn page_header(title: impl IntoReactive<SharedString>, back: ButtonElement) -> View {
+    let nav = use_context::<Navigation>().expect("Home provides navigation");
     ui::title_bar()
         .px(ui::space_lg())
         .gap(ui::space_md())
@@ -44,17 +46,7 @@ fn page_bar(title: impl IntoReactive<SharedString>, back: ButtonElement) -> View
                 .text_role(ui::TextRole::Title),
         )
         .child(view().size_8().flex_shrink_0())
-}
-
-/// The bar of a page, in the row shared with the native window controls.
-pub(crate) fn page_header(title: impl IntoReactive<SharedString>, back: ButtonElement) -> View {
-    let nav = use_context::<Navigation>().expect("Home provides navigation");
-    page_bar(title, back).pl(move || ui::title_bar_leading(nav.width()))
-}
-
-/// The same bar for a page shown in a dialog, which has no window to drag.
-pub(crate) fn dialog_header(title: impl IntoReactive<SharedString>, back: ButtonElement) -> View {
-    page_bar(title, back).window_drag(false)
+        .pl(move || ui::title_bar_leading(nav.width()))
 }
 
 /// The column of a page: one width of cards and sections, centered in a wide pane.
@@ -106,14 +98,9 @@ pub(crate) fn failure(
         .child(ui::action(move || i18n.text(Key::Retry), retry))
 }
 
-/// The wider dialog card for lists and forms.
-pub(crate) fn dialog_card() -> View {
-    ui::modal_card().w_96()
-}
-
-/// A `dialog_card` that holds a page or a long list.
+/// A `Regular` dialog card that holds a page or a long list.
 pub(crate) fn tall_dialog_card() -> View {
-    dialog_card().h(ui::dialog_height_tall())
+    ui::dialog_card(ui::DialogWidth::Regular).h(ui::dialog_height_tall())
 }
 
 pub(crate) fn dialog_actions() -> View {
@@ -137,6 +124,7 @@ pub(crate) fn row_height() -> Points {
 
 /// One selectable list row. An empty `detail` leaves a single line.
 pub(crate) fn entity_row(
+    id: impl Fn() -> String + 'static,
     name: impl Fn() -> String + Copy + 'static,
     avatar: impl Fn() -> String + 'static,
     detail: impl Fn() -> String + Copy + 'static,
@@ -145,6 +133,7 @@ pub(crate) fn entity_row(
     compact_row()
         .selected(selected)
         .child(ui::avatar_view(
+            id,
             move || name().into(),
             avatar,
             ui::AvatarSize::Medium,

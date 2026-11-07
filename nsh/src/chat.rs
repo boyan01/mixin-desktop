@@ -160,7 +160,6 @@ pub(crate) fn screen(
         history,
         own_id: stored(account.account_id()),
         sender_names: computed(move || group || header.with(|row| row.is_bot_group)),
-        encrypted,
         viewable,
         unobstructed,
     };

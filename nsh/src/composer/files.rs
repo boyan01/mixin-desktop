@@ -127,7 +127,7 @@ pub(super) fn preview(
     );
     view()
         .child(
-            ui::modal(host.presence, move || preview.dismiss(), preview.body())
+            ui::dialog(host.presence, move || preview.dismiss(), preview.body())
                 .style_when(move || preview.editor.mounted(), |style| style.hidden()),
         )
         .child(when(
@@ -440,7 +440,7 @@ impl Preview {
             .on_file_drop(move |event: &FileDropEvent| {
                 self.append(preparation::local_sources(&event.uris))
             })
-            .child(ui::modal_title(move || {
+            .child(ui::dialog_title(move || {
                 let count = self.sources.with(Vec::len);
                 if count == 1 {
                     tr(i18n, "Send 1 file", "发送 1 个文件").to_owned()

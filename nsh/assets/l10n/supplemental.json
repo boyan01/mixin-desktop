@@ -123,6 +123,10 @@
     "zh-HK": "添加 HTTP 代理",
     "zh-TW": "新增 HTTP 代理"
   },
+  "Add Sticker": {
+    "id": "Tambah stiker",
+    "ms": "Tambah pelekat"
+  },
   "Add a caption…": {
     "es": "Añadir un pie de foto…",
     "id": "Tambah keterangan…",
@@ -180,6 +184,12 @@
   "Add sticker": {
     "id": "Tambah stiker",
     "ms": "Tambah pelekat"
+  },
+  "Add to Circle": {
+    "id": "Tambahkan ke lingkaran",
+    "ja": "グループリストに追加",
+    "ms": "Tambah ke bulatan",
+    "ru": "Добавить в круг"
   },
   "Added": {
     "id": "Ditambahkan",
@@ -919,6 +929,27 @@
     "zh-HK": "與聯絡人的會話會顯示在這裡。",
     "zh-TW": "與聯絡人的會話會顯示在這裡。"
   },
+  "Copy Image": {
+    "es": "Copiar imagen",
+    "id": "Salin gambar",
+    "ja": "画像をコピー",
+    "ms": "Salin imej",
+    "ru": "Копировать изображение"
+  },
+  "Copy Selected Text": {
+    "es": "Copiar texto seleccionado",
+    "id": "Salin teks yang dipilih",
+    "ja": "選択したテキストをコピー",
+    "ms": "Salin teks dipilih",
+    "ru": "Копировать выделенный текст"
+  },
+  "Copy Text": {
+    "es": "Copiar texto",
+    "id": "Salin teks",
+    "ja": "テキストをコピー",
+    "ms": "Salin teks",
+    "ru": "Копировать текст"
+  },
   "Copy image": {
     "es": "Copiar imagen",
     "id": "Salin gambar",
@@ -931,23 +962,6 @@
   },
   "Copy link": {
     "id": "Salin tautan"
-  },
-  "Copy selected text": {
-    "es": "Copiar texto seleccionado",
-    "id": "Salin teks yang dipilih",
-    "ja": "選択したテキストをコピー",
-    "ms": "Salin teks dipilih",
-    "ru": "Копировать выделенный текст",
-    "zh-CN": "复制选中文字",
-    "zh-HK": "複製所選文字",
-    "zh-TW": "複製選取文字"
-  },
-  "Copy text": {
-    "es": "Copiar texto",
-    "id": "Salin teks",
-    "ja": "テキストをコピー",
-    "ms": "Salin teks",
-    "ru": "Копировать текст"
   },
   "Couldn’t add these files. Try again.": {
     "es": "No se pudieron añadir estos archivos. Inténtalo de nuevo.",
@@ -1439,16 +1453,6 @@
     "zh-HK": "無法使用系統通知，請檢查系統權限後重試。",
     "zh-TW": "無法使用系統通知，請檢查系統權限後重試。"
   },
-  "Create a circle from the + menu first.": {
-    "es": "Primero crea un círculo desde el menú +.",
-    "id": "Buat lingkaran dari menu + terlebih dahulu.",
-    "ja": "まず + メニューからサークルを作成してください。",
-    "ms": "Cipta bulatan daripada menu + dahulu.",
-    "ru": "Сначала создайте круг в меню +.",
-    "zh-CN": "请先通过加号菜单创建圈子。",
-    "zh-HK": "請先通過加號菜單創建圈子。",
-    "zh-TW": "請先透過加號選單建立圈子。"
-  },
   "Create circle": {
     "id": "Buat lingkaran",
     "ms": "Cipta bulatan"
@@ -1572,13 +1576,17 @@
     "id": "Hapus",
     "ms": "Padam"
   },
+  "Delete Chat": {
+    "id": "Hapus obrolan",
+    "ms": "Padam sembang"
+  },
+  "Delete Circle": {
+    "id": "Hapus lingkaran",
+    "ms": "Padam bulatan"
+  },
   "Delete chat…": {
     "id": "Hapus obrolan…",
     "ms": "Padam sembang…"
-  },
-  "Delete circle…": {
-    "id": "Hapus lingkaran…",
-    "ms": "Padam bulatan…"
   },
   "Delete for everyone?": {
     "es": "¿Eliminar para todos?",
@@ -1937,15 +1945,12 @@
     "zh-HK": "GIF 搜索暫不可用。",
     "zh-TW": "GIF 搜尋暫不可用。"
   },
-  "Generate QR code": {
+  "Generate QR Code": {
     "es": "Generar código QR",
     "id": "Buat kode QR",
     "ja": "QR コードを生成",
     "ms": "Jana kod QR",
-    "ru": "Создать QR-код",
-    "zh-CN": "生成二维码",
-    "zh-HK": "產生二維碼",
-    "zh-TW": "產生 QR 碼"
+    "ru": "Создать QR-код"
   },
   "Gray": {
     "es": "Gris",
@@ -2345,6 +2350,10 @@
   "Loading…": {
     "id": "Memuat…",
     "ms": "Memuatkan…"
+  },
+  "Locate in Chat": {
+    "id": "Temukan dalam obrolan",
+    "ms": "Cari dalam sembang"
   },
   "Locate in chat": {
     "id": "Temukan dalam obrolan",
@@ -3181,6 +3190,10 @@
     "ms": "Gambar dan video…",
     "ru": "Фото и видео…"
   },
+  "Pin": {
+    "id": "Sematkan",
+    "ms": "Semat"
+  },
   "Pinned": {
     "es": "Fijado",
     "id": "Disematkan",
@@ -3551,6 +3564,10 @@
     "zh-HK": "移除",
     "zh-TW": "移除"
   },
+  "Remove Chat from circle": {
+    "id": "Hapus obrolan dari lingkaran",
+    "ms": "Buang sembang daripada bulatan"
+  },
   "Remove album": {
     "es": "Quitar álbum",
     "id": "Hapus album",
@@ -3611,16 +3628,6 @@
     "zh-HK": "移除選中文件",
     "zh-TW": "移除選中檔案"
   },
-  "Remove sticker": {
-    "es": "Quitar sticker",
-    "id": "Hapus stiker",
-    "ja": "ステッカーを削除",
-    "ms": "Buang pelekat",
-    "ru": "Удалить стикер",
-    "zh-CN": "移除贴纸",
-    "zh-HK": "移除貼紙",
-    "zh-TW": "移除貼紙"
-  },
   "Remove…": {
     "es": "Quitar…",
     "id": "Hapus…",
@@ -3630,16 +3637,6 @@
     "zh-CN": "移除…",
     "zh-HK": "移除…",
     "zh-TW": "移除…"
-  },
-  "Rename…": {
-    "es": "Cambiar nombre…",
-    "id": "Ganti nama…",
-    "ja": "名前を変更…",
-    "ms": "Namakan semula…",
-    "ru": "Переименовать…",
-    "zh-CN": "重命名…",
-    "zh-HK": "重命名…",
-    "zh-TW": "重新命名…"
   },
   "Reply": {
     "id": "Balas",
@@ -3736,6 +3733,10 @@
     "zh-CN": "诈骗风险",
     "zh-HK": "詐騙風險",
     "zh-TW": "詐騙風險"
+  },
+  "Save as": {
+    "id": "Simpan sebagai",
+    "ms": "Simpan sebagai"
   },
   "Save as…": {
     "id": "Simpan sebagai…",
@@ -4765,6 +4766,10 @@
     "zh-CN": "正在解锁…",
     "zh-HK": "正在解鎖…",
     "zh-TW": "正在解鎖…"
+  },
+  "Unpin": {
+    "id": "Lepas sematan",
+    "ms": "Nyahsemat"
   },
   "Unpin All Messages": {
     "id": "Lepas sematan semua pesan",

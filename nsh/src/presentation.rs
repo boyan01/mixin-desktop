@@ -150,6 +150,14 @@ pub(crate) fn date(i18n: I18n, millis: i64) -> String {
         .unwrap_or_default()
 }
 
+/// A message's time of day: its row already sits under its day.
+pub(crate) fn clock(millis: i64) -> String {
+    DateTime::from_timestamp_millis(millis)
+        .filter(|_| millis > 0)
+        .map(|date| date.with_timezone(&Local).format("%H:%M").to_string())
+        .unwrap_or_default()
+}
+
 pub(crate) fn day(i18n: I18n, micros: i64) -> String {
     let Some(date) = DateTime::from_timestamp_micros(micros) else {
         return String::new();

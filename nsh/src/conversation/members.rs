@@ -167,6 +167,7 @@ fn member_summary(
 ) -> nsh_base::ButtonElement {
     parts::compact_row()
         .child(ui::avatar_view(
+            move || member().map(|member| member.user_id).unwrap_or_default(),
             move || {
                 member()
                     .map(|member| member.full_name.into())
@@ -277,12 +278,13 @@ fn profile_dialog(
             .map(|profile| profile.user_id.clone())
             .unwrap_or_default()
     });
-    ui::modal(
+    ui::dialog(
         presence,
         move || profile.set(None),
-        parts::tall_dialog_card()
+        ui::dialog_card(ui::DialogWidth::Compact)
             .p_0()
             .gap_0()
+            .overflow_hidden()
             .child(super::profile(state.client(), id, move || {
                 profile.set(None)
             })),
@@ -336,12 +338,12 @@ fn add_form(state: State, open: Signal<bool>, presence: Presence) -> impl IntoEl
             open.set(false);
         }
     };
-    ui::modal(
+    ui::dialog(
         presence,
         close,
         parts::tall_dialog_card()
             .gap(ui::space_md())
-            .child(ui::modal_title(move || {
+            .child(ui::dialog_title(move || {
                 tr("Add participants", "添加群成员")
             }))
             .child(
@@ -379,6 +381,7 @@ fn add_form(state: State, open: Signal<bool>, presence: Presence) -> impl IntoEl
                             })
                         };
                         parts::entity_row(
+                            move || user().map(|user| user.user_id).unwrap_or_default(),
                             move || user().map(|user| user.full_name).unwrap_or_default(),
                             move || user().map(|user| user.avatar_url).unwrap_or_default(),
                             move || user().map(|user| user.identity_number).unwrap_or_default(),

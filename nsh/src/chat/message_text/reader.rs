@@ -8,8 +8,8 @@ use mixin_desktop_api::MessageListView;
 use nsh_base::rich_editor::{
     extensions::link::link_at,
     state::{
-        ClickEvent, EditorState, EditorStateConfig, KeyEvent, PluginSpec, TextSelection,
-        Transaction,
+        ClickEvent, Decoration, DecorationSet, EditorState, EditorStateConfig, KeyEvent, Plugin,
+        PluginSpec, TextSelection, Transaction,
     },
     view::{EditorSession, NodeViews, RichEditorClasses, RichEditorSelection, rich_editor},
 };
@@ -119,11 +119,31 @@ impl PluginSpec for Links {
     }
 }
 
+/// Leaves room after the text for the status drawn over its end. Flutter's
+/// `MessageLayout`: the status shares the last line when it fits, else it gets a
+/// line of its own. The room is presentation, so the text and its selection keep
+/// their offsets.
+struct StatusRoom(String);
+
+impl PluginSpec for StatusRoom {
+    fn decorations(&self, state: &EditorState) -> Option<DecorationSet> {
+        let doc = state.doc();
+        let end = doc.content().size().saturating_sub(1);
+        let spec = BTreeMap::from([("class".into(), serde_json::json!(self.0))]);
+        Some(DecorationSet::create(
+            doc,
+            vec![Decoration::widget(end, "status-room", 1).with_spec(spec)],
+        ))
+    }
+}
+
+/// `room` is the width the status at the end of the text takes, where it has one.
 pub(in crate::chat) fn read(
     row: &MessageListView,
     source: &str,
     actions: Actions,
     root: Option<String>,
+    room: Option<f32>,
 ) -> impl IntoElement {
     let appearance =
         use_context::<crate::appearance::Appearance>().expect("Home provides chat appearance");
@@ -150,10 +170,19 @@ pub(in crate::chat) fn read(
         candidate: Arc::new(Mutex::new(None)),
         open,
     };
+    let room = room.map(|width| Arc::new(StatusRoom(format!("w-[{width}px] h-px"))));
+    let plugins = {
+        let links = links.clone();
+        move || {
+            let mut plugins: Vec<Plugin> = vec![Arc::new(links.clone())];
+            plugins.extend(room.clone().map(|room| room as Plugin));
+            plugins
+        }
+    };
     let state = EditorState::create(
         EditorStateConfig::new(schema.clone())
             .doc(initial)
-            .plugins(vec![Arc::new(links.clone())]),
+            .plugins(plugins()),
     )
     .expect("Read-only message state is valid");
     let session = EditorSession::new(state, NodeViews::new());
@@ -183,7 +212,6 @@ pub(in crate::chat) fn read(
             });
         }
     });
-    let update_links = links.clone();
     effect(move || {
         let value = document::value(&mapped.get());
         session.with(|session| {
@@ -198,7 +226,7 @@ pub(in crate::chat) fn read(
             // display-name changes clear it rather than retarget old offsets.
             let mut config = EditorStateConfig::new(schema.clone())
                 .doc(doc.clone())
-                .plugins(vec![Arc::new(update_links.clone())]);
+                .plugins(plugins());
             if old.doc().text_content() == doc.text_content() {
                 let last = doc.content().size().saturating_sub(1).max(1);
                 config = config.selection(TextSelection::create(
@@ -238,10 +266,7 @@ pub(in crate::chat) fn read(
     classes.root = Some("grid".into());
     classes.marks = Some(BTreeMap::from([
         ("link".into(), "text-primary underline".into()),
-        (
-            "highlight".into(),
-            "bg-accent text-accent-foreground".into(),
-        ),
+        ("highlight".into(), "bg-highlight text-foreground".into()),
     ]));
     let editor = rich_editor()
         .editor(session.with(|session| Some(session.clone())))

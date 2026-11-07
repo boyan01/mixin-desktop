@@ -89,13 +89,12 @@ pub(super) fn contact(host: Host) -> impl IntoElement {
     };
     // A 40pt avatar with the button's `space_sm` above and below it.
     let row_height = ui::field_height() + ui::space_lg();
-    ui::modal(
+    ui::dialog(
         presence,
         cancel,
-        ui::modal_card()
-            .w_96()
+        ui::dialog_card(ui::DialogWidth::Regular)
             .overflow_hidden()
-            .child(ui::modal_title(move || {
+            .child(ui::dialog_title(move || {
                 tr(i18n, "Share contact", "分享联系人")
             }))
             .child(
@@ -166,6 +165,13 @@ pub(super) fn contact(host: Host) -> impl IntoElement {
                                     .gap_3()
                                     .disabled(busy)
                                     .child(ui::avatar_view(
+                                        move || {
+                                            rows.with(|rows| {
+                                                rows.get(at.index())
+                                                    .map(|u| u.user_id.clone())
+                                                    .unwrap_or_default()
+                                            })
+                                        },
                                         move || {
                                             rows.with(|rows| {
                                                 rows.get(at.index())
@@ -304,11 +310,11 @@ pub(super) fn post(host: Host) -> impl IntoElement {
             }
         });
     };
-    ui::modal(
+    ui::dialog(
         presence,
         dismiss,
         wide_dialog()
-            .child(ui::modal_title(move || {
+            .child(ui::dialog_title(move || {
                 tr(i18n, "Write a post", "撰写文章")
             }))
             .child(

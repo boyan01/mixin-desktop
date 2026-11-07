@@ -365,8 +365,6 @@ fn page_body(state: State, page: Page, target: Signal<Option<String>>) -> AnyEle
             state.owner_id(),
             user::Destination::Profile,
             move || state.page.set(Page::Info),
-            || {},
-            user::Frame::Pane,
         )
         .into_element(),
         Page::Apps | Page::EditName => user::profile_at(
@@ -383,8 +381,6 @@ fn page_body(state: State, page: Page, target: Signal<Option<String>>) -> AnyEle
                     state.page.set(Page::Info);
                 });
             },
-            || {},
-            user::Frame::Pane,
         )
         .into_element(),
     }

@@ -10,7 +10,7 @@ use nsh_core::{
 
 use crate::{
     i18n::{self, Key, tr},
-    ui::{self, Typography},
+    ui,
 };
 
 pub(crate) fn identity_badge(
@@ -120,7 +120,7 @@ fn quiet_foreground(on_media: bool) -> AdaptiveColor {
     if on_media {
         ui::media_overlay_foreground()
     } else {
-        ui::fg_secondary()
+        ui::message_secondary()
     }
 }
 
@@ -140,23 +140,30 @@ fn delivery(status: &str, on_media: bool) -> AnyElement {
             i18n.text(Key::Sent),
         ),
         "FAILED" => {
-            return text("!")
-                .text_role(ui::TextRole::Body)
-                .label(move || i18n.text(Key::Failed))
-                .text_color(ui::danger)
-                .into_element();
+            return svg(ImageSrc::svg_markup(include_str!(
+                "../../assets/message/warning.svg"
+            )))
+            .size(ui::icon_xs())
+            .flex_shrink_0()
+            .label(move || i18n.text(Key::Failed))
+            .text_color(ui::danger)
+            .into_element();
         }
         _ => {
-            return text("◷")
-                .text_role(ui::TextRole::Body)
-                .label(tr("Sending", "发送中"))
-                .text_color(move || quiet_foreground(on_media))
-                .into_element();
+            return svg(ImageSrc::svg_markup(include_str!(
+                "../../assets/message/sending.svg"
+            )))
+            .size(ui::icon_xs())
+            .flex_shrink_0()
+            .label(tr("Sending", "发送中"))
+            .text_color(move || quiet_foreground(on_media))
+            .into_element();
         }
     };
     let read = status == "READ";
     svg(ImageSrc::svg_markup(asset))
-        .size_3p5()
+        .w(ui::icon_xs())
+        .h(ui::message_status_icon())
         .flex_shrink_0()
         .label(label)
         .text_color(move || {

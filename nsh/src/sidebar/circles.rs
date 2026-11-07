@@ -4,7 +4,7 @@ use nsh_core::{TouchEvent, TouchPhase, element::desktop::MenuItem};
 use std::{future::Future, time::Duration};
 
 use super::*;
-use crate::{conversation::parts, i18n::tr, runtime};
+use crate::{i18n::tr, runtime};
 
 /// A rail row and the rail's row gap, so circles keep the category rhythm.
 fn circle_row_height() -> Points {
@@ -48,7 +48,6 @@ impl CircleDrag {
 enum Editing {
     Rename(CircleItem),
     Manage(CircleItem),
-    Membership(Box<ConversationListData>),
 }
 
 #[derive(Clone, Copy)]
@@ -118,28 +117,6 @@ impl Circles {
                 }
             });
         });
-    }
-
-    fn move_circle(self, id: String, up: bool) {
-        let mut ids = self.rows.with_untracked(|rows| {
-            rows.iter()
-                .map(|circle| circle.circle_id.clone())
-                .collect::<Vec<_>>()
-        });
-        let Some(index) = ids.iter().position(|circle| circle == &id) else {
-            return;
-        };
-        let target = if up {
-            index.checked_sub(1)
-        } else {
-            (index + 1 < ids.len()).then_some(index + 1)
-        };
-        let Some(target) = target else {
-            return;
-        };
-        ids.swap(index, target);
-        let account = self.client();
-        self.execute(async move { account.conversation().reorder_circles(ids).await });
     }
 
     pub(super) fn list(
@@ -343,9 +320,6 @@ impl Circles {
                             move || self.editing.set(None),
                         )
                         .into_element(),
-                        Some(Editing::Membership(conversation)) => {
-                            self.membership(*conversation, presence).into_element()
-                        }
                         None => view().hidden().into_element(),
                     })
                 })
@@ -356,15 +330,15 @@ impl Circles {
     fn rename(self, circle: CircleItem, presence: crate::motion::Presence) -> impl IntoElement {
         let name = signal(circle.name);
         let id = stored(circle.circle_id);
-        ui::modal(
+        ui::dialog(
             presence,
             move || {
                 if !self.busy.get_untracked() {
                     self.editing.set(None);
                 }
             },
-            ui::modal_card()
-                .child(ui::modal_title(move || tr("Rename circle", "重命名圈子")))
+            ui::dialog_card(ui::DialogWidth::Compact)
+                .child(ui::dialog_title(move || tr("Rename circle", "重命名圈子")))
                 .child(when(self.failed, || {
                     ui::error_text(move || tr("Couldn’t save. Try again.", "保存失败，请重试。"))
                 }))
@@ -405,156 +379,6 @@ impl Circles {
                                 })
                                 .child(text(move || tr("Save", "保存"))),
                         ),
-                ),
-        )
-    }
-
-    fn membership(
-        self,
-        conversation: ConversationListData,
-        presence: crate::motion::Presence,
-    ) -> impl IntoElement {
-        let id = stored(conversation.conversation_id);
-        let owner = stored(conversation.owner_id);
-        let group = conversation.category == "GROUP";
-        let name = stored(conversation.name);
-        let current = signal(conversation.circle_ids);
-        let account = self.client();
-        let query_id = id.with(|id| id.clone());
-        spawn(async move {
-            let mut changes = Box::pin(runtime::observe(account.conversation_changes()));
-            loop {
-                let account = self.client();
-                let requested_id = query_id.clone();
-                if let Ok(rows) = runtime::run(async move {
-                    account
-                        .conversation()
-                        .conversation_items_by_ids(vec![requested_id])
-                        .await
-                })
-                .await
-                    && let Some(row) = rows.into_iter().next()
-                {
-                    current.set(row.circle_ids);
-                }
-                loop {
-                    match changes.next().await {
-                        Some(event)
-                            if event.reload_all || event.conversation_ids.contains(&query_id) =>
-                        {
-                            break;
-                        }
-                        Some(_) => {}
-                        None => return,
-                    }
-                }
-            }
-        });
-        ui::modal(
-            presence,
-            move || {
-                if !self.busy.get_untracked() {
-                    self.editing.set(None);
-                }
-            },
-            ui::modal_card()
-                .overflow_hidden()
-                .child(ui::modal_title(move || tr("Circles", "圈子")))
-                .child(
-                    text(move || name.with(|name| name.clone()))
-                        .flex_none()
-                        .text_role(ui::TextRole::Body)
-                        .number_of_lines(1),
-                )
-                .child(when(self.failed, || {
-                    ui::error_text(move || tr("Couldn’t update. Try again.", "更新失败，请重试。"))
-                        .flex_none()
-                }))
-                .child(
-                    virtual_list(
-                        move || self.rows.with(Vec::len),
-                        move |at| {
-                            let circle =
-                                move || self.rows.with(|rows| rows.get(at.index()).cloned());
-                            let checked = move || {
-                                circle().is_some_and(|circle| {
-                                    current.with(|ids| ids.contains(&circle.circle_id))
-                                })
-                            };
-                            parts::compact_row()
-                                .selected(checked)
-                                .disabled(self.busy)
-                                .child(
-                                    text(move || {
-                                        circle().map(|circle| circle.name).unwrap_or_default()
-                                    })
-                                    .text_role(ui::TextRole::Label)
-                                    .flex_1(),
-                                )
-                                .child(when(checked, || ui::icon(ui::Icon::Check)))
-                                .on_press(move || {
-                                    if let Some(circle) = circle() {
-                                        if !presence.interactive() || self.busy.get_untracked() {
-                                            return;
-                                        }
-                                        self.busy.set(true);
-                                        self.failed.set(false);
-                                        let account = self.client();
-                                        let id = id.with(|id| id.clone());
-                                        let owner = owner.with(|owner| owner.clone());
-                                        let add = !checked();
-                                        spawn(async move {
-                                            self.failed.set(
-                                                runtime::commit(async move {
-                                                    account
-                                                        .conversation()
-                                                        .edit_circle_conversation(
-                                                            circle.circle_id,
-                                                            id,
-                                                            owner,
-                                                            group,
-                                                            add,
-                                                        )
-                                                        .await
-                                                })
-                                                .await
-                                                .is_err(),
-                                            );
-                                            self.busy.set(false);
-                                        });
-                                    }
-                                })
-                        },
-                    )
-                    .keys(move || self.ids())
-                    .estimated_item_size(parts::row_height())
-                    .h(move || parts::dialog_list_height(self.rows.with(Vec::len)))
-                    .flex_shrink(1.0)
-                    .min_h_0()
-                    .style_when(
-                        move || self.rows.with(Vec::is_empty),
-                        |style| style.hidden(),
-                    ),
-                )
-                .child(when(
-                    move || self.rows.with(Vec::is_empty),
-                    || {
-                        view().min_h_24().items_center().justify_center().child(
-                            text(move || {
-                                tr(
-                                    "Create a circle from the + menu first.",
-                                    "请先通过加号菜单创建圈子。",
-                                )
-                            })
-                            .text_role(ui::TextRole::Body)
-                            .text_color(ui::fg_secondary),
-                        )
-                    },
-                ))
-                .child(
-                    ui::action(move || tr("Done", "完成"), move || self.editing.set(None))
-                        .flex_none()
-                        .disabled(self.busy),
                 ),
         )
     }
@@ -813,10 +637,6 @@ impl Circles {
                 return Vec::new();
             };
             let busy = self.busy.get_untracked();
-            let (first, last) = self.rows.with_untracked(|rows| {
-                let is = |row: &CircleItem| row.circle_id == circle.circle_id;
-                (rows.first().is_some_and(is), rows.last().is_some_and(is))
-            });
             let edit = |editing: fn(CircleItem) -> Editing| {
                 let circle = circle.clone();
                 move || {
@@ -824,40 +644,71 @@ impl Circles {
                     self.editing.set(Some(editing(circle.clone())));
                 }
             };
-            let reorder = |up: bool| {
-                let id = circle.circle_id.clone();
-                move || self.move_circle(id.clone(), up)
-            };
-            vec![
-                MenuItem::new(tr("Rename…", "重命名…"))
-                    .disabled(busy)
-                    .on_select(edit(Editing::Rename)),
-                MenuItem::new(tr("Edit conversations…", "编辑聊天…"))
-                    .disabled(busy)
-                    .on_select(edit(Editing::Manage)),
-                MenuItem::new(tr("Move up", "上移"))
-                    .disabled(busy || first)
-                    .on_select(reorder(true)),
-                MenuItem::new(tr("Move down", "下移"))
-                    .disabled(busy || last)
-                    .on_select(reorder(false)),
-                MenuItem::new(tr("Delete circle…", "删除圈子…"))
-                    .disabled(busy)
-                    .on_select(move || {
-                        nav.close_drawer();
-                        self.confirm_delete(circle.clone());
-                    }),
-            ]
+            ui::menu_groups([
+                vec![
+                    MenuItem::new(tr("Edit Circle Name", "编辑名称"))
+                        .disabled(busy)
+                        .on_select(edit(Editing::Rename)),
+                    MenuItem::new(tr("Edit Conversations", "管理圈子"))
+                        .disabled(busy)
+                        .on_select(edit(Editing::Manage)),
+                ],
+                vec![
+                    MenuItem::new(tr("Delete Circle", "删除圈子"))
+                        .disabled(busy)
+                        .on_select(move || {
+                            nav.close_drawer();
+                            self.confirm_delete(circle.clone());
+                        }),
+                ],
+            ])
         })
+    }
+
+    fn edit_membership(self, circle_id: String, row: &ConversationListData, add: bool) {
+        let account = self.client();
+        let id = row.conversation_id.clone();
+        let owner = row.owner_id.clone();
+        let group = row.category == "GROUP";
+        self.execute(async move {
+            account
+                .conversation()
+                .edit_circle_conversation(circle_id, id, owner, group, add)
+                .await
+        });
     }
 }
 
-pub(crate) fn membership_item(state: Circles, row: ConversationListData) -> MenuItem {
-    MenuItem::new(tr("Circles…", "圈子…"))
-        .disabled(state.busy.get_untracked())
-        .on_select(move || {
-            state
-                .editing
-                .set(Some(Editing::Membership(Box::new(row.clone()))));
-        })
+/// The circles `row` is not in yet, or none when there are none.
+pub(crate) fn add_to_circle_item(state: Circles, row: &ConversationListData) -> Option<MenuItem> {
+    let items = state.rows.with_untracked(|circles| {
+        circles
+            .iter()
+            .filter(|circle| !row.circle_ids.contains(&circle.circle_id))
+            .map(|circle| {
+                let id = circle.circle_id.clone();
+                let row = row.clone();
+                MenuItem::new(circle.name.clone())
+                    .on_select(move || state.edit_membership(id.clone(), &row, true))
+            })
+            .collect::<Vec<_>>()
+    });
+    (!items.is_empty()).then(|| {
+        MenuItem::submenu(tr("Add to Circle", "添加到圈子"), items)
+            .disabled(state.busy.get_untracked())
+    })
+}
+
+/// Only while the list shows a circle, which is the one `row` leaves.
+pub(crate) fn remove_from_circle_item(
+    state: Circles,
+    row: &ConversationListData,
+) -> Option<MenuItem> {
+    let id = state.nav.circle.get_untracked()?;
+    let row = row.clone();
+    Some(
+        MenuItem::new(tr("Remove Chat from circle", "从圈子里移除对话"))
+            .disabled(state.busy.get_untracked())
+            .on_select(move || state.edit_membership(id.clone(), &row, false)),
+    )
 }

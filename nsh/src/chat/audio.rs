@@ -1,14 +1,23 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use mixin_desktop_api::{AudioPlaybackStatus, MessageListView};
 use nsh_base::SliderValue;
-use nsh_core::prelude::*;
+use nsh_core::{element::ImageSrc, prelude::*};
 
-use super::message_actions::Actions;
-use crate::{
-    i18n::Key,
-    runtime,
-    ui::{self, Typography},
-};
+use super::{message_actions::Actions, message_appearance};
+use crate::{i18n::Key, runtime, ui};
+
+/// Flutter's most bars in a waveform, which fill `audio_wave_width`.
+const BARS: usize = 60;
+
+/// Flutter's fold: each bar is the loudest sample of its share of the recording.
+fn bars(samples: &[u8]) -> [u8; BARS] {
+    let mut bars = [0; BARS];
+    for (index, sample) in samples.iter().enumerate() {
+        let bar = index * BARS / samples.len();
+        bars[bar] = bars[bar].max(*sample);
+    }
+    bars
+}
 
 pub(super) fn body(
     message: MessageListView,
@@ -16,7 +25,12 @@ pub(super) fn body(
     actions: Actions,
 ) -> impl IntoElement {
     let i18n = actions.i18n;
+    let appearance =
+        use_context::<crate::appearance::Appearance>().expect("Home provides chat appearance");
     let playback = use_context::<crate::playback::Playback>().expect("Home provides playback");
+    let mine = message.sender_id == actions.account.with(|account| account.account_id());
+    // A voice message waits in the accent color until it is heard.
+    let heard = mine || message.media_status == "READ";
     let playback_key = stored(
         transcript
             .as_ref()
@@ -28,7 +42,7 @@ pub(super) fn body(
         .as_deref()
         .and_then(|s| STANDARD.decode(s).ok())
         .unwrap_or_default();
-    let waveform = stored(waveform);
+    let waveform = bars(&waveform);
     let row = stored(message);
     let active = move || {
         actions.playback.with(|p| {
@@ -52,91 +66,62 @@ pub(super) fn body(
         }
     };
     let busy = signal(false);
-    view()
-        .w_56()
+    // Bars follow one number, so playback does not touch the rows that aren't playing.
+    let progress = computed(move || {
+        let duration = duration();
+        if duration == 0 {
+            0.0
+        } else {
+            position() as f64 / duration as f64
+        }
+    });
+    let playing = move || {
+        active()
+            && actions
+                .playback
+                .with(|p| p.status == AudioPlaybackStatus::Playing)
+    };
+    let scale = ui::audio_wave_height().0;
+    let wave = view()
+        .relative()
+        .w(ui::audio_wave_width())
         .max_w(relative(1.0))
-        .gap_1()
+        .h(ui::audio_wave_height())
         .child(
             view()
+                .absolute()
+                .inset_0()
                 .flex_row()
-                .items_center()
-                .gap_2()
-                .child(
-                    ui::command()
-                        .disabled(busy)
-                        .on_press(move || {
-                            play(
-                                row.with(|row| row.clone()),
-                                transcript.clone(),
-                                playback_key.with(|key| key.clone()),
-                                playback,
-                                actions,
-                                busy,
-                            )
-                        })
-                        .child(
-                            text(move || {
-                                if active()
-                                    && actions
-                                        .playback
-                                        .with(|p| p.status == AudioPlaybackStatus::Playing)
-                                {
-                                    i18n.tr("Stop", "停止")
-                                } else {
-                                    i18n.text(Key::Play)
-                                }
-                            })
-                            .text_role(ui::TextRole::Body),
-                        ),
-                )
-                .child(
+                .items_end()
+                .gap(ui::space_2xs())
+                .overflow_hidden()
+                .children(waveform.into_iter().enumerate().map(move |(index, level)| {
                     view()
-                        .flex_row()
-                        .items_center()
-                        .gap_1()
-                        .h_8()
-                        .children((0..16).map(move |index| {
-                            view()
-                                .w_0p5()
-                                .rounded(ui::radius_full())
-                                .bg(move || {
-                                    if duration() > 0
-                                        && (index as f64 / 16.0)
-                                            < position() as f64 / duration() as f64
-                                    {
-                                        ui::accent()
-                                    } else {
-                                        ui::fg_tertiary()
-                                    }
-                                })
-                                // A bar is as tall as its sample's level, within the strip.
-                                .h(move || {
-                                    px(2.0
-                                        + waveform.with(|waveform| {
-                                            let start = index * waveform.len() / 16;
-                                            let end = ((index + 1) * waveform.len() / 16)
-                                                .max(start + 1)
-                                                .min(waveform.len());
-                                            f32::from(
-                                                waveform
-                                                    .get(start..end)
-                                                    .and_then(|s| s.iter().max())
-                                                    .copied()
-                                                    .unwrap_or_default(),
-                                            ) / 255.0
-                                                * 28.0
-                                        }))
-                                })
-                        })),
-                ),
+                        .w(ui::space_2xs())
+                        .flex_shrink_0()
+                        // A bar is as tall as its sample's level, within the strip.
+                        .h(px((f32::from(level) / 255.0 * scale).max(ui::space_2xs().0)))
+                        .rounded_t(ui::hairline_width())
+                        .bg(move || {
+                            if !heard {
+                                ui::accent()
+                            } else if (index as f64 / BARS as f64) < progress.get() {
+                                ui::waveform_progress()
+                            } else {
+                                ui::waveform_track()
+                            }
+                        })
+                })),
         )
-        .child(
-            ui::slider_compact()
+        .child(when(active, move || {
+            ui::slider_over_wave()
+                .absolute()
+                .inset_0()
                 .min(0.0)
                 .max(move || duration().max(1) as f64)
                 .step(100.0)
                 .value(move || Some(SliderValue::Single(position() as f64)))
-                .disabled(move || !active() || duration() == 0)
+                .disabled(move || duration() == 0)
                 .accessibility_label(move || {
                     Some(i18n.tr("Voice message position", "语音播放进度").into())
                 })
@@ -146,62 +131,111 @@ pub(super) fn body(
                     {
                         actions.media.with(|m| m.seek_audio(value.max(0.0) as u64));
                     }
-                }),
+                })
+        }));
+    let glyph = |source: &'static str| {
+        svg(ImageSrc::svg_markup(source))
+            .size(ui::audio_icon())
+            .text_color(ui::accent)
+            .accessibility_elements_hidden(true)
+    };
+    view()
+        .flex_row()
+        .items_center()
+        .gap_2()
+        .min_w_0()
+        .max_w(relative(1.0))
+        .child(
+            message_appearance::media_disc().child(
+                ui::round_button()
+                    .size(ui::status_disc())
+                    .disabled(busy)
+                    .accessibility_label(move || {
+                        Some(
+                            if playing() {
+                                i18n.tr("Stop", "停止")
+                            } else {
+                                i18n.text(Key::Play)
+                            }
+                            .into(),
+                        )
+                    })
+                    .on_press(move || {
+                        play(
+                            row.with(|row| row.clone()),
+                            transcript.clone(),
+                            playback_key.with(|key| key.clone()),
+                            playback,
+                            actions,
+                            busy,
+                        )
+                    })
+                    .child(when(playing, move || {
+                        glyph(include_str!("../../assets/message/audio_stop.svg"))
+                    }))
+                    .child(when(
+                        move || !playing(),
+                        move || glyph(include_str!("../../assets/message/audio_play.svg")),
+                    )),
+            ),
         )
         .child(
-            view()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .child(
-                    text(move || {
-                        if active() {
-                            format!("{} / {}", time(position()), time(duration()))
-                        } else {
-                            time(duration())
-                        }
-                    })
-                    .text_role(ui::TextRole::Caption)
-                    .text_color(ui::fg_secondary)
-                    .flex_1(),
-                )
-                .child(
-                    ui::menu()
-                        .trigger(
-                            ui::command()
-                                .min_h_6()
-                                .px_2()
-                                .py_1()
-                                .disabled(busy)
-                                .accessibility_label(move || {
-                                    Some(i18n.tr("Playback speed", "播放速度").into())
-                                })
-                                .child(
-                                    text(move || {
-                                        format!("{}×", actions.playback.with(|p| p.speed))
+            view().min_w_0().flex_shrink(1.0).gap_2().child(wave).child(
+                view()
+                    .flex_row()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        text(move || {
+                            if active() {
+                                format!("{} / {}", time(position()), time(duration()))
+                            } else {
+                                time(duration())
+                            }
+                        })
+                        .text_size(move || appearance.tertiary_size())
+                        .text_color(ui::message_secondary)
+                        .flex_1(),
+                    )
+                    .child(when(active, move || {
+                        ui::menu()
+                            .trigger(
+                                ui::command()
+                                    .min_h_0()
+                                    .px_1()
+                                    .py_0()
+                                    .disabled(busy)
+                                    .accessibility_label(move || {
+                                        Some(i18n.tr("Playback speed", "播放速度").into())
                                     })
-                                    .text_role(ui::TextRole::Caption),
-                                ),
-                        )
-                        .children(crate::playback::SPEEDS.into_iter().map(
-                            move |(speed, label)| {
-                                ui::menu_row(move || label).on_select(move || {
-                                    let media = actions.media.with(|m| m.clone());
-                                    busy.set(true);
-                                    spawn(async move {
-                                        actions.failed.set(
-                                            runtime::run(async move {
-                                                media.set_audio_speed(speed).await
-                                            })
-                                            .await
-                                            .is_err(),
-                                        );
-                                        busy.set(false);
-                                    });
-                                })
-                            },
-                        )),
-                ),
+                                    .child(
+                                        text(move || {
+                                            format!("{}×", actions.playback.with(|p| p.speed))
+                                        })
+                                        .text_size(move || appearance.tertiary_size())
+                                        .text_color(ui::message_secondary),
+                                    ),
+                            )
+                            .children(crate::playback::SPEEDS.into_iter().map(
+                                move |(speed, label)| {
+                                    ui::menu_row(move || label).on_select(move || {
+                                        let media = actions.media.with(|m| m.clone());
+                                        busy.set(true);
+                                        spawn(async move {
+                                            actions.failed.set(
+                                                runtime::run(async move {
+                                                    media.set_audio_speed(speed).await
+                                                })
+                                                .await
+                                                .is_err(),
+                                            );
+                                            busy.set(false);
+                                        });
+                                    })
+                                },
+                            ))
+                    })),
+            ),
         )
 }
 fn time(millis: u64) -> String {

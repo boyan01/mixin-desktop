@@ -4,17 +4,13 @@ use nsh_core::prelude::*;
 
 use super::{
     message_actions::{self, Actions},
-    message_appearance::{self, bubble_surface},
+    message_appearance::{self, Frame, Inset, Stamp, bubble_surface},
     message_content::{self, Placement},
-    message_media, message_system,
+    message_system,
     timeline::Timeline,
     unread::Unread,
 };
-use crate::{
-    appearance::Appearance,
-    presentation,
-    ui::{self, Typography},
-};
+use crate::{appearance::Appearance, presentation, ui};
 
 /// What a row shows, derived from the window at its index.
 #[derive(Clone, PartialEq)]
@@ -22,7 +18,12 @@ struct Line {
     message: MessageListView,
     mine: bool,
     day: Option<String>,
+    /// The sender's name and avatar start here.
     first_of_sender: bool,
+    /// Continues the sender's messages: Flutter's `sameUserPrev`.
+    follows_sender: bool,
+    /// The newest message of the sender's run, which carries the nip.
+    last_of_sender: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -35,7 +36,6 @@ pub(super) struct Rows {
     pub history: ElementRef,
     pub own_id: Stored<String>,
     pub sender_names: Memo<bool>,
-    pub encrypted: Signal<bool>,
     pub viewable: Signal<Option<(usize, usize)>>,
     pub unobstructed: Memo<bool>,
 }
@@ -49,15 +49,24 @@ impl Rows {
             let day = presentation::day(i18n, row.created_at_micros);
             let new_day =
                 older.is_none_or(|older| presentation::day(i18n, older.created_at_micros) != day);
+            let follows_sender = older.is_some_and(|older| {
+                older.sender_id == row.sender_id
+                    && !older.category.starts_with("SYSTEM_")
+                    && older.category != "MESSAGE_PIN"
+            });
+            let continued = index
+                .checked_sub(1)
+                .and_then(|newer| rows.get(newer))
+                .is_some_and(|newer| {
+                    newer.sender_id == row.sender_id
+                        && presentation::day(i18n, newer.created_at_micros) == day
+                });
             Some(Line {
                 message: row.clone(),
                 mine: self.own_id.with(|id| row.sender_id == *id),
-                first_of_sender: new_day
-                    || older.is_none_or(|older| {
-                        older.sender_id != row.sender_id
-                            || older.category.starts_with("SYSTEM_")
-                            || older.category == "MESSAGE_PIN"
-                    }),
+                first_of_sender: new_day || !follows_sender,
+                follows_sender,
+                last_of_sender: !continued,
                 day: new_day.then_some(day),
             })
         })
@@ -67,7 +76,6 @@ impl Rows {
         let Self {
             actions,
             target,
-            timeline,
             unread,
             history,
             viewable,
@@ -119,12 +127,12 @@ impl Rows {
         unread.observe_row(id, move || at.index() == 0, row_ref, history);
         let selected =
             move || id().is_some_and(|id| actions.selected.with(|selected| selected.contains(&id)));
+        let follows_sender =
+            move || line.with(|line| line.as_ref().is_some_and(|line| line.follows_sender));
         view()
             .element_ref(&row_ref)
-            .px_4()
-            .py(ui::space_2xs())
-            .gap_2()
             .rounded(ui::radius_md())
+            .style_when(move || !follows_sender(), |style| style.pt_2())
             .style_when(selected, |style| style.bg(ui::state_selected))
             .child(unread.divider(i18n, id))
             .child(when(
@@ -142,7 +150,7 @@ impl Rows {
             }))
             .child(when(
                 move || !centered(),
-                move || self.message_line(line, message, content, status, timeline),
+                move || self.message_line(line, message, content, status),
             ))
     }
 
@@ -152,26 +160,32 @@ impl Rows {
         message: impl Fn() -> Option<MessageListView> + Copy + 'static,
         content: Memo<Option<MessageListView>>,
         status: Memo<String>,
-        timeline: Timeline,
     ) -> impl IntoElement {
         let Self {
             actions,
             target,
-            encrypted,
+            timeline,
             sender_names,
             ..
         } = self;
         let appearance = use_context::<Appearance>().expect("Home provides chat appearance");
-        let i18n = actions.i18n;
         let mine = move || line.with(|line| line.as_ref().is_some_and(|line| line.mine));
         let others = move || sender_names.get() && !mine();
         let first_of_sender =
             move || line.with(|line| line.as_ref().is_some_and(|line| line.first_of_sender));
-        let inline = move || {
-            line.with(|line| {
-                line.as_ref()
-                    .is_some_and(|line| message_media::inline_metadata(&line.message))
-            })
+        let last_of_sender =
+            move || line.with(|line| line.as_ref().is_some_and(|line| line.last_of_sender));
+        let frame =
+            computed(move || content.with(|row| row.as_ref().map_or(Frame::TEXT, Frame::of)));
+        let surface = move || frame.get().surface;
+        let captioned = move || frame.get().inset == Inset::Caption;
+        let neutral = computed(move || frame.get().neutral);
+        let avatar = move || others() && appearance.show_avatar();
+        // Flutter leaves the nip to own bubbles where incoming ones have avatars.
+        let nip = move || {
+            surface()
+                && last_of_sender()
+                && (mine() || !(sender_names.get() && appearance.show_avatar()))
         };
         let highlighted = move || {
             timeline.highlight.with(|target| {
@@ -191,113 +205,167 @@ impl Rows {
                         target: Some(target),
                         transcript: None,
                         status: Some(status),
+                        framed: true,
                     },
                 ),
                 None => view().hidden().into_element(),
             })
         });
+        let own_status = move || (mine() && frame.get().delivery).then_some(status);
+        let stamp = move |placed: Stamp| {
+            dynamic(move || {
+                let row = content.get();
+                untracked(|| match row {
+                    Some(row) if frame.get().stamp == placed => {
+                        message_appearance::stamp(&row, own_status(), false).into_element()
+                    }
+                    _ => view().hidden().into_element(),
+                })
+            })
+        };
+        let edge = ui::space_lg() + ui::bubble_nip_width();
         view()
             .flex_row()
             .items_start()
-            .gap_2()
-            .style_when(mine, |style| style.justify_end())
-            .style_when(first_of_sender, |style| style.pt_2())
             .child(when(
                 move || !actions.selected.with(Vec::is_empty),
                 move || selection_box(message, actions),
             ))
-            .child(when(
-                move || others() && appearance.show_avatar(),
-                move || {
-                    view()
-                        .size_8()
-                        .flex_shrink_0()
-                        .child(when(first_of_sender, move || {
-                            sender_avatar(message, actions)
-                        }))
-                },
-            ))
+            .child(when(avatar, move || {
+                view()
+                    .ml_2()
+                    .size_8()
+                    .flex_shrink_0()
+                    .child(when(first_of_sender, move || {
+                        sender_avatar(message, actions)
+                    }))
+            }))
             .child(
                 view()
-                    .max_w(ui::bubble_width())
+                    .flex_1()
                     .min_w_0()
-                    .flex_shrink(1.0)
-                    .gap_1()
+                    .py(ui::space_2xs())
+                    .pl(edge)
+                    .pr(ui::message_far_edge())
+                    .items_start()
+                    .style_when(avatar, |style| style.pl(ui::bubble_nip_width()))
+                    .style_when(mine, |style| {
+                        style.pl(ui::message_far_edge()).pr(edge).items_end()
+                    })
                     .child(when(
                         move || others() && first_of_sender(),
                         move || message_appearance::sender(message, actions),
                     ))
                     .child(
                         view()
-                            .px_3()
-                            .py_2()
-                            .rounded(ui::radius_md())
-                            .flex_row()
+                            .min_w_0()
+                            .max_w(relative(1.0))
                             .items_end()
-                            .gap_2()
-                            .style_when(inline, |style| style.p_0())
-                            .bg(move || bubble_surface(mine()))
-                            .child(when(highlighted, move || {
-                                view()
-                                    .absolute()
-                                    .inset_0()
-                                    .rounded(ui::radius_md())
-                                    .border_2()
-                                    .border_color(ui::focus_ring)
-                                    .bind_opacity(&timeline.highlight_opacity)
-                                    .pointer_events(PointerEvents::None)
-                            }))
-                            .child(message_actions::menu(message, actions, body))
                             .child(
                                 view()
-                                    .flex_row()
-                                    .flex_shrink_0()
-                                    .items_center()
-                                    .gap_1()
-                                    .style_when(inline, |style| style.hidden())
-                                    .child(when(encrypted, || {
-                                        ui::icon(ui::Icon::Lock)
-                                            .size_3()
-                                            .text_color(ui::fg_secondary)
+                                    .relative()
+                                    .min_w_0()
+                                    .max_w(relative(1.0))
+                                    .child(when(nip, move || {
+                                        message_appearance::nip(mine, neutral)
                                     }))
                                     .child(
-                                        text(move || {
-                                            line.with(|line| {
-                                                line.as_ref()
-                                                    .map(|line| {
-                                                        presentation::time(
-                                                            i18n,
-                                                            line.message.created_at_micros / 1000,
-                                                        )
+                                        view()
+                                            .relative()
+                                            .min_w_0()
+                                            .rounded(ui::radius_md())
+                                            .style_when(surface, move |style| {
+                                                style
+                                                    .bg(move || {
+                                                        bubble_surface(mine() && !neutral.get())
                                                     })
-                                                    .unwrap_or_default()
+                                                    .shadow_xs()
+                                                    .shadow_color(ui::bubble_shadow())
                                             })
+                                            .child(
+                                                view()
+                                                    .min_w_0()
+                                                    .rounded(ui::radius_md())
+                                                    .overflow_hidden()
+                                                    .child(message_actions::menu(
+                                                        message, actions, body,
+                                                    )),
+                                            )
+                                            .child(when(highlighted, move || {
+                                                view()
+                                                    .absolute()
+                                                    .inset_0()
+                                                    .rounded(ui::radius_md())
+                                                    .bg(move || {
+                                                        if !surface() {
+                                                            ui::bubble_highlight_media()
+                                                        } else if mine() {
+                                                            ui::bubble_highlight_out()
+                                                        } else {
+                                                            ui::bubble_highlight_in()
+                                                        }
+                                                    })
+                                                    .bind_opacity(&timeline.highlight_opacity)
+                                                    .pointer_events(PointerEvents::None)
+                                            }))
+                                            .child(when(
+                                                move || frame.get().stamp == Stamp::Inline,
+                                                move || {
+                                                    view()
+                                                        .absolute()
+                                                        .right(ui::space_sm())
+                                                        .bottom(ui::space_sm())
+                                                        .style_when(captioned, |style| {
+                                                            style
+                                                                .right(ui::space_md())
+                                                                .bottom(ui::chip_inset())
+                                                        })
+                                                        .pointer_events(PointerEvents::None)
+                                                        .child(stamp(Stamp::Inline))
+                                                },
+                                            )),
+                                    ),
+                            )
+                            .child(when(
+                                move || frame.get().stamp == Stamp::Below,
+                                move || {
+                                    // Flutter's 10 from the bubble's box, whose end
+                                    // holds the nip gutter of an own message.
+                                    view()
+                                        .mt(ui::space_xs())
+                                        .ml(ui::chip_inset())
+                                        .mr(ui::chip_inset())
+                                        .style_when(mine, |style| {
+                                            style.mr(ui::chip_inset() - ui::bubble_nip_width())
                                         })
-                                        .text_role(ui::TextRole::Micro)
-                                        .text_color(ui::fg_secondary),
-                                    )
-                                    .child(when(mine, move || {
-                                        message_appearance::delivery_status(status)
-                                    })),
-                            ),
+                                        .child(stamp(Stamp::Below))
+                                },
+                            )),
                     ),
             )
     }
 }
 
 fn day_separator(day: Memo<Option<String>>) -> impl IntoElement {
-    view().items_center().py_2().child(
-        view()
-            .px_3()
-            .py_1()
-            .rounded(ui::radius_full())
-            .bg(ui::day_background)
-            .child(
-                text(move || day.get().unwrap_or_default())
-                    .text_role(ui::TextRole::Caption)
-                    .text_color(ui::day_foreground),
-            ),
-    )
+    let appearance = use_context::<Appearance>().expect("Home provides chat appearance");
+    view()
+        .items_center()
+        .pt(ui::space_lg())
+        .pb(ui::chip_inset())
+        .child(
+            view()
+                .px(ui::chip_inset())
+                .py(ui::space_2xs())
+                .min_w(ui::day_chip_min_width())
+                .items_center()
+                .rounded(ui::radius_chip())
+                .bg(ui::day_background)
+                .child(
+                    text(move || day.get().unwrap_or_default())
+                        .text_size(move || appearance.secondary_size())
+                        .text_color(ui::day_foreground),
+                ),
+        )
 }
 
 fn selection_box(
@@ -344,6 +412,7 @@ fn sender_avatar(
             }
         })
         .child(ui::avatar_view(
+            move || message().map(|row| row.sender_id).unwrap_or_default(),
             move || {
                 message()
                     .map(|row| row.sender_name.into())

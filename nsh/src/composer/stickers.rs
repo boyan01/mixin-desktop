@@ -422,9 +422,9 @@ pub(super) fn grid_items(
                             };
                             let personal = tab.with(|t| *t == Tab::Personal);
                             let title = if personal {
-                                tr(i18n, "Remove sticker", "移除贴纸")
+                                tr(i18n, "Delete", "删除")
                             } else {
-                                tr(i18n, "Add sticker", "添加贴纸")
+                                tr(i18n, "Add Sticker", "添加贴纸")
                             };
                             vec![MenuItem::new(title).on_select(move || {
                                 let client = state.client();

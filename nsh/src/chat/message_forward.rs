@@ -19,13 +19,12 @@ pub(super) fn forwarding(actions: Actions) -> impl IntoElement {
                     actions.forwarding.set(Vec::new());
                 }
             };
-            ui::modal(
+            ui::dialog(
                 presence,
                 cancel,
-                ui::modal_card()
-                    .w_96()
+                ui::dialog_card(ui::DialogWidth::Regular)
                     .gap_3()
-                    .child(ui::modal_title(move || {
+                    .child(ui::dialog_title(move || {
                         i18n.tr("Forward messages", "转发消息")
                     }))
                     .child(recipients::screen(

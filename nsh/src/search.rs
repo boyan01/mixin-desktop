@@ -53,6 +53,15 @@ impl Row {
         }
     }
 
+    fn avatar_id(&self) -> String {
+        match self {
+            Self::Header(..) => String::new(),
+            Self::User(user) => user.user_id.clone(),
+            Self::Conversation(row) => row.owner_id.clone(),
+            Self::Message(message) => message.sender_id.clone(),
+        }
+    }
+
     fn title(&self) -> String {
         match self {
             Self::Header(..) => String::new(),
@@ -99,6 +108,7 @@ pub(crate) fn screen(
     let pending = signal(false);
     let open_failed = signal(false);
     let profile = signal(None::<String>);
+    let profile_presence = crate::motion::Presence::modal(move || profile.with(Option::is_some));
     effect(move || {
         query.with(|_| ());
         pending.set(false);
@@ -263,23 +273,22 @@ pub(crate) fn screen(
             },
         ))
         .child(when(
-            move || profile.with(Option::is_some),
+            move || profile_presence.mounted(),
             move || {
                 let id = profile.get_untracked().unwrap_or_default();
-                nsh_base::dialog()
-                    .on_cancel(move || profile.set(None))
-                    .flex_1()
-                    .p_6()
-                    .items_center()
-                    .justify_center()
-                    .child(ui::scrim().on_press(move || profile.set(None)))
-                    .child(parts::tall_dialog_card().p_0().overflow_hidden().child(
-                        crate::conversation::profile(
+                ui::dialog(
+                    profile_presence,
+                    move || profile.set(None),
+                    ui::dialog_card(ui::DialogWidth::Compact)
+                        .p_0()
+                        .gap_0()
+                        .overflow_hidden()
+                        .child(crate::conversation::profile(
                             account.with(|account| account.clone()),
                             id,
                             move || profile.set(None),
-                        ),
-                    ))
+                        )),
+                )
             },
         ))
 }

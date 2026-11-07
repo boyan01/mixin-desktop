@@ -97,14 +97,7 @@ fn identity(state: State) -> impl IntoElement {
     view()
         .gap(ui::space_sm())
         .items_center()
-        .child(
-            ui::avatar_view(
-                move || row_text(state, |row| row.name.clone()).into(),
-                move || row_text(state, |row| row.avatar_url.clone()),
-                ui::AvatarSize::Medium,
-            )
-            .size_16(),
-        )
+        .child(ui::conversation_avatar(move || state.row.get(), ui::AvatarSize::Medium).size_16())
         .child(
             text(move || row_text(state, |row| row.name.clone()))
                 .text_role(ui::TextRole::Headline)
@@ -214,6 +207,7 @@ fn shared_apps_row(state: State) -> impl IntoElement {
             .flex_shrink_0()
             .children(apps.into_iter().enumerate().rev().map(|(index, app)| {
                 ui::avatar_view(
+                    move || app.app_id.clone(),
                     move || app.name.clone().into(),
                     move || app.icon_url.clone(),
                     ui::AvatarSize::Medium,

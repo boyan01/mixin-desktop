@@ -337,12 +337,12 @@ fn form(
                     .on_change(move |value: &str| password.set(value.into())),
             ),
         );
-    ui::modal(
+    ui::dialog(
         presence,
         cancel,
-        parts::dialog_card()
+        ui::dialog_card(ui::DialogWidth::Regular)
             .overflow_hidden()
-            .child(ui::modal_title(move || {
+            .child(ui::dialog_title(move || {
                 i18n.tr("Add HTTP proxy", "添加 HTTP 代理")
             }))
             .child(scroll().min_h_0().flex_shrink(1.0).child(fields))

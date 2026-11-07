@@ -490,20 +490,15 @@ fn item_menu(
             return Vec::new();
         };
         let locate = message.message_id.clone();
-        let mut items = vec![
-            MenuItem::new(i18n.tr("Locate in chat", "在聊天中定位")).on_select(move || {
-                target.set(Some(locate.clone()));
-                state.close();
-            }),
-        ];
+        let mut file = Vec::new();
         if Shared::available(&message) {
             let save = message.clone();
-            items.push(
-                MenuItem::new(i18n.tr("Save as…", "另存为…"))
+            file.push(
+                MenuItem::new(i18n.tr("Save as", "另存为"))
                     .on_select(move || shared.preview.save(save.clone())),
             );
             if let Some(path) = message.media_url {
-                items.push(
+                file.push(
                     MenuItem::new(i18n.tr("Show in folder", "在文件夹中显示")).on_select(
                         move || {
                             let path = path.clone();
@@ -518,6 +513,14 @@ fn item_menu(
                 );
             }
         }
-        items
+        ui::menu_groups([
+            vec![
+                MenuItem::new(i18n.tr("Locate in Chat", "前往聊天")).on_select(move || {
+                    target.set(Some(locate.clone()));
+                    state.close();
+                }),
+            ],
+            file,
+        ])
     })
 }

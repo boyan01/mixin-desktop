@@ -478,15 +478,15 @@ fn clear_dialog(
     clear: impl Fn() + 'static,
 ) -> impl IntoElement {
     let i18n = i18n::current();
-    ui::modal(
+    ui::dialog(
         presence,
         move || {
             if !feedback.busy.get_untracked() {
                 confirming.set(false);
             }
         },
-        parts::dialog_card()
-            .child(ui::modal_title(move || {
+        ui::dialog_card(ui::DialogWidth::Regular)
+            .child(ui::dialog_title(move || {
                 i18n.tr("Clear the selected media cache?", "清除选中的媒体缓存？")
             }))
             .child(

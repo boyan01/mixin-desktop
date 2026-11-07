@@ -93,6 +93,13 @@ pub(super) fn banner(
                         move || {
                             mao.with(|user| {
                                 user.as_ref()
+                                    .map(|user| user.user_id.clone())
+                                    .unwrap_or_default()
+                            })
+                        },
+                        move || {
+                            mao.with(|user| {
+                                user.as_ref()
                                     .map(|user| user.full_name.clone())
                                     .unwrap_or_default()
                                     .into()

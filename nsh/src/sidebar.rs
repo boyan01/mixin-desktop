@@ -13,7 +13,7 @@ mod circle_editor;
 mod circles;
 mod preference;
 
-pub(crate) use circles::{Circles, membership_item as circle_membership_item};
+pub(crate) use circles::{Circles, add_to_circle_item, remove_from_circle_item};
 
 const DRAWER_MAX_WIDTH: f32 = 384.0;
 const COMPACT_MAX_WIDTH: f32 = 496.0;
@@ -296,6 +296,7 @@ impl Rail {
                 })
                 .accessibility_label(move || Some(i18n.text(Key::Settings).into()))
                 .child(ui::avatar_view(
+                    move || profile.with(|p| p.user_id.clone()),
                     move || profile.with(|p| p.full_name.clone().into()),
                     move || profile.with(|p| p.avatar_url.clone()),
                     ui::AvatarSize::Compact,

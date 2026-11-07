@@ -93,6 +93,7 @@ fn item(
             }
         })
         .child(ui::avatar_view(
+            move || row().map(|row| row.avatar_id()).unwrap_or_default(),
             move || row().map(|row| row.title()).unwrap_or_default().into(),
             move || row().map(|row| row.avatar_url()).unwrap_or_default(),
             ui::AvatarSize::Medium,

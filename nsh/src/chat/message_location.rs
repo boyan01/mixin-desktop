@@ -88,32 +88,11 @@ pub(super) fn location(row: &MessageListView, actions: Actions) -> AnyElement {
         "{} {name} {address} {latitude:.5}, {longitude:.5}",
         i18n.text(Key::Location)
     );
-    let mut card = view()
+    view()
         .w(ui::card_width())
         .max_w(relative(1.0))
-        .gap_1()
-        .child(preview(latitude, longitude, description, actions));
-    if !name.trim().is_empty() {
-        card = card.child(
-            text(name.to_owned())
-                .text_role(ui::TextRole::Body)
-                .text_emphasis()
-                .number_of_lines(2),
-        );
-    }
-    if !address.trim().is_empty() {
-        card = card.child(
-            text(address.to_owned())
-                .text_role(ui::TextRole::Caption)
-                .number_of_lines(2),
-        );
-    }
-    card.child(
-        text(format!("{latitude:.5}, {longitude:.5}"))
-            .text_role(ui::TextRole::Caption)
-            .text_color(ui::fg_secondary),
-    )
-    .into_element()
+        .child(preview(latitude, longitude, description, actions))
+        .into_element()
 }
 
 fn invalid(actions: Actions) -> AnyElement {

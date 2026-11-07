@@ -185,6 +185,13 @@ pub(crate) fn mentions(
                                     move || {
                                         rows.with(|rows| {
                                             rows.get(at.index())
+                                                .map(|u| u.user_id.clone())
+                                                .unwrap_or_default()
+                                        })
+                                    },
+                                    move || {
+                                        rows.with(|rows| {
+                                            rows.get(at.index())
                                                 .map(|u| u.full_name.clone().into())
                                                 .unwrap_or_default()
                                         })

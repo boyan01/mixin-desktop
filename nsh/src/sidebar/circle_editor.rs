@@ -206,7 +206,7 @@ pub(super) fn screen(
         });
     };
     let card = parts::tall_dialog_card()
-        .child(ui::modal_title(move || {
+        .child(ui::dialog_title(move || {
             tr("Edit conversations", "编辑聊天")
         }))
         .child(text(move || title.with(|title| title.clone())).text_role(ui::TextRole::Body))
@@ -330,7 +330,7 @@ pub(super) fn screen(
                         })),
                 ),
         );
-    ui::modal(
+    ui::dialog(
         presence,
         move || {
             if !busy.get_untracked() {

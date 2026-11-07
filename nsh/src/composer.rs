@@ -63,5 +63,5 @@ fn tool_button() -> ButtonElement {
 
 /// A dialog with room for a document: the file preview and the post editor.
 fn wide_dialog() -> View {
-    ui::modal_card().w(ui::dialog_width_wide())
+    ui::dialog_card(ui::DialogWidth::Wide)
 }

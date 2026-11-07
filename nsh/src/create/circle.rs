@@ -96,9 +96,10 @@ pub(super) fn screen(
             }
         });
     };
-    modal(cancel).child(
+    modal(
+        cancel,
         panel()
-            .child(ui::modal_title(move || tr("New circle", "新建圈子")))
+            .child(ui::dialog_title(move || tr("New circle", "新建圈子")))
             .child(when(
                 move || !selecting.get(),
                 move || {

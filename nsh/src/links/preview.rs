@@ -3,7 +3,7 @@ use crate::{
     runtime,
     ui::{self, Typography as _},
 };
-use mixin_desktop_api::AccountClient;
+use mixin_desktop_api::{AccountClient, UserProfileItem};
 use nsh_base::text_view;
 use nsh_core::prelude::*;
 use std::sync::Arc;
@@ -140,63 +140,37 @@ pub(super) fn render(
                     }
                 });
             });
-            view()
-                .gap_2()
-                .child(ui::avatar_view(
-                    move || {
-                        profile.with(|profile| {
-                            profile
-                                .as_ref()
-                                .map(|profile| profile.full_name.clone())
-                                .unwrap_or_default()
-                                .into()
-                        })
-                    },
-                    move || {
-                        profile.with(|profile| {
-                            profile
-                                .as_ref()
-                                .map(|profile| profile.avatar_url.clone())
-                                .unwrap_or_default()
-                        })
-                    },
-                    ui::AvatarSize::Medium,
-                ))
-                .child(
-                    text(move || {
-                        profile.with(|profile| {
-                            profile
-                                .as_ref()
-                                .map(|profile| profile.full_name.clone())
-                                .unwrap_or_else(|| tr("Contact", "联系人").into())
-                        })
+            let read = move |field: fn(&UserProfileItem) -> &String| {
+                profile.with(|profile| profile.as_ref().map(field).cloned().unwrap_or_default())
+            };
+            ui::profile_card(
+                ui::AvatarSize::Medium,
+                move || read(|profile| &profile.user_id),
+                move || {
+                    profile.with(|profile| {
+                        profile
+                            .as_ref()
+                            .map(|profile| profile.full_name.clone())
+                            .unwrap_or_else(|| tr("Contact", "联系人").into())
                     })
-                    .text_role(ui::TextRole::Body),
-                )
-                .child(
-                    text(move || {
-                        profile.with(|profile| {
-                            profile
-                                .as_ref()
-                                .map(|profile| profile.identity_number.clone())
-                                .unwrap_or_default()
-                        })
-                    })
-                    .text_role(ui::TextRole::Caption),
-                )
-                .child(when(failed, move || {
-                    view()
-                        .gap_2()
-                        .child(
-                            text(move || tr("Contact preview unavailable", "无法预览联系人"))
-                                .text_role(ui::TextRole::Body),
-                        )
-                        .child(ui::action(
-                            move || tr("Retry preview", "重试预览"),
-                            move || retry.update(|retry| *retry += 1),
-                        ))
-                }))
-                .into_element()
+                },
+                move || read(|profile| &profile.avatar_url),
+                move || read(|profile| &profile.identity_number),
+                view().hidden(),
+            )
+            .child(when(failed, move || {
+                view()
+                    .gap_2()
+                    .child(
+                        text(move || tr("Contact preview unavailable", "无法预览联系人"))
+                            .text_role(ui::TextRole::Body),
+                    )
+                    .child(ui::action(
+                        move || tr("Retry preview", "重试预览"),
+                        move || retry.update(|retry| *retry += 1),
+                    ))
+            }))
+            .into_element()
         }
     }
 }

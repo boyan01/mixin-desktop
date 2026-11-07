@@ -10,7 +10,6 @@ use crate::{
     ui::{self, Typography as _},
 };
 use mixin_desktop_api::{AccountClient, ConversationListData};
-use nsh_base::dialog;
 use nsh_core::prelude::*;
 use std::sync::Arc;
 
@@ -34,29 +33,13 @@ impl Action {
 }
 
 fn panel() -> View {
-    let presence =
-        use_context::<crate::motion::Presence>().expect("Creation surface provides motion");
-    presence.surface(parts::dialog_card().overflow_hidden())
+    ui::dialog_card(ui::DialogWidth::Regular).overflow_hidden()
 }
-/// Unlike `ui::modal`, a stray backdrop press must not discard a selection in progress.
-fn modal(close: impl Fn() + 'static) -> nsh_core::element::Modal {
-    dismiss_keyboard();
+
+fn modal(close: impl Fn() + 'static, card: View) -> nsh_core::element::Modal {
     let presence =
         use_context::<crate::motion::Presence>().expect("Creation surface provides motion");
-    dialog()
-        .animation(nsh_core::ModalAnimation::None)
-        .close_on_escape(false)
-        .close_on_backdrop_press(false)
-        .on_cancel(move || {
-            if presence.interactive() {
-                close();
-            }
-        })
-        .flex_1()
-        .p_6()
-        .items_center()
-        .justify_center()
-        .child(presence.backdrop(ui::scrim()))
+    ui::held_dialog(presence, close, card)
 }
 
 pub(crate) fn trigger(action: Signal<Option<Action>>) -> impl IntoElement {

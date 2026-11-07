@@ -679,6 +679,7 @@ fn sender_list(results: Results, senders: Senders) -> impl IntoElement {
                     move |at| {
                         let sender = move || rows.with(|rows| rows.get(at.index()).cloned());
                         parts::entity_row(
+                            move || sender().map(|sender| sender.user_id).unwrap_or_default(),
                             move || sender().map(|sender| sender.full_name).unwrap_or_default(),
                             move || sender().map(|sender| sender.avatar_url).unwrap_or_default(),
                             String::new,

@@ -27,7 +27,9 @@ pub(super) fn surface(router: LinkNavigation) -> impl IntoElement {
                     None => view().hidden().into_element(),
                     Some(panel) => {
                         let send = matches!(&panel, Panel::Send(_));
+                        let profile = matches!(&panel, Panel::Profile(_));
                         let compact = send
+                            || profile
                             || matches!(
                                 &panel,
                                 Panel::Loading | Panel::Error | Panel::Unsupported(_)
@@ -40,7 +42,7 @@ pub(super) fn surface(router: LinkNavigation) -> impl IntoElement {
                             Panel::Error => view()
                                 .gap_3()
                                 .p_4()
-                                .child(ui::modal_title(move || {
+                                .child(ui::dialog_title(move || {
                                     tr("Couldn’t open this link", "无法打开此链接")
                                 }))
                                 .child(
@@ -74,20 +76,27 @@ pub(super) fn surface(router: LinkNavigation) -> impl IntoElement {
                         if compact {
                             body = body.flex_auto().flex_grow(0.0);
                         }
-                        let mut card = parts::tall_dialog_card()
-                            .p(ui::space_lg())
-                            .gap(ui::space_md())
-                            .child(body.child(content));
+                        let mut card = if profile {
+                            ui::dialog_card(ui::DialogWidth::Compact)
+                                .p_0()
+                                .gap_0()
+                                .overflow_hidden()
+                        } else {
+                            parts::tall_dialog_card()
+                                .p(ui::space_lg())
+                                .gap(ui::space_md())
+                        }
+                        .child(body.child(content));
                         if compact {
                             card = card.h(auto()).min_h_0();
                         }
-                        if !send {
+                        if !send && !profile {
                             card = card.child(parts::dialog_actions().child(ui::action(
                                 move || tr("Close", "关闭"),
                                 move || router.close(),
                             )));
                         }
-                        ui::modal(presence, move || router.close(), card).into_element()
+                        ui::dialog(presence, move || router.close(), card).into_element()
                     }
                 })
             })
@@ -133,9 +142,11 @@ fn code_panel(
         )
         .child(view().flex_row().gap_2().children(
             value.participant_avatars.into_iter().take(4).map(|avatar| {
+                let id = stored(avatar.user_id);
                 let name = stored(avatar.name);
                 let url = stored(avatar.avatar_url);
                 ui::avatar_view(
+                    move || id.with(|id| id.clone()),
                     move || name.with(|name| name.clone().into()),
                     move || url.with(|url| url.clone()),
                     ui::AvatarSize::Medium,
@@ -235,7 +246,7 @@ fn payment_code(value: mixin_desktop_api::CodeResult, uri: String) -> impl IntoE
         view()
             .p_4()
             .gap_4()
-            .child(ui::modal_title(move || tr("Payment details", "付款详情")))
+            .child(ui::dialog_title(move || tr("Payment details", "付款详情")))
             .child(
                 text(move || {
                     tr(

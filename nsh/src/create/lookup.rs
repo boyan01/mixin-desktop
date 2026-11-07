@@ -46,11 +46,12 @@ pub(super) fn screen(
             }
         });
     };
-    modal(cancel).child(
+    modal(
+        cancel,
         panel()
             .style_when(
                 move || profile.with(Option::is_some),
-                |style| style.h(ui::dialog_height_tall()).p_0(),
+                |style| style.w(ui::dialog_width_compact()).p_0().gap_0(),
             )
             .child(dynamic(move || {
                 let user_id = profile.get();
@@ -66,7 +67,7 @@ pub(super) fn screen(
                         .flex_shrink(1.0)
                         .min_h_0()
                         .gap_4()
-                        .child(ui::modal_title(move || i18n.text(Key::SearchContact)))
+                        .child(ui::dialog_title(move || i18n.text(Key::SearchContact)))
                         .child(
                             scroll().flex_shrink(1.0).min_h_0().child(
                                 view()

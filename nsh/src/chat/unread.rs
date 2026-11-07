@@ -419,19 +419,18 @@ impl Unread {
         when(
             move || self.first.with(|first| first.is_some() && *first == id()),
             move || {
-                let rule = || view().flex_1().h(ui::hairline_width()).bg(ui::hairline);
+                let appearance = use_context::<crate::appearance::Appearance>()
+                    .expect("Home provides chat appearance");
                 view()
-                    .flex_row()
                     .items_center()
-                    .gap_3()
-                    .py_2()
-                    .child(rule())
+                    .my(ui::space_xs() + ui::space_2xs())
+                    .py_1()
+                    .bg(ui::surface_pane)
                     .child(
                         text(move || i18n.tr("Unread messages", "未读消息"))
-                            .text_role(ui::TextRole::Caption)
-                            .text_color(ui::accent),
+                            .text_size(move || appearance.secondary_size())
+                            .text_color(ui::message_secondary),
                     )
-                    .child(rule())
             },
         )
     }

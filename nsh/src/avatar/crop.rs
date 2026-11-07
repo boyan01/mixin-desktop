@@ -131,12 +131,12 @@ pub(super) fn screen(
                 view().hidden()
             },
         ))
-        .child(ui::modal(
+        .child(ui::dialog(
             picker.presence,
             cancel,
-            parts::dialog_card()
+            ui::dialog_card(ui::DialogWidth::Regular)
                 .max_h(relative(1.0))
-                .child(ui::modal_title(move || tr("Crop photo", "裁剪头像")))
+                .child(ui::dialog_title(move || tr("Crop photo", "裁剪头像")))
                 .child(
                     text(move || {
                         tr(

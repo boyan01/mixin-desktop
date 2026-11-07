@@ -139,11 +139,11 @@ fn approval(
         )
     };
     // Only the buttons answer: a stray press outside must not refuse the request.
-    ui::modal(
+    ui::dialog(
         presence,
         || {},
-        parts::dialog_card()
-            .child(ui::modal_title(move || title(i18n, direction)))
+        ui::dialog_card(ui::DialogWidth::Regular)
+            .child(ui::dialog_title(move || title(i18n, direction)))
             .child(
                 text(move || match direction {
                     Direction::Restore => i18n.tr(
@@ -203,15 +203,15 @@ fn progress(
 ) -> impl IntoElement {
     let i18n = i18n::current();
     let job = handle.job(direction);
-    ui::modal(
+    ui::dialog(
         presence,
         move || {
             if !job.get_untracked().status.active() {
                 handle.visible.set(None);
             }
         },
-        parts::dialog_card()
-            .child(ui::modal_title(move || title(i18n, direction)))
+        ui::dialog_card(ui::DialogWidth::Regular)
+            .child(ui::dialog_title(move || title(i18n, direction)))
             .child(status(handle, direction))
             .child(when(
                 move || job.get().status.active(),

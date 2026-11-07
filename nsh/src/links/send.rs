@@ -169,7 +169,7 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                         .child(ui::icon(ui::Icon::ArrowLeft))
                 }))
                 .child(
-                    ui::modal_title(move || {
+                    ui::dialog_title(move || {
                         if choosing.get() {
                             tr("Choose recipient", "选择接收方")
                         } else {

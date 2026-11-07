@@ -67,6 +67,7 @@ pub(super) fn screen(
                     .gap_2()
                     .child(
                         ui::avatar_view(
+                            move || profile.with(|p| p.user_id.clone()),
                             move || profile.with(|p| p.full_name.clone().into()),
                             move || profile.with(|p| p.avatar_url.clone()),
                             ui::AvatarSize::Medium,
@@ -250,15 +251,15 @@ fn sign_out_dialog(
         session_owner,
         profile_owner,
     } = state;
-    ui::modal(
+    ui::dialog(
         presence,
         move || {
             if !signing_out.get_untracked() {
                 confirming.set(false);
             }
         },
-        parts::dialog_card()
-            .child(ui::modal_title(move || {
+        ui::dialog_card(ui::DialogWidth::Regular)
+            .child(ui::dialog_title(move || {
                 i18n.tr(
                     "Sign out and remove this account’s local data?",
                     "退出登录并移除此账号的本地数据？",

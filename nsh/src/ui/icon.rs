@@ -42,6 +42,12 @@ pub(crate) enum Icon {
     Shield,
     Brush,
     InfoCircle,
+    /// Share: a box with an arrow leaving it.
+    Share,
+    /// Two speech bubbles: open the conversation.
+    Conversation,
+    /// A person: open the full profile.
+    Profile,
 }
 
 pub(crate) fn icon(icon: Icon) -> Svg {
@@ -69,6 +75,9 @@ pub(crate) fn icon(icon: Icon) -> Svg {
         Icon::Search => asset(include_str!("../../assets/ic_search_small.svg")),
         Icon::Sticker => asset(include_str!("../../assets/ic_sticker.svg")),
         Icon::Microphone => asset(include_str!("../../assets/microphone.svg")),
+        Icon::Share => asset(include_str!("../../assets/profile_share.svg")),
+        Icon::Conversation => asset(include_str!("../../assets/profile_chat.svg")),
+        Icon::Profile => asset(include_str!("../../assets/profile_info.svg")),
         Icon::ChevronDown => stroke("<path d='m6 9 6 6 6-6'/>"),
         Icon::ChevronRight => stroke("<path d='m9 6 6 6-6 6'/>"),
         Icon::ArrowLeft => stroke("<path d='M19 12H5m6-6-6 6 6 6'/>"),

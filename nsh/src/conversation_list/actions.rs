@@ -177,17 +177,25 @@ pub(crate) fn wrap(
         let mute_title = if row.is_muted {
             i18n.tr("Unmute", "取消静音")
         } else {
-            i18n.tr("Mute…", "静音…")
+            i18n.tr("Mute", "静音")
         };
         let pin = row.clone();
         let mute = row.clone();
-        vec![
-            MenuItem::new(pin_title).on_select(move || state.toggle_pin(pin.clone())),
-            MenuItem::new(mute_title).on_select(move || state.toggle_mute(mute.clone())),
-            crate::sidebar::circle_membership_item(state.circles, row.clone()),
-            MenuItem::new(i18n.tr("Delete chat…", "删除会话…"))
+        let add_to_circle = crate::sidebar::add_to_circle_item(state.circles, &row);
+        let remove_from_circle = crate::sidebar::remove_from_circle_item(state.circles, &row);
+        let mut delete = vec![
+            MenuItem::new(i18n.tr("Delete Chat", "删除聊天"))
                 .on_select(move || state.remove(row.clone())),
-        ]
+        ];
+        delete.extend(remove_from_circle);
+        ui::menu_groups([
+            vec![
+                MenuItem::new(pin_title).on_select(move || state.toggle_pin(pin.clone())),
+                MenuItem::new(mute_title).on_select(move || state.toggle_mute(mute.clone())),
+            ],
+            add_to_circle.into_iter().collect(),
+            delete,
+        ])
     })
 }
 
@@ -249,15 +257,15 @@ fn mute_dialog(state: State, presence: crate::motion::Presence) -> impl IntoElem
             }
         });
     };
-    ui::modal(
+    ui::dialog(
         presence,
         move || {
             if !state.busy.get_untracked() {
                 state.muting.set(None);
             }
         },
-        ui::modal_card()
-            .child(ui::modal_title(move || {
+        ui::dialog_card(ui::DialogWidth::Compact)
+            .child(ui::dialog_title(move || {
                 i18n.tr("Mute notifications", "通知静音")
             }))
             .child(

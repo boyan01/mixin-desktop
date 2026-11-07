@@ -101,19 +101,87 @@ lengths! {
     sidebar_width = "sidebar-width";
     navigation_width = "navigation-width";
     navigation_compact_width = "navigation-compact";
-    bubble_width = "bubble-width";
     /// The fixed width of a file or location card: Flutter's map preview.
     card_width = "card-width";
     /// The column of a page. Flutter's `CellGroup` caps a page here.
     content_max_width = "content-max-width";
+    /// A decision, a short form or a person: Flutter's `UserDialog`.
+    dialog_width_compact = "dialog-width-compact";
+    /// A dialog with a list or a longer form.
+    dialog_width_regular = "dialog-width-regular";
     /// A dialog with room for a document.
     dialog_width_wide = "dialog-width-wide";
     /// A dialog that holds a page or a long list.
     dialog_height_tall = "dialog-height-tall";
+    dialog_close_size = "dialog-close-size";
+    /// One command of a `profile_actions` row, and the icon in it.
+    profile_action_size = "profile-action-size";
+    profile_action_icon = "profile-action-icon";
+    /// How far a `profile_actions` row stands off the edges of its card.
+    profile_action_inset = "profile-action-inset";
+    /// Where a `profile_bio` starts to scroll.
+    profile_bio_height = "profile-bio-height";
     sticker_panel_width = "sticker-panel-width";
     sticker_panel_height = "sticker-panel-height";
     radius_login = "radius-login";
     radius_composer = "radius-composer";
+    /// A day separator and a notice in the timeline.
+    radius_chip = "radius-chip";
+    /// A thumbnail or a block inside a bubble.
+    radius_thumb = "radius-thumb";
+    /// A bot's icon in its card.
+    radius_app_icon = "radius-app-icon";
+
+    /// Flutter's bubble nip: its box, and how far it stands off the bubble's bottom.
+    bubble_nip_width = "bubble-nip-width";
+    bubble_nip_height = "bubble-nip-height";
+    bubble_nip_offset = "bubble-nip-offset";
+    /// What a bubble leaves free on the side away from its sender.
+    message_far_edge = "message-far-edge";
+    /// Where a sender's name starts, from the bubble's nip gutter.
+    message_name_inset = "message-name-inset";
+    /// The line of a message's time and delivery, and the marks in it.
+    message_status_height = "message-status-height";
+    message_status_icon = "message-status-icon";
+    /// The gap between a message's text and the status at the end of its last line.
+    message_status_spacing = "message-status-spacing";
+    /// The room a message's `HH:mm` takes at the status size.
+    message_status_time = "message-status-time";
+    /// The side inset of a chip, and the vertical inset of a caption.
+    chip_inset = "chip-inset";
+    notice_inset_y = "notice-inset-y";
+    day_chip_min_width = "day-chip-min-width";
+    /// The widest one-line notice, such as a pinned message.
+    notice_max_width = "notice-max-width";
+    /// A message's status over a picture.
+    stamp_inset_x = "stamp-inset-x";
+    stamp_inset_y = "stamp-inset-y";
+    /// The disc of a media state: play, download, a file's extension.
+    status_disc = "status-disc";
+    audio_wave_width = "audio-wave-width";
+    audio_wave_height = "audio-wave-height";
+    /// The play and stop marks of a voice message.
+    audio_icon = "audio-icon";
+    /// The bounds of a sticker's sides in a message.
+    sticker_min_size = "sticker-min-size";
+    sticker_max_size = "sticker-max-size";
+    /// The artwork at the corner of a transfer card.
+    snapshot_backdrop_width = "snapshot-backdrop-width";
+    snapshot_backdrop_height = "snapshot-backdrop-height";
+    post_max_width = "post-max-width";
+    quote_min_height = "quote-min-height";
+    quote_bar_width = "quote-bar-width";
+    /// The bounds of a bot's button group, and the side inset of a button in it.
+    action_group_min_width = "action-group-min-width";
+    action_group_max_width = "action-group-max-width";
+    action_button_inset_x = "action-button-inset-x";
+    actions_card_min_width = "actions-card-min-width";
+    actions_card_max_width = "actions-card-max-width";
+    stranger_button_min_width = "stranger-button-min-width";
+    inscription_height = "inscription-height";
+    /// The amount and the asset of a transfer card.
+    amount_text_size = "text-amount-size";
+    asset_text_size = "text-asset-size";
 }
 
 colors! {
@@ -136,9 +204,38 @@ colors! {
     bubble_in = "bubble-in";
     /// A message from the account.
     bubble_out = "bubble-out";
-    /// The chip of a day separator and of a notice in the timeline.
+    /// The chip of a day separator.
     day_background = "day-background";
     day_foreground = "day-foreground";
+    /// The chip of a system or pin notice.
+    notice_background = "notice-background";
+    notice_foreground = "notice-foreground";
+    /// The chip of the end-to-end encryption notice.
+    encrypt_background = "encrypt-background";
+    /// A message's time and its marks.
+    message_status = "message-status";
+    /// Quiet text in a bubble, and delivery marks: Flutter's `secondaryText`.
+    message_secondary = "message-secondary";
+    /// A sender's identity number beside the name.
+    message_identity = "message-identity";
+    /// A reply's quotation inside a bubble.
+    quote_background = "quote-background";
+    /// The elevation under a bubble.
+    bubble_shadow = "bubble-shadow";
+    /// What marks a located message over its bubble.
+    bubble_highlight_in = "bubble-highlight-in";
+    bubble_highlight_out = "bubble-highlight-out";
+    bubble_highlight_media = "bubble-highlight-media";
+    /// A voice message's bars: to play, and played.
+    waveform_track = "waveform-track";
+    waveform_progress = "waveform-progress";
+    /// The disc of a media state, and the light fill of a `pill`.
+    status_fill = "status-background";
+    /// The extension in a file's disc.
+    file_extension = "file-extension";
+    /// A message's status over a picture, and over a post.
+    media_stamp = "media-stamp";
+    post_stamp = "post-stamp";
     /// A chip over a picture, in either appearance.
     media_overlay = "media-overlay";
     media_overlay_foreground = "media-overlay-foreground";
@@ -178,6 +275,8 @@ colors! {
     scrim_fill = "scrim";
     /// A count pill that does not ask for attention.
     badge_quiet = "badge-quiet";
+    /// The placeholder of an avatar with no id to pick a color from.
+    avatar_empty = "avatar-empty";
 }
 
 /// The opacity of a control that does not take input.
@@ -198,16 +297,6 @@ pub(super) fn opacity_solid_pressed() -> f32 {
 /// The opacity of the chat wallpaper over its surface.
 pub(crate) fn chat_pattern_opacity() -> f32 {
     number("chat-pattern-opacity")
-}
-
-/// A circle's color. Circles have none of their own, so the id picks a stable one.
-pub(crate) fn circle_color(id: &str) -> AdaptiveColor {
-    let hash = id.bytes().fold(0_u32, |hash, byte| {
-        hash.wrapping_mul(31).wrapping_add(byte.into())
-    });
-    theme()
-        .color(&format!("circle-{}", hash % 8 + 1))
-        .unwrap_or_else(fg_secondary)
 }
 
 /// The app's type scale. Add a size only by adding a role to `theme.json`.
