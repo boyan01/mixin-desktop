@@ -256,91 +256,101 @@ impl Rows {
                         move || others() && first_of_sender(),
                         move || message_appearance::sender(message, actions),
                     ))
+                    // A column fixes the height of a child it does not stretch at
+                    // the whole width on offer, before that child's own width is
+                    // known. A row settles the width first, so what wraps at the
+                    // bubble's width, as a caption under a picture does, counts
+                    // towards the row at that width. A row's `max_w` must resolve
+                    // for it to shrink, so one holds each level that hugs content.
                     .child(
-                        view()
-                            .min_w_0()
-                            .max_w(relative(1.0))
-                            .items_end()
-                            .child(
-                                view()
-                                    .relative()
-                                    .min_w_0()
-                                    .max_w(relative(1.0))
-                                    .child(when(nip, move || {
-                                        message_appearance::nip(mine, neutral)
-                                    }))
-                                    .child(
-                                        view()
-                                            .relative()
-                                            .min_w_0()
-                                            .rounded(ui::radius_md())
-                                            .style_when(surface, move |style| {
-                                                style
-                                                    .bg(move || {
-                                                        bubble_surface(mine() && !neutral.get())
-                                                    })
-                                                    .shadow_xs()
-                                                    .shadow_color(ui::bubble_shadow())
-                                            })
-                                            .child(
-                                                view()
-                                                    .min_w_0()
-                                                    .rounded(ui::radius_md())
-                                                    .overflow_hidden()
-                                                    .child(message_actions::menu(
-                                                        message, actions, body,
-                                                    )),
-                                            )
-                                            .child(when(highlighted, move || {
-                                                view()
-                                                    .absolute()
-                                                    .inset_0()
-                                                    .rounded(ui::radius_md())
-                                                    .bg(move || {
-                                                        if !surface() {
-                                                            ui::bubble_highlight_media()
-                                                        } else if mine() {
-                                                            ui::bubble_highlight_out()
-                                                        } else {
-                                                            ui::bubble_highlight_in()
-                                                        }
-                                                    })
-                                                    .bind_opacity(&timeline.highlight_opacity)
-                                                    .pointer_events(PointerEvents::None)
-                                            }))
-                                            .child(when(
-                                                move || frame.get().stamp == Stamp::Inline,
-                                                move || {
+                        view().flex_row().min_w_0().max_w(relative(1.0)).child(
+                            view()
+                                .flex_shrink(1.0)
+                                .min_w_0()
+                                .items_end()
+                                .child(
+                                    view()
+                                        .flex_row()
+                                        .relative()
+                                        .min_w_0()
+                                        .max_w(relative(1.0))
+                                        .child(when(nip, move || {
+                                            message_appearance::nip(mine, neutral)
+                                        }))
+                                        .child(
+                                            view()
+                                                .relative()
+                                                .flex_shrink(1.0)
+                                                .min_w_0()
+                                                .rounded(ui::radius_md())
+                                                .style_when(surface, move |style| {
+                                                    style
+                                                        .bg(move || {
+                                                            bubble_surface(mine() && !neutral.get())
+                                                        })
+                                                        .shadow_xs()
+                                                        .shadow_color(ui::bubble_shadow())
+                                                })
+                                                .child(
+                                                    view()
+                                                        .min_w_0()
+                                                        .rounded(ui::radius_md())
+                                                        .overflow_hidden()
+                                                        .child(message_actions::menu(
+                                                            message, actions, body,
+                                                        )),
+                                                )
+                                                .child(when(highlighted, move || {
                                                     view()
                                                         .absolute()
-                                                        .right(ui::space_sm())
-                                                        .bottom(ui::space_sm())
-                                                        .style_when(captioned, |style| {
-                                                            style
-                                                                .right(ui::space_md())
-                                                                .bottom(ui::chip_inset())
+                                                        .inset_0()
+                                                        .rounded(ui::radius_md())
+                                                        .bg(move || {
+                                                            if !surface() {
+                                                                ui::bubble_highlight_media()
+                                                            } else if mine() {
+                                                                ui::bubble_highlight_out()
+                                                            } else {
+                                                                ui::bubble_highlight_in()
+                                                            }
                                                         })
+                                                        .bind_opacity(&timeline.highlight_opacity)
                                                         .pointer_events(PointerEvents::None)
-                                                        .child(stamp(Stamp::Inline))
-                                                },
-                                            )),
-                                    ),
-                            )
-                            .child(when(
-                                move || frame.get().stamp == Stamp::Below,
-                                move || {
-                                    // Flutter's 10 from the bubble's box, whose end
-                                    // holds the nip gutter of an own message.
-                                    view()
-                                        .mt(ui::space_xs())
-                                        .ml(ui::chip_inset())
-                                        .mr(ui::chip_inset())
-                                        .style_when(mine, |style| {
-                                            style.mr(ui::chip_inset() - ui::bubble_nip_width())
-                                        })
-                                        .child(stamp(Stamp::Below))
-                                },
-                            )),
+                                                }))
+                                                .child(when(
+                                                    move || frame.get().stamp == Stamp::Inline,
+                                                    move || {
+                                                        view()
+                                                            .absolute()
+                                                            .right(ui::space_sm())
+                                                            .bottom(ui::space_sm())
+                                                            .style_when(captioned, |style| {
+                                                                style
+                                                                    .right(ui::space_md())
+                                                                    .bottom(ui::chip_inset())
+                                                            })
+                                                            .pointer_events(PointerEvents::None)
+                                                            .child(stamp(Stamp::Inline))
+                                                    },
+                                                )),
+                                        ),
+                                )
+                                .child(when(
+                                    move || frame.get().stamp == Stamp::Below,
+                                    move || {
+                                        // Flutter's 10 from the bubble's box, whose end
+                                        // holds the nip gutter of an own message.
+                                        view()
+                                            .mt(ui::space_xs())
+                                            .ml(ui::chip_inset())
+                                            .mr(ui::chip_inset())
+                                            .style_when(mine, |style| {
+                                                style.mr(ui::chip_inset() - ui::bubble_nip_width())
+                                            })
+                                            .child(stamp(Stamp::Below))
+                                    },
+                                )),
+                        ),
                     ),
             )
     }
