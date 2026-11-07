@@ -81,7 +81,6 @@ deadlines, announcements, deactivated/self/FRIEND profiles.
 
 ## Deferred
 
-- Flutter data import (accounts, messages, attachments, settings): separate task.
 - Image editor polish beyond the current implementation.
 - Calls/VoIP, and mobile-only account/phone/PIN/backup flows (unreachable in the
   Flutter reference).

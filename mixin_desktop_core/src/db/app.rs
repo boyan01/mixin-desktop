@@ -11,11 +11,14 @@ pub use settings::*;
 use crate::db::Error;
 
 pub mod auth;
-#[cfg(not(target_arch = "wasm32"))]
-mod legacy_hive;
 mod migration;
 pub mod property;
 mod settings;
+#[cfg(not(target_arch = "wasm32"))]
+mod shared_settings;
+/// Process-scoped storage. `app.db` keeps NSH-only preferences; native
+/// credentials and shared preferences live in the Flutter app's Hive boxes
+/// next to it, whose lock this database holds while open.
 pub struct AppDatabase {
     pub auth_dao: AuthDao,
     pub property_dao: PropertyDao,
@@ -47,7 +50,21 @@ impl AppDatabase {
             .migrate(&pool)
             .await
             .with_context(|| "app database migration failed")?;
-        Ok(Self::from_pool(pool))
+        let root = path
+            .parent()
+            .ok_or_else(|| anyhow::anyhow!("app database has no directory"))?
+            .to_path_buf();
+        let hydrated = crate::db::hive::hydrated_box(&root)?;
+        let property_dao = PropertyDao(pool);
+        let auth_dao = AuthDao::new(root, hydrated.clone());
+        Ok(Self {
+            setting_dao: SettingDao::new(
+                property_dao.clone(),
+                shared_settings::SharedSettings::new(hydrated, auth_dao.clone()),
+            ),
+            auth_dao,
+            property_dao,
+        })
     }
 
     /// wasm: open through the Worker bridge; OPFS directory creation and
@@ -59,16 +76,12 @@ impl AppDatabase {
             .migrate(&pool)
             .await
             .with_context(|| "app database migration failed")?;
-        Ok(Self::from_pool(pool))
-    }
-
-    fn from_pool(pool: crate::db::Pool) -> Self {
         let property_dao = PropertyDao(pool);
-        Self {
-            auth_dao: AuthDao(property_dao.clone()),
+        Ok(Self {
+            auth_dao: AuthDao::new(property_dao.clone()),
             setting_dao: SettingDao::new(property_dao.clone()),
             property_dao,
-        }
+        })
     }
 }
 

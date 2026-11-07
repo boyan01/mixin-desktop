@@ -5,7 +5,7 @@ use anyhow::Result;
 use tokio::sync::{watch, Mutex};
 
 use crate::core::model::auth::{AuthService, AuthorizationSession};
-use crate::db::app::{Auth, PropertyDao};
+use crate::db::app::Auth;
 
 use super::desktop::record_current_device;
 
@@ -13,15 +13,11 @@ pub struct LoginRuntime {
     auth_service: Arc<AuthService>,
     session: Mutex<Option<AuthorizationSession>>,
     auth_url: String,
-    property_dao: PropertyDao,
     cancelled: watch::Sender<bool>,
 }
 
 impl LoginRuntime {
-    pub(super) async fn start(
-        auth_service: Arc<AuthService>,
-        property_dao: PropertyDao,
-    ) -> Result<Self> {
+    pub(super) async fn start(auth_service: Arc<AuthService>) -> Result<Self> {
         let session = auth_service.begin_authorization(desktop_platform()).await?;
         let auth_url = session.auth_url().to_string();
         let (cancelled, _) = watch::channel(false);
@@ -29,7 +25,6 @@ impl LoginRuntime {
             auth_service,
             session: Mutex::new(Some(session)),
             auth_url,
-            property_dao,
             cancelled,
         })
     }
@@ -61,7 +56,7 @@ impl LoginRuntime {
             _ = cancelled.changed() => anyhow::bail!("login cancelled"),
         };
         let auth = self.auth_service.complete_authorization(result).await?;
-        record_current_device(&self.property_dao).await?;
+        record_current_device(&self.auth_service, &auth.account.identity_number).await?;
         Ok(auth)
     }
 }

@@ -115,7 +115,7 @@ impl SignalService {
             .await
             .map_err(|e| anyhow!("failed to save signed pre key: {e}"))?;
         crypto_key_value
-            .set_next_signed_pre_key_id((signed_pre_key_id + 1) % MAX_VALUE)
+            .set_signed_pre_key(signed_pre_key_id)
             .await?;
 
         Ok(record)

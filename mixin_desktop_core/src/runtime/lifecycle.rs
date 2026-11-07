@@ -3,8 +3,9 @@ use super::{runner, AccountRuntime, AccountState};
 use crate::db::app::Auth;
 use anyhow::Result;
 use log::warn;
+#[cfg(target_arch = "wasm32")]
+use std::io::ErrorKind;
 use std::{
-    io::ErrorKind,
     path::PathBuf,
     sync::{atomic::Ordering, Arc},
 };
@@ -59,13 +60,29 @@ impl AccountRuntime {
         }
         self.signal_database.close().await;
         self.database.close().await;
-        if let Err(error) = crate::db::storage::files::remove_directory(&directory).await {
+        // Like the Flutter sign-out, keep messages and media for the next
+        // sign-in and drop only the account's credentials and Signal state.
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = directory;
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Err(error) = self
+            .auth_service
+            .auth_dao()
+            .clear_account_boxes(&self.account().identity_number)
+            .await
+        {
             warn!("failed to clear account storage during sign out: {error}");
         }
-        match crate::fs::remove_dir_all(&directory).await {
-            Ok(()) => {}
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => warn!("failed to remove signed-out account files: {error}"),
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Err(error) = crate::db::storage::files::remove_directory(&directory).await {
+                warn!("failed to clear account storage during sign out: {error}");
+            }
+            match crate::fs::remove_dir_all(&directory).await {
+                Ok(()) => {}
+                Err(error) if error.kind() == ErrorKind::NotFound => {}
+                Err(error) => warn!("failed to remove signed-out account files: {error}"),
+            }
         }
     }
 

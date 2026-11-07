@@ -49,12 +49,12 @@ pub(crate) struct ScreenLockService {
 }
 
 impl ScreenLockService {
-    pub(crate) async fn open(account_id: String, namespace: String) -> Result<Arc<Self>> {
-        if account_id.is_empty() || namespace.is_empty() {
-            bail!("Screen lock account and namespace are required");
-        }
+    /// Opens the account's screen privacy settings in its data directory.
+    pub(crate) async fn open(account_directory: std::path::PathBuf) -> Result<Arc<Self>> {
+        let store =
+            tokio::task::spawn_blocking(move || platform::store(&account_directory)).await??;
         Self::open_with(
-            platform::store(account_id, namespace)?,
+            store,
             platform::authenticator(),
             cfg!(any(
                 target_os = "macos",

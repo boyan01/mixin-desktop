@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 use anyhow::anyhow;
 #[cfg(not(target_arch = "wasm32"))]
 use anyhow::Context;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use directories::BaseDirs;
 #[cfg(not(any(
     target_arch = "wasm32",
@@ -23,6 +23,9 @@ use objc2::rc::autoreleasepool;
 use objc2_foundation::{NSFileManager, NSSearchPathDirectory, NSSearchPathDomainMask};
 
 const DATA_DIRECTORY_ENV: &str = "MIXIN_DESKTOP_DATA_DIR";
+/// The production Flutter desktop app is sandboxed under this bundle id.
+#[cfg(target_os = "macos")]
+const FLUTTER_MACOS_BUNDLE_ID: &str = "one.mixin.messenger.desktop";
 
 static DATA_DIRECTORY: OnceLock<Result<PathBuf, String>> = OnceLock::new();
 
@@ -95,11 +98,21 @@ fn resolve_data_directory() -> Result<PathBuf, String> {
         .ok_or_else(|| "failed to resolve application data directory".to_string())
 }
 
+/// The Flutter app's data directory, so both apps open the same data.
 #[cfg(target_os = "macos")]
 fn platform_data_directory() -> Option<PathBuf> {
+    if env::var_os("APP_SANDBOX_CONTAINER_ID").is_none() {
+        return Some(
+            BaseDirs::new()?
+                .home_dir()
+                .join("Library/Containers")
+                .join(FLUTTER_MACOS_BUNDLE_ID)
+                .join("Data/Documents"),
+        );
+    }
+    // A sandboxed build resolves inside its own container automatically,
+    // like path_provider_foundation's getApplicationDocumentsDirectory.
     autoreleasepool(|_| {
-        // This is the same native API used by path_provider_foundation. In a
-        // sandboxed app it resolves inside the app container automatically.
         let file_manager = unsafe { NSFileManager::defaultManager() };
         let urls = unsafe {
             file_manager.URLsForDirectory_inDomains(
@@ -159,7 +172,13 @@ mod tests {
         let directory = platform_data_directory().unwrap();
 
         #[cfg(target_os = "macos")]
-        assert!(directory.ends_with("Documents"));
+        assert_eq!(
+            directory,
+            BaseDirs::new()
+                .unwrap()
+                .home_dir()
+                .join("Library/Containers/one.mixin.messenger.desktop/Data/Documents")
+        );
         #[cfg(target_os = "windows")]
         assert_eq!(
             directory,

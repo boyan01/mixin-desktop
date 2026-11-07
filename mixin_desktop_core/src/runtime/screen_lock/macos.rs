@@ -1,71 +1,12 @@
 use std::sync::mpsc;
 
+use super::super::Authenticator;
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use block2::RcBlock;
 use objc2_06::{rc::autoreleasepool, runtime::Bool};
 use objc2_foundation_03::{NSError, NSString};
 use objc2_local_authentication::{LAContext, LAPolicy};
-use security_framework::passwords::{
-    delete_generic_password_options, generic_password, set_generic_password_options,
-    PasswordOptions,
-};
-
-use super::super::{Authenticator, Store};
-
-// Security.framework's errSecItemNotFound. All other statuses remain errors.
-const ITEM_NOT_FOUND: i32 = -25300;
-
-pub(super) struct Keychain {
-    service: String,
-    account: String,
-}
-
-impl Keychain {
-    pub fn new(account: String, namespace: String) -> Self {
-        let digest = ring::digest::digest(&ring::digest::SHA256, namespace.as_bytes());
-        Self {
-            service: format!(
-                "one.mixin.messenger.screen-lock.{}",
-                hex::encode(digest.as_ref())
-            ),
-            account,
-        }
-    }
-
-    fn options(&self) -> PasswordOptions {
-        let mut options = PasswordOptions::new_generic_password(&self.service, &self.account);
-        options.set_access_synchronized(Some(false));
-        options
-    }
-}
-
-impl Store for Keychain {
-    fn load(&self) -> Result<Option<Vec<u8>>> {
-        match generic_password(self.options()) {
-            Ok(bytes) => Ok(Some(bytes)),
-            Err(error) if error.code() == ITEM_NOT_FOUND => Ok(None),
-            Err(error) => {
-                Err(error).context("Could not read screen lock credentials from Keychain")
-            }
-        }
-    }
-
-    fn save(&self, bytes: &[u8]) -> Result<()> {
-        set_generic_password_options(bytes, self.options())
-            .context("Could not save screen lock credentials to Keychain")
-    }
-
-    fn delete(&self) -> Result<()> {
-        match delete_generic_password_options(self.options()) {
-            Ok(()) => Ok(()),
-            Err(error) if error.code() == ITEM_NOT_FOUND => Ok(()),
-            Err(error) => {
-                Err(error).context("Could not remove screen lock credentials from Keychain")
-            }
-        }
-    }
-}
 
 pub(super) struct Biometrics;
 

@@ -332,6 +332,7 @@ impl AttachmentAccess {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .remove(message_id);
+        self.finish_saved_download(message_id);
         self.remove_attachment_progress(message_id);
         if let Err(error) = result {
             self.database
@@ -413,6 +414,8 @@ impl AttachmentAccess {
             }
             downloads.insert(download_key.clone(), cancellation.clone());
         }
+        let saved_download = format!("{transcript_id}|{message_id}");
+        self.track_saved_download(&saved_download, true);
 
         self.set_transcript_attachment_progress(transcript_id, message_id, 0, 0);
         let progress = |completed, total| {
@@ -458,6 +461,7 @@ impl AttachmentAccess {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .remove(&download_key);
+        self.finish_saved_download(&saved_download);
         self.remove_transcript_attachment_progress(transcript_id, message_id);
         if let Err(error) = result {
             self.database
@@ -806,6 +810,7 @@ impl AttachmentAccess {
             }
             downloads.insert(message_id.to_string(), cancellation.clone());
         }
+        self.track_saved_download(message_id, true);
 
         self.set_attachment_progress(message_id, 0, 0);
         let progress = |completed, total| {
@@ -854,6 +859,7 @@ impl AttachmentAccess {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .remove(message_id);
+        self.finish_saved_download(message_id);
         self.remove_attachment_progress(message_id);
         if let Err(error) = result {
             self.database
@@ -889,6 +895,85 @@ impl AttachmentAccess {
             .cancel_pending_transfer(message_id)
             .await?;
         self.notify_messages_changed(None);
+        Ok(())
+    }
+
+    /// Lists a download in the Flutter app's `download_box` while it runs,
+    /// keyed like `DownloadKeyValue`, so either app resumes it after a restart.
+    fn track_saved_download(&self, key: &str, active: bool) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let result =
+                crate::db::hive::account_box(&self.account_data_dir, crate::db::hive::DOWNLOAD_BOX)
+                    .and_then(|downloads| {
+                        if active {
+                            downloads.put(key, &key.into())
+                        } else {
+                            downloads.delete(key)
+                        }
+                    });
+            if let Err(error) = result {
+                log::warn!("failed to update saved download {key}: {error}");
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        let _ = (key, active);
+    }
+
+    /// A download interrupted by shutdown stays listed to resume next start.
+    fn finish_saved_download(&self, key: &str) {
+        if self.active.load(std::sync::atomic::Ordering::Acquire) {
+            self.track_saved_download(key, false);
+        }
+    }
+
+    /// Resumes downloads listed in `download_box`, as the Flutter app does on
+    /// start. Entries whose message no longer exists are dropped.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) async fn resume_saved_downloads(&self) -> Result<()> {
+        let keys =
+            crate::db::hive::account_box(&self.account_data_dir, crate::db::hive::DOWNLOAD_BOX)?
+                .keys()?;
+        for key in keys {
+            let target = match key.split_once('|') {
+                Some((transcript_id, message_id)) => self
+                    .database
+                    .transcript_message_dao
+                    .find(transcript_id, message_id)
+                    .await?
+                    .map(|_| (Some(transcript_id.to_owned()), message_id.to_owned())),
+                None if self
+                    .database
+                    .message_dao
+                    .find_message_by_id(&key)
+                    .await?
+                    .is_some() =>
+                {
+                    Some((None, key.clone()))
+                }
+                None => None,
+            };
+            let Some((transcript_id, message_id)) = target else {
+                self.track_saved_download(&key, false);
+                continue;
+            };
+            let access = Self::new(self.state.clone());
+            crate::task::spawn(async move {
+                let result = match transcript_id {
+                    Some(transcript_id) => {
+                        access
+                            .download_transcript_attachment(transcript_id, message_id)
+                            .await
+                    }
+                    None => access.download_attachment(message_id).await,
+                };
+                if let Err(error) = result {
+                    log::warn!("failed to resume saved download {key}: {error}");
+                }
+                // Covers downloads that were already complete or not needed.
+                access.finish_saved_download(&key);
+            });
+        }
         Ok(())
     }
 

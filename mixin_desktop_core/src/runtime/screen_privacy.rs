@@ -10,21 +10,11 @@ use super::{
     AccountRuntime, AccountState,
 };
 
-async fn credential_namespace(directory: &std::path::Path) -> Result<String> {
-    let canonical = tokio::fs::canonicalize(directory).await?;
-    Ok(base16ct::lower::encode_string(
-        canonical.as_os_str().as_encoded_bytes(),
-    ))
-}
-
 impl AccountState {
     pub(super) async fn screen_lock_service(&self) -> Result<Arc<ScreenLockService>> {
         let service = self
             .screen_lock
-            .get_or_try_init(|| async {
-                let namespace = credential_namespace(&crate::db::path::data_directory()?).await?;
-                ScreenLockService::open(self.account_id.clone(), namespace).await
-            })
+            .get_or_try_init(|| ScreenLockService::open(self.account_data_dir.clone()))
             .await?;
         Ok(service.clone())
     }
@@ -82,27 +72,5 @@ impl AccountRuntime {
                 service.unlock_with_biometrics(reason).await
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn aliases_of_the_same_data_directory_use_the_same_lock_credential() {
-        let directory = tempfile::tempdir().unwrap();
-        let real = directory.path().join("real");
-        std::fs::create_dir(&real).unwrap();
-        let alias = directory.path().join("alias");
-        std::os::unix::fs::symlink(&real, &alias).unwrap();
-        assert_eq!(
-            credential_namespace(&real).await.unwrap(),
-            credential_namespace(&alias).await.unwrap()
-        );
-        assert!(credential_namespace(&directory.path().join("missing"))
-            .await
-            .is_err());
     }
 }

@@ -24,6 +24,12 @@ pub fn log_directory() -> ClientResult<String> {
     logging::directory().map_err(Into::into)
 }
 
+/// The shared Mixin data directory; the Flutter app's unless overridden by
+/// `MIXIN_DESKTOP_DATA_DIR`.
+pub fn data_directory() -> ClientResult<std::path::PathBuf> {
+    Ok(mixin_desktop_core::db::path::data_directory()?)
+}
+
 pub fn write_log(target: &str, level: LogLevel, message: &str) {
     let level = match level {
         LogLevel::Trace => log::Level::Trace,

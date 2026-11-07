@@ -7,6 +7,8 @@ pub mod error;
 pub mod fts;
 
 pub mod app;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod hive;
 mod migration;
 pub mod mixin;
 pub mod path;

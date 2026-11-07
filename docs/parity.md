@@ -23,7 +23,7 @@ Remaining work and priorities live in [nsh/ROADMAP.md](../nsh/ROADMAP.md).
 | L06 | Graceful process shutdown | Done |  |
 | L07 | Screen passcode and manual lock | Partial | physical/OS check pending |
 | L08 | Auto lock and biometric unlock | Partial | physical/OS check pending |
-| L09 | Flutter account data import | Deferred | separate future task |
+| L09 | Flutter account data compatibility | Done | NSH opens the Flutter data directory and formats in place |
 
 ## Navigation and conversation list
 

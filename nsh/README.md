@@ -17,10 +17,18 @@ Use NSH 0.4.0, Rust and the platform's native SDK. From the repository root:
 cargo run -p mixin_desktop_ui
 ```
 
-The native executable defaults to `~/.mixin/mixin-nsh`. Use
-`MIXIN_DESKTOP_DATA_DIR` to select an isolated test directory. Existing Flutter
-account data is not imported (deferred). Do not open the same data directory with
-another version while a runtime check is running.
+The native executable opens the Flutter desktop app's data directory in place and
+reads and writes it in the Flutter formats, so either app can open the same data:
+
+- macOS: `~/Library/Containers/one.mixin.messenger.desktop/Data/Documents`
+- Windows: `Documents\Mixin`
+- Linux: `~/.mixin`
+
+`mixin.db`, `fts.db`, and `signal.db` stay at the Flutter drift schema versions.
+Credentials, Signal counters, the screen passcode, and shared preferences live in
+the Flutter Hive boxes; `app.db` holds NSH-only preferences. While open, NSH holds
+the `hydrated_box` Hive lock, so it refuses to start while the Flutter app runs.
+Use `MIXIN_DESKTOP_DATA_DIR` to select an isolated test directory.
 
 The NSH CLI bypasses the native executable entry point. Prefer `cargo run` when
 validating startup, process ownership, native component registration and shutdown.

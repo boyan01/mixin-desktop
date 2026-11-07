@@ -1963,10 +1963,21 @@ mod tests {
     #[tokio::test]
     async fn received_pin_restores_dismissed_preview_but_unpin_preserves_dismissal() {
         let (directory, database, signal_database, service) = decrypt_service_fixture().await;
-        let settings = crate::db::app::AppDatabase::connect_at(directory.path().join("app.db"))
+        let app_database = crate::db::app::AppDatabase::connect_at(directory.path().join("app.db"))
             .await
+            .unwrap();
+        // Banner visibility lives in each saved account's Hive box.
+        crate::db::hive::hydrated_box(directory.path())
             .unwrap()
-            .setting_dao;
+            .put(
+                "MultiAuthCubit",
+                &serde_json::json!({"auths": [
+                    {"account": {"user_id": "other", "identity_number": "7001"}},
+                    {"account": {"user_id": "me", "identity_number": "7000"}},
+                ]}),
+            )
+            .unwrap();
+        let settings = app_database.setting_dao;
         let service = service.with_settings(settings.clone());
         let key = SettingDao::pinned_preview_key("me", "conversation");
         let other_key = SettingDao::pinned_preview_key("other", "conversation");
@@ -2007,7 +2018,12 @@ mod tests {
             service.process_pin(&data).await.unwrap();
             assert_eq!(
                 settings.get(&key).await.unwrap().as_deref(),
-                if index == 1 { Some("false") } else { None }
+                // `ShowPinMessageKeyValue.show` stores true.
+                if index == 1 {
+                    Some("false")
+                } else {
+                    Some("true")
+                }
             );
             assert_eq!(
                 settings.get(&other_key).await.unwrap().as_deref(),

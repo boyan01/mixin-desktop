@@ -30,7 +30,7 @@ pub use dto::{
     TranscriptSummaryItem, UserProfileItem, WebShareContent,
 };
 pub use error::{ClientError, ClientResult};
-pub use logging::{init_logging, log_directory, write_log, LogLevel};
+pub use logging::{data_directory, init_logging, log_directory, write_log, LogLevel};
 pub use login::LoginClient;
 #[cfg(not(target_arch = "wasm32"))]
 pub use media::{MediaClient, StickerAnimationClient};

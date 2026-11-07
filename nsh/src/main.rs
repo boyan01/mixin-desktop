@@ -1,7 +1,6 @@
 //! Runs Mixin on the machine's native NSH backend.
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
-use directories::BaseDirs;
 #[cfg(target_os = "linux")]
 use nsh_platform_linux as platform;
 #[cfg(target_os = "macos")]
@@ -10,30 +9,17 @@ use nsh_platform_macos as platform;
 use nsh_platform_windows as platform;
 
 fn main() -> Result<std::process::ExitCode, Box<dyn std::error::Error>> {
-    if std::env::var_os("MIXIN_DESKTOP_DATA_DIR").is_none_or(|path| path.is_empty()) {
-        let directory = BaseDirs::new()
-            .ok_or("Could not resolve the home directory")?
-            .home_dir()
-            .join(".mixin")
-            .join("mixin-nsh");
-        // SAFETY: this entry point has not started threads or the NSH engine yet.
-        unsafe {
-            std::env::set_var("MIXIN_DESKTOP_DATA_DIR", directory);
-        }
-    }
-    let directory = std::env::var_os("MIXIN_DESKTOP_DATA_DIR").expect("data directory resolved");
+    let directory = mixin_desktop_ui::data_directory()?;
     #[cfg(target_os = "windows")]
     let notification = mixin_desktop_ui::prepare_notification_activation()?;
     #[cfg(not(target_os = "windows"))]
     let notification = None;
-    let _instance = match mixin_desktop_ui::prepare_launch(
-        std::path::Path::new(&directory),
-        std::env::args().skip(1),
-        notification,
-    )? {
-        mixin_desktop_ui::Launch::Primary(instance) => instance,
-        mixin_desktop_ui::Launch::Forwarded => return Ok(std::process::ExitCode::SUCCESS),
-    };
+    let _instance =
+        match mixin_desktop_ui::prepare_launch(&directory, std::env::args().skip(1), notification)?
+        {
+            mixin_desktop_ui::Launch::Primary(instance) => instance,
+            mixin_desktop_ui::Launch::Forwarded => return Ok(std::process::ExitCode::SUCCESS),
+        };
     #[cfg(target_os = "macos")]
     let _quit_signal = mixin_desktop_ui::runtime::quit_on_signal(platform::quit_app)?;
     #[cfg(target_os = "linux")]

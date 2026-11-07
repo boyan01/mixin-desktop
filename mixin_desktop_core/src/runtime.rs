@@ -322,6 +322,15 @@ impl AccountRuntime {
             attachment_transfer_requests,
             setting_dao,
         ));
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let access = AttachmentAccess::new(state.clone());
+            crate::task::spawn(async move {
+                if let Err(error) = access.resume_saved_downloads().await {
+                    warn!("failed to resume saved downloads: {error}");
+                }
+            });
+        }
         crate::task::spawn(lifecycle::monitor_session(
             state.clone(),
             session,

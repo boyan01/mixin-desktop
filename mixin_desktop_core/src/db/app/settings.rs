@@ -56,6 +56,9 @@ impl<T> SettingKey<T> {
 #[derive(Clone)]
 pub struct SettingDao {
     properties: PropertyDao,
+    /// Native keys the Flutter app also reads; see `shared_settings`.
+    #[cfg(not(target_arch = "wasm32"))]
+    shared: super::shared_settings::SharedSettings,
     cache: Arc<Mutex<HashMap<String, Option<String>>>>,
     changes: broadcast::Sender<Vec<String>>,
 }
@@ -74,16 +77,27 @@ impl SettingDao {
             .await
     }
 
-    pub(super) fn new(properties: PropertyDao) -> Self {
+    pub(super) fn new(
+        properties: PropertyDao,
+        #[cfg(not(target_arch = "wasm32"))] shared: super::shared_settings::SharedSettings,
+    ) -> Self {
         let (changes, _) = broadcast::channel(64);
         Self {
             properties,
+            #[cfg(not(target_arch = "wasm32"))]
+            shared,
             cache: Arc::new(Mutex::new(HashMap::new())),
             changes,
         }
     }
 
     pub async fn get(&self, key: &str) -> Result<Option<String>> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if super::shared_settings::is_shared(key) {
+            let _cache = self.cache.lock().await;
+            let fallback = self.properties.get(PropertyGroup::Setting, key).await?;
+            return self.shared.get(key, fallback).await;
+        }
         let mut cache = self.cache.lock().await;
         if let Some(value) = cache.get(key) {
             return Ok(value.clone());
@@ -99,14 +113,29 @@ impl SettingDao {
 
     pub(crate) async fn set_many(&self, values: &[(&str, Option<&str>)]) -> Result<()> {
         let mut cache = self.cache.lock().await;
+        #[cfg(not(target_arch = "wasm32"))]
+        let (shared, app): (Vec<_>, Vec<_>) = values
+            .iter()
+            .copied()
+            .partition(|(key, _)| super::shared_settings::is_shared(key));
+        #[cfg(not(target_arch = "wasm32"))]
+        let stored = app.into_iter().chain(
+            shared
+                .iter()
+                .copied()
+                .filter(|(key, _)| super::shared_settings::keeps_app_copy(key)),
+        );
+        #[cfg(target_arch = "wasm32")]
+        let stored = values.iter().copied();
         self.properties
             .update(
-                &values
-                    .iter()
-                    .map(|(key, value)| (PropertyGroup::Setting, *key, *value))
+                &stored
+                    .map(|(key, value)| (PropertyGroup::Setting, key, value))
                     .collect::<Vec<_>>(),
             )
             .await?;
+        #[cfg(not(target_arch = "wasm32"))]
+        self.shared.set(&shared).await?;
         let mut changed = Vec::new();
         for (key, value) in values {
             let value = value.map(str::to_owned);
@@ -120,6 +149,15 @@ impl SettingDao {
             let _ = self.changes.send(changed);
         }
         Ok(())
+    }
+
+    /// Account-scoped shared settings follow the current session; call after
+    /// it changes so subscribers re-read them.
+    pub(crate) fn account_changed(&self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = self
+            .changes
+            .send(vec![super::shared_settings::PROXY_KEY.to_owned()]);
     }
 
     pub fn subscribe(
@@ -466,25 +504,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn typed_setting_rejects_an_invalid_persisted_value() {
+    async fn shared_setting_rejects_an_invalid_value_and_keeps_the_saved_one() {
         let directory = tempfile::tempdir().unwrap();
         let database = AppDatabase::connect_at(directory.path().join("app.db"))
             .await
             .unwrap();
         database
             .setting_dao
-            .set("photoAutoDownload", Some("invalid"))
+            .set_photo_auto_download(false)
             .await
             .unwrap();
 
-        let error = database
+        assert!(database
             .setting_dao
-            .photo_auto_download()
+            .set("photoAutoDownload", Some("invalid"))
             .await
-            .unwrap_err();
+            .is_err());
 
-        assert!(error
-            .to_string()
-            .contains("decode setting photoAutoDownload"));
+        assert!(!database.setting_dao.photo_auto_download().await.unwrap());
     }
 }

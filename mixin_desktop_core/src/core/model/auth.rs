@@ -147,6 +147,11 @@ impl AuthService {
         signal_database
             .init(result.registration_id, Some(&result.identity_key_private))
             .await?;
+        #[cfg(not(target_arch = "wasm32"))]
+        signal_database
+            .crypto_key_value
+            .set_local_registration_id(result.registration_id)
+            .await?;
         self.save_auth(&result.auth).await?;
         Ok(result.auth)
     }
@@ -162,6 +167,11 @@ impl AuthService {
         *a = Some(auth.clone());
 
         Ok(())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn auth_dao(&self) -> &AuthDao {
+        &self.auth_dao
     }
 
     pub fn get_auth(&self) -> Option<Auth> {

@@ -155,15 +155,7 @@ async fn launch(
     settings: Stored<Option<SettingsClient>>,
     media: Stored<Option<Arc<MediaClient>>>,
 ) -> ClientResult<Phase> {
-    let desktop = runtime::run(async {
-        if std::env::var_os("MIXIN_DESKTOP_DATA_DIR").is_none_or(|path| path.is_empty()) {
-            return Err(ClientError::InvalidArgument(
-                "Launch with cargo run -p mixin_desktop_ui, or set MIXIN_DESKTOP_DATA_DIR to an isolated directory.".into(),
-            ));
-        }
-        DesktopClient::open().await
-    })
-    .await?;
+    let desktop = runtime::run(DesktopClient::open()).await?;
     media.replace(Some(desktop.media()));
     settings.replace(Some(desktop.settings()));
     follow_appearance(desktop.settings());
@@ -202,6 +194,11 @@ fn follow_appearance(settings: SettingsClient) {
             }
         }
     });
+}
+
+/// Resolves the data directory shared with the Flutter desktop app.
+pub fn data_directory() -> ClientResult<std::path::PathBuf> {
+    mixin_desktop_api::data_directory()
 }
 
 /// Registers app-owned native controls before the macOS engine starts.

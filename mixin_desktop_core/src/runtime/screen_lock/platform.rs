@@ -10,24 +10,20 @@ use super::{Authenticator, Store};
 #[path = "macos.rs"]
 mod macos;
 
-#[cfg(any(target_os = "windows", target_os = "linux"))]
-#[path = "credential_store.rs"]
-mod credential_store;
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+#[path = "security_box.rs"]
+mod security_box;
 
-pub(super) fn store(account_id: String, namespace: String) -> Result<Arc<dyn Store>> {
-    #[cfg(target_os = "macos")]
+pub(super) fn store(account_directory: &std::path::Path) -> Result<Arc<dyn Store>> {
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
     {
-        Ok(Arc::new(macos::Keychain::new(account_id, namespace)))
-    }
-    #[cfg(any(target_os = "windows", target_os = "linux"))]
-    {
-        Ok(Arc::new(credential_store::CredentialStore::new(
-            account_id, namespace,
+        Ok(Arc::new(security_box::SecurityBox::open(
+            account_directory,
         )?))
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
-        let _ = (account_id, namespace);
+        let _ = account_directory;
         Ok(Arc::new(Unavailable))
     }
 }

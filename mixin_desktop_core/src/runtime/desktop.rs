@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::io::ErrorKind;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -9,7 +8,7 @@ use log::{info, warn};
 use tokio::sync::Mutex;
 
 use crate::core::model::auth::AuthService;
-use crate::db::app::{AppDatabase, PropertyDao, PropertyGroup, SettingDao};
+use crate::db::app::{AppDatabase, SettingDao};
 use crate::db::path::{account_data_directory, data_directory};
 use crate::db::SignalDatabase;
 use crate::network::{HttpResponse, NetworkService, SharedNetworkService};
@@ -19,11 +18,8 @@ use super::login::LoginRuntime;
 use super::mcp::McpServer;
 use super::{credential, AccountRuntime, SessionUnauthorized};
 
-const DEVICE_PROPERTY_KEY: &str = "device_id";
-
 pub struct DesktopRuntime {
     auth_service: Arc<AuthService>,
-    property_dao: PropertyDao,
     pub settings: SettingDao,
     network_service: SharedNetworkService,
     account: Mutex<Option<Arc<AccountRuntime>>>,
@@ -50,7 +46,6 @@ impl DesktopRuntime {
         let mcp_server = McpServer::new(database.setting_dao.clone()).await?;
         Ok(Self {
             auth_service,
-            property_dao: database.property_dao.clone(),
             settings: database.setting_dao.clone(),
             network_service,
             account: Mutex::new(None),
@@ -99,7 +94,6 @@ impl DesktopRuntime {
             return Ok(None);
         };
         if !device_matches(
-            &self.property_dao,
             &self.auth_service,
             &auth.account.user_id,
             &auth.account.identity_number,
@@ -133,6 +127,7 @@ impl DesktopRuntime {
                 info!("started account runtime for {}", runtime.account_id());
                 *active = Some(runtime.clone());
                 drop(active);
+                self.settings.account_changed();
                 #[cfg(not(target_arch = "wasm32"))]
                 self.mcp_server.start(runtime.clone()).await?;
                 Ok(Some(runtime))
@@ -186,7 +181,7 @@ impl DesktopRuntime {
         if self.account.lock().await.is_some() {
             return Err(anyhow!("account runtime already active"));
         }
-        LoginRuntime::start(self.auth_service.clone(), self.property_dao.clone()).await
+        LoginRuntime::start(self.auth_service.clone()).await
     }
 
     pub async fn wait_login(&self, login: &LoginRuntime) -> Result<Arc<AccountRuntime>> {
@@ -211,6 +206,7 @@ impl DesktopRuntime {
         );
         *active = Some(runtime.clone());
         drop(active);
+        self.settings.account_changed();
         #[cfg(not(target_arch = "wasm32"))]
         self.mcp_server.start(runtime.clone()).await?;
         Ok(runtime)
@@ -242,6 +238,7 @@ impl DesktopRuntime {
         self.mcp_server.stop().await;
         runtime.complete_sign_out(directory).await;
         active.take();
+        self.settings.account_changed();
         Ok(())
     }
 
@@ -269,8 +266,10 @@ async fn remove_if_exists(path: &Path) -> Result<()> {
     crate::db::storage::files::remove(path).await
 }
 
+/// Mirrors the Flutter app's `checkDeviceId`: data copied to another
+/// machine signs the account out but keeps its messages.
+#[cfg(not(target_arch = "wasm32"))]
 async fn device_matches(
-    property_dao: &PropertyDao,
     auth_service: &AuthService,
     user_id: &str,
     identity_number: &str,
@@ -278,40 +277,58 @@ async fn device_matches(
     let Some(current) = current_device_id().await else {
         return Ok(true);
     };
-    let saved = property_dao
-        .get(PropertyGroup::Account, DEVICE_PROPERTY_KEY)
-        .await?;
+    let auth_dao = auth_service.auth_dao();
+    let saved = auth_dao.device_id(identity_number).await?;
     if saved
         .as_deref()
         .is_none_or(|saved| saved.eq_ignore_ascii_case(&current))
     {
-        property_dao
-            .set(PropertyGroup::Account, DEVICE_PROPERTY_KEY, &current)
-            .await?;
+        if saved.is_none() {
+            auth_dao.set_device_id(identity_number, &current).await?;
+        }
         return Ok(true);
     }
 
     auth_service.clear_auth(user_id).await?;
-    let directory = account_data_directory(identity_number)?;
-    crate::db::storage::files::remove_directory(&directory).await?;
-    match crate::fs::remove_dir_all(&directory).await {
-        Ok(()) => {}
-        Err(error) if error.kind() == ErrorKind::NotFound => {}
-        Err(error) => return Err(error.into()),
-    }
-    property_dao
-        .set(PropertyGroup::Account, DEVICE_PROPERTY_KEY, &current)
-        .await?;
+    auth_dao.clear_account_boxes(identity_number).await?;
+    let signal_database = SignalDatabase::connect(identity_number.to_owned())
+        .await
+        .map_err(|error| anyhow!(error.to_string()))?;
+    let cleared = signal_database.clear().await;
+    signal_database.close().await;
+    cleared?;
     Ok(false)
 }
 
-pub(super) async fn record_current_device(property_dao: &PropertyDao) -> Result<()> {
+/// wasm has no machine id, so the browser profile is never treated as moved.
+#[cfg(target_arch = "wasm32")]
+async fn device_matches(
+    _auth_service: &AuthService,
+    _user_id: &str,
+    _identity_number: &str,
+) -> Result<bool> {
+    Ok(true)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) async fn record_current_device(
+    auth_service: &AuthService,
+    identity_number: &str,
+) -> Result<()> {
     let Some(current) = current_device_id().await else {
         return Ok(());
     };
-    property_dao
-        .set(PropertyGroup::Account, DEVICE_PROPERTY_KEY, &current)
-        .await?;
+    auth_service
+        .auth_dao()
+        .set_device_id(identity_number, &current)
+        .await
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(super) async fn record_current_device(
+    _auth_service: &AuthService,
+    _identity_number: &str,
+) -> Result<()> {
     Ok(())
 }
 
@@ -329,8 +346,10 @@ fn current_device_id_sync() -> Option<String> {
     {
         let id = std::fs::read_to_string("/etc/machine-id").ok()?;
         let id = id.trim();
-        return (id.len() == 32 && id.chars().all(|character| character.is_ascii_hexdigit()))
-            .then(|| id.to_lowercase());
+        if id.len() != 32 {
+            return None;
+        }
+        return Some(name_uuid_from_bytes(id.as_bytes()));
     }
     #[cfg(target_os = "macos")]
     {
@@ -366,9 +385,14 @@ fn current_device_id_sync() -> Option<String> {
     None
 }
 
-#[cfg(target_arch = "wasm32")]
-async fn current_device_id() -> Option<String> {
-    None
+/// Java's `UUID.nameUUIDFromBytes`, which the Flutter app applies to the
+/// Linux machine id.
+#[cfg(any(target_os = "linux", test))]
+fn name_uuid_from_bytes(bytes: &[u8]) -> String {
+    let mut digest = md5::compute(bytes).0;
+    digest[6] = (digest[6] & 0x0f) | 0x30;
+    digest[8] = (digest[8] & 0x3f) | 0x80;
+    uuid::Uuid::from_bytes(digest).to_string()
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

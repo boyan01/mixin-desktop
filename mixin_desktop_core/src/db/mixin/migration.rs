@@ -87,36 +87,17 @@ const MIGRATIONS: &[Migration] = &[
         "CREATE INDEX IF NOT EXISTS index_expired_messages_expire_at \
          ON expired_messages (expire_at) WHERE expire_at IS NOT NULL",
     ),
-    Migration::action(30, "repair binary audio waveforms", migrate_to_v30),
 ];
 
-pub(crate) const SCHEMA_VERSION: i64 = 30;
+/// The Flutter app's drift `schemaVersion`. Both apps open the same
+/// mixin.db, so a schema change must land in the Flutter app first.
+pub(crate) const SCHEMA_VERSION: i64 = 29;
 pub(crate) const MIGRATOR: Migrator = Migrator::new(
     "mixin",
     SCHEMA_VERSION,
     include_str!("schema.sql"),
     MIGRATIONS,
 );
-
-fn migrate_to_v30(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
-    async move {
-        use base64ct::{Base64, Encoding};
-        let mut cursor = None::<i64>;
-        loop {
-            let rows = crate::db::query_as::<(i64, Vec<u8>)>(
-                "SELECT rowid, media_waveform FROM messages WHERE typeof(media_waveform) = 'blob' \
-                 AND (? IS NULL OR rowid > ?) ORDER BY rowid ASC LIMIT 200",
-            ).bind(cursor).bind(cursor).fetch_all(&mut *connection).await?;
-            if rows.is_empty() { break; }
-            for (row_id, waveform) in rows {
-                crate::db::query("UPDATE messages SET media_waveform = ? WHERE rowid = ? AND typeof(media_waveform) = 'blob'")
-                    .bind(Base64::encode_string(&waveform)).bind(row_id).execute(&mut *connection).await?;
-                cursor = Some(row_id);
-            }
-        }
-        Ok(())
-    }.boxed()
-}
 
 fn migrate_to_v21(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
@@ -401,74 +382,6 @@ mod tests {
 
     use super::*;
     use crate::db::mixin::MixinDatabase;
-
-    #[tokio::test]
-    async fn reopening_a_legacy_database_repairs_binary_waveforms_without_changing_text_or_jobs() {
-        use base64ct::{Base64, Encoding};
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("mixin.db");
-        let database = super::super::MixinDatabase::connect_at(&path)
-            .await
-            .unwrap();
-        let pool = &database.message_dao.0;
-        crate::db::query("INSERT INTO conversations (conversation_id, created_at, status) VALUES ('conversation', 0, 0)").execute(pool).await.unwrap();
-        for id in ["binary", "text"] {
-            crate::db::query("INSERT INTO messages (message_id, conversation_id, user_id, category, status, created_at, media_waveform) VALUES (?, 'conversation', 'sender', 'SIGNAL_AUDIO', 'SENDING', 0, ?)")
-                .bind(id).bind("unchanged").execute(pool).await.unwrap();
-        }
-        let waveform = [0_u8, 128, 255];
-        crate::db::query("UPDATE messages SET media_waveform = ? WHERE message_id = 'binary'")
-            .bind(waveform.to_vec())
-            .execute(pool)
-            .await
-            .unwrap();
-        let job = crate::db::mixin::job::Job::create_sending_job(
-            "binary",
-            "conversation",
-            None,
-            None,
-            false,
-            false,
-            0,
-        );
-        database.job_dao.insert_job(&job).await.unwrap();
-        crate::db::query("PRAGMA user_version = 29")
-            .execute(pool)
-            .await
-            .unwrap();
-        pool.close().await;
-        drop(database);
-        let reopened = super::super::MixinDatabase::connect_at(&path)
-            .await
-            .unwrap();
-        let row = reopened
-            .message_dao
-            .find_message_by_id(&"binary".to_owned())
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            Base64::decode_vec(row.media_waveform.as_deref().unwrap()).unwrap(),
-            waveform
-        );
-        assert_eq!(
-            reopened
-                .message_dao
-                .find_message_by_id(&"text".to_owned())
-                .await
-                .unwrap()
-                .unwrap()
-                .media_waveform
-                .as_deref(),
-            Some("unchanged")
-        );
-        let count: i64 = crate::db::query_scalar("SELECT COUNT(*) FROM jobs WHERE job_id = ?")
-            .bind(job.job_id)
-            .fetch_one(&reopened.message_dao.0)
-            .await
-            .unwrap();
-        assert_eq!(count, 1);
-    }
 
     #[test]
     fn migration_registry_is_ordered_and_current() {

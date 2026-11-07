@@ -6,10 +6,7 @@ use crate::core::{
     message::{blaze::Blaze, sender::MessageSender},
     model::{signal::SignalService, AppService, ConversationService},
 };
-use crate::db::{
-    app::{Auth, PropertyGroup},
-    MixinDatabase,
-};
+use crate::db::{app::Auth, MixinDatabase};
 use crate::runtime::{
     attachment_progress::AttachmentProgresses, lifecycle::monitor_session, runner, AccountState,
 };
@@ -67,12 +64,6 @@ impl Fixture {
                 .await
                 .unwrap(),
         );
-        // Never consult the user's legacy Hive stores from a synthetic fixture.
-        database
-            .property_dao
-            .set(PropertyGroup::Auth, "auth_migration", "true")
-            .await
-            .unwrap();
         let auth_service = Arc::new(AuthService::new(database.clone()));
         let session = auth(SESSION, 1);
         auth_service.save_auth(&session).await.unwrap();
@@ -226,7 +217,6 @@ impl Fixture {
         mcp_server.set_port(0).await;
         let desktop = DesktopRuntime {
             auth_service,
-            property_dao: database.property_dao.clone(),
             settings,
             network_service: network,
             account: Mutex::new(Some(runtime.clone())),
@@ -263,6 +253,13 @@ impl Fixture {
             .unwrap();
         assert!(status.running);
         (status.endpoint.unwrap().replace("/mcp", "/events"), token)
+    }
+
+    /// Saved sessions live in the shared Hive state next to `app.db`.
+    fn reject_auth_writes(&self, reject: bool) {
+        crate::db::hive::hydrated_box(self._directory.path())
+            .unwrap()
+            .fail_writes(reject);
     }
 
     async fn unauthorized(&self) {
@@ -446,7 +443,7 @@ async fn real_rest_unauthorized_retires_runtime_clears_saved_auth_and_does_not_r
 #[tokio::test]
 async fn rejected_session_loses_cached_authority_when_persistent_auth_removal_fails() {
     let fixture = Fixture::new().await;
-    crate::db::query("CREATE TRIGGER reject_auth_update BEFORE UPDATE ON properties WHEN NEW.\"group\"='auth' AND NEW.\"key\"='auths' BEGIN SELECT RAISE(FAIL, 'test auth write rejected'); END").execute(&fixture.database.property_dao.0).await.unwrap();
+    fixture.reject_auth_writes(true);
     fixture.unauthorized().await;
     fixture.wait_retired().await;
     assert!(!fixture.runtime.is_running());
@@ -462,10 +459,7 @@ async fn rejected_session_loses_cached_authority_when_persistent_auth_removal_fa
         1
     );
     assert!(fixture.desktop.restore_account().await.unwrap().is_none());
-    crate::db::query("DROP TRIGGER reject_auth_update")
-        .execute(&fixture.database.property_dao.0)
-        .await
-        .unwrap();
+    fixture.reject_auth_writes(false);
     fixture.close().await;
 }
 
@@ -514,7 +508,7 @@ async fn failed_auth_persistence_restores_screen_credentials_or_keeps_content_co
             .unwrap();
         let original = stored().unwrap();
         fail_save(reject_restore);
-        crate::db::query("CREATE TRIGGER reject_auth_update BEFORE UPDATE ON properties WHEN NEW.\"group\"='auth' AND NEW.\"key\"='auths' BEGIN SELECT RAISE(FAIL, 'test auth write rejected'); END").execute(&fixture.database.property_dao.0).await.unwrap();
+        fixture.reject_auth_writes(true);
         assert!(fixture
             .desktop
             .sign_out_account(&fixture.runtime)
@@ -541,10 +535,7 @@ async fn failed_auth_persistence_restores_screen_credentials_or_keeps_content_co
             assert_eq!(stored().unwrap(), original);
         }
         fail_save(false);
-        crate::db::query("DROP TRIGGER reject_auth_update")
-            .execute(&fixture.database.property_dao.0)
-            .await
-            .unwrap();
+        fixture.reject_auth_writes(false);
         if reject_restore {
             service.unlock("024680".into()).await.unwrap();
         }
@@ -589,4 +580,36 @@ async fn shutting_down_old_account_does_not_stop_mcp_bound_to_its_replacement() 
     drop(response);
     old.close().await;
     replacement.close().await;
+}
+
+#[test]
+fn linux_device_id_matches_java_name_uuid_from_bytes() {
+    // UUID.nameUUIDFromBytes("hello".getBytes()) in Java and the Flutter app.
+    assert_eq!(
+        name_uuid_from_bytes(b"hello"),
+        "5d41402a-bc4b-3a76-b971-9d911017c592"
+    );
+}
+
+#[tokio::test]
+async fn saved_flutter_downloads_without_a_message_are_dropped_on_resume() {
+    let fixture = Fixture::new().await;
+    let downloads = crate::db::hive::account_box(
+        &fixture._directory.path().join("account"),
+        crate::db::hive::DOWNLOAD_BOX,
+    )
+    .unwrap();
+    for key in ["missing-message", "missing-transcript|missing-message"] {
+        downloads.put(key, &key.into()).unwrap();
+    }
+
+    fixture
+        .runtime
+        .attachment_access()
+        .resume_saved_downloads()
+        .await
+        .unwrap();
+
+    assert!(downloads.keys().unwrap().is_empty());
+    fixture.close().await;
 }

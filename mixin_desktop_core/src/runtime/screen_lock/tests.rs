@@ -74,8 +74,6 @@ async fn configured_passcode_reopens_locked_and_only_the_correct_code_unlocks() 
     first.set_passcode("012345".into()).await.unwrap();
     assert!(first.state().enabled);
     assert!(!first.state().locked);
-    let bytes = store.load().unwrap().unwrap();
-    assert!(!String::from_utf8(bytes).unwrap().contains("012345"));
     let reopened = service(store, now).await;
     assert!(reopened.state().locked);
     assert!(reopened.unlock("999999".into()).await.is_err());

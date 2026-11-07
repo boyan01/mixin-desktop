@@ -27,14 +27,33 @@ pub struct SignalDatabase {
 }
 
 impl SignalDatabase {
+    /// Opens the Flutter layout: one `signal.db` in the data directory and the
+    /// account's Signal counters in `<identity_number>/crypto_box`.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn connect(identity_number: String) -> Result<Self, Box<dyn Error>> {
+        let path = crate::db::path::app_database_path("signal.db")?;
+        let account_directory = crate::db::path::account_data_directory(&identity_number)?;
+        Self::open(&path, &account_directory).await
+    }
+
+    #[cfg(target_arch = "wasm32")]
     pub async fn connect(identity_number: String) -> Result<Self, Box<dyn Error>> {
         let path = crate::db::path::account_database_path(&identity_number, "signal.db")?;
         Self::connect_at(path).await
     }
 
+    /// Opens `path` with Signal counters in its directory.
     #[cfg(not(target_arch = "wasm32"))]
     pub async fn connect_at(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         let path = path.as_ref();
+        let directory = path
+            .parent()
+            .ok_or_else(|| anyhow!("signal database has no directory"))?;
+        Self::open(path, directory).await
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn open(path: &Path, account_directory: &Path) -> Result<Self, Box<dyn Error>> {
         crate::db::path::create_parent_directory(path).await?;
         let pool = SqlitePoolOptions::new()
             .connect_with(
@@ -47,7 +66,8 @@ impl SignalDatabase {
             )
             .await?;
         super::migration::MIGRATOR.migrate(&pool).await?;
-        let database = Self::from_pool(pool);
+        let crypto_key_value = CryptoKeyValue::open(account_directory)?;
+        let database = Self::from_pool(pool, crypto_key_value);
         database.crypto_key_value.init().await?;
         Ok(database)
     }
@@ -60,19 +80,20 @@ impl SignalDatabase {
         crate::db::path::create_parent_directory(path).await?;
         let pool = crate::db::Pool::open(&path.to_string_lossy()).await?;
         super::migration::MIGRATOR.migrate(&pool).await?;
-        let database = Self::from_pool(pool);
+        let crypto_key_value = CryptoKeyValue::new(pool.clone());
+        let database = Self::from_pool(pool, crypto_key_value);
         database.crypto_key_value.init().await?;
         Ok(database)
     }
 
-    fn from_pool(pool: crate::db::Pool) -> Self {
+    fn from_pool(pool: crate::db::Pool, crypto_key_value: CryptoKeyValue) -> Self {
         SignalDatabase {
             pre_key_dao: PreKeyDao(pool.clone()),
             signed_pre_key_dao: SignedPreKeyDao(pool.clone()),
             session_dao: SessionDao(pool.clone()),
             sender_key_dao: SenderKeyDao(pool.clone()),
             identity_dao: IdentityDao(pool.clone()),
-            crypto_key_value: CryptoKeyValue::new(pool.clone()),
+            crypto_key_value,
             ratchet_sender_key_dao: RatchetSenderKeyDao(pool),
         }
     }
@@ -100,6 +121,8 @@ impl SignalDatabase {
             .await
     }
 
+    /// Deletes every Signal row, like the Flutter app's `SignalDatabase.clear`.
+    /// Native counters are cleared with the account's Hive boxes.
     pub async fn clear(&self) -> Result<(), db::Error> {
         let mut transaction = self.pre_key_dao.0.begin_with("BEGIN IMMEDIATE").await?;
         for table in [
@@ -109,6 +132,7 @@ impl SignalDatabase {
             "signed_prekeys",
             "sessions",
             "ratchet_sender_keys",
+            #[cfg(target_arch = "wasm32")]
             "properties",
         ] {
             crate::db::query(sqlx::AssertSqlSafe(format!("DELETE FROM {table}")))
@@ -168,7 +192,6 @@ mod tests {
             "INSERT INTO signed_prekeys (prekey_id, record, timestamp) VALUES (1, X'01', 1)",
             "INSERT INTO sessions (address, device, record, timestamp) VALUES ('address', 1, X'01', 1)",
             "INSERT INTO ratchet_sender_keys VALUES ('group', 'sender', 'SENT', 'message', '2026-07-16T00:00:00Z')",
-            "INSERT INTO properties VALUES ('has_push_signal_keys', 'true')",
         ] {
             crate::db::query(statement).execute(pool).await?;
         }
@@ -182,7 +205,6 @@ mod tests {
             "signed_prekeys",
             "sessions",
             "ratchet_sender_keys",
-            "properties",
         ] {
             let count: i64 = crate::db::query_scalar(sqlx::AssertSqlSafe(format!(
                 "SELECT COUNT(*) FROM {table}"
@@ -195,12 +217,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn v1_upgrade_copies_legacy_app_counters_into_signal_properties(
+    async fn flutter_signal_database_opens_at_v1_with_counters_from_crypto_box(
     ) -> Result<(), Box<dyn Error>> {
+        use crate::db::hive::{account_box, CRYPTO_BOX, PRIVACY_BOX};
         let directory = tempfile::tempdir()?;
-        let account_directory = directory.path().join("7000");
-        tokio::fs::create_dir(&account_directory).await?;
-        let path = account_directory.join("signal.db");
+        let path = directory.path().join("signal.db");
         let pool = SqlitePoolOptions::new()
             .connect_with(
                 SqliteConnectOptions::new()
@@ -211,51 +232,27 @@ mod tests {
         crate::db::raw_sql(include_str!("schema.sql"))
             .execute(&pool)
             .await?;
-        crate::db::query("DROP TABLE properties")
-            .execute(&pool)
-            .await?;
         crate::db::query("PRAGMA user_version = 1")
             .execute(&pool)
             .await?;
         pool.close().await;
+        let account_directory = directory.path().join("7000");
+        let crypto = account_box(&account_directory, CRYPTO_BOX)?;
+        crypto.put("next_pre_key_id", &123.into())?;
+        crypto.put("next_signed_pre_key_id", &456.into())?;
+        account_box(&account_directory, PRIVACY_BOX)?.put("has_push_signal_keys", &true.into())?;
 
-        let app_pool = SqlitePoolOptions::new()
-            .connect_with(
-                SqliteConnectOptions::new()
-                    .filename(directory.path().join("app.db"))
-                    .create_if_missing(true),
-            )
-            .await?;
-        crate::db::raw_sql(
-            r#"CREATE TABLE properties (
-                "key" TEXT NOT NULL,
-                "group" TEXT NOT NULL,
-                "value" TEXT NOT NULL,
-                PRIMARY KEY ("key", "group")
-            );
-            INSERT INTO properties VALUES ('next_pre_key_id', 'crypto:7000', '123');
-            INSERT INTO properties VALUES ('next_signed_pre_key_id', 'crypto:7000', '456');
-            INSERT INTO properties VALUES ('has_push_signal_keys', 'crypto:7000', 'true');"#,
-        )
-        .execute(&app_pool)
-        .await?;
-        app_pool.close().await;
+        let database = SignalDatabase::open(&path, &account_directory).await?;
+        database.crypto_key_value.set_signed_pre_key(456).await?;
 
-        let database = SignalDatabase::connect_at(&path).await?;
         let version: i64 = crate::db::query_scalar("PRAGMA user_version")
             .fetch_one(&database.pre_key_dao.0)
             .await?;
-        let properties: i64 = crate::db::query_scalar(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'properties'",
-        )
-        .fetch_one(&database.pre_key_dao.0)
-        .await?;
-
-        assert_eq!(version, super::super::migration::SCHEMA_VERSION);
-        assert_eq!(properties, 1);
+        assert_eq!(version, 1);
         assert_eq!(database.crypto_key_value.next_pre_key_id(), 123);
-        assert_eq!(database.crypto_key_value.next_signed_pre_key_id(), 456);
         assert!(database.crypto_key_value.has_push_signal_keys());
+        assert_eq!(crypto.get("next_signed_pre_key_id")?, Some(457.into()));
+        assert_eq!(crypto.get("active_signed_pre_key_id")?, Some(456.into()));
         Ok(())
     }
 }

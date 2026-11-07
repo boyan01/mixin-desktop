@@ -1,4 +1,4 @@
--- Current signal.db schema (v1).
+-- signal.db schema v1, identical to the Flutter app's signal.drift.
 
 CREATE TABLE sender_keys (
     group_id TEXT NOT NULL,
@@ -49,9 +49,4 @@ CREATE TABLE ratchet_sender_keys (
     message_id TEXT,
     created_at TEXT NOT NULL,
     PRIMARY KEY (group_id, sender_id)
-);
-
-CREATE TABLE properties (
-    key TEXT PRIMARY KEY NOT NULL,
-    value TEXT NOT NULL
 );

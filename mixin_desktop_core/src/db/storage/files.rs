@@ -15,11 +15,6 @@ pub(crate) async fn remove(path: &Path) -> anyhow::Result<()> {
         result => Ok(result?),
     }
 }
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) async fn remove_directory(_path: &Path) -> anyhow::Result<()> {
-    // Native databases live in the account directory removed by the caller.
-    Ok(())
-}
 #[cfg(target_arch = "wasm32")]
 mod browser {
     use wasm_bindgen::prelude::*;
