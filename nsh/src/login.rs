@@ -166,7 +166,7 @@ async fn authorize(
                 phase.set(Phase::SignedIn(account));
                 return Ok(());
             }
-            Err(error) if error.to_string().contains("authorization timed out") => continue,
+            Err(mixin_desktop_api::ClientError::TimedOut) => continue,
             Err(error) => {
                 if error.to_string().contains("login_provisioning_error:") {
                     runtime::run(async move { desktop.abort_saved_login().await }).await?;

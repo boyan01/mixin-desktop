@@ -80,7 +80,7 @@ pub(super) fn contact(host: Host) -> impl IntoElement {
                 busy.set(false);
                 if result.is_ok() {
                     clear_quote(host.quote, sent_quote);
-                    host.close();
+                    host.sent();
                 } else {
                     send_failed.set(true);
                 }
@@ -304,7 +304,7 @@ pub(super) fn post(host: Host) -> impl IntoElement {
             busy.set(false);
             // A post carries no quote, so a pending reply stays for the next message.
             if result.is_ok() {
-                host.close();
+                host.sent();
             } else {
                 failed.set(true);
             }

@@ -27,7 +27,7 @@ pub(super) fn summary(root: String, child: String, actions: Actions) -> impl Int
         loading.set(true);
         failed.set(false);
         spawn(async move {
-            let mut changes = Box::pin(runtime::observe(client.message_changes()));
+            let mut changes = Box::pin(runtime::observe(client.message_changes(None)));
             loop {
                 let client = client.clone();
                 let root = root.clone();
@@ -110,7 +110,7 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
         loading.set(true);
         failed.set(false);
         spawn(async move {
-            let mut changes = Box::pin(crate::runtime::observe(client.message_changes()));
+            let mut changes = Box::pin(crate::runtime::observe(client.message_changes(None)));
             loop {
                 let client = client.clone();
                 let id = transcript_id.clone();

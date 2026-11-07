@@ -32,9 +32,16 @@ pub(super) struct Host {
     pub failed: Signal<bool>,
     pub presence: Presence,
     action: Signal<Option<Action>>,
+    navigation: crate::navigation::ChatNavigation,
 }
 
 impl Host {
+    /// Closes the dialog after a message was accepted and shows it.
+    pub fn sent(self) {
+        self.navigation.show_latest();
+        self.close();
+    }
+
     pub fn account(self) -> Arc<AccountClient> {
         self.account.with(|account| account.clone())
     }
@@ -86,6 +93,8 @@ pub(crate) fn attachments(
         failed,
         presence: Presence::modal(move || action.with(Option::is_some)),
         action,
+        navigation: use_context::<crate::navigation::ChatNavigation>()
+            .expect("Home provides chat navigation"),
     };
     let pick = move |media: bool| {
         let dialog = OpenDialog::files().multiple(true);

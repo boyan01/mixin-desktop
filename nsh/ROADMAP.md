@@ -90,15 +90,12 @@ deadlines, announcements, deactivated/self/FRIEND profiles.
 
 - Manually verify native context menus: inside modals (transcript, pinned), menus whose
   row is recycled while open, Windows/Linux.
-- Chat scroll position is lost when Settings opens; return to latest after attachment or
-  sticker sends while scrolled up.
-- Make `message_changes` conversation-scoped (Shared/Search still refetch on any chat).
+- Manually verify that the chat keeps its scroll position and draft after Settings, and that
+  sticker/GIF/file/voice sends jump to the latest row (source change only, no native check yet).
 - Attachment size/count limits; quotes for sticker/GIF/post sends (needs API change).
 - IME composition state is not reactive (`rich_editor` has no composition event).
-- Paged global search -> infinite scroll; typed login-timeout error instead of string match.
-- Move `conversation/parts.rs` helpers into `ui.rs`; replace "!"/"◷" status glyphs with icons.
-- Release Settings hides Transfer but `home.rs` still routes to it; refresh the key counts in
-  `nsh/assets/l10n/README.md`.
+- Verify global search infinite scroll (one section, scroll to the end) natively.
+- Refresh the key counts in `nsh/assets/l10n/README.md`.
 
 ## Before handoff
 

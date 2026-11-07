@@ -405,6 +405,7 @@ pub(super) fn screen(
     });
     load_senders(account.clone(), id.clone(), senders);
     let changes_account = account.clone();
+    let message_conversation = id.clone();
     spawn(async move {
         let mut changes = Box::pin(runtime::observe(changes_account.conversation_changes()));
         while let Some(change) = changes.next().await {
@@ -415,10 +416,11 @@ pub(super) fn screen(
             }
         }
     });
-    // The stream covers every conversation, so a busy account would requery constantly.
     spawn(async move {
         parts::throttled(
-            Box::pin(runtime::observe(account.message_changes())),
+            Box::pin(runtime::observe(
+                account.message_changes(Some(message_conversation)),
+            )),
             move || {
                 results.schedule(Load::Refresh);
                 if senders.open.get_untracked() {

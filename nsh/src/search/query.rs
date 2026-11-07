@@ -8,10 +8,10 @@ const REFRESH_INTERVAL: Duration = Duration::from_millis(333);
 #[derive(Clone, Copy)]
 pub(super) struct State {
     pub(super) section: Signal<Section>,
-    pub(super) page: Signal<i64>,
-    pub(super) cursors: Signal<Vec<Option<String>>>,
-    pub(super) next_cursor: Signal<Option<String>>,
+    /// Pages of a single section loaded so far; scrolling to the end adds one.
+    pub(super) pages: Signal<i64>,
     pub(super) more: Signal<bool>,
+    extending: Signal<bool>,
     pub(super) rows: Signal<Vec<Row>>,
     pub(super) users_empty: Signal<bool>,
     pub(super) loading: Signal<bool>,
@@ -24,27 +24,20 @@ impl State {
     pub(super) fn show(self, section: Section) {
         batch(|| {
             self.section.set(section);
-            self.page.set(0);
-            self.cursors.set(vec![None]);
+            self.pages.set(1);
         });
     }
 
-    pub(super) fn next_page(self) {
-        batch(|| {
-            if self.section.get_untracked() == Section::Messages {
-                let cursor = self.next_cursor.get_untracked();
-                let next = self.page.get_untracked() as usize + 1;
-                self.cursors.update(|cursors| {
-                    cursors.truncate(next);
-                    cursors.push(cursor);
-                });
-            }
-            self.page.update(|page| *page += 1);
-        });
-    }
-
-    pub(super) fn previous_page(self) {
-        self.page.update(|page| *page = page.saturating_sub(1));
+    pub(super) fn load_more(self) {
+        if self.section.get_untracked() == Section::All
+            || !self.more.get_untracked()
+            || self.loading.get_untracked()
+            || self.extending.get_untracked()
+        {
+            return;
+        }
+        self.extending.set(true);
+        self.pages.update(|pages| *pages += 1);
     }
 
     pub(super) fn retry(self) {
@@ -56,7 +49,6 @@ impl State {
             if matches!(scope, Section::All | Section::Users) {
                 self.users_empty.set(results.users_empty);
             }
-            self.next_cursor.set(results.next_cursor);
             self.more.set(results.more);
             self.rows.set(results.rows);
         });
@@ -69,7 +61,6 @@ impl State {
 struct Results {
     rows: Vec<Row>,
     more: bool,
-    next_cursor: Option<String>,
     users_empty: bool,
 }
 
@@ -83,7 +74,6 @@ impl Results {
         let mut results = Self {
             rows: Vec::new(),
             more: false,
-            next_cursor: None,
             users_empty: users.is_empty(),
         };
         if !users.is_empty() {
@@ -103,7 +93,6 @@ impl Results {
         if !messages.is_empty() {
             results.header(Section::Messages, messages.len() > limit);
             messages.truncate(limit);
-            results.next_cursor = messages.last().map(|message| message.message_id.clone());
             results
                 .rows
                 .extend(messages.into_iter().map(|row| Row::Message(Box::new(row))));
@@ -127,10 +116,9 @@ pub(super) fn new(
 ) -> State {
     let state = State {
         section: signal(Section::All),
-        page: signal(0_i64),
-        cursors: signal(vec![None::<String>]),
-        next_cursor: signal(None::<String>),
+        pages: signal(1_i64),
         more: signal(false),
+        extending: signal(false),
         rows: signal_with(Vec::<Row>::new(), SignalEquals::Never),
         users_empty: signal(true),
         loading: signal(true),
@@ -157,6 +145,7 @@ pub(super) fn new(
         }
     });
     let seen_revision = stored(0_u64);
+    let seen_pages = stored(1_i64);
     effect(move || {
         if composing.get() {
             return;
@@ -166,13 +155,12 @@ pub(super) fn new(
         let circle = circle.get();
         let unread_only = unread.get();
         let scope = state.section.get();
-        let offset = state.page.get();
-        let cursor = state
-            .cursors
-            .with(|cursors| cursors.get(offset as usize).cloned().flatten());
+        let pages = state.pages.get();
         let revision = state.revision.get();
-        // New data under an unchanged query updates in place: no spinner, no debounce.
-        let background = seen_revision.replace(revision) != revision
+        let grew = seen_pages.replace(pages) < pages;
+        // New data or a further page under an unchanged query updates in place:
+        // no spinner, no debounce, and the scroll position stays.
+        let background = (seen_revision.replace(revision) != revision || grew)
             && !state.failed.get_untracked()
             && !state.loading.get_untracked();
         if !background {
@@ -185,7 +173,7 @@ pub(super) fn new(
             if !background {
                 timer(DEBOUNCE).await;
             }
-            let count = if scope == Section::All { 3 } else { 60 };
+            let count = if scope == Section::All { 3 } else { 60 * pages };
             let result = runtime::run(async move {
                 let access = client.conversation();
                 let user = client.user();
@@ -196,7 +184,7 @@ pub(super) fn new(
                             keyword.clone(),
                             category.into(),
                             circle.clone(),
-                            offset * count,
+                            0,
                             count + 1,
                         )
                         .await
@@ -213,7 +201,7 @@ pub(super) fn new(
                                 keyword.clone(),
                                 unread_only,
                                 count + 1,
-                                offset * count,
+                                0,
                             )
                             .await
                     } else {
@@ -228,7 +216,7 @@ pub(super) fn new(
                                 category.into(),
                                 circle.clone(),
                                 unread_only,
-                                cursor,
+                                None,
                                 (count + 1) as u32,
                             )
                             .await
@@ -254,6 +242,7 @@ pub(super) fn new(
                 }
                 Err(_) => state.failed.set(true),
             }
+            state.extending.set(false);
             state.loading.set(false);
         });
     });

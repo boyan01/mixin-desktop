@@ -30,6 +30,22 @@ pub(super) fn panel_tab() -> ButtonElement {
         .px_1()
 }
 
+/// What a panel tab shows: a glyph that has an icon uses the icon.
+#[derive(Clone, Copy)]
+pub(super) enum TabLabel {
+    Icon(ui::Icon),
+    Text(&'static str),
+}
+
+impl TabLabel {
+    pub(super) fn element(self) -> AnyElement {
+        match self {
+            Self::Icon(icon) => ui::icon(icon).into_element(),
+            Self::Text(label) => text(label).text_role(ui::TextRole::Body).into_element(),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub(super) enum Tab {
     Emoji,
@@ -51,6 +67,7 @@ pub(super) struct State {
     pub busy: Signal<bool>,
     pub failed: Signal<bool>,
     pub albums: Signal<Vec<StickerAlbumItem>>,
+    navigation: crate::navigation::ChatNavigation,
 }
 impl State {
     pub(super) fn new(
@@ -69,6 +86,8 @@ impl State {
             busy: signal(false),
             failed,
             albums: signal_with(Vec::new(), SignalEquals::Never),
+            navigation: use_context::<crate::navigation::ChatNavigation>()
+                .expect("Home provides chat navigation"),
         }
     }
 
@@ -133,6 +152,7 @@ impl State {
         self.run(work, move |succeeded| {
             if succeeded {
                 self.open.set(false);
+                self.navigation.show_latest();
             }
         });
     }
@@ -228,11 +248,26 @@ pub(crate) fn stickers(
                             .gap_1()
                             .children(
                                 [
-                                    (Tab::Store, "+", "Sticker store", "贴纸商店"),
-                                    (Tab::Emoji, "😀", "Emoji", "表情"),
-                                    (Tab::Recent, "◷", "Recent stickers", "最近使用的贴纸"),
-                                    (Tab::Personal, "☆", "My stickers", "我的贴纸"),
-                                    (Tab::Gif, "GIF", "GIFs", "GIF"),
+                                    (
+                                        Tab::Store,
+                                        TabLabel::Icon(ui::Icon::Add),
+                                        "Sticker store",
+                                        "贴纸商店",
+                                    ),
+                                    (Tab::Emoji, TabLabel::Text("😀"), "Emoji", "表情"),
+                                    (
+                                        Tab::Recent,
+                                        TabLabel::Icon(ui::Icon::Clock),
+                                        "Recent stickers",
+                                        "最近使用的贴纸",
+                                    ),
+                                    (
+                                        Tab::Personal,
+                                        TabLabel::Icon(ui::Icon::Star),
+                                        "My stickers",
+                                        "我的贴纸",
+                                    ),
+                                    (Tab::Gif, TabLabel::Text("GIF"), "GIFs", "GIF"),
                                 ]
                                 .into_iter()
                                 .map(
@@ -248,7 +283,7 @@ pub(crate) fn stickers(
                                             .on_press(move || {
                                                 state.tab.set(tab.with(|t| t.clone()))
                                             })
-                                            .child(text(title).text_role(ui::TextRole::Body))
+                                            .child(title.element())
                                     },
                                 ),
                             )

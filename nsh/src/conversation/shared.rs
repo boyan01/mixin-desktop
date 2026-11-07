@@ -198,10 +198,12 @@ fn panel(
         });
     });
     let account = state.client();
-    // The stream covers every conversation and every attachment state change.
+    let conversation_id = state.id();
     spawn(async move {
         parts::throttled(
-            Box::pin(runtime::observe(account.message_changes())),
+            Box::pin(runtime::observe(
+                account.message_changes(Some(conversation_id)),
+            )),
             move || shared.revision.update(|revision| *revision += 1),
         )
         .await;

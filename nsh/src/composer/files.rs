@@ -413,7 +413,7 @@ impl Preview {
                     Ok(outcome) if outcome.finished => {
                         self.host.failed.set(outcome.upload_failed);
                         clear_quote(self.host.quote, sent_quote);
-                        self.host.close();
+                        self.host.sent();
                     }
                     Ok(outcome) => {
                         self.host.failed.set(outcome.upload_failed);

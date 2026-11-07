@@ -589,62 +589,67 @@ impl Home {
                 },
                 |s| s.hidden(),
             )
-            .child(dynamic(move || {
-                let in_settings = nav.settings.get();
-                let _conversation_id = selected_id.get();
-                let conversation = selected.get_untracked();
-                untracked(|| {
-                    if in_settings {
-                        return view()
-                            .flex_1()
-                            .min_w_0()
-                            .min_h_0()
-                            .child(when(
-                                move || !self.narrow() || settings_detail.get(),
-                                move || {
-                                    settings::screen(
+            // Stays mounted under Settings: returning keeps the timeline position and draft.
+            .child(
+                view()
+                    .flex_1()
+                    .min_w_0()
+                    .min_h_0()
+                    .style_when(move || nav.settings.get(), |s| s.hidden())
+                    .child(dynamic(move || {
+                        let _conversation_id = selected_id.get();
+                        let conversation = selected.get_untracked();
+                        untracked(|| match conversation {
+                            Some(conversation) => {
+                                ui::owned(conversation.conversation_id.clone(), move || {
+                                    chat::screen(
                                         self.client(),
-                                        settings_page,
-                                        profile_draft,
-                                        move || {
-                                            if self.narrow() {
-                                                settings_detail.set(false);
-                                            } else {
-                                                nav.settings.set(false);
-                                            }
-                                        },
-                                        on_account_ended,
+                                        conversation.clone(),
+                                        locate,
+                                        drafts,
+                                        pending,
                                         owner,
+                                        move || selected.set(None),
                                     )
+                                })
+                                .into_element()
+                            }
+                            None => view()
+                                .flex_1()
+                                .min_h_0()
+                                .bg(ui::surface_chat)
+                                .child(ui::title_bar())
+                                .child(ui::placeholder(move || i18n.text(Key::PickConversation)))
+                                .into_element(),
+                        })
+                    })),
+            )
+            .child(
+                view()
+                    .flex_1()
+                    .min_w_0()
+                    .min_h_0()
+                    .style_when(move || !nav.settings.get(), |s| s.hidden())
+                    .child(when(
+                        move || nav.settings.get() && (!self.narrow() || settings_detail.get()),
+                        move || {
+                            settings::screen(
+                                self.client(),
+                                settings_page,
+                                profile_draft,
+                                move || {
+                                    if self.narrow() {
+                                        settings_detail.set(false);
+                                    } else {
+                                        nav.settings.set(false);
+                                    }
                                 },
-                            ))
-                            .into_element();
-                    }
-                    match conversation {
-                        Some(conversation) => {
-                            ui::owned(conversation.conversation_id.clone(), move || {
-                                chat::screen(
-                                    self.client(),
-                                    conversation.clone(),
-                                    locate,
-                                    drafts,
-                                    pending,
-                                    owner,
-                                    move || selected.set(None),
-                                )
-                            })
-                            .into_element()
-                        }
-                        None => view()
-                            .flex_1()
-                            .min_h_0()
-                            .bg(ui::surface_chat)
-                            .child(ui::title_bar())
-                            .child(ui::placeholder(move || i18n.text(Key::PickConversation)))
-                            .into_element(),
-                    }
-                })
-            }))
+                                on_account_ended,
+                                owner,
+                            )
+                        },
+                    )),
+            )
     }
 }
 

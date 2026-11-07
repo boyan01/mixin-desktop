@@ -96,8 +96,6 @@ pub(crate) fn screen(
     let state = query::new(account, query, composing, nav.category, nav.circle, unread);
     let query::State {
         section,
-        page,
-        more,
         rows,
         users_empty,
         loading,
@@ -247,30 +245,6 @@ pub(crate) fn screen(
         .child(when(
             move || !rows.with(Vec::is_empty),
             move || results::list(state, pending, open),
-        ))
-        .child(when(
-            move || section.get() != Section::All && (page.get() > 0 || more.get()),
-            move || {
-                view()
-                    .flex_row()
-                    .px_3()
-                    .py_2()
-                    .justify_between()
-                    .items_center()
-                    .gap_2()
-                    .child(
-                        ui::action(
-                            move || tr("Previous page", "上一页"),
-                            move || state.previous_page(),
-                        )
-                        .disabled(move || loading.get() || page.get() == 0),
-                    )
-                    .child(text(move || (page.get() + 1).to_string()).text_role(ui::TextRole::Body))
-                    .child(
-                        ui::action(move || tr("Next page", "下一页"), move || state.next_page())
-                            .disabled(move || loading.get() || !more.get()),
-                    )
-            },
         ))
         .child(when(
             move || profile_presence.mounted(),

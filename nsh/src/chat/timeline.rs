@@ -176,8 +176,9 @@ impl Timeline {
         });
         spawn(async move {
             let client = actions.account.with(|account| account.clone());
+            let conversation = state.conversation.with(|id| id.clone());
             let mut changes = Box::pin(runtime::throttled(
-                client.message_changes(),
+                client.message_changes(Some(conversation)),
                 REFRESH_INTERVAL,
             ));
             while changes.next().await.is_some() {
@@ -521,15 +522,17 @@ impl Timeline {
     }
 
     pub fn jump_button(self, i18n: I18n) -> impl IntoElement {
+        // The button slides in and out instead of popping, but never blocks input while leaving.
+        let presence = crate::motion::Presence::bottom(move || {
+            !self.loading.get()
+                && (self.has_newer.get() || self.show_latest.get() || self.missing_target.get())
+        });
         when(
-            move || {
-                !self.loading.get()
-                    && (self.has_newer.get() || self.show_latest.get() || self.missing_target.get())
-            },
+            move || presence.mounted(),
             move || {
                 let arrow = include_str!("../../assets/jump_current_arrow.svg")
                     .replace("fill=\"white\"", "fill=\"currentColor\"");
-                floating_disc().shadow_md().child(
+                presence.surface(floating_disc().shadow_md()).child(
                     ui::round_button()
                         .size_10()
                         .accessibility_label(move || {

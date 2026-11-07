@@ -19,6 +19,8 @@ pub(crate) enum Icon {
     Globe,
     Lock,
     Check,
+    Clock,
+    Star,
     Pin,
     Contacts,
     Groups,
@@ -92,6 +94,10 @@ pub(crate) fn icon(icon: Icon) -> Svg {
         ),
         Icon::Lock => stroke(
             "<rect x='5' y='10' width='14' height='11' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/>",
+        ),
+        Icon::Clock => stroke("<circle cx='12' cy='12' r='9'/><path d='M12 7v5l3 2'/>"),
+        Icon::Star => stroke(
+            "<path d='m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.2l-5.6 3 1.1-6.2L3 9.6l6.2-.9Z'/>",
         ),
         Icon::Check => stroke("<path d='m5 12 4 4L19 6'/>"),
         Icon::Pin => stroke("<path d='m16 3 5 5-4 1-4 4-1 5-3-3-6 6 6-6-3-3 5-1 4-4Z'/>"),

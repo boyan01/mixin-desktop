@@ -10,6 +10,8 @@ pub enum ClientError {
     Unauthorized,
     #[error("not found")]
     NotFound,
+    #[error("authorization timed out")]
+    TimedOut,
     #[error("operation cancelled")]
     Cancelled,
     #[error("{0}")]
@@ -23,6 +25,7 @@ impl From<CoreError> for ClientError {
         match error {
             CoreError::NotFound => Self::NotFound,
             CoreError::PermissionDenied => Self::PermissionDenied,
+            CoreError::TimedOut => Self::TimedOut,
             CoreError::Other { message } => Self::Internal(message),
         }
     }
@@ -56,6 +59,12 @@ mod tests {
             ClientError::from(error),
             ClientError::PermissionDenied
         ));
+    }
+
+    #[test]
+    fn authorization_timeout_survives_anyhow_wrapping_as_public_timed_out() {
+        let error = anyhow::Error::from(CoreError::TimedOut).context("wait for login");
+        assert!(matches!(ClientError::from(error), ClientError::TimedOut));
     }
 
     #[test]

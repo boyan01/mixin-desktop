@@ -38,6 +38,7 @@ pub(crate) struct Voice {
     anchor: ElementRef,
     bounds: Signal<Option<Measurement>>,
     measuring: Signal<u64>,
+    navigation: crate::navigation::ChatNavigation,
 }
 fn idle() -> VoiceRecorderSnapshot {
     VoiceRecorderSnapshot {
@@ -316,6 +317,7 @@ impl Voice {
                     self.failed.set(receipt.upload_error.is_some());
                     clear_quote(self.quote, sent_quote);
                     self.clear();
+                    self.navigation.show_latest();
                 }
                 Err(_) => self.failed.set(true),
             }
@@ -368,6 +370,8 @@ impl Voice {
             anchor: element_ref(),
             bounds: signal(None),
             measuring: signal(0),
+            navigation: use_context::<crate::navigation::ChatNavigation>()
+                .expect("Home provides chat navigation"),
         };
         let observe = media.clone();
         spawn(async move {

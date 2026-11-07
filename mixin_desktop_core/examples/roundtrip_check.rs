@@ -174,7 +174,7 @@ async fn message_matching(
     id: &str,
     condition: impl Fn(&MessageListView) -> bool,
 ) -> Result<MessageListView> {
-    let mut changes = account.subscribe_message_changes();
+    let mut changes = account.subscribe_conversation_changes();
     tokio::time::timeout(DEADLINE, async {
         loop {
             let message = account
@@ -186,7 +186,9 @@ async fn message_matching(
             if let Some(message) = message {
                 return Ok::<_, anyhow::Error>(message);
             }
-            changes.changed().await?;
+            if let Err(tokio::sync::broadcast::error::RecvError::Closed) = changes.recv().await {
+                bail!("change stream closed");
+            }
         }
     })
     .await
@@ -801,7 +803,7 @@ async fn check_received_transcript(
             bail!("received transcript changed original order, sender, timestamp, or category");
         }
         if let Some(expected) = expected_files.get(&entry.message_id) {
-            let mut changes = account.subscribe_message_changes();
+            let mut changes = account.subscribe_conversation_changes();
             // A transcript may reuse the already downloaded original attachment.
             // Only CANCELED rows need an explicit download; observe any active download.
             if entry.media_status == "CANCELED" {
@@ -822,7 +824,11 @@ async fn check_received_transcript(
                     if row.media_status == "DONE" {
                         return Ok::<_, anyhow::Error>(row);
                     }
-                    changes.changed().await?;
+                    if let Err(tokio::sync::broadcast::error::RecvError::Closed) =
+                        changes.recv().await
+                    {
+                        bail!("change stream closed");
+                    }
                 }
             })
             .await

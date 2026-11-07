@@ -132,7 +132,7 @@ impl AuthService {
                         return Ok(result);
                     }
                 }
-                _ = &mut timeout => return Err(anyhow!("authorization timed out")),
+                _ = &mut timeout => return Err(crate::error::CoreError::TimedOut.into()),
             }
             sleep(Duration::from_secs(1)).await;
         }

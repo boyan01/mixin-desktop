@@ -130,6 +130,7 @@ pub(crate) fn screen(
         actions.preview.with(Option::is_none)
             && actions.forwarding.with(Vec::is_empty)
             && !covered.get()
+            && !navigation.settings.get()
     });
     let security = use_context::<crate::security::Handle>().expect("Home provides security");
     let attentive = computed(move || {

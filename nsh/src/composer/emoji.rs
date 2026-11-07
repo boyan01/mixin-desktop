@@ -5,7 +5,7 @@ use std::{rc::Rc, sync::OnceLock};
 use tokio::sync::watch;
 
 use super::{
-    stickers::{columns, panel_tab},
+    stickers::{TabLabel, columns, panel_tab},
     tr,
 };
 use crate::{
@@ -321,15 +321,40 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
             scroll().horizontal().child(
                 view().flex_row().gap_1().children(
                     [
-                        ("recent", "◷", "Recently used", "最近使用"),
-                        ("smileysEmotion", "😀", "Smileys and people", "表情与人物"),
-                        ("animalsNature", "🐻", "Animals and nature", "动物与自然"),
-                        ("foodDrink", "🍔", "Food and drink", "食物与饮料"),
-                        ("travelPlaces", "🚙", "Travel and places", "旅行与地点"),
-                        ("activities", "⚽", "Activities", "活动"),
-                        ("objects", "💡", "Objects", "物品"),
-                        ("symbols", "❤️", "Symbols", "符号"),
-                        ("flags", "🏳️", "Flags", "旗帜"),
+                        (
+                            "recent",
+                            TabLabel::Icon(ui::Icon::Clock),
+                            "Recently used",
+                            "最近使用",
+                        ),
+                        (
+                            "smileysEmotion",
+                            TabLabel::Text("😀"),
+                            "Smileys and people",
+                            "表情与人物",
+                        ),
+                        (
+                            "animalsNature",
+                            TabLabel::Text("🐻"),
+                            "Animals and nature",
+                            "动物与自然",
+                        ),
+                        (
+                            "foodDrink",
+                            TabLabel::Text("🍔"),
+                            "Food and drink",
+                            "食物与饮料",
+                        ),
+                        (
+                            "travelPlaces",
+                            TabLabel::Text("🚙"),
+                            "Travel and places",
+                            "旅行与地点",
+                        ),
+                        ("activities", TabLabel::Text("⚽"), "Activities", "活动"),
+                        ("objects", TabLabel::Text("💡"), "Objects", "物品"),
+                        ("symbols", TabLabel::Text("❤️"), "Symbols", "符号"),
+                        ("flags", TabLabel::Text("🏳️"), "Flags", "旗帜"),
                     ]
                     .into_iter()
                     .map(move |(value, title, en, zh)| {
@@ -337,7 +362,7 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
                             .accessibility_label(move || Some(tr(i18n, en, zh).into()))
                             .selected(move || group.get() == value)
                             .on_press(move || group.set(value))
-                            .child(text(title))
+                            .child(title.element())
                     }),
                 ),
             ),

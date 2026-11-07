@@ -149,8 +149,8 @@ impl AccountState {
         self.conversation_changes.notify_all();
     }
 
-    fn notify_messages_changed(&self) {
-        self.conversation_changes.notify_messages();
+    fn notify_messages_changed(&self, conversation_id: Option<&str>) {
+        self.conversation_changes.notify_messages(conversation_id);
     }
 
     fn ensure_active(&self) -> Result<()> {
@@ -387,10 +387,6 @@ impl AccountRuntime {
     ) -> tokio::sync::broadcast::Receiver<crate::core::conversation_change::ConversationChange>
     {
         self.conversation_changes.subscribe_events()
-    }
-
-    pub fn subscribe_message_changes(&self) -> watch::Receiver<u64> {
-        self.conversation_changes.subscribe_revision()
     }
 
     pub fn subscribe_notification_changes(&self) -> watch::Receiver<u64> {

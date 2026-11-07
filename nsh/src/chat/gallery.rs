@@ -42,7 +42,9 @@ pub(super) fn screen(
         forward_allowed.set(false);
         image_failed.set(false);
         spawn(async move {
-            let mut changes = Box::pin(runtime::observe(client.message_changes()));
+            let mut changes = Box::pin(runtime::observe(
+                client.message_changes(Some(conversation.clone())),
+            ));
             loop {
                 let client = client.clone();
                 let conversation = conversation.clone();

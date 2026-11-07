@@ -6,6 +6,8 @@ pub enum CoreError {
     PermissionDenied,
     #[error("not found")]
     NotFound,
+    #[error("authorization timed out")]
+    TimedOut,
     #[error("{message}")]
     Other { message: String },
 }

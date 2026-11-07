@@ -50,6 +50,7 @@ pub(super) fn list(
         },
     )
     .keys(move || rows.with(|rows| rows.iter().map(Row::key).collect::<Vec<_>>()))
+    .on_load_more(move || state.load_more())
     .element_ref(&state.list)
     .estimated_item_size(ui::list_row_height())
     .flex_1()

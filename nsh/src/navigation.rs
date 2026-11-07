@@ -22,6 +22,12 @@ pub(crate) struct ChatNavigation {
 }
 
 impl ChatNavigation {
+    /// Scrolls the open chat to its newest message, e.g. after the person sends.
+    pub(crate) fn show_latest(self) {
+        // `target` notifies on every write, so None reloads the latest rows.
+        self.target.set(None);
+    }
+
     pub(crate) fn new(
         selected: Signal<Option<ConversationListData>>,
         target: Signal<Option<String>>,

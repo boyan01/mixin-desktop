@@ -226,6 +226,7 @@ impl AccountClient {
                                 conversation_ids: vec![conversation_id],
                                 reload_all: false,
                             },
+                            Ok(ConversationChange::Messages(_)) => continue,
                             Ok(ConversationChange::All) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => ConversationChangeEvent {
                                 conversation_ids: Vec::new(),
                                 reload_all: true,
@@ -278,8 +279,12 @@ impl AccountClient {
             .subscribe_unseen_message_count_changes()
     }
 
-    pub fn message_changes(&self) -> impl Stream<Item = u64> + Send + 'static {
-        let mut changes = self.runtime.subscribe_message_changes();
+    /// Fires when messages change in `conversation_id`, or in any conversation when `None`.
+    pub fn message_changes(
+        &self,
+        conversation_id: Option<String>,
+    ) -> impl Stream<Item = ()> + Send + 'static {
+        let mut changes = self.runtime.subscribe_conversation_changes();
         let mut shutdown = self.runtime.subscribe_shutdown();
         stream! {
             loop {
@@ -287,12 +292,15 @@ impl AccountClient {
                     break;
                 }
                 tokio::select! {
-                    result = changes.changed() => {
-                        if result.is_err() {
-                            break;
+                    result = changes.recv() => {
+                        let relevant = match result {
+                            Ok(change) => change.affects_messages(conversation_id.as_deref()),
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => true,
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                        };
+                        if relevant {
+                            yield ();
                         }
-                        let revision = *changes.borrow();
-                        yield revision;
                     }
                     result = shutdown.changed() => {
                         if result.is_err() || *shutdown.borrow() {

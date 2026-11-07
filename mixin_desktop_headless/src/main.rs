@@ -102,7 +102,7 @@ async fn login(desktop: &DesktopClient) -> Result<()> {
             }
             // Same recovery as the UI targets: refresh an expired code, and
             // revoke a half-provisioned session before reporting the failure.
-            Err(error) if error.to_string().contains("authorization timed out") => continue,
+            Err(mixin_desktop_api::ClientError::TimedOut) => continue,
             Err(error) if error.to_string().contains("login_provisioning_error:") => {
                 desktop.abort_saved_login().await?;
                 return Err(error.into());
