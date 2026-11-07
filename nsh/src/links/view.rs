@@ -1,8 +1,11 @@
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
 use super::{LinkNavigation, Panel, tr};
-use crate::{conversation::parts, runtime, ui};
+use crate::{
+    conversation::parts,
+    runtime,
+    ui::{self, Typography as _},
+};
 
 pub(super) fn surface(router: LinkNavigation) -> impl IntoElement {
     let presence = crate::motion::Presence::modal(move || router.panel.with(Option::is_some));
@@ -47,7 +50,7 @@ pub(super) fn surface(router: LinkNavigation) -> impl IntoElement {
                                             "请检查链接和网络连接后重试。",
                                         )
                                     })
-                                    .text_sm(),
+                                    .text_role(ui::TextRole::Body),
                                 )
                                 .into_element(),
                             Panel::Profile(id) => {
@@ -71,11 +74,9 @@ pub(super) fn surface(router: LinkNavigation) -> impl IntoElement {
                         if compact {
                             body = body.flex_auto().flex_grow(0.0);
                         }
-                        let mut card = ui::modal_card()
-                            .w(px(480.0))
-                            .h(px(640.0))
-                            .p_4()
-                            .gap_3()
+                        let mut card = parts::tall_dialog_card()
+                            .p(ui::space_lg())
+                            .gap(ui::space_md())
                             .child(body.child(content));
                         if compact {
                             card = card.h(auto()).min_h_0();
@@ -109,7 +110,7 @@ fn code_panel(
     let title = value.conversation_name.unwrap_or_default();
     let Some(id) = value.conversation_id else {
         return text(move || tr("Invalid invitation", "无效邀请"))
-            .text_sm()
+            .text_role(ui::TextRole::Body)
             .into_element();
     };
     let joined = value.already_member;
@@ -124,16 +125,11 @@ fn code_panel(
         .gap_4()
         .p_4()
         .items_center()
-        .child(
-            text(title)
-                .text_lg()
-                .font_weight(FontWeight::SEMIBOLD)
-                .text_center(),
-        )
+        .child(text(title).text_role(ui::TextRole::Headline).text_center())
         .child(
             text(move || crate::i18n::current().members(members))
-                .text_sm()
-                .text_color(move || theme().muted_foreground),
+                .text_role(ui::TextRole::Body)
+                .text_color(ui::fg_secondary),
         )
         .child(view().flex_row().gap_2().children(
             value.participant_avatars.into_iter().take(4).map(|avatar| {
@@ -142,6 +138,7 @@ fn code_panel(
                 ui::avatar_view(
                     move || name.with(|name| name.clone().into()),
                     move || url.with(|url| url.clone()),
+                    ui::AvatarSize::Medium,
                 )
                 .size_12()
             }),
@@ -246,8 +243,8 @@ fn payment_code(value: mixin_desktop_api::CodeResult, uri: String) -> impl IntoE
                         "请在手机 Mixin 中完成付款。",
                     )
                 })
-                .text_sm()
-                .text_color(move || theme().muted_foreground),
+                .text_role(ui::TextRole::Body)
+                .text_color(ui::fg_secondary),
             )
             .child(qr.map(|source| image(source).size_48().label("Payment code for phone")))
             .children(
@@ -259,10 +256,10 @@ fn payment_code(value: mixin_desktop_api::CodeResult, uri: String) -> impl IntoE
                             .gap_1()
                             .child(
                                 text(label)
-                                    .text_xs()
-                                    .text_color(move || theme().muted_foreground),
+                                    .text_role(ui::TextRole::Caption)
+                                    .text_color(ui::fg_secondary),
                             )
-                            .child(text(value).text_sm().select_text())
+                            .child(text(value).text_role(ui::TextRole::Body).select_text())
                     }),
             ),
     )
@@ -283,12 +280,12 @@ fn unsupported(raw: String) -> impl IntoElement {
                         "请在手机 Mixin 中打开此链接",
                     )
                 })
-                .text_sm()
+                .text_role(ui::TextRole::Body)
                 .text_center(),
             )
             .child(image.map(|source| {
                 nsh_core::prelude::image(source)
-                    .size(px(240.0))
+                    .size_60()
                     .flex_none()
                     .label("Mixin link QR code")
             }))

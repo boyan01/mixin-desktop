@@ -1,6 +1,6 @@
 //! Shared presentation for persisted reply quotations and the pending reply bar.
 use mixin_desktop_api::MessageListView;
-use nsh_base::{text_view::Parser, theme};
+use nsh_base::text_view::Parser;
 use nsh_core::{element::ImageSrc, prelude::*};
 use serde_json::Value;
 
@@ -218,6 +218,8 @@ pub(super) fn reply_bar(actions: Actions) -> impl IntoElement {
                 .gap_2()
                 .px_3()
                 .py_2()
+                .rounded(ui::radius_lg())
+                .bg(ui::bubble_in)
                 .child(dynamic(move || {
                     actions.quote.with(|row| {
                         row.as_ref()
@@ -268,17 +270,20 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
     let names = use_context::<MentionNames>();
     let quote = stored(quote);
     view()
-        .min_h(px(50.0))
+        .min_h_12()
         .min_w_0()
         .flex_1()
         .flex_row()
         .items_center()
         .gap_2()
-        .style_when(move || !input, |style| style.rounded_lg())
+        .style_when(
+            move || !input,
+            |style| style.rounded(ui::radius_md()).bg(ui::surface_card),
+        )
         .overflow_hidden()
-        .bg(move || theme().foreground.opacity(if input { 0.0 } else { 0.04 }))
-        .border_l(px(6.0))
-        .border_color(move || theme().primary)
+        // Flutter's 6pt quote rule.
+        .border_l(ui::space_xs() + ui::space_2xs())
+        .border_color(ui::accent)
         .child(
             view()
                 .flex_1()
@@ -298,7 +303,7 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
                                 text(quote.with(|quote| quote.author.clone()))
                                     .number_of_lines(1)
                                     .text_size(move || appearance.secondary_size())
-                                    .text_color(move || theme().primary),
+                                    .text_color(ui::accent),
                             )
                             .child(quote.with(|quote| {
                                 identity_badge(false, false, false, quote.membership.as_deref())
@@ -374,7 +379,7 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
                             .flex_1()
                             .number_of_lines(1)
                             .text_size(move || appearance.tertiary_size())
-                            .text_color(move || theme().muted_foreground),
+                            .text_color(ui::fg_secondary),
                         ),
                 ),
         )
@@ -400,10 +405,11 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
                     .size_12()
                     .items_center()
                     .justify_center()
-                    .child(
-                        ui::avatar_view(move || name.clone().into(), move || avatar.clone())
-                            .size_9(),
-                    )
+                    .child(ui::avatar_view(
+                        move || name.clone().into(),
+                        move || avatar.clone(),
+                        ui::AvatarSize::Bar,
+                    ))
                     .into_element()
             }
             _ => view().hidden().into_element(),
@@ -417,9 +423,9 @@ fn thumbnail_image(source: String, data: String) -> impl IntoElement {
     view()
         .size_12()
         .flex_shrink_0()
-        .rounded(move || theme().radius)
+        .rounded(ui::radius_sm())
         .overflow_hidden()
-        .bg(move || theme().muted)
+        .bg(ui::surface_card)
         .child(dynamic(move || {
             let uri = if failed.get() {
                 decoded().map(|uri| uri.to_string()).unwrap_or_default()
@@ -431,7 +437,7 @@ fn thumbnail_image(source: String, data: String) -> impl IntoElement {
                     .size_12()
                     .items_center()
                     .justify_center()
-                    .child(ui::icon(ui::Icon::Chat).text_color(move || theme().muted_foreground))
+                    .child(ui::icon(ui::Icon::Chat).text_color(ui::fg_secondary))
                     .into_element()
             } else {
                 image(uri)
@@ -448,8 +454,8 @@ fn category_icon(category: &str) -> AnyElement {
         return view().hidden().into_element();
     } else if category.ends_with("_STICKER") {
         return ui::icon(ui::Icon::Sticker)
-            .size(px(14.0))
-            .text_color(move || theme().muted_foreground)
+            .size_3p5()
+            .text_color(ui::fg_secondary)
             .into_element();
     } else if category.ends_with("_IMAGE") {
         include_str!("../../assets/quote/image.svg")
@@ -474,8 +480,8 @@ fn category_icon(category: &str) -> AnyElement {
         include_str!("../../assets/quote/recall.svg")
     };
     svg(ImageSrc::svg_markup(source))
-        .size(px(14.0))
+        .size_3p5()
         .flex_shrink_0()
-        .text_color(move || theme().muted_foreground)
+        .text_color(ui::fg_secondary)
         .into_element()
 }

@@ -81,14 +81,13 @@ impl Preference {
     pub(super) fn feedback(self) -> impl IntoElement {
         when(self.failed, move || {
             view()
-                .px_2()
-                .py_2()
-                .gap_1()
+                .p(ui::space_sm())
+                .gap(ui::space_xs())
                 .child(
                     ui::error_text(move || {
                         i18n::tr("Couldn’t save sidebar settings", "侧栏设置保存失败")
                     })
-                    .text_xs(),
+                    .text_role(ui::TextRole::Caption),
                 )
                 .child(ui::action(
                     move || i18n::current().text(Key::Retry),

@@ -1,10 +1,11 @@
 use std::{future::Future, sync::Arc};
 
 use mixin_desktop_api::{AccountClient, ClientResult, ConversationListData};
-use nsh_base::{alert_dialog, theme};
+use nsh_base::alert_dialog;
 use nsh_core::{element::desktop::MenuItem, prelude::*};
 
 use crate::{
+    conversation::parts,
     i18n::{self, Key},
     runtime, ui,
 };
@@ -206,10 +207,10 @@ pub(crate) fn surface(state: State) -> impl IntoElement {
                 .flex_row()
                 .items_center()
                 .gap_2()
-                .rounded_lg()
-                .bg(move || theme().popover)
+                .rounded(ui::radius_md())
+                .bg(ui::surface_popover)
                 .border_1()
-                .border_color(move || theme().border)
+                .border_color(ui::border)
                 .shadow_lg()
                 .child(ui::error_text(move || i18n.text(Key::CommandFailed)).flex_1())
                 .child(ui::action(
@@ -259,28 +260,25 @@ fn mute_dialog(state: State, presence: crate::motion::Presence) -> impl IntoElem
             .child(ui::modal_title(move || {
                 i18n.tr("Mute notifications", "通知静音")
             }))
-            .children(
-                [
-                    (3600, "1 hour", "1 小时"),
-                    (28800, "8 hours", "8 小时"),
-                    (604800, "1 week", "1 周"),
-                    (31536000, "1 year", "1 年"),
-                ]
-                .into_iter()
-                .map(move |(seconds, en, zh)| {
-                    ui::command()
-                        .justify_start()
-                        .selected(move || duration.get() == Some(seconds))
-                        .disabled(state.busy)
-                        .on_press(move || duration.set(Some(seconds)))
-                        .child(text(move || i18n.tr(en, zh)))
-                }),
+            .child(
+                ui::card().children(
+                    [
+                        (3600, "1 hour", "1 小时"),
+                        (28800, "8 hours", "8 小时"),
+                        (604800, "1 week", "1 周"),
+                        (31536000, "1 year", "1 年"),
+                    ]
+                    .into_iter()
+                    .map(move |(seconds, en, zh)| {
+                        ui::settings_row(None, move || i18n.tr(en, zh))
+                            .selected(move || duration.get() == Some(seconds))
+                            .disabled(state.busy)
+                            .on_press(move || duration.set(Some(seconds)))
+                    }),
+                ),
             )
             .child(
-                view()
-                    .flex_row()
-                    .justify_end()
-                    .gap_2()
+                parts::dialog_actions()
                     .child(
                         ui::action(
                             move || i18n.text(Key::Cancel),

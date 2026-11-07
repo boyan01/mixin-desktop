@@ -1,28 +1,25 @@
 //! Shared sender, delivery and surface presentation for timeline rows.
 use mixin_desktop_api::MessageListView;
-use nsh_base::theme;
 use nsh_core::{element::AdaptiveColor, prelude::*};
 
 use super::message_actions::Actions;
 use crate::{
     appearance::{Appearance, identity_badge},
-    ui,
+    ui::{self, Typography},
 };
-
-/// Timestamps and delivery marks stay at one size when message text scales.
-pub(super) const METADATA_SIZE: f32 = 10.0;
 
 pub(super) fn bubble_surface(mine: bool) -> AdaptiveColor {
     if mine {
-        theme().color("bubble-out").unwrap_or(theme().accent)
+        ui::bubble_out()
     } else {
-        floating_surface()
+        ui::bubble_in()
     }
 }
 
-/// Bubbles and the controls floating over the timeline share one surface.
-pub(super) fn floating_surface() -> AdaptiveColor {
-    theme().color("bubble-in").unwrap_or(theme().card)
+/// The disc under a control floating over the timeline. A state fill replaces a
+/// button's own, so the surface sits on a parent and hover stacks on it.
+pub(super) fn floating_disc() -> View {
+    view().rounded(ui::radius_full()).bg(ui::bubble_in)
 }
 
 pub(super) fn sender(
@@ -45,7 +42,7 @@ pub(super) fn sender(
         .child(
             text(move || message().map(|row| row.sender_name).unwrap_or_default())
                 .text_size(move || appearance.secondary_size())
-                .text_color(move || theme().primary)
+                .text_color(ui::accent)
                 .number_of_lines(1),
         )
         .child(when(
@@ -58,8 +55,8 @@ pub(super) fn sender(
                         .map(|id| format!("@{id}"))
                         .unwrap_or_default()
                 })
-                .text_size(px(METADATA_SIZE))
-                .text_color(move || theme().muted_foreground)
+                .text_role(ui::TextRole::Micro)
+                .text_color(ui::fg_secondary)
             },
         ))
         .child(dynamic(move || {
@@ -78,8 +75,8 @@ pub(super) fn sender(
             move || message().is_some_and(|row| row.sender_is_scam),
             move || {
                 text(move || actions.i18n.tr("SCAM", "诈骗风险"))
-                    .text_xs()
-                    .text_color(move || theme().destructive)
+                    .text_role(ui::TextRole::Caption)
+                    .text_color(ui::danger)
             },
         ))
 }

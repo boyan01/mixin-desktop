@@ -128,7 +128,7 @@ pub(super) fn screen(
                     .child(
                         text(move || name.get())
                             .flex_none()
-                            .text_sm()
+                            .text_role(ui::TextRole::Body)
                             .number_of_lines(1),
                     )
                     .child(recipients::picker(
@@ -175,9 +175,9 @@ pub(super) fn screen(
                                 &[("count", &selected.with(BTreeMap::len).to_string())],
                             )
                         })
-                        .text_xs()
+                        .text_role(ui::TextRole::Caption)
                         .number_of_lines(1)
-                        .text_color(move || theme().muted_foreground)
+                        .text_color(ui::fg_secondary)
                     })))
                     .child(ui::action(move || tr("Cancel", "取消"), cancel).disabled(busy))
                     .child(when(selecting, move || {

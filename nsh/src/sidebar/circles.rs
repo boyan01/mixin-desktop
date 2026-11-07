@@ -4,9 +4,12 @@ use nsh_core::{TouchEvent, TouchPhase, element::desktop::MenuItem};
 use std::{future::Future, time::Duration};
 
 use super::*;
-use crate::{i18n::tr, runtime};
+use crate::{conversation::parts, i18n::tr, runtime};
 
-const CIRCLE_ROW_HEIGHT: f32 = 48.0;
+/// A rail row and the rail's row gap, so circles keep the category rhythm.
+fn circle_row_height() -> Points {
+    ui::nav_row_height() + ui::space_xs()
+}
 
 #[derive(Clone, PartialEq)]
 struct CircleDrag {
@@ -25,19 +28,19 @@ impl CircleDrag {
     }
 
     fn top(&self) -> f32 {
-        self.from as f32 * CIRCLE_ROW_HEIGHT - self.start_scroll + self.delta
+        self.from as f32 * circle_row_height().0 - self.start_scroll + self.delta
     }
 
     fn update_target(&mut self, offset: f32) {
         let displacement = self.delta + offset - self.start_scroll;
-        self.target = (self.from as f32 + displacement / CIRCLE_ROW_HEIGHT)
+        self.target = (self.from as f32 + displacement / circle_row_height().0)
             .round()
             .clamp(0.0, self.order.len().saturating_sub(1) as f32) as usize;
     }
 
     fn marker(&self, offset: f32) -> f32 {
         let boundary = self.target + usize::from(self.target > self.from);
-        boundary as f32 * CIRCLE_ROW_HEIGHT - offset
+        boundary as f32 * circle_row_height().0 - offset
     }
 }
 
@@ -176,7 +179,7 @@ impl Circles {
         view()
             .flex_1()
             .min_h_0()
-            .child(when(move || !self.rows.with(Vec::is_empty), super::divider))
+            .child(when(move || !self.rows.with(Vec::is_empty), ui::divider))
             .child(
                 view()
                     .flex_1()
@@ -244,7 +247,7 @@ impl Circles {
                             },
                         )
                         .keys(move || self.ids())
-                        .estimated_item_size(px(CIRCLE_ROW_HEIGHT))
+                        .estimated_item_size(circle_row_height())
                         .flex_1()
                         .min_h_0()
                         .element_ref(&list)
@@ -308,7 +311,7 @@ impl Circles {
                         "更新圈子失败，请重试。",
                     )
                 })
-                .text_xs(),
+                .text_role(ui::TextRole::Caption),
             )
         }))
     }
@@ -460,7 +463,7 @@ impl Circles {
                 .child(
                     text(move || name.with(|name| name.clone()))
                         .flex_none()
-                        .text_sm()
+                        .text_role(ui::TextRole::Body)
                         .number_of_lines(1),
                 )
                 .child(when(self.failed, || {
@@ -478,17 +481,14 @@ impl Circles {
                                     current.with(|ids| ids.contains(&circle.circle_id))
                                 })
                             };
-                            ui::command()
-                                .justify_start()
-                                .min_h_12()
-                                .gap_3()
+                            parts::compact_row()
                                 .selected(checked)
                                 .disabled(self.busy)
                                 .child(
                                     text(move || {
                                         circle().map(|circle| circle.name).unwrap_or_default()
                                     })
-                                    .text_sm()
+                                    .text_role(ui::TextRole::Label)
                                     .flex_1(),
                                 )
                                 .child(when(checked, || ui::icon(ui::Icon::Check)))
@@ -527,10 +527,8 @@ impl Circles {
                         },
                     )
                     .keys(move || self.ids())
-                    .estimated_item_size(px(CIRCLE_ROW_HEIGHT))
-                    .h(move || {
-                        px(self.rows.with(|rows| rows.len().min(5)) as f32 * CIRCLE_ROW_HEIGHT)
-                    })
+                    .estimated_item_size(parts::row_height())
+                    .h(move || parts::dialog_list_height(self.rows.with(Vec::len)))
                     .flex_shrink(1.0)
                     .min_h_0()
                     .style_when(
@@ -548,8 +546,8 @@ impl Circles {
                                     "请先通过加号菜单创建圈子。",
                                 )
                             })
-                            .text_sm()
-                            .text_color(move || theme().muted_foreground),
+                            .text_role(ui::TextRole::Body)
+                            .text_color(ui::fg_secondary),
                         )
                     },
                 ))
@@ -628,7 +626,7 @@ impl Reorder {
         let edge = computed(move || {
             drag.with(|drag| match drag.as_ref().filter(|drag| drag.active()) {
                 Some(drag) if drag.top() < 24.0 => -1_i8,
-                Some(drag) if drag.top() + CIRCLE_ROW_HEIGHT > viewport.get().1 - 24.0 => 1,
+                Some(drag) if drag.top() + circle_row_height().0 > viewport.get().1 - 24.0 => 1,
                 _ => 0,
             })
         });
@@ -645,7 +643,7 @@ impl Reorder {
                         break;
                     }
                     let maximum = (circles.rows.with_untracked(Vec::len) as f32
-                        * CIRCLE_ROW_HEIGHT
+                        * circle_row_height().0
                         - viewport.get_untracked().1)
                         .max(0.0);
                     let next =
@@ -692,8 +690,8 @@ impl Reorder {
         });
         let count = move || unseen.get().0;
         let muted = move || unseen.get().1;
-        let item = super::rail_item()
-            .h(px(CIRCLE_ROW_HEIGHT))
+        let color = move || ui::circle_color(&id().unwrap_or_default());
+        let item = ui::nav_row()
             .accessibility_label(move || Some(name().into()))
             .selected(move || {
                 !nav.settings.get() && nav.category.get() == "circle" && nav.circle.get() == id()
@@ -703,11 +701,16 @@ impl Reorder {
                     nav.select("circle", Some(id));
                 }
             })
-            .child(super::navigation_icon(ui::Icon::Circle, nav, count, muted))
+            .child(super::navigation_icon(
+                ui::icon(ui::Icon::Circle).text_color(color),
+                nav,
+                count,
+                muted,
+            ))
             .child(labels.bind_text(text(name)))
             .child(when(
                 move || !nav.compact() && count() > 0,
-                move || ui::count_badge(move || count().to_string(), || false),
+                move || ui::count_pill(move || count().to_string(), || false),
             ));
         let dragged = move || {
             drag.with(|drag| {
@@ -718,6 +721,8 @@ impl Reorder {
         };
         let content = view()
             .w_full()
+            .h(circle_row_height())
+            .justify_center()
             .on_touch(move |event: &TouchEvent| {
                 if event.phase == TouchPhase::Start
                     && let Some(id) = id()
@@ -751,19 +756,26 @@ impl Reorder {
                     .top_0()
                     .left_0()
                     .right_0()
-                    .h(px(CIRCLE_ROW_HEIGHT))
+                    .h(circle_row_height())
                     .px_2()
                     .gap_3()
                     .flex_row()
                     .items_center()
-                    .rounded_md()
-                    .bg(move || theme().popover)
+                    .rounded(ui::radius_lg())
+                    .bg(ui::surface_popover)
                     .border_1()
-                    .border_color(move || theme().border)
+                    .border_color(ui::border)
                     .translate_y(move || {
                         px(drag.with(|drag| drag.as_ref().map_or(0.0, CircleDrag::top)))
                     })
-                    .child(ui::icon(ui::Icon::Circle))
+                    .child(ui::icon(ui::Icon::Circle).text_color(move || {
+                        drag.with(|drag| {
+                            ui::circle_color(
+                                drag.as_ref()
+                                    .map_or("", |drag| drag.circle.circle_id.as_str()),
+                            )
+                        })
+                    }))
                     .child(labels.bind_text(text(name))),
             )
             .child(when(
@@ -776,8 +788,8 @@ impl Reorder {
                         .top_0()
                         .left_2()
                         .right_2()
-                        .h(px(2.0))
-                        .bg(move || theme().primary)
+                        .h_0p5()
+                        .bg(ui::accent)
                         .translate_y(move || {
                             px(drag.with(|drag| {
                                 drag.as_ref()

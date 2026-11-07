@@ -1,17 +1,20 @@
 //! One timeline row: day and unread separators, then a notice or a bubble.
 use mixin_desktop_api::MessageListView;
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
 use super::{
     message_actions::{self, Actions},
-    message_appearance::{self, METADATA_SIZE, bubble_surface},
+    message_appearance::{self, bubble_surface},
     message_content::{self, Placement},
     message_media, message_system,
     timeline::Timeline,
     unread::Unread,
 };
-use crate::{appearance::Appearance, motion, presentation, ui};
+use crate::{
+    appearance::Appearance,
+    presentation,
+    ui::{self, Typography},
+};
 
 /// What a row shows, derived from the window at its index.
 #[derive(Clone, PartialEq)]
@@ -118,13 +121,11 @@ impl Rows {
             move || id().is_some_and(|id| actions.selected.with(|selected| selected.contains(&id)));
         view()
             .element_ref(&row_ref)
-            .px_2()
-            .py_1()
+            .px_4()
+            .py(ui::space_2xs())
             .gap_2()
-            .rounded_lg()
-            .style_when(selected, |style| {
-                style.bg(move || theme().primary.opacity(0.08))
-            })
+            .rounded(ui::radius_md())
+            .style_when(selected, |style| style.bg(ui::state_selected))
             .child(unread.divider(i18n, id))
             .child(when(
                 move || day.with(Option::is_some),
@@ -200,6 +201,7 @@ impl Rows {
             .items_start()
             .gap_2()
             .style_when(mine, |style| style.justify_end())
+            .style_when(first_of_sender, |style| style.pt_2())
             .child(when(
                 move || !actions.selected.with(Vec::is_empty),
                 move || selection_box(message, actions),
@@ -217,7 +219,7 @@ impl Rows {
             ))
             .child(
                 view()
-                    .max_w(ui::bubble_width)
+                    .max_w(ui::bubble_width())
                     .min_w_0()
                     .flex_shrink(1.0)
                     .gap_1()
@@ -227,9 +229,9 @@ impl Rows {
                     ))
                     .child(
                         view()
-                            .px_2()
+                            .px_3()
                             .py_2()
-                            .rounded_lg()
+                            .rounded(ui::radius_md())
                             .flex_row()
                             .items_end()
                             .gap_2()
@@ -239,9 +241,9 @@ impl Rows {
                                 view()
                                     .absolute()
                                     .inset_0()
-                                    .rounded_lg()
+                                    .rounded(ui::radius_md())
                                     .border_2()
-                                    .border_color(move || theme().ring)
+                                    .border_color(ui::focus_ring)
                                     .bind_opacity(&timeline.highlight_opacity)
                                     .pointer_events(PointerEvents::None)
                             }))
@@ -256,7 +258,7 @@ impl Rows {
                                     .child(when(encrypted, || {
                                         ui::icon(ui::Icon::Lock)
                                             .size_3()
-                                            .text_color(move || theme().muted_foreground)
+                                            .text_color(ui::fg_secondary)
                                     }))
                                     .child(
                                         text(move || {
@@ -271,8 +273,8 @@ impl Rows {
                                                     .unwrap_or_default()
                                             })
                                         })
-                                        .text_size(px(METADATA_SIZE))
-                                        .text_color(move || theme().muted_foreground),
+                                        .text_role(ui::TextRole::Micro)
+                                        .text_color(ui::fg_secondary),
                                     )
                                     .child(when(mine, move || {
                                         message_appearance::delivery_status(status)
@@ -286,18 +288,14 @@ impl Rows {
 fn day_separator(day: Memo<Option<String>>) -> impl IntoElement {
     view().items_center().py_2().child(
         view()
-            .px_6()
+            .px_3()
             .py_1()
-            .rounded_full()
-            .bg(move || theme().color("day-background").unwrap_or(theme().accent))
+            .rounded(ui::radius_full())
+            .bg(ui::day_background)
             .child(
                 text(move || day.get().unwrap_or_default())
-                    .text_xs()
-                    .text_color(move || {
-                        theme()
-                            .color("day-foreground")
-                            .unwrap_or(theme().foreground)
-                    }),
+                    .text_role(ui::TextRole::Caption)
+                    .text_color(ui::day_foreground),
             ),
     )
 }
@@ -311,31 +309,11 @@ fn selection_box(
     let checked = move || {
         message().is_some_and(|message| selected.with(|ids| ids.contains(&message.message_id)))
     };
-    nsh_base::checkbox()
-        .checked(checked)
-        .size_8()
-        .px_1()
-        .py_1()
-        .items_center()
-        .justify_center()
-        .rounded(move || theme().radius)
-        .transition_colors()
-        .duration(|| motion::duration(motion::FEEDBACK_MS))
-        .ease_out()
-        .hover(|style| style.bg(move || theme().muted))
-        .active(|style| style.opacity(0.7))
-        .focus(|style| style.outline(px(2.0)).outline_color(move || theme().ring))
-        .disabled_style(|style| style.opacity(0.4))
-        .accessibility_label(move || Some(i18n.tr("Select message", "选择消息").into()))
-        .indicator_class(
-            "size-5 rounded border border-input checked:bg-primary checked:border-primary items-center justify-center",
-        )
-        .indicator(when(checked, move || {
-            ui::icon(ui::Icon::Check)
-                .size_4()
-                .text_color(move || theme().primary_foreground)
-        }))
-        .on_change(move |_: &bool| {
+    ui::checkbox(
+        ui::NO_LABEL,
+        checked,
+        || false,
+        move |_| {
             if let Some(id) = message().map(|message| message.message_id) {
                 selected.update(|ids| {
                     if ids.contains(&id) {
@@ -345,7 +323,11 @@ fn selection_box(
                     }
                 });
             }
-        })
+        },
+    )
+    .size_8()
+    .justify_center()
+    .accessibility_label(move || Some(i18n.tr("Select message", "选择消息").into()))
 }
 
 fn sender_avatar(
@@ -353,29 +335,25 @@ fn sender_avatar(
     actions: Actions,
 ) -> impl IntoElement {
     let i18n = actions.i18n;
-    ui::command()
+    ui::round_button()
         .size_8()
-        .px_0()
-        .py_0()
         .accessibility_label(move || Some(i18n.tr("Open profile", "打开个人资料").into()))
         .on_press(move || {
             if let Some(row) = message() {
                 actions.show_user(row.sender_id);
             }
         })
-        .child(
-            ui::avatar_view(
-                move || {
-                    message()
-                        .map(|row| row.sender_name.into())
-                        .unwrap_or_default()
-                },
-                move || {
-                    message()
-                        .map(|row| row.sender_avatar_url)
-                        .unwrap_or_default()
-                },
-            )
-            .size_8(),
-        )
+        .child(ui::avatar_view(
+            move || {
+                message()
+                    .map(|row| row.sender_name.into())
+                    .unwrap_or_default()
+            },
+            move || {
+                message()
+                    .map(|row| row.sender_avatar_url)
+                    .unwrap_or_default()
+            },
+            ui::AvatarSize::Compact,
+        ))
 }

@@ -61,7 +61,7 @@ impl State {
             self.rows.set(results.rows);
         });
         if !background {
-            after_answer(move || self.list.scroll_to_offset(px(0.0), false));
+            after_answer(move || self.list.scroll_to_offset(Points::ZERO, false));
         }
     }
 }

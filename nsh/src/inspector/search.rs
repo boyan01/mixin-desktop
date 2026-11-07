@@ -6,7 +6,6 @@ use futures::StreamExt as _;
 use mixin_desktop_api::{
     AccountClient, ClientResult, ConversationParticipantItem, MessageListView,
 };
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
 use crate::presentation::message_window::splice_phase;
@@ -14,7 +13,8 @@ use crate::{
     conversation::parts,
     i18n::{self, Key, tr},
     navigation::ChatNavigation,
-    presentation, runtime, ui,
+    presentation, runtime,
+    ui::{self, Typography as _},
 };
 
 const PAGE_SIZE: u32 = 64;
@@ -508,9 +508,9 @@ fn filters(
     let picker = senders.open;
     view()
         .flex_none()
-        .px_4()
-        .pb_3()
-        .gap_2()
+        .px(ui::space_lg())
+        .py(ui::space_md())
+        .gap(ui::space_sm())
         .child(when(
             move || !picker.get() && senders.selected.with(Option::is_some),
             move || sender_chip(results, senders, input),
@@ -520,16 +520,15 @@ fn filters(
                 .flex_row()
                 .items_center()
                 .gap_2()
-                .child(dynamic(move || {
+                .child(ui::search_pill().child(dynamic(move || {
                     let is_picker = picker.get();
                     search_field(results, senders, input, is_picker, back)
-                }))
+                })))
                 .child(when(
                     move || !picker.get(),
                     move || {
-                        ui::icon_button()
-                            .size_10()
-                            .px_2()
+                        ui::round_button()
+                            .size_8()
                             .accessibility_label(move || {
                                 Some(tr("Choose a sender", "选择发送者").into())
                             })
@@ -557,10 +556,9 @@ fn filters(
 }
 
 fn sender_chip(results: Results, senders: Senders, input: ElementRef) -> impl IntoElement {
-    ui::command()
+    ui::button(ui::ButtonTone::Secondary, ui::ButtonSize::Regular)
         .justify_start()
         .w_full()
-        .bg(move || theme().muted)
         .accessibility_label(move || Some(tr("Clear sender", "清除发送者").into()))
         .on_press(move || {
             senders.selected.set(None);
@@ -578,7 +576,7 @@ fn sender_chip(results: Results, senders: Senders, input: ElementRef) -> impl In
                         .unwrap_or_default())
                 )
             })
-            .text_sm()
+            .text_role(ui::TextRole::Body)
             .number_of_lines(1)
             .flex_1()
             .min_w_0(),
@@ -601,14 +599,12 @@ fn search_field(
             i18n.text(Key::SearchMessages)
         }
     };
-    ui::field()
+    ui::search_input()
         .key(if is_picker {
             "sender-search"
         } else {
             "message-search"
         })
-        .flex_1()
-        .min_w_0()
         .element_ref(&input)
         .auto_focus(true)
         .placeholder(move || label().to_owned())
@@ -760,11 +756,8 @@ fn result_list(results: Results, target: Signal<Option<String>>) -> impl IntoEle
                         let field = move |read: fn(&MessageListView) -> String| {
                             rows.with(|rows| rows.get(at.index()).map(read).unwrap_or_default())
                         };
-                        ui::command()
-                            .justify_start()
-                            .px_4()
-                            .py_3()
-                            .min_h_16()
+                        parts::compact_row()
+                            .py(ui::space_sm())
                             .on_press(move || {
                                 let id = rows.with_untracked(|rows| {
                                     rows.get(at.index()).map(|row| row.message_id.clone())
@@ -787,7 +780,7 @@ fn result_list(results: Results, target: Signal<Option<String>>) -> impl IntoEle
                                     .min_w_0()
                                     .child(
                                         text(move || field(|row| row.sender_name.clone()))
-                                            .text_sm()
+                                            .text_role(ui::TextRole::Body)
                                             .number_of_lines(1),
                                     )
                                     .child(
@@ -804,9 +797,9 @@ fn result_list(results: Results, target: Signal<Option<String>>) -> impl IntoEle
                                                     .unwrap_or_default()
                                             })
                                         })
-                                        .text_xs()
+                                        .text_role(ui::TextRole::Caption)
                                         .number_of_lines(2)
-                                        .text_color(move || theme().muted_foreground),
+                                        .text_color(ui::fg_secondary),
                                     ),
                             )
                     },
@@ -847,25 +840,9 @@ fn category_button(
     kind: &'static str,
     label: impl Fn() -> &'static str + 'static,
 ) -> impl IntoElement {
-    ui::command()
-        .min_h_8()
-        .py_1()
-        .rounded_full()
+    ui::button(ui::ButtonTone::Secondary, ui::ButtonSize::Small)
+        .rounded(ui::radius_full())
         .selected(move || results.category.get() == Some(kind))
-        .bg(move || {
-            if results.category.get() == Some(kind) {
-                theme().primary
-            } else {
-                theme().muted
-            }
-        })
-        .text_color(move || {
-            if results.category.get() == Some(kind) {
-                theme().primary_foreground
-            } else {
-                theme().foreground
-            }
-        })
         .on_press(move || {
             results.category.update(|category| {
                 *category = if *category == Some(kind) {
@@ -875,5 +852,5 @@ fn category_button(
                 }
             })
         })
-        .child(text(label).text_sm())
+        .child(text(label).text_role(ui::TextRole::Body))
 }

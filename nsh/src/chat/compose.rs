@@ -7,14 +7,14 @@ use std::{
 
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, ConversationListData, MessageListView};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
 use super::{input_edit, message_actions::Actions, message_quote, reedit::Reedit};
 use crate::{
     composer,
     i18n::{self, I18n, Key},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography},
 };
 
 /// Whether the account can send here, and the conversation row that says so.
@@ -246,11 +246,9 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
     let mention_account = stored(account.clone());
     let editor = view()
         .px_4()
-        .py_2()
+        .pt_2()
+        .pb_3()
         .gap_2()
-        .bg(move || theme().background)
-        .border_t_1()
-        .border_color(move || theme().border)
         .style_when(move || !can_send.get(), |style| style.hidden())
         .child(message_quote::reply_bar(actions))
         .child(when(
@@ -293,11 +291,16 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
             ui::error_text(move || i18n.text(Key::SendFailed))
         }))
         .child(
+            // Inner controls are 4pt inside this outline and share its curvature.
             view()
                 .flex_row()
                 .items_end()
-                .gap_2()
-                .min_h_10()
+                .gap_1()
+                .p_1()
+                .rounded(ui::radius_composer())
+                .bg(ui::bubble_in)
+                .border_1()
+                .border_color(ui::hairline)
                 .child(composer::attachments(
                     account.clone(),
                     conversation_id.clone(),
@@ -347,18 +350,16 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
                         move || !draft.with(|s| s.trim().is_empty()) && !input.composing(),
                         move || {
                             let send = send.clone();
-                            ui::command()
+                            ui::primary()
                                 .size_10()
-                                .px_1()
-                                .py_1()
+                                .min_h_0()
+                                .px_0()
+                                .py_0()
+                                .rounded(ui::radius_full())
                                 .disabled(sending)
                                 .accessibility_label(move || Some(i18n.text(Key::Send).into()))
                                 .on_press(move || send())
-                                .child(
-                                    ui::icon(ui::Icon::Send)
-                                        .size_6()
-                                        .text_color(move || theme().primary),
-                                )
+                                .child(ui::icon(ui::Icon::Send).text_color(ui::fg_on_accent))
                         },
                     )
                     .otherwise(move || voice.button()),
@@ -475,9 +476,9 @@ fn unavailable(eligibility: Eligibility, i18n: I18n) -> impl IntoElement {
         .px_4()
         .justify_center()
         .items_center()
-        .bg(move || theme().background)
+        .bg(ui::surface_list)
         .border_t_1()
-        .border_color(move || theme().border)
+        .border_color(ui::border)
         .child(
             text(move || {
                 if eligibility.failed.get() {
@@ -491,8 +492,8 @@ fn unavailable(eligibility: Eligibility, i18n: I18n) -> impl IntoElement {
                     ""
                 }
             })
-            .text_sm()
-            .text_color(move || theme().muted_foreground),
+            .text_role(ui::TextRole::Body)
+            .text_color(ui::fg_secondary),
         )
         .child(when(eligibility.failed, move || {
             ui::action(

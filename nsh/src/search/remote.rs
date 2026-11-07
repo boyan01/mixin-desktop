@@ -81,12 +81,7 @@ pub(super) fn banner(
         .child(when(
             move || mao.with(Option::is_some),
             move || {
-                ui::command()
-                    .justify_start()
-                    .mx_2()
-                    .px_3()
-                    .py_3()
-                    .gap_3()
+                parts::compact_row()
                     .on_press(move || {
                         if let Some(user) = mao
                             .with_untracked(|user| user.as_ref().map(|user| user.user_id.clone()))
@@ -110,6 +105,7 @@ pub(super) fn banner(
                                     .unwrap_or_default()
                             })
                         },
+                        ui::AvatarSize::Medium,
                     ))
                     .child(
                         view()
@@ -124,13 +120,13 @@ pub(super) fn banner(
                                             .unwrap_or_default()
                                     })
                                 })
-                                .text_sm()
+                                .text_role(ui::TextRole::Body)
                                 .number_of_lines(1),
                             )
                             .child(
                                 text(move || complete_mao(query.get().trim()))
-                                    .text_xs()
-                                    .text_color(move || theme().muted_foreground),
+                                    .text_role(ui::TextRole::Caption)
+                                    .text_color(ui::fg_secondary),
                             ),
                     )
             },
@@ -138,33 +134,22 @@ pub(super) fn banner(
         .child(when(
             move || users_empty.get() && numeric(),
             move || {
-                ui::command()
-                    .justify_start()
-                    .mx_2()
-                    .px_3()
-                    .py_3()
-                    .disabled(busy)
-                    .on_press(lookup)
-                    .child(
-                        text(move || {
-                            format!(
-                                "{} {}",
-                                tr("Search Mixin ID", "搜索 Mixin ID"),
-                                query.get().trim()
-                            )
-                        })
-                        .text_sm(),
-                    )
+                parts::compact_row().disabled(busy).on_press(lookup).child(
+                    text(move || {
+                        format!(
+                            "{} {}",
+                            tr("Search Mixin ID", "搜索 Mixin ID"),
+                            query.get().trim()
+                        )
+                    })
+                    .text_role(ui::TextRole::Body),
+                )
             },
         ))
         .child(when(
             move || users_empty.get() && url().is_some(),
             move || {
-                ui::command()
-                    .justify_start()
-                    .mx_2()
-                    .px_3()
-                    .py_3()
+                parts::compact_row()
                     .disabled(busy)
                     .on_press(move || {
                         if let Some(url) = url() {
@@ -175,7 +160,7 @@ pub(super) fn banner(
                         text(move || {
                             format!("{} {}", tr("Open link", "打开链接"), query.get().trim())
                         })
-                        .text_sm()
+                        .text_role(ui::TextRole::Body)
                         .number_of_lines(2),
                     )
             },
@@ -187,7 +172,7 @@ pub(super) fn banner(
                     "无法打开此结果，请检查后重试。",
                 )
             })
-            .px_5()
+            .px_4()
         }))
 }
 

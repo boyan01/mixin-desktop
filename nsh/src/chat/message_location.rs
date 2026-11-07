@@ -1,12 +1,14 @@
 use mixin_desktop_api::MessageListView;
-use nsh_base::theme;
 use nsh_core::{PointerEvents, element::ImageSrc, prelude::*};
 use serde_json::Value;
 
 use super::message_actions::Actions;
-use crate::{i18n::Key, ui};
+use crate::{
+    i18n::Key,
+    ui::{self, Typography},
+};
 
-const WIDTH: f32 = 260.0;
+/// The map's height, measured from Flutter. Tiles are placed against it.
 const HEIGHT: f32 = 180.0;
 const TILE_SIZE: f64 = 256.0;
 const ZOOM: u32 = 14;
@@ -87,32 +89,36 @@ pub(super) fn location(row: &MessageListView, actions: Actions) -> AnyElement {
         i18n.text(Key::Location)
     );
     let mut card = view()
-        .w(px(WIDTH))
+        .w(ui::card_width())
         .max_w(relative(1.0))
         .gap_1()
         .child(preview(latitude, longitude, description, actions));
     if !name.trim().is_empty() {
         card = card.child(
             text(name.to_owned())
-                .text_sm()
-                .font_weight(FontWeight::MEDIUM)
+                .text_role(ui::TextRole::Body)
+                .text_emphasis()
                 .number_of_lines(2),
         );
     }
     if !address.trim().is_empty() {
-        card = card.child(text(address.to_owned()).text_xs().number_of_lines(2));
+        card = card.child(
+            text(address.to_owned())
+                .text_role(ui::TextRole::Caption)
+                .number_of_lines(2),
+        );
     }
     card.child(
         text(format!("{latitude:.5}, {longitude:.5}"))
-            .text_xs()
-            .text_color(move || theme().muted_foreground),
+            .text_role(ui::TextRole::Caption)
+            .text_color(ui::fg_secondary),
     )
     .into_element()
 }
 
 fn invalid(actions: Actions) -> AnyElement {
     text(move || actions.i18n.tr("Invalid location", "无法读取位置"))
-        .text_sm()
+        .text_role(ui::TextRole::Body)
         .into_element()
 }
 
@@ -122,7 +128,7 @@ fn preview(
     description: String,
     actions: Actions,
 ) -> impl IntoElement {
-    let width = signal(WIDTH);
+    let width = signal(ui::card_width().0);
     let target = stored(format!(
         "https://www.google.com/maps/search/?api=1&query={latitude},{longitude}"
     ));
@@ -133,15 +139,14 @@ fn preview(
         });
     };
     view()
-        .w(px(WIDTH))
-        .max_w(relative(1.0))
+        .w_full()
         .h(px(HEIGHT))
         .relative()
         .overflow_hidden()
-        .rounded_lg()
-        .bg(move || theme().muted)
+        .rounded(ui::radius_md())
+        .bg(ui::surface_card)
         .on_layout(move |bounds: &Bounds<Points>| {
-            width.set(bounds.size.width.0.clamp(1.0, WIDTH));
+            width.set(bounds.size.width.0.clamp(1.0, ui::card_width().0));
         })
         .child(
             view()
@@ -150,38 +155,46 @@ fn preview(
                 .items_center()
                 .justify_center()
                 .gap_1()
-                .child(text(move || actions.i18n.text(Key::Location)).text_sm())
-                .child(text(format!("{latitude:.5}, {longitude:.5}")).text_xs())
-                .text_color(move || theme().muted_foreground),
+                .child(text(move || actions.i18n.text(Key::Location)).text_role(ui::TextRole::Body))
+                .child(text(format!("{latitude:.5}, {longitude:.5}")).text_role(ui::TextRole::Caption))
+                .text_color(ui::fg_secondary),
         )
         .child(each(
             move || tiles(latitude, longitude, width.get()),
             |tile| (tile.x, tile.y),
             move |tile, _| {
                 let failed = signal(false);
+                // A bitmap of the map service, placed by the projection above.
                 image(move || tile.with(|tile| tile_url(tile.x, tile.y)))
                     .absolute()
                     .left(move || px(tile.with(|tile| tile.left)))
                     .top(move || px(tile.with(|tile| tile.top)))
-                    .w(px(TILE_SIZE as f32))
-                    .h(px(TILE_SIZE as f32))
+                    .size(px(TILE_SIZE as f32))
                     .opacity(move || if failed.get() { 0.0_f32 } else { 1.0_f32 })
                     .on_error(move |_: &str| failed.set(true))
                     .accessibility_elements_hidden(true)
             },
         ))
+        // The upper half of the map, so the pin's tip lands on its center.
         .child(
-            svg(ImageSrc::svg_markup(
-                "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 33' fill='none' stroke='currentColor' stroke-width='2'><path d='M11 32V21'/><circle cx='11' cy='11' r='10'/><circle cx='11' cy='11' r='3'/></svg>",
-            ))
-            .absolute()
-            .left(move || px(width.get() / 2.0 - 11.0))
-            .top(px(HEIGHT / 2.0 - 33.0))
-            .w(px(22.0))
-            .h(px(33.0))
-            .text_color(move || theme().primary)
-            .pointer_events(PointerEvents::None)
-            .accessibility_elements_hidden(true),
+            view()
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .h(relative(0.5))
+                .items_center()
+                .justify_end()
+                .pointer_events(PointerEvents::None)
+                .child(
+                    svg(ImageSrc::svg_markup(
+                        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 33' fill='none' stroke='currentColor' stroke-width='2'><path d='M11 32V21'/><circle cx='11' cy='11' r='10'/><circle cx='11' cy='11' r='3'/></svg>",
+                    ))
+                    .w_6()
+                    .h_9()
+                    .text_color(ui::accent)
+                    .accessibility_elements_hidden(true),
+                ),
         )
         .child(
             ui::command()
@@ -189,19 +202,23 @@ fn preview(
                 .inset_0()
                 .p_0()
                 .accessibility_label(move || Some(description.clone().into()))
-                .hover(|style| style.bg(move || theme().muted.opacity(0.12)))
                 .on_press(open),
         )
+        // A state fill replaces a button's own, so the plate sits on a parent.
         .child(
-            ui::command()
+            view()
                 .absolute()
                 .bottom_1()
                 .right_1()
-                .min_h_0()
-                .px_1()
-                .py_1()
-                .bg(move || theme().background)
-                .on_press(open)
-                .child(text("Google Maps").text_xs()),
+                .rounded(ui::radius_md())
+                .bg(ui::surface_pane)
+                .child(
+                    ui::command()
+                        .min_h_0()
+                        .px_1()
+                        .py_1()
+                        .on_press(open)
+                        .child(text("Google Maps").text_role(ui::TextRole::Caption)),
+                ),
         )
 }

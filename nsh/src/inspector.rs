@@ -6,7 +6,6 @@ mod search;
 use std::sync::Arc;
 
 use mixin_desktop_api::AccountClient;
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
 use crate::{conversation, ui};
@@ -31,9 +30,9 @@ pub(crate) fn screen(
         .flex_shrink_0()
         .min_h_0()
         .style_with(move |s| if compact() { s.flex_1().min_w_0() } else { s })
-        .bg(move || theme().background)
+        .bg(ui::surface_pane)
         .border_l_1()
-        .border_color(move || theme().border);
+        .border_color(ui::border);
     if mode == Mode::Info {
         return panel
             .child(conversation::screen(account, id, target, close))

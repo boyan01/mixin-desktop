@@ -92,17 +92,10 @@ fn content(
                 .child(presence.backdrop(ui::scrim().on_press(close)))
                 .child(
                     presence.surface(
-                        view()
-                            .w(px(480.0))
-                            .max_w(relative(1.0))
-                            .max_h(relative(0.9))
-                            .min_h_0()
-                            .rounded_xl()
+                        parts::dialog_card()
+                            .p_0()
+                            .gap_0()
                             .overflow_hidden()
-                            .bg(move || theme().popover)
-                            .border_1()
-                            .border_color(move || theme().border)
-                            .shadow_lg()
                             .child(palette.command(control))
                             .child(palette.failure()),
                     ),
@@ -309,15 +302,13 @@ impl Palette {
             .search_bar_class("flex items-center px-4 py-2 border-b border-border gap-3 shrink-0")
             .search_class("flex-1 min-w-0 text-sm text-foreground bg-transparent")
             .list_class("min-h-0 max-h-96")
-            .item_class("group px-4 py-3 min-h-16 focus:bg-accent hover:bg-muted active:opacity-70")
+            .item_class("group px-4 py-3 min-h-16 focus:bg-state-hover hover:bg-state-hover active:bg-state-pressed")
             .group_class("px-4 py-2 text-xs text-muted-foreground")
             .separator_class("h-px bg-border")
             .search_prefix(ui::icon(ui::Icon::Search))
             .search_suffix(
-                ui::icon_button()
+                ui::round_button()
                     .size_8()
-                    .px_1()
-                    .py_1()
                     .accessibility_label(move || Some(tr("Close", "关闭").into()))
                     .on_press(close)
                     .child(ui::icon(ui::Icon::Close)),
@@ -333,7 +324,7 @@ impl Palette {
                     .px_4()
                     .py_3()
                     .border_t_1()
-                    .border_color(move || theme().border)
+                    .border_color(ui::border)
                     .child(
                         text(move || {
                             tr(
@@ -341,8 +332,8 @@ impl Palette {
                                 "↑↓ 选择 · Enter 打开 · Esc 关闭",
                             )
                         })
-                        .text_xs()
-                        .text_color(move || theme().muted_foreground),
+                        .text_role(ui::TextRole::Caption)
+                        .text_color(ui::fg_secondary),
                     ),
             )
             .render_item(move |item: &CommandEntry| {
@@ -358,13 +349,12 @@ impl Palette {
                         move || {
                             ui::avatar_view(
                                 move || row().map(|row| row.title()).unwrap_or_default().into(),
-                                move || row().map(|row| row.avatar_url()).unwrap_or_default(),
-                            )
+                                move || row().map(|row| row.avatar_url()).unwrap_or_default(), ui::AvatarSize::Medium)
                         },
                     ))
                     .child(
                         text(item.label.clone())
-                            .text_sm()
+                            .text_role(ui::TextRole::Body)
                             .flex_1()
                             .min_w_0()
                             .number_of_lines(1),

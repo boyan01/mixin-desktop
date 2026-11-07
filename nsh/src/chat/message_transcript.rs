@@ -1,14 +1,17 @@
 //! Bounded forwarded-message reading and attachment-only context actions.
 use futures::StreamExt as _;
 use mixin_desktop_api::{MessageListView, TranscriptSummaryItem};
-use nsh_base::theme;
 use nsh_core::{file_dialog::SaveDialog, prelude::*};
 
 use super::{
     message_actions::{Actions, Detail, attachment_name, item},
     message_content,
 };
-use crate::{i18n::Key, presentation, runtime, ui};
+use crate::{
+    i18n::Key,
+    presentation, runtime,
+    ui::{self, Typography},
+};
 
 pub(super) fn summary(root: String, child: String, actions: Actions) -> impl IntoElement {
     let i18n = actions.i18n;
@@ -51,9 +54,9 @@ pub(super) fn summary(root: String, child: String, actions: Actions) -> impl Int
         });
     });
     view().flex_1().w_full().min_h_0().gap_3()
-        .child(text(move || i18n.text(Key::Transcript)).text_lg().font_weight(FontWeight::SEMIBOLD))
+        .child(ui::modal_title(move || i18n.text(Key::Transcript)))
         .child(text(move || i18n.tr("This forwarded message contains a summary only. Original messages and attachments are unavailable.", "这条转发消息只保留了摘要，无法查看原始消息和附件。"))
-            .text_sm().text_color(move || theme().muted_foreground))
+            .text_role(ui::TextRole::Body).text_color(ui::fg_secondary))
         .child(when(loading, move || text(move || i18n.text(Key::LoadingMessages))))
         .child(when(failed, move || view().gap_2()
             .child(text(move || i18n.tr("This forwarded summary is unavailable.", "无法读取这条转发摘要。")))
@@ -61,11 +64,11 @@ pub(super) fn summary(root: String, child: String, actions: Actions) -> impl Int
         .child(virtual_list(move || rows.with(Vec::len), move |at| {
             view().px_4().py_2().gap_1()
                 .child(text(move || rows.with(|rows| rows.get(at.index()).map(|row| row.sender_name.clone()).unwrap_or_default()))
-                    .text_sm().text_color(move || theme().primary))
+                    .text_role(ui::TextRole::Body).text_color(ui::accent))
                 .child(text(move || rows.with(|rows| rows.get(at.index())
                     .map(|row| presentation::preview(i18n, &row.category, &row.content)).unwrap_or_default()))
-                    .text_sm().select_text())
-        }).flex_1().min_h_0().estimated_item_size(px(72.0)))
+                    .text_role(ui::TextRole::Body).select_text())
+        }).flex_1().min_h_0().estimated_item_size(ui::list_row_height()))
 }
 
 pub(super) fn screen(id: String, actions: Actions) -> impl IntoElement {
@@ -151,12 +154,7 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
                 .flex_row()
                 .items_center()
                 .gap_2()
-                .child(
-                    text(move || i18n.text(Key::Transcript))
-                        .text_lg()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .flex_1(),
-                )
+                .child(ui::modal_title(move || i18n.text(Key::Transcript)).flex_1())
                 .child(ui::busy_indicator(
                     move || busy.get(),
                     move || i18n.tr("Loading…", "加载中…").into(),
@@ -215,8 +213,8 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
                                                 .unwrap_or_default()
                                         })
                                     })
-                                    .text_xs()
-                                    .text_color(move || theme().muted_foreground),
+                                    .text_role(ui::TextRole::Caption)
+                                    .text_color(ui::fg_secondary),
                                 )
                             },
                         ))
@@ -237,8 +235,8 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
                                     .flex_1()
                                     .min_w_0()
                                     .number_of_lines(1)
-                                    .text_sm()
-                                    .text_color(move || theme().primary),
+                                    .text_role(ui::TextRole::Body)
+                                    .text_color(ui::accent),
                                 )
                                 .child(
                                     text(move || {
@@ -253,8 +251,8 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
                                                 .unwrap_or_default()
                                         })
                                     })
-                                    .text_xs()
-                                    .text_color(move || theme().muted_foreground),
+                                    .text_role(ui::TextRole::Caption)
+                                    .text_color(ui::fg_secondary),
                                 ),
                         )
                         .child(dynamic(move || {
@@ -293,7 +291,7 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
             })
             .flex_1()
             .min_h_0()
-            .estimated_item_size(px(90.0))
+            .estimated_item_size(ui::list_row_height())
             .on_viewable_items_change(move |items: &ViewableItems| visible.set(items.viewable))
             .on_layout(media_viewport),
         )

@@ -8,10 +8,17 @@ use mixin_desktop_api::{
     AccountClient, AudioPlaybackEvent, AudioPlaybackSnapshot, AudioPlaybackStatus, ClientError,
     ClientResult, MediaClient, MessageListView,
 };
-use nsh_base::{SliderValue, menu_item, slider, theme};
+use nsh_base::SliderValue;
 use nsh_core::prelude::*;
 
-use crate::{navigation::ChatNavigation, runtime, ui};
+use crate::{
+    navigation::ChatNavigation,
+    runtime,
+    ui::{self, Typography},
+};
+
+/// The playback speeds on offer, with their menu labels.
+pub(crate) const SPEEDS: [(f64, &str); 3] = [(1.0, "1×"), (1.5, "1.5×"), (2.0, "2×")];
 
 #[derive(Clone, Copy)]
 pub(crate) struct Playback {
@@ -262,7 +269,7 @@ pub(crate) fn bar(
             view()
                 .min_w_0()
                 .border_t_1()
-                .border_color(move || theme().border)
+                .border_color(ui::border)
                 .p_3()
                 .gap_2()
                 .child(
@@ -274,7 +281,7 @@ pub(crate) fn bar(
                         .child(
                             ui::command()
                                 .flex_1()
-                                .min_w(px(80.0))
+                                .min_w_20()
                                 .justify_start()
                                 .on_press(move || {
                                     if let Some(row) = state.row.get_untracked() {
@@ -286,7 +293,11 @@ pub(crate) fn bar(
                                         );
                                     }
                                 })
-                                .child(text(move || state.title.get()).text_sm().truncate()),
+                                .child(
+                                    text(move || state.title.get())
+                                        .text_role(ui::TextRole::Body)
+                                        .truncate(),
+                                ),
                         )
                         .child(
                             ui::menu()
@@ -302,22 +313,16 @@ pub(crate) fn bar(
                                                     state.snapshot.with(|snapshot| snapshot.speed)
                                                 )
                                             })
-                                            .text_xs(),
+                                            .text_role(ui::TextRole::Caption),
                                         ),
                                 )
-                                .children([1.0, 1.5, 2.0].into_iter().map(move |speed| {
-                                    menu_item()
-                                        .px_3()
-                                        .py_2()
-                                        .rounded_md()
-                                        .hover(|s| s.bg(move || theme().accent))
-                                        .child(text(format!("{speed}×")).text_sm())
-                                        .on_select(move || {
-                                            let media = state.media.with(|media| media.clone());
-                                            state.command(async move {
-                                                media.set_audio_speed(speed).await
-                                            });
-                                        })
+                                .children(SPEEDS.into_iter().map(move |(speed, label)| {
+                                    ui::menu_row(move || label).on_select(move || {
+                                        let media = state.media.with(|media| media.clone());
+                                        state.command(
+                                            async move { media.set_audio_speed(speed).await },
+                                        );
+                                    })
                                 })),
                         )
                         .child(
@@ -348,17 +353,15 @@ pub(crate) fn bar(
                                             tr("Play", "播放")
                                         }
                                     })
-                                    .text_xs(),
+                                    .text_role(ui::TextRole::Caption),
                                 ),
                         )
-                        .child(
-                            ui::command()
-                                .on_press(move || state.stop())
-                                .child(text(move || tr("Close", "关闭")).text_xs()),
-                        ),
+                        .child(ui::command().on_press(move || state.stop()).child(
+                            text(move || tr("Close", "关闭")).text_role(ui::TextRole::Caption),
+                        )),
                 )
                 .child(
-                    slider()
+                    ui::slider_compact()
                         .min(0.0)
                         .max(move || state.snapshot.with(|s| s.duration_millis.max(1) as f64))
                         .step(100.0)
@@ -371,12 +374,6 @@ pub(crate) fn bar(
                             Some(tr("Voice message position", "语音播放进度").into())
                         })
                         .disabled(move || state.snapshot.with(|s| s.duration_millis == 0))
-                        .track_class("h-6 justify-center disabled:opacity-40")
-                        .indicator_class("h-1 rounded-full bg-muted-foreground/30")
-                        .range_class("rounded-full bg-primary")
-                        .thumb_class(
-                            "size-3 rounded-full bg-primary focus:outline-2 focus:outline-ring",
-                        )
                         .on_change(move |value: &SliderValue| {
                             if let SliderValue::Single(value) = value {
                                 state.media.with(|m| m.seek_audio(value.max(0.0) as u64));
@@ -395,13 +392,11 @@ pub(crate) fn bar(
                             )
                         })
                     })
-                    .text_xs()
-                    .text_color(move || theme().muted_foreground),
+                    .text_role(ui::TextRole::Caption)
+                    .text_color(ui::fg_secondary),
                 )
                 .child(when(state.failed, || {
-                    text(move || tr("Playback failed", "播放失败"))
-                        .text_xs()
-                        .text_color(move || theme().destructive)
+                    ui::error_text(move || tr("Playback failed", "播放失败"))
                 }))
         },
     ))

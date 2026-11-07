@@ -28,6 +28,14 @@ impl Destination {
     }
 }
 
+/// Where a profile sits, which decides whether its bar is a title bar.
+#[derive(Clone, Copy)]
+pub(super) enum Frame {
+    /// The window's right-hand pane.
+    Pane,
+    Dialog,
+}
+
 #[derive(Clone, Copy)]
 enum Action {
     Add,
@@ -114,7 +122,14 @@ pub(crate) fn profile_with_opened(
     close: impl Fn() + Copy + 'static,
     opened: impl Fn() + Copy + 'static,
 ) -> impl IntoElement {
-    profile_at(account, user_id, Destination::Profile, close, opened)
+    profile_at(
+        account,
+        user_id,
+        Destination::Profile,
+        close,
+        opened,
+        Frame::Dialog,
+    )
 }
 
 pub(super) fn profile_at(
@@ -123,6 +138,7 @@ pub(super) fn profile_at(
     initial: Destination,
     close: impl Fn() + Copy + 'static,
     opened: impl Fn() + Copy + 'static,
+    frame: Frame,
 ) -> impl IntoElement {
     let owner = Owner::current();
     let opened = move || {
@@ -218,15 +234,17 @@ pub(super) fn profile_at(
             close();
         }
     };
+    let title = move || page.destination.get().title();
+    let back = parts::back_button(back)
+        .element_ref(&back_button)
+        .disabled(page.busy);
     view()
         .flex_1()
         .min_h_0()
-        .child(parts::page_header(
-            move || page.destination.get().title(),
-            parts::back_button(back)
-                .element_ref(&back_button)
-                .disabled(page.busy),
-        ))
+        .child(match frame {
+            Frame::Pane => parts::page_header(title, back),
+            Frame::Dialog => parts::dialog_header(title, back),
+        })
         .child(when(
             move || {
                 page.loading.get()
@@ -238,8 +256,8 @@ pub(super) fn profile_at(
             },
             || {
                 parts::status(move || tr("Loading…", "加载中…"))
-                    .px_4()
-                    .py_2()
+                    .px(ui::space_lg())
+                    .py(ui::space_sm())
             },
         ))
         .child(when(page.failed, move || {
@@ -247,8 +265,8 @@ pub(super) fn profile_at(
                 move || tr("Couldn’t update. Try again.", "更新失败，请重试。"),
                 move || page.revision.update(|revision| *revision += 1),
             )
-            .px_4()
-            .py_2()
+            .px(ui::space_lg())
+            .py(ui::space_sm())
         }))
         .child(dynamic(move || {
             let destination = page.destination.get();
@@ -345,9 +363,7 @@ fn name_form(
 ) -> impl IntoElement {
     let name = signal(page.text(|profile| profile.full_name.clone()));
     let editing = destination == Destination::EditName;
-    view()
-        .p_4()
-        .gap_3()
+    parts::page_body()
         .child(
             ui::field()
                 .label(move || tr("Name", "名称"))
@@ -380,8 +396,7 @@ fn details(
     opened: impl Fn() + Copy + 'static,
 ) -> impl IntoElement {
     scroll().flex_1().min_h_0().child(
-        view()
-            .pb_5()
+        parts::page_body()
             .child(summary(page))
             .child(primary_rows(page, opened))
             .child(when(
@@ -393,13 +408,13 @@ fn details(
 
 fn summary(page: Page) -> impl IntoElement {
     view()
-        .p_4()
-        .gap_2()
+        .gap(ui::space_sm())
         .items_center()
         .child(
             ui::avatar_view(
                 move || page.text(|profile| profile.full_name.clone()).into(),
                 move || page.text(|profile| profile.avatar_url.clone()),
+                ui::AvatarSize::Medium,
             )
             .size_16(),
         )
@@ -408,12 +423,11 @@ fn summary(page: Page) -> impl IntoElement {
                 .flex_row()
                 .items_center()
                 .justify_center()
-                .gap_1()
+                .gap(ui::space_xs())
                 .min_w_0()
                 .child(
                     text(move || page.text(|profile| profile.full_name.clone()))
-                        .text_lg()
-                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_role(ui::TextRole::Headline)
                         .number_of_lines(2),
                 )
                 .child(dynamic(move || {
@@ -431,14 +445,14 @@ fn summary(page: Page) -> impl IntoElement {
         )
         .child(
             text(move || page.text(|profile| profile.identity_number.clone()))
-                .text_sm()
+                .text_role(ui::TextRole::Body)
                 .select_text(),
         )
         .child(when(
             move || page.is(|profile| !profile.is_deactivated && !profile.biography.is_empty()),
             move || {
                 text(move || page.text(|profile| profile.biography.clone()))
-                    .text_sm()
+                    .text_role(ui::TextRole::Body)
                     .text_center()
             },
         ))
@@ -455,8 +469,8 @@ fn summary(page: Page) -> impl IntoElement {
             move || page.is(|profile| profile.is_verified),
             || {
                 text(move || tr("Verified", "已认证"))
-                    .text_xs()
-                    .text_color(move || theme().muted_foreground)
+                    .text_role(ui::TextRole::Caption)
+                    .text_color(ui::fg_secondary)
             },
         ))
 }
@@ -466,7 +480,7 @@ fn primary_rows(page: Page, opened: impl Fn() + Copy + 'static) -> impl IntoElem
     let navigation =
         use_context::<ChatNavigation>().expect("The signed-in session provides navigation");
     let unavailable = move || page.busy.get() || page.profile.with(Option::is_none);
-    view()
+    ui::card()
         .child(when(
             move || page.id.get() != page.own_id.with(|id| id.clone()),
             move || {
@@ -507,7 +521,7 @@ fn primary_rows(page: Page, opened: impl Fn() + Copy + 'static) -> impl IntoElem
                     .child(when(
                         move || page.creator.with(Option::is_some),
                         move || {
-                            row(
+                            page_row(
                                 move || tr("Created by", "开发者"),
                                 move || {
                                     if let Some(owner) = page.creator.get_untracked() {
@@ -529,13 +543,13 @@ fn primary_rows(page: Page, opened: impl Fn() + Copy + 'static) -> impl IntoElem
         .child(when(
             move || page.is(|profile| !profile.is_bot),
             move || {
-                row(
+                page_row(
                     move || tr("Groups in common", "共同群组"),
                     move || page.destination.set(Destination::Groups),
                 )
             },
         ))
-        .child(row(
+        .child(page_row(
             move || tr("Shared apps", "共享应用"),
             move || page.destination.set(Destination::Apps),
         ))
@@ -564,9 +578,9 @@ fn relationship_rows(
             page.confirm_then(prompt(), move || apply(action, String::new()))
         })
         .disabled(page.busy)
-        .text_color(move || theme().destructive)
+        .text_color(ui::danger)
     };
-    view()
+    ui::card()
         .child(
             row(
                 move || tr("Edit name…", "编辑名称…"),
@@ -684,15 +698,15 @@ fn groups(account: Arc<AccountClient>, user_id: String, failed: Signal<bool>) ->
         .min_h_0()
         .child(when(loading, || {
             parts::status(move || tr("Loading…", "加载中…"))
-                .px_4()
-                .py_2()
+                .px(ui::space_lg())
+                .py(ui::space_sm())
         }))
         .child(when(query_failed, move || {
             parts::failure(
                 move || tr("Couldn’t load. Try again.", "加载失败，请重试。"),
                 move || revision.update(|value| *value = value.wrapping_add(1)),
             )
-            .p_4()
+            .p(ui::space_lg())
         }))
         .child(
             virtual_list(
@@ -766,15 +780,15 @@ fn apps(
         .min_h_0()
         .child(when(loading, || {
             parts::status(move || tr("Loading…", "加载中…"))
-                .px_4()
-                .py_2()
+                .px(ui::space_lg())
+                .py(ui::space_sm())
         }))
         .child(when(failed, move || {
             parts::failure(
                 move || tr("Couldn’t load. Try again.", "加载失败，请重试。"),
                 move || revision.update(|revision| *revision += 1),
             )
-            .p_4()
+            .p(ui::space_lg())
         }))
         .child(
             virtual_list(

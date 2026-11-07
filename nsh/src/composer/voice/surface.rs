@@ -1,6 +1,8 @@
 use super::*;
-use crate::{composer::tool_button, ui};
-use nsh_base::theme;
+use crate::{
+    composer::tool_button,
+    ui::{self, Typography as _},
+};
 
 impl Voice {
     pub(crate) fn composer(self, content: View) -> impl IntoElement {
@@ -17,7 +19,7 @@ impl Voice {
         tool_button()
             .disabled(move || self.busy.get() || self.open.get())
             .accessibility_label(move || Some(i18n.text(Key::Record).into()))
-            .child(ui::icon(ui::Icon::Microphone).size_6())
+            .child(ui::icon(ui::Icon::Microphone))
             .on_press(move || self.start())
     }
 
@@ -67,24 +69,26 @@ impl Voice {
                                                 view()
                                                     .absolute()
                                                     .left(move || {
-                                                        px(voice.bounds.with(|b| {
-                                                            b.map_or(0.0, |b| b.page.x.0)
-                                                        }))
+                                                        voice.bounds.with(|b| {
+                                                            b.map_or(Points::ZERO, |b| b.page.x)
+                                                        })
                                                     })
                                                     .w(move || {
-                                                        px(voice.bounds.with(|b| {
-                                                            b.map_or(0.0, |b| b.frame.size.width.0)
-                                                        }))
+                                                        voice.bounds.with(|b| {
+                                                            b.map_or(Points::ZERO, |b| {
+                                                                b.frame.size.width
+                                                            })
+                                                        })
                                                     })
                                                     .bottom(move || {
-                                                        px(voice.bounds.with(|b| {
-                                                            b.map_or(0.0, |b| {
-                                                                (window().height.0
-                                                                    - b.page.y.0
-                                                                    - b.frame.size.height.0)
-                                                                    .max(0.0)
+                                                        voice.bounds.with(|b| {
+                                                            b.map_or(Points::ZERO, |b| {
+                                                                (window().height
+                                                                    - b.page.y
+                                                                    - b.frame.size.height)
+                                                                    .max(Points::ZERO)
                                                             })
-                                                        }))
+                                                        })
                                                     })
                                                     .child(bar(voice)),
                                             ),
@@ -117,9 +121,9 @@ fn bar(voice: Voice) -> impl IntoElement {
         .px_4()
         .py_2()
         .gap_1()
-        .bg(move || theme().background)
+        .bg(ui::surface_pane)
         .border_t_1()
-        .border_color(move || theme().border)
+        .border_color(ui::border)
         .child(
             view()
                 .flex_row()
@@ -129,7 +133,7 @@ fn bar(voice: Voice) -> impl IntoElement {
                     tool_button()
                         .disabled(voice.busy)
                         .accessibility_label(move || Some(i18n.text(Key::Cancel).into()))
-                        .child(ui::icon(ui::Icon::Close).size_5())
+                        .child(ui::icon(ui::Icon::Close))
                         .on_press(move || voice.cancel()),
                 )
                 .child(
@@ -141,9 +145,9 @@ fn bar(voice: Voice) -> impl IntoElement {
                         .gap_2()
                         .child(when(recording, move || {
                             view()
-                                .size_2()
-                                .rounded_full()
-                                .bg(move || theme().destructive)
+                                .size(ui::space_sm())
+                                .rounded(ui::radius_full())
+                                .bg(ui::danger)
                         }))
                         .child(
                             text(move || {
@@ -155,7 +159,7 @@ fn bar(voice: Voice) -> impl IntoElement {
                                     )
                                 })
                             })
-                            .text_sm(),
+                            .text_role(ui::TextRole::Body),
                         )
                         .child(waveform(voice)),
                 )
@@ -220,13 +224,11 @@ fn bar(voice: Voice) -> impl IntoElement {
                                 voice.send();
                             }
                         })
-                        .child(ui::icon(ui::Icon::Send).size_5()),
+                        .child(ui::icon(ui::Icon::Send)),
                 ),
         )
         .child(when(voice.failed, move || {
-            text(move || i18n.text(Key::CommandFailed))
-                .text_sm()
-                .text_color(move || theme().destructive)
+            ui::error_text(move || i18n.text(Key::CommandFailed))
         }))
 }
 
@@ -236,16 +238,16 @@ fn waveform(voice: Voice) -> impl IntoElement {
         .min_w_0()
         .flex_row()
         .items_center()
-        .gap(px(2.0))
+        .gap(ui::space_2xs())
         .h_8()
         .overflow_hidden()
         .children((0..32).map(move |index| {
             view()
                 .flex_1()
-                .max_w(px(4.0))
-                .min_w(px(1.0))
-                .rounded_full()
-                .bg(move || theme().primary)
+                .max_w(ui::space_xs())
+                .min_w(ui::hairline_width())
+                .rounded(ui::radius_full())
+                .bg(ui::accent)
                 .h(move || {
                     let amplitude = voice.snapshot.with(|s| {
                         let start = index * s.waveform.len() / 32;
@@ -258,7 +260,8 @@ fn waveform(voice: Voice) -> impl IntoElement {
                             .copied()
                             .unwrap_or_default()
                     });
-                    px(2.0 + f32::from(amplitude) / 255.0 * 26.0)
+                    // Measured data: the sample's amplitude, within the 32pt row.
+                    px(ui::space_2xs().0 + f32::from(amplitude) / 255.0 * 26.0)
                 })
         }))
 }

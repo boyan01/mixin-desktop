@@ -9,17 +9,14 @@ use std::{
 };
 
 use mixin_desktop_api::AccountClient;
-use nsh_base::{
-    rich_editor::{
-        extensions::history,
-        model::Slice,
-        state::{EditorState, EditorStateConfig, KeyEvent, PluginSpec, TextSelection, Transaction},
-        view::{
-            EditorSession, NodeViews, RichEditorChange, RichEditorClasses, RichEditorSelection,
-            rich_editor,
-        },
+use nsh_base::rich_editor::{
+    extensions::history,
+    model::Slice,
+    state::{EditorState, EditorStateConfig, KeyEvent, PluginSpec, TextSelection, Transaction},
+    view::{
+        EditorSession, NodeViews, RichEditorChange, RichEditorClasses, RichEditorSelection,
+        rich_editor,
     },
-    theme,
 };
 use nsh_core::prelude::*;
 use serde_json::{Value, json};
@@ -202,7 +199,7 @@ impl Input {
         let placeholder = stored(placeholder);
         let scroll_ref = element_ref();
         let viewport = stored(Size::<Points>::default());
-        let scroll_top = stored(px(0.0));
+        let scroll_top = stored(Points::ZERO);
         let reveal_queued = stored(false);
         let reveal = move || {
             if reveal_queued.replace(true) {
@@ -223,7 +220,7 @@ impl Input {
                         };
                         let top = scroll_top.get();
                         let height = viewport.with(|size| size.height);
-                        if height <= px(0.0) {
+                        if height <= Points::ZERO {
                             return;
                         }
                         let bottom = caret.origin.y + caret.size.height;
@@ -234,7 +231,8 @@ impl Input {
                         } else {
                             return;
                         };
-                        scroll_ref.scroll_to(Point::new(px(0.0), target.max(px(0.0))), false);
+                        scroll_ref
+                            .scroll_to(Point::new(Points::ZERO, target.max(Points::ZERO)), false);
                     });
                 });
             });
@@ -261,29 +259,23 @@ impl Input {
             .on_paste_files(
                 move |event: &nsh_base::rich_editor::view::RichEditorPastedFiles| pasted(event),
             );
-        view()
-            .flex_1()
-            .min_w_0()
-            .overflow_hidden()
-            .bg(move || theme().muted)
-            .rounded(move || px(theme().number("radius-composer").unwrap_or(4.0)))
-            .child(
-                scroll()
-                    .element_ref(&scroll_ref)
-                    .min_h_10()
-                    .max_h_32()
-                    .on_layout(move |bounds: &Bounds<Points>| {
-                        if viewport.with(|size| *size != bounds.size) {
-                            viewport.replace(bounds.size);
-                            reveal();
-                        }
-                    })
-                    .on_scroll(move |event: &ScrollEvent| {
-                        scroll_top.replace(event.offset.y);
-                        viewport.replace(event.size);
-                    })
-                    .child(editor),
-            )
+        view().flex_1().min_w_0().overflow_hidden().child(
+            scroll()
+                .element_ref(&scroll_ref)
+                .min_h_10()
+                .max_h_32()
+                .on_layout(move |bounds: &Bounds<Points>| {
+                    if viewport.with(|size| *size != bounds.size) {
+                        viewport.replace(bounds.size);
+                        reveal();
+                    }
+                })
+                .on_scroll(move |event: &ScrollEvent| {
+                    scroll_top.replace(event.offset.y);
+                    viewport.replace(event.size);
+                })
+                .child(editor),
+        )
     }
 }
 

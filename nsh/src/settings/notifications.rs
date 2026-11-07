@@ -1,7 +1,5 @@
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
-use super::{body, section, toggle};
 use crate::{
     conversation::parts,
     i18n::{self, I18n, Key},
@@ -14,35 +12,38 @@ pub(super) fn screen() -> impl IntoElement {
     let i18n = i18n::current();
     let handle = use_context::<Handle>().expect("App provides native notifications");
     let available = move || handle.availability == Availability::Available;
+    let settings_failed = signal(false);
     scroll().flex_1().min_h_0().child(
-        body()
+        parts::page_body()
             .child(
-                section(move || i18n.tr("Notifications", "通知"))
-                    .child(
-                        text(move || permission_summary(i18n, handle))
-                            .text_sm()
-                            .text_color(move || theme().muted_foreground),
-                    )
+                ui::card()
+                    .child(ui::static_row(move || permission_summary(i18n, handle)))
                     .child(when(
                         move || {
                             available()
                                 && handle.permission.get() == Some(Permission::NotDetermined)
                         },
                         move || {
-                            ui::action(
-                                move || i18n.tr("Allow notifications", "允许通知"),
-                                move || handle.request_permission(),
-                            )
+                            ui::settings_row(None, move || {
+                                i18n.tr("Allow notifications", "允许通知")
+                            })
                             .disabled(handle.busy)
+                            .on_press(move || handle.request_permission())
                         },
                     ))
                     .child(when(available, move || {
-                        ui::action(
-                            move || i18n.tr("Refresh permission", "刷新权限状态"),
-                            move || handle.refresh_permission(),
-                        )
+                        ui::settings_row(None, move || {
+                            i18n.tr("Refresh permission", "刷新权限状态")
+                        })
                         .disabled(handle.busy)
-                    })),
+                        .on_press(move || handle.refresh_permission())
+                    }))
+                    .child(when(
+                        move || {
+                            available() && cfg!(any(target_os = "macos", target_os = "windows"))
+                        },
+                        move || system_settings(settings_failed),
+                    )),
             )
             .child(when(available, move || preview_setting(handle)))
             .child(when(handle.failed, move || {
@@ -53,7 +54,9 @@ pub(super) fn screen() -> impl IntoElement {
                     )
                 })
             }))
-            .child(when(available, system_settings)),
+            .child(when(settings_failed, move || {
+                ui::error_text(move || i18n.text(Key::CommandFailed))
+            })),
     )
 }
 
@@ -98,23 +101,19 @@ fn permission_summary(i18n: I18n, handle: Handle) -> &'static str {
 fn preview_setting(handle: Handle) -> impl IntoElement {
     let i18n = i18n::current();
     view()
-        .gap_3()
-        .child(toggle(
+        .gap_2()
+        .child(ui::card().child(ui::toggle_row(
             move || i18n.tr("Message preview", "消息预览"),
             move || handle.preview.get(),
             move || !handle.preview_ready.get() || handle.preview_busy.get(),
             move |value| handle.set_preview(value),
-        ))
-        .child(
-            text(move || {
-                i18n.tr(
-                    "Show message content in notifications. Turn this off to keep message content private.",
-                    "在通知中显示消息内容。关闭后，通知仅显示通用消息提示。",
-                )
-            })
-            .text_sm()
-            .text_color(move || theme().muted_foreground),
-        )
+        )))
+        .child(parts::note(move || {
+            i18n.tr(
+                "Show message content in notifications. Turn this off to keep message content private.",
+                "在通知中显示消息内容。关闭后，通知仅显示通用消息提示。",
+            )
+        }))
         .child(when(handle.preview_failed, move || {
             parts::failure(
                 move || i18n.text(Key::CommandFailed),
@@ -123,32 +122,22 @@ fn preview_setting(handle: Handle) -> impl IntoElement {
         }))
 }
 
-fn system_settings() -> impl IntoElement {
+fn system_settings(failed: Signal<bool>) -> impl IntoElement {
     let i18n = i18n::current();
-    let failed = signal(false);
-    view()
-        .gap_2()
-        .child(when(
-            move || cfg!(any(target_os = "macos", target_os = "windows")),
-            move || {
-                ui::action(
-                    move || i18n.tr("Open notification settings", "打开系统通知设置"),
-                    move || {
-                        spawn(async move {
-                            failed.set(
-                                !open_url(if cfg!(target_os = "windows") {
-                                    "ms-settings:notifications"
-                                } else {
-                                    "x-apple.systempreferences:com.apple.preference.notifications"
-                                })
-                                .await,
-                            );
-                        });
-                    },
-                )
-            },
-        ))
-        .child(when(failed, move || {
-            ui::error_text(move || i18n.text(Key::CommandFailed))
-        }))
+    ui::settings_row(None, move || {
+        i18n.tr("Open notification settings", "打开系统通知设置")
+    })
+    .child(ui::chevron())
+    .on_press(move || {
+        spawn(async move {
+            failed.set(
+                !open_url(if cfg!(target_os = "windows") {
+                    "ms-settings:notifications"
+                } else {
+                    "x-apple.systempreferences:com.apple.preference.notifications"
+                })
+                .await,
+            );
+        });
+    })
 }

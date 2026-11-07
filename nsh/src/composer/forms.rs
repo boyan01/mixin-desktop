@@ -1,11 +1,11 @@
 use mixin_desktop_api::UserProfileItem;
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
-use super::{attachments::Host, clear_quote, dialog_card, dialog_title, failure, quote_id, tr};
+use super::{attachments::Host, clear_quote, quote_id, tr, wide_dialog};
 use crate::{
     i18n::{self, Key},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography as _},
 };
 
 pub(super) fn contact(host: Host) -> impl IntoElement {
@@ -87,14 +87,16 @@ pub(super) fn contact(host: Host) -> impl IntoElement {
             });
         });
     };
+    // A 40pt avatar with the button's `space_sm` above and below it.
+    let row_height = ui::field_height() + ui::space_lg();
     ui::modal(
         presence,
         cancel,
-        dialog_card()
+        ui::modal_card()
             .w_96()
             .overflow_hidden()
-            .child(dialog_title(move || {
-                tr(i18n, "Share contact", "分享联系人").to_owned()
+            .child(ui::modal_title(move || {
+                tr(i18n, "Share contact", "分享联系人")
             }))
             .child(
                 ui::field()
@@ -136,30 +138,24 @@ pub(super) fn contact(host: Host) -> impl IntoElement {
                                     move || loading.get(),
                                     move || label().into(),
                                 ))
-                                .child(text(label).text_sm())
+                                .child(text(label).text_role(ui::TextRole::Body))
                         },
                     ))
                     .child(when(load_failed, move || {
                         view()
                             .gap_2()
-                            .child(failure(move || i18n.text(Key::CommandFailed)))
+                            .child(ui::error_text(move || i18n.text(Key::CommandFailed)))
                             .child(ui::action(
                                 move || i18n.text(Key::Retry),
                                 move || retry.update(|v| *v += 1),
                             ))
                     }))
                     .child(when(send_failed, move || {
-                        failure(move || i18n.text(Key::SendFailed))
+                        ui::error_text(move || i18n.text(Key::SendFailed))
                     }))
                     .child(when(
                         move || !loading.get() && !load_failed.get() && rows.with(Vec::is_empty),
-                        move || {
-                            view().min_h_24().items_center().justify_center().child(
-                                text(move || i18n.text(Key::NoContacts))
-                                    .text_sm()
-                                    .text_color(move || theme().muted_foreground),
-                            )
-                        },
+                        move || ui::placeholder(move || i18n.text(Key::NoContacts)).min_h_24(),
                     ))
                     .child(
                         virtual_list(
@@ -184,6 +180,7 @@ pub(super) fn contact(host: Host) -> impl IntoElement {
                                                     .unwrap_or_default()
                                             })
                                         },
+                                        ui::AvatarSize::Medium,
                                     ))
                                     .child(
                                         view()
@@ -197,7 +194,7 @@ pub(super) fn contact(host: Host) -> impl IntoElement {
                                                             .unwrap_or_default()
                                                     })
                                                 })
-                                                .text_sm()
+                                                .text_role(ui::TextRole::Body)
                                                 .number_of_lines(1),
                                             )
                                             .child(
@@ -208,8 +205,8 @@ pub(super) fn contact(host: Host) -> impl IntoElement {
                                                             .unwrap_or_default()
                                                     })
                                                 })
-                                                .text_xs()
-                                                .text_color(move || theme().muted_foreground),
+                                                .text_role(ui::TextRole::Caption)
+                                                .text_color(ui::fg_secondary),
                                             ),
                                     )
                                     .on_press(move || {
@@ -226,8 +223,8 @@ pub(super) fn contact(host: Host) -> impl IntoElement {
                                 rows.iter().map(|u| u.user_id.clone()).collect::<Vec<_>>()
                             })
                         })
-                        .estimated_item_size(px(56.0))
-                        .h(move || px(rows.with(|rows| rows.len().min(5)) as f32 * 56.0))
+                        .estimated_item_size(row_height)
+                        .h(move || row_height * rows.with(|rows| rows.len().min(5)) as f32)
                         .flex_shrink(1.0)
                         .min_h_0()
                         .style_when(move || rows.with(Vec::is_empty), |style| style.hidden()),
@@ -310,15 +307,12 @@ pub(super) fn post(host: Host) -> impl IntoElement {
     ui::modal(
         presence,
         dismiss,
-        dialog_card()
-            .w(px(640.0))
-            .gap_4()
-            .child(dialog_title(move || {
-                tr(i18n, "Write a post", "撰写文章").to_owned()
+        wide_dialog()
+            .child(ui::modal_title(move || {
+                tr(i18n, "Write a post", "撰写文章")
             }))
             .child(
-                ui::field()
-                    .multiline(true)
+                ui::textarea()
                     .auto_focus(true)
                     .h_64()
                     .label(move || i18n.text(Key::Post))
@@ -338,7 +332,7 @@ pub(super) fn post(host: Host) -> impl IntoElement {
                     .on_change(move |value: &str| content.set(value.to_owned())),
             )
             .child(when(failed, move || {
-                failure(move || i18n.text(Key::SendFailed))
+                ui::error_text(move || i18n.text(Key::SendFailed))
             }))
             .child(
                 view()

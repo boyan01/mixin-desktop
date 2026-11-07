@@ -1,5 +1,4 @@
 use mixin_desktop_api::MessageListView;
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use serde_json::Value;
 
@@ -7,13 +6,20 @@ use super::{
     message_actions::{Actions, Detail},
     message_links,
 };
-use crate::{i18n::Key, runtime, ui};
+use crate::{
+    i18n::Key,
+    runtime,
+    ui::{self, Typography},
+};
+
+/// The profile dialog: Flutter's width, and a fixed height for its scrolling body.
+const PROFILE_SIZE: (f32, f32) = (340.0, 560.0);
 
 pub(super) fn card(row: &MessageListView, actions: Actions) -> AnyElement {
     let i18n = actions.i18n;
     let Ok(value) = serde_json::from_str::<Value>(&row.content) else {
         return text(move || i18n.tr("Invalid card", "无法读取卡片"))
-            .text_sm()
+            .text_role(ui::TextRole::Body)
             .into_element();
     };
     let string = |key| {
@@ -38,12 +44,12 @@ pub(super) fn card(row: &MessageListView, actions: Actions) -> AnyElement {
         card = card.child(image(cover).w_full().h_32().object_fit(ResizeMode::Cover));
     }
     card = card
+        .child(text(string("title")).text_emphasis().select_text())
         .child(
-            text(string("title"))
-                .font_weight(FontWeight::SEMIBOLD)
+            text(string("description"))
+                .text_role(ui::TextRole::Body)
                 .select_text(),
-        )
-        .child(text(string("description")).text_sm().select_text());
+        );
     let primary = string("action");
     let single_action = row.category != "APP_BUTTON_GROUP" && !primary.is_empty();
     let commands = if row.category == "APP_BUTTON_GROUP" {
@@ -79,7 +85,7 @@ pub(super) fn card(row: &MessageListView, actions: Actions) -> AnyElement {
                 .justify_start()
                 .disabled(move || input && (!actions.can_send.get() || actions.busy.get()))
                 .on_press(on_press)
-                .child(text(title).text_sm()),
+                .child(text(title).text_role(ui::TextRole::Body)),
         );
     }
     card.into_element()
@@ -103,7 +109,7 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
                 presence,
                 move || actions.close_preview(),
                 view()
-                    .bg(move || theme().background)
+                    .bg(ui::surface_pane)
                     .flex_1()
                     .w_full()
                     .min_h_0()
@@ -112,22 +118,22 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
                         style
                             .flex_auto()
                             .flex_grow(0.0)
-                            .w(px(360.0))
+                            .w_96()
                             .max_w(relative(1.0))
                             .max_h(relative(0.9))
                             .p_4()
-                            .rounded_xl()
+                            .rounded(ui::radius_lg())
                             .shadow_lg()
                     })
                     .style_when(user_profile, |style| {
                         style
                             .flex_auto()
                             .flex_grow(0.0)
-                            .w(px(340.0))
+                            .w(px(PROFILE_SIZE.0))
                             .max_w(relative(1.0))
-                            .h(px(560.0))
+                            .h(px(PROFILE_SIZE.1))
                             .max_h(relative(0.9))
-                            .rounded_xl()
+                            .rounded(ui::radius_lg())
                             .overflow_hidden()
                     })
                     .child(
@@ -138,11 +144,9 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
                             .style_when(qr, |style| style.items_center())
                             .style_when(user_profile, |style| style.flex_none())
                             .child(when(qr, move || {
-                                text(move || i18n.tr("QR code", "二维码"))
+                                ui::modal_title(move || i18n.tr("QR code", "二维码"))
                                     .flex_1()
                                     .min_w_0()
-                                    .text_lg()
-                                    .font_weight(FontWeight::SEMIBOLD)
                             }))
                             .child(when(
                                 move || !actions.preview_history.with(Vec::is_empty),
@@ -253,8 +257,7 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
                         })
                     }))
                     .child(when(actions.failed, move || {
-                        text(move || i18n.text(Key::CommandFailed))
-                            .text_color(move || theme().destructive)
+                        ui::error_text(move || i18n.text(Key::CommandFailed))
                     }))
                     .child(
                         text(move || {
@@ -273,7 +276,7 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
                                     .unwrap_or_default()
                             })
                         })
-                        .text_sm()
+                        .text_role(ui::TextRole::Body)
                         .select_text(),
                     ),
             )
@@ -296,14 +299,10 @@ fn add_image_sticker(row: MessageListView, actions: Actions) -> impl IntoElement
         .items_center()
         .justify_center()
         .gap_6()
-        .child(
-            text(move || i18n.tr("Add sticker", "添加贴纸"))
-                .text_lg()
-                .font_weight(FontWeight::SEMIBOLD),
-        )
+        .child(ui::modal_title(move || i18n.tr("Add sticker", "添加贴纸")))
         .child(
             image(row.media_url.unwrap_or_default())
-                .size(px(400.0))
+                .size_96()
                 .max_w(relative(0.9))
                 .max_h(relative(0.7))
                 .object_fit(ResizeMode::Contain)

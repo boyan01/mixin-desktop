@@ -2,11 +2,15 @@
 use std::sync::Arc;
 
 use mixin_desktop_api::{MediaClient, MessageListView};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
 use super::{message_actions::Actions, message_content::available};
-use crate::{appearance, i18n::Key, presentation, runtime, ui};
+use crate::{
+    appearance,
+    i18n::Key,
+    presentation, runtime,
+    ui::{self, Typography},
+};
 
 #[derive(Clone, Copy)]
 struct Viewport(Signal<f32>);
@@ -56,18 +60,6 @@ pub(crate) fn inline_metadata(row: &MessageListView) -> bool {
                 .caption
                 .as_deref()
                 .is_none_or(|caption| caption.trim().is_empty()))
-}
-
-fn overlay_color() -> nsh_core::element::AdaptiveColor {
-    theme()
-        .color("media-overlay")
-        .unwrap_or(theme().foreground.opacity(0.6))
-}
-
-fn overlay_foreground() -> nsh_core::element::AdaptiveColor {
-    theme()
-        .color("media-overlay-foreground")
-        .unwrap_or(theme().foreground)
 }
 
 /// One attachment's transfer: its queued state, live bytes and toggle command.
@@ -141,9 +133,9 @@ fn overlay_label(
     text(label)
         .px_2()
         .py_1()
-        .rounded_md()
-        .bg(overlay_color)
-        .text_color(overlay_foreground)
+        .rounded(ui::radius_sm())
+        .bg(ui::media_overlay)
+        .text_color(ui::media_overlay_foreground)
         .text_size(move || appearance.tertiary_size())
         .number_of_lines(2)
 }
@@ -220,6 +212,7 @@ pub(super) fn card(
         .min_h_0()
         .min_w_0()
         .max_w(relative(1.0))
+        // Sized from the picture's own dimensions, within the viewport.
         .w(move || px(size().0))
         .aspect_ratio(move || size().0 / size().1)
         .disabled(move || expired)
@@ -263,9 +256,9 @@ pub(super) fn card(
                 .w_full()
                 .h_full()
                 .relative()
-                .rounded_lg()
+                .rounded(ui::radius_md())
                 .overflow_hidden()
-                .bg(move || theme().muted)
+                .bg(ui::surface_card)
                 .child(
                     view()
                         .absolute()
@@ -281,7 +274,7 @@ pub(super) fn card(
                                 }
                             })
                             .text_size(move || appearance.secondary_size())
-                            .text_color(move || theme().muted_foreground),
+                            .text_color(ui::fg_secondary),
                         ),
                 )
                 .child(when(
@@ -340,11 +333,11 @@ pub(super) fn card(
                                     .min_w_11()
                                     .min_h_11()
                                     .p_2()
-                                    .rounded_full()
-                                    .bg(overlay_color)
+                                    .rounded(ui::radius_full())
+                                    .bg(ui::media_overlay)
                                     .items_center()
                                     .justify_center()
-                                    .text_color(overlay_foreground)
+                                    .text_color(ui::media_overlay_foreground)
                                     .child(when(transferring, move || {
                                         view()
                                             .flex_row()
@@ -356,7 +349,7 @@ pub(super) fn card(
                                                     i18n.tr("Transferring…", "正在传输…").into()
                                                 },
                                             ))
-                                            .child(ui::icon(ui::Icon::Close).size_5())
+                                            .child(ui::icon(ui::Icon::Close))
                                             .child(when(
                                                 move || transfer.percent().is_some(),
                                                 move || {
@@ -371,7 +364,9 @@ pub(super) fn card(
                                         move || !transferring(),
                                         move || {
                                             if expired || local_failed.get() {
-                                                text("!").text_lg().into_element()
+                                                text("!")
+                                                    .text_role(ui::TextRole::Label)
+                                                    .into_element()
                                             } else {
                                                 ui::icon(if done {
                                                     ui::Icon::Play
@@ -380,7 +375,7 @@ pub(super) fn card(
                                                 } else {
                                                     ui::Icon::Download
                                                 })
-                                                .size_6()
+                                                .size(ui::icon_lg())
                                                 .into_element()
                                             }
                                         },
@@ -411,11 +406,11 @@ pub(super) fn card(
                             .left_1()
                             .px_1()
                             .py_1()
-                            .rounded_md()
-                            .bg(overlay_color)
+                            .rounded(ui::radius_sm())
+                            .bg(ui::media_overlay)
                             .child(
                                 text(row.with(|row| duration(&row.media_duration)))
-                                    .text_color(overlay_foreground)
+                                    .text_color(ui::media_overlay_foreground)
                                     .text_size(move || appearance.tertiary_size()),
                             )
                     },
@@ -429,8 +424,8 @@ pub(super) fn card(
                             .right_1()
                             .px_1()
                             .py_1()
-                            .rounded_full()
-                            .bg(overlay_color)
+                            .rounded(ui::radius_full())
+                            .bg(ui::media_overlay)
                             .flex_row()
                             .items_center()
                             .gap_1()
@@ -444,7 +439,7 @@ pub(super) fn card(
                                 move || {
                                     ui::icon(ui::Icon::Lock)
                                         .size_3()
-                                        .text_color(overlay_foreground)
+                                        .text_color(ui::media_overlay_foreground)
                                 },
                             ))
                             .child(
@@ -454,7 +449,7 @@ pub(super) fn card(
                                     })
                                 })
                                 .text_size(move || appearance.tertiary_size())
-                                .text_color(overlay_foreground),
+                                .text_color(ui::media_overlay_foreground),
                             )
                             .child(when(
                                 move || mine,

@@ -484,22 +484,22 @@
     "zh-HK": "圖片説明",
     "zh-TW": "圖片說明"
   },
+  "Change avatar…": {
+    "es": "Cambiar avatar…",
+    "id": "Ubah avatar…",
+    "ja": "アバターを変更…",
+    "ms": "Tukar avatar…",
+    "ru": "Изменить аватар…",
+    "zh-CN": "更换头像…",
+    "zh-HK": "更換頭像…",
+    "zh-TW": "更換頭像…"
+  },
   "Change group photo…": {
     "es": "Cambiar foto del grupo…",
     "id": "Ubah foto grup…",
     "ja": "グループの写真を変更…",
     "ms": "Tukar foto kumpulan…",
     "ru": "Изменить фото группы…"
-  },
-  "Change photo…": {
-    "es": "Cambiar foto…",
-    "id": "Ubah foto…",
-    "ja": "写真を変更…",
-    "ms": "Tukar foto…",
-    "ru": "Изменить фото…",
-    "zh-CN": "更换头像…",
-    "zh-HK": "更換頭像…",
-    "zh-TW": "更換頭像…"
   },
   "Chat history": {
     "id": "Riwayat obrolan",
@@ -2174,15 +2174,15 @@
     "zh-HK": "加入羣組",
     "zh-TW": "加入群組"
   },
-  "Joined {date}": {
-    "es": "Se unió el {date}",
-    "id": "Bergabung pada {date}",
-    "ja": "{date}に参加",
-    "ms": "Menyertai pada {date}",
-    "ru": "Дата регистрации: {date}",
-    "zh-CN": "加入时间：{date}",
-    "zh-HK": "加入時間：{date}",
-    "zh-TW": "加入時間：{date}"
+  "Joined": {
+    "es": "Fecha de registro",
+    "id": "Bergabung",
+    "ja": "参加日",
+    "ms": "Menyertai",
+    "ru": "Дата регистрации",
+    "zh-CN": "加入时间",
+    "zh-HK": "加入時間",
+    "zh-TW": "加入時間"
   },
   "Keep both devices connected until the transfer finishes.": {
     "es": "Mantén ambos dispositivos conectados hasta que termine la transferencia.",
@@ -3164,10 +3164,6 @@
     "zh-HK": "圖片和影片",
     "zh-TW": "圖片與影片"
   },
-  "Pick a conversation": {
-    "id": "Pilih percakapan",
-    "ms": "Pilih perbualan"
-  },
   "Pictures and videos": {
     "es": "Imágenes y vídeos",
     "id": "Gambar dan video",
@@ -3335,16 +3331,6 @@
     "zh-CN": "上一页结果",
     "zh-HK": "上一頁結果",
     "zh-TW": "上一頁結果"
-  },
-  "Privacy and security": {
-    "es": "Privacidad y seguridad",
-    "id": "Privasi dan keamanan",
-    "ja": "プライバシーとセキュリティ",
-    "ms": "Privasi dan keselamatan",
-    "ru": "Конфиденциальность и безопасность",
-    "zh-CN": "隐私与安全",
-    "zh-HK": "隱私與安全",
-    "zh-TW": "隱私與安全"
   },
   "Profile": {
     "es": "Perfil",
@@ -3968,6 +3954,10 @@
     "zh-CN": "秒数（最长 4 周）",
     "zh-HK": "秒數（最長 4 周）",
     "zh-TW": "秒數（最長 4 周）"
+  },
+  "Select a conversation to start messaging": {
+    "id": "Pilih percakapan untuk mulai mengirim pesan",
+    "ms": "Pilih perbualan untuk mula menghantar mesej"
   },
   "Select message": {
     "es": "Seleccionar mensaje",

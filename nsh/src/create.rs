@@ -7,10 +7,10 @@ use crate::{
     conversation::parts,
     i18n::{self, Key, tr},
     navigation::ChatNavigation,
-    ui,
+    ui::{self, Typography as _},
 };
 use mixin_desktop_api::{AccountClient, ConversationListData};
-use nsh_base::{dialog, theme};
+use nsh_base::dialog;
 use nsh_core::prelude::*;
 use std::sync::Arc;
 
@@ -62,14 +62,12 @@ fn modal(close: impl Fn() + 'static) -> nsh_core::element::Modal {
 pub(crate) fn trigger(action: Signal<Option<Action>>) -> impl IntoElement {
     let i18n = i18n::current();
     ui::menu()
-        .offset(px(4.0))
+        .offset(ui::space_xs())
         .trigger(
-            ui::icon_button()
+            ui::round_button()
                 .size_8()
-                .px_1()
-                .py_1()
                 .accessibility_label(move || Some(i18n.text(Key::NewConversation).into()))
-                .child(ui::icon(ui::Icon::Add)),
+                .child(ui::icon(ui::Icon::Add).size(ui::icon_lg())),
         )
         .children(
             [Action::Search, Action::Chat, Action::Group, Action::Circle]

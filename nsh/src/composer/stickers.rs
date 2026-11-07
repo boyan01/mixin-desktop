@@ -1,36 +1,33 @@
 use mixin_desktop_api::{
     AccountClient, ClientResult, MessageListView, StickerAlbumItem, StickerItem,
 };
-use nsh_base::{ButtonElement, PopoverEvent, theme};
+use nsh_base::{ButtonElement, PopoverEvent};
 use nsh_core::{element::desktop::MenuItem, prelude::*};
 use std::{future::Future, rc::Rc, sync::Arc};
 
 use super::{emoji, gifs, sticker_store, tool_button, tr};
 use crate::{
     i18n::{self, Key},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography as _},
 };
 
-const PANEL_WIDTH: f32 = 464.0;
-const PANEL_HEIGHT: f32 = 407.0;
-const PANEL_PADDING: f32 = 12.0;
+/// A sticker bitmap and its margin, which the grid's column count depends on.
+const STICKER_CELL: f32 = 80.0;
 
 /// How many `cell`-sized columns fit the panel at the current window width.
 pub(super) fn columns(cell: f32) -> u32 {
-    (((window().width.0 * 0.95).min(PANEL_WIDTH) - PANEL_PADDING * 2.0) / cell)
+    (((window().width.0 * 0.95).min(ui::sticker_panel_width().0) - ui::space_md().0 * 2.0) / cell)
         .floor()
         .max(1.0) as u32
 }
 
 /// A compact tab of the panel, with the shared selected treatment.
 pub(super) fn panel_tab() -> ButtonElement {
-    ui::command()
-        .min_w_8()
-        .min_h_8()
-        .h_8()
+    ui::button(ui::ButtonTone::Ghost, ui::ButtonSize::Small)
+        .min_w(ui::button_height_small())
+        .h(ui::button_height_small())
         .px_1()
-        .py_1()
-        .selected_style(|style| style.bg(move || theme().accent))
 }
 
 #[derive(Clone, PartialEq)]
@@ -167,11 +164,11 @@ pub(crate) fn stickers(
                 state.open.set(*value);
             }
         })
-        .offset(px(8.0))
+        .offset(ui::space_sm())
         .trigger(
             tool_button()
                 .accessibility_label(move || Some(i18n.text(Key::Emoji).into()))
-                .child(ui::icon(ui::Icon::Sticker).size_6()),
+                .child(ui::icon(ui::Icon::Sticker)),
         )
         .child(when(state.open, move || {
             state.observe_updates();
@@ -191,9 +188,9 @@ pub(crate) fn stickers(
                 });
             });
             view()
-                .w(px(PANEL_WIDTH))
+                .w(ui::sticker_panel_width())
                 .max_w(relative(0.95))
-                .h(px(PANEL_HEIGHT))
+                .h(ui::sticker_panel_height())
                 .min_h_0()
                 .p_3()
                 .gap_2()
@@ -202,12 +199,7 @@ pub(crate) fn stickers(
                         .flex_row()
                         .items_center()
                         .gap_2()
-                        .child(
-                            text(move || i18n.text(Key::CommandFailed))
-                                .flex_1()
-                                .text_xs()
-                                .text_color(move || theme().destructive),
-                        )
+                        .child(ui::error_text(move || i18n.text(Key::CommandFailed)).flex_1())
                         .child(ui::action(
                             move || i18n.text(Key::Retry),
                             move || {
@@ -256,7 +248,7 @@ pub(crate) fn stickers(
                                             .on_press(move || {
                                                 state.tab.set(tab.with(|t| t.clone()))
                                             })
-                                            .child(text(title).text_sm())
+                                            .child(text(title).text_role(ui::TextRole::Body))
                                     },
                                 ),
                             )
@@ -290,7 +282,7 @@ pub(crate) fn stickers(
                                         .child(crate::sticker::album_icon(
                                             state.client(),
                                             move || album.with(|a| a.2.clone()),
-                                            24.0,
+                                            ui::icon_lg().0,
                                         ))
                                 },
                             )),
@@ -354,22 +346,14 @@ pub(super) fn grid_items(
                     move || loading.get(),
                     move || tr(i18n, "Loading stickers…", "正在加载贴纸…").into(),
                 ))
-                .child(text(move || tr(i18n, "Loading stickers…", "正在加载贴纸…")).text_sm())
+                .child(
+                    text(move || tr(i18n, "Loading stickers…", "正在加载贴纸…"))
+                        .text_role(ui::TextRole::Body),
+                )
         }))
         .child(when(
             move || !loading.get() && !state.failed.get() && items.with(Vec::is_empty),
-            move || {
-                view()
-                    .flex_1()
-                    .min_h_0()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        text(move || i18n.text(Key::NoStickers))
-                            .text_sm()
-                            .text_color(move || theme().muted_foreground),
-                    )
-            },
+            move || ui::placeholder(move || i18n.text(Key::NoStickers)),
         ))
         .child(
             virtual_list(
@@ -387,18 +371,15 @@ pub(super) fn grid_items(
                             .px_1()
                             .py_1()
                             .disabled(state.busy)
-                            .style_when(
-                                move || {
-                                    selected.is_some_and(|selected| {
-                                        items.with(|rows| {
-                                            rows.get(at.index()).is_some_and(|sticker| {
-                                                selected.with(|id| *id == sticker.sticker_id)
-                                            })
+                            .selected(move || {
+                                selected.is_some_and(|selected| {
+                                    items.with(|rows| {
+                                        rows.get(at.index()).is_some_and(|sticker| {
+                                            selected.with(|id| *id == sticker.sticker_id)
                                         })
                                     })
-                                },
-                                |style| style.bg(move || theme().accent),
-                            )
+                                })
+                            })
                             .on_press(move || {
                                 if let Some(sticker) =
                                     items.with(|rows| rows.get(at.index()).cloned())
@@ -468,8 +449,8 @@ pub(super) fn grid_items(
                 })
             })
             .on_viewable_items_change(move |event: &ViewableItems| viewable.set(event.viewable))
-            .columns(move || columns(80.0))
-            .estimated_item_size(px(80.0))
+            .columns(move || columns(STICKER_CELL))
+            .estimated_item_size(px(STICKER_CELL))
             .flex_1()
             .min_h_0()
             .style_when(

@@ -1,7 +1,6 @@
 mod album_order;
 
 use mixin_desktop_api::{AccountClient, StickerAlbumItem, StickerDetailItem, StickerItem};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use std::sync::Arc;
 
@@ -11,8 +10,12 @@ use super::{
 };
 use crate::{
     i18n::{self, Key},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography as _},
 };
+
+/// The album's bitmap in the store list.
+const ALBUM_ICON: f32 = 48.0;
 
 pub(super) fn album_toggle(state: State, album: String) -> impl IntoElement {
     let i18n = i18n::current();
@@ -68,7 +71,8 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                 .gap_2()
                 .child(
                     text(move || tr(i18n, "Sticker store", "贴纸商店"))
-                        .font_weight(FontWeight::MEDIUM)
+                        .text_role(ui::TextRole::Body)
+                        .text_emphasis()
                         .flex_1(),
                 )
                 .child(
@@ -84,22 +88,13 @@ pub(super) fn panel(state: State) -> impl IntoElement {
         )
         .child(when(loading, move || {
             text(move || tr(i18n, "Loading stickers…", "正在加载贴纸…"))
-                .text_sm()
-                .text_color(move || theme().muted_foreground)
+                .text_role(ui::TextRole::Body)
+                .text_color(ui::fg_secondary)
         }))
         .child(when(
             move || !loading.get() && !state.failed.get() && store.with(Vec::is_empty),
             move || {
-                view()
-                    .flex_1()
-                    .min_h_0()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        text(move || tr(i18n, "No sticker albums available", "暂无贴纸专辑"))
-                            .text_sm()
-                            .text_color(move || theme().muted_foreground),
-                    )
+                ui::placeholder(move || tr(i18n, "No sticker albums available", "暂无贴纸专辑"))
             },
         ))
         .child(
@@ -131,7 +126,7 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                                         .unwrap_or_default()
                                 })
                             },
-                            48.0,
+                            ALBUM_ICON,
                         ))
                         .child(
                             view()
@@ -145,7 +140,7 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                                                 .unwrap_or_default()
                                         })
                                     })
-                                    .text_sm()
+                                    .text_role(ui::TextRole::Body)
                                     .number_of_lines(1),
                                 )
                                 .child(
@@ -156,9 +151,9 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                                                 .unwrap_or_default()
                                         })
                                     })
-                                    .text_xs()
+                                    .text_role(ui::TextRole::Caption)
                                     .number_of_lines(2)
-                                    .text_color(move || theme().muted_foreground),
+                                    .text_color(ui::fg_secondary),
                                 ),
                         )
                 },
@@ -167,7 +162,7 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                 store.with(|rows| rows.iter().map(|a| a.album_id.clone()).collect::<Vec<_>>())
             })
             .on_viewable_items_change(move |event: &ViewableItems| viewable.set(event.viewable))
-            .estimated_item_size(px(68.0))
+            .estimated_item_size(px(ALBUM_ICON) + ui::space_lg() + ui::space_xs())
             .flex_1()
             .min_h_0()
             .style_when(
@@ -184,8 +179,8 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                     .gap_2()
                     .child(
                         text(move || tr(i18n, "Your albums", "我的贴纸专辑"))
-                            .text_xs()
-                            .text_color(move || theme().muted_foreground),
+                            .text_role(ui::TextRole::Caption)
+                            .text_color(ui::fg_secondary),
                     )
                     .child(album_order::list(state))
             },
@@ -247,7 +242,8 @@ pub(crate) fn detail(account: Arc<AccountClient>, sticker_id: String) -> impl In
                         .unwrap_or_default()
                 })
             })
-            .font_weight(FontWeight::MEDIUM),
+            .text_role(ui::TextRole::Body)
+            .text_emphasis(),
         )
         .child(view().items_center().child(crate::sticker::asset(
             state.client(),
@@ -289,7 +285,7 @@ pub(crate) fn detail(account: Arc<AccountClient>, sticker_id: String) -> impl In
                         tr(i18n, "Loading stickers…", "正在加载贴纸…")
                     }
                 })
-                .text_sm()
+                .text_role(ui::TextRole::Body)
                 .into_element(),
             })
         }))

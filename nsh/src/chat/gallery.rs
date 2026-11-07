@@ -1,11 +1,14 @@
 use futures::StreamExt as _;
 use mixin_desktop_api::MessageListView;
-use nsh_base::theme;
 use nsh_core::{file_dialog::SaveDialog, prelude::*};
 use std::collections::HashMap;
 
 use super::{message_actions::Actions, message_content::available};
-use crate::{i18n::Key, runtime, ui};
+use crate::{
+    i18n::Key,
+    runtime,
+    ui::{self, Typography},
+};
 
 pub(super) fn screen(
     initial: MessageListView,
@@ -148,14 +151,19 @@ pub(super) fn screen(
             (rh * scale).max(vh),
         )
     });
+    // Every length below comes from the picture and the zoom, not from the design.
+    let scroll_to = move |next: (f32, f32)| {
+        horizontal.scroll_to_offset(px(next.0), false);
+        vertical.scroll_to_offset(px(next.1), false);
+    };
+    let canvas_width = move || px(geometry.get().2);
     effect(move || {
         let (_, _, width, height) = geometry.get();
         let (vw, vh) = viewport.get();
         let next = ((width - vw) / 2.0, (height - vh) / 2.0);
         drag.replace(None);
         offset.set(next);
-        horizontal.scroll_to_offset(px(next.0), false);
-        vertical.scroll_to_offset(px(next.1), false);
+        scroll_to(next);
     });
     let neighbor = move |direction: isize| {
         rows.with(|rows| {
@@ -181,18 +189,16 @@ pub(super) fn screen(
         .min_h_0()
         .gap_3()
         .child(when(loading, move || {
-            text(move || i18n.text(Key::LoadingMessages)).text_sm()
+            text(move || i18n.text(Key::LoadingMessages)).text_role(ui::TextRole::Body)
         }))
         .child(when(
             move || failed.get() || image_failed.get(),
             move || {
                 view()
                     .gap_2()
-                    .child(
-                        text(move || i18n.tr("Couldn’t display this photo.", "无法显示此图片。"))
-                            .text_sm()
-                            .text_color(move || theme().destructive),
-                    )
+                    .child(ui::error_text(move || {
+                        i18n.tr("Couldn’t display this photo.", "无法显示此图片。")
+                    }))
                     .child(ui::action(
                         move || i18n.text(Key::Retry),
                         move || {
@@ -219,7 +225,7 @@ pub(super) fn screen(
                     scroll()
                         .element_ref(&vertical)
                         .flex_none()
-                        .w(move || px(geometry.get().2))
+                        .w(canvas_width)
                         .h_full()
                         .on_scroll(move |event: &ScrollEvent| {
                             offset.update(|offset| offset.1 = event.offset.y.0);
@@ -231,7 +237,7 @@ pub(super) fn screen(
                             move || {
                                 view()
                                     .flex_none()
-                                    .w(move || px(geometry.get().2))
+                                    .w(canvas_width)
                                     .h(move || px(geometry.get().3))
                                     .items_center()
                                     .justify_center()
@@ -261,8 +267,7 @@ pub(super) fn screen(
                                             (origin.1 - (event.page.y.0 - start.1))
                                                 .clamp(0.0, (height - vh).max(0.0)),
                                         );
-                                        horizontal.scroll_to_offset(px(next.0), false);
-                                        vertical.scroll_to_offset(px(next.1), false);
+                                        scroll_to(next);
                                     })
                                     .on_responder_release(move |_: &ResponderEvent| {
                                         drag.replace(None);
@@ -341,7 +346,10 @@ pub(super) fn screen(
                         move || i18n.tr("Actual fit", "适应窗口"),
                         move || zoom.set(1.0),
                     )
-                    .child(text(move || format!("{:.0}%", zoom.get() * 100.0)).text_xs()),
+                    .child(
+                        text(move || format!("{:.0}%", zoom.get() * 100.0))
+                            .text_role(ui::TextRole::Caption),
+                    ),
                 )
                 .child(
                     ui::action(
@@ -484,11 +492,11 @@ pub(super) fn screen(
                     .is_some_and(|caption| !caption.is_empty())
             },
             move || {
-                scroll().flex_none().max_h(px(80.0)).child(
+                scroll().flex_none().max_h_20().child(
                     text(move || selected().and_then(|row| row.caption).unwrap_or_default())
                         .px_4()
                         .pb_3()
-                        .text_sm()
+                        .text_role(ui::TextRole::Body)
                         .select_text(),
                 )
             },

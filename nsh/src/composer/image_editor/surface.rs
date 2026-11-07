@@ -1,7 +1,7 @@
 use super::{Editor, Tool, geometry::Crop, raster_color};
-use crate::ui;
+use crate::ui::{self, Typography as _};
 use mixin_desktop_api::ImageEdit;
-use nsh_base::{SelectEntry, SelectItem, SliderValue, dialog, select, slider, theme};
+use nsh_base::{SelectItem, SliderValue, dialog};
 use nsh_core::prelude::*;
 
 fn tr(en: &'static str, zh: &'static str) -> &'static str {
@@ -40,9 +40,9 @@ pub(super) fn screen(
                 .close_on_backdrop_press(false)
                 .flex_1()
                 .child(presence.surface(view().flex_1()
-                .px_5()
+                .px(ui::space_xl())
                 .gap_0()
-                .bg(move || theme().background.opacity(0.96))
+                .bg(move || ui::surface_pane().opacity(0.96))
                 .child(view().h_14())
                 .child(
                     view()
@@ -59,6 +59,7 @@ pub(super) fn screen(
                         .child(
                             view()
                                 .relative()
+                                // The image's own size, scaled to the viewport.
                                 .w(move || px(editor.dimensions().0 as f32 * editor.scale()))
                                 .h(move || px(editor.dimensions().1 as f32 * editor.scale()))
                                 .child(
@@ -75,11 +76,7 @@ pub(super) fn screen(
                                         .w_full()
                                         .h_full()
                                         .focusable(true)
-                                        .focus(|style| {
-                                            style
-                                                .outline(px(2.0))
-                                                .outline_color(move || theme().ring)
-                                        })
+                                        .focus(ui::ring)
                                         .on_focus(move || editor.focused.set(true))
                                         .on_blur(move || editor.focused.set(false))
                                         .label(move || {
@@ -112,30 +109,26 @@ pub(super) fn screen(
                 )
                 .child(when(editor.loading, || {
                     text(move || tr("Preparing image…", "正在准备图片…"))
-                        .text_sm()
+                        .text_role(ui::TextRole::Body)
                         .text_center()
-                        .text_color(move || theme().muted_foreground)
+                        .text_color(ui::fg_secondary)
                 }))
                 .child(when(editor.failed, move || {
                     view()
                         .items_center()
                         .gap_2()
-                        .child(
-                            text(move || {
-                                tr(
-                                    "Couldn’t edit this image. Undo the last edit or try again.",
-                                    "无法编辑此图片，请撤销上一步或重试。",
-                                )
-                            })
-                            .text_sm()
-                            .text_color(move || theme().destructive),
-                        )
+                        .child(ui::error_text(move || {
+                            tr(
+                                "Couldn’t edit this image. Undo the last edit or try again.",
+                                "无法编辑此图片，请撤销上一步或重试。",
+                            )
+                        }))
                         .child(ui::action(move || tr("Retry", "重试"), done))
                 }))
                 .child(when(
                     move || editor.tool.get() == Tool::Crop,
                     move || {
-                        view().items_center().mt_5().child(
+                        view().items_center().mt(ui::space_xl()).child(
                             ui::action(move || tr("Reset", "重置"), move || editor.reset())
                                 .disabled(editor.loading),
                         )
@@ -143,7 +136,7 @@ pub(super) fn screen(
                 ))
                 .child(when(
                     move || editor.tool.get() != Tool::Crop,
-                    move || view().mt_5().child(colors(editor)),
+                    move || view().mt(ui::space_xl()).child(colors(editor)),
                 ))
                 .child(
                     view()
@@ -195,9 +188,6 @@ pub(super) fn screen(
                                     .child(
                                         ui::command()
                                             .selected(move || editor.tool.get() == Tool::Brush)
-                                            .selected_style(|style| {
-                                                style.bg(move || theme().accent)
-                                            })
                                             .disabled(editor.loading)
                                             .on_press(move || editor.tool.set(Tool::Brush))
                                             .child(text(move || tr("Brush", "画笔"))),
@@ -205,9 +195,6 @@ pub(super) fn screen(
                                     .child(
                                         ui::command()
                                             .selected(move || editor.tool.get() == Tool::Eraser)
-                                            .selected_style(|style| {
-                                                style.bg(move || theme().accent)
-                                            })
                                             .disabled(editor.loading)
                                             .on_press(move || editor.tool.set(Tool::Eraser))
                                             .child(text(move || tr("Eraser", "橡皮"))),
@@ -257,7 +244,7 @@ fn ratios(editor: Editor) -> impl IntoElement {
         ("16:9", Some(16.0 / 9.0)),
         ("9:16", Some(9.0 / 16.0)),
     ];
-    select()
+    ui::select()
         .items(|| {
             CHOICES
                 .iter()
@@ -288,18 +275,9 @@ fn ratios(editor: Editor) -> impl IntoElement {
         })
         .disabled(editor.loading)
         .accessibility_label(move || Some(tr("Crop ratio", "裁剪比例").into()))
-        .popup_style(ui::popup)
-        .item_class("rounded-md focus:bg-accent selected:bg-accent")
-        .render_item(|entry: &SelectEntry| {
-            view()
-                .px_3()
-                .py_2()
-                .child(text(entry.title.clone()).text_sm())
-        })
         .trigger(
-            ui::command()
-                .child(text(move || tr("Aspect ratio", "比例")))
-                .child(ui::icon(ui::Icon::ChevronDown)),
+            ui::select_trigger(move || SharedString::from(tr("Aspect ratio", "比例")))
+                .min_h(ui::button_height()),
         )
         .on_change(move |value: &Option<SharedString>| {
             if let Some((_, ratio)) = value
@@ -329,44 +307,118 @@ fn colors(editor: Editor) -> impl IntoElement {
     let initial: nsh_core::color::Hsla = raster_color(editor.color.get_untracked()).into();
     let hue = signal(f64::from(initial.h) * 360.0);
     let bar_width = signal(1.0_f32);
-    view().flex_row().flex_wrap().items_center().justify_center().gap_2()
-        .child(ui::command().disabled(editor.loading).selected(custom)
-            .selected_style(|style| style.bg(move || theme().accent))
-            .on_press(move || {
-                if !custom.get_untracked() {
-                    let current: nsh_core::color::Hsla = raster_color(editor.color.get_untracked()).into();
-                    hue.set(f64::from(current.h) * 360.0);
-                }
-                custom.update(|custom| *custom = !*custom);
-            }).child(text(move || tr("Custom color…", "自定义颜色…"))))
-        .child(when(move || !custom.get(), move || view().flex_row().flex_wrap().gap_2()
-            .children(COLORS.into_iter().map(move |(color, en, zh)| {
-                ui::command().size_8().px_1().py_1().disabled(editor.loading)
-                    .selected(move || editor.color.get() == color)
-                    .selected_style(|style| style.border_2().border_color(move || theme().primary))
-                    .accessibility_label(move || Some(tr(en, zh).into()))
-                    .on_press(move || editor.color.set(color))
-                    .child(view().size_5().rounded_full().border_1().border_color(move || theme().border).bg(raster_color(color)))
-            }))))
-        .child(when(custom, move || view().relative().w_56().h_8()
-            .on_layout(move |bounds: &Bounds<Points>| bar_width.set(bounds.size.width.0.max(1.0)))
-            .child(canvas(move || {
-                let width = bar_width.get();
-                let mut painter = Painter::new();
-                for hue in 0..360 { painter = painter.fill_color(nsh_core::color::hsla(hue as f32 / 360.0, 1.0, 0.5, 1.0))
-                    .fill_rect(width * hue as f32 / 360.0, 0.0, width / 360.0 + 1.0, 8.0); }
-                painter
-            }).absolute().top_3().w_full().h_2().rounded_full().overflow_hidden())
-            .child(slider().w_full().min(0.0).max(360.0).step(1.0)
-                .value(move || Some(SliderValue::Single(hue.get()))).disabled(editor.loading)
-                .accessibility_label(move || Some(tr("Custom drawing color", "自定义画笔颜色").into()))
-                .track_class("h-8 justify-center").indicator_class("h-2 rounded-full").range_class("bg-transparent")
-                .thumb_class("w-2 h-7 rounded-full bg-background border border-foreground/40 focus:outline-2 focus:outline-ring")
-                .on_change(move |value: &SliderValue| {
-                    if let SliderValue::Single(value) = value {
-                        hue.set(*value);
-                        let color: Rgba = nsh_core::color::hsla(*value as f32 / 360.0, 1.0, 0.5, 1.0).into();
-                        editor.color.set([(color.r * 255.0).round() as u8, (color.g * 255.0).round() as u8, (color.b * 255.0).round() as u8, 255]);
+    view()
+        .flex_row()
+        .flex_wrap()
+        .items_center()
+        .justify_center()
+        .gap_2()
+        .child(
+            ui::command()
+                .disabled(editor.loading)
+                .selected(custom)
+                .on_press(move || {
+                    if !custom.get_untracked() {
+                        let current: nsh_core::color::Hsla =
+                            raster_color(editor.color.get_untracked()).into();
+                        hue.set(f64::from(current.h) * 360.0);
                     }
-                }))))
+                    custom.update(|custom| *custom = !*custom);
+                })
+                .child(text(move || tr("Custom color…", "自定义颜色…"))),
+        )
+        .child(when(
+            move || !custom.get(),
+            move || {
+                view()
+                    .flex_row()
+                    .flex_wrap()
+                    .gap_2()
+                    .children(COLORS.into_iter().map(move |(color, en, zh)| {
+                        ui::command()
+                            .size_8()
+                            .px_1()
+                            .py_1()
+                            .disabled(editor.loading)
+                            .selected(move || editor.color.get() == color)
+                            // A swatch's fill is its content, so selection is its accent frame.
+                            .selected_style(|style| style.border_2().border_color(ui::accent))
+                            .accessibility_label(move || Some(tr(en, zh).into()))
+                            .on_press(move || editor.color.set(color))
+                            .child(
+                                view()
+                                    .size(ui::icon_md())
+                                    .rounded(ui::radius_full())
+                                    .border_1()
+                                    .border_color(ui::border)
+                                    .bg(raster_color(color)),
+                            )
+                    }))
+            },
+        ))
+        .child(when(custom, move || {
+            view()
+                .relative()
+                .w_56()
+                .h_8()
+                .on_layout(move |bounds: &Bounds<Points>| {
+                    bar_width.set(bounds.size.width.0.max(1.0))
+                })
+                .child(
+                    canvas(move || {
+                        let width = bar_width.get();
+                        let mut painter = Painter::new();
+                        // The hue scale is data, not an application color.
+                        for hue in 0..360 {
+                            painter = painter
+                                .fill_color(nsh_core::color::hsla(
+                                    hue as f32 / 360.0,
+                                    1.0,
+                                    0.5,
+                                    1.0,
+                                ))
+                                .fill_rect(
+                                    width * hue as f32 / 360.0,
+                                    0.0,
+                                    width / 360.0 + 1.0,
+                                    8.0,
+                                );
+                        }
+                        painter
+                    })
+                    .absolute()
+                    .top_3()
+                    .w_full()
+                    .h_2()
+                    .rounded(ui::radius_full())
+                    .overflow_hidden(),
+                )
+                .child(
+                    ui::slider_over_scale()
+                        .w_full()
+                        .min(0.0)
+                        .max(360.0)
+                        .step(1.0)
+                        .value(move || Some(SliderValue::Single(hue.get())))
+                        .disabled(editor.loading)
+                        .accessibility_label(move || {
+                            Some(tr("Custom drawing color", "自定义画笔颜色").into())
+                        })
+                        .on_change(move |value: &SliderValue| {
+                            if let SliderValue::Single(value) = value {
+                                hue.set(*value);
+                                // The chosen hue becomes raster data, as in the palette above.
+                                let color: Rgba =
+                                    nsh_core::color::hsla(*value as f32 / 360.0, 1.0, 0.5, 1.0)
+                                        .into();
+                                editor.color.set([
+                                    (color.r * 255.0).round() as u8,
+                                    (color.g * 255.0).round() as u8,
+                                    (color.b * 255.0).round() as u8,
+                                    255,
+                                ]);
+                            }
+                        }),
+                )
+        }))
 }

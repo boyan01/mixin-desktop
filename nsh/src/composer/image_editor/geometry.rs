@@ -39,6 +39,7 @@ impl Crop {
             (self.height.round() as u32).clamp(1, height - y),
         )
     }
+    /// The crop in view coordinates, measured from the image and its scale.
     pub fn bounds(self, scale: f32) -> Bounds<Points> {
         Bounds::new(
             point(px(self.x * scale), px(self.y * scale)),

@@ -24,6 +24,8 @@ pub(crate) fn asset(
     size: f32,
 ) -> impl IntoElement {
     let i18n = i18n::current();
+    // The caller's bitmap size: physical geometry, not a design token.
+    let frame = px(size);
     let account = stored(account);
     let source = computed(source);
     let requested = stored(None::<(String, String)>);
@@ -66,14 +68,14 @@ pub(crate) fn asset(
             } else {
                 let fail = fail.clone();
                 image(url)
-                    .size(px(size))
+                    .size(frame)
                     .object_fit(ResizeMode::Contain)
                     .label(move || i18n.text(Key::Sticker))
                     .on_error(move |_: &str| fail())
                     .into_element()
             };
             view()
-                .size(px(size))
+                .size(frame)
                 .relative()
                 .child(child)
                 .child(when(failed, move || {
@@ -84,7 +86,7 @@ pub(crate) fn asset(
                         .justify_center()
                         .child(
                             ui::icon(ui::Icon::Sticker)
-                                .size_6()
+                                .size(ui::icon_lg())
                                 .label(move || i18n.text(Key::CommandFailed)),
                         )
                 }))
@@ -172,6 +174,7 @@ fn animated(
         });
     });
     image(move || frame.get())
+        // The caller's bitmap size: physical geometry, not a design token.
         .size(px(size))
         .object_fit(ResizeMode::Contain)
         .label(move || i18n.text(Key::Sticker))

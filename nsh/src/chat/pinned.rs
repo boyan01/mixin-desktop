@@ -4,14 +4,14 @@ use std::sync::Arc;
 
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, PinMessagePreviewItem, SettingsClient};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use serde_json::Value;
 
-use super::message_appearance::floating_surface;
+use super::message_appearance::floating_disc;
 use crate::{
     i18n::{self, Key},
-    inspector, presentation, runtime, ui,
+    inspector, presentation, runtime,
+    ui::{self, Typography},
 };
 
 pub(super) fn banner(
@@ -166,10 +166,10 @@ pub(super) fn banner(
                                 .items_center()
                                 .min_h_14()
                                 .min_w_0()
-                                .rounded_lg()
-                                .bg(floating_surface)
+                                .rounded(ui::radius_md())
+                                .bg(ui::bubble_in)
                                 .child(
-                                    ui::command()
+                                    ui::icon_button()
                                         .size_9()
                                         .px_1()
                                         .py_1()
@@ -199,7 +199,7 @@ pub(super) fn banner(
                                                 }
                                             });
                                         })
-                                        .child(ui::icon(ui::Icon::Close).size_4()),
+                                        .child(ui::icon(ui::Icon::Close).size(ui::icon_sm())),
                                 )
                                 .child(
                                     ui::command()
@@ -221,7 +221,7 @@ pub(super) fn banner(
                                         })
                                         .child(
                                             text(move || content.get().unwrap_or_default())
-                                                .text_sm()
+                                                .text_role(ui::TextRole::Body)
                                                 .number_of_lines(2),
                                         ),
                                 ),
@@ -229,21 +229,21 @@ pub(super) fn banner(
                     },
                 )))
                 .child(when(pinned, move || {
-                    ui::command()
-                        .size_9()
-                        .px_1()
-                        .py_1()
-                        .rounded_full()
-                        .bg(floating_surface)
-                        .accessibility_label(move || Some(i18n.text(Key::Pinned).into()))
-                        .on_press(move || {
-                            side.set(if side.get_untracked() == Some(inspector::Mode::Pinned) {
-                                None
-                            } else {
-                                Some(inspector::Mode::Pinned)
-                            });
-                        })
-                        .child(ui::icon(ui::Icon::Pin))
+                    floating_disc().child(
+                        ui::round_button()
+                            .size_9()
+                            .accessibility_label(move || Some(i18n.text(Key::Pinned).into()))
+                            .on_press(move || {
+                                side.set(
+                                    if side.get_untracked() == Some(inspector::Mode::Pinned) {
+                                        None
+                                    } else {
+                                        Some(inspector::Mode::Pinned)
+                                    },
+                                );
+                            })
+                            .child(ui::icon(ui::Icon::Pin)),
+                    )
                 })),
         )
         .child(when(
@@ -253,11 +253,7 @@ pub(super) fn banner(
                     .flex_row()
                     .items_center()
                     .gap_2()
-                    .child(
-                        text(move || i18n.text(Key::CommandFailed))
-                            .text_xs()
-                            .text_color(move || theme().destructive),
-                    )
+                    .child(ui::error_text(move || i18n.text(Key::CommandFailed)))
                     .child(ui::action(
                         move || i18n.text(Key::Retry),
                         move || retry.update(|revision| *revision = revision.wrapping_add(1)),

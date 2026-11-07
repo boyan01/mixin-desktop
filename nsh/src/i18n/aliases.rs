@@ -4,7 +4,7 @@ pub(super) fn key(english: &str) -> Option<&'static str> {
     Some(match english {
         "Chats" | "All chats" => "allChats",
         "Audio" => "audio",
-        "Pick a conversation" => "pickAConversation",
+        "Select a conversation to start messaging" => "pickAConversation",
         "System language" | "Follow system" => "followSystem",
         "Settings" | "Settings…" => "preferences",
         "Scan to sign in" => "loginByQrcode",

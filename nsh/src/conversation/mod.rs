@@ -16,12 +16,13 @@ use mixin_desktop_api::{
     AccountClient, ClientResult, ConversationDetailItem, ConversationListData,
     ConversationParticipantItem, SharedAppItem,
 };
-use nsh_base::{alert_dialog, theme};
+use nsh_base::alert_dialog;
 use nsh_core::prelude::*;
 
 use crate::{
     i18n::{self, tr},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography as _},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -205,25 +206,20 @@ impl State {
     }
 }
 
+/// A card row that acts here, such as a command or a confirmation.
 fn row(
     title: impl Fn() -> &'static str + 'static,
     action: impl Fn() + 'static,
 ) -> nsh_base::ButtonElement {
-    ui::command()
-        .justify_start()
-        .min_h_12()
-        .px_4()
-        .on_press(action)
-        .child(text(title).text_sm())
+    ui::settings_row(None, title).on_press(action)
 }
 
-fn section(title: impl Fn() -> &'static str + 'static) -> View {
-    view().px_4().pt_5().pb_2().child(
-        text(title)
-            .text_xs()
-            .font_weight(FontWeight::MEDIUM)
-            .text_color(move || theme().muted_foreground),
-    )
+/// A card row that opens another page.
+fn page_row(
+    title: impl Fn() -> &'static str + 'static,
+    action: impl Fn() + 'static,
+) -> nsh_base::ButtonElement {
+    row(title, action).child(ui::chevron())
 }
 
 pub(crate) fn screen(
@@ -332,8 +328,8 @@ pub(crate) fn screen(
             move || state.loading.get() && state.row.with(Option::is_none),
             || {
                 parts::status(move || tr("Loading…", "加载中…"))
-                    .px_4()
-                    .py_2()
+                    .px(ui::space_lg())
+                    .py(ui::space_sm())
             },
         ))
         .child(when(state.failed, move || {
@@ -341,8 +337,8 @@ pub(crate) fn screen(
                 move || tr("Couldn’t update. Try again.", "更新失败，请重试。"),
                 move || state.refresh_from_server(),
             )
-            .px_4()
-            .py_2()
+            .px(ui::space_lg())
+            .py(ui::space_sm())
         }))
         .child(when(
             move || state.row.with(Option::is_some),
@@ -364,9 +360,14 @@ fn page_body(state: State, page: Page, target: Signal<Option<String>>) -> AnyEle
         Page::Circles => circles::screen(state).into_element(),
         Page::Shared => shared::screen(state, target).into_element(),
         Page::Invite => info::invite(state).into_element(),
-        Page::Profile => user::profile(state.client(), state.owner_id(), move || {
-            state.page.set(Page::Info)
-        })
+        Page::Profile => user::profile_at(
+            state.client(),
+            state.owner_id(),
+            user::Destination::Profile,
+            move || state.page.set(Page::Info),
+            || {},
+            user::Frame::Pane,
+        )
         .into_element(),
         Page::Apps | Page::EditName => user::profile_at(
             state.client(),
@@ -383,6 +384,7 @@ fn page_body(state: State, page: Page, target: Signal<Option<String>>) -> AnyEle
                 });
             },
             || {},
+            user::Frame::Pane,
         )
         .into_element(),
     }

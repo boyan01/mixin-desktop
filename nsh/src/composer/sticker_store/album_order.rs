@@ -1,11 +1,15 @@
-use nsh_base::theme;
 use nsh_core::{PointerEvents, TouchEvent, TouchPhase, prelude::*};
 use std::{sync::Arc, time::Duration};
 
 use super::{State, tr};
-use crate::{i18n, motion, ui};
+use crate::{
+    i18n, motion,
+    ui::{self, Typography as _},
+};
 
-const ROW_HEIGHT: f32 = 36.0;
+fn row_height() -> f32 {
+    ui::button_height().0
+}
 
 #[derive(Clone, PartialEq)]
 struct Drag {
@@ -20,17 +24,17 @@ struct Drag {
 
 impl Drag {
     fn top(&self) -> f32 {
-        self.from as f32 * ROW_HEIGHT - self.start_scroll + self.delta
+        self.from as f32 * row_height() - self.start_scroll + self.delta
     }
 
     fn update_target(&mut self, offset: f32) {
-        self.target = (self.from as f32 + (self.delta + offset - self.start_scroll) / ROW_HEIGHT)
+        self.target = (self.from as f32 + (self.delta + offset - self.start_scroll) / row_height())
             .round()
             .clamp(0.0, self.order.len().saturating_sub(1) as f32) as usize;
     }
 
     fn marker(&self, offset: f32) -> f32 {
-        (self.target + usize::from(self.target > self.from)) as f32 * ROW_HEIGHT - offset
+        (self.target + usize::from(self.target > self.from)) as f32 * row_height() - offset
     }
 }
 
@@ -67,7 +71,7 @@ pub(super) fn list(state: State) -> impl IntoElement {
     let edge = computed(move || {
         drag.with(|value| match value.as_ref().filter(|value| value.active) {
             Some(value) if value.top() < 12.0 => -1_i8,
-            Some(value) if value.top() + ROW_HEIGHT > viewport.get().1 - 12.0 => 1,
+            Some(value) if value.top() + row_height() > viewport.get().1 - 12.0 => 1,
             _ => 0,
         })
     });
@@ -87,7 +91,7 @@ pub(super) fn list(state: State) -> impl IntoElement {
                 {
                     break;
                 }
-                let maximum = (state.albums.with_untracked(Vec::len) as f32 * ROW_HEIGHT
+                let maximum = (state.albums.with_untracked(Vec::len) as f32 * row_height()
                     - viewport.get_untracked().1)
                     .max(0.0);
                 let next =
@@ -95,6 +99,7 @@ pub(super) fn list(state: State) -> impl IntoElement {
                 if (next - offset.get_untracked()).abs() <= 0.5 {
                     break;
                 }
+                // A measured scroll position, not layout.
                 list_ref.scroll_to_offset(px(next), false);
             }
         });
@@ -199,7 +204,7 @@ pub(super) fn list(state: State) -> impl IntoElement {
                             .with(|rows| rows.get(at.index()).map(|row| row.album_id.clone()))
                     };
                     view()
-                        .h(px(ROW_HEIGHT))
+                        .h(ui::button_height())
                         .flex_row()
                         .items_center()
                         .gap_2()
@@ -232,8 +237,8 @@ pub(super) fn list(state: State) -> impl IntoElement {
                                 .accessibility_elements_hidden(true)
                                 .child(
                                     ui::icon(ui::Icon::Menu)
-                                        .size_4()
-                                        .text_color(move || theme().muted_foreground),
+                                        .size(ui::icon_sm())
+                                        .text_color(ui::fg_secondary),
                                 ),
                         )
                         .child(
@@ -244,7 +249,7 @@ pub(super) fn list(state: State) -> impl IntoElement {
                                         .unwrap_or_default()
                                 })
                             })
-                            .text_sm()
+                            .text_role(ui::TextRole::Body)
                             .number_of_lines(1)
                             .flex_1(),
                         )
@@ -295,7 +300,7 @@ pub(super) fn list(state: State) -> impl IntoElement {
                         .collect::<Vec<_>>()
                 })
             })
-            .estimated_item_size(px(ROW_HEIGHT))
+            .estimated_item_size(ui::button_height())
             .flex_1()
             .min_h_0()
             .element_ref(&list_ref)
@@ -321,13 +326,14 @@ pub(super) fn list(state: State) -> impl IntoElement {
                             .top_0()
                             .left_0()
                             .right_0()
-                            .h(px(ROW_HEIGHT))
+                            .h(ui::button_height())
                             .px_2()
                             .justify_center()
-                            .rounded_md()
-                            .bg(move || theme().popover)
+                            .rounded(ui::radius_md())
+                            .bg(ui::surface_popover)
                             .border_1()
-                            .border_color(move || theme().border)
+                            .border_color(ui::border)
+                            // Follows the pointer: measured gesture geometry.
                             .translate_y(move || {
                                 px(drag.with(|value| value.as_ref().map_or(0.0, Drag::top)))
                             })
@@ -340,7 +346,7 @@ pub(super) fn list(state: State) -> impl IntoElement {
                                             .unwrap_or_default()
                                     })
                                 })
-                                .text_sm()
+                                .text_role(ui::TextRole::Body)
                                 .number_of_lines(1),
                             ),
                     )
@@ -358,8 +364,9 @@ pub(super) fn list(state: State) -> impl IntoElement {
                                 .top_0()
                                 .left_2()
                                 .right_2()
-                                .h(px(2.0))
-                                .bg(move || theme().primary)
+                                .h(ui::space_2xs())
+                                .bg(ui::accent)
+                                // Follows the target row: measured gesture geometry.
                                 .translate_y(move || {
                                     px(drag.with(|value| {
                                         value.as_ref().map_or(0.0, |value| {

@@ -1,7 +1,10 @@
 use super::message_actions::Actions;
-use crate::{i18n::I18n, presentation, runtime, ui};
+use crate::{
+    i18n::I18n,
+    presentation, runtime,
+    ui::{self, Typography},
+};
 use mixin_desktop_api::MessageListView;
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
 pub(super) fn centered(category: &str) -> bool {
@@ -76,16 +79,21 @@ pub(super) fn unavailable(row: &MessageListView, actions: Actions) -> Option<Any
 }
 
 fn help(actions: Actions, encryption: bool) -> impl IntoElement {
-    ui::action(move || actions.i18n.tr("Learn more", "了解更多"), move || {
-        let url = if encryption {
-            "https://mixin.one/pages/1000007"
-        } else if actions.i18n.chinese() {
-            "https://support.mixin.one/zh/article/5ye6546w4occ6lz5liq57g75z6l55qe5rai5ogv5lin5psv5oyb4ocd5oco5lmi5yqe77yf-h92cxa/"
-        } else {
-            "https://support.mixin.one/en/article/how-to-do-when-you-receive-a-message-like-this-this-type-of-message-is-not-supported-please-upgrade-mixin-17j1t3p"
-        };
-        actions.task(async move { actions.failed.set(!open_url(url).await); });
-    }).px_0().py_0().text_color(move || theme().primary)
+    ui::link(
+        move || actions.i18n.tr("Learn more", "了解更多"),
+        move || {
+            let url = if encryption {
+                "https://mixin.one/pages/1000007"
+            } else if actions.i18n.chinese() {
+                "https://support.mixin.one/zh/article/5ye6546w4occ6lz5liq57g75z6l55qe5rai5ogv5lin5psv5oyb4ocd5oco5lmi5yqe77yf-h92cxa/"
+            } else {
+                "https://support.mixin.one/en/article/how-to-do-when-you-receive-a-message-like-this-this-type-of-message-is-not-supported-please-upgrade-mixin-17j1t3p"
+            };
+            actions.task(async move {
+                actions.failed.set(!open_url(url).await);
+            });
+        },
+    )
 }
 
 pub(super) fn notice(
@@ -100,9 +108,9 @@ pub(super) fn notice(
         .gap_1()
         .px_3()
         .py_2()
-        .rounded_lg()
-        .max_w(ui::bubble_width)
-        .bg(move || theme().accent)
+        .rounded(ui::radius_md())
+        .max_w(ui::bubble_width())
+        .bg(ui::day_background)
         .text_size(move || appearance.secondary_size());
     match row.category.as_str() {
         "SYSTEM_CONVERSATION" => content = content.child(text(system_text(row, actions))),
@@ -166,9 +174,9 @@ pub(super) fn encryption_notice(actions: Actions) -> impl IntoElement {
             .gap_1()
             .px_3()
             .py_2()
-            .rounded_lg()
-            .max_w(ui::bubble_width)
-            .bg(move || theme().accent)
+            .rounded(ui::radius_md())
+            .max_w(ui::bubble_width())
+            .bg(ui::day_background)
             .child(
                 text(move || {
                     i18n.tr(
@@ -337,7 +345,7 @@ pub(super) fn inscription(row: &MessageListView, actions: Actions) -> impl IntoE
                     .filter(|name| !name.is_empty())
                     .unwrap_or_else(|| i18n.tr("Inscription", "铭文").into()),
             )
-            .font_weight(FontWeight::MEDIUM),
+            .text_emphasis(),
         );
     if let Some(url) = row.inscription_content_url.as_ref().filter(|_| {
         row.inscription_content_type
@@ -346,13 +354,13 @@ pub(super) fn inscription(row: &MessageListView, actions: Actions) -> impl IntoE
     }) {
         card = card.child(
             image(url.clone())
-                .size(px(140.0))
+                .size_36()
                 .object_fit(ResizeMode::Contain)
                 .label(move || i18n.tr("Inscription", "铭文")),
         );
     }
     if let Some(sequence) = row.inscription_sequence {
-        card = card.child(text(format!("#{sequence}")).text_sm());
+        card = card.child(text(format!("#{sequence}")).text_role(ui::TextRole::Body));
     }
     if let Some(hash) = row
         .inscription_hash
@@ -362,8 +370,8 @@ pub(super) fn inscription(row: &MessageListView, actions: Actions) -> impl IntoE
         card = card.child(
             text(hash.clone())
                 .number_of_lines(1)
-                .text_xs()
-                .text_color(move || theme().muted_foreground),
+                .text_role(ui::TextRole::Caption)
+                .text_color(ui::fg_secondary),
         );
     } else {
         card = card.child(
@@ -373,7 +381,7 @@ pub(super) fn inscription(row: &MessageListView, actions: Actions) -> impl IntoE
                     "铭文详情暂不可用。",
                 )
             })
-            .text_sm(),
+            .text_role(ui::TextRole::Body),
         );
     }
     card

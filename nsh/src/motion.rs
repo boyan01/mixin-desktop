@@ -18,16 +18,22 @@ pub(crate) fn popup(style: StyleRefinement) -> StyleRefinement {
 }
 
 pub(crate) fn popup_start(style: StyleRefinement) -> StyleRefinement {
-    style
-        .opacity(0.0)
-        .translate_y(|| if reduce_motion() { px(0.0) } else { px(4.0) })
+    style.opacity(0.0).translate_y(popup_offset)
 }
 
 pub(crate) fn popup_end(style: StyleRefinement) -> StyleRefinement {
     style
         .opacity(0.0)
-        .translate_y(|| if reduce_motion() { px(0.0) } else { px(4.0) })
+        .translate_y(popup_offset)
         .duration(|| duration(80.0))
+}
+
+fn popup_offset() -> Points {
+    if reduce_motion() {
+        Points::ZERO
+    } else {
+        crate::ui::space_xs()
+    }
 }
 
 #[derive(Clone, Copy)]

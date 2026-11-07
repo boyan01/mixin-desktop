@@ -16,9 +16,9 @@ pub(super) fn picker(
     view()
         .child(
             ui::command()
-                .justify_start()
+                .text_color(ui::accent)
                 .disabled(move || feedback.busy.get() || signing_out.get() || picker.busy())
-                .child(text(move || i18n.tr("Change photo…", "更换头像…")))
+                .child(text(move || i18n.tr("Change avatar…", "更换头像…")))
                 .on_press(move || {
                     feedback.failed.set(false);
                     spawn(async move {

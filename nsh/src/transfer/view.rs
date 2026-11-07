@@ -1,32 +1,28 @@
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
 use super::{Command, Direction, Handle, Status};
 use crate::{
     conversation::parts,
     i18n::{self, I18n, Key},
-    settings::body,
-    ui,
+    ui::{self, Typography as _},
 };
 
 pub(crate) fn screen(handle: Handle) -> impl IntoElement {
     let i18n = i18n::current();
     scroll().flex_1().min_h_0().child(
-        body()
+        parts::page_body()
+            .child(parts::note(move || {
+                i18n.tr(
+                    "Keep both devices on the same network and open Mixin on your phone. Confirm the transfer on the other device.",
+                    "请将两台设备连接到同一网络，并打开手机上的 Mixin。在另一台设备上确认同步请求。",
+                )
+            }))
             .child(
-                text(move || {
-                    i18n.tr(
-                        "Keep both devices on the same network and open Mixin on your phone. Confirm the transfer on the other device.",
-                        "请将两台设备连接到同一网络，并打开手机上的 Mixin。在另一台设备上确认同步请求。",
-                    )
-                })
-                .text_sm()
-                .text_color(move || theme().muted_foreground),
-            )
-            .children(
-                [Direction::Restore, Direction::Backup]
-                    .into_iter()
-                    .map(move |direction| transfer_row(handle, direction)),
+                ui::card().children(
+                    [Direction::Restore, Direction::Backup]
+                        .into_iter()
+                        .map(move |direction| transfer_row(handle, direction)),
+                ),
             ),
     )
 }
@@ -34,12 +30,14 @@ pub(crate) fn screen(handle: Handle) -> impl IntoElement {
 fn transfer_row(handle: Handle, direction: Direction) -> impl IntoElement {
     let i18n = i18n::current();
     let job = handle.job(direction);
+    let icon = match direction {
+        Direction::Restore => ui::Icon::Download,
+        Direction::Backup => ui::Icon::Upload,
+    };
     view()
-        .gap_3()
         .child(
-            ui::action(
-                move || title(i18n, direction),
-                move || {
+            ui::settings_row(Some(icon), move || title(i18n, direction))
+                .on_press(move || {
                     handle.send(
                         direction,
                         match direction {
@@ -47,27 +45,31 @@ fn transfer_row(handle: Handle, direction: Direction) -> impl IntoElement {
                             Direction::Backup => Command::PushToRemote,
                         },
                     )
-                },
-            )
-            .disabled(move || {
-                handle.restore_busy.get()
-                    || handle.backup_busy.get()
-                    || handle.restore.get().status.active()
-                    || handle.backup.get().status.active()
-            }),
+                })
+                .disabled(move || {
+                    handle.restore_busy.get()
+                        || handle.backup_busy.get()
+                        || handle.restore.get().status.active()
+                        || handle.backup.get().status.active()
+                }),
         )
         .child(when(
             move || job.get().status != Status::Idle,
             move || {
-                view().gap_2().child(status(handle, direction)).child(when(
-                    move || job.get().status.active(),
-                    move || {
-                        ui::action(
-                            move || i18n.tr("Show transfer", "查看同步进度"),
-                            move || handle.visible.set(Some(direction)),
-                        )
-                    },
-                ))
+                view()
+                    .px(ui::space_lg())
+                    .pb(ui::space_md())
+                    .gap(ui::space_sm())
+                    .child(status(handle, direction))
+                    .child(when(
+                        move || job.get().status.active(),
+                        move || {
+                            ui::action(
+                                move || i18n.tr("Show transfer", "查看同步进度"),
+                                move || handle.visible.set(Some(direction)),
+                            )
+                        },
+                    ))
             },
         ))
 }
@@ -153,7 +155,7 @@ fn approval(
                         "允许此设备向手机同步聊天记录吗？",
                     ),
                 })
-                .text_sm(),
+                .text_role(ui::TextRole::Body),
             )
             .child(
                 parts::dialog_actions()
@@ -215,7 +217,7 @@ fn progress(
                 move || job.get().status.active(),
                 move || {
                     view()
-                        .gap_4()
+                        .gap(ui::space_lg())
                         .child(
                             text(move || {
                                 i18n.tr(
@@ -223,8 +225,8 @@ fn progress(
                                     "同步完成前请保持两台设备联网。",
                                 )
                             })
-                            .text_sm()
-                            .text_color(move || theme().muted_foreground),
+                            .text_role(ui::TextRole::Body)
+                            .text_color(ui::fg_secondary),
                         )
                         .child(
                             ui::action(
@@ -251,7 +253,7 @@ fn status(handle: Handle, direction: Direction) -> impl IntoElement {
     let i18n = i18n::current();
     let job = handle.job(direction);
     view()
-        .gap_2()
+        .gap(ui::space_sm())
         .child(
             text(move || match job.get().status {
                 Status::Idle => "",
@@ -268,7 +270,7 @@ fn status(handle: Handle, direction: Direction) -> impl IntoElement {
                 ),
                 Status::Cancelled => i18n.tr("Transfer cancelled", "同步已取消"),
             })
-            .text_sm(),
+            .text_role(ui::TextRole::Body),
         )
         .child(when(
             move || job.get().status == Status::Transferring,
@@ -281,8 +283,8 @@ fn status(handle: Handle, direction: Direction) -> impl IntoElement {
                         current.speed / 1024.0
                     )
                 })
-                .text_sm()
-                .text_color(move || theme().muted_foreground)
+                .text_role(ui::TextRole::Body)
+                .text_color(ui::fg_secondary)
             },
         ))
 }

@@ -4,14 +4,15 @@ use std::{collections::HashSet, sync::Arc};
 
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, MessageListView};
-use nsh_base::{alert_dialog, theme};
+use nsh_base::alert_dialog;
 use nsh_core::{element::ViewableItems, prelude::*};
 
 use crate::{
     chat::MediaPreview,
     conversation::parts,
     i18n::{self, Key},
-    presentation, runtime, ui,
+    presentation, runtime,
+    ui::{self, Typography as _},
 };
 
 const PAGE_SIZE: usize = 60;
@@ -328,24 +329,23 @@ fn reader(
             .on_load_more(move || state.page(true, close))
             .on_load_more_at_start(move || state.page(false, close))
             .inverted()
-            .estimated_item_size(px(140.0))
+            .estimated_item_size(ui::list_row_height())
             .flex_1()
             .min_h_0(),
         )
         .child(state.preview.pinned_selection(state.conversation))
         .child(
-            ui::command()
-                .h_14()
-                .w_full()
+            ui::card_row()
+                .justify_center()
                 .border_t_1()
-                .border_color(move || theme().border)
+                .border_color(ui::border)
                 .disabled(move || {
                     state.mutating.get() || state.total.get() == 0 || !state.can_unpin.get()
                 })
                 .on_press(move || state.unpin_all(close))
                 .child(
                     text(move || i18n.tr("Unpin All Messages", "取消所有置顶消息"))
-                        .text_color(move || theme().primary),
+                        .text_color(ui::accent),
                 ),
         )
         .child(state.preview.surface())
@@ -384,14 +384,14 @@ fn row_body(
                         .map(|row| presentation::day(i18n, row.created_at_micros))
                         .unwrap_or_default()
                 })
-                .text_xs()
-                .text_color(move || theme().muted_foreground)
+                .text_role(ui::TextRole::Caption)
+                .text_color(ui::fg_secondary)
             },
         ))
         .child(
             text(move || row().map(|row| row.sender_name).unwrap_or_default())
-                .text_sm()
-                .font_weight(FontWeight::SEMIBOLD)
+                .text_role(ui::TextRole::Body)
+                .text_emphasis()
                 .style_when(mine, |style| style.hidden()),
         )
         .child(
@@ -428,9 +428,9 @@ fn row_body(
                     .map(|row| presentation::time(i18n, row.created_at_micros / 1000))
                     .unwrap_or_default()
             })
-            .text_xs()
+            .text_role(ui::TextRole::Caption)
             .style_when(inline_media, |style| style.hidden())
-            .text_color(move || theme().muted_foreground),
+            .text_color(ui::fg_secondary),
         )
 }
 
@@ -445,12 +445,12 @@ fn bubble(
         .flex_1()
         .p_2()
         .style_when(move || media, |style| style.p_0().flex_none())
-        .rounded_lg()
+        .rounded(ui::radius_md())
         .bg(move || {
             if mine() {
-                theme().color("bubble-out").unwrap_or(theme().accent)
+                ui::bubble_out()
             } else {
-                theme().color("bubble-in").unwrap_or(theme().card)
+                ui::bubble_in()
             }
         })
         .child(state.preview.content(row))

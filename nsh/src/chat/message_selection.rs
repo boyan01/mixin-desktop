@@ -1,6 +1,8 @@
 use super::message_actions::{Actions, remove};
-use crate::{i18n::Key, ui};
-use nsh_base::theme;
+use crate::{
+    i18n::Key,
+    ui::{self, Typography},
+};
 use nsh_core::prelude::*;
 
 #[path = "message_selection/copy.rs"]
@@ -40,7 +42,7 @@ fn selection(
                 .gap_2()
                 .px_4()
                 .py_2()
-                .bg(move || theme().background)
+                .bg(ui::surface_list)
                 .child(
                     text(move || {
                         let count = actions.selected.with(Vec::len);
@@ -50,7 +52,7 @@ fn selection(
                             &[("count", &count.to_string())],
                         )
                     })
-                    .text_sm()
+                    .text_role(ui::TextRole::Body)
                     .flex_none()
                     .number_of_lines(1),
                 )

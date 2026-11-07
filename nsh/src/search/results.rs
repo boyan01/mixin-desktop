@@ -51,7 +51,7 @@ pub(super) fn list(
     )
     .keys(move || rows.with(|rows| rows.iter().map(Row::key).collect::<Vec<_>>()))
     .element_ref(&state.list)
-    .estimated_item_size(px(80.0))
+    .estimated_item_size(ui::list_row_height())
     .flex_1()
     .min_h_0()
 }
@@ -65,25 +65,16 @@ fn header(
     view()
         .flex_row()
         .items_center()
-        .px_5()
-        .py_2()
-        .gap_2()
-        .child(
-            text(move || section.title())
-                .text_xs()
-                .font_weight(FontWeight::SEMIBOLD)
-                .flex_1()
-                .text_color(move || theme().muted_foreground),
-        )
+        .pr(ui::space_lg())
+        .py(ui::space_sm())
+        .gap(ui::space_sm())
+        .child(ui::section_label(move || section.title()).flex_1())
         .child(when(
             move || state.section.get() == Section::All && more,
             move || {
-                ui::command()
-                    .min_h_6()
-                    .py_0()
-                    .px_1()
+                ui::button(ui::ButtonTone::Ghost, ui::ButtonSize::Small)
                     .on_press(move || open(Row::Header(section, more)))
-                    .child(text(move || tr("More", "更多")).text_xs())
+                    .child(text(move || tr("More", "更多")).text_role(ui::TextRole::Caption))
             },
         ))
 }
@@ -104,6 +95,7 @@ fn item(
         .child(ui::avatar_view(
             move || row().map(|row| row.title()).unwrap_or_default().into(),
             move || row().map(|row| row.avatar_url()).unwrap_or_default(),
+            ui::AvatarSize::Medium,
         ))
         .child(
             view()
@@ -112,8 +104,7 @@ fn item(
                 .gap_1()
                 .child(
                     text(move || row().map(|row| row.title()).unwrap_or_default())
-                        .text_sm()
-                        .font_weight(FontWeight::MEDIUM)
+                        .text_role(ui::TextRole::Label)
                         .number_of_lines(1),
                 )
                 .child(
@@ -133,9 +124,9 @@ fn item(
                             })
                             .unwrap_or_default()
                     })
-                    .text_sm()
+                    .text_role(ui::TextRole::Body)
                     .number_of_lines(2)
-                    .text_color(move || theme().muted_foreground),
+                    .text_color(ui::fg_secondary),
                 ),
         )
 }

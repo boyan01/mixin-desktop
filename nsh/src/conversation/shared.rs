@@ -1,5 +1,5 @@
 use mixin_desktop_api::MessageListView;
-use nsh_base::{tab, tabs};
+use nsh_base::tabs;
 use nsh_core::element::{ViewableItems, desktop::MenuItem};
 
 use super::*;
@@ -109,9 +109,9 @@ pub(super) fn screen(state: State, target: Signal<Option<String>>) -> impl IntoE
             tabs()
                 .flex_row()
                 .flex_shrink_0()
-                .h_14()
+                .min_h(ui::row_height())
                 .border_t_1()
-                .border_color(move || theme().border)
+                .border_color(ui::border)
                 .children(
                     [
                         ("media", "Media", "媒体"),
@@ -120,14 +120,8 @@ pub(super) fn screen(state: State, target: Signal<Option<String>>) -> impl IntoE
                     ]
                     .into_iter()
                     .map(move |(value, en, zh)| {
-                        tab()
-                            .flex_1()
-                            .items_center()
-                            .justify_center()
-                            .hover(|style| style.bg(move || theme().accent))
-                            .focus(|style| style.bg(move || theme().accent))
-                            .selected(move || selected.get() == value)
-                            .on_press(move || {
+                        ui::tab(move || i18n.tr(en, zh), move || selected.get() == value).on_press(
+                            move || {
                                 batch(|| {
                                     shown.update(|shown| {
                                         if !shown.contains(&value) {
@@ -136,14 +130,8 @@ pub(super) fn screen(state: State, target: Signal<Option<String>>) -> impl IntoE
                                     });
                                     selected.set(value);
                                 });
-                            })
-                            .child(text(move || i18n.tr(en, zh)).text_sm().text_color(move || {
-                                if selected.get() == value {
-                                    theme().primary
-                                } else {
-                                    theme().muted_foreground
-                                }
-                            }))
+                            },
+                        )
                     }),
                 ),
         )
@@ -237,8 +225,8 @@ fn panel(
             move || shared.loading.get() && shared.rows.with(Vec::is_empty),
             move || {
                 parts::status(move || i18n.tr("Loading…", "加载中…"))
-                    .px_4()
-                    .py_2()
+                    .px(ui::space_lg())
+                    .py(ui::space_sm())
             },
         ))
         .child(when(
@@ -251,8 +239,8 @@ fn panel(
                         shared.revision.update(|revision| *revision += 1);
                     },
                 )
-                .px_4()
-                .py_2()
+                .px(ui::space_lg())
+                .py(ui::space_sm())
             },
         ))
         .child(when(
@@ -300,22 +288,22 @@ fn panel(
                                         view()
                                             .min_w_0()
                                             .w_full()
-                                            .px_3()
-                                            .py_2()
-                                            .gap_2()
+                                            .px(ui::space_md())
+                                            .py(ui::space_sm())
+                                            .gap(ui::space_sm())
                                             .child(dynamic(move || {
                                                 let message = message();
                                                 untracked(move || match message {
                                                     Some(message) => view()
-                                                        .p_2()
+                                                        .p(ui::space_sm())
                                                         .min_w_0()
                                                         .style_when(
                                                             move || kind == "post",
                                                             |style| {
                                                                 style
-                                                                    .bg(move || theme().accent)
-                                                                    .rounded_md()
-                                                                    .max_h(px(320.0))
+                                                                    .bg(ui::surface_card)
+                                                                    .rounded(ui::radius_md())
+                                                                    .max_h_80()
                                                                     .overflow_hidden()
                                                             },
                                                         )
@@ -339,9 +327,9 @@ fn panel(
                                                         })
                                                         .unwrap_or_default()
                                                 })
-                                                .text_xs()
+                                                .text_role(ui::TextRole::Caption)
                                                 .number_of_lines(1)
-                                                .text_color(move || theme().muted_foreground),
+                                                .text_color(ui::fg_secondary),
                                             )
                                             .into_element()
                                     },
@@ -356,9 +344,9 @@ fn panel(
                             })
                         })
                         .columns(columns)
-                        .row_gap(px(if kind == "media" { 5.0 } else { 0.0 }))
-                        .column_gap(px(5.0))
-                        .estimated_item_size(px(if kind == "media" { 100.0 } else { 90.0 }))
+                        .row_gap(ui::space_xs())
+                        .column_gap(ui::space_xs())
+                        .estimated_item_size(ui::list_row_height())
                         .on_viewable_items_change(move |items: &ViewableItems| {
                             shared.first.replace(items.viewable.and_then(|(first, _)| {
                                 shared
@@ -397,7 +385,7 @@ fn media(
         .w_full()
         .aspect_ratio(1.0)
         .overflow_hidden()
-        .bg(move || theme().muted)
+        .bg(ui::surface_card)
         .on_press(move || {
             if let Some(row) = message() {
                 shared.preview.open(row);
@@ -439,14 +427,9 @@ fn media(
                 .bottom_0()
                 .left_0()
                 .right_0()
-                .px_1()
-                .py_1()
-                .bg(move || theme().color("media-overlay").unwrap_or(theme().muted))
-                .text_color(move || {
-                    theme()
-                        .color("media-overlay-foreground")
-                        .unwrap_or(theme().foreground)
-                })
+                .p(ui::space_xs())
+                .bg(ui::media_overlay)
+                .text_color(ui::media_overlay_foreground)
                 .style_when(
                     move || {
                         message().is_none_or(|row| {
@@ -489,7 +472,7 @@ fn media(
                             })
                             .unwrap_or_default()
                     })
-                    .text_xs(),
+                    .text_role(ui::TextRole::Caption),
                 ),
         )
 }

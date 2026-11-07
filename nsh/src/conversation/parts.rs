@@ -3,47 +3,83 @@
 use std::time::Duration;
 
 use futures::{Stream, StreamExt as _};
-use nsh_base::{ButtonElement, SelectElement, SelectEntry, alert_dialog, select, theme};
+use nsh_base::{ButtonElement, alert_dialog};
 use nsh_core::prelude::*;
 
 use crate::{
     i18n::{self, Key, tr},
-    ui,
+    sidebar::Navigation,
+    ui::{self, Typography as _},
 };
 
 /// Search fields wait this long so typing does not start a query per keystroke.
 pub(crate) const SEARCH_DELAY: Duration = Duration::from_millis(150);
 const CHANGE_DELAY: Duration = Duration::from_millis(300);
-const ROW_HEIGHT: f32 = 64.0;
 const VISIBLE_ROWS: usize = 5;
 
 pub(crate) fn back_button(on_press: impl Fn() + 'static) -> ButtonElement {
     let i18n = i18n::current();
-    ui::icon_button()
+    ui::round_button()
         .size_8()
-        .px_1()
         .accessibility_label(move || Some(i18n.text(Key::Back).into()))
         .on_press(on_press)
         .child(ui::icon(ui::Icon::ArrowLeft))
 }
 
-pub(crate) fn page_header(title: impl IntoReactive<SharedString>, back: ButtonElement) -> View {
-    view()
-        .flex_none()
-        .h_16()
-        .px_4()
-        .gap_3()
-        .flex_row()
-        .items_center()
+/// What the page bars share. The spacer balances `back` so the title centers.
+fn page_bar(title: impl IntoReactive<SharedString>, back: ButtonElement) -> View {
+    ui::title_bar()
+        .px(ui::space_lg())
+        .gap(ui::space_md())
+        .bg(ui::surface_list)
+        .border_b_1()
+        .border_color(ui::hairline)
         .child(back)
         .child(
             text(title)
                 .flex_1()
                 .min_w_0()
                 .number_of_lines(1)
-                .text_sm()
-                .font_weight(FontWeight::SEMIBOLD),
+                .text_center()
+                .text_role(ui::TextRole::Title),
         )
+        .child(view().size_8().flex_shrink_0())
+}
+
+/// The bar of a page, in the row shared with the native window controls.
+pub(crate) fn page_header(title: impl IntoReactive<SharedString>, back: ButtonElement) -> View {
+    let nav = use_context::<Navigation>().expect("Home provides navigation");
+    page_bar(title, back).pl(move || ui::title_bar_leading(nav.width()))
+}
+
+/// The same bar for a page shown in a dialog, which has no window to drag.
+pub(crate) fn dialog_header(title: impl IntoReactive<SharedString>, back: ButtonElement) -> View {
+    page_bar(title, back).window_drag(false)
+}
+
+/// The column of a page: one width of cards and sections, centered in a wide pane.
+pub(crate) fn page_body() -> View {
+    view()
+        .w_full()
+        .max_w(ui::content_max_width())
+        .self_center()
+        .p(ui::space_lg())
+        .gap(ui::space_lg())
+}
+
+/// Supporting text beside a card, lined up with the rows' labels.
+pub(crate) fn note(message: impl Fn() -> &'static str + 'static) -> Text {
+    text(message)
+        .px(ui::space_lg())
+        .text_role(ui::TextRole::Body)
+        .text_color(ui::fg_secondary)
+}
+
+/// A form field and its visible label.
+pub(crate) fn labeled(title: impl Fn() -> &'static str + 'static) -> View {
+    view()
+        .gap(ui::space_sm())
+        .child(text(title).text_role(ui::TextRole::Body).text_emphasis())
 }
 
 /// Mount only for a page with nothing else to show: an inline row that appears
@@ -52,10 +88,10 @@ pub(crate) fn status(label: impl Fn() -> &'static str + Copy + 'static) -> View 
     view()
         .flex_row()
         .items_center()
-        .gap_2()
-        .text_color(move || theme().muted_foreground)
+        .gap(ui::space_sm())
+        .text_color(ui::fg_secondary)
         .child(ui::busy_indicator(|| true, move || label().into()))
-        .child(text(label).text_sm())
+        .child(text(label).text_role(ui::TextRole::Body))
 }
 
 pub(crate) fn failure(
@@ -64,7 +100,7 @@ pub(crate) fn failure(
 ) -> View {
     let i18n = i18n::current();
     view()
-        .gap_2()
+        .gap(ui::space_sm())
         .items_start()
         .child(ui::error_text(message))
         .child(ui::action(move || i18n.text(Key::Retry), retry))
@@ -72,41 +108,31 @@ pub(crate) fn failure(
 
 /// The wider dialog card for lists and forms.
 pub(crate) fn dialog_card() -> View {
-    ui::modal_card().w_96().p_6()
+    ui::modal_card().w_96()
+}
+
+/// A `dialog_card` that holds a page or a long list.
+pub(crate) fn tall_dialog_card() -> View {
+    dialog_card().h(ui::dialog_height_tall())
 }
 
 pub(crate) fn dialog_actions() -> View {
-    view().flex_none().flex_row().justify_end().gap_3()
+    view()
+        .flex_none()
+        .flex_row()
+        .justify_end()
+        .gap(ui::space_md())
 }
 
-/// Callers supply the items, value, change handler and trigger.
-pub(crate) fn option_select() -> SelectElement {
-    select()
-        .on_open_change(|event: &nsh_base::SelectEvent| {
-            if matches!(event, nsh_base::SelectEvent::OpenChange(true, _)) {
-                dismiss_keyboard();
-            }
-        })
-        .popup_style(ui::popup)
-        .item_class(
-            "rounded-md focus:bg-accent selected:bg-accent selected:font-medium disabled:opacity-50",
-        )
-        .render_item(|item: &SelectEntry| {
-            view()
-                .px_3()
-                .py_2()
-                .child(text(item.title.clone()).text_sm())
-        })
+/// One row of a member, contact or result list: a `list_row` at the height of a
+/// card row, for what is listed by the screenful.
+pub(crate) fn compact_row() -> ButtonElement {
+    ui::list_row().min_h(ui::row_height())
 }
 
-pub(crate) fn select_trigger(label: impl IntoReactive<SharedString>) -> ButtonElement {
-    ui::command()
-        .justify_start()
-        .min_h_10()
-        .border_1()
-        .border_color(move || theme().input)
-        .child(text(label).text_sm().flex_1().min_w_0().number_of_lines(1))
-        .child(ui::icon(ui::Icon::ChevronDown))
+/// The height of a `compact_row`, margins included.
+pub(crate) fn row_height() -> Points {
+    ui::row_height() + ui::space_2xs() + ui::space_2xs()
 }
 
 /// One selectable list row. An empty `detail` leaves a single line.
@@ -116,24 +142,24 @@ pub(crate) fn entity_row(
     detail: impl Fn() -> String + Copy + 'static,
     selected: impl Fn() -> bool + Copy + 'static,
 ) -> ButtonElement {
-    ui::command()
-        .justify_start()
-        .min_h_16()
-        .px_4()
-        .gap_3()
+    compact_row()
         .selected(selected)
-        .child(ui::avatar_view(move || name().into(), avatar))
+        .child(ui::avatar_view(
+            move || name().into(),
+            avatar,
+            ui::AvatarSize::Medium,
+        ))
         .child(
             view()
                 .flex_1()
                 .min_w_0()
-                .gap_1()
-                .child(text(name).text_sm().number_of_lines(1))
+                .gap(ui::space_xs())
+                .child(text(name).text_role(ui::TextRole::Label).number_of_lines(1))
                 .child(
                     text(detail)
-                        .text_xs()
+                        .text_role(ui::TextRole::Caption)
                         .number_of_lines(2)
-                        .text_color(move || theme().muted_foreground)
+                        .text_color(ui::fg_secondary)
                         .style_when(move || detail().is_empty(), |style| style.hidden()),
                 ),
         )
@@ -142,11 +168,7 @@ pub(crate) fn entity_row(
 
 /// Applies to a list inside a content-sized dialog: it shows up to five rows.
 pub(crate) fn dialog_list_height(rows: usize) -> Points {
-    px(rows.min(VISIBLE_ROWS) as f32 * ROW_HEIGHT)
-}
-
-pub(crate) fn row_height() -> Points {
-    px(ROW_HEIGHT)
+    px(rows.min(VISIBLE_ROWS) as f32 * row_height().0)
 }
 
 pub(crate) fn pager(
@@ -163,7 +185,7 @@ pub(crate) fn pager(
                 .flex_row()
                 .items_center()
                 .justify_between()
-                .gap_2()
+                .gap(ui::space_sm())
                 .child(
                     ui::action(
                         move || i18n.tr("Previous page", "上一页"),
@@ -171,7 +193,7 @@ pub(crate) fn pager(
                     )
                     .disabled(move || disabled() || page.get() == 0),
                 )
-                .child(text(move || (page.get() + 1).to_string()).text_sm())
+                .child(text(move || (page.get() + 1).to_string()).text_role(ui::TextRole::Body))
                 .child(
                     ui::action(
                         move || i18n.tr("Next page", "下一页"),

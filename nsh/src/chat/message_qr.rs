@@ -1,6 +1,8 @@
 //! Local QR preview for a selected text range or the original complete message.
-use crate::{i18n, ui};
-use nsh_base::theme;
+use crate::{
+    i18n,
+    ui::{self, Typography},
+};
 use nsh_core::prelude::*;
 
 pub(super) fn screen(content: String) -> impl IntoElement {
@@ -16,27 +18,25 @@ pub(super) fn screen(content: String) -> impl IntoElement {
             .p_4()
             .child(match source {
                 Some(source) => image(source)
-                    .size(px(280.0))
+                    .size_72()
                     .max_w(percentage(1.0))
                     .object_fit(ResizeMode::Contain)
                     .label(move || i18n.tr("QR code", "二维码"))
                     .into_element(),
-                None => text(move || {
+                None => ui::error_text(move || {
                     i18n.tr(
                         "Text is too long for a QR code.",
                         "文本过长，无法生成二维码。",
                     )
                 })
-                .text_sm()
                 .text_center()
-                .text_color(move || theme().destructive)
                 .into_element(),
             })
             .child(
                 text(move || content.with(|value| value.clone()))
                     .w_full()
                     .min_w_0()
-                    .text_sm()
+                    .text_role(ui::TextRole::Body)
                     .text_center()
                     .select_text(),
             )

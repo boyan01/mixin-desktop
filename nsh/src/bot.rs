@@ -6,6 +6,7 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
+use crate::ui::{self, Typography as _};
 use mixin_desktop_api::AccountClient;
 use nsh_base::alert_dialog;
 use nsh_core::prelude::*;
@@ -490,10 +491,10 @@ pub(crate) fn ending_surface(windows: BotWindows) -> impl IntoElement {
                     i18n.tr("Signing out…", "正在退出…")
                 }
             })
-            .text_lg(),
+            .text_role(ui::TextRole::Headline),
         )
         .child(when(windows.purge_failed, move || {
-            crate::ui::action(
+            ui::action(
                 move || i18n.tr("Retry", "重试"),
                 move || {
                     if windows.ending.get_untracked() && windows.purge_failed.get_untracked() {

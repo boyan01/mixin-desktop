@@ -30,10 +30,12 @@ fn detail_url(state: State) -> String {
     })
 }
 
+/// The `size_7` of a shared app's icon.
+const APP_ICON: f32 = 28.0;
+
 pub(super) fn screen(state: State) -> impl IntoElement {
     scroll().flex_1().min_h_0().child(
-        view()
-            .pb_6()
+        parts::page_body()
             .child(identity(state))
             .child(when(
                 move || state.group() && !exited_group(state),
@@ -42,16 +44,14 @@ pub(super) fn screen(state: State) -> impl IntoElement {
             .child(when(
                 move || !state.group(),
                 move || {
-                    row(
+                    ui::card().child(page_row(
                         move || tr("Profile", "个人资料"),
                         move || state.page.set(Page::Profile),
-                    )
+                    ))
                 },
             ))
-            .child(section(move || tr("Chats", "聊天")))
-            .child(chat_rows(state))
-            .child(section(move || tr("History", "聊天记录")))
-            .child(history_rows(state))
+            .child(ui::section(move || tr("Chats", "聊天")).child(chat_rows(state)))
+            .child(ui::section(move || tr("History", "聊天记录")).child(history_rows(state)))
             .child(when(
                 move || state.group(),
                 move || {
@@ -73,10 +73,9 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                                 .unwrap_or_default()
                         })
                     })
-                    .text_xs()
+                    .text_role(ui::TextRole::Caption)
                     .text_center()
-                    .py_4()
-                    .text_color(move || theme().muted_foreground)
+                    .text_color(ui::fg_secondary)
                 },
             )),
     )
@@ -96,20 +95,19 @@ fn identity(state: State) -> impl IntoElement {
         }
     };
     view()
-        .p_4()
-        .gap_2()
+        .gap(ui::space_sm())
         .items_center()
         .child(
             ui::avatar_view(
                 move || row_text(state, |row| row.name.clone()).into(),
                 move || row_text(state, |row| row.avatar_url.clone()),
+                ui::AvatarSize::Medium,
             )
             .size_16(),
         )
         .child(
             text(move || row_text(state, |row| row.name.clone()))
-                .text_lg()
-                .font_weight(FontWeight::SEMIBOLD)
+                .text_role(ui::TextRole::Headline)
                 .text_center(),
         )
         .child(
@@ -122,27 +120,27 @@ fn identity(state: State) -> impl IntoElement {
                     }
                 })
             })
-            .text_sm()
-            .text_color(move || theme().muted_foreground),
+            .text_role(ui::TextRole::Body)
+            .text_color(ui::fg_secondary),
         )
         .child(
             text(description)
-                .text_sm()
+                .text_role(ui::TextRole::Body)
                 .text_center()
                 .style_when(move || description().is_empty(), |style| style.hidden()),
         )
 }
 
 fn group_rows(state: State) -> impl IntoElement {
-    view()
-        .child(row(
+    ui::card()
+        .child(page_row(
             move || tr("Group participants", "群组成员"),
             move || state.page.set(Page::Members),
         ))
         .child(when(
             move || state.can_manage(),
             move || {
-                row(
+                page_row(
                     move || tr("Edit group…", "编辑群组…"),
                     move || state.page.set(Page::Edit),
                 )
@@ -151,7 +149,7 @@ fn group_rows(state: State) -> impl IntoElement {
         .child(when(
             move || state.can_manage(),
             move || {
-                row(
+                page_row(
                     move || tr("Invite to group…", "邀请加入群组…"),
                     move || state.page.set(Page::Invite),
                 )
@@ -162,8 +160,8 @@ fn group_rows(state: State) -> impl IntoElement {
 fn chat_rows(state: State) -> impl IntoElement {
     let navigation = use_context::<crate::navigation::ChatNavigation>()
         .expect("The signed-in session provides navigation");
-    view()
-        .child(row(
+    ui::card()
+        .child(page_row(
             move || tr("Shared media", "共享媒体"),
             move || state.page.set(Page::Shared),
         ))
@@ -171,11 +169,11 @@ fn chat_rows(state: State) -> impl IntoElement {
             move || state.shared_apps_preview.with(|apps| !apps.is_empty()),
             move || shared_apps_row(state),
         ))
-        .child(row(
+        .child(page_row(
             move || tr("Search messages", "搜索消息"),
             move || navigation.open_search_from_info(),
         ))
-        .child(row(
+        .child(page_row(
             move || tr("Circles", "圈子"),
             move || state.page.set(Page::Circles),
         ))
@@ -192,7 +190,7 @@ fn chat_rows(state: State) -> impl IntoElement {
                     })
             },
             move || {
-                row(
+                page_row(
                     move || tr("Edit name…", "编辑名称…"),
                     move || state.page.set(Page::EditName),
                 )
@@ -205,11 +203,10 @@ fn shared_apps_row(state: State) -> impl IntoElement {
         move || tr("Shared apps", "共享应用"),
         move || state.page.set(Page::Apps),
     )
-    .gap_3()
-    .child(view().flex_1())
     .child(dynamic(move || {
         let apps = state.shared_apps_preview.get();
-        let width = 28.0 + apps.len().saturating_sub(1) as f32 * 14.0;
+        // Content-derived: each icon overlaps the last by half its width.
+        let width = APP_ICON + apps.len().saturating_sub(1) as f32 * APP_ICON / 2.0;
         view()
             .relative()
             .h_7()
@@ -219,15 +216,17 @@ fn shared_apps_row(state: State) -> impl IntoElement {
                 ui::avatar_view(
                     move || app.name.clone().into(),
                     move || app.icon_url.clone(),
+                    ui::AvatarSize::Medium,
                 )
                 .absolute()
                 .top_0()
-                .left(px(index as f32 * 14.0))
+                .left(px(index as f32 * APP_ICON / 2.0))
                 .size_7()
                 .border_2()
-                .border_color(move || theme().background)
+                .border_color(ui::surface_pane)
             }))
     }))
+    .child(ui::chevron())
 }
 
 fn expiry_row(state: State) -> impl IntoElement {
@@ -236,7 +235,6 @@ fn expiry_row(state: State) -> impl IntoElement {
         move || state.page.set(Page::Expiry),
     )
     .disabled(move || state.group() && !state.can_manage())
-    .child(view().flex_1())
     .child(
         text(move || {
             let seconds = state
@@ -248,9 +246,10 @@ fn expiry_row(state: State) -> impl IntoElement {
                 tr("Off", "关闭").to_owned()
             }
         })
-        .text_sm()
-        .text_color(move || theme().muted_foreground),
+        .text_role(ui::TextRole::Body)
+        .text_color(ui::fg_secondary),
     )
+    .child(ui::chevron())
 }
 
 fn mute_row(state: State) -> impl IntoElement {
@@ -274,9 +273,6 @@ fn mute_row(state: State) -> impl IntoElement {
         },
     )
     .disabled(state.busy)
-    .flex_col()
-    .items_start()
-    .gap_1()
     .child(when(
         move || muted(state),
         move || {
@@ -295,8 +291,8 @@ fn mute_row(state: State) -> impl IntoElement {
                     })
                     .unwrap_or_default()
             })
-            .text_sm()
-            .text_color(move || theme().muted_foreground)
+            .text_role(ui::TextRole::Body)
+            .text_color(ui::fg_secondary)
         },
     ))
 }
@@ -347,7 +343,7 @@ fn choose_mute(state: State) {
 }
 
 fn history_rows(state: State) -> impl IntoElement {
-    view()
+    ui::card()
         .child(
             row(
                 move || tr("Clear chat…", "清空聊天记录…"),
@@ -368,7 +364,7 @@ fn history_rows(state: State) -> impl IntoElement {
                 },
             )
             .disabled(state.busy)
-            .text_color(move || theme().destructive),
+            .text_color(ui::danger),
         )
         .child(when(
             move || state.group(),
@@ -384,7 +380,7 @@ fn history_rows(state: State) -> impl IntoElement {
                     move || leave_group(state),
                 )
                 .disabled(state.busy)
-                .text_color(move || theme().destructive)
+                .text_color(ui::danger)
             },
         ))
 }
@@ -442,9 +438,7 @@ pub(super) fn edit(state: State) -> impl IntoElement {
             .replace(Some((name.get_untracked(), description.get_untracked())));
     };
     scroll().flex_1().min_h_0().child(
-        view()
-            .p_4()
-            .gap_4()
+        parts::page_body()
             .child(
                 ui::action(
                     move || tr("Change group photo…", "更改群头像…"),
@@ -472,32 +466,39 @@ pub(super) fn edit(state: State) -> impl IntoElement {
                     || {},
                 );
             }))
-            .child(text(move || tr("Name", "名称")).text_sm())
             .child(
-                ui::field()
-                    .label(move || tr("Name", "名称"))
-                    .value(move || name.get())
-                    .max_length(40)
-                    .on_change(move |value: &str| {
-                        name.set(value.into());
-                        keep_draft();
-                    }),
-            )
-            .child(text(move || tr("Description", "群公告")).text_sm())
-            .child(
-                ui::field()
-                    .label(move || tr("Description", "群公告"))
-                    .value(move || description.get())
-                    .max_length(512)
-                    .multiline(true)
-                    .min_h_28()
-                    .on_change(move |value: &str| {
-                        description.set(value.into());
-                        keep_draft();
-                    }),
+                ui::card()
+                    .p(ui::space_lg())
+                    .gap(ui::space_lg())
+                    .child(
+                        parts::labeled(move || tr("Name", "名称")).child(
+                            ui::field()
+                                .label(move || tr("Name", "名称"))
+                                .value(move || name.get())
+                                .max_length(40)
+                                .on_change(move |value: &str| {
+                                    name.set(value.into());
+                                    keep_draft();
+                                }),
+                        ),
+                    )
+                    .child(
+                        parts::labeled(move || tr("Description", "群公告")).child(
+                            ui::textarea()
+                                .label(move || tr("Description", "群公告"))
+                                .value(move || description.get())
+                                .max_length(512)
+                                .min_h_28()
+                                .on_change(move |value: &str| {
+                                    description.set(value.into());
+                                    keep_draft();
+                                }),
+                        ),
+                    ),
             )
             .child(
                 ui::primary()
+                    .self_end()
                     .disabled(move || {
                         state.busy.get()
                             || !state.can_manage()
@@ -590,11 +591,9 @@ pub(super) fn expiry(state: State) -> impl IntoElement {
         let (_, _, en, zh) = EXPIRY_UNITS[unit.get()];
         tr(en, zh)
     };
-    let quantity = view()
+    let quantity = parts::labeled(move || tr("Quantity", "数量"))
         .flex_1()
         .min_w_0()
-        .gap_1()
-        .child(text(move || tr("Quantity", "数量")).text_sm())
         .child(
             ui::field()
                 .label(move || tr("Quantity", "数量"))
@@ -606,13 +605,11 @@ pub(super) fn expiry(state: State) -> impl IntoElement {
                     invalid.set(false);
                 }),
         );
-    let time_unit = view()
+    let time_unit = parts::labeled(move || tr("Time unit", "时间单位"))
         .flex_1()
         .min_w_0()
-        .gap_1()
-        .child(text(move || tr("Time unit", "时间单位")).text_sm())
         .child(
-            parts::option_select()
+            ui::select()
                 .items(move || {
                     EXPIRY_UNITS
                         .into_iter()
@@ -625,7 +622,7 @@ pub(super) fn expiry(state: State) -> impl IntoElement {
                 .value(move || Some(SharedString::from(unit.get().to_string())))
                 .disabled(disabled)
                 .accessibility_label(move || Some(tr("Time unit", "时间单位").into()))
-                .trigger(parts::select_trigger(unit_label))
+                .trigger(ui::select_trigger(unit_label))
                 .on_change(move |next: &Option<SharedString>| {
                     if let Some(index) = next
                         .as_ref()
@@ -638,76 +635,77 @@ pub(super) fn expiry(state: State) -> impl IntoElement {
                 }),
         );
     scroll().flex_1().min_h_0().child(
-        view()
-            .p_4()
-            .gap_3()
+        parts::page_body()
+            .child(parts::note(move || {
+                tr(
+                    "New messages disappear after the selected time.",
+                    "新消息将在所选时间后自动消失。",
+                )
+            }))
             .child(
-                text(move || {
-                    tr(
-                        "New messages disappear after the selected time.",
-                        "新消息将在所选时间后自动消失。",
-                    )
-                })
-                .text_sm()
-                .text_color(move || theme().muted_foreground),
-            )
-            .children(
-                [
-                    (0, "Off", "关闭"),
-                    (30, "30 seconds", "30 秒"),
-                    (600, "10 minutes", "10 分钟"),
-                    (7200, "2 hours", "2 小时"),
-                    (86400, "1 day", "1 天"),
-                    (604800, "1 week", "1 周"),
-                ]
-                .into_iter()
-                .map(move |(seconds, en, zh)| {
-                    ui::command()
-                        .justify_start()
-                        .selected(move || value() == seconds)
-                        .disabled(disabled)
-                        .on_press(move || apply(seconds))
-                        .child(text(move || tr(en, zh)).flex_1())
-                        .child(when(
-                            move || value() == seconds,
-                            || ui::icon(ui::Icon::Check),
-                        ))
-                }),
-            )
-            .child(section(move || tr("Custom time", "自定义时间")))
-            .child(
-                view()
-                    .flex_row()
-                    .items_end()
-                    .gap_3()
-                    .child(quantity)
-                    .child(time_unit),
+                ui::card().children(
+                    [
+                        (0, "Off", "关闭"),
+                        (30, "30 seconds", "30 秒"),
+                        (600, "10 minutes", "10 分钟"),
+                        (7200, "2 hours", "2 小时"),
+                        (86400, "1 day", "1 天"),
+                        (604800, "1 week", "1 周"),
+                    ]
+                    .into_iter()
+                    .map(move |(seconds, en, zh)| {
+                        ui::settings_row(None, move || tr(en, zh))
+                            .selected(move || value() == seconds)
+                            .disabled(disabled)
+                            .on_press(move || apply(seconds))
+                            .child(when(
+                                move || value() == seconds,
+                                || ui::icon(ui::Icon::Check),
+                            ))
+                    }),
+                ),
             )
             .child(
-                text(move || {
-                    i18n.format(
-                        "Enter a whole number from 1 to {maximum}.",
-                        "请输入 1 到 {maximum} 之间的整数。",
-                        &[("maximum", &EXPIRY_UNITS[unit.get()].1.to_string())],
-                    )
-                })
-                .text_sm()
-                .text_color(move || {
-                    if invalid.get() {
-                        theme().destructive
-                    } else {
-                        theme().muted_foreground
-                    }
-                }),
-            )
-            .child(
-                ui::primary()
-                    .disabled(move || disabled() || custom_seconds.get().is_none())
-                    .on_press(move || match custom_seconds.get_untracked() {
-                        Some(seconds) => apply(seconds),
-                        None => invalid.set(true),
-                    })
-                    .child(text(move || tr("Set", "设置"))),
+                ui::section(move || tr("Custom time", "自定义时间")).child(
+                    ui::card()
+                        .p(ui::space_lg())
+                        .gap(ui::space_md())
+                        .child(
+                            view()
+                                .flex_row()
+                                .items_end()
+                                .gap(ui::space_md())
+                                .child(quantity)
+                                .child(time_unit),
+                        )
+                        .child(
+                            text(move || {
+                                i18n.format(
+                                    "Enter a whole number from 1 to {maximum}.",
+                                    "请输入 1 到 {maximum} 之间的整数。",
+                                    &[("maximum", &EXPIRY_UNITS[unit.get()].1.to_string())],
+                                )
+                            })
+                            .text_role(ui::TextRole::Body)
+                            .text_color(move || {
+                                if invalid.get() {
+                                    ui::danger()
+                                } else {
+                                    ui::fg_secondary()
+                                }
+                            }),
+                        )
+                        .child(
+                            ui::primary()
+                                .self_end()
+                                .disabled(move || disabled() || custom_seconds.get().is_none())
+                                .on_press(move || match custom_seconds.get_untracked() {
+                                    Some(seconds) => apply(seconds),
+                                    None => invalid.set(true),
+                                })
+                                .child(text(move || tr("Set", "设置"))),
+                        ),
+                ),
             ),
     )
 }
@@ -715,9 +713,7 @@ pub(super) fn expiry(state: State) -> impl IntoElement {
 pub(super) fn invite(state: State) -> impl IntoElement {
     let qr = computed(move || crate::qr::source(&detail_url(state), 256));
     scroll().flex_1().min_h_0().child(
-        view()
-            .p_4()
-            .gap_4()
+        parts::page_body()
             .items_center()
             .child(
                 text(move || {
@@ -726,7 +722,7 @@ pub(super) fn invite(state: State) -> impl IntoElement {
                         "获得此链接的任何人都可以加入群组。",
                     )
                 })
-                .text_sm()
+                .text_role(ui::TextRole::Body)
                 .text_center(),
             )
             .child(dynamic(move || match qr.get() {
@@ -735,10 +731,10 @@ pub(super) fn invite(state: State) -> impl IntoElement {
                     .label("Group invite QR code")
                     .into_element(),
                 None => text(move || tr("Invitation is unavailable.", "邀请链接暂不可用。"))
-                    .text_sm()
+                    .text_role(ui::TextRole::Body)
                     .into_element(),
             }))
-            .child(text(move || detail_url(state)).text_sm().select_text())
+            .child(text(move || detail_url(state)).text_role(ui::TextRole::Body).select_text())
             .child(
                 ui::action(
                     move || tr("Copy link", "复制链接"),

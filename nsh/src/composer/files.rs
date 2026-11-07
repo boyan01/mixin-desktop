@@ -1,16 +1,16 @@
 use mixin_desktop_api::{MediaClient, PreparedAttachment};
-use nsh_base::{checkbox, radio, radio_group, theme};
+use nsh_base::radio_group;
 use nsh_core::prelude::*;
 use std::sync::Arc;
 
 use super::{
-    AttachmentSource, attachments::Host, clear_quote, dialog_card, dialog_title, failure,
-    media_client, quote_id, tr,
+    AttachmentSource, attachments::Host, clear_quote, media_client, quote_id, tr, wide_dialog,
 };
 use crate::{
     i18n::{self, I18n, Key},
     motion::Presence,
-    runtime, ui,
+    runtime,
+    ui::{self, Typography as _},
 };
 
 #[derive(Clone, Copy, PartialEq)]
@@ -24,7 +24,6 @@ pub(super) enum Mode {
 mod preparation;
 use preparation::{Cache, Source, prepare_source, prepare_sources};
 
-const ROW_HEIGHT: f32 = 36.0;
 const VISIBLE_ROWS: usize = 5;
 
 struct Outcome {
@@ -437,12 +436,11 @@ impl Preview {
 
     fn body(self) -> View {
         let i18n = self.i18n;
-        dialog_card()
-            .w(px(640.0))
+        wide_dialog()
             .on_file_drop(move |event: &FileDropEvent| {
                 self.append(preparation::local_sources(&event.uris))
             })
-            .child(dialog_title(move || {
+            .child(ui::modal_title(move || {
                 let count = self.sources.with(Vec::len);
                 if count == 1 {
                     tr(i18n, "Send 1 file", "发送 1 个文件").to_owned()
@@ -518,7 +516,6 @@ impl Preview {
                     .justify_start()
                     .disabled(self.busy)
                     .selected(move || self.selected.get() == at.index())
-                    .selected_style(|s| s.bg(move || theme().accent))
                     .on_press(move || self.selected.set(at.index()))
                     .child(
                         text(move || {
@@ -536,7 +533,7 @@ impl Preview {
                                     .unwrap_or_default()
                             })
                         })
-                        .text_sm()
+                        .text_role(ui::TextRole::Body)
                         .number_of_lines(1),
                     )
             },
@@ -545,8 +542,10 @@ impl Preview {
             self.sources
                 .with(|sources| sources.iter().map(|source| source.id).collect::<Vec<_>>())
         })
-        .estimated_item_size(px(ROW_HEIGHT))
-        .h(move || px(self.sources.with(|rows| rows.len().min(VISIBLE_ROWS)) as f32 * ROW_HEIGHT))
+        .estimated_item_size(ui::button_height())
+        .h(move || {
+            ui::button_height() * self.sources.with(|rows| rows.len().min(VISIBLE_ROWS)) as f32
+        })
     }
 
     fn file_actions(self) -> impl IntoElement {
@@ -581,29 +580,20 @@ impl Preview {
             .into_iter()
             .map(move |(choice, english, chinese)| {
                 let checked = move || self.mode_value() == choice;
-                radio()
-                    .checked(checked)
-                    .disabled(move || {
+                ui::radio(
+                    Some(move || tr(i18n, english, chinese)),
+                    checked,
+                    move || {
                         self.busy.get()
                             || self.preparing_edit.get()
                             || (choice == Mode::Archive && self.sources.with(Vec::len) < 2)
-                    })
-                    .on_change(move |selected: &bool| {
-                        if *selected {
+                    },
+                    move |selected| {
+                        if selected {
                             self.mode.set(choice);
                         }
-                    })
-                    .flex_row()
-                    .items_center()
-                    .gap_2()
-                    .px_2()
-                    .py_1()
-                    .rounded_md()
-                    .app_class("disabled:opacity-40")
-                    .hover(|s| s.bg(move || theme().accent))
-                    .focus(|s| s.outline(px(2.0)).outline_color(move || theme().ring))
-                    .child(radio_mark(checked))
-                    .child(text(move || tr(i18n, english, chinese)).text_sm())
+                    },
+                )
             }),
         )
     }
@@ -645,8 +635,7 @@ impl Preview {
                             .with(|rows| rows.iter().any(|item| item.kind == "IMAGE"))
                 },
                 move || {
-                    ui::field()
-                        .multiline(true)
+                    ui::textarea()
                         .max_h_24()
                         .label(move || tr(i18n, "Caption", "图片说明"))
                         .placeholder(move || tr(i18n, "Add a caption…", "添加图片说明…").to_owned())
@@ -678,10 +667,13 @@ impl Preview {
                         move || self.loading.get(),
                         move || tr(i18n, "Preparing files…", "正在准备文件…").into(),
                     ))
-                    .child(text(move || tr(i18n, "Preparing files…", "正在准备文件…")).text_sm())
+                    .child(
+                        text(move || tr(i18n, "Preparing files…", "正在准备文件…"))
+                            .text_role(ui::TextRole::Body),
+                    )
             }))
             .child(when(self.input_rejected, move || {
-                failure(move || {
+                ui::error_text(move || {
                     tr(
                         i18n,
                         "Couldn’t add these files. Try again.",
@@ -694,7 +686,7 @@ impl Preview {
                 move || {
                     view()
                         .gap_2()
-                        .child(failure(move || {
+                        .child(ui::error_text(move || {
                             tr(
                                 i18n,
                                 "Couldn’t prepare this file. Remove it or send as files.",
@@ -703,8 +695,8 @@ impl Preview {
                         }))
                         .child(
                             text(move || self.prepare_error.get().unwrap_or_default())
-                                .text_xs()
-                                .text_color(move || theme().muted_foreground),
+                                .text_role(ui::TextRole::Caption)
+                                .text_color(ui::fg_secondary),
                         )
                         .child(ui::action(
                             move || i18n.text(Key::Retry),
@@ -713,7 +705,7 @@ impl Preview {
                 },
             ))
             .child(when(self.send_failed, move || {
-                failure(move || {
+                ui::error_text(move || {
                     tr(
                         i18n,
                         "Some files couldn’t be sent. The remaining files are still here.",
@@ -792,52 +784,12 @@ fn option(
     checked: Signal<bool>,
     disabled: impl Fn() -> bool + 'static,
 ) -> impl IntoElement {
-    checkbox()
-        .checked(checked)
-        .disabled(disabled)
-        .app_class("disabled:opacity-40")
-        .on_change(move |value: &bool| checked.set(*value))
-        .flex_row()
-        .items_center()
-        .gap_2()
-        .py_1()
-        .px_1()
-        .rounded_md()
-        .hover(|s| s.bg(move || theme().accent))
-        .focus(|s| s.outline(px(2.0)).outline_color(move || theme().ring))
-        .indicator_class(
-            "w-4 h-4 items-center justify-center border border-input rounded-sm checked:bg-primary",
-        )
-        .indicator(
-            ui::icon(ui::Icon::Check)
-                .size_3()
-                .text_color(move || theme().primary_foreground)
-                .style_when(move || !checked.get(), |style| style.invisible()),
-        )
-        .child(text(title).text_sm())
-}
-
-fn radio_mark(checked: impl Fn() -> bool + Copy + 'static) -> impl IntoElement {
-    view()
-        .size_4()
-        .rounded_full()
-        .border_1()
-        .border_color(move || {
-            if checked() {
-                theme().primary
-            } else {
-                theme().input
-            }
-        })
-        .items_center()
-        .justify_center()
-        .child(
-            view()
-                .size_2()
-                .rounded_full()
-                .bg(move || theme().primary)
-                .style_when(move || !checked(), |style| style.invisible()),
-        )
+    ui::checkbox(
+        Some(title),
+        move || checked.get(),
+        disabled,
+        move |value| checked.set(value),
+    )
 }
 
 fn size_label(bytes: u64) -> String {

@@ -1,10 +1,14 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use mixin_desktop_api::{AudioPlaybackStatus, MessageListView};
-use nsh_base::{SliderValue, menu, menu_item, slider, theme};
+use nsh_base::SliderValue;
 use nsh_core::prelude::*;
 
 use super::message_actions::Actions;
-use crate::{i18n::Key, runtime, ui};
+use crate::{
+    i18n::Key,
+    runtime,
+    ui::{self, Typography},
+};
 
 pub(super) fn body(
     message: MessageListView,
@@ -49,7 +53,7 @@ pub(super) fn body(
     };
     let busy = signal(false);
     view()
-        .w(px(216.0))
+        .w_56()
         .max_w(relative(1.0))
         .gap_1()
         .child(
@@ -82,7 +86,7 @@ pub(super) fn body(
                                     i18n.text(Key::Play)
                                 }
                             })
-                            .text_sm(),
+                            .text_role(ui::TextRole::Body),
                         ),
                 )
                 .child(
@@ -93,18 +97,19 @@ pub(super) fn body(
                         .h_8()
                         .children((0..16).map(move |index| {
                             view()
-                                .w(px(2.0))
-                                .rounded_full()
+                                .w_0p5()
+                                .rounded(ui::radius_full())
                                 .bg(move || {
                                     if duration() > 0
                                         && (index as f64 / 16.0)
                                             < position() as f64 / duration() as f64
                                     {
-                                        theme().primary
+                                        ui::accent()
                                     } else {
-                                        theme().muted_foreground.opacity(0.5)
+                                        ui::fg_tertiary()
                                     }
                                 })
+                                // A bar is as tall as its sample's level, within the strip.
                                 .h(move || {
                                     px(2.0
                                         + waveform.with(|waveform| {
@@ -126,7 +131,7 @@ pub(super) fn body(
                 ),
         )
         .child(
-            slider()
+            ui::slider_compact()
                 .min(0.0)
                 .max(move || duration().max(1) as f64)
                 .step(100.0)
@@ -135,10 +140,6 @@ pub(super) fn body(
                 .accessibility_label(move || {
                     Some(i18n.tr("Voice message position", "语音播放进度").into())
                 })
-                .track_class("h-6 justify-center disabled:opacity-40")
-                .indicator_class("h-1 rounded-full bg-muted-foreground/30")
-                .range_class("rounded-full bg-primary")
-                .thumb_class("size-3 rounded-full bg-primary focus:outline-2 focus:outline-ring")
                 .on_change(move |value: &SliderValue| {
                     if let SliderValue::Single(value) = *value
                         && active()
@@ -160,13 +161,12 @@ pub(super) fn body(
                             time(duration())
                         }
                     })
-                    .text_xs()
-                    .text_color(move || theme().muted_foreground)
+                    .text_role(ui::TextRole::Caption)
+                    .text_color(ui::fg_secondary)
                     .flex_1(),
                 )
                 .child(
-                    menu()
-                        .popup_style(ui::popup)
+                    ui::menu()
                         .trigger(
                             ui::command()
                                 .min_h_6()
@@ -180,17 +180,12 @@ pub(super) fn body(
                                     text(move || {
                                         format!("{}×", actions.playback.with(|p| p.speed))
                                     })
-                                    .text_xs(),
+                                    .text_role(ui::TextRole::Caption),
                                 ),
                         )
-                        .children([1.0, 1.5, 2.0].into_iter().map(move |speed| {
-                            menu_item()
-                                .px_3()
-                                .py_2()
-                                .rounded_md()
-                                .hover(|s| s.bg(move || theme().accent))
-                                .child(text(format!("{speed}×")).text_sm())
-                                .on_select(move || {
+                        .children(crate::playback::SPEEDS.into_iter().map(
+                            move |(speed, label)| {
+                                ui::menu_row(move || label).on_select(move || {
                                     let media = actions.media.with(|m| m.clone());
                                     busy.set(true);
                                     spawn(async move {
@@ -204,7 +199,8 @@ pub(super) fn body(
                                         busy.set(false);
                                     });
                                 })
-                        })),
+                            },
+                        )),
                 ),
         )
 }

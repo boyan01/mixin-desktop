@@ -5,7 +5,6 @@ pub(crate) use actions::{State as Commands, surface as command_surface, wrap as 
 pub(crate) use window::Window;
 
 use mixin_desktop_api::{AccountClient, ConversationListData};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use std::{collections::HashMap, sync::Arc};
 
@@ -13,7 +12,8 @@ use crate::{
     appearance,
     i18n::{self, I18n, Key},
     navigation::ChatNavigation,
-    presentation, runtime, ui,
+    presentation, runtime,
+    ui::{self, Typography as _},
 };
 
 type Row = Memo<Option<ConversationListData>>;
@@ -65,7 +65,7 @@ pub(crate) fn screen(
             })
         })
         .element_ref(&window.list)
-        .estimated_item_size(px(80.0))
+        .estimated_item_size(ui::list_row_height())
         .flex_1()
         .min_h_0()
         .on_viewable_items_change(move |items: &nsh_core::element::ViewableItems| {
@@ -134,7 +134,10 @@ impl Cells {
                     self.navigation.select(row);
                 }
             })
-            .child(ui::conversation_avatar(move || row.get(), px(48.0)))
+            .child(ui::conversation_avatar(
+                move || row.get(),
+                ui::AvatarSize::Large,
+            ))
             .child(
                 view()
                     .flex_1()
@@ -165,8 +168,9 @@ impl Cells {
             .child(
                 text(move || read(row, |row| row.name.clone()))
                     .min_w_0()
+                    .flex_shrink(1.0)
                     .number_of_lines(1)
-                    .font_weight(FontWeight::MEDIUM),
+                    .text_role(ui::TextRole::Label),
             )
             .child(dynamic(move || {
                 let badge = badge.get();
@@ -181,15 +185,16 @@ impl Cells {
                 move || read(row, |row| row.is_scam),
                 move || {
                     text(move || i18n.tr("SCAM", "诈骗风险"))
-                        .text_xs()
-                        .text_color(move || theme().destructive)
+                        .text_role(ui::TextRole::Caption)
+                        .text_color(ui::danger)
                 },
             ))
             .child(view().flex_1())
             .child(
                 text(move || read(row, |row| presentation::time(i18n, row.updated_at_millis)))
-                    .text_xs()
-                    .text_color(move || theme().muted_foreground),
+                    .flex_shrink_0()
+                    .text_role(ui::TextRole::Caption)
+                    .text_color(ui::fg_secondary),
             )
     }
 
@@ -212,42 +217,50 @@ impl Cells {
             .flex_row()
             .items_center()
             .gap_2()
-            .child(when(
-                move || drafted.get(),
-                move || {
-                    text(move || format!("{}:", i18n.text(Key::Draft)))
-                        .text_sm()
-                        .text_color(move || theme().color("draft").unwrap_or(theme().destructive))
-                },
-            ))
-            .child(dynamic(move || {
-                let status = delivery.get();
-                untracked(|| match status {
-                    Some(status) => appearance::delivery_icon(&status),
-                    None => view().hidden().into_element(),
-                })
-            }))
             .child(
-                text(move || read(row, |row| self.preview(row)))
+                view()
                     .flex_1()
                     .min_w_0()
-                    .number_of_lines(1)
-                    .text_sm()
-                    .text_color(move || theme().muted_foreground),
+                    .flex_row()
+                    .items_center()
+                    .gap_1()
+                    .child(when(
+                        move || drafted.get(),
+                        move || {
+                            text(move || format!("{}:", i18n.text(Key::Draft)))
+                                .text_role(ui::TextRole::Body)
+                                .text_color(ui::danger)
+                        },
+                    ))
+                    .child(dynamic(move || {
+                        let status = delivery.get();
+                        untracked(|| match status {
+                            Some(status) => appearance::delivery_icon(&status),
+                            None => view().hidden().into_element(),
+                        })
+                    }))
+                    .child(
+                        text(move || read(row, |row| self.preview(row)))
+                            .flex_1()
+                            .min_w_0()
+                            .number_of_lines(1)
+                            .text_role(ui::TextRole::Body)
+                            .text_color(ui::fg_secondary),
+                    ),
             )
             .child(when(
                 move || read(row, |row| row.mention_count > 0),
                 move || {
-                    ui::count_badge(|| "@".into(), || true)
+                    ui::count_pill(|| "@".into(), || true)
                         .label(move || i18n.tr("Unread mention", "未读提及"))
                 },
             ))
             .child(when(
                 move || read(row, |row| row.unseen_count > 0),
                 move || {
-                    ui::count_badge(
+                    ui::count_pill(
                         move || read(row, |row| row.unseen_count.to_string()),
-                        move || read(row, |row| !row.is_muted),
+                        move || read(row, |row| !row.is_muted || row.mention_count > 0),
                     )
                 },
             ))

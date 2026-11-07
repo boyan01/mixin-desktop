@@ -1,0 +1,267 @@
+//! Typed accessors over `theme.json`, the app's one design baseline.
+//!
+//! Lengths and numbers are plain values read from the embedded theme file, so a
+//! component sets them as static styles: a bound value outranks every static one,
+//! which would stop a later `.px_1()` from taking effect. Reading them also
+//! subscribes to nothing, and they are right in the first render, before the
+//! engine's copy of the theme reaches the core.
+//!
+//! Colors are functions to pass as bindings: `.bg(ui::surface_card)`.
+
+use nsh_base::{Theme, theme};
+use nsh_core::{LineHeight, prelude::*};
+
+thread_local! {
+    static BASELINE: Theme = Theme::from_json(include_str!("../../theme.json"))
+        .expect("theme.json is part of the build");
+}
+
+pub(super) fn number(name: &'static str) -> f32 {
+    BASELINE
+        .with(|baseline| baseline.number(name))
+        .unwrap_or_else(|| panic!("theme.json has no number `{name}`"))
+}
+
+fn token_color(name: &'static str) -> AdaptiveColor {
+    theme()
+        .color(name)
+        .or_else(|| BASELINE.with(|baseline| baseline.color(name)))
+        .unwrap_or_else(|| panic!("theme.json has no color `{name}`"))
+}
+
+// Each scale is complete for the screens to adopt, so a step may have no caller yet.
+macro_rules! lengths {
+    ($($(#[$doc:meta])* $name:ident = $token:literal;)*) => {$(
+        $(#[$doc])*
+        #[allow(dead_code)]
+        pub(crate) fn $name() -> Points {
+            px(number($token))
+        }
+    )*};
+}
+
+macro_rules! colors {
+    ($($(#[$doc:meta])* $name:ident = $token:literal;)*) => {$(
+        $(#[$doc])*
+        #[allow(dead_code)]
+        pub(crate) fn $name() -> AdaptiveColor {
+            token_color($token)
+        }
+    )*};
+}
+
+lengths! {
+    /// An optical correction, such as the gap between two list cells.
+    space_2xs = "space-2xs";
+    /// Parts of one control.
+    space_xs = "space-xs";
+    /// Closely related controls.
+    space_sm = "space-sm";
+    /// One content group.
+    space_md = "space-md";
+    /// Separate groups in one section.
+    space_lg = "space-lg";
+    /// Separate sections.
+    space_xl = "space-xl";
+
+    /// A framed control: button, field.
+    radius_sm = "radius-sm";
+    /// A row's fill and a card.
+    radius_md = "radius-md";
+    /// A floating surface: dialog, popover, menu.
+    radius_lg = "radius-lg";
+    /// An intentional circle or pill.
+    radius_full = "radius-full";
+
+    /// A mark inside compact text, such as a status line.
+    icon_xs = "icon-xs";
+    icon_sm = "icon-sm";
+    icon_md = "icon-md";
+    icon_lg = "icon-lg";
+
+    /// A card row.
+    row_height = "control-row";
+    /// A navigation rail row.
+    nav_row_height = "control-nav";
+    /// A conversation-sized list cell, margins included.
+    list_row_height = "control-list-row";
+    /// The height requested for the row shared with the native window controls.
+    title_bar_requested_height = "control-title-bar";
+    button_height = "control-button";
+    button_height_small = "control-button-sm";
+    field_height = "control-field";
+    badge_height = "control-badge";
+    badge_min_width = "control-badge-min-width";
+
+    focus_ring_width = "focus-ring-width";
+    hairline_width = "hairline-width";
+
+    login_width = "login-width";
+    login_height = "login-height";
+    sidebar_width = "sidebar-width";
+    navigation_width = "navigation-width";
+    navigation_compact_width = "navigation-compact";
+    bubble_width = "bubble-width";
+    /// The fixed width of a file or location card: Flutter's map preview.
+    card_width = "card-width";
+    /// The column of a page. Flutter's `CellGroup` caps a page here.
+    content_max_width = "content-max-width";
+    /// A dialog with room for a document.
+    dialog_width_wide = "dialog-width-wide";
+    /// A dialog that holds a page or a long list.
+    dialog_height_tall = "dialog-height-tall";
+    sticker_panel_width = "sticker-panel-width";
+    sticker_panel_height = "sticker-panel-height";
+    radius_login = "radius-login";
+    radius_composer = "radius-composer";
+}
+
+colors! {
+    /// The navigation rail.
+    surface_rail = "sidebar";
+    /// The conversation or settings list column, and the bars over a pane.
+    surface_list = "list-background";
+    /// A detail pane.
+    surface_pane = "background";
+    /// The message timeline and the empty state beside the list.
+    surface_chat = "chat-background";
+    /// Grouped rows: one tone above whichever surface it sits on.
+    surface_card = "card";
+    /// Menus, popovers, dialogs and tooltips.
+    surface_popover = "popover";
+    /// The sign-in screen behind its card.
+    surface_landing = "landing-background";
+
+    /// A message from someone else, and the controls floating over the timeline.
+    bubble_in = "bubble-in";
+    /// A message from the account.
+    bubble_out = "bubble-out";
+    /// The chip of a day separator and of a notice in the timeline.
+    day_background = "day-background";
+    day_foreground = "day-foreground";
+    /// A chip over a picture, in either appearance.
+    media_overlay = "media-overlay";
+    media_overlay_foreground = "media-overlay-foreground";
+
+    /// Text and icons that carry the content.
+    fg_primary = "foreground";
+    /// Metadata, previews, placeholders and disclosure arrows.
+    fg_secondary = "muted-foreground";
+    /// What may go unread: inactive decoration.
+    fg_tertiary = "foreground-tertiary";
+    /// What is drawn on an `accent` fill.
+    fg_on_accent = "primary-foreground";
+
+    /// The fill over any surface while a pointer is over a row or quiet control.
+    state_hover = "state-hover";
+    /// The fill while pressed.
+    state_pressed = "state-pressed";
+    /// The persistent fill of a selected row. It stacks on `surface_card`.
+    state_selected = "state-selected";
+    focus_ring = "ring";
+
+    /// The principal action and selection emphasis.
+    accent = "primary";
+    /// Destructive actions, failures and unread alerts.
+    danger = "destructive";
+    success = "success";
+
+    /// A boundary inside a pane.
+    hairline = "hairline";
+    /// A boundary between panes and around floating surfaces.
+    border = "border";
+    /// The fill of a field and of the search pill.
+    input_fill = "input-background";
+    /// The frame of a field at rest.
+    input_border = "input";
+    /// The dimming layer behind modal surfaces, dark in either appearance.
+    scrim_fill = "scrim";
+    /// A count pill that does not ask for attention.
+    badge_quiet = "badge-quiet";
+}
+
+/// The opacity of a control that does not take input.
+pub(super) fn opacity_disabled() -> f32 {
+    number("opacity-disabled")
+}
+
+/// The opacity of an accent fill under a pointer.
+pub(super) fn opacity_solid_hover() -> f32 {
+    number("opacity-solid-hover")
+}
+
+/// The opacity of an accent fill while pressed.
+pub(super) fn opacity_solid_pressed() -> f32 {
+    number("opacity-solid-pressed")
+}
+
+/// The opacity of the chat wallpaper over its surface.
+pub(crate) fn chat_pattern_opacity() -> f32 {
+    number("chat-pattern-opacity")
+}
+
+/// A circle's color. Circles have none of their own, so the id picks a stable one.
+pub(crate) fn circle_color(id: &str) -> AdaptiveColor {
+    let hash = id.bytes().fold(0_u32, |hash, byte| {
+        hash.wrapping_mul(31).wrapping_add(byte.into())
+    });
+    theme()
+        .color(&format!("circle-{}", hash % 8 + 1))
+        .unwrap_or_else(fg_secondary)
+}
+
+/// The app's type scale. Add a size only by adding a role to `theme.json`.
+#[derive(Clone, Copy)]
+pub(crate) enum TextRole {
+    /// Delivery metadata, which stays at one size when message text scales.
+    Micro,
+    /// Timestamps, counts and helper text.
+    Caption,
+    /// Default text: previews, descriptions, controls.
+    Body,
+    /// Row titles: conversation names and card rows.
+    Label,
+    /// Bar and page titles.
+    Title,
+    /// Dialog titles and profile names.
+    Headline,
+}
+
+impl TextRole {
+    fn tokens(self) -> (&'static str, &'static str, &'static str) {
+        match self {
+            Self::Micro => ("text-micro-size", "text-micro-line", "text-micro-weight"),
+            Self::Caption => (
+                "text-caption-size",
+                "text-caption-line",
+                "text-caption-weight",
+            ),
+            Self::Body => ("text-body-size", "text-body-line", "text-body-weight"),
+            Self::Label => ("text-label-size", "text-label-line", "text-label-weight"),
+            Self::Title => ("text-title-size", "text-title-line", "text-title-weight"),
+            Self::Headline => (
+                "text-headline-size",
+                "text-headline-line",
+                "text-headline-weight",
+            ),
+        }
+    }
+}
+
+pub(crate) trait Typography: Styled {
+    /// Sets the size, line height and weight of `role`. Text scales with the
+    /// user's text size, so lines are a multiple of it.
+    fn text_role(self, role: TextRole) -> Self {
+        let (size, line, weight) = role.tokens();
+        self.text_size(px(number(size)))
+            .line_height(LineHeight::Multiple(number(line)))
+            .font_weight(FontWeight(number(weight) as u16))
+    }
+
+    /// The heavier weight of a control's label or a section's heading.
+    fn text_emphasis(self) -> Self {
+        self.font_weight(FontWeight(number("text-emphasis-weight") as u16))
+    }
+}
+
+impl<T: Styled> Typography for T {}

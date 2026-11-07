@@ -1,7 +1,9 @@
 use crate::i18n::{self, Key};
-use crate::{Phase, qr, runtime, ui};
+use crate::{
+    Phase, qr, runtime,
+    ui::{self, Typography as _},
+};
 use mixin_desktop_api::{ClientError, ClientResult, DesktopClient, LoginClient};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -39,16 +41,16 @@ pub(crate) fn screen(desktop: DesktopClient, phase: Signal<Phase>) -> impl IntoE
     });
     view()
         .flex_1()
-        .bg(move || theme().color("landing-background").unwrap_or(theme().muted))
-        .child(view().h_12().window_drag(true))
+        .bg(ui::surface_landing)
+        .child(ui::title_bar())
         .child(
             view().flex_1().items_center().justify_center().p_4().child(
                 view()
                     .w(ui::login_width)
                     .max_w(relative(1.0))
-                    .h(move || px(theme().number("login-height").unwrap_or(418.0)))
-                    .bg(move || theme().popover)
-                    .rounded(move || px(theme().number("radius-login").unwrap_or(13.0)))
+                    .h(ui::login_height())
+                    .bg(ui::surface_popover)
+                    .rounded(ui::radius_login())
                     .shadow_lg()
                     .items_center()
                     .justify_center()
@@ -57,7 +59,7 @@ pub(crate) fn screen(desktop: DesktopClient, phase: Signal<Phase>) -> impl IntoE
                     .child(
                         view()
                             .size_40()
-                            .rounded_lg()
+                            .rounded(ui::radius_md())
                             .overflow_hidden()
                             .items_center()
                             .justify_center()
@@ -73,9 +75,9 @@ pub(crate) fn screen(desktop: DesktopClient, phase: Signal<Phase>) -> impl IntoE
                                     ))
                                     .child(
                                         text(move || i18n.text(Key::Preparing))
-                                            .text_sm()
+                                            .text_role(ui::TextRole::Body)
                                             .text_center()
-                                            .text_color(move || theme().muted_foreground),
+                                            .text_color(ui::fg_secondary),
                                     )
                                     .into_element(),
                                 LoginPhase::Waiting(source) => image(source)
@@ -98,20 +100,20 @@ pub(crate) fn screen(desktop: DesktopClient, phase: Signal<Phase>) -> impl IntoE
                                     .into_element(),
                             })),
                     )
-                    .child(text(move || i18n.text(Key::ScanTitle)).text_base())
+                    .child(text(move || i18n.text(Key::ScanTitle)).text_role(ui::TextRole::Label))
                     .child(
                         view()
                             .gap_1()
                             .max_w_96()
                             .child(
                                 text(move || format!("1. {}", i18n.text(Key::ScanInstructions1)))
-                                    .text_sm()
-                                    .text_color(move || theme().muted_foreground),
+                                    .text_role(ui::TextRole::Body)
+                                    .text_color(ui::fg_secondary),
                             )
                             .child(
                                 text(move || format!("2. {}", i18n.text(Key::ScanInstructions2)))
-                                    .text_sm()
-                                    .text_color(move || theme().muted_foreground),
+                                    .text_role(ui::TextRole::Body)
+                                    .text_color(ui::fg_secondary),
                             ),
                     ),
             ),
@@ -126,8 +128,8 @@ pub(crate) fn screen(desktop: DesktopClient, phase: Signal<Phase>) -> impl IntoE
                 .child(i18n.picker())
                 .child(
                     text(env!("CARGO_PKG_VERSION"))
-                        .text_sm()
-                        .text_color(move || theme().muted_foreground),
+                        .text_role(ui::TextRole::Body)
+                        .text_color(ui::fg_secondary),
                 ),
         )
 }

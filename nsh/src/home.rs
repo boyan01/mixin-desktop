@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, ConversationListData};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
 use crate::{
@@ -13,7 +12,7 @@ use crate::{
     runtime, settings,
     shell::Command,
     sidebar::{self, Navigation},
-    ui,
+    ui::{self, Typography as _},
 };
 
 const NARROW_CONTENT_WIDTH: f32 = 620.0;
@@ -58,6 +57,8 @@ struct Home {
     create_action: Signal<Option<create::Action>>,
     settings_page: Signal<settings::Page>,
     settings_detail: Signal<bool>,
+    /// Outlives the settings screen, which a narrow window unmounts on Back.
+    profile_draft: Signal<Option<(String, String)>>,
 }
 
 pub(crate) fn screen(
@@ -139,6 +140,7 @@ pub(crate) fn screen(
         create_action: signal(None),
         settings_page: signal(settings::Page::Profile),
         settings_detail: signal(false),
+        profile_draft: signal(None),
     };
     let search_hidden = computed(move || {
         nav.settings.get() || (home.narrow() && home.selected_id.with(Option::is_some))
@@ -191,6 +193,7 @@ pub(crate) fn screen(
     effect(move || {
         if !nav.settings.get() {
             home.settings_detail.set(false);
+            home.profile_draft.set(None);
         } else if !home.narrow() {
             home.settings_detail.set(true);
         }
@@ -303,9 +306,7 @@ impl Home {
             .w(ui::sidebar_width)
             .flex_shrink_0()
             .min_h_0()
-            .bg(move || theme().background)
-            .border_r_1()
-            .border_color(move || theme().border)
+            .bg(ui::surface_list)
             .style_with(move |s| {
                 if self.narrow() {
                     s.flex_1().min_w_0()
@@ -328,6 +329,7 @@ impl Home {
                 move || nav.settings.get() && (!self.narrow() || !settings_detail.get()),
                 move || {
                     settings::navigation(
+                        self.client(),
                         settings_page,
                         move || self.narrow(),
                         move || settings_detail.set(true),
@@ -406,27 +408,25 @@ impl Home {
         let Self {
             i18n, nav, unread, ..
         } = self;
-        view()
-            .h_16()
-            .flex_row()
-            .items_center()
-            .px_4()
+        ui::title_bar()
+            .pl(move || ui::title_bar_leading(nav.width()))
+            .pr_4()
             .gap_2()
             .child(sidebar::trigger(nav))
             .child(self.search_field())
             .child(
-                ui::command()
+                ui::round_button()
                     .size_8()
-                    .px_1()
-                    .py_1()
                     .selected(unread)
                     .accessibility_label(move || Some(i18n.text(Key::Unread).into()))
-                    .selected_style(|s| {
-                        s.bg(move || theme().accent)
-                            .text_color(move || theme().primary)
-                    })
                     .on_press(move || unread.update(|value| *value = !*value))
-                    .child(ui::icon(ui::Icon::Filter)),
+                    .child(ui::icon(ui::Icon::Filter).text_color(move || {
+                        if unread.get() {
+                            ui::accent()
+                        } else {
+                            ui::fg_primary()
+                        }
+                    })),
             )
             .child(create::trigger(self.create_action))
     }
@@ -440,23 +440,9 @@ impl Home {
             search,
             ..
         } = self;
-        view()
-            .flex_1()
-            .min_w_0()
-            .flex_row()
-            .items_center()
-            .gap_2()
-            .px_3()
-            .rounded_full()
-            .bg(move || theme().muted)
-            .child(ui::icon(ui::Icon::Search).text_color(move || theme().muted_foreground))
+        ui::search_pill()
             .child(
-                ui::field()
-                    .flex_1()
-                    .min_w_0()
-                    .border(px(0.0))
-                    .px_0()
-                    .bg(move || theme().muted)
+                ui::search_input()
                     .element_ref(&search)
                     .placeholder(move || {
                         if unread.get() {
@@ -480,10 +466,8 @@ impl Home {
             .child(when(
                 move || !query.with(String::is_empty),
                 move || {
-                    ui::icon_button()
+                    ui::round_button()
                         .size_6()
-                        .px_0()
-                        .py_0()
                         .disabled(composing)
                         .accessibility_label(move || Some(i18n.tr("Clear", "清除").into()))
                         .on_press(move || {
@@ -500,7 +484,7 @@ impl Home {
         when(
             move || health.get() != "ready",
             move || {
-                view().px_4().py_2().bg(move || theme().muted).child(
+                view().px_4().py_2().bg(ui::surface_card).child(
                     ui::error_text(move || match health.get().as_str() {
                         "time_inaccurate" => i18n.tr(
                             "Check your system clock and try again.",
@@ -514,7 +498,7 @@ impl Home {
                             "账号暂时不可用。",
                         ),
                     })
-                    .text_xs(),
+                    .text_role(ui::TextRole::Caption),
                 )
             },
         )
@@ -531,14 +515,19 @@ impl Home {
                     .gap_2()
                     .flex_row()
                     .items_center()
-                    .bg(move || theme().muted)
-                    .child(text(move || i18n.text(Key::Connecting)).text_xs().flex_1())
+                    .bg(ui::surface_card)
                     .child(
-                        ui::command()
-                            .min_h_6()
-                            .py_0()
+                        text(move || i18n.text(Key::Connecting))
+                            .text_role(ui::TextRole::Caption)
+                            .flex_1(),
+                    )
+                    .child(
+                        ui::button(ui::ButtonTone::Ghost, ui::ButtonSize::Small)
                             .on_press(move || self.client().retry_connection())
-                            .child(text(move || i18n.text(Key::Reconnect)).text_xs()),
+                            .child(
+                                text(move || i18n.text(Key::Reconnect))
+                                    .text_role(ui::TextRole::Caption),
+                            ),
                     )
             },
         )
@@ -552,40 +541,22 @@ impl Home {
             let circle = nav.circle.with(Option::is_some) || nav.category.get() == "circle";
             (nav.category.get(), circle)
         };
-        view()
-            .flex_1()
-            .p_6()
-            .gap_3()
-            .items_center()
-            .justify_center()
-            .child(
-                ui::icon(ui::Icon::Chat)
-                    .size_8()
-                    .text_color(move || theme().muted_foreground),
+        ui::empty(
+            move || {
+                let (category, circle) = scope();
+                empty_title(i18n, category, circle, unread.get())
+            },
+            move || {
+                let (category, circle) = scope();
+                empty_body(i18n, category, circle, unread.get())
+            },
+        )
+        .child(when(unread, move || {
+            ui::action(
+                move || i18n.text(Key::ClearFilters),
+                move || unread.set(false),
             )
-            .child(
-                text(move || {
-                    let (category, circle) = scope();
-                    empty_title(i18n, category, circle, unread.get())
-                })
-                .text_sm()
-                .font_weight(FontWeight::MEDIUM),
-            )
-            .child(
-                text(move || {
-                    let (category, circle) = scope();
-                    empty_body(i18n, category, circle, unread.get())
-                })
-                .text_sm()
-                .text_center()
-                .text_color(move || theme().muted_foreground),
-            )
-            .child(when(unread, move || {
-                ui::action(
-                    move || i18n.text(Key::ClearFilters),
-                    move || unread.set(false),
-                )
-            }))
+        }))
     }
 
     fn detail_pane(self, on_account_ended: impl Fn() + Copy + 'static) -> impl IntoElement {
@@ -600,6 +571,7 @@ impl Home {
             pending,
             settings_page,
             settings_detail,
+            profile_draft,
             ..
         } = self;
         view()
@@ -633,6 +605,7 @@ impl Home {
                                     settings::screen(
                                         self.client(),
                                         settings_page,
+                                        profile_draft,
                                         move || {
                                             if self.narrow() {
                                                 settings_detail.set(false);
@@ -662,12 +635,12 @@ impl Home {
                             })
                             .into_element()
                         }
-                        None => ui::placeholder(move || i18n.text(Key::PickConversation))
-                            .bg(move || {
-                                theme()
-                                    .color("chat-background")
-                                    .unwrap_or(theme().background)
-                            })
+                        None => view()
+                            .flex_1()
+                            .min_h_0()
+                            .bg(ui::surface_chat)
+                            .child(ui::title_bar())
+                            .child(ui::placeholder(move || i18n.text(Key::PickConversation)))
                             .into_element(),
                     }
                 })

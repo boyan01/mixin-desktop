@@ -1,12 +1,12 @@
-use super::{Feedback, body, section};
+use super::Feedback;
 use crate::{
     conversation::parts,
     i18n::{self, Key},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography as _},
 };
 use futures::StreamExt as _;
 use mixin_desktop_api::AccountClient;
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use std::sync::Arc;
 pub(super) fn screen(
@@ -60,25 +60,25 @@ pub(super) fn screen(
     let signing_out = signal(false);
     let presence = crate::motion::Presence::modal(move || confirming.get());
     scroll().flex_1().min_h_0().child(
-        body()
+        parts::page_body()
             .child(
-                ui::avatar_view(
-                    move || profile.with(|p| p.full_name.clone().into()),
-                    move || profile.with(|p| p.avatar_url.clone()),
-                )
-                .size_20(),
-            )
-            .child(super::avatar::picker(
-                avatar_account,
-                profile,
-                feedback,
-                signing_out,
-            ))
-            .child(
-                text(move || profile.with(|p| format!("Mixin ID: {}", p.identity_number)))
-                    .text_sm()
-                    .selectable(true)
-                    .text_color(move || theme().muted_foreground),
+                view()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        ui::avatar_view(
+                            move || profile.with(|p| p.full_name.clone().into()),
+                            move || profile.with(|p| p.avatar_url.clone()),
+                            ui::AvatarSize::Medium,
+                        )
+                        .size_20(),
+                    )
+                    .child(super::avatar::picker(
+                        avatar_account,
+                        profile,
+                        feedback,
+                        signing_out,
+                    )),
             )
             .child(when(refresh_failed, move || {
                 parts::failure(
@@ -92,94 +92,106 @@ pub(super) fn screen(
                 )
             }))
             .child(
-                section(move || i18n.text(Key::Name)).child(
-                    ui::field()
-                        .label(move || i18n.text(Key::Name))
-                        .value(move || name.get())
-                        .max_length(40)
-                        .readonly(move || feedback.busy.get() || signing_out.get())
-                        .on_change(move |value: &str| {
-                            name.set(value.into());
-                            keep_draft();
-                        }),
-                ),
-            )
-            .child(
-                section(move || i18n.tr("Biography", "个人简介")).child(
-                    ui::field()
-                        .label(move || i18n.tr("Biography", "个人简介"))
-                        .multiline(true)
-                        .min_h_20()
-                        .value(move || biography.get())
-                        .max_length(140)
-                        .readonly(move || feedback.busy.get() || signing_out.get())
-                        .on_change(move |value: &str| {
-                            biography.set(value.into());
-                            keep_draft();
-                        }),
-                ),
-            )
-            .child(
-                section(move || i18n.tr("Phone number", "手机号码")).child(
-                    text(move || profile.with(|p| p.phone.clone()))
-                        .text_sm()
-                        .selectable(true),
-                ),
-            )
-            .child(
-                text(move || {
-                    profile.with(|p| {
-                        let date = chrono::DateTime::parse_from_rfc3339(&p.created_at)
-                            .map(|date| {
-                                date.with_timezone(&chrono::Local)
-                                    .format("%Y-%m-%d")
-                                    .to_string()
+                view()
+                    .gap_3()
+                    .child(
+                        ui::card()
+                            .p_4()
+                            .gap_4()
+                            .child(
+                                parts::labeled(move || i18n.text(Key::Name)).child(
+                                    ui::field()
+                                        .label(move || i18n.text(Key::Name))
+                                        .value(move || name.get())
+                                        .max_length(40)
+                                        .readonly(move || feedback.busy.get() || signing_out.get())
+                                        .on_change(move |value: &str| {
+                                            name.set(value.into());
+                                            keep_draft();
+                                        }),
+                                ),
+                            )
+                            .child(
+                                parts::labeled(move || i18n.tr("Biography", "个人简介")).child(
+                                    ui::textarea()
+                                        .label(move || i18n.tr("Biography", "个人简介"))
+                                        .min_h_20()
+                                        .value(move || biography.get())
+                                        .max_length(140)
+                                        .readonly(move || feedback.busy.get() || signing_out.get())
+                                        .on_change(move |value: &str| {
+                                            biography.set(value.into());
+                                            keep_draft();
+                                        }),
+                                ),
+                            ),
+                    )
+                    .child(
+                        ui::primary()
+                            .self_end()
+                            .disabled(move || {
+                                feedback.busy.get()
+                                    || signing_out.get()
+                                    || draft.with(Option::is_none)
+                                    || name.with(|n| n.trim().is_empty())
                             })
-                            .unwrap_or_else(|_| p.created_at.clone());
-                        i18n.format("Joined {date}", "加入时间：{date}", &[("date", &date)])
-                    })
-                })
-                .text_sm()
-                .text_color(move || theme().muted_foreground),
+                            .child(text(move || i18n.tr("Save", "保存")))
+                            .on_press(move || {
+                                let client = save_account.clone();
+                                let next_name = name.get_untracked().trim().to_owned();
+                                let next_biography = biography.get_untracked().trim().to_owned();
+                                feedback.start();
+                                let task = runtime::commit(async move {
+                                    client.update_profile(next_name, next_biography).await
+                                });
+                                spawn(async move {
+                                    match task.await {
+                                        Ok(next) => {
+                                            name.set(next.full_name.clone());
+                                            biography.set(next.biography.clone());
+                                            profile.set(next);
+                                            draft.set(None);
+                                            feedback.finish(true);
+                                        }
+                                        Err(_) => feedback.finish(false),
+                                    }
+                                });
+                            }),
+                    )
+                    .child(feedback.view(move || i18n.tr("Saving…", "正在保存…"))),
             )
             .child(
-                ui::primary()
-                    .disabled(move || {
-                        feedback.busy.get()
-                            || signing_out.get()
-                            || draft.with(Option::is_none)
-                            || name.with(|n| n.trim().is_empty())
-                    })
-                    .child(text(move || i18n.tr("Save", "保存")))
-                    .on_press(move || {
-                        let client = save_account.clone();
-                        let next_name = name.get_untracked().trim().to_owned();
-                        let next_biography = biography.get_untracked().trim().to_owned();
-                        feedback.start();
-                        let task = runtime::commit(async move {
-                            client.update_profile(next_name, next_biography).await
-                        });
-                        spawn(async move {
-                            match task.await {
-                                Ok(next) => {
-                                    name.set(next.full_name.clone());
-                                    biography.set(next.biography.clone());
-                                    profile.set(next);
-                                    draft.set(None);
-                                    feedback.finish(true);
-                                }
-                                Err(_) => feedback.finish(false),
-                            }
-                        });
-                    }),
+                ui::card()
+                    .child(fact(
+                        move || i18n.tr("Phone number", "手机号码"),
+                        move || profile.with(|p| p.phone.clone()),
+                    ))
+                    .child(fact(
+                        || "Mixin ID",
+                        move || profile.with(|p| p.identity_number.clone()),
+                    ))
+                    .child(fact(
+                        move || i18n.tr("Joined", "加入时间"),
+                        move || {
+                            profile.with(|p| {
+                                chrono::DateTime::parse_from_rfc3339(&p.created_at)
+                                    .map(|date| {
+                                        date.with_timezone(&chrono::Local)
+                                            .format("%Y-%m-%d")
+                                            .to_string()
+                                    })
+                                    .unwrap_or_else(|_| p.created_at.clone())
+                            })
+                        },
+                    )),
             )
-            .child(feedback.view(move || i18n.tr("Saving…", "正在保存…")))
             .child(
-                ui::command()
-                    .text_color(move || theme().destructive)
-                    .disabled(move || feedback.busy.get() || signing_out.get())
-                    .child(text(move || i18n.tr("Sign out…", "退出登录…")))
-                    .on_press(move || confirming.set(true)),
+                ui::card().child(
+                    ui::settings_row(None, move || i18n.tr("Sign out…", "退出登录…"))
+                        .text_color(ui::danger)
+                        .disabled(move || feedback.busy.get() || signing_out.get())
+                        .on_press(move || confirming.set(true)),
+                ),
             )
             .child(when(
                 move || presence.mounted(),
@@ -198,6 +210,19 @@ pub(super) fn screen(
                     )
                 },
             )),
+    )
+}
+
+/// A read-only row of the account's facts.
+fn fact(
+    label: impl Fn() -> &'static str + 'static,
+    value: impl Fn() -> String + 'static,
+) -> impl IntoElement {
+    ui::static_row(label).child(
+        text(value)
+            .text_role(ui::TextRole::Body)
+            .selectable(true)
+            .text_color(ui::fg_secondary),
     )
 }
 
@@ -233,15 +258,12 @@ fn sign_out_dialog(
             }
         },
         parts::dialog_card()
-            .child(
-                text(move || {
-                    i18n.tr(
-                        "Sign out and remove this account’s local data?",
-                        "退出登录并移除此账号的本地数据？",
-                    )
-                })
-                .text_sm(),
-            )
+            .child(ui::modal_title(move || {
+                i18n.tr(
+                    "Sign out and remove this account’s local data?",
+                    "退出登录并移除此账号的本地数据？",
+                )
+            }))
             .child(
                 parts::dialog_actions()
                     .child(
@@ -252,9 +274,8 @@ fn sign_out_dialog(
                         .disabled(signing_out),
                     )
                     .child(
-                        ui::command()
+                        ui::button(ui::ButtonTone::Danger, ui::ButtonSize::Regular)
                             .disabled(signing_out)
-                            .text_color(move || theme().destructive)
                             .child(text(move || i18n.tr("Sign out", "退出登录")))
                             .on_press(move || {
                                 if !presence.interactive() {

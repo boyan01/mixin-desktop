@@ -1,11 +1,13 @@
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, ConversationParticipantItem};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use std::{rc::Rc, sync::Arc};
 
-use super::{failure, tr};
-use crate::{i18n, runtime, ui};
+use super::tr;
+use crate::{
+    i18n, runtime,
+    ui::{self, Typography as _},
+};
 
 pub(crate) fn mentions(
     account: Arc<AccountClient>,
@@ -16,8 +18,9 @@ pub(crate) fn mentions(
     apply: Rc<dyn Fn(String, (u32, u32))>,
     input: super::Input,
 ) -> impl IntoElement {
-    const ROW_HEIGHT: f32 = 48.0;
-    const MAX_HEIGHT: f32 = ROW_HEIGHT * 3.5;
+    // A 32pt avatar with `py_2` around it. Half a row shows there is more.
+    let row_height = ui::button_height_small() + ui::space_lg();
+    let max_height = row_height * 3.5;
     let i18n = i18n::current();
     let candidate = computed(move || candidate(&draft.get(), selection.get()));
     let dismissed = signal(None::<(usize, usize, String)>);
@@ -58,7 +61,7 @@ pub(crate) fn mentions(
             effect(move || {
                 let index = selected.get();
                 after_answer(move || {
-                    list.scroll_to_index(index as u32, percentage(0.5), px(0.0), false)
+                    list.scroll_to_index(index as u32, percentage(0.5), Points::ZERO, false)
                 });
             });
             effect(move || {
@@ -152,20 +155,20 @@ pub(crate) fn mentions(
                 .role(AccessibilityRole::Listbox)
                 .min_h_0()
                 .border_b_1()
-                .border_color(move || theme().border)
-                .bg(move || theme().popover)
+                .border_color(ui::border)
+                .bg(ui::surface_popover)
                 .child(when(
                     move || searching.get() && rows.with(Vec::is_empty),
                     move || {
                         text(move || tr(i18n, "Loading members…", "正在加载群成员…"))
                             .px_3()
                             .py_2()
-                            .text_sm()
-                            .text_color(move || theme().muted_foreground)
+                            .text_role(ui::TextRole::Body)
+                            .text_color(ui::fg_secondary)
                     },
                 ))
                 .child(when(failed, move || {
-                    view().px_3().py_2().child(failure(move || {
+                    view().px_3().py_2().child(ui::error_text(move || {
                         tr(
                             i18n,
                             "Couldn’t load members. Type again to retry.",
@@ -177,45 +180,24 @@ pub(crate) fn mentions(
                     virtual_list(
                         move || rows.with(Vec::len),
                         move |at| {
-                            // A passive listbox option keeps editing focus on the existing
-                            // chat input, as NSH's combobox options do. A button would move it.
-                            view()
-                                .role(AccessibilityRole::Option)
-                                .focusable(false)
-                                .accessibility_state(move || nsh_core::AccessibilityState {
-                                    selected: selected.get() == at.index(),
-                                    ..Default::default()
-                                })
-                                .px_3()
-                                .py_2()
-                                .rounded_md()
-                                .hover(|s| s.bg(move || theme().accent))
-                                .flex_row()
-                                .justify_start()
-                                .gap_2()
-                                .style_when(
-                                    move || selected.get() == at.index(),
-                                    |s| s.bg(move || theme().accent),
-                                )
-                                .child(
-                                    ui::avatar_view(
-                                        move || {
-                                            rows.with(|rows| {
-                                                rows.get(at.index())
-                                                    .map(|u| u.full_name.clone().into())
-                                                    .unwrap_or_default()
-                                            })
-                                        },
-                                        move || {
-                                            rows.with(|rows| {
-                                                rows.get(at.index())
-                                                    .map(|u| u.avatar_url.clone())
-                                                    .unwrap_or_default()
-                                            })
-                                        },
-                                    )
-                                    .size_8(),
-                                )
+                            ui::option_row(move || selected.get() == at.index())
+                                .child(ui::avatar_view(
+                                    move || {
+                                        rows.with(|rows| {
+                                            rows.get(at.index())
+                                                .map(|u| u.full_name.clone().into())
+                                                .unwrap_or_default()
+                                        })
+                                    },
+                                    move || {
+                                        rows.with(|rows| {
+                                            rows.get(at.index())
+                                                .map(|u| u.avatar_url.clone())
+                                                .unwrap_or_default()
+                                        })
+                                    },
+                                    ui::AvatarSize::Compact,
+                                ))
                                 .child(
                                     text(move || {
                                         rows.with(|rows| {
@@ -229,7 +211,7 @@ pub(crate) fn mentions(
                                                 .unwrap_or_default()
                                         })
                                     })
-                                    .text_sm(),
+                                    .text_role(ui::TextRole::Body),
                                 )
                                 .on_press_down(move |_: &()| {
                                     if is_desktop() {
@@ -243,8 +225,8 @@ pub(crate) fn mentions(
                         rows.with(|rows| rows.iter().map(|u| u.user_id.clone()).collect::<Vec<_>>())
                     })
                     .element_ref(&list)
-                    .estimated_item_size(px(ROW_HEIGHT))
-                    .h(move || px((rows.with(Vec::len) as f32 * ROW_HEIGHT).min(MAX_HEIGHT))),
+                    .estimated_item_size(row_height)
+                    .h(move || (row_height * rows.with(Vec::len) as f32).min(max_height)),
                 )
         },
     )

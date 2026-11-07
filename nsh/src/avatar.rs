@@ -1,7 +1,11 @@
 //! Shared avatar selection. Draft crop state belongs only to the owning page.
 mod crop;
 
-use crate::{motion::Presence, runtime};
+use crate::{
+    motion::Presence,
+    runtime,
+    ui::{self, Typography as _},
+};
 use mixin_desktop_api::{ClientError, ClientResult, MediaClient, PreparedAttachment};
 use nsh_core::{
     file_dialog::{FileFilter, OpenDialog},
@@ -92,8 +96,8 @@ impl Picker {
                         "PNG、JPEG、GIF、WebP 或 BMP，最大 10 MB",
                     )
                 })
-                .text_xs()
-                .text_color(move || nsh_base::theme().muted_foreground),
+                .text_role(ui::TextRole::Caption)
+                .text_color(ui::fg_secondary),
             )
             .child(when(
                 move || self.presence.mounted(),

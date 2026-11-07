@@ -1,15 +1,14 @@
 use mixin_desktop_api::{ProxyItem, ProxySettingsItem};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
-use super::{Feedback, body, client, section, toggle};
+use super::{Feedback, client};
 use crate::{
     conversation::parts::{self, Prompt, confirm},
     i18n::{self, Key},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography as _},
 };
 
-const ROW_HEIGHT: f32 = 72.0;
 const VISIBLE_ROWS: usize = 3;
 
 pub(super) fn screen() -> impl IntoElement {
@@ -42,63 +41,72 @@ pub(super) fn screen() -> impl IntoElement {
     let adding = signal(false);
     let presence = crate::motion::Presence::modal(move || adding.get());
     scroll().flex_1().min_h_0().child(
-        body()
-            .child(toggle(
-                move || i18n.tr("Proxy", "代理"),
-                move || settings.with(|s| s.enabled),
-                move || {
-                    !ready.get() || feedback.busy.get() || settings.with(|s| s.proxies.is_empty())
-                },
-                move |enabled| {
-                    let mut next = settings.get_untracked();
-                    if enabled && next.selected_proxy_id.is_none() {
-                        next.selected_proxy_id = next.proxies.first().map(|p| p.id.clone());
-                    }
-                    next.enabled = enabled;
-                    save(next, settings, feedback);
-                },
-            ))
-            .child(when(
-                move || ready.get() && settings.with(|s| s.proxies.is_empty()),
-                move || {
-                    text(move || {
-                        i18n.tr(
-                            "Add a proxy before enabling it.",
-                            "请先添加代理，再开启代理连接。",
-                        )
-                    })
-                    .text_sm()
-                    .text_color(move || theme().muted_foreground)
-                },
-            ))
+        parts::page_body()
+            .child(
+                view()
+                    .gap(ui::space_sm())
+                    .child(ui::card().child(ui::toggle_row(
+                        move || i18n.tr("Proxy", "代理"),
+                        move || settings.with(|s| s.enabled),
+                        move || {
+                            !ready.get()
+                                || feedback.busy.get()
+                                || settings.with(|s| s.proxies.is_empty())
+                        },
+                        move |enabled| {
+                            let mut next = settings.get_untracked();
+                            if enabled && next.selected_proxy_id.is_none() {
+                                next.selected_proxy_id = next.proxies.first().map(|p| p.id.clone());
+                            }
+                            next.enabled = enabled;
+                            save(next, settings, feedback);
+                        },
+                    )))
+                    .child(when(
+                        move || ready.get() && settings.with(|s| s.proxies.is_empty()),
+                        move || {
+                            parts::note(move || {
+                                i18n.tr(
+                                    "Add a proxy before enabling it.",
+                                    "请先添加代理，再开启代理连接。",
+                                )
+                            })
+                        },
+                    )),
+            )
             .child(when(
                 move || !ready.get() && !feedback.failed.get(),
                 move || parts::status(move || i18n.tr("Loading proxies…", "正在加载代理…")),
             ))
             .child(
-                ui::command()
-                    .justify_start()
-                    .disabled(move || !ready.get() || feedback.busy.get())
-                    .child(ui::icon(ui::Icon::Add))
-                    .child(text(move || i18n.tr("Add proxy…", "添加代理…")))
-                    .on_press(move || adding.set(true)),
-            )
-            .child(
-                virtual_list(
-                    move || settings.with(|s| s.proxies.len()),
-                    move |at| proxy_row(settings, feedback, move || at.index()),
-                )
-                .keys(move || {
-                    settings.with(|s| s.proxies.iter().map(|p| p.id.clone()).collect::<Vec<_>>())
-                })
-                .estimated_item_size(px(ROW_HEIGHT))
-                .h(move || {
-                    px(settings.with(|s| s.proxies.len().min(VISIBLE_ROWS)) as f32 * ROW_HEIGHT)
-                })
-                .style_when(
-                    move || settings.with(|s| s.proxies.is_empty()),
-                    |style| style.hidden(),
-                ),
+                ui::card()
+                    .child(
+                        virtual_list(
+                            move || settings.with(|s| s.proxies.len()),
+                            move |at| proxy_row(settings, feedback, move || at.index()),
+                        )
+                        .keys(move || {
+                            settings.with(|s| {
+                                s.proxies.iter().map(|p| p.id.clone()).collect::<Vec<_>>()
+                            })
+                        })
+                        .estimated_item_size(ui::row_height())
+                        .h(move || {
+                            px(settings.with(|s| s.proxies.len().min(VISIBLE_ROWS)) as f32
+                                * ui::row_height().0)
+                        })
+                        .style_when(
+                            move || settings.with(|s| s.proxies.is_empty()),
+                            |style| style.hidden(),
+                        ),
+                    )
+                    .child(
+                        ui::settings_row(Some(ui::Icon::Add), move || {
+                            i18n.tr("Add proxy…", "添加代理…")
+                        })
+                        .disabled(move || !ready.get() || feedback.busy.get())
+                        .on_press(move || adding.set(true)),
+                    ),
             )
             .child(feedback.view(move || i18n.tr("Saving…", "正在保存…")))
             .child(when(
@@ -134,31 +142,29 @@ fn proxy_row(
     view()
         .flex_row()
         .items_center()
-        .gap_3()
+        .gap(ui::space_md())
         .child(
-            ui::command()
+            ui::card_row()
                 .flex_1()
                 .min_w_0()
-                .justify_start()
-                .py_3()
-                .gap_3()
                 .disabled(feedback.busy)
                 .selected(selected)
                 .child(
                     view()
-                        .gap_1()
+                        .gap(ui::space_xs())
                         .min_w_0()
                         .flex_1()
                         .child(
                             text(move || proxy().map(|p| address(&p)).unwrap_or_default())
+                                .text_role(ui::TextRole::Label)
                                 .number_of_lines(1),
                         )
                         .child(
                             text(move || {
                                 proxy().map(|p| p.kind.to_uppercase()).unwrap_or_default()
                             })
-                            .text_xs()
-                            .text_color(move || theme().muted_foreground),
+                            .text_role(ui::TextRole::Caption)
+                            .text_color(ui::fg_secondary),
                         ),
                 )
                 .child(when(selected, || ui::icon(ui::Icon::Check)))
@@ -172,8 +178,8 @@ fn proxy_row(
                 }),
         )
         .child(
-            ui::command()
-                .text_color(move || theme().destructive)
+            ui::button(ui::ButtonTone::Danger, ui::ButtonSize::Small)
+                .mr(ui::space_md())
                 .disabled(feedback.busy)
                 .child(text(move || i18n.tr("Remove…", "移除…")))
                 .on_press(move || {
@@ -284,9 +290,9 @@ fn form(
         });
     };
     let fields = view()
-        .gap_4()
+        .gap(ui::space_lg())
         .child(
-            section(move || i18n.tr("Host", "主机")).child(
+            parts::labeled(move || i18n.tr("Host", "主机")).child(
                 ui::field()
                     .label(move || i18n.tr("Host", "主机"))
                     .auto_focus(true)
@@ -298,7 +304,7 @@ fn form(
             ),
         )
         .child(
-            section(move || i18n.tr("Port", "端口")).child(
+            parts::labeled(move || i18n.tr("Port", "端口")).child(
                 ui::field()
                     .label(move || i18n.tr("Port", "端口"))
                     .value(move || port.get())
@@ -309,7 +315,7 @@ fn form(
             ),
         )
         .child(
-            section(move || i18n.tr("Username (optional)", "用户名（可选）")).child(
+            parts::labeled(move || i18n.tr("Username (optional)", "用户名（可选）")).child(
                 ui::field()
                     .label(move || i18n.tr("Username", "用户名"))
                     .value(move || username.get())
@@ -320,7 +326,7 @@ fn form(
             ),
         )
         .child(
-            section(move || i18n.tr("Password (optional)", "密码（可选）")).child(
+            parts::labeled(move || i18n.tr("Password (optional)", "密码（可选）")).child(
                 ui::field()
                     .label(move || i18n.tr("Password", "密码"))
                     .masked(true)

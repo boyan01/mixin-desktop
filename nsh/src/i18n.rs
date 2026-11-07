@@ -1,8 +1,11 @@
 use mixin_desktop_api::SettingsClient;
-use nsh_base::{SelectItem, theme};
+use nsh_base::SelectItem;
 use nsh_core::prelude::*;
 
-use crate::{conversation::parts, runtime, ui};
+use crate::{
+    runtime,
+    ui::{self, Typography as _},
+};
 
 const LANGUAGE_SETTING: &str = "desktop_ui_language";
 
@@ -105,10 +108,28 @@ impl I18n {
         });
     }
     pub(crate) fn picker(self) -> impl IntoElement {
+        self.language_select(
+            ui::command()
+                .child(ui::icon(ui::Icon::Globe))
+                .child(text(move || self.language_title()).text_role(ui::TextRole::Body))
+                .child(ui::icon(ui::Icon::ChevronDown)),
+        )
+    }
+    /// The picker for a settings row, matching the row's other selects.
+    pub(crate) fn setting_picker(self) -> impl IntoElement {
+        self.language_select(ui::select_trigger(move || self.language_title()))
+    }
+    fn language_title(self) -> &'static str {
+        match self.language.get() {
+            Language::System => self.text(Key::System),
+            language => language.title(),
+        }
+    }
+    fn language_select(self, trigger: impl IntoElement + 'static) -> impl IntoElement {
         view()
             .gap_1()
             .child(
-                parts::option_select()
+                ui::select()
                     .items(move || {
                         let mut items = vec![SelectItem::new("system", self.text(Key::System))];
                         items.extend(
@@ -126,34 +147,15 @@ impl I18n {
                             self.choose(Language::parse(value.as_str()));
                         }
                     })
-                    .offset(px(4.0))
-                    .trigger(
-                        view()
-                            .flex_row()
-                            .items_center()
-                            .gap_2()
-                            .px_3()
-                            .py_2()
-                            .rounded(move || theme().radius)
-                            .hover(|s| s.bg(move || theme().muted))
-                            .focus(|s| s.outline(px(2.0)).outline_color(move || theme().ring))
-                            .child(ui::icon(ui::Icon::Globe))
-                            .child(
-                                text(move || match self.language.get() {
-                                    Language::System => self.text(Key::System),
-                                    language => language.title(),
-                                })
-                                .text_sm(),
-                            )
-                            .child(ui::icon(ui::Icon::ChevronDown)),
-                    ),
+                    .offset(ui::space_xs())
+                    .trigger(trigger),
             )
             .child(when(
                 move || self.failed.get(),
                 move || {
                     text(move || self.text(Key::LanguageFailed))
-                        .text_xs()
-                        .text_color(move || theme().destructive)
+                        .text_role(ui::TextRole::Caption)
+                        .text_color(ui::danger)
                 },
             ))
     }
@@ -185,7 +187,7 @@ messages! {
     Today => ("Today", "今天"),
     Yesterday => ("Yesterday", "昨天"),
     Creating => ("Creating…", "正在创建…"),
-    PickConversation => ("Pick a conversation", "选择一个会话"),
+    PickConversation => ("Select a conversation to start messaging", "选择一个对话，开始发送信息"),
     Language => ("Language", "语言"),
     System => ("System language", "跟随系统"),
     LanguageFailed => ("Couldn’t save the language. Try again.", "无法保存语言，请重试。"),

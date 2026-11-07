@@ -3,9 +3,12 @@ use super::{
     parse::{Payload, Recipient, Send},
     tr,
 };
-use crate::{conversation::parts, runtime, ui};
+use crate::{
+    conversation::parts,
+    runtime,
+    ui::{self, Typography as _},
+};
 use mixin_desktop_api::ClientError;
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
 pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement {
@@ -166,7 +169,7 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                         .child(ui::icon(ui::Icon::ArrowLeft))
                 }))
                 .child(
-                    text(move || {
+                    ui::modal_title(move || {
                         if choosing.get() {
                             tr("Choose recipient", "选择接收方")
                         } else {
@@ -174,9 +177,7 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                         }
                     })
                     .flex_1()
-                    .min_w_0()
-                    .text_lg()
-                    .font_weight(FontWeight::SEMIBOLD),
+                    .min_w_0(),
                 )
                 .child(
                     ui::icon_button()
@@ -193,7 +194,11 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                     .flex_shrink(1.0)
                     .min_h_0()
                     .gap_3()
-                    .child(text(move || name.get()).flex_none().text_sm())
+                    .child(
+                        text(move || name.get())
+                            .flex_none()
+                            .text_role(ui::TextRole::Body),
+                    )
                     .child(when(loading, || {
                         parts::status(move || tr("Loading recipient…", "正在加载接收方…"))
                             .flex_none()
@@ -209,9 +214,9 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                         scroll()
                             .flex_shrink(1.0)
                             .min_h_0()
-                            .max_h(px(240.0))
-                            .bg(move || theme().muted)
-                            .rounded_lg()
+                            .max_h_60()
+                            .bg(ui::surface_card)
+                            .rounded(ui::radius_md())
                             .p_4()
                             .child(super::preview::render(
                                 router.client(),

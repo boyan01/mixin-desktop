@@ -10,16 +10,6 @@ pub(in crate::settings) async fn client() -> mixin_desktop_api::ClientResult<Set
     Ok(DesktopClient::open().await?.settings())
 }
 
-pub(crate) fn section(title: impl Fn() -> &'static str + 'static) -> View {
-    view()
-        .gap_3()
-        .child(text(title).text_sm().font_weight(FontWeight::MEDIUM))
-}
-
-pub(crate) fn body() -> View {
-    view().w_full().max_w(px(600.0)).p_6().gap_6()
-}
-
 #[derive(Clone, Copy)]
 pub(in crate::settings) struct Feedback {
     /// The page, which outlives the list cell or dialog that starts a save.
@@ -53,13 +43,17 @@ impl Feedback {
         busy_label: impl Fn() -> &'static str + Copy + 'static,
     ) -> impl IntoElement {
         let i18n = i18n::current();
-        view()
-            .gap_2()
-            .child(when(self.busy, move || parts::status(busy_label)))
-            .child(when(self.failed, move || {
-                ui::error_text(move || i18n.text(Key::CommandFailed))
-            }))
+        // Mounted only with a message: an empty child would double the page's gap.
+        when(
+            move || self.busy.get() || self.failed.get(),
+            move || {
+                view()
+                    .gap(ui::space_sm())
+                    .child(when(self.busy, move || parts::status(busy_label)))
+                    .child(when(self.failed, move || {
+                        ui::error_text(move || i18n.text(Key::CommandFailed))
+                    }))
+            },
+        )
     }
 }
-
-pub(in crate::settings) use crate::ui::setting_toggle as toggle;

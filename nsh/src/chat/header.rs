@@ -1,13 +1,12 @@
 //! The chat's title bar: identity, app entry and panel toggles.
 use mixin_desktop_api::ConversationListData;
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
 use crate::{
     i18n::{self, Key},
     inspector::Mode,
     navigation::ChatNavigation,
-    ui,
+    ui::{self, Typography},
 };
 
 pub(super) fn bar(
@@ -34,30 +33,38 @@ pub(super) fn bar(
     });
     let badge =
         computed(move || row.with(|row| (row.is_verified, row.is_bot, row.membership.clone())));
-    view()
-        .flex_row()
-        .items_center()
-        .gap_3()
-        .px_6()
-        .py_4()
-        .bg(move || theme().background)
+    let rail = use_context::<crate::sidebar::Navigation>().expect("Home provides navigation");
+    ui::title_bar()
+        .gap_2()
+        // Alone in the window, the bar reaches the native controls over a narrow rail.
+        .pl(move || {
+            if narrow() {
+                ui::title_bar_leading(rail.width())
+            } else {
+                ui::space_lg()
+            }
+        })
+        .pr_3()
+        .py_2()
+        .bg(ui::surface_list)
         .border_b_1()
-        .border_color(move || theme().border)
+        .border_color(ui::border)
         .child(
-            ui::command()
+            ui::round_button()
+                .size_8()
                 .style_when(move || !narrow(), |style| style.hidden())
                 .on_press(back)
                 .accessibility_label(move || Some(i18n.text(Key::Back).into()))
                 .child(ui::icon(ui::Icon::ArrowLeft)),
         )
         .child(
-            ui::command()
-                .flex_1()
+            ui::nav_row()
                 .min_w_0()
-                .px_0()
+                .min_h_0()
+                .flex_shrink(1.0)
+                .px_1()
                 .py_0()
                 .gap_3()
-                .justify_start()
                 .accessibility_label(move || Some(i18n.text(Key::ChatInfo).into()))
                 .on_press(move || navigation.toggle_panel(Mode::Info))
                 .child(ui::conversation_avatar(
@@ -65,13 +72,12 @@ pub(super) fn bar(
                         avatar.with(|_| ());
                         row.with_untracked(|row| Some(row.clone()))
                     },
-                    px(40.0),
+                    ui::AvatarSize::Bar,
                 ))
                 .child(
                     view()
-                        .flex_1()
+                        .flex_shrink(1.0)
                         .min_w_0()
-                        .gap_1()
                         .child(
                             view()
                                 .flex_row()
@@ -83,7 +89,7 @@ pub(super) fn bar(
                                         .min_w_0()
                                         .flex_shrink(1.0)
                                         .number_of_lines(1)
-                                        .font_weight(FontWeight::SEMIBOLD),
+                                        .text_role(ui::TextRole::Title),
                                 )
                                 .child(view().flex_shrink_0().child(dynamic(move || {
                                     let (verified, bot, membership) = badge.get();
@@ -105,11 +111,14 @@ pub(super) fn bar(
                                     row.with(|row| row.identity_number.clone())
                                 }
                             })
-                            .text_xs()
-                            .text_color(move || theme().muted_foreground),
+                            .text_role(ui::TextRole::Caption)
+                            .number_of_lines(1)
+                            .text_color(ui::fg_secondary),
                         ),
                 ),
         )
+        // The identity hugs its content, leaving the bar's middle to drag the window.
+        .child(view().flex_1())
         .child(when(
             move || !group && row.with(|row| row.is_bot && !row.owner_id.is_empty()),
             move || {
@@ -118,9 +127,8 @@ pub(super) fn bar(
                     .flex_none()
                     .tooltip(ui::hint(move || open().to_owned()))
                     .child(
-                        ui::icon_button()
-                            .size_10()
-                            .px_1()
+                        ui::round_button()
+                            .size_8()
                             .accessibility_label(move || Some(open().into()))
                             .on_press(move || {
                                 let (owner, conversation) = row.with_untracked(|row| {
@@ -131,7 +139,7 @@ pub(super) fn bar(
                                     Some(conversation),
                                 );
                             })
-                            .child(ui::icon(ui::Icon::Bot).size_6()),
+                            .child(ui::icon(ui::Icon::Bot)),
                     )
             },
         ))
@@ -143,7 +151,7 @@ pub(super) fn bar(
         ))
         .child(panel_toggle(
             navigation,
-            ui::Icon::Info,
+            ui::Icon::InfoCircle,
             Key::ChatInfo,
             Mode::Info,
         ))
@@ -156,12 +164,10 @@ fn panel_toggle(
     mode: Mode,
 ) -> impl IntoElement {
     let i18n = i18n::current();
-    ui::command()
-        .size_10()
-        .px_1()
+    ui::round_button()
+        .size_8()
         .accessibility_label(move || Some(i18n.text(label).into()))
         .selected(move || navigation.panel.get() == Some(mode))
-        .selected_style(|style| style.bg(move || theme().accent))
         .on_press(move || navigation.toggle_panel(mode))
-        .child(ui::icon(icon).size_6())
+        .child(ui::icon(icon))
 }

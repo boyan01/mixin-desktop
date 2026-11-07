@@ -1,12 +1,12 @@
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, AccountProfile, ConversationUnseenCount};
-use nsh_base::theme;
 use nsh_core::{animation::Easing, element::AnimatedValue, prelude::*};
 use std::sync::Arc;
 
 use crate::{
     i18n::{self, Key},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography as _},
 };
 
 mod circle_editor;
@@ -50,7 +50,7 @@ impl Navigation {
     }
     pub fn width(self) -> Points {
         if self.drawer() {
-            px(0.0)
+            Points::ZERO
         } else if self.compact() {
             ui::navigation_compact_width()
         } else {
@@ -133,7 +133,8 @@ pub(crate) fn trigger(nav: Navigation) -> impl IntoElement {
     when(
         move || nav.drawer(),
         move || {
-            ui::icon_button()
+            ui::round_button()
+                .size_8()
                 .on_press(move || nav.open_drawer())
                 .accessibility_label(move || Some(i18n.tr("Open navigation", "打开导航").into()))
                 .child(ui::icon(ui::Icon::Menu))
@@ -196,7 +197,7 @@ impl Labels {
 
     fn bind_text(self, label: Text) -> Text {
         label
-            .text_sm()
+            .text_role(ui::TextRole::Body)
             .flex_1()
             .number_of_lines(1)
             .bind_opacity(&self.opacity)
@@ -253,16 +254,15 @@ impl Rail {
             .h_full()
             .flex_shrink_0()
             .overflow_hidden()
-            .bg(move || theme().sidebar)
-            .border_r_1()
-            .border_color(move || theme().border)
+            .bg(ui::surface_rail)
             .px_3()
+            .pb_2()
             .gap_1()
-            .child(view().h_16().window_drag(true))
+            .child(ui::title_bar())
             .child(self.account_item())
-            .child(view().h_4())
+            .child(view().h_2())
             .child(self.category(ui::Icon::Chat, Key::AllChats, "chats"))
-            .child(divider())
+            .child(ui::divider())
             .child(self.category(ui::Icon::Contacts, Key::Contacts, "contacts"))
             .child(self.category(ui::Icon::Groups, Key::Groups, "groups"))
             .child(self.category(ui::Icon::Bot, Key::Bots, "bots"))
@@ -281,42 +281,42 @@ impl Rail {
             labels,
             ..
         } = self;
-        ui::command()
-            .justify_start()
-            .gap_3()
-            .px_2()
-            .py_3()
-            .min_h_16()
-            .selected(nav.settings)
-            .on_press(move || {
-                batch(|| {
-                    nav.settings.set(true);
-                    nav.close_drawer();
+        // Inset so its avatar centers on the rows' icon column, also when collapsed.
+        ui::card().child(
+            ui::card_row()
+                .min_h_11()
+                .px(ui::space_xs())
+                .py(ui::space_xs())
+                .selected(nav.settings)
+                .on_press(move || {
+                    batch(|| {
+                        nav.settings.set(true);
+                        nav.close_drawer();
+                    })
                 })
-            })
-            .accessibility_label(move || Some(i18n.text(Key::Settings).into()))
-            .child(
-                ui::avatar_view(
+                .accessibility_label(move || Some(i18n.text(Key::Settings).into()))
+                .child(ui::avatar_view(
                     move || profile.with(|p| p.full_name.clone().into()),
                     move || profile.with(|p| p.avatar_url.clone()),
-                )
-                .size_6(),
-            )
-            .child(
-                labels
-                    .bind(view().flex_1().min_w_0().gap_1())
-                    .child(
-                        text(move || profile.with(|p| p.full_name.clone()))
-                            .text_sm()
-                            .font_weight(FontWeight::MEDIUM)
-                            .number_of_lines(1),
-                    )
-                    .child(
-                        text(move || profile.with(|p| p.identity_number.clone()))
-                            .text_xs()
-                            .text_color(move || theme().muted_foreground),
-                    ),
-            )
+                    ui::AvatarSize::Compact,
+                ))
+                .child(
+                    labels
+                        .bind(view().flex_1().min_w_0())
+                        .child(
+                            text(move || profile.with(|p| p.full_name.clone()))
+                                .text_role(ui::TextRole::Body)
+                                .text_emphasis()
+                                .number_of_lines(1),
+                        )
+                        .child(
+                            text(move || profile.with(|p| p.identity_number.clone()))
+                                .text_role(ui::TextRole::Caption)
+                                .number_of_lines(1)
+                                .text_color(ui::fg_secondary),
+                        ),
+                ),
+        )
     }
 
     fn category(self, icon: ui::Icon, label: Key, value: &'static str) -> impl IntoElement {
@@ -337,15 +337,15 @@ impl Rail {
         });
         let count = move || unseen.get().0;
         let muted = move || unseen.get().1;
-        let item = rail_item()
+        let item = ui::nav_row()
             .accessibility_label(move || Some(i18n.text(label).into()))
             .selected(move || !nav.settings.get() && nav.category.get() == value)
             .on_press(move || nav.select(value, None))
-            .child(navigation_icon(icon, nav, count, muted))
+            .child(navigation_icon(ui::icon(icon), nav, count, muted))
             .child(labels.bind_text(text(move || i18n.text(label))))
             .child(when(
                 move || count() > 0 && !nav.compact(),
-                move || ui::count_badge(move || count().to_string(), || false),
+                move || ui::count_pill(move || count().to_string(), || false),
             ));
         view()
             .w_full()
@@ -370,11 +370,7 @@ impl Rail {
             labels,
             ..
         } = self;
-        ui::command()
-            .justify_start()
-            .px_2()
-            .gap_3()
-            .min_h_12()
+        ui::nav_row()
             .accessibility_label(move || {
                 Some(
                     i18n.text(if nav.compact() {
@@ -399,17 +395,8 @@ impl Rail {
     }
 }
 
-/// The geometry shared by category and circle rows.
-fn rail_item() -> nsh_base::ButtonElement {
-    ui::command().min_h_11().justify_start().px_2().gap_3()
-}
-
-fn divider() -> View {
-    view().h(px(1.0)).mx_2().my_3().bg(move || theme().border)
-}
-
 fn navigation_icon(
-    icon: ui::Icon,
+    icon: Svg,
     nav: Navigation,
     count: impl Fn() -> i64 + Copy + 'static,
     muted: impl Fn() -> i64 + Copy + 'static,
@@ -420,7 +407,7 @@ fn navigation_icon(
         .flex_shrink_0()
         .items_center()
         .justify_center()
-        .child(ui::icon(icon))
+        .child(icon)
         .child(when(
             move || nav.compact() && count() > 0,
             move || {
@@ -428,13 +415,13 @@ fn navigation_icon(
                     .absolute()
                     .top_0()
                     .right_0()
-                    .size(px(6.0))
-                    .rounded_full()
+                    .size_1p5()
+                    .rounded(ui::radius_full())
                     .bg(move || {
                         if count() == muted() {
-                            theme().muted_foreground
+                            ui::fg_secondary()
                         } else {
-                            theme().color("unread").unwrap_or(theme().primary)
+                            ui::danger()
                         }
                     })
             },

@@ -3,10 +3,15 @@ use std::sync::LazyLock;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use mixin_desktop_api::active_membership_plan;
-use nsh_base::theme;
-use nsh_core::{element::ImageSrc, prelude::*};
+use nsh_core::{
+    element::{AdaptiveColor, ImageSrc},
+    prelude::*,
+};
 
-use crate::i18n::{self, Key, tr};
+use crate::{
+    i18n::{self, Key, tr},
+    ui::{self, Typography},
+};
 
 pub(crate) fn identity_badge(
     group: bool,
@@ -18,8 +23,8 @@ pub(crate) fn identity_badge(
         return svg(ImageSrc::svg_markup(include_str!(
             "../../assets/badges/group_badge.svg"
         )))
-        .size(px(14.0))
-        .text_color(move || theme().muted_foreground)
+        .size_3p5()
+        .text_color(ui::fg_secondary)
         .label(tr("Group", "群组"))
         .into_element();
     }
@@ -58,7 +63,7 @@ pub(crate) fn identity_badge(
             _ => return view().hidden().into_element(),
         };
         return image(source)
-            .size(px(14.0))
+            .size_3p5()
             .object_fit(ResizeMode::Contain)
             .label(label)
             .into_element();
@@ -67,7 +72,7 @@ pub(crate) fn identity_badge(
         return svg(ImageSrc::svg_markup(include_str!(
             "../../assets/badges/verified.svg"
         )))
-        .size_3()
+        .size_3p5()
         .label(tr("Verified", "已认证"))
         .into_element();
     }
@@ -75,8 +80,8 @@ pub(crate) fn identity_badge(
         return svg(ImageSrc::svg_markup(include_str!(
             "../../assets/badges/bot_fill.svg"
         )))
-        .size_3()
-        .text_color(move || theme().muted_foreground)
+        .size_3p5()
+        .text_color(ui::fg_secondary)
         .label(tr("Bot", "机器人"))
         .into_element();
     }
@@ -96,9 +101,9 @@ pub(crate) fn status_icon(pinned: bool) -> impl IntoElement {
         )
     };
     svg(ImageSrc::svg_markup(asset))
-        .size(px(14.0))
+        .size_3p5()
         .label(label)
-        .text_color(move || theme().muted_foreground)
+        .text_color(ui::fg_secondary)
 }
 
 /// Delivery icons preserve the reference geometry; the status remains accessible.
@@ -108,6 +113,15 @@ pub(crate) fn delivery_icon(status: &str) -> AnyElement {
 
 pub(crate) fn delivery_icon_on_media(status: &str) -> AnyElement {
     delivery(status, true)
+}
+
+/// Over a picture the mark takes the media overlay's foreground.
+fn quiet_foreground(on_media: bool) -> AdaptiveColor {
+    if on_media {
+        ui::media_overlay_foreground()
+    } else {
+        ui::fg_secondary()
+    }
 }
 
 fn delivery(status: &str, on_media: bool) -> AnyElement {
@@ -127,41 +141,29 @@ fn delivery(status: &str, on_media: bool) -> AnyElement {
         ),
         "FAILED" => {
             return text("!")
-                .text_sm()
+                .text_role(ui::TextRole::Body)
                 .label(move || i18n.text(Key::Failed))
-                .text_color(move || theme().destructive)
+                .text_color(ui::danger)
                 .into_element();
         }
         _ => {
             return text("◷")
-                .text_sm()
+                .text_role(ui::TextRole::Body)
                 .label(tr("Sending", "发送中"))
-                .text_color(move || {
-                    if on_media {
-                        theme()
-                            .color("media-overlay-foreground")
-                            .unwrap_or(theme().foreground)
-                    } else {
-                        theme().muted_foreground
-                    }
-                })
+                .text_color(move || quiet_foreground(on_media))
                 .into_element();
         }
     };
     let read = status == "READ";
     svg(ImageSrc::svg_markup(asset))
-        .size(px(14.0))
+        .size_3p5()
         .flex_shrink_0()
         .label(label)
         .text_color(move || {
             if read {
-                theme().primary
-            } else if on_media {
-                theme()
-                    .color("media-overlay-foreground")
-                    .unwrap_or(theme().foreground)
+                ui::accent()
             } else {
-                theme().muted_foreground
+                quiet_foreground(on_media)
             }
         })
         .into_element()

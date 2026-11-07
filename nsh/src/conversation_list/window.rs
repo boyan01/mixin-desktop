@@ -407,7 +407,7 @@ impl Window {
         } else if page.reset || (page.top && new_first) {
             after_answer(move || {
                 if self.owner.is_live() {
-                    self.list.scroll_to_offset(px(0.0), false);
+                    self.list.scroll_to_offset(Points::ZERO, false);
                 }
             });
         }
@@ -443,7 +443,7 @@ impl Window {
                     .is_some_and(|(first, last)| (first..=last).contains(&index))
             {
                 self.list
-                    .scroll_to_index(index as u32, percentage(0.5), px(0.0), false);
+                    .scroll_to_index(index as u32, percentage(0.5), Points::ZERO, false);
             }
         });
     }

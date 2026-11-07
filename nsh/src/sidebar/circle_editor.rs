@@ -2,10 +2,14 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, CircleConversationEdit, CircleItem, ConversationListData};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
-use crate::{i18n::tr, runtime, ui};
+use crate::{
+    conversation::parts,
+    i18n::tr,
+    runtime,
+    ui::{self, Typography as _},
+};
 
 const PAGE_SIZE: i64 = 60;
 
@@ -40,7 +44,7 @@ pub(super) fn screen(
     let changes = signal_with(Changes::new(), SignalEquals::Never);
     let query = signal(String::new());
     let composing = signal(false);
-    let page = signal(0_usize);
+    let page = signal(0_i64);
     let more = signal(false);
     let loading = signal(true);
     let busy = signal(false);
@@ -89,7 +93,7 @@ pub(super) fn screen(
                         keyword,
                         false,
                         PAGE_SIZE + 1,
-                        page as i64 * PAGE_SIZE,
+                        page * PAGE_SIZE,
                     )
                     .await
             })
@@ -201,33 +205,31 @@ pub(super) fn screen(
             }
         });
     };
-    let card = ui::modal_card()
-        .w_96()
-        .h(px(640.0))
+    let card = parts::tall_dialog_card()
         .child(ui::modal_title(move || {
             tr("Edit conversations", "编辑聊天")
         }))
-        .child(text(move || title.with(|title| title.clone())).text_sm())
+        .child(text(move || title.with(|title| title.clone())).text_role(ui::TextRole::Body))
         .child(
-            ui::field()
-                .label(move || tr("Search chats", "搜索聊天"))
-                .placeholder(move || tr("Search chats", "搜索聊天").to_owned())
-                .value(move || query.get())
-                .on_change(move |text: &str| {
-                    batch(|| {
-                        query.set(text.into());
-                        page.set(0);
+            ui::search_pill().flex_none().child(
+                ui::search_input()
+                    .label(move || tr("Search chats", "搜索聊天"))
+                    .placeholder(move || tr("Search chats", "搜索聊天").to_owned())
+                    .value(move || query.get())
+                    .on_change(move |text: &str| {
+                        batch(|| {
+                            query.set(text.into());
+                            page.set(0);
+                        })
                     })
-                })
-                .on_composition_change(move |event: &Composition| composing.set(event.composing)),
+                    .on_composition_change(move |event: &Composition| {
+                        composing.set(event.composing)
+                    }),
+            ),
         )
         .child(when(
             move || loading.get() && rows.with(Vec::is_empty),
-            || {
-                text(move || tr("Loading…", "加载中…"))
-                    .text_sm()
-                    .text_color(move || theme().muted_foreground)
-            },
+            || parts::status(move || tr("Loading…", "加载中…")),
         ))
         .child(when(load_failed, move || {
             view()
@@ -272,16 +274,13 @@ pub(super) fn screen(
                                 .unwrap_or_else(|| circle_id.with(|id| row.circle_ids.contains(id)))
                         })
                     };
-                    ui::command()
-                        .justify_start()
-                        .min_h_16()
-                        .gap_3()
+                    parts::compact_row()
                         .selected(selected)
                         .disabled(move || busy.get() || reconcile.get())
-                        .child(ui::conversation_avatar(row, px(40.0)))
+                        .child(ui::conversation_avatar(row, ui::AvatarSize::Medium))
                         .child(
                             text(move || row().map(|row| row.name).unwrap_or_default())
-                                .text_sm()
+                                .text_role(ui::TextRole::Label)
                                 .flex_1()
                                 .number_of_lines(1),
                         )
@@ -308,37 +307,17 @@ pub(super) fn screen(
                         .collect::<Vec<_>>()
                 })
             })
-            .estimated_item_size(px(64.0))
+            .estimated_item_size(parts::row_height())
             .flex_1()
             .min_h_0(),
         )
+        .child(parts::pager(
+            page,
+            move || more.get(),
+            move || busy.get() || loading.get(),
+        ))
         .child(
-            view()
-                .flex_row()
-                .gap_2()
-                .justify_between()
-                .items_center()
-                .child(
-                    ui::action(
-                        move || tr("Previous", "上一页"),
-                        move || page.update(|page| *page = page.saturating_sub(1)),
-                    )
-                    .disabled(move || busy.get() || loading.get() || page.get() == 0),
-                )
-                .child(text(move || (page.get() + 1).to_string()).text_sm())
-                .child(
-                    ui::action(
-                        move || tr("Next", "下一页"),
-                        move || page.update(|page| *page += 1),
-                    )
-                    .disabled(move || busy.get() || loading.get() || !more.get()),
-                ),
-        )
-        .child(
-            view()
-                .flex_row()
-                .gap_2()
-                .justify_end()
+            parts::dialog_actions()
                 .child(ui::action(move || tr("Cancel", "取消"), close).disabled(busy))
                 .child(
                     ui::primary()

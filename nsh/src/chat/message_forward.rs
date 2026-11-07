@@ -4,7 +4,6 @@ use crate::{
     recipients::{self, Recipient},
     runtime, ui,
 };
-use nsh_base::theme;
 use nsh_core::prelude::*;
 
 pub(super) fn forwarding(actions: Actions) -> impl IntoElement {
@@ -23,21 +22,12 @@ pub(super) fn forwarding(actions: Actions) -> impl IntoElement {
             ui::modal(
                 presence,
                 cancel,
-                view()
+                ui::modal_card()
                     .w_96()
-                    .max_w(relative(1.0))
-                    .max_h(relative(0.9))
-                    .min_h_0()
-                    .p_6()
                     .gap_3()
-                    .rounded_xl()
-                    .bg(move || theme().popover)
-                    .child(
-                        text(move || i18n.tr("Forward messages", "转发消息"))
-                            .flex_none()
-                            .text_lg()
-                            .font_weight(FontWeight::SEMIBOLD),
-                    )
+                    .child(ui::modal_title(move || {
+                        i18n.tr("Forward messages", "转发消息")
+                    }))
                     .child(recipients::screen(
                         actions.account.with(|account| account.clone()),
                         move || actions.busy.get() || !presence.interactive(),
@@ -92,8 +82,7 @@ pub(super) fn forwarding(actions: Actions) -> impl IntoElement {
                         },
                     ))
                     .child(when(failed, move || {
-                        text(move || i18n.text(Key::CommandFailed))
-                            .text_color(move || theme().destructive)
+                        ui::error_text(move || i18n.text(Key::CommandFailed))
                     }))
                     .child(view().flex_none().flex_row().justify_end().gap_2().child(
                         ui::action(move || i18n.text(Key::Cancel), cancel).disabled(actions.busy),

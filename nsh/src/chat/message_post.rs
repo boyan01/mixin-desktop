@@ -1,13 +1,17 @@
 //! One full reader for posts and downloaded Markdown attachments.
 use mixin_desktop_api::MessageListView;
-use nsh_base::{TextViewLinkPressEvent, text_view, theme};
+use nsh_base::{TextViewLinkPressEvent, text_view};
 use nsh_core::prelude::*;
 
 use super::{
     message_actions::{Actions, Detail},
     message_links,
 };
-use crate::{i18n::Key, runtime, ui};
+use crate::{
+    i18n::Key,
+    runtime,
+    ui::{self, Typography},
+};
 
 pub(super) fn reader(
     content: String,
@@ -16,8 +20,10 @@ pub(super) fn reader(
 ) -> impl IntoElement {
     let appearance =
         use_context::<crate::appearance::Appearance>().expect("Home provides chat appearance");
+    // A reading measure, not a surface size: long lines stop being readable.
+    let measure = px(800.0);
     view().flex_1().min_h_0().w_full().items_center().child(
-        scroll().flex_1().min_h_0().w_full().max_w(px(800.0)).child(
+        scroll().flex_1().min_h_0().w_full().max_w(measure).child(
             text_view()
                 .markdown(Some(SharedString::from(content)))
                 .selectable(true)
@@ -84,12 +90,12 @@ pub(super) fn attachment(
         .gap_3()
         .child(
             text(row.with(|row| super::message_actions::attachment_name(row)))
-                .text_sm()
+                .text_role(ui::TextRole::Body)
                 .number_of_lines(2)
                 .select_text(),
         )
         .child(when(loading, move || {
-            text(move || i18n.tr("Loading...", "加载中...")).text_sm()
+            text(move || i18n.tr("Loading...", "加载中...")).text_role(ui::TextRole::Body)
         }))
         .child(when(failed, move || {
             view()
@@ -105,8 +111,8 @@ pub(super) fn attachment(
                             )],
                         )
                     })
-                    .text_sm()
-                    .text_color(move || theme().destructive),
+                    .text_role(ui::TextRole::Body)
+                    .text_color(ui::danger),
                 )
                 .child(
                     view()

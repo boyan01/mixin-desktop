@@ -4,10 +4,11 @@ use super::{
 use crate::{
     appearance::Appearance,
     i18n::{I18n, Key},
-    presentation, ui,
+    presentation,
+    ui::{self, Typography},
 };
 use mixin_desktop_api::MessageListView;
-use nsh_base::{text_view, theme};
+use nsh_base::text_view;
 use nsh_core::{element::ImageSrc, prelude::*};
 
 pub(super) fn is_attachment(row: &MessageListView) -> bool {
@@ -132,18 +133,15 @@ fn recalled(row: &MessageListView, actions: Actions) -> AnyElement {
                     i18n.tr("This message was deleted", "这条消息已被删除")
                 }
             })
-            .text_color(move || theme().muted_foreground),
+            .text_color(ui::fg_secondary),
         )
         .child(when(
             move || mine && id.with(|id| reedit.available(id)),
             move || {
-                ui::action(
+                ui::link(
                     move || i18n.tr("Re-edit", "重新编辑"),
                     move || id.with(|id| reedit.request(id)),
                 )
-                .px_0()
-                .py_0()
-                .text_color(move || theme().primary)
             },
         ))
         .into_element()
@@ -153,15 +151,17 @@ fn post(row: &MessageListView, actions: Actions) -> AnyElement {
     let i18n = actions.i18n;
     let appearance = appearance();
     let preview = row.clone();
+    // Flutter's post width, also the height bound. The label takes one `space_xl` line.
+    let bound = px(400.0);
     ui::command()
         .p_0()
-        .min_h(px(48.0))
+        .min_h_12()
         .min_w_0()
-        .w(px(400.0))
+        .w(bound)
         .max_w(relative(1.0))
         .flex_col()
         .items_stretch()
-        .max_h(px(400.0))
+        .max_h(bound)
         .overflow_hidden()
         .accessibility_label(move || Some(i18n.text(Key::Post).into()))
         .on_press(move || actions.open_preview(preview.clone()))
@@ -170,7 +170,7 @@ fn post(row: &MessageListView, actions: Actions) -> AnyElement {
                 .w_full()
                 .min_w_0()
                 .min_h_0()
-                .max_h(px(376.0))
+                .max_h(bound - ui::space_xl())
                 .overflow_hidden()
                 .pointer_events(PointerEvents::None)
                 .child(
@@ -188,8 +188,8 @@ fn post(row: &MessageListView, actions: Actions) -> AnyElement {
         .child(
             text(move || i18n.text(Key::Post))
                 .flex_shrink_0()
-                .text_xs()
-                .text_color(move || theme().muted_foreground),
+                .text_role(ui::TextRole::Caption)
+                .text_color(ui::fg_secondary),
         )
         .into_element()
 }
@@ -255,7 +255,7 @@ fn file(row: MessageListView, transcript: Option<String>, actions: Actions) -> A
     ui::command()
         .min_w_0()
         .max_w(relative(1.0))
-        .w(px(260.0))
+        .w(ui::card_width())
         .p_1()
         .gap_3()
         .justify_start()
@@ -276,18 +276,18 @@ fn file(row: MessageListView, transcript: Option<String>, actions: Actions) -> A
             view()
                 .size_10()
                 .flex_shrink_0()
-                .rounded_full()
+                .rounded(ui::radius_full())
                 .items_center()
                 .justify_center()
-                .bg(move || theme().muted)
-                .text_color(move || theme().muted_foreground)
+                .bg(ui::surface_card)
+                .text_color(ui::fg_secondary)
                 .child(when(
                     move || done,
                     || {
                         svg(ImageSrc::svg_markup(include_str!(
                             "../../assets/quote/file.svg"
                         )))
-                        .size_5()
+                        .size(ui::icon_md())
                     },
                 ))
                 .child(when(
@@ -318,7 +318,7 @@ fn file(row: MessageListView, transcript: Option<String>, actions: Actions) -> A
                 .child(
                     text(move || transfer.percent().unwrap_or_else(|| size.clone()))
                         .text_size(move || appearance.tertiary_size())
-                        .text_color(move || theme().muted_foreground),
+                        .text_color(ui::fg_secondary),
                 ),
         )
         .into_element()
@@ -358,16 +358,13 @@ fn contact(row: &MessageListView, actions: Actions) -> AnyElement {
         .child(ui::avatar_view(
             move || avatar_name.clone().into(),
             move || avatar.clone(),
+            ui::AvatarSize::Medium,
         ))
         .child(
             view()
                 .min_w_0()
                 .gap_1()
-                .child(
-                    text(name)
-                        .number_of_lines(1)
-                        .font_weight(FontWeight::MEDIUM),
-                )
+                .child(text(name).number_of_lines(1).text_emphasis())
                 .child(
                     text(
                         row.shared_user_identity_number
@@ -376,7 +373,7 @@ fn contact(row: &MessageListView, actions: Actions) -> AnyElement {
                             .unwrap_or_default(),
                     )
                     .text_size(move || appearance.tertiary_size())
-                    .text_color(move || theme().muted_foreground),
+                    .text_color(ui::fg_secondary),
                 ),
         )
         .into_element()
@@ -412,7 +409,7 @@ fn transcript_card(
         .child(
             text(move || i18n.text(Key::Transcript))
                 .text_size(move || appearance.secondary_size())
-                .font_weight(FontWeight::MEDIUM),
+                .text_emphasis(),
         );
     if let Ok(serde_json::Value::Array(previews)) = serde_json::from_str(&row.content) {
         for preview in previews.iter().take(4) {
@@ -451,7 +448,7 @@ fn transcript_line(
         presentation::preview(i18n, field("category"), field("content"))
     ))
     .text_size(move || appearance.tertiary_size())
-    .text_color(move || theme().muted_foreground)
+    .text_color(ui::fg_secondary)
     .number_of_lines(1)
 }
 
@@ -470,7 +467,7 @@ fn snapshot(row: &MessageListView, actions: Actions) -> AnyElement {
                     row.snapshot_amount.clone().unwrap_or_default(),
                     row.snapshot_asset_symbol.clone().unwrap_or_default()
                 ))
-                .font_weight(FontWeight::MEDIUM),
+                .text_emphasis(),
             ),
     );
     if let Some(memo) = row.snapshot_memo.clone().filter(|s| !s.is_empty()) {

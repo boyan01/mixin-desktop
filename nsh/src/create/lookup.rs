@@ -50,7 +50,7 @@ pub(super) fn screen(
         panel()
             .style_when(
                 move || profile.with(Option::is_some),
-                |style| style.w(px(340.0)).h(px(560.0)).p_0(),
+                |style| style.h(ui::dialog_height_tall()).p_0(),
             )
             .child(dynamic(move || {
                 let user_id = profile.get();
@@ -72,27 +72,31 @@ pub(super) fn screen(
                                 view()
                                     .gap_3()
                                     .child(
-                                        ui::field()
-                                            .label(move || i18n.text(Key::SearchContact))
-                                            .placeholder(move || {
-                                                i18n.text(Key::SearchUserHint).to_owned()
-                                            })
-                                            .auto_focus(true)
-                                            .readonly(busy)
-                                            .value(move || query.get())
-                                            .on_key_press(move |key: &str| {
-                                                if key == "Escape" {
-                                                    cancel();
-                                                }
-                                            })
-                                            .on_change(move |value: &str| {
-                                                query.set(value.into());
-                                                failed.set(false);
-                                            })
-                                            .on_composition_change(move |event: &Composition| {
-                                                composing.set(event.composing)
-                                            })
-                                            .on_submit(move |_: &str| search()),
+                                        ui::search_pill().flex_none().child(
+                                            ui::search_input()
+                                                .label(move || i18n.text(Key::SearchContact))
+                                                .placeholder(move || {
+                                                    i18n.text(Key::SearchUserHint).to_owned()
+                                                })
+                                                .auto_focus(true)
+                                                .readonly(busy)
+                                                .value(move || query.get())
+                                                .on_key_press(move |key: &str| {
+                                                    if key == "Escape" {
+                                                        cancel();
+                                                    }
+                                                })
+                                                .on_change(move |value: &str| {
+                                                    query.set(value.into());
+                                                    failed.set(false);
+                                                })
+                                                .on_composition_change(
+                                                    move |event: &Composition| {
+                                                        composing.set(event.composing)
+                                                    },
+                                                )
+                                                .on_submit(move |_: &str| search()),
+                                        ),
                                     )
                                     .child(when(failed, move || {
                                         ui::error_text(move || i18n.text(Key::SearchFailed))

@@ -1,5 +1,4 @@
 use mixin_desktop_api::SettingsClient;
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use serde_json::Value;
 use std::{rc::Rc, sync::OnceLock};
@@ -217,6 +216,8 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
             .collect::<Vec<_>>()
     });
     let insert = stored(insert);
+    // A glyph of `icon_lg` with `space_sm` around it.
+    let cell = ui::icon_lg() + ui::space_lg();
     view()
         .flex_1()
         .min_h_0()
@@ -235,16 +236,14 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
                 .items_center()
                 .gap_2()
                 .child(
-                    text(move || {
+                    ui::error_text(move || {
                         tr(
                             i18n,
                             "Couldn’t load recent emoji.",
                             "无法加载最近使用的表情。",
                         )
                     })
-                    .flex_1()
-                    .text_xs()
-                    .text_color(move || theme().destructive),
+                    .flex_1(),
                 )
                 .child(ui::action(
                     move || i18n.text(Key::Retry),
@@ -256,7 +255,7 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
                 move || filtered.with(Vec::len),
                 move |at| {
                     ui::command()
-                        .size_10()
+                        .size(cell)
                         .px_1()
                         .py_1()
                         .accessibility_label(move || {
@@ -279,7 +278,7 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
                                         .unwrap_or_default()
                                 })
                             })
-                            .text_2xl(),
+                            .text_size(ui::icon_lg()),
                         )
                         .on_press(move || {
                             let selected = filtered.with(|rows| {
@@ -300,8 +299,8 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
                         .collect::<Vec<_>>()
                 })
             })
-            .columns(move || columns(40.0))
-            .estimated_item_size(px(40.0))
+            .columns(move || columns(cell.0))
+            .estimated_item_size(cell)
             .flex_1()
             .min_h_0()
             .style_when(move || filtered.with(Vec::is_empty), |style| style.hidden()),
@@ -309,22 +308,13 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
         .child(when(
             move || preferences.loaded.get() && filtered.with(Vec::is_empty),
             move || {
-                view()
-                    .flex_1()
-                    .min_h_0()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        text(move || {
-                            if query.with(String::is_empty) && group.get() == "recent" {
-                                tr(i18n, "No recent emoji", "暂无最近使用的表情")
-                            } else {
-                                tr(i18n, "No emoji found", "未找到表情")
-                            }
-                        })
-                        .text_sm()
-                        .text_color(move || theme().muted_foreground),
-                    )
+                ui::placeholder(move || {
+                    if query.with(String::is_empty) && group.get() == "recent" {
+                        tr(i18n, "No recent emoji", "暂无最近使用的表情")
+                    } else {
+                        tr(i18n, "No emoji found", "未找到表情")
+                    }
+                })
             },
         ))
         .child(

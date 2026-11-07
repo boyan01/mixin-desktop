@@ -1,7 +1,7 @@
 //! Native canvas composition keeps drawing responsive; encoding happens only on Done.
 use super::{Editor, Tool, raster_color};
+use crate::ui;
 use mixin_desktop_api::ImageEdit;
-use nsh_base::theme;
 use nsh_core::{
     canvas::{Composite, LineCap},
     prelude::*,
@@ -21,15 +21,15 @@ pub(super) fn foreground(editor: Editor) -> Painter {
             (crop.y + crop.height) * scale,
         );
         painter = painter
-            .fill_color(color(theme().foreground).opacity(0.3))
+            .fill_color(color(ui::fg_primary()).opacity(0.3))
             .fill_rect(0.0, 0.0, width, top)
             .fill_rect(0.0, bottom, width, (height - bottom).max(0.0))
             .fill_rect(0.0, top, left, bottom - top)
             .fill_rect(right, top, (width - right).max(0.0), bottom - top)
-            .stroke_color(color(theme().foreground))
+            .stroke_color(color(ui::fg_primary()))
             .line_width(3.0)
             .stroke_rect(crop.bounds(scale))
-            .stroke_color(color(theme().background))
+            .stroke_color(color(ui::surface_pane()))
             .line_width(1.0)
             .stroke_rect(crop.bounds(scale));
         for divider in [1.0 / 3.0, 2.0 / 3.0] {
@@ -47,7 +47,7 @@ pub(super) fn foreground(editor: Editor) -> Painter {
         for (x, y) in [(left, top), (right, top), (left, bottom), (right, bottom)] {
             painter =
                 painter
-                    .fill_color(color(theme().background))
+                    .fill_color(color(ui::surface_pane()))
                     .fill_rect(x - 4.0, y - 4.0, 8.0, 8.0);
         }
     }
@@ -67,7 +67,8 @@ pub(super) fn image(editor: Editor) -> Painter {
         .draw_image(
             &source,
             Bounds::new(
-                point(px(0.0), px(0.0)),
+                point(Points::ZERO, Points::ZERO),
+                // Source pixels, in the scaled painter's own coordinates.
                 size(px(dimensions.0 as f32), px(dimensions.1 as f32)),
             ),
         )

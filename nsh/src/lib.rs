@@ -34,10 +34,10 @@ mod transfer;
 pub use shell::{Launch, NotificationTarget, prepare_launch};
 mod ui;
 
+use crate::ui::Typography as _;
 use mixin_desktop_api::{
     AccountClient, ClientError, ClientResult, DesktopClient, MediaClient, SettingsClient,
 };
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use std::sync::Arc;
 
@@ -59,7 +59,7 @@ pub(crate) enum Phase {
 pub fn App() -> impl IntoElement {
     nsh_core::element::desktop::set_title_bar(
         nsh_core::desktop::TitleBarStyle::Hidden,
-        Some(px(64.0)),
+        Some(ui::title_bar_requested_height()),
     );
     let i18n = i18n::I18n::new();
     provide_context(i18n);
@@ -87,8 +87,8 @@ pub fn App() -> impl IntoElement {
     });
     view()
         .flex_1()
-        .bg(move || theme().background)
-        .text_color(move || theme().foreground)
+        .bg(ui::surface_pane)
+        .text_color(ui::fg_primary)
         .child(shell::surface(shell))
         .child(dynamic(move || {
             let current = phase.get();
@@ -104,8 +104,8 @@ pub fn App() -> impl IntoElement {
                         ))
                         .child(
                             text(move || i18n.text(i18n::Key::Opening))
-                                .text_sm()
-                                .text_color(move || theme().muted_foreground),
+                                .text_role(ui::TextRole::Body)
+                                .text_color(ui::fg_secondary),
                         ),
                 )
                 .into_element(),
@@ -120,14 +120,13 @@ pub fn App() -> impl IntoElement {
                         .items_center()
                         .child(
                             text(move || i18n.text(i18n::Key::OpenFailed))
-                                .text_lg()
-                                .font_weight(FontWeight::SEMIBOLD),
+                                .text_role(ui::TextRole::Headline),
                         )
                         .child(
                             text(move || i18n.text(i18n::Key::OpenFailedBody))
-                                .text_sm()
+                                .text_role(ui::TextRole::Body)
                                 .text_center()
-                                .text_color(move || theme().muted_foreground),
+                                .text_color(ui::fg_secondary),
                         )
                         .child(ui::action(
                             move || i18n.text(i18n::Key::Retry),
@@ -141,17 +140,14 @@ pub fn App() -> impl IntoElement {
 
 /// A signed-out window has no sidebar, so this screen keeps the title bar draggable.
 fn status_screen(content: View) -> View {
-    view()
-        .flex_1()
-        .child(view().h_12().window_drag(true))
-        .child(
-            view()
-                .flex_1()
-                .p_8()
-                .items_center()
-                .justify_center()
-                .child(content),
-        )
+    view().flex_1().child(ui::title_bar()).child(
+        view()
+            .flex_1()
+            .p_8()
+            .items_center()
+            .justify_center()
+            .child(content),
+    )
 }
 
 async fn launch(

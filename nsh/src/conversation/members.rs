@@ -36,15 +36,16 @@ pub(super) fn screen(state: State) -> impl IntoElement {
         .min_h_0()
         .child(
             view()
-                .px_4()
-                .pb_3()
-                .gap_2()
+                .p(ui::space_lg())
+                .gap(ui::space_sm())
                 .child(
-                    ui::field()
-                        .label(move || tr("Search participants", "搜索群成员"))
-                        .placeholder(move || tr("Search", "搜索").to_owned())
-                        .value(move || query.get())
-                        .on_change(move |text: &str| query.set(text.into())),
+                    ui::search_pill().flex_none().child(
+                        ui::search_input()
+                            .label(move || tr("Search participants", "搜索群成员"))
+                            .placeholder(move || tr("Search", "搜索").to_owned())
+                            .value(move || query.get())
+                            .on_change(move |text: &str| query.set(text.into())),
+                    ),
                 )
                 .child(when(
                     move || state.can_manage(),
@@ -150,7 +151,7 @@ fn member_row(
             },
             move || {
                 ui::menu_row(move || tr("Remove from group…", "移出群组…"))
-                    .text_color(move || theme().destructive)
+                    .text_color(ui::danger)
                     .disabled(state.busy)
                     .on_select(move || {
                         if let Some(member) = member() {
@@ -164,11 +165,7 @@ fn member_row(
 fn member_summary(
     member: impl Fn() -> Option<ConversationParticipantItem> + Copy + 'static,
 ) -> nsh_base::ButtonElement {
-    ui::command()
-        .justify_start()
-        .min_h_16()
-        .px_4()
-        .gap_3()
+    parts::compact_row()
         .child(ui::avatar_view(
             move || {
                 member()
@@ -176,23 +173,24 @@ fn member_summary(
                     .unwrap_or_default()
             },
             move || member().map(|member| member.avatar_url).unwrap_or_default(),
+            ui::AvatarSize::Medium,
         ))
         .child(
             view()
                 .flex_1()
                 .min_w_0()
-                .gap_1()
+                .gap(ui::space_xs())
                 .child(
                     view()
                         .flex_row()
                         .items_center()
-                        .gap_1()
+                        .gap(ui::space_xs())
                         .min_w_0()
                         .child(
                             text(move || {
                                 member().map(|member| member.full_name).unwrap_or_default()
                             })
-                            .text_sm()
+                            .text_role(ui::TextRole::Label)
                             .number_of_lines(1)
                             .flex_1()
                             .min_w_0(),
@@ -216,8 +214,8 @@ fn member_summary(
                             .map(|member| member.identity_number)
                             .unwrap_or_default()
                     })
-                    .text_xs()
-                    .text_color(move || theme().muted_foreground),
+                    .text_role(ui::TextRole::Caption)
+                    .text_color(ui::fg_secondary),
                 ),
         )
         .child(
@@ -230,8 +228,8 @@ fn member_summary(
                     })
                     .unwrap_or_default()
             })
-            .text_xs()
-            .text_color(move || theme().muted_foreground),
+            .text_role(ui::TextRole::Caption)
+            .text_color(ui::fg_secondary),
         )
 }
 
@@ -282,10 +280,9 @@ fn profile_dialog(
     ui::modal(
         presence,
         move || profile.set(None),
-        parts::dialog_card()
+        parts::tall_dialog_card()
             .p_0()
             .gap_0()
-            .h(px(640.0))
             .child(super::profile(state.client(), id, move || {
                 profile.set(None)
             })),
@@ -342,23 +339,24 @@ fn add_form(state: State, open: Signal<bool>, presence: Presence) -> impl IntoEl
     ui::modal(
         presence,
         close,
-        parts::dialog_card()
-            .h(px(560.0))
-            .gap_3()
+        parts::tall_dialog_card()
+            .gap(ui::space_md())
             .child(ui::modal_title(move || {
                 tr("Add participants", "添加群成员")
             }))
             .child(
-                ui::field()
-                    .label(move || tr("Search contacts", "搜索联系人"))
-                    .placeholder(move || tr("Search contacts", "搜索联系人").to_owned())
-                    .value(move || query.get())
-                    .on_change(move |text: &str| {
-                        batch(|| {
-                            page.set(0);
-                            query.set(text.into());
-                        })
-                    }),
+                ui::search_pill().flex_none().child(
+                    ui::search_input()
+                        .label(move || tr("Search contacts", "搜索联系人"))
+                        .placeholder(move || tr("Search contacts", "搜索联系人").to_owned())
+                        .value(move || query.get())
+                        .on_change(move |text: &str| {
+                            batch(|| {
+                                page.set(0);
+                                query.set(text.into());
+                            })
+                        }),
+                ),
             )
             .child(when(
                 move || loading.get() && users.with(Vec::is_empty),
@@ -386,7 +384,6 @@ fn add_form(state: State, open: Signal<bool>, presence: Presence) -> impl IntoEl
                             move || user().map(|user| user.identity_number).unwrap_or_default(),
                             chosen,
                         )
-                        .px_3()
                         .disabled(state.busy)
                         .on_press(move || {
                             if let Some(user) = user() {

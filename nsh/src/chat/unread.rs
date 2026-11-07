@@ -1,13 +1,13 @@
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, MessageListView};
-use nsh_base::theme;
 use nsh_core::{element::desktop::MenuItem, prelude::*};
 use std::sync::Arc;
 
-use super::message_appearance::floating_surface;
+use super::message_appearance::floating_disc;
 use crate::{
     i18n::{I18n, Key},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography},
 };
 
 fn visible_ids(event: &ViewableItems, messages: Signal<Vec<MessageListView>>) -> Vec<String> {
@@ -309,13 +309,9 @@ impl Unread {
                 view()
                     .flex_row()
                     .gap_2()
-                    .child(
-                        text(move || {
-                            i18n.tr("Couldn’t load unread messages.", "无法加载未读消息。")
-                        })
-                        .text_xs()
-                        .text_color(move || theme().destructive),
-                    )
+                    .child(ui::error_text(move || {
+                        i18n.tr("Couldn’t load unread messages.", "无法加载未读消息。")
+                    }))
                     .child(ui::action(
                         move || i18n.text(Key::Retry),
                         move || self.retry.update(|v| *v += 1),
@@ -327,13 +323,11 @@ impl Unread {
         when(
             move || !self.mentions.with(Vec::is_empty),
             move || {
-                let button = ui::command()
+                // One press target, as in Flutter: the count stands over the disc.
+                let button = ui::round_button()
                     .w_10()
-                    .h(px(52.0))
-                    .px_0()
-                    .py_0()
+                    .pt_3()
                     .relative()
-                    .rounded_full()
                     .disabled(self.marking)
                     .accessibility_label(move || {
                         Some(
@@ -352,16 +346,16 @@ impl Unread {
                         self.target.set(Some(id));
                     })
                     .child(
-                        view()
-                            .absolute()
-                            .bottom_0()
+                        floating_disc()
                             .size_10()
-                            .rounded_full()
                             .shadow_md()
                             .items_center()
                             .justify_center()
-                            .bg(floating_surface)
-                            .child(text("@").text_lg().text_color(move || theme().foreground)),
+                            .child(
+                                text("@")
+                                    .text_role(ui::TextRole::Label)
+                                    .text_color(ui::fg_primary),
+                            ),
                     )
                     .child(
                         view()
@@ -369,31 +363,18 @@ impl Unread {
                             .top_0()
                             .left_0()
                             .w_10()
-                            .h_5()
                             .items_center()
-                            .child(
-                                view()
-                                    .min_w_5()
-                                    .max_w_10()
-                                    .h_5()
-                                    .px_1()
-                                    .rounded_full()
-                                    .items_center()
-                                    .justify_center()
-                                    .bg(move || theme().primary)
-                                    .child(
-                                        text(move || {
-                                            let count = self.mentions.with(Vec::len);
-                                            if count > 99 {
-                                                "99+".into()
-                                            } else {
-                                                count.to_string()
-                                            }
-                                        })
-                                        .text_xs()
-                                        .text_color(move || theme().primary_foreground),
-                                    ),
-                            ),
+                            .child(ui::count_pill(
+                                move || {
+                                    let count = self.mentions.with(Vec::len);
+                                    if count > 99 {
+                                        "99+".into()
+                                    } else {
+                                        count.to_string()
+                                    }
+                                },
+                                || true,
+                            )),
                     );
                 ui::native_context_menu(button, move || {
                     if self.marking.get_untracked() {
@@ -438,12 +419,7 @@ impl Unread {
         when(
             move || self.first.with(|first| first.is_some() && *first == id()),
             move || {
-                let rule = || {
-                    view()
-                        .flex_1()
-                        .h(px(1.0))
-                        .bg(move || theme().primary.opacity(0.35))
-                };
+                let rule = || view().flex_1().h(ui::hairline_width()).bg(ui::hairline);
                 view()
                     .flex_row()
                     .items_center()
@@ -452,8 +428,8 @@ impl Unread {
                     .child(rule())
                     .child(
                         text(move || i18n.tr("Unread messages", "未读消息"))
-                            .text_xs()
-                            .text_color(move || theme().primary),
+                            .text_role(ui::TextRole::Caption)
+                            .text_color(ui::accent),
                     )
                     .child(rule())
             },

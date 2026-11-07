@@ -1,11 +1,11 @@
-use nsh_base::{dialog, theme};
+use nsh_base::dialog;
 use nsh_core::prelude::*;
 
 use super::{Handle, passcode};
 use crate::{
     conversation::parts,
     i18n::{self, Key},
-    ui,
+    ui::{self, Typography as _},
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -44,7 +44,7 @@ fn unavailable(handle: Handle) -> impl IntoElement {
         .gap_4()
         .items_center()
         .justify_center()
-        .bg(move || theme().background)
+        .bg(ui::surface_pane)
         .child(ui::icon(ui::Icon::Lock).size_12())
         .child(
             text(move || {
@@ -61,7 +61,7 @@ fn unavailable(handle: Handle) -> impl IntoElement {
                     }
                 }
             })
-            .text_sm()
+            .text_role(ui::TextRole::Body)
             .text_center(),
         )
         .child(when(handle.load_failed, move || {
@@ -80,22 +80,21 @@ fn lock_screen(handle: Handle) -> impl IntoElement {
         .p_8()
         .items_center()
         .justify_center()
-        .bg(move || theme().background)
+        .bg(ui::surface_pane)
         .child(
             view()
                 .w_80()
                 .max_w(relative(1.0))
-                .gap_6()
+                .gap(ui::space_xl())
                 .items_center()
                 .child(
                     ui::icon(ui::Icon::Lock)
                         .size_16()
-                        .text_color(move || theme().muted_foreground),
+                        .text_color(ui::fg_secondary),
                 )
                 .child(
                     text(move || i18n.tr("Unlock with passcode", "输入锁屏密码解锁"))
-                        .text_xl()
-                        .font_weight(FontWeight::SEMIBOLD),
+                        .text_role(ui::TextRole::Headline),
                 )
                 .child(passcode::input(
                     passcode,
@@ -129,8 +128,8 @@ fn lock_screen(handle: Handle) -> impl IntoElement {
                                 &[("seconds", &seconds.to_string())],
                             )
                         })
-                        .text_sm()
-                        .text_color(move || theme().muted_foreground)
+                        .text_role(ui::TextRole::Body)
+                        .text_color(ui::fg_secondary)
                     },
                 ))
                 .child(when(

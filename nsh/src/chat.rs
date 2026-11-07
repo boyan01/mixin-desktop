@@ -32,7 +32,6 @@ mod timeline;
 mod unread;
 
 use mixin_desktop_api::{AccountClient, ConversationListData, MediaClient, MessageListView};
-use nsh_base::theme;
 use nsh_core::{platform::Lifecycle, prelude::*};
 
 use crate::{
@@ -192,15 +191,9 @@ pub(crate) fn screen(
                             .inset_0()
                             .size_full()
                             .object_fit(ResizeMode::Cover)
-                            .opacity(move || {
-                                theme().number("chat-pattern-opacity").unwrap_or(0.06)
-                            }),
+                            .opacity(ui::chat_pattern_opacity()),
                     )
-                    .bg(move || {
-                        theme()
-                            .color("chat-background")
-                            .unwrap_or(theme().background)
-                    })
+                    .bg(ui::surface_chat)
                     .child(header::bar(header, group, narrow, back))
                     .child(timeline.controls(i18n))
                     .child(unread.controls(i18n))
@@ -222,7 +215,10 @@ pub(crate) fn screen(
                             ))
                     }))
                     .child(when(no_rows, move || {
-                        ui::empty(i18n, Key::NoMessages, Key::NoMessagesBody)
+                        ui::empty(
+                            move || i18n.text(Key::NoMessages),
+                            move || i18n.text(Key::NoMessagesBody),
+                        )
                     }))
                     .child(when(
                         move || no_rows() && show_encryption(),
@@ -266,7 +262,7 @@ pub(crate) fn screen(
                                 .on_load_more(move || timeline.older())
                                 .on_load_more_at_start(move || timeline.newer())
                                 .inverted()
-                                .estimated_item_size(px(80.0))
+                                .estimated_item_size(ui::list_row_height())
                                 .flex_1()
                                 .min_h_0(),
                             )

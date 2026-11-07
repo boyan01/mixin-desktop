@@ -7,14 +7,14 @@ pub(crate) use palette::surface as palette;
 mod results;
 
 use crate::{
+    conversation::parts,
     i18n::{self, Key, tr},
     navigation::ChatNavigation,
     runtime,
     sidebar::Navigation,
-    ui,
+    ui::{self, Typography as _},
 };
 use mixin_desktop_api::{AccountClient, ConversationListData, MessageListView, UserProfileItem};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use std::sync::Arc;
 
@@ -173,13 +173,11 @@ pub(crate) fn screen(
                 ]
                 .into_iter()
                 .map(move |value| {
-                    ui::command()
-                        .px_2()
-                        .min_h_8()
+                    ui::button(ui::ButtonTone::Ghost, ui::ButtonSize::Small)
                         .flex_1()
                         .selected(move || section.get() == value)
                         .on_press(move || state.show(value))
-                        .child(text(move || value.title()).text_xs())
+                        .child(text(move || value.title()).text_role(ui::TextRole::Caption))
                 }),
             ),
         )
@@ -197,29 +195,21 @@ pub(crate) fn screen(
                     "无法打开此结果，请重试。",
                 )
             })
-            .px_5()
+            .px_4()
             .py_2()
         }))
         // Results stay in place while they refresh, so only a first load shows progress.
         .child(when(
             move || loading.get() && rows.with(Vec::is_empty),
             move || {
-                view()
-                    .flex_row()
-                    .items_center()
-                    .gap_2()
-                    .px_5()
+                parts::status(move || i18n.text(Key::LoadingChats))
+                    .px_4()
                     .py_2()
-                    .child(ui::busy_indicator(
-                        move || loading.get(),
-                        move || i18n.text(Key::LoadingChats).into(),
-                    ))
-                    .child(text(move || i18n.text(Key::LoadingChats)).text_sm())
             },
         ))
         .child(when(failed, move || {
             view()
-                .px_5()
+                .px_4()
                 .py_2()
                 .gap_2()
                 .child(ui::error_text(move || {
@@ -265,7 +255,7 @@ pub(crate) fn screen(
                         )
                         .disabled(move || loading.get() || page.get() == 0),
                     )
-                    .child(text(move || (page.get() + 1).to_string()).text_sm())
+                    .child(text(move || (page.get() + 1).to_string()).text_role(ui::TextRole::Body))
                     .child(
                         ui::action(move || tr("Next page", "下一页"), move || state.next_page())
                             .disabled(move || loading.get() || !more.get()),
@@ -283,18 +273,13 @@ pub(crate) fn screen(
                     .items_center()
                     .justify_center()
                     .child(ui::scrim().on_press(move || profile.set(None)))
-                    .child(
-                        ui::modal_card()
-                            .w_96()
-                            .h(px(640.0))
-                            .p_0()
-                            .overflow_hidden()
-                            .child(crate::conversation::profile(
-                                account.with(|account| account.clone()),
-                                id,
-                                move || profile.set(None),
-                            )),
-                    )
+                    .child(parts::tall_dialog_card().p_0().overflow_hidden().child(
+                        crate::conversation::profile(
+                            account.with(|account| account.clone()),
+                            id,
+                            move || profile.set(None),
+                        ),
+                    ))
             },
         ))
 }

@@ -1,5 +1,4 @@
 use mixin_desktop_api::{AccountClient, UserProfileItem};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -7,7 +6,8 @@ use super::{Action, modal, panel, parts, tr};
 use crate::{
     i18n::{self, Key},
     navigation::ChatNavigation,
-    runtime, ui,
+    runtime,
+    ui::{self, Typography as _},
 };
 
 const PAGE_SIZE: i64 = 60;
@@ -177,25 +177,27 @@ fn contact_list(
         .min_h_0()
         .gap_3()
         .child(
-            ui::field()
-                .label(move || tr("Search contacts", "搜索联系人"))
-                .placeholder(move || tr("Search contacts", "搜索联系人").to_owned())
-                .auto_focus(true)
-                .value(move || query.get())
-                .on_key_press(move |key: &str| {
-                    if key == "Escape" {
-                        cancel();
-                    }
-                })
-                .on_change(move |value: &str| {
-                    batch(|| {
-                        query.set(value.into());
-                        form.page.set(0);
+            ui::search_pill().flex_none().child(
+                ui::search_input()
+                    .label(move || tr("Search contacts", "搜索联系人"))
+                    .placeholder(move || tr("Search contacts", "搜索联系人").to_owned())
+                    .auto_focus(true)
+                    .value(move || query.get())
+                    .on_key_press(move |key: &str| {
+                        if key == "Escape" {
+                            cancel();
+                        }
                     })
-                })
-                .on_composition_change(move |event: &Composition| {
-                    form.composing.set(event.composing)
-                }),
+                    .on_change(move |value: &str| {
+                        batch(|| {
+                            query.set(value.into());
+                            form.page.set(0);
+                        })
+                    })
+                    .on_composition_change(move |event: &Composition| {
+                        form.composing.set(event.composing)
+                    }),
+            ),
         )
         .child(when(
             move || loading.get() && rows.with(Vec::is_empty),
@@ -221,7 +223,6 @@ fn contact_list(
                             })
                         },
                     )
-                    .px_3()
                     .disabled(form.busy)
                     .on_press(move || {
                         let Some(user) = user() else {
@@ -272,8 +273,8 @@ fn group_form(form: Form, cancel: impl Fn() + Copy + 'static) -> impl IntoElemen
                         form.selected.with(BTreeMap::len) + 1
                     )
                 })
-                .text_sm()
-                .text_color(move || theme().muted_foreground),
+                .text_role(ui::TextRole::Body)
+                .text_color(ui::fg_secondary),
             )
             .child(
                 ui::field()
@@ -302,7 +303,7 @@ fn group_form(form: Form, cancel: impl Fn() + Copy + 'static) -> impl IntoElemen
                             "群组已创建，请重试打开。",
                         )
                     })
-                    .text_sm()
+                    .text_role(ui::TextRole::Body)
                 },
             )),
     )
@@ -331,8 +332,8 @@ fn footer(
             move || group && !naming.get(),
             move || {
                 text(move || format!("{} / {MAX_SELECTED}", selected.with(BTreeMap::len)))
-                    .text_xs()
-                    .text_color(move || theme().muted_foreground)
+                    .text_role(ui::TextRole::Caption)
+                    .text_color(ui::fg_secondary)
             },
         )))
         .child(ui::action(move || i18n.text(Key::Cancel), cancel).disabled(busy))
@@ -379,8 +380,8 @@ fn group_preview(
     selected: Signal<BTreeMap<String, UserProfileItem>>,
 ) -> impl IntoElement {
     view()
-        .size(px(60.0))
-        .rounded_full()
+        .size_16()
+        .rounded(ui::radius_full())
         .overflow_hidden()
         .child(dynamic(move || {
             let profile = account.with(|account| account.profile());
@@ -392,41 +393,6 @@ fn group_preview(
                     .map(|user| (user.full_name.clone(), user.avatar_url.clone()))
                     .collect::<Vec<_>>()
             }));
-            untracked(|| {
-                let tile = |index: usize| {
-                    let name = stored(avatars[index].0.clone());
-                    let source = stored(avatars[index].1.clone());
-                    view().flex_1().min_h_0().min_w_0().overflow_hidden().child(
-                        ui::avatar_view(
-                            move || name.with(|name| name.clone().into()),
-                            move || source.with(|source| source.clone()),
-                        )
-                        .size_full()
-                        .rounded(px(0.0))
-                        .image_class("object-cover"),
-                    )
-                };
-                match avatars.len() {
-                    1 => tile(0).into_element(),
-                    2 => view()
-                        .flex_1()
-                        .flex_row()
-                        .child(tile(0))
-                        .child(tile(1))
-                        .into_element(),
-                    3 => view()
-                        .flex_1()
-                        .flex_row()
-                        .child(tile(0))
-                        .child(view().flex_1().child(tile(1)).child(tile(2)))
-                        .into_element(),
-                    _ => view()
-                        .flex_1()
-                        .flex_row()
-                        .child(view().flex_1().child(tile(0)).child(tile(1)))
-                        .child(view().flex_1().child(tile(2)).child(tile(3)))
-                        .into_element(),
-                }
-            })
+            untracked(|| ui::avatar_puzzle(avatars).into_element())
         }))
 }

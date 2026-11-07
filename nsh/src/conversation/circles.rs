@@ -72,15 +72,10 @@ pub(super) fn screen(state: State) -> impl IntoElement {
         .flex_1()
         .min_h_0()
         .child(
-            view()
-                .px_4()
-                .pb_4()
-                .gap_2()
-                .child(
-                    text(move || tr("Choose circles for this chat.", "选择此聊天所属的圈子。"))
-                        .text_sm()
-                        .text_color(move || theme().muted_foreground),
-                )
+            parts::page_body()
+                .child(parts::note(move || {
+                    tr("Choose circles for this chat.", "选择此聊天所属的圈子。")
+                }))
                 .child(
                     ui::field()
                         .label(move || tr("New circle name", "新圈子名称"))
@@ -146,11 +141,7 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                             })
                         })
                     };
-                    ui::command()
-                        .justify_start()
-                        .px_4()
-                        .min_h_12()
-                        .gap_3()
+                    parts::compact_row()
                         .selected(checked)
                         .disabled(move || state.busy.get() || busy.get())
                         .accessibility_label(move || {
@@ -192,7 +183,7 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                         })
                         .child(
                             text(move || circle().map(|circle| circle.name).unwrap_or_default())
-                                .text_sm()
+                                .text_role(ui::TextRole::Label)
                                 .flex_1(),
                         )
                         .child(when(checked, || ui::icon(ui::Icon::Check)))
@@ -205,7 +196,7 @@ pub(super) fn screen(state: State) -> impl IntoElement {
                         .collect::<Vec<_>>()
                 })
             })
-            .estimated_item_size(px(48.0))
+            .estimated_item_size(parts::row_height())
             .flex_1()
             .min_h_0()
             .style_when(move || circles.with(Vec::is_empty), |style| style.hidden()),

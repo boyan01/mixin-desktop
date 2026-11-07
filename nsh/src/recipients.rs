@@ -147,28 +147,31 @@ pub(crate) fn picker(
             ),
         )
         .child(
-            ui::field()
-                .flex_none()
-                .label(move || tr("Search", "搜索"))
-                .placeholder(move || tr("Search", "搜索").to_owned())
-                .value(move || query.get())
-                .disabled(disabled)
-                .auto_focus(true)
-                .on_key_press(move |key: &str| {
-                    if key == "Escape" && !disabled() && !composing.get_untracked() {
-                        cancel();
-                    }
-                })
-                .on_change(move |value: &str| {
-                    if query.with_untracked(|query| query == value) {
-                        return;
-                    }
-                    batch(|| {
-                        query.set(value.into());
-                        page.set(0);
+            ui::search_pill().flex_none().child(
+                ui::search_input()
+                    .label(move || tr("Search", "搜索"))
+                    .placeholder(move || tr("Search", "搜索").to_owned())
+                    .value(move || query.get())
+                    .disabled(disabled)
+                    .auto_focus(true)
+                    .on_key_press(move |key: &str| {
+                        if key == "Escape" && !disabled() && !composing.get_untracked() {
+                            cancel();
+                        }
                     })
-                })
-                .on_composition_change(move |event: &Composition| composing.set(event.composing)),
+                    .on_change(move |value: &str| {
+                        if query.with_untracked(|query| query == value) {
+                            return;
+                        }
+                        batch(|| {
+                            query.set(value.into());
+                            page.set(0);
+                        })
+                    })
+                    .on_composition_change(move |event: &Composition| {
+                        composing.set(event.composing)
+                    }),
+            ),
         )
         .child(when(
             move || loading.get() && rows.with(Vec::is_empty),
@@ -191,7 +194,6 @@ pub(crate) fn picker(
                         String::new,
                         move || value().is_some_and(|value| selected(&value)),
                     )
-                    .px_3()
                     .disabled(unavailable)
                     .on_press(move || {
                         if let Some(value) = value() {

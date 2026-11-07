@@ -8,15 +8,15 @@ use std::{
 
 use futures::StreamExt as _;
 use mixin_desktop_api::{ConversationListData, MessageActions, MessageListView};
-use nsh_base::theme;
 use nsh_core::{element::ImageSrc, prelude::*};
 
 use super::message_actions::Actions;
-use super::message_appearance::floating_surface;
+use super::message_appearance::floating_disc;
 use crate::presentation::message_window::splice_phase;
 use crate::{
     i18n::{I18n, Key},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography},
 };
 use query::{Load, Window};
 
@@ -352,7 +352,7 @@ impl Timeline {
             after_answer(move || {
                 if self.position_revision.get_untracked() == revision {
                     self.history
-                        .scroll_to_index(0, percentage(0.0), px(0.0), false);
+                        .scroll_to_index(0, percentage(0.0), Points::ZERO, false);
                 }
             });
         }
@@ -396,7 +396,7 @@ impl Timeline {
                 self.history.scroll_to_index(
                     index as u32,
                     percentage(0.8),
-                    px(0.0),
+                    Points::ZERO,
                     !reduce_motion(),
                 );
             }
@@ -457,18 +457,14 @@ impl Timeline {
             .gap_2()
             .child(when(self.missing_target, move || {
                 text(move || i18n.tr("This message is no longer available.", "此消息已不可用。"))
-                    .text_xs()
-                    .text_color(move || theme().muted_foreground)
+                    .text_role(ui::TextRole::Caption)
+                    .text_color(ui::fg_secondary)
             }))
             .child(when(self.failed, move || {
                 view()
                     .flex_row()
                     .gap_2()
-                    .child(
-                        text(move || i18n.text(Key::MessagesFailed))
-                            .text_xs()
-                            .text_color(move || theme().destructive),
-                    )
+                    .child(ui::error_text(move || i18n.text(Key::MessagesFailed)))
                     .child(ui::action(
                         move || i18n.text(Key::Retry),
                         move || {
@@ -508,17 +504,17 @@ impl Timeline {
                         .gap_2()
                         .px_3()
                         .py_1()
-                        .rounded_full()
+                        .rounded(ui::radius_full())
                         .shadow_md()
-                        .bg(floating_surface)
+                        .bg(ui::bubble_in)
                         .child(ui::busy_indicator(
                             || true,
                             move || i18n.text(Key::LoadingMessages).into(),
                         ))
                         .child(
                             text(move || i18n.text(Key::LoadingMessages))
-                                .text_xs()
-                                .text_color(move || theme().muted_foreground),
+                                .text_role(ui::TextRole::Caption)
+                                .text_color(ui::fg_secondary),
                         )
                 },
             ))
@@ -533,27 +529,23 @@ impl Timeline {
             move || {
                 let arrow = include_str!("../../assets/jump_current_arrow.svg")
                     .replace("fill=\"white\"", "fill=\"currentColor\"");
-                ui::command()
-                    .size_10()
-                    .px_0()
-                    .py_0()
-                    .rounded_full()
-                    .shadow_md()
-                    .bg(floating_surface)
-                    .accessibility_label(move || {
-                        Some(if self.return_target.with(Option::is_some) {
-                            i18n.tr("Return to message", "返回消息").into()
-                        } else {
-                            i18n.text(Key::Latest).into()
+                floating_disc().shadow_md().child(
+                    ui::round_button()
+                        .size_10()
+                        .accessibility_label(move || {
+                            Some(if self.return_target.with(Option::is_some) {
+                                i18n.tr("Return to message", "返回消息").into()
+                            } else {
+                                i18n.text(Key::Latest).into()
+                            })
                         })
-                    })
-                    .on_press(move || self.latest())
-                    .child(
-                        svg(ImageSrc::svg_markup(&arrow))
-                            .w(px(14.0))
-                            .h(px(9.0))
-                            .text_color(move || theme().foreground),
-                    )
+                        .on_press(move || self.latest())
+                        .child(
+                            svg(ImageSrc::svg_markup(&arrow))
+                                .size(ui::icon_sm())
+                                .text_color(ui::fg_primary),
+                        ),
+                )
             },
         )
     }

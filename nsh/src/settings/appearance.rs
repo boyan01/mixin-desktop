@@ -1,11 +1,12 @@
-use super::{Feedback, body, client, section};
+use super::{Feedback, client};
 use crate::{
     appearance::Appearance,
     conversation::parts,
     i18n::{self, I18n, Key},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography as _},
 };
-use nsh_base::{SelectItem, SliderValue, slider, theme};
+use nsh_base::{SelectItem, SliderValue};
 use nsh_core::prelude::*;
 pub(super) fn screen() -> impl IntoElement {
     let i18n = i18n::current();
@@ -41,47 +42,62 @@ pub(super) fn screen() -> impl IntoElement {
         _ => i18n.tr("Follow system", "跟随系统"),
     };
     scroll().flex_1().min_h_0().child(
-        body()
+        parts::page_body()
             .child(
-                section(move || i18n.tr("Theme", "主题")).child(
-                    parts::option_select()
-                        .items(move || {
-                            ["system", "light", "dark"]
-                                .map(|value| SelectItem::new(value, theme_label(value)))
-                                .to_vec()
-                        })
-                        .value(move || Some(SharedString::from(value.get())))
-                        .disabled(move || !ready.get() || feedback.busy.get())
-                        .accessibility_label(move || Some(i18n.tr("Theme", "主题").into()))
-                        .trigger(parts::select_trigger(move || {
-                            value.with(|v| theme_label(v))
-                        }))
-                        .on_change(move |next: &Option<SharedString>| {
-                            if let Some(next) = next.as_ref().map(ToString::to_string) {
-                                save_theme(next, value, feedback);
-                            }
-                        }),
+                ui::card()
+                    .child(
+                        ui::static_row(move || i18n.tr("Theme", "主题")).child(
+                            view().w_40().child(
+                                ui::select()
+                                    .items(move || {
+                                        ["system", "light", "dark"]
+                                            .map(|value| SelectItem::new(value, theme_label(value)))
+                                            .to_vec()
+                                    })
+                                    .value(move || Some(SharedString::from(value.get())))
+                                    .disabled(move || !ready.get() || feedback.busy.get())
+                                    .accessibility_label(move || {
+                                        Some(i18n.tr("Theme", "主题").into())
+                                    })
+                                    .trigger(ui::select_trigger(move || {
+                                        value.with(|v| theme_label(v))
+                                    }))
+                                    .on_change(move |next: &Option<SharedString>| {
+                                        if let Some(next) = next.as_ref().map(ToString::to_string) {
+                                            save_theme(next, value, feedback);
+                                        }
+                                    }),
+                            ),
+                        ),
+                    )
+                    .child(
+                        ui::static_row(move || i18n.text(Key::Language))
+                            .child(view().w_40().child(i18n.setting_picker())),
+                    ),
+            )
+            .child(
+                ui::section(move || i18n.tr("Chat preferences", "聊天偏好")).child(
+                    ui::card()
+                        .child(ui::toggle_row(
+                            move || i18n.tr("Show avatar", "显示头像"),
+                            move || chat.show_avatar(),
+                            move || !chat.ready() || chat.busy(),
+                            move |value| chat.set_avatar(value),
+                        ))
+                        .child(ui::toggle_row(
+                            move || i18n.tr("Show Mixin ID", "显示 Mixin ID"),
+                            move || chat.show_identity(),
+                            move || !chat.ready() || chat.busy(),
+                            move |value| chat.set_identity(value),
+                        )),
                 ),
             )
             .child(
-                section(move || i18n.tr("Chat preferences", "聊天偏好"))
-                    .child(ui::setting_toggle(
-                        move || i18n.tr("Show avatar", "显示头像"),
-                        move || chat.show_avatar(),
-                        move || !chat.ready() || chat.busy(),
-                        move |value| chat.set_avatar(value),
-                    ))
-                    .child(ui::setting_toggle(
-                        move || i18n.tr("Show Mixin ID", "显示 Mixin ID"),
-                        move || chat.show_identity(),
-                        move || !chat.ready() || chat.busy(),
-                        move |value| chat.set_identity(value),
-                    )),
-            )
-            .child(
-                section(move || i18n.tr("Chat text size", "聊天文字大小"))
-                    .child(text_preview(i18n, chat))
-                    .child(text_size_slider(i18n, chat)),
+                ui::section(move || i18n.tr("Chat text size", "聊天文字大小")).child(
+                    ui::card()
+                        .child(text_preview(i18n, chat))
+                        .child(text_size_slider(i18n, chat)),
+                ),
             )
             .child(when(
                 move || chat.failed(),
@@ -97,7 +113,6 @@ pub(super) fn screen() -> impl IntoElement {
                     )
                 },
             ))
-            .child(section(move || i18n.text(Key::Language)).child(i18n.picker()))
             .child(feedback.view(move || i18n.tr("Saving…", "正在保存…")))
             .child(when(
                 move || feedback.failed.get() && !ready.get(),
@@ -146,28 +161,27 @@ fn preview_bubble(
     chat: Appearance,
 ) -> View {
     view()
-        .px_3()
-        .py_2()
+        .px(ui::space_md())
+        .py(ui::space_sm())
         .max_w(relative(0.9))
-        .rounded_lg()
+        .rounded(ui::radius_md())
         .bg(background)
         .child(text(label).text_size(move || chat.primary_size()))
 }
 
 fn text_preview(i18n: I18n, chat: Appearance) -> impl IntoElement {
     view()
-        .gap_3()
-        .p_4()
-        .rounded_lg()
-        .bg(move || theme().color("chat-background").unwrap_or(theme().muted))
+        .gap(ui::space_md())
+        .p(ui::space_lg())
+        .bg(ui::surface_chat)
         .child(view().items_start().child(preview_bubble(
             move || i18n.tr("Hi!", "你好！"),
-            move || theme().color("bubble-in").unwrap_or(theme().card),
+            ui::bubble_in,
             chat,
         )))
         .child(view().items_end().child(preview_bubble(
             move || i18n.tr("How are you?", "最近怎么样？"),
-            move || theme().color("bubble-out").unwrap_or(theme().accent),
+            ui::bubble_out,
             chat,
         )))
 }
@@ -176,10 +190,12 @@ fn text_size_slider(i18n: I18n, chat: Appearance) -> impl IntoElement {
     view()
         .flex_row()
         .items_center()
-        .gap_3()
-        .child(text("A").text_xs())
+        .gap(ui::space_md())
+        .px(ui::space_lg())
+        .py(ui::space_sm())
+        .child(text("A").text_role(ui::TextRole::Caption))
         .child(
-            slider()
+            ui::slider()
                 .flex_1()
                 .min(-2.0)
                 .max(4.0)
@@ -187,10 +203,6 @@ fn text_size_slider(i18n: I18n, chat: Appearance) -> impl IntoElement {
                 .disabled(move || !chat.ready())
                 .value(move || Some(SliderValue::Single(chat.font_delta())))
                 .accessibility_label(move || Some(i18n.tr("Chat text size", "聊天文字大小").into()))
-                .track_class("h-8 justify-center disabled:opacity-40")
-                .indicator_class("h-1 rounded-full bg-muted-foreground/30")
-                .range_class("rounded-full bg-primary")
-                .thumb_class("size-4 rounded-full bg-primary focus:outline-2 focus:outline-ring")
                 .on_change(move |value: &SliderValue| {
                     if let SliderValue::Single(value) = value {
                         chat.preview_font(*value);
@@ -202,7 +214,7 @@ fn text_size_slider(i18n: I18n, chat: Appearance) -> impl IntoElement {
                     }
                 }),
         )
-        .child(text("A").text_2xl())
+        .child(text("A").text_role(ui::TextRole::Headline))
 }
 
 fn apply(value: &str) {

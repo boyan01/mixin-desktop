@@ -4,14 +4,14 @@ use futures::StreamExt as _;
 use mixin_desktop_api::{
     AccountClient, ConversationStorageUsage, SettingsClient, StorageCategoryUsage,
 };
-use nsh_base::{checkbox, theme};
 use nsh_core::prelude::*;
 
-use super::{Feedback, body, client, section, toggle};
+use super::{Feedback, client};
 use crate::{
     conversation::parts,
     i18n::{self, Key},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography as _},
 };
 
 #[derive(Clone, Copy)]
@@ -35,7 +35,11 @@ impl Download {
     }
 }
 
-pub(super) fn screen(account: Arc<AccountClient>) -> impl IntoElement {
+pub(super) fn screen(
+    account: Arc<AccountClient>,
+    title: impl Fn() -> &'static str + Copy + 'static,
+    on_back: impl Fn() + Copy + 'static,
+) -> impl IntoElement {
     let selected = signal(None::<(String, String)>);
     let revision = signal(0_u64);
     view().flex_1().min_h_0().child(dynamic(move || {
@@ -47,7 +51,12 @@ pub(super) fn screen(account: Arc<AccountClient>) -> impl IntoElement {
                 revision.update(|r| *r += 1);
             })
             .into_element(),
-            None => overview(account, selected, revision).into_element(),
+            None => view()
+                .flex_1()
+                .min_h_0()
+                .child(parts::page_header(title, parts::back_button(on_back)))
+                .child(overview(account, selected, revision))
+                .into_element(),
         })
     }))
 }
@@ -75,127 +84,142 @@ fn overview(
             loading.set(false);
         });
     });
-    body()
+    parts::page_body()
         .flex_1()
         .min_h_0()
         .child(
-            section(move || i18n.tr("Automatic media download", "自动下载媒体"))
-                .child(download_toggle(Download::Photos))
-                .child(download_toggle(Download::Videos))
-                .child(download_toggle(Download::Files)),
-        )
-        .child(
-            text(move || {
-                i18n.tr(
-                    "Automatically download media when messages arrive.",
-                    "收到消息时自动下载媒体文件。",
+            ui::section(move || i18n.tr("Automatic media download", "自动下载媒体"))
+                .child(
+                    ui::card()
+                        .child(download_toggle(Download::Photos))
+                        .child(download_toggle(Download::Videos))
+                        .child(download_toggle(Download::Files)),
                 )
-            })
-            .text_sm()
-            .text_color(move || theme().muted_foreground),
+                .child(parts::note(move || {
+                    i18n.tr(
+                        "Automatically download media when messages arrive.",
+                        "收到消息时自动下载媒体文件。",
+                    )
+                })),
         )
         .child(
             view()
-                .flex_row()
-                .items_center()
-                .gap_3()
+                .flex_1()
+                .min_h_0()
+                .gap(ui::space_sm())
                 .child(
-                    text(move || i18n.tr("Storage usage", "存储用量"))
-                        .font_weight(FontWeight::MEDIUM)
-                        .flex_1(),
+                    view()
+                        .flex_row()
+                        .items_center()
+                        .gap(ui::space_md())
+                        .child(
+                            ui::section_label(move || i18n.tr("Storage usage", "存储用量"))
+                                .flex_1(),
+                        )
+                        .child(
+                            text(move || {
+                                bytes(rows.with(|rows| rows.iter().map(|r| r.size_bytes).sum()))
+                            })
+                            .text_role(ui::TextRole::Body)
+                            .text_color(ui::fg_secondary),
+                        )
+                        .child(
+                            ui::command()
+                                .disabled(loading)
+                                .on_press(move || revision.update(|v| *v += 1))
+                                .child(text(move || i18n.tr("Refresh", "刷新"))),
+                        ),
                 )
+                .child(when(
+                    move || loading.get() && rows.with(Vec::is_empty),
+                    move || {
+                        parts::status(move || i18n.tr("Calculating storage…", "正在计算存储用量…"))
+                    },
+                ))
+                .child(when(failed, move || {
+                    parts::failure(
+                        move || i18n.text(Key::CommandFailed),
+                        move || revision.update(|r| *r += 1),
+                    )
+                }))
+                .child(when(
+                    move || !loading.get() && !failed.get() && rows.with(Vec::is_empty),
+                    move || parts::note(move || i18n.tr("No stored media", "暂无媒体缓存")),
+                ))
                 .child(
-                    text(move || bytes(rows.with(|rows| rows.iter().map(|r| r.size_bytes).sum())))
-                        .text_sm()
-                        .text_color(move || theme().muted_foreground),
-                )
-                .child(
-                    ui::command()
-                        .disabled(loading)
-                        .on_press(move || revision.update(|v| *v += 1))
-                        .child(text(move || i18n.tr("Refresh", "刷新"))),
+                    // Hugs its rows, and shrinks to scroll them when they outgrow the page.
+                    ui::card()
+                        .flex_shrink(1.0)
+                        .min_h_0()
+                        .style_when(move || rows.with(Vec::is_empty), |s| s.hidden())
+                        .child(
+                            virtual_list(
+                                move || rows.with(Vec::len),
+                                move |at| storage_row(rows, selected, at),
+                            )
+                            .keys(move || {
+                                rows.with(|r| {
+                                    r.iter()
+                                        .map(|r| r.conversation.conversation_id.clone())
+                                        .collect::<Vec<_>>()
+                                })
+                            })
+                            .estimated_item_size(ui::row_height())
+                            .h(move || px(rows.with(Vec::len) as f32 * ui::row_height().0))
+                            .flex_shrink(1.0)
+                            .min_h_0(),
+                        ),
                 ),
         )
-        .child(when(
-            move || loading.get() && rows.with(Vec::is_empty),
-            move || parts::status(move || i18n.tr("Calculating storage…", "正在计算存储用量…")),
-        ))
-        .child(when(failed, move || {
-            parts::failure(
-                move || i18n.text(Key::CommandFailed),
-                move || revision.update(|r| *r += 1),
-            )
-        }))
-        .child(when(
-            move || !loading.get() && !failed.get() && rows.with(Vec::is_empty),
-            move || {
-                text(move || i18n.tr("No stored media", "暂无媒体缓存"))
-                    .text_sm()
-                    .text_color(move || theme().muted_foreground)
-            },
+}
+
+fn storage_row(
+    rows: Signal<Vec<ConversationStorageUsage>>,
+    selected: Signal<Option<(String, String)>>,
+    at: Position,
+) -> impl IntoElement {
+    ui::card_row()
+        .child(ui::conversation_avatar(
+            move || rows.with(|r| r.get(at.index()).map(|r| r.conversation.clone())),
+            ui::AvatarSize::Medium,
         ))
         .child(
-            virtual_list(
-                move || rows.with(Vec::len),
-                move |at| {
-                    ui::command()
-                        .min_h_16()
-                        .justify_start()
-                        .gap_3()
-                        .child(ui::conversation_avatar(
-                            move || {
-                                rows.with(|r| r.get(at.index()).map(|r| r.conversation.clone()))
-                            },
-                            px(40.0),
-                        ))
-                        .child(
-                            text(move || {
-                                rows.with(|r| {
-                                    r.get(at.index())
-                                        .map(|r| r.conversation.name.clone())
-                                        .unwrap_or_default()
-                                })
-                            })
-                            .flex_1()
-                            .min_w_0()
-                            .number_of_lines(1),
-                        )
-                        .child(
-                            text(move || {
-                                rows.with(|r| {
-                                    r.get(at.index())
-                                        .map(|r| bytes(r.size_bytes))
-                                        .unwrap_or_default()
-                                })
-                            })
-                            .text_sm()
-                            .text_color(move || theme().muted_foreground),
-                        )
-                        .on_press(move || {
-                            if let Some(target) = rows.with(|r| {
-                                r.get(at.index()).map(|r| {
-                                    (
-                                        r.conversation.conversation_id.clone(),
-                                        r.conversation.name.clone(),
-                                    )
-                                })
-                            }) {
-                                selected.set(Some(target));
-                            }
-                        })
-                },
-            )
-            .keys(move || {
+            text(move || {
                 rows.with(|r| {
-                    r.iter()
-                        .map(|r| r.conversation.conversation_id.clone())
-                        .collect::<Vec<_>>()
+                    r.get(at.index())
+                        .map(|r| r.conversation.name.clone())
+                        .unwrap_or_default()
                 })
             })
-            .estimated_item_size(parts::row_height())
+            .text_role(ui::TextRole::Label)
             .flex_1()
-            .min_h_0(),
+            .min_w_0()
+            .number_of_lines(1),
         )
+        .child(
+            text(move || {
+                rows.with(|r| {
+                    r.get(at.index())
+                        .map(|r| bytes(r.size_bytes))
+                        .unwrap_or_default()
+                })
+            })
+            .text_role(ui::TextRole::Body)
+            .text_color(ui::fg_secondary),
+        )
+        .child(ui::chevron())
+        .on_press(move || {
+            if let Some(target) = rows.with(|r| {
+                r.get(at.index()).map(|r| {
+                    (
+                        r.conversation.conversation_id.clone(),
+                        r.conversation.name.clone(),
+                    )
+                })
+            }) {
+                selected.set(Some(target));
+            }
+        })
 }
 
 fn download_toggle(kind: Download) -> impl IntoElement {
@@ -237,8 +261,7 @@ fn download_toggle(kind: Download) -> impl IntoElement {
         });
     });
     view()
-        .gap_1()
-        .child(toggle(
+        .child(ui::toggle_row(
             move || match kind {
                 Download::Photos => i18n.tr("Photos", "图片"),
                 Download::Videos => i18n.tr("Videos", "视频"),
@@ -266,6 +289,8 @@ fn download_toggle(kind: Download) -> impl IntoElement {
                 move || i18n.text(Key::CommandFailed),
                 move || retry.update(|r| *r += 1),
             )
+            .px(ui::space_lg())
+            .pb(ui::space_sm())
         }))
 }
 
@@ -343,17 +368,13 @@ fn detail(
         ))
         .child(
             scroll().flex_1().min_h_0().child(
-                body()
-                    .child(
-                        text(move || {
-                            i18n.tr(
-                                "Clear cached media from this device. Messages stay in the conversation.",
-                                "清除此设备上的媒体缓存，会话中的消息会保留。",
-                            )
-                        })
-                        .text_sm()
-                        .text_color(move || theme().muted_foreground),
-                    )
+                parts::page_body()
+                    .child(parts::note(move || {
+                        i18n.tr(
+                            "Clear cached media from this device. Messages stay in the conversation.",
+                            "清除此设备上的媒体缓存，会话中的消息会保留。",
+                        )
+                    }))
                     .child(when(
                         move || loading.get() && rows.with(Vec::is_empty),
                         move || {
@@ -368,23 +389,26 @@ fn detail(
                             move || revision.update(|v| *v += 1),
                         )
                     }))
-                    .children(["photos", "videos", "audio", "files"].into_iter().map(
+                    .child(ui::card().children(["photos", "videos", "audio", "files"].into_iter().map(
                         move |category| {
                             category_row(category, rows, selected, move || {
                                 loading.get() || feedback.busy.get()
                             })
                         },
-                    ))
+                    )))
                     .child(
-                        ui::command()
-                            .text_color(move || theme().destructive)
+                        ui::card().child(
+                            ui::settings_row(None, move || {
+                                i18n.tr("Clear selected cache…", "清除选中的缓存…")
+                            })
+                            .text_color(ui::danger)
                             .disabled(clear_disabled)
                             .on_press(move || {
                                 if !untracked(clear_disabled) {
                                     confirming.set(true);
                                 }
-                            })
-                            .child(text(move || i18n.tr("Clear selected cache…", "清除选中的缓存…"))),
+                            }),
+                        ),
                     )
                     .child(feedback.view(move || i18n.tr("Clearing cache…", "正在清除缓存…")))
                     .child(when(
@@ -409,53 +433,41 @@ fn category_row(
                 .any(|row| row.category == category && row.size_bytes > 0)
         })
     };
-    checkbox()
-        .checked(chosen)
-        .disabled(move || busy() || unavailable())
-        .style_when(unavailable, |style| style.opacity(0.5))
-        .flex_row()
-        .items_center()
-        .gap_3()
-        .py_3()
-        .indicator_class(
-            "size-5 rounded border border-input checked:bg-primary checked:border-primary items-center justify-center",
-        )
-        .indicator(when(chosen, move || {
-            ui::icon(ui::Icon::Check)
-                .size_4()
-                .text_color(move || theme().primary_foreground)
-        }))
-        .child(
-            text(move || match category {
-                "photos" => i18n.tr("Photos", "图片"),
-                "videos" => i18n.tr("Videos", "视频"),
-                "audio" => i18n.tr("Audio", "音频"),
-                _ => i18n.tr("Files", "文件"),
-            })
-            .flex_1()
-            .text_sm(),
-        )
-        .child(
-            text(move || {
-                rows.with(|rows| {
-                    rows.iter()
-                        .find(|row| row.category == category)
-                        .map(|row| bytes(row.size_bytes))
-                        .unwrap_or_default()
-                })
-            })
-            .text_sm()
-            .text_color(move || theme().muted_foreground),
-        )
-        .on_change(move |checked: &bool| {
+    ui::checkbox_row(
+        chosen,
+        move || busy() || unavailable(),
+        move |checked| {
             selected.update(|s| {
-                if *checked {
+                if checked {
                     s.insert(category.into());
                 } else {
                     s.remove(category);
                 }
             })
+        },
+    )
+    .child(
+        text(move || match category {
+            "photos" => i18n.tr("Photos", "图片"),
+            "videos" => i18n.tr("Videos", "视频"),
+            "audio" => i18n.tr("Audio", "音频"),
+            _ => i18n.tr("Files", "文件"),
         })
+        .flex_1()
+        .text_role(ui::TextRole::Label),
+    )
+    .child(
+        text(move || {
+            rows.with(|rows| {
+                rows.iter()
+                    .find(|row| row.category == category)
+                    .map(|row| bytes(row.size_bytes))
+                    .unwrap_or_default()
+            })
+        })
+        .text_role(ui::TextRole::Body)
+        .text_color(ui::fg_secondary),
+    )
 }
 
 fn clear_dialog(
@@ -484,7 +496,7 @@ fn clear_dialog(
                         "仅保存在此设备上的文件可能无法再次下载。",
                     )
                 })
-                .text_sm(),
+                .text_role(ui::TextRole::Body),
             )
             .child(
                 parts::dialog_actions()
@@ -496,9 +508,8 @@ fn clear_dialog(
                         .disabled(feedback.busy),
                     )
                     .child(
-                        ui::command()
+                        ui::button(ui::ButtonTone::Danger, ui::ButtonSize::Regular)
                             .disabled(disabled)
-                            .text_color(move || theme().destructive)
                             .child(text(move || i18n.tr("Clear cache", "清除缓存")))
                             .on_press(clear),
                     ),

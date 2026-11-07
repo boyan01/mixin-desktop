@@ -1,11 +1,11 @@
 use mixin_desktop_api::{AccountClient, SnapshotDetailItem};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use std::sync::Arc;
 
 use crate::{
     i18n::{self, Key},
-    presentation, runtime, ui,
+    presentation, runtime,
+    ui::{self, Typography as _},
 };
 
 #[derive(Clone)]
@@ -48,9 +48,8 @@ pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl 
     scroll().flex_1().min_h_0().child(
         view()
             .w_full()
-            .max_w(px(640.0))
-            .p_6()
-            .gap_4()
+            .p(ui::space_xl())
+            .gap(ui::space_lg())
             .child(
                 text(move || {
                     if detail.with(|value| {
@@ -63,8 +62,7 @@ pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl 
                         i18n.text(Key::Transfer)
                     }
                 })
-                .text_lg()
-                .font_weight(FontWeight::SEMIBOLD),
+                .text_role(ui::TextRole::Headline),
             )
             .child(when(loading, move || {
                 text(move || i18n.tr("Loading transfer…", "正在加载转账…"))
@@ -72,10 +70,7 @@ pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl 
             .child(when(failed, move || {
                 view()
                     .gap_2()
-                    .child(
-                        text(move || i18n.text(Key::CommandFailed))
-                            .text_color(move || theme().destructive),
-                    )
+                    .child(ui::error_text(move || i18n.text(Key::CommandFailed)))
                     .child(ui::action(
                         move || i18n.text(Key::Retry),
                         move || retry.update(|v| *v += 1),
@@ -176,8 +171,7 @@ pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl 
                     if let Some(url) = inscription_image {
                         content = content.child(
                             image(url)
-                                .w(px(260.0))
-                                .h(px(260.0))
+                                .size_64()
                                 .max_w(relative(1.0))
                                 .object_fit(ResizeMode::Contain)
                                 .label(move || i18n.tr("Inscription", "铭文")),
@@ -208,10 +202,10 @@ pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl 
                                 .gap_1()
                                 .child(
                                     text(title)
-                                        .text_xs()
-                                        .text_color(move || theme().muted_foreground),
+                                        .text_role(ui::TextRole::Caption)
+                                        .text_color(ui::fg_secondary),
                                 )
-                                .child(text(value).text_sm().select_text())
+                                .child(text(value).text_role(ui::TextRole::Body).select_text())
                         }))
                         .into_element()
                 })
@@ -273,22 +267,20 @@ fn text_content(account: Arc<AccountClient>, hash: String) -> impl IntoElement {
         .gap_2()
         .child(
             text(move || i18n.tr("Text content", "文本内容"))
-                .text_xs()
-                .text_color(move || theme().muted_foreground),
+                .text_role(ui::TextRole::Caption)
+                .text_color(ui::fg_secondary),
         )
         .child(when(loading, move || {
             text(move || i18n.tr("Loading content…", "正在加载内容…"))
-                .text_sm()
-                .text_color(move || theme().muted_foreground)
+                .text_role(ui::TextRole::Body)
+                .text_color(ui::fg_secondary)
         }))
         .child(when(failed, move || {
             view()
                 .gap_2()
-                .child(
-                    text(move || i18n.tr("Couldn’t load content", "无法加载内容"))
-                        .text_sm()
-                        .text_color(move || theme().destructive),
-                )
+                .child(ui::error_text(move || {
+                    i18n.tr("Couldn’t load content", "无法加载内容")
+                }))
                 .child(ui::action(
                     move || i18n.text(Key::Retry),
                     move || retry.update(|value| *value += 1),
@@ -305,7 +297,7 @@ fn text_content(account: Arc<AccountClient>, hash: String) -> impl IntoElement {
                                 i18n.tr("Content unavailable", "内容不可用").into()
                             })
                         })
-                        .text_sm()
+                        .text_role(ui::TextRole::Body)
                         .select_text(),
                     )
                     .child(when(truncated, move || {
@@ -315,8 +307,8 @@ fn text_content(account: Arc<AccountClient>, hash: String) -> impl IntoElement {
                                 "仅显示前 8,192 个字符",
                             )
                         })
-                        .text_xs()
-                        .text_color(move || theme().muted_foreground)
+                        .text_role(ui::TextRole::Caption)
+                        .text_color(ui::fg_secondary)
                     }))
             },
         ))

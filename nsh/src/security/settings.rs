@@ -1,11 +1,10 @@
-use nsh_base::{SelectItem, theme};
+use nsh_base::SelectItem;
 use nsh_core::prelude::*;
 
 use super::{Handle, passcode};
 use crate::{
     conversation::parts::{self, Prompt, confirm},
     i18n::{self, Key},
-    settings::{body, section},
     ui,
 };
 
@@ -26,51 +25,46 @@ pub(crate) fn settings(handle: Handle) -> impl IntoElement {
         })
     };
     scroll().flex_1().min_h_0().child(
-        body()
+        parts::page_body()
             .child(
-                section(move || i18n.tr("Screen privacy", "锁屏保护")).child(
-                    text(move || {
+                ui::section(move || i18n.tr("Screen privacy", "锁屏保护"))
+                    .child(parts::note(move || {
                         i18n.tr(
                             "A screen passcode hides account content while Mixin keeps syncing in the background.",
                             "锁屏密码可隐藏账号内容。锁屏后，Mixin 仍会在后台同步消息。",
                         )
-                    })
-                    .text_sm()
-                    .text_color(move || theme().muted_foreground),
-                ),
+                    }))
+                    .child(when(
+                        move || available(false),
+                        move || {
+                            parts::note(move || {
+                                i18n.tr(
+                                    "Screen privacy is not available on this platform yet.",
+                                    "此平台暂不支持锁屏保护。",
+                                )
+                            })
+                        },
+                    ))
+                    .child(when(
+                        move || available(true),
+                        move || {
+                            ui::card()
+                                .child(ui::toggle_row(
+                                    move || i18n.tr("Screen passcode", "锁屏密码"),
+                                    move || handle.enabled(),
+                                    move || handle.busy.get(),
+                                    move |enabled| {
+                                        if enabled {
+                                            setup.set(true);
+                                        } else {
+                                            disable_passcode(handle);
+                                        }
+                                    },
+                                ))
+                                .child(when(move || handle.enabled(), move || lock_options(handle)))
+                        },
+                    )),
             )
-            .child(when(
-                move || available(false),
-                move || {
-                    text(move || {
-                        i18n.tr(
-                            "Screen privacy is not available on this platform yet.",
-                            "此平台暂不支持锁屏保护。",
-                        )
-                    })
-                    .text_sm()
-                },
-            ))
-            .child(when(
-                move || available(true),
-                move || {
-                    view()
-                        .gap_4()
-                        .child(ui::setting_toggle(
-                            move || i18n.tr("Screen passcode", "锁屏密码"),
-                            move || handle.enabled(),
-                            move || handle.busy.get(),
-                            move |enabled| {
-                                if enabled {
-                                    setup.set(true);
-                                } else {
-                                    disable_passcode(handle);
-                                }
-                            },
-                        ))
-                        .child(when(move || handle.enabled(), move || lock_options(handle)))
-                },
-            ))
             .child(when(handle.failed, move || {
                 ui::error_text(move || i18n.text(Key::CommandFailed))
             }))
@@ -107,11 +101,10 @@ fn lock_options(handle: Handle) -> impl IntoElement {
             .with(|state| state.as_ref().map_or(0, |state| state.auto_lock_minutes))
     };
     view()
-        .gap_4()
         .child(
-            section(move || i18n.tr("Automatic lock", "自动锁屏"))
-                .child(
-                    parts::option_select()
+            ui::static_row(move || i18n.tr("Automatic lock", "自动锁屏")).child(
+                view().w_40().child(
+                    ui::select()
                         .items(move || {
                             [0_u32, 1, 5, 60, 300]
                                 .into_iter()
@@ -125,7 +118,7 @@ fn lock_options(handle: Handle) -> impl IntoElement {
                         .accessibility_label(move || {
                             Some(i18n.tr("Automatic lock", "自动锁屏").into())
                         })
-                        .trigger(parts::select_trigger(move || duration(i18n, minutes())))
+                        .trigger(ui::select_trigger(move || duration(i18n, minutes())))
                         .on_change(move |next: &Option<SharedString>| {
                             if let Some(minutes) =
                                 next.as_ref().and_then(|next| next.parse::<u32>().ok())
@@ -136,19 +129,19 @@ fn lock_options(handle: Handle) -> impl IntoElement {
                                 });
                             }
                         }),
-                )
-                .child(
-                    text(move || {
-                        i18n.tr(
-                            "Lock after Mixin loses focus. Returning before the timeout cancels the lock.",
-                            "Mixin 失去焦点后开始计时。在到期前返回应用，可取消自动锁屏。",
-                        )
-                    })
-                    .text_sm()
-                    .text_color(move || theme().muted_foreground),
                 ),
+            ),
         )
-        .child(ui::setting_toggle(
+        .child(
+            parts::note(move || {
+                i18n.tr(
+                    "Lock after Mixin loses focus. Returning before the timeout cancels the lock.",
+                    "Mixin 失去焦点后开始计时。在到期前返回应用，可取消自动锁屏。",
+                )
+            })
+            .pb(ui::space_sm()),
+        )
+        .child(ui::toggle_row(
             move || i18n.tr("Biometric unlock", "生物识别解锁"),
             move || {
                 handle
@@ -162,8 +155,9 @@ fn lock_options(handle: Handle) -> impl IntoElement {
             },
         ))
         .child(
-            ui::action(move || i18n.tr("Lock now", "立即锁屏"), move || handle.lock())
-                .disabled(handle.busy),
+            ui::settings_row(None, move || i18n.tr("Lock now", "立即锁屏"))
+                .disabled(handle.busy)
+                .on_press(move || handle.lock()),
         )
 }
 

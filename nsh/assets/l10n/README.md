@@ -34,7 +34,7 @@ the caller's English wording (or its existing simplified Chinese value for
 `zh-CN`). English presentation retains the caller's wording even for aliases.
 Traditional Chinese never falls back automatically to simplified Chinese.
 
-The supplemental catalog provides 553 exact English keys, including 34 named
+The supplemental catalog provides 552 exact English keys, including 33 named
 parameter templates. It covers the initial 299 NSH-only phrases, count/date
 templates, native bot chrome, crop controls, message and system states,
 inscription details and text previews, disappearing-message units, shared-media

@@ -1,5 +1,8 @@
 use super::{parse::Payload, tr};
-use crate::{runtime, ui};
+use crate::{
+    runtime,
+    ui::{self, Typography as _},
+};
 use mixin_desktop_api::AccountClient;
 use nsh_base::text_view;
 use nsh_core::prelude::*;
@@ -11,11 +14,14 @@ pub(super) fn render(
     ready: Signal<bool>,
 ) -> AnyElement {
     match payload {
-        Payload::Text(content) => text(content).text_sm().select_text().into_element(),
+        Payload::Text(content) => text(content)
+            .text_role(ui::TextRole::Body)
+            .select_text()
+            .into_element(),
         Payload::Post(content) => text_view()
             .markdown(Some(SharedString::from(content)))
             .selectable(true)
-            .text_sm()
+            .text_role(ui::TextRole::Body)
             .into_element(),
         Payload::Image(url) => image(url)
             .w_full()
@@ -45,8 +51,8 @@ pub(super) fn render(
                         .unwrap_or_default()
                         .to_owned(),
                 )
-                .text_sm()
-                .font_weight(FontWeight::SEMIBOLD),
+                .text_role(ui::TextRole::Body)
+                .text_emphasis(),
             )
             .child(
                 text(
@@ -56,7 +62,7 @@ pub(super) fn render(
                         .unwrap_or_default()
                         .to_owned(),
                 )
-                .text_sm()
+                .text_role(ui::TextRole::Body)
                 .select_text(),
             )
             .into_element()
@@ -98,7 +104,7 @@ pub(super) fn render(
                         .gap_2()
                         .child(
                             text(move || tr("Sticker preview unavailable", "无法预览贴纸"))
-                                .text_sm(),
+                                .text_role(ui::TextRole::Body),
                         )
                         .child(ui::action(
                             move || tr("Retry preview", "重试预览"),
@@ -154,6 +160,7 @@ pub(super) fn render(
                                 .unwrap_or_default()
                         })
                     },
+                    ui::AvatarSize::Medium,
                 ))
                 .child(
                     text(move || {
@@ -164,7 +171,7 @@ pub(super) fn render(
                                 .unwrap_or_else(|| tr("Contact", "联系人").into())
                         })
                     })
-                    .text_sm(),
+                    .text_role(ui::TextRole::Body),
                 )
                 .child(
                     text(move || {
@@ -175,14 +182,14 @@ pub(super) fn render(
                                 .unwrap_or_default()
                         })
                     })
-                    .text_xs(),
+                    .text_role(ui::TextRole::Caption),
                 )
                 .child(when(failed, move || {
                     view()
                         .gap_2()
                         .child(
                             text(move || tr("Contact preview unavailable", "无法预览联系人"))
-                                .text_sm(),
+                                .text_role(ui::TextRole::Body),
                         )
                         .child(ui::action(
                             move || tr("Retry preview", "重试预览"),

@@ -1,5 +1,4 @@
 use mixin_desktop_api::{DesktopClient, GifItem};
-use nsh_base::theme;
 use nsh_core::prelude::*;
 use std::time::Duration;
 
@@ -9,10 +8,13 @@ use super::{
 };
 use crate::{
     i18n::{self, Key},
-    runtime, ui,
+    runtime,
+    ui::{self, Typography as _},
 };
 
 const SEARCH_DELAY: Duration = Duration::from_millis(250);
+/// A GIF preview and its margin, which the grid's column count depends on.
+const GIF_CELL: f32 = 96.0;
 
 pub(super) fn panel(state: State) -> impl IntoElement {
     let i18n = i18n::current();
@@ -88,13 +90,9 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                 .child(when(
                     move || !loading.get() && !failed.get() && !available.get(),
                     move || {
-                        view().flex_1().items_center().justify_center().child(
-                            text(move || {
-                                tr(i18n, "GIF search is unavailable.", "GIF 搜索暂不可用。")
-                            })
-                            .text_sm()
-                            .text_color(move || theme().muted_foreground),
-                        )
+                        ui::placeholder(move || {
+                            tr(i18n, "GIF search is unavailable.", "GIF 搜索暂不可用。")
+                        })
                     },
                 ))
                 .child(when(
@@ -111,7 +109,8 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                                 move || tr(i18n, "Loading GIFs…", "正在加载 GIF…").into(),
                             ))
                             .child(
-                                text(move || tr(i18n, "Loading GIFs…", "正在加载 GIF…")).text_sm(),
+                                text(move || tr(i18n, "Loading GIFs…", "正在加载 GIF…"))
+                                    .text_role(ui::TextRole::Body),
                             )
                     },
                 ))
@@ -123,11 +122,7 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                             .items_center()
                             .justify_center()
                             .gap_2()
-                            .child(
-                                text(move || i18n.text(Key::CommandFailed))
-                                    .text_sm()
-                                    .text_color(move || theme().destructive),
-                            )
+                            .child(ui::error_text(move || i18n.text(Key::CommandFailed)))
                             .child(
                                 ui::action(
                                     move || i18n.text(Key::Retry),
@@ -144,13 +139,7 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                             && available.get()
                             && rows.with(Vec::is_empty)
                     },
-                    move || {
-                        view().flex_1().items_center().justify_center().child(
-                            text(move || tr(i18n, "No GIFs found", "未找到 GIF"))
-                                .text_sm()
-                                .text_color(move || theme().muted_foreground),
-                        )
-                    },
+                    move || ui::placeholder(move || tr(i18n, "No GIFs found", "未找到 GIF")),
                 ))
                 .child(
                     virtual_list(
@@ -202,8 +191,8 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                     .keys(move || {
                         rows.with(|rows| rows.iter().map(|g| g.id.clone()).collect::<Vec<_>>())
                     })
-                    .columns(move || columns(96.0))
-                    .estimated_item_size(px(96.0))
+                    .columns(move || columns(GIF_CELL))
+                    .estimated_item_size(px(GIF_CELL))
                     .flex_1()
                     .min_h_0()
                     .style_when(
@@ -220,8 +209,8 @@ pub(super) fn panel(state: State) -> impl IntoElement {
                 .gap_2()
                 .child(
                     text("GIPHY")
-                        .text_xs()
-                        .text_color(move || theme().muted_foreground)
+                        .text_role(ui::TextRole::Caption)
+                        .text_color(ui::fg_secondary)
                         .flex_1(),
                 )
                 .child(ui::busy_indicator(

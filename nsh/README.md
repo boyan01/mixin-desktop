@@ -81,7 +81,7 @@ sign-out. Their native desktop behavior remains unverified.
   native frame/document provenance; it contains no signing or business logic.
 - `runtime.rs`: cancellable business reads, bounded subscription delivery and
   completion of user-committed writes after their awaiting view is disposed.
-- `ui.rs`, `theme.json`: reusable native controls, semantic colors and layout
+- `ui/`, `theme.json`, `DESIGN.md`: reusable native controls, semantic colors and layout
   tokens. Original icons, logo and chat wallpaper are retained as assets.
 
 UI signals stay on the NSH engine thread. No NSH screen imports Core DAOs or keeps

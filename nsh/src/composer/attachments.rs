@@ -5,7 +5,7 @@ use nsh_core::{
 };
 use std::sync::Arc;
 
-use super::{AttachmentSource, files, forms, menu_row, tool_button, tr};
+use super::{AttachmentSource, files, forms, tool_button, tr};
 use crate::{
     i18n::{self, Key},
     motion::Presence,
@@ -121,28 +121,28 @@ pub(crate) fn attachments(
     view()
         .child(
             ui::menu()
-                .offset(px(8.0))
+                .offset(ui::space_sm())
                 .trigger(
                     tool_button()
                         .accessibility_label(move || Some(i18n.text(Key::Attachment).into()))
-                        .child(ui::icon(ui::Icon::Add).size_6()),
+                        .child(ui::icon(ui::Icon::Add).size(ui::icon_lg())),
                 )
-                .child(menu_row(
-                    move || tr(i18n, "Contact…", "联系人…"),
-                    move || action.set(Some(Action::Contact)),
-                ))
-                .child(menu_row(
-                    move || tr(i18n, "Files…", "文件…"),
-                    move || pick(false),
-                ))
-                .child(menu_row(
-                    move || tr(i18n, "Pictures and videos…", "图片和视频…"),
-                    move || pick(true),
-                ))
-                .child(menu_row(
-                    move || tr(i18n, "Post…", "文章…"),
-                    move || action.set(Some(Action::Post)),
-                )),
+                .child(
+                    ui::menu_row(move || tr(i18n, "Contact…", "联系人…"))
+                        .on_select(move || action.set(Some(Action::Contact))),
+                )
+                .child(
+                    ui::menu_row(move || tr(i18n, "Files…", "文件…"))
+                        .on_select(move || pick(false)),
+                )
+                .child(
+                    ui::menu_row(move || tr(i18n, "Pictures and videos…", "图片和视频…"))
+                        .on_select(move || pick(true)),
+                )
+                .child(
+                    ui::menu_row(move || tr(i18n, "Post…", "文章…"))
+                        .on_select(move || action.set(Some(Action::Post))),
+                ),
         )
         .child(when(
             move || host.presence.mounted(),
