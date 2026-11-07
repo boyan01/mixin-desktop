@@ -19,6 +19,9 @@ pub struct MessageFtsSearch {
     pub query: String,
     pub conversation_ids: Vec<String>,
     pub sender_ids: Vec<String>,
+    pub conversation_category: Option<String>,
+    pub circle_id: Option<String>,
+    pub unseen_only: bool,
     pub categories: Vec<String>,
     pub start_created_at_millis: Option<i64>,
     pub end_created_at_millis: Option<i64>,
@@ -268,6 +271,15 @@ impl MessageFtsDao {
             }
             separated.push_unseparated(")");
         }
+        if input.conversation_category.is_some() || input.circle_id.is_some() || input.unseen_only {
+            builder.push(" AND EXISTS (SELECT 1 FROM conversations conversation LEFT JOIN users owner ON owner.user_id = conversation.owner_id WHERE conversation.conversation_id = meta.conversation_id AND conversation.category IN ('CONTACT','GROUP') AND CASE ")
+                .push_bind(input.conversation_category.as_deref().unwrap_or("chats"))
+                .push(" WHEN 'chats' THEN TRUE WHEN 'contacts' THEN conversation.category = 'CONTACT' AND owner.relationship = 'FRIEND' AND owner.app_id IS NULL WHEN 'groups' THEN conversation.category = 'GROUP' WHEN 'bots' THEN conversation.category = 'CONTACT' AND owner.app_id IS NOT NULL WHEN 'strangers' THEN conversation.category = 'CONTACT' AND COALESCE(owner.relationship,'STRANGER') = 'STRANGER' AND owner.app_id IS NULL WHEN 'circle' THEN EXISTS (SELECT 1 FROM circle_conversations circle WHERE circle.conversation_id = conversation.conversation_id AND circle.circle_id = ")
+                .push_bind(input.circle_id.as_deref().unwrap_or_default())
+                .push(") ELSE FALSE END AND (")
+                .push_bind(input.unseen_only)
+                .push(" = FALSE OR conversation.unseen_message_count > 0))");
+        }
         if !input.sender_ids.is_empty() {
             builder.push(" AND meta.user_id IN (");
             let mut separated = builder.separated(", ");
@@ -432,6 +444,85 @@ mod tests {
     use crate::db::mixin::MixinDatabase;
 
     use super::MessageFtsSearch;
+
+    #[tokio::test]
+    async fn scoped_message_search_filters_conversation_scope_before_limits_and_cursors() {
+        use crate::db::mixin::message::Message;
+        use chrono::{Duration, Utc};
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        for (id, category, unseen) in [
+            ("group", "GROUP", 1),
+            ("read", "GROUP", 0),
+            ("contact", "CONTACT", 1),
+        ] {
+            crate::db::query("INSERT INTO conversations (conversation_id,category,created_at,status,unseen_message_count) VALUES (?,?,?,2,?)")
+                .bind(id).bind(category).bind(Utc::now()).bind(unseen).execute(&database.message_dao.0).await.unwrap();
+        }
+        let base = Utc::now().naive_utc();
+        for (id, conversation, seconds) in [
+            ("old", "group", 1),
+            ("new", "group", 2),
+            ("read", "read", 3),
+            ("outside", "contact", 4),
+        ] {
+            database
+                .message_dao
+                .insert_message(&Message {
+                    message_id: id.into(),
+                    conversation_id: conversation.into(),
+                    user_id: "sender".into(),
+                    category: "PLAIN_TEXT".into(),
+                    content: Some("needle".into()),
+                    status: sdk::MessageStatus::Sent,
+                    created_at: base + Duration::seconds(seconds),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            database
+                .message_fts_dao
+                .upsert(id, conversation, "needle")
+                .await
+                .unwrap();
+        }
+        let mut input = MessageFtsSearch {
+            query: "needle".into(),
+            conversation_category: Some("groups".into()),
+            unseen_only: true,
+            limit: 1,
+            ..Default::default()
+        };
+        let first = database.message_fts_dao.search(&input).await.unwrap();
+        assert_eq!(first[0].message_id, "new");
+        input.cursor_message_id = Some("new".into());
+        let second = database.message_fts_dao.search(&input).await.unwrap();
+        assert_eq!(second[0].message_id, "old");
+        input.cursor_message_id = None;
+        input.unseen_only = false;
+        assert_eq!(
+            database.message_fts_dao.search(&input).await.unwrap()[0].message_id,
+            "read"
+        );
+        crate::db::query("INSERT INTO circle_conversations (circle_id,conversation_id,user_id,created_at) VALUES ('circle','group',NULL,0)")
+            .execute(&database.message_dao.0).await.unwrap();
+        input.conversation_category = Some("circle".into());
+        input.circle_id = Some("circle".into());
+        assert_eq!(
+            database.message_fts_dao.search(&input).await.unwrap()[0].message_id,
+            "new"
+        );
+        input.circle_id = Some("missing".into());
+        assert!(database
+            .message_fts_dao
+            .search(&input)
+            .await
+            .unwrap()
+            .is_empty());
+        database.close().await;
+    }
 
     #[tokio::test]
     async fn bounded_window_avoids_expanding_historical_matches() {

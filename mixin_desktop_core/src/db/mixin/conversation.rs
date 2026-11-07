@@ -6,6 +6,9 @@ use sdk::ConversationCategory;
 use crate::db::mixin::message::Message;
 use crate::db::Error;
 
+#[cfg(test)]
+mod window_tests;
+
 #[derive(Clone)]
 pub struct ConversationDao(pub(crate) crate::db::Pool);
 
@@ -86,113 +89,7 @@ impl ConversationListItem {
     }
 }
 
-impl ConversationDao {
-    pub async fn count_items(
-        &self,
-        category: &str,
-        circle_id: Option<&str>,
-        keyword: &str,
-        unseen_only: bool,
-    ) -> Result<i64, Error> {
-        let count = crate::db::query_scalar::< i64>(
-            r#"
-SELECT COUNT(*)
-FROM conversations conversation
-LEFT JOIN users owner ON owner.user_id = conversation.owner_id
-LEFT JOIN messages last_message ON last_message.message_id = conversation.last_message_id
-WHERE conversation.category IN ('CONTACT', 'GROUP')
-  AND (
-      ?1 = 'chats'
-      OR (?1 = 'contacts' AND conversation.category = 'CONTACT'
-          AND owner.relationship = 'FRIEND' AND owner.app_id IS NULL)
-      OR (?1 = 'groups' AND conversation.category = 'GROUP')
-      OR (?1 = 'bots' AND conversation.category = 'CONTACT' AND owner.app_id IS NOT NULL)
-      OR (?1 = 'strangers' AND conversation.category = 'CONTACT'
-          AND COALESCE(owner.relationship, 'STRANGER') = 'STRANGER' AND owner.app_id IS NULL)
-      OR (?1 = 'circle' AND EXISTS (
-          SELECT 1 FROM circle_conversations circle_conversation
-          WHERE circle_conversation.conversation_id = conversation.conversation_id
-            AND circle_conversation.circle_id = ?2
-      ))
-  )
-  AND (?3 = FALSE OR conversation.unseen_message_count > 0)
-  AND (
-      ?4 = ''
-      OR CASE WHEN conversation.category = 'GROUP'
-              THEN conversation.name ELSE COALESCE(owner.full_name, conversation.owner_id, '') END LIKE '%' || ?4 || '%' COLLATE NOCASE
-      OR owner.identity_number LIKE '%' || ?4 || '%' COLLATE NOCASE
-      OR COALESCE(last_message.content, '') LIKE '%' || ?4 || '%' COLLATE NOCASE
-  )
-            "#,
-        )
-        .bind(category)
-        .bind(circle_id.unwrap_or_default())
-        .bind(unseen_only)
-        .bind(keyword.trim())
-        .fetch_one(&self.0)
-        .await?;
-        Ok(count)
-    }
-
-    pub async fn list_items(
-        &self,
-        category: &str,
-        circle_id: Option<&str>,
-        keyword: &str,
-        unseen_only: bool,
-        limit: i64,
-        offset: i64,
-    ) -> Result<Vec<ConversationListItem>, Error> {
-        self.list_items_inner(
-            category,
-            circle_id,
-            keyword,
-            unseen_only,
-            limit.clamp(1, 500),
-            offset,
-            "",
-        )
-        .await
-    }
-
-    pub async fn all_items(&self) -> Result<Vec<ConversationListItem>, Error> {
-        self.list_items_inner("chats", None, "", false, i64::MAX, 0, "")
-            .await
-    }
-
-    pub async fn list_items_by_ids(
-        &self,
-        conversation_ids: &[String],
-    ) -> Result<Vec<ConversationListItem>, Error> {
-        if conversation_ids.is_empty() {
-            return Ok(Vec::new());
-        }
-        let ids = serde_json::to_string(conversation_ids).map_err(anyhow::Error::from)?;
-        self.list_items_inner(
-            "chats",
-            None,
-            "",
-            false,
-            conversation_ids.len() as i64,
-            0,
-            &ids,
-        )
-        .await
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    async fn list_items_inner(
-        &self,
-        category: &str,
-        circle_id: Option<&str>,
-        keyword: &str,
-        unseen_only: bool,
-        limit: i64,
-        offset: i64,
-        conversation_ids_json: &str,
-    ) -> Result<Vec<ConversationListItem>, Error> {
-        let result = crate::db::query_as::< ConversationListItem>(
-            r#"
+const CONVERSATION_LIST_COLUMNS: &str = r#"
 SELECT conversation.conversation_id,
        COALESCE(conversation.owner_id, '') AS owner_id,
        CASE
@@ -264,7 +161,9 @@ SELECT conversation.conversation_id,
                LIMIT 4
            ) avatar_user
        ), '') ELSE '' END AS group_avatar_data
-FROM conversations conversation
+"#;
+
+const CONVERSATION_LIST_SCOPE: &str = r#"FROM conversations conversation
 LEFT JOIN users owner ON owner.user_id = conversation.owner_id
 LEFT JOIN messages last_message ON last_message.message_id = conversation.last_message_id
 LEFT JOIN users last_message_sender ON last_message_sender.user_id = last_message.user_id
@@ -293,22 +192,157 @@ WHERE conversation.category IN ('CONTACT', 'GROUP')
       OR COALESCE(last_message.content, '') LIKE '%' || ?4 || '%' COLLATE NOCASE
   )
   AND (?7 = '' OR conversation.conversation_id IN (SELECT value FROM json_each(?7)))
-ORDER BY conversation.pin_time DESC,
+"#;
+
+const CONVERSATION_LIST_ORDER: &str = r#"ORDER BY conversation.pin_time DESC,
          (conversation.status != 3 AND LENGTH(COALESCE(conversation.draft, '')) > 0) DESC,
          conversation.last_message_created_at DESC,
-         conversation.created_at DESC
-LIMIT ?5 OFFSET ?6
-            "#,
+         conversation.created_at DESC,
+         conversation.conversation_id DESC
+"#;
+
+impl ConversationDao {
+    pub async fn item_position(
+        &self,
+        category: &str,
+        circle_id: Option<&str>,
+        keyword: &str,
+        unseen_only: bool,
+        conversation_id: &str,
+    ) -> Result<Option<i64>, Error> {
+        let query = format!(
+            "WITH ranked AS (SELECT conversation.conversation_id, \
+             ROW_NUMBER() OVER ({CONVERSATION_LIST_ORDER}) - 1 AS position \
+             {CONVERSATION_LIST_SCOPE}) \
+             SELECT position FROM ranked WHERE conversation_id = ?8"
+        );
+        Ok(crate::db::query_scalar(sqlx::AssertSqlSafe(query))
+            .bind(category)
+            .bind(circle_id.unwrap_or_default())
+            .bind(unseen_only)
+            .bind(keyword.trim())
+            .bind(i64::MAX)
+            .bind(0_i64)
+            .bind("")
+            .bind(conversation_id)
+            .fetch_optional(&self.0)
+            .await?)
+    }
+
+    pub async fn can_send(&self, conversation_id: &str, account_id: &str) -> Result<bool, Error> {
+        Self::can_send_with(&self.0, conversation_id, account_id).await
+    }
+
+    pub(crate) async fn can_send_with<E>(
+        executor: E,
+        conversation_id: &str,
+        account_id: &str,
+    ) -> Result<bool, Error>
+    where
+        E: crate::db::Executor,
+    {
+        Ok(crate::db::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM conversations c WHERE c.conversation_id = ? \
+             AND (c.category = 'CONTACT' OR (c.status != ? AND EXISTS(\
+                 SELECT 1 FROM participants p WHERE p.conversation_id = c.conversation_id \
+                 AND p.user_id = ?))))",
         )
-        .bind(category)
-        .bind(circle_id.unwrap_or_default())
-        .bind(unseen_only)
-        .bind(keyword.trim())
-        .bind(limit.max(1))
-        .bind(offset.max(0))
-        .bind(conversation_ids_json)
-        .fetch_all(&self.0)
-        .await?;
+        .bind(conversation_id)
+        .bind(ConversationStatus::QUIT.0)
+        .bind(account_id)
+        .fetch_one(executor)
+        .await?)
+    }
+
+    pub async fn count_items(
+        &self,
+        category: &str,
+        circle_id: Option<&str>,
+        keyword: &str,
+        unseen_only: bool,
+    ) -> Result<i64, Error> {
+        let query = format!("SELECT COUNT(*) {CONVERSATION_LIST_SCOPE}");
+        let count = crate::db::query_scalar::<i64>(sqlx::AssertSqlSafe(query))
+            .bind(category)
+            .bind(circle_id.unwrap_or_default())
+            .bind(unseen_only)
+            .bind(keyword.trim())
+            .bind(i64::MAX)
+            .bind(0_i64)
+            .bind("")
+            .fetch_one(&self.0)
+            .await?;
+        Ok(count)
+    }
+
+    pub async fn list_items(
+        &self,
+        category: &str,
+        circle_id: Option<&str>,
+        keyword: &str,
+        unseen_only: bool,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<ConversationListItem>, Error> {
+        self.list_items_inner(
+            category,
+            circle_id,
+            keyword,
+            unseen_only,
+            limit.clamp(1, 500),
+            offset,
+            "",
+        )
+        .await
+    }
+
+    pub async fn all_items(&self) -> Result<Vec<ConversationListItem>, Error> {
+        self.list_items_inner("chats", None, "", false, i64::MAX, 0, "")
+            .await
+    }
+
+    pub async fn list_items_by_ids(
+        &self,
+        conversation_ids: &[String],
+    ) -> Result<Vec<ConversationListItem>, Error> {
+        if conversation_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let ids = serde_json::to_string(conversation_ids).map_err(anyhow::Error::from)?;
+        self.list_items_inner(
+            "chats",
+            None,
+            "",
+            false,
+            conversation_ids.len() as i64,
+            0,
+            &ids,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn list_items_inner(
+        &self,
+        category: &str,
+        circle_id: Option<&str>,
+        keyword: &str,
+        unseen_only: bool,
+        limit: i64,
+        offset: i64,
+        conversation_ids_json: &str,
+    ) -> Result<Vec<ConversationListItem>, Error> {
+        let query = format!("{CONVERSATION_LIST_COLUMNS}{CONVERSATION_LIST_SCOPE}{CONVERSATION_LIST_ORDER} LIMIT ?5 OFFSET ?6");
+        let result = crate::db::query_as::<ConversationListItem>(sqlx::AssertSqlSafe(query))
+            .bind(category)
+            .bind(circle_id.unwrap_or_default())
+            .bind(unseen_only)
+            .bind(keyword.trim())
+            .bind(limit.max(1))
+            .bind(offset.max(0))
+            .bind(conversation_ids_json)
+            .fetch_all(&self.0)
+            .await?;
         Ok(result)
     }
 

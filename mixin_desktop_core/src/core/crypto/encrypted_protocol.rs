@@ -145,7 +145,7 @@ fn shared_secret(private_key: &[u8], public_key: &[u8; 32]) -> Result<[u8; 32]> 
         .to_bytes())
 }
 
-fn ed25519_private_to_x25519(private_key: &[u8]) -> Result<[u8; 32]> {
+pub(crate) fn ed25519_private_to_x25519(private_key: &[u8]) -> Result<[u8; 32]> {
     let seed: &[u8; 32] = private_key
         .get(..32)
         .ok_or_else(|| anyhow!("invalid Ed25519 private key"))?

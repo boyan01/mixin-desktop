@@ -6,11 +6,9 @@ use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use chrono::Local;
 use log::{info, warn};
-use sdk::Client;
 use tokio::sync::Mutex;
 
 use crate::core::model::auth::AuthService;
-use crate::core::user_agent::generate_user_agent;
 use crate::db::app::{AppDatabase, PropertyDao, PropertyGroup, SettingDao};
 use crate::db::path::{account_data_directory, data_directory};
 use crate::db::SignalDatabase;
@@ -44,11 +42,12 @@ impl DesktopRuntime {
         );
 
         let database = Arc::new(AppDatabase::connect().await?);
-        let auth_service = Arc::new(AuthService::new(database.clone()));
+        let auth_service = AuthService::new(database.clone());
         auth_service.initialize().await?;
+        let network_service = Arc::new(NetworkService::new(database.setting_dao.clone()).await?);
+        let auth_service = Arc::new(auth_service.with_network(network_service.clone()));
         #[cfg(not(target_arch = "wasm32"))]
         let mcp_server = McpServer::new(database.setting_dao.clone()).await?;
-        let network_service = Arc::new(NetworkService::new(database.setting_dao.clone()).await?);
         Ok(Self {
             auth_service,
             property_dao: database.property_dao.clone(),
@@ -92,6 +91,8 @@ impl DesktopRuntime {
                 return Ok(Some(runtime.clone()));
             }
             let runtime = active.take().unwrap();
+            #[cfg(not(target_arch = "wasm32"))]
+            self.mcp_server.stop().await;
             runtime.shutdown().await;
         }
         let Some(auth) = self.auth_service.get_auth() else {
@@ -119,8 +120,14 @@ impl DesktopRuntime {
             self.auth_service.clear_auth(&auth.account.user_id).await?;
             return Ok(None);
         }
-        let user_id = auth.account.user_id.clone();
-        match AccountRuntime::start(auth, self.auth_service.clone(), self.settings.clone()).await {
+        match AccountRuntime::start_with_network(
+            auth,
+            self.auth_service.clone(),
+            self.settings.clone(),
+            self.network_service.clone(),
+        )
+        .await
+        {
             Ok(runtime) => {
                 let runtime = Arc::new(runtime);
                 info!("started account runtime for {}", runtime.account_id());
@@ -132,7 +139,7 @@ impl DesktopRuntime {
             }
             Err(error) if error.downcast_ref::<SessionUnauthorized>().is_some() => {
                 warn!("saved session is unauthorized; requiring login");
-                self.auth_service.clear_auth(&user_id).await?;
+                // Startup already retired the exact rejected credentials.
                 Ok(None)
             }
             Err(error) => Err(error),
@@ -156,7 +163,7 @@ impl DesktopRuntime {
         let Some(auth) = self.auth_service.get_auth() else {
             return Ok(());
         };
-        let client = Client::new_with_user_agent(credential(&auth), Some(generate_user_agent()));
+        let client = self.network_service.sdk_client(credential(&auth));
         if let Err(error) = client.account_api.logout(&auth.account.session_id).await {
             warn!("failed to revoke session after login startup failure: {error}");
         }
@@ -193,9 +200,14 @@ impl DesktopRuntime {
             runtime.shutdown().await;
         }
         let runtime = Arc::new(
-            AccountRuntime::start(auth, self.auth_service.clone(), self.settings.clone())
-                .await
-                .map_err(|error| anyhow!("login_provisioning_error:{error}"))?,
+            AccountRuntime::start_with_network(
+                auth,
+                self.auth_service.clone(),
+                self.settings.clone(),
+                self.network_service.clone(),
+            )
+            .await
+            .map_err(|error| anyhow!("login_provisioning_error:{error}"))?,
         );
         *active = Some(runtime.clone());
         drop(active);
@@ -225,14 +237,12 @@ impl DesktopRuntime {
         {
             return Err(anyhow!("account runtime is no longer active"));
         }
+        let directory = runtime.prepare_sign_out().await?;
         #[cfg(not(target_arch = "wasm32"))]
         self.mcp_server.stop().await;
-        let result = runtime.sign_out().await;
+        runtime.complete_sign_out(directory).await;
         active.take();
-        if result.is_err() {
-            runtime.shutdown().await;
-        }
-        result
+        Ok(())
     }
 
     async fn shutdown_active_account(&self) {
@@ -360,3 +370,7 @@ fn current_device_id_sync() -> Option<String> {
 async fn current_device_id() -> Option<String> {
     None
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "desktop/lifecycle_tests.rs"]
+mod lifecycle_tests;

@@ -294,6 +294,13 @@ impl SendingJobRunner {
             self.database.job_dao.delete_job_by_id(&job.job_id).await?;
             return Ok(false);
         };
+        // A durable job may be polled while attachment uploads are still running.
+        // Keep it queued until all attachment credentials have been persisted.
+        if (message.category.is_transcript() || message.category.is_attachment())
+            && message.media_status != crate::db::mixin::message::MediaStatus::Done
+        {
+            return Ok(true);
+        }
         let Some(conversation) = self
             .database
             .conversation_dao
@@ -347,10 +354,7 @@ impl SendingJobRunner {
             if transcripts.is_empty() {
                 bail!("message {} has no transcript entries", message.message_id);
             }
-            for transcript in &mut transcripts {
-                sanitize_transcript_app_card(transcript);
-            }
-            serde_json::to_string(&transcripts)?
+            transcript_sending_content(&mut transcripts)?
         } else {
             stored_content.to_string()
         };
@@ -692,9 +696,59 @@ fn encrypted_to_plain_category(category: &str) -> Option<String> {
         .map(|suffix| format!("PLAIN_{suffix}"))
 }
 
+fn transcript_sending_content(
+    transcripts: &mut [crate::db::mixin::transcript_message::TranscriptMessage],
+) -> Result<String> {
+    let wire = transcripts
+        .iter_mut()
+        .map(|transcript| {
+            sanitize_transcript_app_card(transcript);
+            if transcript.category.is_attachment() {
+                if transcript.media_status != Some(crate::db::mixin::message::MediaStatus::Done) {
+                    bail!(
+                        "transcript attachment is not uploaded: {}",
+                        transcript.message_id
+                    );
+                }
+                transcript.content = Some(crate::core::message::decrypt::transcript_attachment_id(
+                    transcript.content.as_deref().unwrap_or_default(),
+                )?);
+            }
+            let mut value = serde_json::to_value(transcript)?;
+            if let Some(object) = value.as_object_mut() {
+                object.remove("media_url");
+            }
+            Ok(value)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(serde_json::to_string(&wire)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{encrypted_to_plain_category, mention_identity_numbers, truncate_utf16};
+
+    #[test]
+    fn transcript_send_requires_uploaded_children_and_matches_flutter_wire_contract() {
+        use crate::db::mixin::{message::MediaStatus, transcript_message::TranscriptMessage};
+        let mut child: TranscriptMessage = serde_json::from_value(serde_json::json!({
+            "transcript_id":"root", "message_id":"audio", "category":"SIGNAL_AUDIO",
+            "created_at":"2024-01-02T03:04:05Z", "content":"{\"attachment_id\":\"uploaded-id\",\"message_id\":\"audio\"}",
+            "media_url":"/private/account/source.ogg", "media_status":"PENDING",
+            "media_duration":"1200", "media_key":"key", "media_digest":"digest"
+        })).unwrap();
+        assert!(super::transcript_sending_content(&mut [child.clone()]).is_err());
+        child.media_status = Some(MediaStatus::Done);
+        let wire = super::transcript_sending_content(&mut [child]).unwrap();
+        let wire: serde_json::Value = serde_json::from_str(&wire).unwrap();
+        assert_eq!(wire[0]["content"], "uploaded-id");
+        assert_eq!(wire[0]["category"], "SIGNAL_AUDIO");
+        assert_eq!(wire[0]["media_duration"], 1200);
+        assert_eq!(wire[0]["media_key"], "key");
+        assert_eq!(wire[0]["media_digest"], "digest");
+        assert!(wire[0].get("media_url").is_none());
+        assert!(wire[0].get("media_status").is_none());
+    }
 
     #[test]
     fn truncates_using_dart_utf16_length_semantics() {

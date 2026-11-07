@@ -36,7 +36,23 @@ impl Client {
     }
 
     pub fn new_with_user_agent(credential: Credential, user_agent: Option<String>) -> Self {
-        let inner = Arc::new(ClientRef::new(credential, user_agent));
+        Self::from_inner(ClientRef::new(credential, user_agent))
+    }
+
+    /// Uses the current shared transport at request execution, including after
+    /// the application changes its proxy. Request signing remains SDK-owned.
+    pub fn new_with_http_clients(
+        credential: Credential,
+        user_agent: Option<String>,
+        clients: watch::Receiver<reqwest::Client>,
+    ) -> Self {
+        let mut inner = ClientRef::new(credential, user_agent);
+        inner.http_clients = Some(clients);
+        Self::from_inner(inner)
+    }
+
+    fn from_inner(inner: ClientRef) -> Self {
+        let inner = Arc::new(inner);
         Client {
             inner: inner.clone(),
             user_api: UserApi::new(inner.clone()),
@@ -76,6 +92,8 @@ pub(crate) struct ClientRef {
     credential: Credential,
     pub(crate) base_url: String,
     pub(crate) client: reqwest::Client,
+    http_clients: Option<watch::Receiver<reqwest::Client>>,
+    user_agent: Option<HeaderValue>,
     authentication_failed: watch::Sender<bool>,
     server_error_code: watch::Sender<Option<i64>>,
 }
@@ -100,13 +118,16 @@ impl ClientRef {
                 .connect_timeout(API_TIMEOUT)
                 .read_timeout(API_TIMEOUT);
         }
-        if let Some(user_agent) = user_agent.filter(|value| !value.is_empty()) {
+        let user_agent = user_agent.filter(|value| !value.is_empty());
+        if let Some(user_agent) = &user_agent {
             builder = builder.user_agent(user_agent);
         }
         ClientRef {
             credential,
             base_url: MIXIN_BASE_URL.to_string(),
             client: builder.build().expect("failed to build Mixin HTTP client"),
+            http_clients: None,
+            user_agent: user_agent.and_then(|value| HeaderValue::from_str(&value).ok()),
             authentication_failed: watch::channel(false).0,
             server_error_code: watch::channel(None).0,
         }
@@ -190,11 +211,19 @@ impl ClientRef {
             Err(err) => return Err(anyhow!("can not set auth header: {}", err).into()),
         };
 
-        #[cfg(target_arch = "wasm32")]
-        {
-            request.timeout_mut().get_or_insert(API_TIMEOUT);
+        if let Some(user_agent) = &self.user_agent {
+            request
+                .headers_mut()
+                .entry(reqwest::header::USER_AGENT)
+                .or_insert(user_agent.clone());
         }
-        let resp = self.client.execute(request).await?;
+        request.timeout_mut().get_or_insert(API_TIMEOUT);
+        let client = self
+            .http_clients
+            .as_ref()
+            .map(|clients| clients.borrow().clone())
+            .unwrap_or_else(|| self.client.clone());
+        let resp = client.execute(request).await?;
         let status = resp.status();
         if status.as_u16() == crate::err::error_code::AUTHENTICATION as u16 {
             self.notify_authentication_failed();

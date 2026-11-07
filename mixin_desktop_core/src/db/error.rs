@@ -1,5 +1,7 @@
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("permission denied")]
+    PermissionDenied,
     #[error("db error: {0}")]
     DbError(#[from] sqlx::Error),
     #[error("unknown error: {0:?}")]

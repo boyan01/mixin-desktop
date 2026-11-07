@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum MediaError {
+    #[error("{0}")]
+    InvalidAttachment(String),
     #[error("no default {0} audio device is available")]
     MissingDevice(&'static str),
     #[error("audio device configuration failed: {0}")]

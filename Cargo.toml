@@ -6,6 +6,7 @@ members = [
     "mixin_desktop_api",
     "mixin_desktop_media",
     "mixin_desktop_headless",
+    "nsh",
 ]
 
 [profile.dev]

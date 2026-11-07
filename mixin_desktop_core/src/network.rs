@@ -31,6 +31,7 @@ pub struct HttpResponse {
 
 pub struct NetworkService {
     client: watch::Receiver<reqwest::Client>,
+    proxy: watch::Receiver<Option<ProxyConfig>>,
     settings_task: JoinHandle<()>,
 }
 
@@ -45,6 +46,7 @@ impl NetworkService {
         initial.validate()?;
         let client = build_client(initial.active_proxy())?;
         let (client_sender, client) = watch::channel(client);
+        let (proxy_sender, proxy) = watch::channel(initial.active_proxy().cloned());
         let settings_task = crate::task::spawn(async move {
             while let Some(next) = settings.next().await {
                 let next = match next {
@@ -58,9 +60,14 @@ impl NetworkService {
                     error!("invalid proxy settings update: {error:?}");
                     continue;
                 }
+                let active = next.active_proxy().cloned();
+                if *proxy_sender.borrow() == active {
+                    continue;
+                }
                 match build_client(next.active_proxy()) {
                     Ok(client) => {
                         client_sender.send_replace(client);
+                        proxy_sender.send_replace(active);
                     }
                     Err(error) => error!("failed to apply proxy settings: {error:?}"),
                 }
@@ -68,8 +75,25 @@ impl NetworkService {
         });
         Ok(Self {
             client,
+            proxy,
             settings_task,
         })
+    }
+
+    pub(crate) fn sdk_client(&self, credential: sdk::Credential) -> sdk::Client {
+        sdk::Client::new_with_http_clients(
+            credential,
+            Some(crate::core::user_agent::generate_user_agent()),
+            self.http_clients(),
+        )
+    }
+
+    pub(crate) fn http_clients(&self) -> watch::Receiver<reqwest::Client> {
+        self.client.clone()
+    }
+
+    pub(crate) fn proxy_changes(&self) -> watch::Receiver<Option<ProxyConfig>> {
+        self.proxy.clone()
     }
 
     pub async fn request(
@@ -157,7 +181,12 @@ fn build_client(proxy: Option<&ProxyConfig>) -> Result<reqwest::Client> {
         .read_timeout(Duration::from_secs(150));
     #[cfg(not(target_arch = "wasm32"))]
     let builder = if let Some(config) = proxy {
-        builder.proxy(Proxy::all(config.url()?.as_str())?)
+        let mut url = config.url()?;
+        if config.proxy_type == ProxyType::Socks5 {
+            url.set_scheme("socks5h")
+                .map_err(|_| anyhow!("invalid SOCKS proxy scheme"))?;
+        }
+        builder.proxy(Proxy::all(url.as_str())?)
     } else {
         builder
     };

@@ -5,6 +5,8 @@ use futures::{SinkExt, StreamExt};
 pub(crate) use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::{client::IntoClientRequest, http::HeaderValue, Error};
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+#[path = "proxy.rs"]
+mod proxy;
 type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 pub(crate) type WsSink = SplitSink<Socket, Message>;
 pub(crate) type WsStream = SplitStream<Socket>;
@@ -24,7 +26,17 @@ pub(crate) async fn connect(handshake: &Handshake) -> Result<(WsSink, WsStream),
             HeaderValue::try_from(value).map_err(|e| WsConnectError::failed(e.to_string()))?,
         );
     }
-    let (socket, _) = connect_async(request).await.map_err(classify_error)?;
+    let (socket, _) = if let Some(config) = &handshake.proxy {
+        let stream = proxy::connect(&handshake.url, config)
+            .await
+            .map_err(|error| WsConnectError::failed(error.to_string()))?;
+        // TLS and certificate/hostname validation still use the original URL.
+        tokio_tungstenite::client_async_tls(request, stream)
+            .await
+            .map_err(classify_error)?
+    } else {
+        connect_async(request).await.map_err(classify_error)?
+    };
     Ok(socket.split())
 }
 pub(crate) struct Keepalive {
@@ -62,3 +74,7 @@ pub(crate) fn classify_error(e: Error) -> WsConnectError {
 pub(crate) fn validate_configuration() -> anyhow::Result<()> {
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "proxy_tests.rs"]
+mod tests;

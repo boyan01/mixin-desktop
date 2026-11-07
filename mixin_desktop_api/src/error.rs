@@ -4,6 +4,8 @@ pub type ClientResult<T> = Result<T, ClientError>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
+    #[error("permission denied")]
+    PermissionDenied,
     #[error("unauthorized")]
     Unauthorized,
     #[error("not found")]
@@ -20,6 +22,7 @@ impl From<CoreError> for ClientError {
     fn from(error: CoreError) -> Self {
         match error {
             CoreError::NotFound => Self::NotFound,
+            CoreError::PermissionDenied => Self::PermissionDenied,
             CoreError::Other { message } => Self::Internal(message),
         }
     }
@@ -27,7 +30,10 @@ impl From<CoreError> for ClientError {
 
 impl From<anyhow::Error> for ClientError {
     fn from(error: anyhow::Error) -> Self {
-        Self::Internal(error.to_string())
+        match error.downcast::<CoreError>() {
+            Ok(error) => error.into(),
+            Err(error) => Self::Internal(error.to_string()),
+        }
     }
 }
 
@@ -41,6 +47,16 @@ impl From<mixin_desktop_media::MediaError> for ClientError {
 #[cfg(test)]
 mod tests {
     use super::{ClientError, CoreError};
+
+    #[test]
+    fn contextual_permission_denial_preserves_public_error_classification() {
+        let core = CoreError::from(mixin_desktop_core::db::error::Error::PermissionDenied);
+        let error = anyhow::Error::from(core).context("accept outgoing message");
+        assert!(matches!(
+            ClientError::from(error),
+            ClientError::PermissionDenied
+        ));
+    }
 
     #[test]
     fn core_not_found_maps_to_public_not_found() {

@@ -40,6 +40,7 @@ const IO_BUFFER_SIZE: usize = 64 * 1024;
 pub struct AttachmentService {
     mixin_client: Arc<MixinClient>,
     http_client: HttpClient,
+    http_clients: Option<tokio::sync::watch::Receiver<HttpClient>>,
     account_data_dir: PathBuf,
 }
 
@@ -109,8 +110,24 @@ impl AttachmentService {
         Self {
             mixin_client,
             http_client,
+            http_clients: None,
             account_data_dir: account_data_dir.into(),
         }
+    }
+
+    pub(crate) fn with_http_clients(
+        mut self,
+        clients: tokio::sync::watch::Receiver<HttpClient>,
+    ) -> Self {
+        self.http_clients = Some(clients);
+        self
+    }
+
+    fn http_client(&self) -> HttpClient {
+        self.http_clients
+            .as_ref()
+            .map(|clients| clients.borrow().clone())
+            .unwrap_or_else(|| self.http_client.clone())
     }
 
     pub async fn download(
@@ -122,7 +139,12 @@ impl AttachmentService {
     }
 
     pub async fn download_public(&self, url: &str) -> Result<Vec<u8>> {
-        let response = self.http_client.get(url).send().await?.error_for_status()?;
+        let response = self
+            .http_client()
+            .get(url)
+            .send()
+            .await?
+            .error_for_status()?;
         Ok(response.bytes().await?.to_vec())
     }
 
@@ -299,21 +321,7 @@ impl AttachmentService {
                 callback(0, length);
             }
             #[cfg(not(target_arch = "wasm32"))]
-            let request = async {
-                let file = File::open(upload_path).await?;
-                let stream = ReaderStream::new(ProgressReader::new(file, length, progress.clone()));
-                self.http_client
-                    .put(parsed_url)
-                    .header(CONTENT_TYPE, "application/octet-stream")
-                    .header(CONTENT_LENGTH, length)
-                    .header(CONNECTION, "close")
-                    .header("x-amz-acl", "public-read")
-                    .body(reqwest::Body::wrap_stream(stream))
-                    .send()
-                    .await?
-                    .error_for_status()?;
-                Ok::<_, anyhow::Error>(())
-            };
+            let request = self.upload_file(upload_path, parsed_url, length, progress.clone());
             #[cfg(target_arch = "wasm32")]
             let request = crate::network::browser::upload_file(upload_path, parsed_url.as_str());
             match cancellation {
@@ -344,6 +352,29 @@ impl AttachmentService {
             key,
             digest,
         })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn upload_file(
+        &self,
+        path: &Path,
+        url: reqwest::Url,
+        length: u64,
+        progress: Option<Arc<dyn Fn(u64, u64) + Send + Sync>>,
+    ) -> Result<()> {
+        let file = File::open(path).await?;
+        let stream = ReaderStream::new(ProgressReader::new(file, length, progress));
+        self.http_client()
+            .put(url)
+            .header(CONTENT_TYPE, "application/octet-stream")
+            .header(CONTENT_LENGTH, length)
+            .header(CONNECTION, "close")
+            .header("x-amz-acl", "public-read")
+            .body(reqwest::Body::wrap_stream(stream))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
     }
 
     async fn download_to(
@@ -451,7 +482,7 @@ impl AttachmentService {
         progress: Option<&(dyn Fn(u64, u64) + Send + Sync)>,
     ) -> Result<()> {
         let request = self
-            .http_client
+            .http_client()
             .get(view_url.clone())
             .header(CONTENT_TYPE, "application/octet-stream")
             .send();
@@ -1083,3 +1114,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "attachment/proxy_tests.rs"]
+mod proxy_tests;

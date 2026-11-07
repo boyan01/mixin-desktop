@@ -20,6 +20,8 @@ use crate::db::app::{AppDatabase, Auth, AuthDao};
 pub struct AuthService {
     auth_dao: AuthDao,
     auth: Arc<Mutex<Option<Auth>>>,
+    command: tokio::sync::Mutex<()>,
+    network: Option<crate::network::SharedNetworkService>,
 }
 
 pub struct AuthorizationSession {
@@ -39,7 +41,26 @@ impl AuthService {
         AuthService {
             auth_dao: app_db.auth_dao.clone(),
             auth: Arc::new(Mutex::new(None)),
+            command: tokio::sync::Mutex::new(()),
+            network: None,
         }
+    }
+
+    pub(crate) fn with_network(mut self, network: crate::network::SharedNetworkService) -> Self {
+        self.network = Some(network);
+        self
+    }
+
+    fn client(&self) -> sdk::Client {
+        self.network
+            .as_ref()
+            .map(|network| network.sdk_client(Credential::None))
+            .unwrap_or_else(|| {
+                sdk::Client::new_with_user_agent(
+                    Credential::None,
+                    Some(crate::core::user_agent::generate_user_agent()),
+                )
+            })
     }
 
     pub async fn authorize(&self) -> anyhow::Result<AuthResult> {
@@ -66,10 +87,7 @@ impl AuthService {
         &self,
         platform: &str,
     ) -> anyhow::Result<AuthorizationSession> {
-        let client = sdk::Client::new_with_user_agent(
-            Credential::None,
-            Some(crate::core::user_agent::generate_user_agent()),
-        );
+        let client = self.client();
         let response = client
             .provisioning_api
             .get_provisioning_id(platform)
@@ -96,10 +114,7 @@ impl AuthService {
         &self,
         session: &AuthorizationSession,
     ) -> anyhow::Result<Option<AuthResult>> {
-        let client = Arc::new(sdk::Client::new_with_user_agent(
-            Credential::None,
-            Some(crate::core::user_agent::generate_user_agent()),
-        ));
+        let client = Arc::new(self.client());
         check_auth(client, &session.device_id, &session.key_pair).await
     }
 
@@ -137,6 +152,7 @@ impl AuthService {
     }
 
     pub async fn initialize(&self) -> anyhow::Result<()> {
+        let _command = self.command.lock().await;
         let auth_list = self.auth_dao.find_all_auth().await?;
         let Some(auth) = auth_list.first() else {
             return Ok(());
@@ -157,6 +173,7 @@ impl AuthService {
     }
 
     pub async fn save_auth(&self, auth: &Auth) -> anyhow::Result<()> {
+        let _command = self.command.lock().await;
         self.auth_dao.save_auth(auth).await?;
         {
             let mut a = self.auth.lock().unwrap();
@@ -166,12 +183,33 @@ impl AuthService {
     }
 
     pub async fn clear_auth(&self, id: &str) -> anyhow::Result<()> {
+        let _command = self.command.lock().await;
         self.auth_dao.remove_auth(id).await?;
 
         let mut a = self.auth.lock().unwrap();
-        *a = None;
+        if a.as_ref().is_some_and(|auth| auth.user_id == id) {
+            *a = None;
+        }
 
         Ok(())
+    }
+
+    /// A rejected session loses authority immediately, even if local storage
+    /// temporarily cannot remove it. An old request cannot revoke newer keys.
+    pub(crate) async fn invalidate_session(&self, expected: &Auth) -> anyhow::Result<()> {
+        let _command = self.command.lock().await;
+        {
+            let mut auth = self.auth.lock().unwrap();
+            if !auth.as_ref().is_some_and(|current| {
+                current.user_id == expected.user_id
+                    && current.account.session_id == expected.account.session_id
+                    && current.private_key == expected.private_key
+            }) {
+                return Ok(());
+            }
+            *auth = None;
+        }
+        self.auth_dao.remove_auth(&expected.user_id).await
     }
 }
 

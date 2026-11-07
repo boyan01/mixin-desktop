@@ -40,7 +40,30 @@ pub struct ConversationAccess {
     state: Arc<AccountState>,
 }
 
+fn validate_direct_conversation_link(
+    account_id: &str,
+    conversation_id: &str,
+    user_id: &str,
+) -> Result<(), crate::error::CoreError> {
+    if user_id.is_empty()
+        || user_id == account_id
+        || generate_conversation_id(account_id, user_id).to_string() != conversation_id
+    {
+        return Err(anyhow!("conversation link does not match its user").into());
+    }
+    Ok(())
+}
+
 impl ConversationAccess {
+    pub async fn can_send(&self, conversation_id: String) -> crate::Result<bool> {
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .conversation_dao
+            .can_send(&conversation_id, &self.account_id)
+            .await?)
+    }
+
     pub fn subscribe_circle_changes(
         &self,
     ) -> impl Stream<Item = Vec<model::CircleItem>> + Send + 'static {
@@ -333,6 +356,73 @@ impl ConversationAccess {
         Ok(conversation_id)
     }
 
+    /// Resolves an explicit link without creating a different direct conversation.
+    pub async fn resolve_conversation_link(
+        &self,
+        conversation_id: String,
+        user_id: Option<String>,
+    ) -> Result<model::ConversationListData, crate::error::CoreError> {
+        self.ensure_active()?;
+        Uuid::parse_str(&conversation_id).map_err(|_| anyhow!("invalid conversation link"))?;
+        if let Some(user_id) = user_id {
+            validate_direct_conversation_link(&self.account_id, &conversation_id, &user_id)?;
+            self.open_user_conversation(user_id).await?;
+        }
+        let mut conversation = self
+            .database
+            .conversation_dao
+            .find_conversation_by_id(&conversation_id)
+            .await?;
+        if conversation
+            .as_ref()
+            .is_none_or(|row| row.category == Some(ConversationCategory::Group))
+        {
+            let _mutation = self.mutation_gate.read().await;
+            self.ensure_active()?;
+            self.app_service
+                .conversation
+                .refresh_conversation(&conversation_id)
+                .await?;
+            conversation = self
+                .database
+                .conversation_dao
+                .find_conversation_by_id(&conversation_id)
+                .await?;
+        }
+        let conversation = conversation.ok_or(crate::error::CoreError::NotFound)?;
+        match conversation.category {
+            Some(ConversationCategory::Group) => {
+                if conversation.status
+                    != crate::db::mixin::conversation::ConversationStatus::SUCCESS
+                    || self
+                        .database
+                        .participant_dao
+                        .find_participant_by_id(&conversation_id, &self.account_id)
+                        .await?
+                        .is_none()
+                {
+                    return Err(anyhow!("conversation membership required").into());
+                }
+            }
+            Some(ConversationCategory::Contact) => {
+                validate_direct_conversation_link(
+                    &self.account_id,
+                    &conversation_id,
+                    conversation
+                        .owner_id
+                        .as_deref()
+                        .ok_or_else(|| anyhow!("conversation owner missing"))?,
+                )?;
+            }
+            _ => return Err(anyhow!("invalid conversation category").into()),
+        }
+        self.conversation_items_by_ids(vec![conversation_id])
+            .await?
+            .into_iter()
+            .next()
+            .ok_or(crate::error::CoreError::NotFound)
+    }
+
     pub async fn open_user_conversation(
         &self,
         user_id: String,
@@ -541,6 +631,28 @@ impl ConversationAccess {
             .into_iter()
             .map(Into::into)
             .collect())
+    }
+
+    pub async fn conversation_position(
+        &self,
+        category: String,
+        circle_id: Option<String>,
+        keyword: String,
+        unseen_only: bool,
+        conversation_id: String,
+    ) -> crate::Result<Option<i64>> {
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .conversation_dao
+            .item_position(
+                &category,
+                circle_id.as_deref(),
+                &keyword,
+                unseen_only,
+                &conversation_id,
+            )
+            .await?)
     }
 
     pub async fn current_user_role(
@@ -905,6 +1017,29 @@ impl ConversationAccess {
         name: Option<String>,
         announcement: Option<String>,
     ) -> Result<(), crate::error::CoreError> {
+        self.update_conversation(conversation_id, name, announcement, None)
+            .await
+    }
+
+    pub async fn update_conversation_avatar(
+        &self,
+        conversation_id: String,
+        avatar_base64: String,
+    ) -> Result<(), crate::error::CoreError> {
+        if avatar_base64.trim().is_empty() {
+            return Err(anyhow!("group avatar is required").into());
+        }
+        self.update_conversation(conversation_id, None, None, Some(avatar_base64))
+            .await
+    }
+
+    async fn update_conversation(
+        &self,
+        conversation_id: String,
+        name: Option<String>,
+        announcement: Option<String>,
+        avatar_base64: Option<String>,
+    ) -> Result<(), crate::error::CoreError> {
         let name = name.as_deref();
         let announcement = announcement.as_deref();
         let conversation_id = conversation_id.as_str();
@@ -917,7 +1052,7 @@ impl ConversationAccess {
                 random_id: None,
                 category: Some(ConversationCategory::Group),
                 name: name.map(str::to_string),
-                icon_base64: None,
+                icon_base64: avatar_base64,
                 announcement: announcement.map(str::to_string),
                 participants: None,
                 duration: None,
@@ -1069,6 +1204,41 @@ impl ConversationAccess {
         Ok(())
     }
 
+    /// Applies a bounded batch. Each successful remote change is persisted and
+    /// published immediately; an error leaves those successful changes intact.
+    pub async fn edit_circle_conversations(
+        &self,
+        circle_id: String,
+        edits: Vec<model::CircleConversationEdit>,
+    ) -> Result<(), crate::error::CoreError> {
+        self.ensure_active()?;
+        if circle_id.is_empty() || edits.len() > 200 {
+            return Err(
+                anyhow!("circle edits require a circle and at most 200 conversations").into(),
+            );
+        }
+        let mut ids = HashSet::new();
+        if edits
+            .iter()
+            .any(|edit| edit.conversation_id.is_empty() || !ids.insert(&edit.conversation_id))
+        {
+            return Err(anyhow!("circle edits contain an empty or duplicate conversation").into());
+        }
+        let total = edits.len();
+        for (completed, edit) in edits.into_iter().enumerate() {
+            self.edit_circle_conversation(
+                circle_id.clone(),
+                edit.conversation_id,
+                edit.owner_id,
+                edit.is_group,
+                edit.add,
+            )
+            .await
+            .map_err(|error| anyhow!("Saved {completed} of {total} circle changes: {error}"))?;
+        }
+        Ok(())
+    }
+
     pub async fn edit_circle_conversation(
         &self,
         circle_id: String,
@@ -1160,5 +1330,26 @@ mod tests {
         assert_eq!(next.await, Some(1));
         assert_eq!(query_count.load(Ordering::SeqCst), 2);
         drop(shutdown_sender);
+    }
+}
+
+#[cfg(test)]
+mod link_tests {
+    use super::*;
+
+    #[test]
+    fn a_direct_link_must_match_its_user_before_opening_a_conversation() {
+        let account = "11111111-1111-4111-8111-111111111111";
+        let user = "22222222-2222-4222-8222-222222222222";
+        let id = generate_conversation_id(account, user).to_string();
+        assert!(validate_direct_conversation_link(account, &id, user).is_ok());
+        assert!(validate_direct_conversation_link(account, &id, account).is_err());
+        assert!(validate_direct_conversation_link(
+            account,
+            &id,
+            "33333333-3333-4333-8333-333333333333"
+        )
+        .is_err());
+        assert!(validate_direct_conversation_link(account, &id, "").is_err());
     }
 }

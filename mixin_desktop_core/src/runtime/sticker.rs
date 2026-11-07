@@ -32,6 +32,38 @@ impl Deref for StickerAccess {
 }
 
 impl StickerAccess {
+    /// Retrieves a self-contained JSON sticker through the account's proxy-aware network.
+    pub async fn animation_source(&self, url: String) -> Result<Vec<u8>> {
+        static DOWNLOADS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
+        let mut shutdown = self.shutdown.clone();
+        tokio::select! {
+        biased;
+        _ = shutdown.wait_for(|stopping| *stopping) => Err(anyhow!("account runtime is shutting down")),
+        result = async {
+        let _permit = DOWNLOADS.acquire().await?;
+        self.ensure_active()?;
+        let response = self
+            .network
+            .request(
+                "GET",
+                &url,
+                Default::default(),
+                None,
+                Some(15_000),
+                Some(5 * 1024 * 1024),
+            )
+            .await?;
+        if !(200..300).contains(&response.status_code) {
+            return Err(anyhow!(
+                "sticker request failed with HTTP {}",
+                response.status_code
+            ));
+        }
+        Ok(response.body)
+        } => result,
+        }
+    }
+
     pub async fn add_sticker(&self, sticker_id: String) -> Result<()> {
         let sticker_id = sticker_id.as_str();
         let _mutation = self.mutation_gate.read().await;
@@ -109,6 +141,7 @@ impl StickerAccess {
                     .await?;
             }
         }
+        self.notify_all_conversations_changed();
         Ok(has_new_album)
     }
 

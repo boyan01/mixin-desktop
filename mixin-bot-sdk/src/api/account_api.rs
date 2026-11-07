@@ -101,7 +101,20 @@ impl AccountApi {
     }
 
     pub async fn push_signal_keys(&self, request: &SignalKeyRequest) -> Result<(), ApiError> {
-        let _: Value = self.client.post("signal/keys", request).await?;
+        let request = self
+            .client
+            .client
+            .post(format!("{}/signal/keys", self.client.base_url))
+            .body(serde_json::to_vec(request)?)
+            .build()?;
+        let body = self.client.raw_request(request).await?;
+        // This is a void endpoint: a successful response may contain no data
+        // envelope. Keep nonempty error envelopes on the common error path.
+        if !body.is_empty()
+            && !matches!(serde_json::from_slice::<Value>(&body), Ok(Value::Object(value)) if value.is_empty())
+        {
+            let _: Value = self.client.parse_response(&body)?;
+        }
         Ok(())
     }
 
@@ -250,3 +263,7 @@ mod test {
         );
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "account_api_tests.rs"]
+mod endpoint_tests;

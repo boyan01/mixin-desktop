@@ -29,7 +29,7 @@ use crate::core::device_transfer::{DeviceTransferControlEvent, DEVICE_TRANSFER_A
 use crate::core::message::blaze::PendingMessageStatusStore;
 use crate::core::message::sender::{MessageSender, ProcessSignalKeyAction};
 use crate::core::model::{AppService, AttachmentExtra};
-use crate::db::app::Auth;
+use crate::db::app::{Auth, SettingDao};
 use crate::db::mixin::conversation::ConversationStatus;
 use crate::db::mixin::flood_message::FloodMessage;
 use crate::db::mixin::job::Job;
@@ -57,6 +57,7 @@ pub struct ServiceDecryptMessage {
     notification_changes: Option<watch::Sender<u64>>,
     device_transfer_controls: Option<broadcast::Sender<DeviceTransferControlEvent>>,
     attachment_transfer_requests: Option<mpsc::UnboundedSender<AttachmentTransferRequest>>,
+    settings: Option<SettingDao>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -101,11 +102,17 @@ impl ServiceDecryptMessage {
             notification_changes: None,
             device_transfer_controls: None,
             attachment_transfer_requests: None,
+            settings: None,
         }
     }
 
     pub fn with_conversation_changes(mut self, sender: ConversationChangeNotifier) -> Self {
         self.conversation_changes = Some(sender);
+        self
+    }
+
+    pub(crate) fn with_settings(mut self, settings: SettingDao) -> Self {
+        self.settings = Some(settings);
         self
     }
 
@@ -572,7 +579,7 @@ impl ServiceDecryptMessage {
                 attachment_id: attachment.attachment_id,
                 message_id: message_id.to_string(),
                 shareable: attachment.shareable,
-                created_at: None,
+                created_at: attachment.created_at,
             })?;
 
             let message_update = AttachmentMessageUpdate {
@@ -822,7 +829,7 @@ impl ServiceDecryptMessage {
                 attachment_id: attachment.attachment_id,
                 message_id: data.message_id.clone(),
                 shareable: attachment.shareable,
-                created_at: None,
+                created_at: attachment.created_at,
             })?;
             let message = Message {
                 message_id: data.message_id.clone(),
@@ -832,7 +839,10 @@ impl ServiceDecryptMessage {
                 content: Some(content),
                 name: attachment.name,
                 media_mime_type: Some(attachment.mime_type),
-                media_duration: attachment.duration.unwrap_or_default().to_string(),
+                media_duration: attachment
+                    .duration
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
                 media_size: Some(attachment.size),
                 media_width: attachment.width,
                 media_height: attachment.height,
@@ -840,6 +850,7 @@ impl ServiceDecryptMessage {
                 media_key: attachment.key,
                 media_digest: attachment.digest,
                 media_waveform: attachment.waveform.as_deref().map(Base64::encode_string),
+                caption: attachment.caption,
                 status: data.status,
                 created_at: data.created_at.naive_utc(),
                 media_status: MediaStatus::Canceled,
@@ -1161,6 +1172,11 @@ impl ServiceDecryptMessage {
         let payload: PinMessagePayload = serde_json::from_str(&decode(&data.data)?)?;
         match payload {
             PinMessagePayload::Pin(ids) => {
+                if let Some(settings) = &self.settings {
+                    settings
+                        .restore_pinned_preview(&self.user_id, &data.conversation_id)
+                        .await?;
+                }
                 for (i, mid) in ids.iter().enumerate() {
                     let message = self.database.message_dao.find_message_by_id(mid).await?;
                     let Some(message) = message else {
@@ -1805,13 +1821,16 @@ impl ServiceDecryptMessage {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn missing_profiles_do_not_block_message_storage_or_quote_reads() {
+    async fn decrypt_service_fixture() -> (
+        tempfile::TempDir,
+        Arc<MixinDatabase>,
+        Arc<crate::db::SignalDatabase>,
+        ServiceDecryptMessage,
+    ) {
         use crate::core::attachment::AttachmentService;
         use crate::core::message::blaze::Blaze;
         use crate::core::model::{conversation::ConversationService, signal::SignalService};
         use crate::db::SignalDatabase;
-        use chrono::Utc;
 
         let directory = tempfile::tempdir().unwrap();
         let database = Arc::new(
@@ -1920,7 +1939,7 @@ mod tests {
             blaze.pending_message_statuses(),
             &auth,
         );
-        let now = Utc::now();
+        let now = chrono::Utc::now();
         database
             .conversation_dao
             .insert(&crate::db::mixin::conversation::Conversation {
@@ -1938,6 +1957,82 @@ mod tests {
             })
             .await
             .unwrap();
+        (directory, database, signal_database, service)
+    }
+
+    #[tokio::test]
+    async fn received_pin_restores_dismissed_preview_but_unpin_preserves_dismissal() {
+        let (directory, database, signal_database, service) = decrypt_service_fixture().await;
+        let settings = crate::db::app::AppDatabase::connect_at(directory.path().join("app.db"))
+            .await
+            .unwrap()
+            .setting_dao;
+        let service = service.with_settings(settings.clone());
+        let key = SettingDao::pinned_preview_key("me", "conversation");
+        let other_key = SettingDao::pinned_preview_key("other", "conversation");
+        settings.set(&key, Some("false")).await.unwrap();
+        settings.set(&other_key, Some("false")).await.unwrap();
+        let now = chrono::Utc::now();
+        database
+            .message_dao
+            .insert_message(&Message {
+                message_id: "pinned-text".into(),
+                conversation_id: "conversation".into(),
+                user_id: "missing-sender".into(),
+                category: "PLAIN_TEXT".into(),
+                content: Some("text".into()),
+                status: MessageStatus::Read,
+                created_at: now.naive_utc(),
+                ..Message::default()
+            })
+            .await
+            .unwrap();
+        for (index, payload) in [
+            PinMessagePayload::Pin(vec!["pinned-text".into()]),
+            PinMessagePayload::Unpin(vec!["pinned-text".into()]),
+            PinMessagePayload::Pin(vec!["pinned-text".into()]),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            settings.set(&key, Some("false")).await.unwrap();
+            let data = serde_json::from_value(serde_json::json!({
+                "conversation_id":"conversation", "user_id":"missing-sender",
+                "message_id": format!("pin-event-{index}"), "category":"MESSAGE_PIN",
+                "data":Base64::encode_string(serde_json::to_string(&payload).unwrap().as_bytes()),
+                "status":"SENT", "created_at":now, "updated_at":now,
+                "source":"CREATE_MESSAGE", "session_id":""
+            }))
+            .unwrap();
+            service.process_pin(&data).await.unwrap();
+            assert_eq!(
+                settings.get(&key).await.unwrap().as_deref(),
+                if index == 1 { Some("false") } else { None }
+            );
+            assert_eq!(
+                settings.get(&other_key).await.unwrap().as_deref(),
+                Some("false")
+            );
+        }
+        assert_eq!(
+            database
+                .pin_message_dao
+                .message_ids("conversation")
+                .await
+                .unwrap(),
+            ["pinned-text"]
+        );
+        drop(service);
+        signal_database.close().await;
+        database.close().await;
+    }
+
+    #[tokio::test]
+    async fn missing_profiles_do_not_block_message_storage_or_quote_reads() {
+        use chrono::Utc;
+
+        let (_directory, database, signal_database, service) = decrypt_service_fixture().await;
+        let now = Utc::now();
         for (id, category, content) in [
             ("text", "PLAIN_TEXT", "hello"),
             (
@@ -2006,6 +2101,129 @@ mod tests {
                 .unwrap(),
             1
         );
+        signal_database.close().await;
+        database.close().await;
+    }
+
+    #[tokio::test]
+    async fn received_and_redecrypted_attachments_preserve_payload_metadata() {
+        use chrono::{TimeZone, Utc};
+
+        let (_directory, database, signal_database, service) = decrypt_service_fixture().await;
+        let now = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+        let attachment_created_at = Utc.timestamp_opt(1_600_000_000, 0).unwrap();
+        for (index, (category, duration, redecrypt)) in [
+            (message_category::PLAIN_IMAGE, None, false),
+            (message_category::SIGNAL_IMAGE, None, false),
+            (message_category::ENCRYPTED_IMAGE, None, false),
+            (message_category::PLAIN_AUDIO, Some(1234), false),
+            (message_category::SIGNAL_AUDIO, Some(1234), false),
+            (message_category::ENCRYPTED_AUDIO, Some(1234), false),
+            (message_category::SIGNAL_IMAGE, None, true),
+            (message_category::SIGNAL_AUDIO, Some(1234), true),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let message_id = format!("attachment-{index}");
+            let attachment = AttachmentMessage {
+                attachment_id: "server-attachment".into(),
+                mime_type: if duration.is_some() {
+                    "audio/ogg"
+                } else {
+                    "image/png"
+                }
+                .into(),
+                size: 1024,
+                name: Some("attachment".into()),
+                width: Some(320),
+                height: Some(240),
+                thumbnail: Some("thumbnail".into()),
+                duration,
+                waveform: Some(vec![1, 2, 3]),
+                caption: Some("A caption from the sender".into()),
+                key: Some(vec![0; 32]),
+                digest: Some(vec![1; 32]),
+                created_at: Some(attachment_created_at),
+                shareable: Some(true),
+            };
+            let json = serde_json::to_string(&attachment).unwrap();
+            let plain_text = if category.starts_with("ENCRYPTED_") {
+                json
+            } else {
+                Base64::encode_string(json.as_bytes())
+            };
+            let data: BlazeMessageData = serde_json::from_value(serde_json::json!({
+                "conversation_id": "conversation", "user_id": "missing-sender",
+                "message_id": message_id, "category": category, "data": plain_text,
+                "status": "SENT", "created_at": now, "updated_at": now,
+                "source": "CREATE_MESSAGE", "session_id": ""
+            }))
+            .unwrap();
+            if redecrypt {
+                database
+                    .message_dao
+                    .insert_message(&Message {
+                        message_id: message_id.clone(),
+                        conversation_id: data.conversation_id.clone(),
+                        user_id: data.sender_id().clone(),
+                        category: category.into(),
+                        status: MessageStatus::Failed,
+                        created_at: now.naive_utc(),
+                        ..Message::default()
+                    })
+                    .await
+                    .unwrap();
+                service
+                    .process_re_decrypted_message(&data, &message_id, &plain_text)
+                    .await
+                    .unwrap();
+            } else {
+                service
+                    .process_decrypt_success(&data, &plain_text)
+                    .await
+                    .unwrap();
+            }
+            let stored = database
+                .message_dao
+                .find_message_by_id(&message_id)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                stored.caption, attachment.caption,
+                "{category}, redecrypt={redecrypt}"
+            );
+            assert_eq!(
+                stored.media_duration,
+                duration.map(|value| value.to_string()).unwrap_or_default()
+            );
+            assert_eq!(stored.media_key, attachment.key);
+            assert_eq!(stored.media_digest, attachment.digest);
+            assert_eq!(
+                stored.media_waveform,
+                attachment.waveform.as_deref().map(Base64::encode_string)
+            );
+            assert_eq!(
+                stored.media_mime_type.as_deref(),
+                Some(attachment.mime_type.as_str())
+            );
+            assert_eq!(stored.media_size, Some(attachment.size));
+            assert_eq!(stored.name, attachment.name);
+            assert_eq!(stored.media_width, attachment.width);
+            assert_eq!(stored.media_height, attachment.height);
+            assert_eq!(stored.thumb_image, attachment.thumbnail);
+            assert_eq!(stored.status, MessageStatus::Sent);
+            let extra: AttachmentExtra =
+                serde_json::from_str(stored.content.as_deref().unwrap()).unwrap();
+            assert_eq!(extra.attachment_id, attachment.attachment_id);
+            assert_eq!(extra.message_id, message_id);
+            assert_eq!(extra.shareable, attachment.shareable);
+            assert_eq!(
+                extra.created_at, attachment.created_at,
+                "{category}, redecrypt={redecrypt}"
+            );
+        }
         signal_database.close().await;
         database.close().await;
     }

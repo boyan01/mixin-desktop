@@ -140,6 +140,7 @@ impl From<crate::db::mixin::user::User> for UserProfileItem {
             avatar_url: user.avatar_url,
             biography: user.biography,
             is_verified: user.is_verified,
+            is_deactivated: user.is_deactivated,
             is_bot: user.app_id.is_some_and(|app_id| !app_id.is_empty()),
             relationship: user
                 .relationship

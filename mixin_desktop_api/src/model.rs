@@ -1,3 +1,4 @@
+pub use mixin_desktop_core::runtime::model::AttachmentTransferProgress;
 use std::collections::HashMap;
 
 use mixin_desktop_core::core::device_transfer::{
@@ -32,14 +33,18 @@ pub struct ConversationChangeEvent {
     pub reload_all: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ConnectionFailedReason {
     VersionNotMatched,
     Unknown,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DeviceTransferEvent {
+    RestoreWaiting,
+    RestoreCancelled,
+    BackupWaiting,
+    BackupCancelled,
     RestoreConnected,
     RestoreStart,
     RestoreSucceed,
@@ -55,6 +60,50 @@ pub enum DeviceTransferEvent {
     BackupRequestReceived,
     RestoreRequestReceived,
     ConnectionFailed(ConnectionFailedReason),
+}
+
+/// Current account-scoped operation; phase reuses the transfer event contract.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct DeviceTransferOperation {
+    pub operation_id: u64,
+    pub phase: Option<DeviceTransferEvent>,
+    pub progress: f64,
+    pub bytes_per_second: f64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct DeviceTransferSnapshot {
+    pub backup: DeviceTransferOperation,
+    pub restore: DeviceTransferOperation,
+    pub backup_request_id: Option<u64>,
+    pub restore_request_id: Option<u64>,
+    pub closed: bool,
+}
+
+impl From<mixin_desktop_core::core::device_transfer::DeviceTransferOperation>
+    for DeviceTransferOperation
+{
+    fn from(value: mixin_desktop_core::core::device_transfer::DeviceTransferOperation) -> Self {
+        Self {
+            operation_id: value.operation_id,
+            phase: value.phase.map(Into::into),
+            progress: value.progress,
+            bytes_per_second: value.bytes_per_second,
+        }
+    }
+}
+impl From<mixin_desktop_core::core::device_transfer::DeviceTransferSnapshot>
+    for DeviceTransferSnapshot
+{
+    fn from(value: mixin_desktop_core::core::device_transfer::DeviceTransferSnapshot) -> Self {
+        Self {
+            backup: value.backup.into(),
+            restore: value.restore.into(),
+            backup_request_id: value.backup_request_id,
+            restore_request_id: value.restore_request_id,
+            closed: value.closed,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -87,6 +136,10 @@ impl From<DeviceTransferCommand> for CoreDeviceTransferCommand {
 impl From<CoreDeviceTransferEvent> for DeviceTransferEvent {
     fn from(value: CoreDeviceTransferEvent) -> Self {
         match value {
+            CoreDeviceTransferEvent::RestoreWaiting => Self::RestoreWaiting,
+            CoreDeviceTransferEvent::RestoreCancelled => Self::RestoreCancelled,
+            CoreDeviceTransferEvent::BackupWaiting => Self::BackupWaiting,
+            CoreDeviceTransferEvent::BackupCancelled => Self::BackupCancelled,
             CoreDeviceTransferEvent::RestoreConnected => Self::RestoreConnected,
             CoreDeviceTransferEvent::RestoreStart => Self::RestoreStart,
             CoreDeviceTransferEvent::RestoreSucceed => Self::RestoreSucceed,
@@ -276,7 +329,7 @@ impl TryFrom<ProxyItem> for ProxyConfig {
             _ => {
                 return Err(ClientError::InvalidArgument(
                     "unsupported proxy type".to_string(),
-                ))
+                ));
             }
         };
         Ok(Self {

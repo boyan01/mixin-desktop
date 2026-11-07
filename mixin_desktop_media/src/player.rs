@@ -1,5 +1,6 @@
 use std::fs;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::future::Future;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -46,6 +47,9 @@ pub struct AudioPlayer {
 
 struct PlayerInner {
     state: Mutex<PlayerState>,
+    // The low bit marks a pending preparation. Invalidating never waits for CPAL.
+    revision: AtomicU64,
+    closed: AtomicBool,
     events: broadcast::Sender<AudioPlaybackEvent>,
 }
 
@@ -56,6 +60,7 @@ struct PlayerState {
     stream: Option<Stream>,
     cursor: Option<Arc<PlaybackCursor>>,
     speed: f64,
+    revision: u64,
 }
 
 struct PlaybackCursor {
@@ -82,7 +87,10 @@ impl AudioPlayer {
                     stream: None,
                     cursor: None,
                     speed: 1.0,
+                    revision: 0,
                 }),
+                revision: AtomicU64::new(0),
+                closed: AtomicBool::new(false),
                 events,
             }),
         }
@@ -93,21 +101,104 @@ impl AudioPlayer {
     }
 
     pub fn play(&self, playlist: Vec<AudioPlaybackItem>, start_index: u64) -> MediaResult<()> {
-        if playlist.is_empty() || start_index as usize >= playlist.len() {
-            return Err(MediaError::MalformedAudio(
-                "playback list or start index is invalid".to_string(),
-            ));
+        self.play_with_read(playlist, start_index, |path| fs::read(path))
+    }
+
+    /// Reserves before entering the blocking pool. Dropping the returned future
+    /// invalidates preparation even when its blocking worker has already started.
+    pub fn play_async(
+        &self,
+        playlist: Vec<AudioPlaybackItem>,
+        start_index: u64,
+    ) -> impl Future<Output = MediaResult<()>> + Send + 'static {
+        let request = validate_playlist(&playlist, start_index).and_then(|_| self.reserve());
+        async move {
+            let mut request = request?;
+            let inner = request.inner.clone();
+            let index = start_index as usize;
+            let revision = request.revision;
+            let result = tokio::task::spawn_blocking(move || {
+                play_reserved(&inner, playlist, index, revision, |path| fs::read(path))
+            })
+            .await
+            .map_err(|error| MediaError::Stream(format!("playback worker failed: {error}")))?;
+            request.completed = result.is_ok();
+            drop(request);
+            result
         }
-        {
-            let mut state = self.inner.state.lock().expect("player state poisoned");
-            state.playlist = playlist;
-            state.index = start_index as usize;
+    }
+
+    fn reserve(&self) -> MediaResult<PlaybackRequest> {
+        if self.inner.closed.load(Ordering::Acquire) {
+            return Err(cancelled());
         }
-        start_current(&self.inner)
+        Ok(PlaybackRequest::new(self.inner.clone()))
+    }
+
+    fn play_with_read(
+        &self,
+        playlist: Vec<AudioPlaybackItem>,
+        start_index: u64,
+        read: impl FnOnce(&str) -> std::io::Result<Vec<u8>>,
+    ) -> MediaResult<()> {
+        validate_playlist(&playlist, start_index)?;
+        let mut request = self.reserve()?;
+        let result = play_reserved(
+            &request.inner,
+            playlist,
+            start_index as usize,
+            request.revision,
+            read,
+        );
+        request.completed = result.is_ok();
+        result
+    }
+
+    /// Immediately rejects new work; device disposal runs only when awaited.
+    pub fn close(&self) -> impl Future<Output = MediaResult<()>> + Send + 'static {
+        self.inner.closed.store(true, Ordering::Release);
+        self.stop_async()
+    }
+
+    /// Invalidates immediately and releases the captured playback on a worker.
+    /// A later successful play is never stopped by delayed cleanup.
+    pub fn stop_async(&self) -> impl Future<Output = MediaResult<()>> + Send + 'static {
+        let mut request = PlaybackRequest::new(self.inner.clone());
+        async move {
+            let inner = request.inner.clone();
+            let revision = request.revision;
+            tokio::task::spawn_blocking(move || {
+                let mut state = inner.state.lock().expect("player state poisoned");
+                if state.revision > revision {
+                    return;
+                }
+                let stream = clear_playback(&mut state, true);
+                let _ = inner
+                    .events
+                    .send(AudioPlaybackEvent::Changed(snapshot_for(&state)));
+                drop(state);
+                drop(stream);
+            })
+            .await
+            .map_err(|error| MediaError::Stream(format!("playback cleanup failed: {error}")))?;
+            let _ = request.inner.revision.compare_exchange(
+                request.revision,
+                request.revision & !1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            );
+            request.completed = true;
+            drop(request);
+            Ok(())
+        }
     }
 
     pub fn pause(&self) -> MediaResult<()> {
+        ensure_open(&self.inner)?;
+        invalidate(&self.inner);
         let mut state = self.inner.state.lock().expect("player state poisoned");
+        ensure_open(&self.inner)?;
+        invalidate(&self.inner);
         if let Some(stream) = &state.stream {
             stream
                 .pause()
@@ -120,7 +211,14 @@ impl AudioPlayer {
     }
 
     pub fn resume(&self) -> MediaResult<()> {
+        ensure_open(&self.inner)?;
+        invalidate(&self.inner);
         let mut state = self.inner.state.lock().expect("player state poisoned");
+        ensure_open(&self.inner)?;
+        invalidate(&self.inner);
+        if let Some(cursor) = &state.cursor {
+            cursor.advance_scheduled.store(false, Ordering::Release);
+        }
         if let Some(stream) = &state.stream {
             stream
                 .play()
@@ -133,7 +231,9 @@ impl AudioPlayer {
     }
 
     pub fn seek(&self, position_millis: u64) {
+        invalidate(&self.inner);
         let state = self.inner.state.lock().expect("player state poisoned");
+        invalidate(&self.inner);
         let Some(cursor) = &state.cursor else {
             return;
         };
@@ -155,14 +255,21 @@ impl AudioPlayer {
     }
 
     pub fn set_speed(&self, speed: f64) -> MediaResult<()> {
+        ensure_open(&self.inner)?;
         if !(0.5..=2.0).contains(&speed) {
             return Err(MediaError::DeviceConfiguration(format!(
                 "playback speed {speed} is outside 0.5...2.0"
             )));
         }
+        invalidate(&self.inner);
         let mut state = self.inner.state.lock().expect("player state poisoned");
+        ensure_open(&self.inner)?;
         if (state.speed - speed).abs() < f64::EPSILON {
             return Ok(());
+        }
+        invalidate(&self.inner);
+        if let Some(cursor) = &state.cursor {
+            cursor.advance_scheduled.store(false, Ordering::Release);
         }
         let was_playing = state.status == AudioPlaybackStatus::Playing;
         if was_playing {
@@ -212,6 +319,7 @@ impl AudioPlayer {
     }
 
     pub fn stop(&self) {
+        invalidate(&self.inner);
         stop_inner(&self.inner, true);
     }
 
@@ -220,18 +328,158 @@ impl AudioPlayer {
     }
 }
 
+struct PlaybackRequest {
+    inner: Arc<PlayerInner>,
+    revision: u64,
+    completed: bool,
+}
+
+impl PlaybackRequest {
+    fn new(inner: Arc<PlayerInner>) -> Self {
+        let previous = inner
+            .revision
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |revision| {
+                Some(revision.wrapping_add(2) | 1)
+            })
+            .expect("revision update always succeeds");
+        Self {
+            inner,
+            revision: previous.wrapping_add(2) | 1,
+            completed: false,
+        }
+    }
+}
+
+fn validate_playlist(playlist: &[AudioPlaybackItem], start_index: u64) -> MediaResult<()> {
+    if playlist.is_empty() || start_index as usize >= playlist.len() {
+        Err(MediaError::MalformedAudio(
+            "playback list or start index is invalid".into(),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+impl Drop for PlaybackRequest {
+    fn drop(&mut self) {
+        if self.completed {
+            return;
+        }
+        if self
+            .inner
+            .revision
+            .compare_exchange(
+                self.revision,
+                self.revision.wrapping_add(2) & !1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_ok()
+        {
+            return;
+        }
+        // A finished or superseded request usually owns no published resource.
+        // Never wait here if a worker is still committing under the state lock.
+        if self
+            .inner
+            .state
+            .try_lock()
+            .is_ok_and(|state| state.revision != self.revision)
+        {
+            return;
+        }
+        // The worker may have published before its awaiter received the result.
+        // Dispose only this request's stream, preserving every later request.
+        let inner = self.inner.clone();
+        let revision = self.revision;
+        std::thread::spawn(move || {
+            let mut state = inner.state.lock().expect("player state poisoned");
+            if state.revision != revision {
+                return;
+            }
+            let _ = inner.revision.compare_exchange(
+                revision & !1,
+                revision.wrapping_add(2) & !1,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            );
+            let stream = clear_playback(&mut state, true);
+            let _ = inner
+                .events
+                .send(AudioPlaybackEvent::Changed(snapshot_for(&state)));
+            drop(state);
+            drop(stream);
+        });
+    }
+}
+
+fn cancelled() -> MediaError {
+    MediaError::Stream("playback request was cancelled or superseded".into())
+}
+
+fn ensure_open(inner: &PlayerInner) -> MediaResult<()> {
+    if inner.closed.load(Ordering::Acquire) {
+        Err(cancelled())
+    } else {
+        Ok(())
+    }
+}
+
+fn invalidate(inner: &PlayerInner) {
+    inner
+        .revision
+        .fetch_update(Ordering::AcqRel, Ordering::Acquire, |revision| {
+            Some(revision.wrapping_add(2) & !1)
+        })
+        .expect("revision update always succeeds");
+}
+
+fn is_pending(inner: &PlayerInner, revision: u64) -> bool {
+    !inner.closed.load(Ordering::Acquire) && inner.revision.load(Ordering::Acquire) == revision
+}
+
+fn play_reserved(
+    inner: &Arc<PlayerInner>,
+    playlist: Vec<AudioPlaybackItem>,
+    index: usize,
+    revision: u64,
+    read: impl FnOnce(&str) -> std::io::Result<Vec<u8>>,
+) -> MediaResult<()> {
+    if !is_pending(inner, revision) {
+        return Err(cancelled());
+    }
+    let speed = inner.state.lock().expect("player state poisoned").speed;
+    let result = start_playlist(inner, playlist, index, revision, speed, read);
+    if result.is_err() && is_pending(inner, revision) {
+        let state = inner.state.lock().expect("player state poisoned");
+        if let Some(cursor) = &state.cursor {
+            cursor.advance_scheduled.store(false, Ordering::Release);
+        }
+    }
+    result
+}
+
 impl Default for AudioPlayer {
     fn default() -> Self {
         Self::new()
     }
 }
 
-fn start_current(inner: &Arc<PlayerInner>) -> MediaResult<()> {
-    let (item, speed) = {
-        let state = inner.state.lock().expect("player state poisoned");
-        (state.playlist[state.index].clone(), state.speed)
-    };
-    let bytes = fs::read(&item.path)?;
+/// Preparation does not publish the requested item. Only a still-current
+/// request can atomically replace its queue and the resources playing it.
+fn start_playlist(
+    inner: &Arc<PlayerInner>,
+    playlist: Vec<AudioPlaybackItem>,
+    index: usize,
+    revision: u64,
+    speed: f64,
+    read: impl FnOnce(&str) -> std::io::Result<Vec<u8>>,
+) -> MediaResult<()> {
+    if !is_pending(inner, revision) {
+        return Err(cancelled());
+    }
+    let item = &playlist[index];
+    let bytes = read(&item.path)?;
     let audio = decode_ogg_opus(bytes)?;
     let samples = stretch_audio(&audio, speed)?;
     let cursor = Arc::new(PlaybackCursor {
@@ -243,17 +491,43 @@ fn start_current(inner: &Arc<PlayerInner>) -> MediaResult<()> {
         ended: AtomicBool::new(false),
         advance_scheduled: AtomicBool::new(false),
     });
+    // Avoid opening a device for work that was cancelled while decoding.
+    if !is_pending(inner, revision) {
+        return Err(MediaError::Stream("playback request was superseded".into()));
+    }
     let stream = build_output_stream(cursor.clone(), Arc::downgrade(inner), item.id.clone())?;
+    let mut state = inner.state.lock().expect("player state poisoned");
+    if !is_pending(inner, revision) {
+        drop(state);
+        drop(stream);
+        return Err(MediaError::Stream("playback request was superseded".into()));
+    }
     stream
         .play()
         .map_err(|error| MediaError::Stream(error.to_string()))?;
+    if inner
+        .revision
+        .compare_exchange(revision, revision & !1, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+        || inner.closed.load(Ordering::Acquire)
     {
-        let mut state = inner.state.lock().expect("player state poisoned");
-        state.stream = Some(stream);
-        state.cursor = Some(cursor);
-        state.status = AudioPlaybackStatus::Playing;
+        drop(state);
+        drop(stream);
+        return Err(cancelled());
     }
-    emit_snapshot(inner);
+    let old_stream = state.stream.replace(stream);
+    state.cursor = Some(cursor);
+    state.playlist = playlist;
+    state.index = index;
+    state.status = AudioPlaybackStatus::Playing;
+    state.revision = revision;
+    let _ = inner
+        .events
+        .send(AudioPlaybackEvent::Changed(snapshot_for(&state)));
+    drop(state);
+    // CPAL may wait for callbacks when dropping a stream. Callbacks can inspect
+    // the player, so release the state lock before disposing the previous one.
+    drop(old_stream);
     Ok(())
 }
 
@@ -316,26 +590,42 @@ where
 {
     let error_inner = inner.clone();
     let error_item_id = item_id.clone();
+    let error_cursor = Arc::downgrade(&cursor);
     device
         .build_output_stream(
             config,
             move |output: &mut [T], _| {
                 fill_output(output, output_channels, output_rate, &cursor);
                 if cursor.ended.load(Ordering::Acquire)
+                    && inner.upgrade().is_some_and(|inner| {
+                        !inner.closed.load(Ordering::Acquire)
+                            && inner.revision.load(Ordering::Acquire) & 1 == 0
+                    })
                     && !cursor.advance_scheduled.swap(true, Ordering::AcqRel)
                 {
                     let inner = inner.clone();
-                    let item_id = item_id.clone();
-                    std::thread::spawn(move || advance(inner, item_id));
+                    let cursor = Arc::downgrade(&cursor);
+                    std::thread::spawn(move || advance(inner, cursor));
                 }
             },
             move |error| {
-                if let Some(inner) = error_inner.upgrade() {
-                    let _ = inner.events.send(AudioPlaybackEvent::Failed {
-                        id: Some(error_item_id.clone()),
-                        message: error.to_string(),
-                    });
-                }
+                let inner = error_inner.clone();
+                let cursor = error_cursor.clone();
+                let id = error_item_id.clone();
+                let message = error.to_string();
+                // A backend can invoke this while a control call is waiting
+                // for its callback. Never acquire the player lock on that thread.
+                std::thread::spawn(move || {
+                    if let Some(inner) = inner.upgrade() {
+                        let state = inner.state.lock().expect("player state poisoned");
+                        if is_current_cursor(&state, &cursor) {
+                            let _ = inner.events.send(AudioPlaybackEvent::Failed {
+                                id: Some(id),
+                                message,
+                            });
+                        }
+                    }
+                });
             },
             None,
         )
@@ -377,55 +667,108 @@ fn fill_output<T>(
     }
 }
 
-fn advance(inner: Weak<PlayerInner>, item_id: String) {
+fn is_current_cursor(state: &PlayerState, cursor: &Weak<PlaybackCursor>) -> bool {
+    state
+        .cursor
+        .as_ref()
+        .is_some_and(|current| Weak::ptr_eq(&Arc::downgrade(current), cursor))
+}
+
+fn advance(inner: Weak<PlayerInner>, cursor: Weak<PlaybackCursor>) {
     let Some(inner) = inner.upgrade() else {
         return;
     };
-    let has_next = {
+    let (playlist, index, revision, speed) = {
         let mut state = inner.state.lock().expect("player state poisoned");
-        let Some(current) = state.playlist.get(state.index) else {
-            return;
-        };
-        if current.id != item_id {
+        let previous = inner.revision.load(Ordering::Acquire);
+        if !is_current_cursor(&state, &cursor)
+            || inner.closed.load(Ordering::Acquire)
+            || previous & 1 != 0
+            || state.status != AudioPlaybackStatus::Playing
+            || !state
+                .cursor
+                .as_ref()
+                .is_some_and(|cursor| cursor.ended.load(Ordering::Acquire))
+        {
+            if let Some(cursor) = cursor.upgrade() {
+                cursor.advance_scheduled.store(false, Ordering::Release);
+            }
             return;
         }
-        state.stream.take();
-        state.cursor.take();
-        if state.index + 1 < state.playlist.len() {
-            state.index += 1;
-            true
-        } else {
+        let revision = previous.wrapping_add(2) | 1;
+        if inner
+            .revision
+            .compare_exchange(previous, revision, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+        if state.index + 1 >= state.playlist.len() {
+            inner
+                .revision
+                .compare_exchange(revision, revision & !1, Ordering::AcqRel, Ordering::Acquire)
+                .ok();
+            let item_id = state.playlist[state.index].id.clone();
+            let stream = state.stream.take();
+            state.cursor.take();
             state.status = AudioPlaybackStatus::Idle;
-            false
+            let _ = inner.events.send(AudioPlaybackEvent::Finished(item_id));
+            let _ = inner
+                .events
+                .send(AudioPlaybackEvent::Changed(snapshot_for(&state)));
+            drop(state);
+            drop(stream);
+            return;
         }
+        (
+            state.playlist.clone(),
+            state.index + 1,
+            revision,
+            state.speed,
+        )
     };
-    if has_next {
-        if let Err(error) = start_current(&inner) {
-            let _ = inner.events.send(AudioPlaybackEvent::Failed {
-                id: Some(item_id),
-                message: error.to_string(),
-            });
-            stop_inner(&inner, true);
+    let next_id = playlist[index].id.clone();
+    if let Err(error) = start_playlist(&inner, playlist, index, revision, speed, |path| {
+        fs::read(path)
+    }) {
+        let mut state = inner.state.lock().expect("player state poisoned");
+        if !is_pending(&inner, revision) || !is_current_cursor(&state, &cursor) {
+            return;
         }
-    } else {
-        let _ = inner.events.send(AudioPlaybackEvent::Finished(item_id));
-        emit_snapshot(&inner);
+        invalidate(&inner);
+        let stream = clear_playback(&mut state, true);
+        let _ = inner.events.send(AudioPlaybackEvent::Failed {
+            id: Some(next_id),
+            message: error.to_string(),
+        });
+        let _ = inner
+            .events
+            .send(AudioPlaybackEvent::Changed(snapshot_for(&state)));
+        drop(state);
+        drop(stream);
     }
 }
 
-fn stop_inner(inner: &PlayerInner, clear_playlist: bool) {
-    let mut state = inner.state.lock().expect("player state poisoned");
-    if let Some(stream) = state.stream.take() {
-        let _ = stream.pause();
-    }
+fn clear_playback(state: &mut PlayerState, clear_playlist: bool) -> Option<Stream> {
+    let stream = state.stream.take();
     state.cursor = None;
     state.status = AudioPlaybackStatus::Idle;
     if clear_playlist {
         state.playlist.clear();
         state.index = 0;
     }
+    stream
+}
+
+fn stop_inner(inner: &PlayerInner, clear_playlist: bool) {
+    let mut state = inner.state.lock().expect("player state poisoned");
+    invalidate(inner);
+    let stream = clear_playback(&mut state, clear_playlist);
+    let _ = inner
+        .events
+        .send(AudioPlaybackEvent::Changed(snapshot_for(&state)));
     drop(state);
-    emit_snapshot(inner);
+    drop(stream);
 }
 
 fn snapshot_for(state: &PlayerState) -> AudioPlaybackSnapshot {
@@ -476,47 +819,4 @@ fn stretch_audio(audio: &DecodedAudio, speed: f64) -> MediaResult<Vec<f32>> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn time_stretch_changes_duration_without_shifting_pitch() {
-        let sample_rate = 48_000;
-        let frequency = 440.0;
-        let samples = (0..sample_rate * 2)
-            .map(|index| {
-                (index as f32 * frequency * std::f32::consts::TAU / sample_rate as f32).sin()
-            })
-            .collect::<Vec<_>>();
-        let audio = DecodedAudio {
-            samples,
-            sample_rate,
-            channels: 1,
-        };
-
-        let stretched = stretch_audio(&audio, 2.0).expect("time stretch should succeed");
-
-        let expected_length = audio.samples.len() / 2;
-        assert!(
-            stretched.len().abs_diff(expected_length) < sample_rate as usize / 10,
-            "2x output length {} should be close to {expected_length}",
-            stretched.len()
-        );
-        let frequency = dominant_frequency(&stretched, sample_rate);
-        assert!(
-            (frequency - 440.0).abs() < 22.0,
-            "2x playback shifted pitch to {frequency} Hz"
-        );
-    }
-
-    fn dominant_frequency(samples: &[f32], sample_rate: u32) -> f32 {
-        let start = samples.len() / 8;
-        let end = samples.len() - start;
-        let samples = &samples[start..end];
-        let crossings = samples
-            .windows(2)
-            .filter(|pair| (pair[0] <= 0.0 && pair[1] > 0.0) || (pair[0] >= 0.0 && pair[1] < 0.0))
-            .count();
-        crossings as f32 * sample_rate as f32 / (2.0 * samples.len() as f32)
-    }
-}
+mod tests;

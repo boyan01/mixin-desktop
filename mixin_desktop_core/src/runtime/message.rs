@@ -1,5 +1,12 @@
-use std::collections::{HashMap, HashSet};
-use std::io::Cursor;
+mod actions;
+mod attachment_send;
+mod audio_send;
+mod forwarding;
+mod pinning;
+mod remote_image;
+mod transcript;
+
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
@@ -8,35 +15,36 @@ use anyhow::{anyhow, Context, Result};
 use base64ct::{Base64, Encoding};
 use chrono::{DateTime, Utc};
 use log::warn;
-use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use sdk::message_category::{MessageCategory as _, MESSAGE_PIN};
-use sdk::{
-    AttachmentMessage, ContactMessage, ConversationCategory, LiveMessage, MessageStatus,
-    PinMessagePayload, StickerMessage,
-};
+use sdk::message_category::MessageCategory as _;
+use sdk::{ContactMessage, ConversationCategory, LiveMessage, MessageStatus, StickerMessage};
 
-use crate::core::attachment::{attachment_file_name, attachment_path, transcript_attachment_path};
-use crate::core::model::job::sanitize_transcript_app_card;
+use crate::core::attachment::{attachment_path, transcript_attachment_path};
 use crate::core::model::AttachmentExtra;
 use crate::db::mixin::job::Job;
-use crate::db::mixin::message::{AttachmentMessageUpdate, MediaStatus, Message};
-use crate::db::mixin::pin_message::PinMessageMinimal;
-use crate::db::mixin::transcript_message::TranscriptMessage;
+use crate::db::mixin::message::{MediaStatus, Message};
 use crate::db::path::account_data_directory;
 
-use super::{
-    combine_transcript_category, forward_category, forward_transcript_category, model,
-    validate_combine_forward_source, AccountState, AttachmentAccess, MAX_AUDIO_DURATION_MILLIS,
-    MAX_AUDIO_FILE_SIZE, MAX_AUDIO_WAVEFORM_SAMPLES,
-};
+use super::{forward_category, model, AccountState};
 
 pub struct MessageAccess {
     state: Arc<AccountState>,
 }
 
 impl MessageAccess {
+    pub(super) async fn ensure_can_send(&self, conversation_id: &str) -> Result<()> {
+        if !self
+            .database
+            .conversation_dao
+            .can_send(conversation_id, &self.account_id)
+            .await?
+        {
+            return Err(crate::CoreError::PermissionDenied.into());
+        }
+        Ok(())
+    }
+
     fn message_list_view(
         &self,
         item: crate::db::mixin::message::MessageListItem,
@@ -97,195 +105,6 @@ impl MessageAccess {
             user_identity_number: item.user_identity_number,
             avatar_url: item.avatar_url,
         })
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub async fn send_remote_image(
-        &self,
-        conversation_id: String,
-        url: String,
-        preview_url: String,
-        width: Option<i32>,
-        height: Option<i32>,
-        mime_type: String,
-        silent: bool,
-    ) -> Result<String> {
-        let _mutation = self.mutation_gate.read().await;
-        self.ensure_active()?;
-        let parsed = url::Url::parse(&url)?;
-        if !matches!(parsed.scheme(), "http" | "https") {
-            return Err(anyhow!("remote image URL must use HTTP or HTTPS"));
-        }
-        if width.is_some_and(|value| value <= 0) || height.is_some_and(|value| value <= 0) {
-            return Err(anyhow!("remote image dimensions must be positive"));
-        }
-        let conversation = self
-            .database
-            .conversation_dao
-            .find_conversation_by_id(&conversation_id)
-            .await?
-            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
-        let text_category = self.text_category(conversation.owner_id.as_deref()).await?;
-        let prefix = text_category
-            .split_once('_')
-            .map(|(prefix, _)| prefix)
-            .ok_or_else(|| anyhow!("invalid message category: {text_category}"))?;
-        let message_id = Uuid::new_v4().to_string();
-        let message = Message {
-            message_id: message_id.clone(),
-            conversation_id,
-            user_id: self.account_id.clone(),
-            category: format!("{prefix}_IMAGE"),
-            media_url: Some(url),
-            media_mime_type: Some(mime_type),
-            media_size: Some(0),
-            media_width: width,
-            media_height: height,
-            media_status: MediaStatus::Pending,
-            thumb_image: Some(preview_url),
-            status: MessageStatus::Sending,
-            created_at: Utc::now().naive_utc(),
-            ..Message::default()
-        };
-        self.database
-            .message_dao
-            .insert_pending_outgoing_message(&message)
-            .await?;
-        self.notify_conversation_changed(&message.conversation_id);
-        if let Err(error) = self.complete_remote_image_from_url(&message, silent).await {
-            warn!(
-                "failed to send remote image {}: {error}",
-                message.message_id
-            );
-            self.database
-                .message_dao
-                .update_media_status(&message.message_id, MediaStatus::Canceled)
-                .await?;
-            self.notify_conversation_changed(&message.conversation_id);
-        }
-        Ok(message_id)
-    }
-
-    pub(crate) async fn complete_remote_image_from_url(
-        &self,
-        message: &Message,
-        silent: bool,
-    ) -> Result<()> {
-        let url = message
-            .media_url
-            .as_deref()
-            .ok_or_else(|| anyhow!("remote image has no URL"))?;
-        let bytes = self.app_service.attachment.download_public(url).await?;
-        let image = image::ImageReader::new(Cursor::new(bytes.as_slice()))
-            .with_guessed_format()?
-            .decode()?;
-        let width = i32::try_from(image.width()).context("remote image is too wide")?;
-        let height = i32::try_from(image.height()).context("remote image is too tall")?;
-        let extension = match message.media_mime_type.as_deref() {
-            Some("image/gif") => "gif",
-            Some("image/png") => "png",
-            Some("image/webp") => "webp",
-            _ => "jpg",
-        };
-        let temporary = std::env::temp_dir().join(format!(
-            "mixin-remote-image-{}.{}",
-            message.message_id, extension
-        ));
-        crate::fs::write(&temporary, bytes).await?;
-        let result = self
-            .complete_remote_image_file(message, &temporary, width, height, silent)
-            .await;
-        let _ = crate::fs::remove_file(&temporary).await;
-        result
-    }
-
-    async fn complete_remote_image_file(
-        &self,
-        message: &Message,
-        source: &Path,
-        width: i32,
-        height: i32,
-        silent: bool,
-    ) -> Result<()> {
-        let mime_type = message.media_mime_type.as_deref().unwrap_or("image/gif");
-        let (local_path, media_size) = self
-            .app_service
-            .attachment
-            .import_local(source, message)
-            .await?;
-        let prefix = message
-            .category
-            .split_once('_')
-            .map(|(prefix, _)| prefix)
-            .ok_or_else(|| anyhow!("invalid message category: {}", message.category))?;
-        let upload = self
-            .app_service
-            .attachment
-            .upload(&local_path, prefix != "PLAIN", None, None)
-            .await?;
-        let attachment = AttachmentMessage {
-            key: upload.key.clone(),
-            digest: upload.digest.clone(),
-            attachment_id: upload.attachment_id,
-            mime_type: mime_type.to_string(),
-            size: media_size,
-            name: None,
-            width: Some(width),
-            height: Some(height),
-            thumbnail: message.thumb_image.clone(),
-            duration: None,
-            waveform: None,
-            caption: None,
-            created_at: Some(upload.created_at),
-            shareable: Some(true),
-        };
-        let content = Base64::encode_string(serde_json::to_string(&attachment)?.as_bytes());
-        let conversation = self
-            .database
-            .conversation_dao
-            .find_conversation_by_id(&message.conversation_id)
-            .await?
-            .ok_or_else(|| anyhow!("conversation not found: {}", message.conversation_id))?;
-        let job = Job::create_sending_job(
-            &message.message_id,
-            &message.conversation_id,
-            None,
-            None,
-            false,
-            silent,
-            conversation.expire_in,
-        );
-        let completed = self
-            .database
-            .message_dao
-            .complete_pending_attachment(
-                &message.message_id,
-                attachment_file_name(&local_path)?,
-                &AttachmentMessageUpdate {
-                    status: MessageStatus::Sending,
-                    content,
-                    media_mime_type: mime_type.to_string(),
-                    media_size,
-                    media_status: MediaStatus::Done,
-                    media_width: Some(width),
-                    media_height: Some(height),
-                    media_digest: upload.digest,
-                    media_key: upload.key,
-                    media_waveform: None,
-                    caption: None,
-                    name: None,
-                    thumb_image: message.thumb_image.clone(),
-                    media_duration: None,
-                },
-                &job,
-            )
-            .await?;
-        if !completed {
-            return Err(anyhow!("remote image send was canceled"));
-        }
-        self.app_service.job.wake(&job.action)?;
-        self.notify_conversation_changed(&message.conversation_id);
-        Ok(())
     }
 
     pub(crate) fn new(state: Arc<AccountState>) -> Self {
@@ -443,6 +262,26 @@ impl MessageAccess {
         anchor_message_id: Option<String>,
         limit: u32,
     ) -> Result<Vec<model::MessageListView>> {
+        self.ensure_active()?;
+        if query.trim().is_empty() {
+            let Some(sender_id) = sender_id else {
+                return Ok(Vec::new());
+            };
+            return self
+                .database
+                .message_dao
+                .list_items_by_sender(
+                    &conversation_id,
+                    &sender_id,
+                    &categories,
+                    anchor_message_id.as_deref(),
+                    limit,
+                )
+                .await?
+                .into_iter()
+                .map(|item| self.message_list_view(item))
+                .collect();
+        }
         self.search_message_items(crate::db::mixin::message_fts::MessageFtsSearch {
             query,
             conversation_ids: vec![conversation_id],
@@ -463,6 +302,27 @@ impl MessageAccess {
     ) -> Result<Vec<model::MessageListView>> {
         self.search_message_items(crate::db::mixin::message_fts::MessageFtsSearch {
             query,
+            cursor_message_id: anchor_message_id,
+            limit,
+            ..Default::default()
+        })
+        .await
+    }
+
+    pub async fn search_scoped_messages(
+        &self,
+        query: String,
+        category: String,
+        circle_id: Option<String>,
+        unseen_only: bool,
+        anchor_message_id: Option<String>,
+        limit: u32,
+    ) -> Result<Vec<model::MessageListView>> {
+        self.search_message_items(crate::db::mixin::message_fts::MessageFtsSearch {
+            query,
+            conversation_category: Some(category),
+            circle_id,
+            unseen_only,
             cursor_message_id: anchor_message_id,
             limit,
             ..Default::default()
@@ -550,6 +410,23 @@ impl MessageAccess {
         Ok(result.into_iter().skip(offset).take(page_size).collect())
     }
 
+    pub async fn messages_relative(
+        &self,
+        conversation_id: String,
+        anchor_message_id: String,
+        older: bool,
+        limit: i64,
+    ) -> Result<Vec<model::MessageListView>> {
+        self.ensure_active()?;
+        self.database
+            .message_dao
+            .list_items_relative(&conversation_id, &anchor_message_id, older, limit)
+            .await?
+            .into_iter()
+            .map(|item| self.message_list_view(item))
+            .collect()
+    }
+
     pub async fn messages_around(
         &self,
         conversation_id: String,
@@ -566,6 +443,32 @@ impl MessageAccess {
             .into_iter()
             .map(|item| self.message_list_view(item))
             .collect::<Result<Vec<_>>>()
+    }
+
+    pub async fn first_unread_message_id(&self, conversation_id: String) -> Result<Option<String>> {
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .message_dao
+            .first_unread_message_id(&conversation_id, &self.account_id)
+            .await?)
+    }
+
+    pub async fn audio_messages_around(
+        &self,
+        conversation_id: String,
+        target_message_id: String,
+        before: i64,
+        after: i64,
+    ) -> Result<Vec<model::MessageListView>> {
+        self.ensure_active()?;
+        self.database
+            .message_dao
+            .list_audio_items_around(&conversation_id, &target_message_id, before, after)
+            .await?
+            .into_iter()
+            .map(|item| self.message_list_view(item))
+            .collect()
     }
 
     pub async fn image_messages_around(
@@ -587,48 +490,6 @@ impl MessageAccess {
             .collect::<Result<Vec<_>>>()
     }
 
-    pub async fn pinned_messages(
-        &self,
-        conversation_id: String,
-    ) -> Result<Vec<model::MessageListView>> {
-        let conversation_id = conversation_id.as_str();
-        self.ensure_active()?;
-        self.database
-            .message_dao
-            .list_pinned_items(conversation_id)
-            .await?
-            .into_iter()
-            .map(|item| self.message_list_view(item))
-            .collect::<Result<Vec<_>>>()
-    }
-
-    pub async fn pinned_message_ids(&self, conversation_id: String) -> Result<Vec<String>> {
-        self.ensure_active()?;
-        Ok(self
-            .database
-            .pin_message_dao
-            .message_ids(&conversation_id)
-            .await?)
-    }
-
-    pub async fn pin_message_preview(
-        &self,
-        conversation_id: String,
-    ) -> Result<Option<model::PinMessagePreviewItem>> {
-        let conversation_id = conversation_id.as_str();
-        self.ensure_active()?;
-        Ok(self
-            .database
-            .pin_message_dao
-            .latest_preview(conversation_id)
-            .await?
-            .map(|item| model::PinMessagePreviewItem {
-                message_id: item.message_id,
-                content: item.content.unwrap_or_default(),
-                sender_name: item.sender_name.unwrap_or_default(),
-            }))
-    }
-
     pub async fn transcript_messages(
         &self,
         transcript_id: String,
@@ -642,6 +503,23 @@ impl MessageAccess {
             .into_iter()
             .map(|item| self.transcript_message_list_view(item))
             .collect::<Result<Vec<_>>>()
+    }
+
+    /// Loads a bounded transcript window without retaining its entire history.
+    pub async fn transcript_messages_page(
+        &self,
+        transcript_id: String,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<model::MessageListView>> {
+        self.ensure_active()?;
+        self.database
+            .transcript_message_dao
+            .list_items_page(&transcript_id, offset, limit)
+            .await?
+            .into_iter()
+            .map(|item| self.transcript_message_list_view(item))
+            .collect()
     }
 
     pub async fn send_text(
@@ -676,6 +554,7 @@ impl MessageAccess {
         let conversation_id = conversation_id.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
+        self.ensure_can_send(conversation_id).await?;
         let conversation = self
             .database
             .conversation_dao
@@ -732,7 +611,8 @@ impl MessageAccess {
         self.database
             .message_dao
             .insert_outgoing_message(&message, &job)
-            .await?;
+            .await
+            .map_err(crate::CoreError::from)?;
         self.app_service.job.wake(&job.action)?;
         self.notify_conversation_changed(conversation_id);
         Ok(message_id)
@@ -751,6 +631,7 @@ impl MessageAccess {
         let content = content.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
+        self.ensure_can_send(conversation_id).await?;
         if content.is_empty() {
             return Err(anyhow!("message content is empty"));
         }
@@ -802,7 +683,8 @@ impl MessageAccess {
         self.database
             .message_dao
             .insert_outgoing_message(&message, &job)
-            .await?;
+            .await
+            .map_err(crate::CoreError::from)?;
         if let Err(error) = self
             .database
             .message_fts_dao
@@ -828,6 +710,7 @@ impl MessageAccess {
         let quote_message_id = quote_message_id.as_deref();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
+        self.ensure_can_send(conversation_id).await?;
         let conversation = self
             .database
             .conversation_dao
@@ -883,7 +766,8 @@ impl MessageAccess {
         self.database
             .message_dao
             .insert_outgoing_message(&message, &job)
-            .await?;
+            .await
+            .map_err(crate::CoreError::from)?;
         self.app_service.job.wake(&job.action)?;
         self.notify_conversation_changed(conversation_id);
         Ok(message_id)
@@ -898,6 +782,7 @@ impl MessageAccess {
         let sticker_id = sticker_id.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
+        self.ensure_can_send(conversation_id).await?;
         if sticker_id.trim().is_empty() {
             return Err(anyhow!("sticker id is required"));
         }
@@ -957,7 +842,8 @@ impl MessageAccess {
         self.database
             .message_dao
             .insert_outgoing_message(&message, &job)
-            .await?;
+            .await
+            .map_err(crate::CoreError::from)?;
         self.database
             .sticker_dao
             .update_last_used(sticker_id)
@@ -965,972 +851,6 @@ impl MessageAccess {
         self.app_service.job.wake(&job.action)?;
         self.notify_conversation_changed(conversation_id);
         Ok(message_id)
-    }
-
-    pub async fn send_audio(
-        &self,
-        conversation_id: String,
-        path: String,
-        duration_millis: i64,
-        waveform: Vec<u8>,
-        quote_message_id: Option<String>,
-    ) -> Result<String> {
-        let quote_message_id = quote_message_id.as_deref();
-        let conversation_id = conversation_id.as_str();
-        let path = path.as_str();
-        let waveform = waveform.as_slice();
-        let _mutation = self.mutation_gate.read().await;
-        self.ensure_active()?;
-        if !(1..=MAX_AUDIO_DURATION_MILLIS).contains(&duration_millis) {
-            return Err(anyhow!(
-                "audio duration must be between 1 and 60000 milliseconds"
-            ));
-        }
-        if waveform.is_empty() || waveform.len() > MAX_AUDIO_WAVEFORM_SAMPLES {
-            return Err(anyhow!(
-                "audio waveform must contain between 1 and 1024 samples"
-            ));
-        }
-        let source = crate::fs::canonicalize(path)
-            .await
-            .with_context(|| format!("resolve recorded audio {path}"))?;
-        let metadata = crate::fs::metadata(&source).await?;
-        if !metadata.is_file() || metadata.is_empty() {
-            return Err(anyhow!("recorded audio is empty or is not a file"));
-        }
-        if metadata.len() > MAX_AUDIO_FILE_SIZE {
-            return Err(anyhow!("recorded audio exceeds the 64 MiB size limit"));
-        }
-
-        let conversation = self
-            .database
-            .conversation_dao
-            .find_conversation_by_id(conversation_id)
-            .await?
-            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
-        let text_category = self.text_category(conversation.owner_id.as_deref()).await?;
-        let prefix = text_category
-            .split_once('_')
-            .map(|(prefix, _)| prefix)
-            .ok_or_else(|| anyhow!("invalid message category: {text_category}"))?;
-        let category = format!("{prefix}_AUDIO");
-        let quote_content = match quote_message_id {
-            Some(message_id) => self
-                .database
-                .message_dao
-                .find_quote_message_by_id(message_id)
-                .await?
-                .map(|message| serde_json::to_string(&message))
-                .transpose()?,
-            None => None,
-        };
-        if quote_message_id.is_some() && quote_content.is_none() {
-            return Err(anyhow!("quote message not found"));
-        }
-
-        let message_id = Uuid::new_v4().to_string();
-        let file_message = Message {
-            message_id: message_id.clone(),
-            conversation_id: conversation_id.to_string(),
-            category: category.clone(),
-            media_mime_type: Some("audio/ogg".to_string()),
-            ..Message::default()
-        };
-        let (local_path, actual_size) = self
-            .app_service
-            .attachment
-            .import_local(&source, &file_message)
-            .await?;
-        let encoded_waveform = Base64::encode_string(waveform);
-        let message = Message {
-            message_id: message_id.clone(),
-            conversation_id: conversation_id.to_string(),
-            user_id: self.account_id.clone(),
-            category,
-            content: Some(String::new()),
-            media_url: Some(attachment_file_name(&local_path)?.to_string()),
-            media_mime_type: Some("audio/ogg".to_string()),
-            media_size: Some(actual_size),
-            media_duration: duration_millis.to_string(),
-            media_status: MediaStatus::Pending,
-            media_waveform: Some(encoded_waveform.clone()),
-            quote_message_id: quote_message_id.map(str::to_string),
-            quote_content,
-            status: MessageStatus::Sending,
-            created_at: Utc::now().naive_utc(),
-            ..Message::default()
-        };
-        self.database
-            .message_dao
-            .insert_pending_outgoing_message(&message)
-            .await?;
-        self.notify_conversation_changed(conversation_id);
-
-        let cancellation = CancellationToken::new();
-        self.attachment_downloads
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .insert(message_id.clone(), cancellation.clone());
-        self.set_attachment_progress(&message_id, 0, 0);
-        let progress_state = self.state.clone();
-        let progress_message_id = message_id.clone();
-        let progress = Arc::new(move |completed, total| {
-            progress_state.set_attachment_progress(&progress_message_id, completed, total);
-        });
-        let upload = tokio::select! {
-            result = self.app_service.attachment.upload(
-                &local_path,
-                prefix != "PLAIN",
-                Some(&cancellation),
-                Some(progress.clone()),
-            ) => result,
-            _ = cancellation.cancelled() => Err(anyhow!("attachment upload canceled")),
-        };
-        self.attachment_downloads
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .remove(&message_id);
-        self.remove_attachment_progress(&message_id);
-        let upload = match upload {
-            Ok(upload) => upload,
-            Err(error) => {
-                self.database
-                    .message_dao
-                    .update_media_status(&message_id, MediaStatus::Canceled)
-                    .await?;
-                self.notify_conversation_changed(conversation_id);
-                if cancellation.is_cancelled() {
-                    return Ok(message_id);
-                }
-                return Err(anyhow!("attachment_upload_failed:{error}"));
-            }
-        };
-        let attachment = AttachmentMessage {
-            key: upload.key.clone(),
-            digest: upload.digest.clone(),
-            attachment_id: upload.attachment_id,
-            mime_type: "audio/ogg".to_string(),
-            size: actual_size,
-            name: None,
-            width: None,
-            height: None,
-            thumbnail: None,
-            duration: Some(duration_millis),
-            waveform: Some(waveform.to_vec()),
-            caption: None,
-            created_at: Some(upload.created_at),
-            shareable: Some(true),
-        };
-        let content = Base64::encode_string(serde_json::to_string(&attachment)?.as_bytes());
-        let job = Job::create_sending_job(
-            &message_id,
-            conversation_id,
-            None,
-            None,
-            false,
-            false,
-            conversation.expire_in,
-        );
-        let completed = self
-            .database
-            .message_dao
-            .complete_pending_attachment(
-                &message_id,
-                &local_path.to_string_lossy(),
-                &AttachmentMessageUpdate {
-                    status: MessageStatus::Sending,
-                    content,
-                    media_mime_type: "audio/ogg".to_string(),
-                    media_size: actual_size,
-                    media_status: MediaStatus::Done,
-                    media_width: None,
-                    media_height: None,
-                    media_digest: upload.digest,
-                    media_key: upload.key,
-                    media_waveform: Some(waveform.to_vec()),
-                    caption: None,
-                    name: None,
-                    thumb_image: None,
-                    media_duration: Some(duration_millis.to_string()),
-                },
-                &job,
-            )
-            .await?;
-        if !completed {
-            return Ok(message_id);
-        }
-        self.app_service.job.wake(&job.action)?;
-        self.notify_conversation_changed(conversation_id);
-        Ok(message_id)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub async fn send_attachment(
-        &self,
-        conversation_id: String,
-        path: String,
-        kind: String,
-        mime_type: String,
-        name: Option<String>,
-        width: Option<i32>,
-        height: Option<i32>,
-        duration_millis: Option<i64>,
-        thumbnail: Option<String>,
-        caption: Option<String>,
-        quote_message_id: Option<String>,
-        silent: bool,
-    ) -> Result<String> {
-        let quote_message_id = quote_message_id.as_deref();
-        let conversation_id = conversation_id.as_str();
-        let path = path.as_str();
-        let kind = kind.trim().to_ascii_uppercase();
-        let mime_type = mime_type.trim();
-        let name = name.filter(|value| !value.trim().is_empty());
-        let caption = caption.filter(|value| !value.trim().is_empty());
-        let _mutation = self.mutation_gate.read().await;
-        self.ensure_active()?;
-
-        if !matches!(kind.as_str(), "IMAGE" | "VIDEO" | "DATA") {
-            return Err(anyhow!("unsupported attachment kind: {kind}"));
-        }
-        if mime_type.is_empty() {
-            return Err(anyhow!("attachment MIME type is required"));
-        }
-        if matches!(kind.as_str(), "IMAGE" | "VIDEO")
-            && (width.is_none_or(|value| value <= 0) || height.is_none_or(|value| value <= 0))
-        {
-            return Err(anyhow!("media dimensions must be positive"));
-        }
-        if kind == "VIDEO" && duration_millis.is_none_or(|value| value <= 0) {
-            return Err(anyhow!("video duration must be positive"));
-        }
-        if kind == "DATA" && name.is_none() {
-            return Err(anyhow!("file name is required"));
-        }
-
-        let source = crate::fs::canonicalize(path)
-            .await
-            .with_context(|| format!("resolve attachment {path}"))?;
-        let metadata = crate::fs::metadata(&source).await?;
-        if !metadata.is_file() || metadata.is_empty() {
-            return Err(anyhow!("attachment is empty or is not a file"));
-        }
-        let size = i64::try_from(metadata.len()).context("attachment is too large")?;
-
-        let conversation = self
-            .database
-            .conversation_dao
-            .find_conversation_by_id(conversation_id)
-            .await?
-            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
-        let text_category = self.text_category(conversation.owner_id.as_deref()).await?;
-        let prefix = text_category
-            .split_once('_')
-            .map(|(prefix, _)| prefix)
-            .ok_or_else(|| anyhow!("invalid message category: {text_category}"))?;
-        let category = format!("{prefix}_{kind}");
-        let quote_content = match quote_message_id {
-            Some(message_id) => self
-                .database
-                .message_dao
-                .find_quote_message_by_id(message_id)
-                .await?
-                .map(|message| serde_json::to_string(&message))
-                .transpose()?,
-            None => None,
-        };
-        if quote_message_id.is_some() && quote_content.is_none() {
-            return Err(anyhow!("quote message not found"));
-        }
-
-        let message_id = Uuid::new_v4().to_string();
-        let file_message = Message {
-            message_id: message_id.clone(),
-            conversation_id: conversation_id.to_string(),
-            category: category.clone(),
-            media_mime_type: Some(mime_type.to_string()),
-            name: name.clone(),
-            ..Message::default()
-        };
-        let (local_path, actual_size) = self
-            .app_service
-            .attachment
-            .import_local(&source, &file_message)
-            .await?;
-        if actual_size != size {
-            warn!("attachment size changed while importing {path}: {size} -> {actual_size}");
-        }
-        let message = Message {
-            message_id: message_id.clone(),
-            conversation_id: conversation_id.to_string(),
-            user_id: self.account_id.clone(),
-            category,
-            content: Some(String::new()),
-            media_url: Some(attachment_file_name(&local_path)?.to_string()),
-            media_mime_type: Some(mime_type.to_string()),
-            media_size: Some(actual_size),
-            media_width: width,
-            media_height: height,
-            media_duration: duration_millis
-                .map(|value| value.to_string())
-                .unwrap_or_default(),
-            thumb_image: thumbnail.clone(),
-            media_status: MediaStatus::Pending,
-            quote_message_id: quote_message_id.map(str::to_string),
-            quote_content,
-            caption: caption.clone(),
-            name: name.clone(),
-            status: MessageStatus::Sending,
-            created_at: Utc::now().naive_utc(),
-            ..Message::default()
-        };
-        self.database
-            .message_dao
-            .insert_pending_outgoing_message(&message)
-            .await?;
-        self.notify_conversation_changed(conversation_id);
-
-        let cancellation = CancellationToken::new();
-        self.attachment_downloads
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .insert(message_id.clone(), cancellation.clone());
-        self.set_attachment_progress(&message_id, 0, 0);
-        let progress_state = self.state.clone();
-        let progress_message_id = message_id.clone();
-        let progress = Arc::new(move |completed, total| {
-            progress_state.set_attachment_progress(&progress_message_id, completed, total);
-        });
-        let upload = tokio::select! {
-            result = self.app_service.attachment.upload(
-                &local_path,
-                prefix != "PLAIN",
-                Some(&cancellation),
-                Some(progress.clone()),
-            ) => result,
-            _ = cancellation.cancelled() => Err(anyhow!("attachment upload canceled")),
-        };
-        self.attachment_downloads
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .remove(&message_id);
-        self.remove_attachment_progress(&message_id);
-        let upload = match upload {
-            Ok(upload) => upload,
-            Err(error) => {
-                self.database
-                    .message_dao
-                    .update_media_status(&message_id, MediaStatus::Canceled)
-                    .await?;
-                self.notify_conversation_changed(conversation_id);
-                if cancellation.is_cancelled() {
-                    return Ok(message_id);
-                }
-                return Err(anyhow!("attachment_upload_failed:{error}"));
-            }
-        };
-        let attachment = AttachmentMessage {
-            key: upload.key.clone(),
-            digest: upload.digest.clone(),
-            attachment_id: upload.attachment_id,
-            mime_type: mime_type.to_string(),
-            size: actual_size,
-            name: name.clone(),
-            width,
-            height,
-            thumbnail: thumbnail.clone(),
-            duration: duration_millis,
-            waveform: None,
-            caption: caption.clone(),
-            created_at: Some(upload.created_at),
-            shareable: Some(true),
-        };
-        let content = Base64::encode_string(serde_json::to_string(&attachment)?.as_bytes());
-        let job = Job::create_sending_job(
-            &message_id,
-            conversation_id,
-            None,
-            None,
-            false,
-            silent,
-            conversation.expire_in,
-        );
-        let completed = self
-            .database
-            .message_dao
-            .complete_pending_attachment(
-                &message_id,
-                &local_path.to_string_lossy(),
-                &AttachmentMessageUpdate {
-                    status: MessageStatus::Sending,
-                    content,
-                    media_mime_type: mime_type.to_string(),
-                    media_size: actual_size,
-                    media_status: MediaStatus::Done,
-                    media_width: width,
-                    media_height: height,
-                    media_digest: upload.digest,
-                    media_key: upload.key,
-                    media_waveform: None,
-                    caption,
-                    name,
-                    thumb_image: thumbnail,
-                    media_duration: duration_millis.map(|value| value.to_string()),
-                },
-                &job,
-            )
-            .await?;
-        if !completed {
-            return Ok(message_id);
-        }
-        self.app_service.job.wake(&job.action)?;
-        self.notify_conversation_changed(conversation_id);
-        Ok(message_id)
-    }
-
-    pub async fn forward_messages(
-        &self,
-        target_conversation_id: String,
-        source_message_ids: Vec<String>,
-    ) -> Result<Vec<String>> {
-        let target_conversation_id = target_conversation_id.as_str();
-        let source_message_ids = source_message_ids.as_slice();
-        let _mutation = self.mutation_gate.read().await;
-        self.ensure_active()?;
-        if source_message_ids.is_empty() {
-            return Err(anyhow!("forward message ids are empty"));
-        }
-        let conversation = self
-            .database
-            .conversation_dao
-            .find_conversation_by_id(target_conversation_id)
-            .await?
-            .ok_or_else(|| anyhow!("conversation not found: {target_conversation_id}"))?;
-        let target_text_category = self.text_category(conversation.owner_id.as_deref()).await?;
-        let target_prefix = target_text_category
-            .split_once('_')
-            .map(|(prefix, _)| prefix)
-            .ok_or_else(|| anyhow!("invalid target message category: {target_text_category}"))?;
-
-        let sources = self.messages_by_ids(source_message_ids).await?;
-        for (source, source_message_id) in sources.iter().zip(source_message_ids) {
-            if !matches!(
-                source.status,
-                MessageStatus::Sent | MessageStatus::Delivered | MessageStatus::Read
-            ) {
-                return Err(anyhow!(
-                    "message is not ready to forward: {source_message_id}"
-                ));
-            }
-            forward_category(&source.category, target_prefix)?;
-            if source.category == sdk::message_category::APP_CARD {
-                let shareable = source
-                    .content
-                    .as_deref()
-                    .and_then(|content| serde_json::from_str::<serde_json::Value>(content).ok())
-                    .and_then(|value| value.get("shareable").and_then(serde_json::Value::as_bool))
-                    .unwrap_or(false);
-                if !shareable {
-                    return Err(anyhow!("app card is not shareable: {source_message_id}"));
-                }
-            } else if source.category.is_attachment() {
-                if !matches!(source.media_status, MediaStatus::Done | MediaStatus::Read) {
-                    return Err(anyhow!(
-                        "attachment is not available locally: {source_message_id}"
-                    ));
-                }
-                let extra = source
-                    .content
-                    .as_deref()
-                    .and_then(|content| serde_json::from_str::<AttachmentExtra>(content).ok())
-                    .ok_or_else(|| {
-                        anyhow!("attachment metadata is invalid: {source_message_id}")
-                    })?;
-                if extra.shareable == Some(false) {
-                    return Err(anyhow!("attachment is not shareable: {source_message_id}"));
-                }
-                if source.media_url.as_deref().is_none_or(str::is_empty) {
-                    return Err(anyhow!("attachment has no local file: {source_message_id}"));
-                }
-                if let Some(waveform) = source.media_waveform.as_deref() {
-                    Base64::decode_vec(waveform).with_context(|| {
-                        format!("attachment waveform is invalid: {source_message_id}")
-                    })?;
-                }
-            } else if source.category.is_live() {
-                let live = source
-                    .content
-                    .as_deref()
-                    .and_then(|content| serde_json::from_str::<LiveMessage>(content).ok())
-                    .ok_or_else(|| anyhow!("live message is invalid: {source_message_id}"))?;
-                if !live.shareable {
-                    return Err(anyhow!(
-                        "live message is not shareable: {source_message_id}"
-                    ));
-                }
-            }
-        }
-
-        let mut forwarded_ids = Vec::with_capacity(sources.len());
-        for source in sources {
-            let message_id = Uuid::new_v4().to_string();
-            let category = forward_category(&source.category, target_prefix)?;
-            let mut content = source.content.clone().unwrap_or_default();
-            let mut media_size = None;
-            let mut media_status = crate::db::mixin::message::MediaStatus::Done;
-            let mut media_url = None;
-            let mut media_mime_type = None;
-            let mut media_duration = String::new();
-            let mut media_width = None;
-            let mut media_height = None;
-            let mut thumb_image = None;
-            let mut thumb_url = None;
-            let mut media_key = None;
-            let mut media_digest = None;
-            let mut media_waveform = None;
-            let mut caption = None;
-            let mut copied_attachment_path = None;
-            let mut forwarded_transcripts = None;
-
-            if source.category.is_attachment() {
-                let extra = serde_json::from_str::<AttachmentExtra>(
-                    source.content.as_deref().unwrap_or_default(),
-                )?;
-                let stored_path = source.media_url.as_deref().unwrap_or_default();
-                let source_path = if Path::new(stored_path).is_absolute() {
-                    Path::new(stored_path).to_path_buf()
-                } else {
-                    attachment_path(
-                        &account_data_directory(&self.profile.borrow().identity_number)?,
-                        &source,
-                    )?
-                };
-                let target_file_message = Message {
-                    message_id: message_id.clone(),
-                    conversation_id: target_conversation_id.to_string(),
-                    category: category.clone(),
-                    media_mime_type: source.media_mime_type.clone(),
-                    name: source.name.clone(),
-                    ..Message::default()
-                };
-                let (target_path, actual_size) = self
-                    .app_service
-                    .attachment
-                    .copy_for_forward(&source_path, &target_file_message)
-                    .await?;
-                copied_attachment_path = Some(target_path.clone());
-
-                let same_prefix = source.category.starts_with(&format!("{target_prefix}_"));
-                let reusable_age = extra.created_at.and_then(|created_at| {
-                    let age = Utc::now().signed_duration_since(created_at);
-                    (age >= chrono::Duration::zero() && age <= chrono::Duration::hours(24))
-                        .then_some(age)
-                });
-                let reusable_material = target_prefix == "PLAIN"
-                    || (source.media_key.is_some() && source.media_digest.is_some());
-                let (attachment_id, attachment_created_at, key, digest) =
-                    if same_prefix && reusable_age.is_some() && reusable_material {
-                        (
-                            extra.attachment_id,
-                            extra.created_at,
-                            source.media_key.clone(),
-                            source.media_digest.clone(),
-                        )
-                    } else {
-                        let upload = match self
-                            .app_service
-                            .attachment
-                            .upload(&target_path, target_prefix != "PLAIN", None, None)
-                            .await
-                        {
-                            Ok(upload) => upload,
-                            Err(error) => {
-                                let _ = crate::fs::remove_file(&target_path).await;
-                                return Err(error);
-                            }
-                        };
-                        (
-                            upload.attachment_id,
-                            Some(upload.created_at),
-                            upload.key,
-                            upload.digest,
-                        )
-                    };
-                let attachment = AttachmentMessage {
-                    key: key.clone(),
-                    digest: digest.clone(),
-                    attachment_id,
-                    mime_type: source
-                        .media_mime_type
-                        .clone()
-                        .unwrap_or_else(|| "application/octet-stream".to_string()),
-                    size: actual_size,
-                    name: source.name.clone(),
-                    width: source.media_width,
-                    height: source.media_height,
-                    thumbnail: source.thumb_image.clone(),
-                    duration: source.media_duration.parse().ok(),
-                    waveform: source
-                        .media_waveform
-                        .as_deref()
-                        .map(Base64::decode_vec)
-                        .transpose()?,
-                    caption: source.caption.clone(),
-                    created_at: attachment_created_at,
-                    shareable: Some(true),
-                };
-                content = Base64::encode_string(serde_json::to_string(&attachment)?.as_bytes());
-                media_url = Some(attachment_file_name(&target_path)?.to_string());
-                media_mime_type = source.media_mime_type.clone();
-                media_size = Some(actual_size);
-                media_duration = source.media_duration.clone();
-                media_width = source.media_width;
-                media_height = source.media_height;
-                thumb_image = source.thumb_image.clone();
-                media_key = key;
-                media_digest = digest;
-                media_waveform = source.media_waveform.clone();
-                caption = source.caption.clone();
-            } else if source.category.is_live() {
-                let live = LiveMessage {
-                    width: source
-                        .media_width
-                        .ok_or_else(|| anyhow!("forward live message has no width"))?,
-                    height: source
-                        .media_height
-                        .ok_or_else(|| anyhow!("forward live message has no height"))?,
-                    thumb_url: source.thumb_url.clone().unwrap_or_default(),
-                    url: source
-                        .media_url
-                        .clone()
-                        .filter(|url| !url.is_empty())
-                        .ok_or_else(|| anyhow!("forward live message has no URL"))?,
-                    shareable: true,
-                };
-                let live_content = serde_json::to_string(&live)?;
-                content = live_content;
-                media_url = Some(live.url);
-                thumb_url = Some(live.thumb_url);
-                media_width = Some(live.width);
-                media_height = Some(live.height);
-            } else if source.category.is_sticker() {
-                let sticker = StickerMessage {
-                    sticker_id: source.sticker_id.clone().ok_or_else(|| {
-                        anyhow!("forward sticker has no sticker id: {}", source.message_id)
-                    })?,
-                    album_id: None,
-                    name: None,
-                };
-                content = Base64::encode_string(serde_json::to_string(&sticker)?.as_bytes());
-            } else if source.category.is_contact() {
-                let contact = ContactMessage {
-                    user_id: source.shared_user_id.clone().ok_or_else(|| {
-                        anyhow!(
-                            "forward contact has no shared user id: {}",
-                            source.message_id
-                        )
-                    })?,
-                };
-                content = Base64::encode_string(serde_json::to_string(&contact)?.as_bytes());
-            } else if source.category.is_transcript() {
-                let transcripts = self
-                    .database
-                    .transcript_message_dao
-                    .find_by_transcript_id(&source.message_id)
-                    .await?;
-                if transcripts.is_empty() {
-                    return Err(anyhow!("transcript is empty: {}", source.message_id));
-                }
-                if transcripts
-                    .iter()
-                    .any(|transcript| transcript.category.is_attachment())
-                {
-                    return Err(anyhow!(
-                        "transcript attachments cannot be forwarded yet: {}",
-                        source.message_id
-                    ));
-                }
-                let mut transcript_entries = Vec::with_capacity(transcripts.len());
-                let mut summaries = Vec::with_capacity(transcripts.len());
-                for transcript in transcripts {
-                    let transcript_category =
-                        forward_transcript_category(&transcript.category, target_prefix)?;
-                    summaries.push(serde_json::json!({
-                        "name": transcript.user_full_name.as_deref().unwrap_or_default(),
-                        "category": transcript_category,
-                        "content": transcript.content,
-                    }));
-                    transcript_entries.push(TranscriptMessage {
-                        transcript_id: message_id.clone(),
-                        category: transcript_category,
-                        ..transcript
-                    });
-                }
-                content = serde_json::to_string(&summaries)?;
-                media_size = Some(0);
-                media_status = crate::db::mixin::message::MediaStatus::Done;
-                forwarded_transcripts = Some(transcript_entries);
-            } else if source.content.is_none() {
-                return Err(anyhow!(
-                    "forward message has no content: {}",
-                    source.message_id
-                ));
-            }
-
-            let message = Message {
-                message_id: message_id.clone(),
-                conversation_id: target_conversation_id.to_string(),
-                user_id: self.account_id.clone(),
-                category,
-                content: Some(content.clone()),
-                media_url,
-                media_mime_type,
-                media_size,
-                media_duration,
-                media_width,
-                media_height,
-                thumb_image,
-                media_key,
-                media_digest,
-                media_status,
-                name: source.name,
-                album_id: source.album_id,
-                sticker_id: source.sticker_id,
-                shared_user_id: source.shared_user_id,
-                media_waveform,
-                thumb_url,
-                caption,
-                status: MessageStatus::Sending,
-                created_at: Utc::now().naive_utc(),
-                ..Message::default()
-            };
-            let job = Job::create_sending_job(
-                &message_id,
-                target_conversation_id,
-                None,
-                None,
-                false,
-                false,
-                conversation.expire_in,
-            );
-            let inserted = match forwarded_transcripts.as_deref() {
-                Some(transcripts) => {
-                    self.database
-                        .message_dao
-                        .insert_outgoing_message_with_transcripts(&message, &job, transcripts)
-                        .await
-                }
-                None => {
-                    self.database
-                        .message_dao
-                        .insert_outgoing_message(&message, &job)
-                        .await
-                }
-            };
-            if let Err(error) = inserted {
-                if let Some(path) = copied_attachment_path {
-                    let _ = crate::fs::remove_file(path).await;
-                }
-                return Err(error.into());
-            }
-            if source.category.is_text()
-                || source.category.is_post()
-                || source.category.is_transcript()
-            {
-                if let Err(error) = self
-                    .database
-                    .message_fts_dao
-                    .upsert(&message_id, target_conversation_id, &content)
-                    .await
-                {
-                    warn!("failed to index forwarded message {message_id}: {error}");
-                }
-            }
-            forwarded_ids.push(message_id);
-        }
-        self.app_service.job.wake(sdk::SENDING_MESSAGE)?;
-        self.notify_conversation_changed(target_conversation_id);
-        Ok(forwarded_ids)
-    }
-
-    pub async fn combine_forward_messages(
-        &self,
-        target_conversation_id: String,
-        source_message_ids: Vec<String>,
-    ) -> Result<String> {
-        let target_conversation_id = target_conversation_id.as_str();
-        let source_message_ids = source_message_ids.as_slice();
-        let _mutation = self.mutation_gate.read().await;
-        self.ensure_active()?;
-        if !(2..100).contains(&source_message_ids.len()) {
-            return Err(anyhow!("combine forward requires 2 to 99 messages"));
-        }
-        let unique_ids = source_message_ids.iter().collect::<HashSet<_>>();
-        if unique_ids.len() != source_message_ids.len() {
-            return Err(anyhow!("combine forward message ids contain duplicates"));
-        }
-        let conversation = self
-            .database
-            .conversation_dao
-            .find_conversation_by_id(target_conversation_id)
-            .await?
-            .ok_or_else(|| anyhow!("conversation not found: {target_conversation_id}"))?;
-        let target_text_category = self.text_category(conversation.owner_id.as_deref()).await?;
-        let target_prefix = target_text_category
-            .split_once('_')
-            .map(|(prefix, _)| prefix)
-            .ok_or_else(|| anyhow!("invalid target message category: {target_text_category}"))?;
-
-        let mut sources = self.messages_by_ids(source_message_ids).await?;
-        for source in &sources {
-            validate_combine_forward_source(source)?;
-        }
-        sources.sort_by(|left, right| {
-            left.created_at
-                .cmp(&right.created_at)
-                .then_with(|| left.message_id.cmp(&right.message_id))
-        });
-        let user_ids = sources
-            .iter()
-            .flat_map(|source| {
-                std::iter::once(source.user_id.clone()).chain(source.shared_user_id.iter().cloned())
-            })
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        let user_names = self
-            .database
-            .user_dao
-            .find_users(&user_ids)
-            .await?
-            .into_iter()
-            .map(|user| (user.user_id, user.full_name))
-            .collect::<HashMap<_, _>>();
-
-        let transcript_id = Uuid::new_v4().to_string();
-        let mut transcripts = Vec::with_capacity(sources.len());
-        let mut summaries = Vec::with_capacity(sources.len());
-        let mut fts_parts = Vec::new();
-        let mut has_attachments = false;
-        for source in sources {
-            let sender_name = user_names.get(&source.user_id).cloned().unwrap_or_default();
-            let category = combine_transcript_category(&source.category, target_prefix)?;
-            let is_attachment = source.category.is_attachment();
-            has_attachments |= is_attachment;
-            let media_created_at = source
-                .content
-                .as_deref()
-                .and_then(|content| serde_json::from_str::<AttachmentExtra>(content).ok())
-                .and_then(|extra| extra.created_at);
-            let mut transcript = TranscriptMessage {
-                transcript_id: transcript_id.clone(),
-                message_id: source.message_id,
-                user_id: Some(source.user_id),
-                user_full_name: Some(sender_name.clone()),
-                category: category.clone(),
-                created_at: source.created_at.and_utc(),
-                content: source.content,
-                media_url: source.media_url,
-                media_name: source.name,
-                media_size: source.media_size,
-                media_width: source.media_width,
-                media_height: source.media_height,
-                media_mime_type: source.media_mime_type,
-                media_duration: Some(source.media_duration),
-                media_status: Some(if is_attachment {
-                    MediaStatus::Canceled
-                } else {
-                    source.media_status
-                }),
-                media_waveform: source.media_waveform,
-                thumb_image: source.thumb_image,
-                thumb_url: source.thumb_url,
-                media_key: source.media_key.map(|key| Base64::encode_string(&key)),
-                media_digest: source
-                    .media_digest
-                    .map(|digest| Base64::encode_string(&digest)),
-                media_created_at,
-                sticker_id: source.sticker_id,
-                shared_user_id: source.shared_user_id,
-                mentions: None,
-                quote_id: source.quote_message_id,
-                quote_content: source.quote_content,
-                caption: source.caption,
-            };
-            sanitize_transcript_app_card(&mut transcript);
-            if category.is_text() || category.is_post() {
-                if let Some(content) = transcript.content.as_deref() {
-                    fts_parts.push(content.to_string());
-                }
-            } else if category.is_data() {
-                if let Some(name) = transcript.media_name.as_deref() {
-                    fts_parts.push(name.to_string());
-                }
-            } else if category.is_contact() {
-                if let Some(user_id) = transcript.shared_user_id.as_deref() {
-                    if let Some(full_name) = user_names.get(user_id) {
-                        fts_parts.push(full_name.clone());
-                    }
-                }
-            }
-            summaries.push(serde_json::json!({
-                "name": sender_name,
-                "category": category,
-                "content": transcript.content,
-            }));
-            transcripts.push(transcript);
-        }
-
-        let content = serde_json::to_string(&summaries)?;
-        let message = Message {
-            message_id: transcript_id.clone(),
-            conversation_id: target_conversation_id.to_string(),
-            user_id: self.account_id.clone(),
-            category: format!("{target_prefix}_TRANSCRIPT"),
-            content: Some(content.clone()),
-            media_size: Some(0),
-            media_status: if has_attachments {
-                MediaStatus::Canceled
-            } else {
-                MediaStatus::Done
-            },
-            status: MessageStatus::Sending,
-            created_at: Utc::now().naive_utc(),
-            ..Message::default()
-        };
-        let job = Job::create_sending_job(
-            &transcript_id,
-            target_conversation_id,
-            None,
-            None,
-            false,
-            false,
-            conversation.expire_in,
-        );
-        self.database
-            .message_dao
-            .insert_outgoing_message_with_transcripts(&message, &job, &transcripts)
-            .await?;
-        let fts_content = fts_parts.join(" ");
-        if !fts_content.is_empty() {
-            if let Err(error) = self
-                .database
-                .message_fts_dao
-                .upsert(&transcript_id, target_conversation_id, &fts_content)
-                .await
-            {
-                warn!("failed to index combined transcript {transcript_id}: {error}");
-            }
-        }
-        if has_attachments {
-            AttachmentAccess::new(self.state.clone())
-                .retry_transcript_attachment(transcript_id.clone())
-                .await?;
-        } else {
-            self.app_service.job.wake(&job.action)?;
-        }
-        self.notify_conversation_changed(target_conversation_id);
-        Ok(transcript_id)
     }
 
     pub async fn delete_messages(
@@ -2010,92 +930,6 @@ impl MessageAccess {
         Ok(())
     }
 
-    pub async fn set_message_pinned(
-        &self,
-        conversation_id: String,
-        message_id: String,
-        pinned: bool,
-    ) -> Result<()> {
-        let conversation_id = conversation_id.as_str();
-        let message_id = message_id.as_str();
-        let _mutation = self.mutation_gate.read().await;
-        self.ensure_active()?;
-        let message = self
-            .database
-            .message_dao
-            .find_message_by_id(&message_id.to_string())
-            .await?
-            .ok_or_else(|| anyhow!("message not found: {message_id}"))?;
-        let sent = matches!(
-            message.status,
-            MessageStatus::Sent | MessageStatus::Delivered | MessageStatus::Read
-        );
-        if message.conversation_id != conversation_id || !message.category.can_reply() || !sent {
-            return Err(anyhow!("message can not be pinned: {message_id}"));
-        }
-        let participant = self
-            .database
-            .participant_dao
-            .find_participant_by_id(conversation_id, &self.account_id)
-            .await?;
-        let conversation = self
-            .database
-            .conversation_dao
-            .find_conversation_by_id(conversation_id)
-            .await?
-            .ok_or_else(|| anyhow!("conversation not found: {conversation_id}"))?;
-        if conversation.category == Some(ConversationCategory::Group)
-            && participant.and_then(|item| item.role).is_none()
-        {
-            return Err(anyhow!("current user can not pin messages"));
-        }
-        let payload = if pinned {
-            PinMessagePayload::Pin(vec![message_id.to_string()])
-        } else {
-            PinMessagePayload::Unpin(vec![message_id.to_string()])
-        };
-        let encoded = serde_json::to_string(&payload)?;
-        let job = Job::create_send_pin_job(conversation_id, &encoded);
-        let now = Utc::now();
-        let pin_event = pinned
-            .then(|| {
-                Ok::<_, serde_json::Error>(Message {
-                    message_id: Uuid::new_v4().to_string(),
-                    conversation_id: conversation_id.to_string(),
-                    user_id: self.account_id.clone(),
-                    category: MESSAGE_PIN.to_string(),
-                    content: Some(serde_json::to_string(&PinMessageMinimal {
-                        category: message.category.clone(),
-                        message_id: message.message_id.clone(),
-                        content: if message.category.is_text() {
-                            message.content.clone()
-                        } else {
-                            None
-                        },
-                    })?),
-                    status: MessageStatus::Read,
-                    created_at: now.naive_utc(),
-                    quote_message_id: Some(message.message_id.clone()),
-                    ..Message::default()
-                })
-            })
-            .transpose()?;
-        self.database
-            .message_dao
-            .set_message_pinned_with_job(
-                conversation_id,
-                message_id,
-                pinned,
-                now,
-                pin_event.as_ref(),
-                &job,
-            )
-            .await?;
-        self.app_service.job.wake(sdk::PIN_MESSAGE)?;
-        self.notify_conversation_changed(conversation_id);
-        Ok(())
-    }
-
     pub async fn mark_mention_read(
         &self,
         conversation_id: String,
@@ -2105,20 +939,33 @@ impl MessageAccess {
         let message_id = message_id.as_str();
         let _mutation = self.mutation_gate.read().await;
         self.ensure_active()?;
-        let ids = [message_id.to_string()];
         if self
             .database
             .message_mention_dao
-            .mark_mention_read(&ids)
+            .mark_read_and_enqueue(conversation_id, Some(message_id))
             .await?
             == 0
         {
             return Ok(());
         }
-        let job = Job::create_mention_read_ack_job(conversation_id, message_id);
-        self.database.job_dao.insert_job(&job).await?;
         self.app_service.job.wake(sdk::CREATE_MESSAGE)?;
         self.notify_conversation_changed(conversation_id);
+        Ok(())
+    }
+
+    pub async fn clear_unread_mentions(&self, conversation_id: String) -> Result<()> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        if self
+            .database
+            .message_mention_dao
+            .mark_read_and_enqueue(&conversation_id, None)
+            .await?
+            > 0
+        {
+            self.app_service.job.wake(sdk::CREATE_MESSAGE)?;
+            self.notify_conversation_changed(&conversation_id);
+        }
         Ok(())
     }
 
@@ -2207,6 +1054,60 @@ impl MessageAccess {
             })
             .collect()
     }
+}
+
+fn validate_forward_source(message: &Message, target_prefix: &str) -> Result<()> {
+    let message_id = &message.message_id;
+    if !matches!(
+        message.status,
+        MessageStatus::Sent | MessageStatus::Delivered | MessageStatus::Read
+    ) {
+        return Err(anyhow!("message is not ready to forward: {message_id}"));
+    }
+    forward_category(&message.category, target_prefix)?;
+    if message.category.is_transcript() && message.media_status != MediaStatus::Done {
+        return Err(anyhow!("transcript is not downloaded: {message_id}"));
+    }
+    if message.category == sdk::message_category::APP_CARD {
+        let shareable = message
+            .content
+            .as_deref()
+            .and_then(|content| serde_json::from_str::<serde_json::Value>(content).ok())
+            .and_then(|value| value.get("shareable").and_then(serde_json::Value::as_bool))
+            .unwrap_or(false);
+        if !shareable {
+            return Err(anyhow!("app card is not shareable: {message_id}"));
+        }
+    } else if message.category.is_attachment() {
+        if !matches!(message.media_status, MediaStatus::Done | MediaStatus::Read) {
+            return Err(anyhow!("attachment is not available locally: {message_id}"));
+        }
+        let extra = message
+            .content
+            .as_deref()
+            .and_then(|content| serde_json::from_str::<AttachmentExtra>(content).ok())
+            .ok_or_else(|| anyhow!("attachment metadata is invalid: {message_id}"))?;
+        if extra.shareable == Some(false) {
+            return Err(anyhow!("attachment is not shareable: {message_id}"));
+        }
+        if message.media_url.as_deref().is_none_or(str::is_empty) {
+            return Err(anyhow!("attachment has no local file: {message_id}"));
+        }
+        if let Some(waveform) = message.media_waveform.as_deref() {
+            Base64::decode_vec(waveform)
+                .with_context(|| format!("attachment waveform is invalid: {message_id}"))?;
+        }
+    } else if message.category.is_live() {
+        let live = message
+            .content
+            .as_deref()
+            .and_then(|content| serde_json::from_str::<LiveMessage>(content).ok())
+            .ok_or_else(|| anyhow!("live message is invalid: {message_id}"))?;
+        if !live.shareable {
+            return Err(anyhow!("live message is not shareable: {message_id}"));
+        }
+    }
+    Ok(())
 }
 
 fn can_recall_message(
@@ -2346,15 +1247,71 @@ fn normalized_quote_content(
 
 #[cfg(test)]
 mod tests {
-    use super::{can_recall_message, normalized_quote_content};
+    use super::{can_recall_message, normalized_quote_content, validate_forward_source};
     use std::path::PathBuf;
 
     use chrono::{Duration, Utc};
     use sdk::{ConversationCategory, MessageStatus};
 
     use crate::db::mixin::conversation::{Conversation, ConversationStatus};
-    use crate::db::mixin::message::Message;
+    use crate::db::mixin::message::{MediaStatus, Message};
     use crate::db::mixin::participant::Participant;
+
+    #[test]
+    fn forwarding_transcript_requires_completed_media_and_combining_remains_disallowed() {
+        let mut message = Message {
+            category: "SIGNAL_TRANSCRIPT".into(),
+            status: MessageStatus::Sent,
+            ..Default::default()
+        };
+        for status in [MediaStatus::Pending, MediaStatus::Canceled] {
+            message.media_status = status;
+            assert!(validate_forward_source(&message, "PLAIN").is_err());
+        }
+        message.media_status = MediaStatus::Done;
+        assert!(validate_forward_source(&message, "PLAIN").is_ok());
+        assert!(crate::runtime::validate_combine_forward_source(&message).is_err());
+    }
+
+    #[test]
+    fn forwarding_rejects_unsent_or_unshareable_messages() {
+        let mut message = recallable_message(Utc::now().naive_utc());
+        assert!(validate_forward_source(&message, "SIGNAL").is_ok());
+        message.status = MessageStatus::Sending;
+        assert!(validate_forward_source(&message, "SIGNAL").is_err());
+        message.status = MessageStatus::Sent;
+        message.category = sdk::message_category::APP_CARD.into();
+        for content in [None, Some("invalid"), Some(r#"{"shareable":false}"#)] {
+            message.content = content.map(str::to_owned);
+            assert!(validate_forward_source(&message, "SIGNAL").is_err());
+        }
+        message.content = Some(r#"{"shareable":true}"#.into());
+        assert!(validate_forward_source(&message, "SIGNAL").is_ok());
+    }
+
+    #[test]
+    fn forwarding_requires_downloaded_shareable_attachment_metadata_and_valid_waveform() {
+        use crate::db::mixin::message::MediaStatus;
+        let mut message = recallable_message(Utc::now().naive_utc());
+        message.category = "SIGNAL_IMAGE".into();
+        message.media_status = MediaStatus::Done;
+        message.media_url = Some("image.png".into());
+        message.content = Some(r#"{"attachment_id":"attachment","message_id":"message"}"#.into());
+        assert!(validate_forward_source(&message, "SIGNAL").is_ok());
+        message.media_status = MediaStatus::Pending;
+        assert!(validate_forward_source(&message, "SIGNAL").is_err());
+        message.media_status = MediaStatus::Done;
+        message.content = Some(
+            r#"{"attachment_id":"attachment","message_id":"message","shareable":false}"#.into(),
+        );
+        assert!(validate_forward_source(&message, "SIGNAL").is_err());
+        message.content = Some(r#"{"attachment_id":"attachment","message_id":"message"}"#.into());
+        message.media_waveform = Some("invalid base64!".into());
+        assert!(validate_forward_source(&message, "SIGNAL").is_err());
+        message.media_waveform = None;
+        message.media_url = None;
+        assert!(validate_forward_source(&message, "SIGNAL").is_err());
+    }
 
     #[test]
     fn normalizes_quote_media_path_without_changing_stored_content() {

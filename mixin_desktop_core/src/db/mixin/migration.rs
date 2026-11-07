@@ -87,15 +87,36 @@ const MIGRATIONS: &[Migration] = &[
         "CREATE INDEX IF NOT EXISTS index_expired_messages_expire_at \
          ON expired_messages (expire_at) WHERE expire_at IS NOT NULL",
     ),
+    Migration::action(30, "repair binary audio waveforms", migrate_to_v30),
 ];
 
-pub(crate) const SCHEMA_VERSION: i64 = 29;
+pub(crate) const SCHEMA_VERSION: i64 = 30;
 pub(crate) const MIGRATOR: Migrator = Migrator::new(
     "mixin",
     SCHEMA_VERSION,
     include_str!("schema.sql"),
     MIGRATIONS,
 );
+
+fn migrate_to_v30(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
+    async move {
+        use base64ct::{Base64, Encoding};
+        let mut cursor = None::<i64>;
+        loop {
+            let rows = crate::db::query_as::<(i64, Vec<u8>)>(
+                "SELECT rowid, media_waveform FROM messages WHERE typeof(media_waveform) = 'blob' \
+                 AND (? IS NULL OR rowid > ?) ORDER BY rowid ASC LIMIT 200",
+            ).bind(cursor).bind(cursor).fetch_all(&mut *connection).await?;
+            if rows.is_empty() { break; }
+            for (row_id, waveform) in rows {
+                crate::db::query("UPDATE messages SET media_waveform = ? WHERE rowid = ? AND typeof(media_waveform) = 'blob'")
+                    .bind(Base64::encode_string(&waveform)).bind(row_id).execute(&mut *connection).await?;
+                cursor = Some(row_id);
+            }
+        }
+        Ok(())
+    }.boxed()
+}
 
 fn migrate_to_v21(connection: &mut crate::db::Conn) -> MigrationFuture<'_> {
     async move {
@@ -381,13 +402,81 @@ mod tests {
     use super::*;
     use crate::db::mixin::MixinDatabase;
 
+    #[tokio::test]
+    async fn reopening_a_legacy_database_repairs_binary_waveforms_without_changing_text_or_jobs() {
+        use base64ct::{Base64, Encoding};
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("mixin.db");
+        let database = super::super::MixinDatabase::connect_at(&path)
+            .await
+            .unwrap();
+        let pool = &database.message_dao.0;
+        crate::db::query("INSERT INTO conversations (conversation_id, created_at, status) VALUES ('conversation', 0, 0)").execute(pool).await.unwrap();
+        for id in ["binary", "text"] {
+            crate::db::query("INSERT INTO messages (message_id, conversation_id, user_id, category, status, created_at, media_waveform) VALUES (?, 'conversation', 'sender', 'SIGNAL_AUDIO', 'SENDING', 0, ?)")
+                .bind(id).bind("unchanged").execute(pool).await.unwrap();
+        }
+        let waveform = [0_u8, 128, 255];
+        crate::db::query("UPDATE messages SET media_waveform = ? WHERE message_id = 'binary'")
+            .bind(waveform.to_vec())
+            .execute(pool)
+            .await
+            .unwrap();
+        let job = crate::db::mixin::job::Job::create_sending_job(
+            "binary",
+            "conversation",
+            None,
+            None,
+            false,
+            false,
+            0,
+        );
+        database.job_dao.insert_job(&job).await.unwrap();
+        crate::db::query("PRAGMA user_version = 29")
+            .execute(pool)
+            .await
+            .unwrap();
+        pool.close().await;
+        drop(database);
+        let reopened = super::super::MixinDatabase::connect_at(&path)
+            .await
+            .unwrap();
+        let row = reopened
+            .message_dao
+            .find_message_by_id(&"binary".to_owned())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            Base64::decode_vec(row.media_waveform.as_deref().unwrap()).unwrap(),
+            waveform
+        );
+        assert_eq!(
+            reopened
+                .message_dao
+                .find_message_by_id(&"text".to_owned())
+                .await
+                .unwrap()
+                .unwrap()
+                .media_waveform
+                .as_deref(),
+            Some("unchanged")
+        );
+        let count: i64 = crate::db::query_scalar("SELECT COUNT(*) FROM jobs WHERE job_id = ?")
+            .bind(job.job_id)
+            .fetch_one(&reopened.message_dao.0)
+            .await
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
     #[test]
     fn migration_registry_is_ordered_and_current() {
         MIGRATOR.validate().unwrap();
     }
 
     #[tokio::test]
-    async fn new_v28_and_flutter_v29_databases_open_at_v29_with_indexed_expiration_lookup() {
+    async fn new_v28_and_flutter_v29_databases_open_with_indexed_expiration_lookup() {
         for source_version in [0, 28, 29] {
             let pool = SqlitePoolOptions::new()
                 .max_connections(1)
@@ -395,14 +484,22 @@ mod tests {
                 .await
                 .unwrap();
             if source_version != 0 {
-                crate::db::raw_sql(
-                    "CREATE TABLE expired_messages (message_id TEXT NOT NULL PRIMARY KEY, \
-                     expire_in INTEGER NOT NULL, expire_at INTEGER); \
-                     INSERT INTO expired_messages VALUES ('due', 60, 100), ('pending', 60, NULL);",
+                crate::db::raw_sql(include_str!("schema.sql"))
+                    .execute(&pool)
+                    .await
+                    .unwrap();
+                crate::db::query(
+                    "INSERT INTO expired_messages VALUES ('due', 60, 100), ('pending', 60, NULL)",
                 )
                 .execute(&pool)
                 .await
                 .unwrap();
+                if source_version == 28 {
+                    crate::db::query("DROP INDEX IF EXISTS index_expired_messages_expire_at")
+                        .execute(&pool)
+                        .await
+                        .unwrap();
+                }
                 if source_version == 29 {
                     crate::db::raw_sql(
                         "CREATE INDEX IF NOT EXISTS index_expired_messages_expire_at \
@@ -425,7 +522,7 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .unwrap();
-            assert_eq!(version, 29);
+            assert_eq!(version, SCHEMA_VERSION);
             if source_version == 0 {
                 crate::db::query(
                     "INSERT INTO expired_messages VALUES ('due', 60, 100), ('pending', 60, NULL)",

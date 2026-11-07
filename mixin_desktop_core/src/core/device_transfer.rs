@@ -1,5 +1,5 @@
 #[cfg(not(target_arch = "wasm32"))]
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
@@ -7,10 +7,6 @@ use std::time::{Duration, Instant};
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::db::QueryBuilder;
-#[cfg(not(target_arch = "wasm32"))]
-use aes::cipher::{Block, BlockCipherDecrypt, BlockCipherEncrypt, KeyInit};
-#[cfg(not(target_arch = "wasm32"))]
-use aes::Aes256;
 #[cfg(not(target_arch = "wasm32"))]
 use anyhow::{anyhow, bail, Context, Result};
 #[cfg(not(target_arch = "wasm32"))]
@@ -28,8 +24,6 @@ use sha2::Sha256;
 #[cfg(not(target_arch = "wasm32"))]
 use sqlx::AssertSqlSafe;
 #[cfg(not(target_arch = "wasm32"))]
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-#[cfg(not(target_arch = "wasm32"))]
 use tokio::net::{TcpListener, TcpStream};
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::{broadcast, Mutex};
@@ -38,11 +32,8 @@ use tokio_util::sync::CancellationToken;
 #[cfg(not(target_arch = "wasm32"))]
 use uuid::Uuid;
 
-#[cfg(not(target_arch = "wasm32"))]
-use sdk::message_category::MessageCategory;
-
-#[cfg(not(target_arch = "wasm32"))]
-use crate::core::attachment::{attachment_path, transcript_attachment_path};
+#[cfg(all(test, not(target_arch = "wasm32")))]
+use crate::core::attachment::attachment_path;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::core::conversation_change::ConversationChangeNotifier;
 #[cfg(not(target_arch = "wasm32"))]
@@ -77,14 +68,18 @@ pub struct DeviceTransferControlEvent {
     pub content: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ConnectionFailedReason {
     VersionNotMatched,
     Unknown,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DeviceTransferEvent {
+    RestoreWaiting,
+    RestoreCancelled,
+    BackupWaiting,
+    BackupCancelled,
     RestoreConnected,
     RestoreStart,
     RestoreSucceed,
@@ -101,6 +96,36 @@ pub enum DeviceTransferEvent {
     RestoreRequestReceived,
     ConnectionFailed(ConnectionFailedReason),
 }
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct DeviceTransferOperation {
+    pub operation_id: u64,
+    pub phase: Option<DeviceTransferEvent>,
+    pub progress: f64,
+    pub bytes_per_second: f64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct DeviceTransferSnapshot {
+    pub backup: DeviceTransferOperation,
+    pub restore: DeviceTransferOperation,
+    pub backup_request_id: Option<u64>,
+    pub restore_request_id: Option<u64>,
+    pub closed: bool,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+mod attachments;
+#[cfg(not(target_arch = "wasm32"))]
+mod protocol;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+use protocol::{decrypt_cbc, encrypt_cbc};
+#[cfg(not(target_arch = "wasm32"))]
+use protocol::{read_packet, write_command, write_file_packet, write_json_record, Packet};
+#[cfg(not(target_arch = "wasm32"))]
+mod events;
+#[cfg(not(target_arch = "wasm32"))]
+use events::{Flow, TransferEvents};
 
 #[derive(Clone, Debug)]
 pub enum DeviceTransferCommand {
@@ -206,10 +231,89 @@ struct RemotePushData {
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Default)]
 struct TransferState {
-    waiting_for_remote_push: bool,
+    waiting_for_remote_push: Option<u64>,
     remote_push: Option<RemotePushData>,
-    sender_cancel: Option<CancellationToken>,
-    receiver_cancel: Option<CancellationToken>,
+    sender_cancel: Option<Arc<CancellationToken>>,
+    receiver_cancel: Option<Arc<CancellationToken>>,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl TransferState {
+    fn cancel_resources(&mut self) {
+        for token in [self.sender_cancel.take(), self.receiver_cancel.take()]
+            .into_iter()
+            .flatten()
+        {
+            token.cancel();
+        }
+        self.remote_push = None;
+        self.waiting_for_remote_push = None;
+    }
+
+    fn accept_restore(
+        &mut self,
+        events: &TransferEvents,
+        expected: Option<u64>,
+    ) -> Result<(RemotePushData, Arc<CancellationToken>)> {
+        if self.remote_push.is_none() {
+            bail!("no pending remote transfer");
+        }
+        if !events.consume_request(Flow::Restore, expected) {
+            bail!("device transfer request was replaced");
+        }
+        let remote = self
+            .remote_push
+            .take()
+            .expect("pending transfer checked under lock");
+        let cancel = replace_transfer(&mut self.receiver_cancel);
+        events.begin(Flow::Restore, Some(cancel.clone()));
+        Ok((remote, cancel))
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn replace_transfer(slot: &mut Option<Arc<CancellationToken>>) -> Arc<CancellationToken> {
+    if let Some(previous) = slot.take() {
+        previous.cancel();
+    }
+    let cancel = Arc::new(CancellationToken::new());
+    *slot = Some(cancel.clone());
+    cancel
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn finish_transfer(
+    slot: &mut Option<Arc<CancellationToken>>,
+    cancel: &Arc<CancellationToken>,
+) -> bool {
+    if slot
+        .as_ref()
+        .is_some_and(|current| Arc::ptr_eq(current, cancel))
+    {
+        *slot = None;
+        true
+    } else {
+        false
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn emit_running(
+    events: &TransferEvents,
+    cancel: &Arc<CancellationToken>,
+    event: DeviceTransferEvent,
+) {
+    let flow = match &event {
+        DeviceTransferEvent::BackupStart
+        | DeviceTransferEvent::BackupProgress(_)
+        | DeviceTransferEvent::BackupNetworkSpeed(_) => Flow::Backup,
+        DeviceTransferEvent::RestoreConnected
+        | DeviceTransferEvent::RestoreStart
+        | DeviceTransferEvent::RestoreProgress(_)
+        | DeviceTransferEvent::RestoreNetworkSpeed(_) => Flow::Restore,
+        _ => return,
+    };
+    events.emit_for(flow, cancel, event);
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -221,7 +325,7 @@ pub struct DeviceTransferService {
     device_id: String,
     account_data_dir: PathBuf,
     state: Mutex<TransferState>,
-    events: broadcast::Sender<DeviceTransferEvent>,
+    events: TransferEvents,
     conversation_changes: ConversationChangeNotifier,
 }
 
@@ -236,7 +340,6 @@ impl DeviceTransferService {
         account_data_dir: PathBuf,
         conversation_changes: ConversationChangeNotifier,
     ) -> Arc<Self> {
-        let (events, _) = broadcast::channel(64);
         Arc::new(Self {
             database,
             message_sender,
@@ -245,13 +348,31 @@ impl DeviceTransferService {
             device_id: session_id,
             account_data_dir,
             state: Mutex::new(TransferState::default()),
-            events,
+            events: TransferEvents::default(),
             conversation_changes,
         })
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<DeviceTransferEvent> {
         self.events.subscribe()
+    }
+
+    pub fn states(&self) -> tokio::sync::watch::Receiver<DeviceTransferSnapshot> {
+        self.events.states()
+    }
+
+    pub async fn shutdown(&self) {
+        let mut state = self.state.lock().await;
+        state.cancel_resources();
+        self.events.close();
+    }
+
+    pub async fn cancel_all(&self) {
+        let mut state = self.state.lock().await;
+        state.cancel_resources();
+        self.events.cancel(Flow::Backup);
+        self.events.cancel(Flow::Restore);
+        self.events.clear_requests();
     }
 
     pub async fn run(
@@ -263,15 +384,16 @@ impl DeviceTransferService {
                 Ok(event) => {
                     if let Err(error) = self.handle_remote_content(&event.content).await {
                         log::error!("handle device transfer command: {error:?}");
-                        self.emit(DeviceTransferEvent::ConnectionFailed(
-                            ConnectionFailedReason::Unknown,
-                        ));
+                        self.fail_connection(ConnectionFailedReason::Unknown).await;
                     }
                 }
                 Err(broadcast::error::RecvError::Lagged(skipped)) => {
                     log::warn!("device transfer command stream lagged by {skipped}");
                 }
-                Err(broadcast::error::RecvError::Closed) => return,
+                Err(broadcast::error::RecvError::Closed) => {
+                    self.shutdown().await;
+                    return;
+                }
             }
         }
     }
@@ -282,49 +404,126 @@ impl DeviceTransferService {
         }
         match command {
             DeviceTransferCommand::PullToRemote => {
-                self.state.lock().await.waiting_for_remote_push = true;
-                self.send_remote(TransferCommand::pull(&self.device_id))
-                    .await
+                let operation = {
+                    let mut state = self.state.lock().await;
+                    let operation = self.events.begin(Flow::Restore, None);
+                    state.waiting_for_remote_push = (operation != 0).then_some(operation);
+                    operation
+                };
+                if operation == 0 {
+                    bail!("device transfer service is closed");
+                }
+                let result = self
+                    .send_remote(TransferCommand::pull(&self.device_id))
+                    .await;
+                if result.is_err() {
+                    self.events.fail_waiting(
+                        Flow::Restore,
+                        operation,
+                        DeviceTransferEvent::RestoreFailed,
+                    );
+                }
+                result
             }
-            DeviceTransferCommand::PushToRemote | DeviceTransferCommand::ConfirmBackup => {
-                self.start_sender().await
-            }
-            DeviceTransferCommand::ConfirmRestore => {
-                let remote = self
-                    .state
-                    .lock()
-                    .await
-                    .remote_push
-                    .take()
-                    .ok_or_else(|| anyhow!("no pending remote transfer"))?;
-                self.start_receiver(remote);
-                Ok(())
+            DeviceTransferCommand::PushToRemote => self.start_sender().await,
+            DeviceTransferCommand::ConfirmRestore
+            | DeviceTransferCommand::ConfirmBackup
+            | DeviceTransferCommand::CancelBackupRequest
+            | DeviceTransferCommand::CancelRestoreRequest => {
+                self.request_command_inner(command, None).await
             }
             DeviceTransferCommand::CancelRestore => {
                 let mut state = self.state.lock().await;
-                state.waiting_for_remote_push = false;
+                state.waiting_for_remote_push = None;
                 if let Some(cancel) = state.receiver_cancel.take() {
                     cancel.cancel();
                 }
+                self.events.cancel(Flow::Restore);
                 Ok(())
             }
             DeviceTransferCommand::CancelBackup => {
-                if let Some(cancel) = self.state.lock().await.sender_cancel.take() {
+                let mut state = self.state.lock().await;
+                if let Some(cancel) = state.sender_cancel.take() {
                     cancel.cancel();
                 }
+                self.events.cancel(Flow::Backup);
                 Ok(())
-            }
-            DeviceTransferCommand::CancelBackupRequest
-            | DeviceTransferCommand::CancelRestoreRequest => {
-                self.state.lock().await.remote_push = None;
-                self.send_remote(TransferCommand::simple(&self.device_id, "cancel"))
-                    .await
             }
         }
     }
 
+    pub async fn request_command(
+        self: &Arc<Self>,
+        command: DeviceTransferCommand,
+        request_id: u64,
+    ) -> Result<()> {
+        if self.primary_session_id.is_none() {
+            bail!("device transfer is unavailable without a primary session");
+        }
+        self.request_command_inner(command, Some(request_id)).await
+    }
+
+    async fn request_command_inner(
+        self: &Arc<Self>,
+        command: DeviceTransferCommand,
+        expected: Option<u64>,
+    ) -> Result<()> {
+        match command {
+            DeviceTransferCommand::ConfirmRestore => {
+                let (remote, cancel) = {
+                    let mut state = self.state.lock().await;
+                    state.accept_restore(&self.events, expected)?
+                };
+                self.spawn_receiver(remote, cancel);
+                Ok(())
+            }
+            DeviceTransferCommand::ConfirmBackup => {
+                let (cancel, operation) = {
+                    let mut state = self.state.lock().await;
+                    if !self.events.consume_request(Flow::Backup, expected) {
+                        bail!("device transfer request was replaced");
+                    }
+                    let cancel = replace_transfer(&mut state.sender_cancel);
+                    let operation = self.events.begin(Flow::Backup, Some(cancel.clone()));
+                    (cancel, operation)
+                };
+                self.start_registered_sender(cancel, operation).await
+            }
+            DeviceTransferCommand::CancelBackupRequest
+            | DeviceTransferCommand::CancelRestoreRequest => {
+                {
+                    let mut state = self.state.lock().await;
+                    let flow = if matches!(command, DeviceTransferCommand::CancelBackupRequest) {
+                        Flow::Backup
+                    } else {
+                        Flow::Restore
+                    };
+                    if !self.events.consume_request(flow, expected) {
+                        bail!("device transfer request was replaced");
+                    }
+                    if matches!(flow, Flow::Restore) {
+                        state.remote_push = None;
+                    }
+                }
+                self.send_remote(TransferCommand::simple(&self.device_id, "cancel"))
+                    .await
+            }
+            _ => bail!("command does not address a device transfer request"),
+        }
+    }
+
     fn emit(&self, event: DeviceTransferEvent) {
-        let _ = self.events.send(event);
+        match event {
+            DeviceTransferEvent::BackupRequestReceived => self.events.request(Flow::Restore),
+            DeviceTransferEvent::RestoreRequestReceived => self.events.request(Flow::Backup),
+            _ => unreachable!("worker events require operation ownership"),
+        }
+    }
+
+    async fn fail_connection(&self, reason: ConnectionFailedReason) {
+        let mut state = self.state.lock().await;
+        state.cancel_resources();
+        self.events.failure(reason);
     }
 
     async fn send_remote(&self, command: TransferCommand) -> Result<()> {
@@ -338,7 +537,7 @@ impl DeviceTransferService {
     }
 
     async fn handle_remote_content(self: &Arc<Self>, content: &str) -> Result<()> {
-        if self.primary_session_id.is_none() {
+        if self.primary_session_id.is_none() || self.events.states().borrow().closed {
             return Ok(());
         }
         let command: TransferCommand = serde_json::from_str(content)?;
@@ -346,9 +545,8 @@ impl DeviceTransferService {
             return Ok(());
         }
         if command.version != PROTOCOL_VERSION {
-            self.emit(DeviceTransferEvent::ConnectionFailed(
-                ConnectionFailedReason::VersionNotMatched,
-            ));
+            self.fail_connection(ConnectionFailedReason::VersionNotMatched)
+                .await;
             self.send_remote(TransferCommand::simple(&self.device_id, "cancel"))
                 .await?;
             return Ok(());
@@ -377,26 +575,25 @@ impl DeviceTransferService {
                     key,
                 };
                 let mut state = self.state.lock().await;
-                if state.waiting_for_remote_push {
-                    state.waiting_for_remote_push = false;
-                    drop(state);
-                    self.start_receiver(remote);
-                } else {
-                    state.remote_push = Some(remote);
-                    drop(state);
-                    self.emit(DeviceTransferEvent::BackupRequestReceived);
+                if self.events.states().borrow().closed {
+                    return Ok(());
                 }
+                if let Some(operation) = state.waiting_for_remote_push.take() {
+                    let cancel = Arc::new(CancellationToken::new());
+                    if self.events.attach(Flow::Restore, operation, cancel.clone()) {
+                        if let Some(previous) = state.receiver_cancel.replace(cancel.clone()) {
+                            previous.cancel();
+                        }
+                        drop(state);
+                        self.spawn_receiver(remote, cancel);
+                        return Ok(());
+                    }
+                }
+                state.remote_push = Some(remote);
+                self.emit(DeviceTransferEvent::BackupRequestReceived);
             }
             "cancel" => {
-                let mut state = self.state.lock().await;
-                if let Some(cancel) = state.sender_cancel.take() {
-                    cancel.cancel();
-                }
-                if let Some(cancel) = state.receiver_cancel.take() {
-                    cancel.cancel();
-                }
-                state.remote_push = None;
-                state.waiting_for_remote_push = false;
+                self.cancel_all().await;
             }
             other => log::warn!("unknown device transfer action: {other}"),
         }
@@ -404,46 +601,134 @@ impl DeviceTransferService {
     }
 
     async fn start_sender(self: &Arc<Self>) -> Result<()> {
-        if let Some(cancel) = self.state.lock().await.sender_cancel.take() {
-            cancel.cancel();
-        }
-        let listener = TcpListener::bind(("0.0.0.0", 0)).await?;
-        let port = listener.local_addr()?.port();
-        let ip = first_ipv4_address()?;
-        let code = random_u16()? % 10_000;
-        let key = generate_transfer_key()?;
-        let cancel = CancellationToken::new();
-        self.state.lock().await.sender_cancel = Some(cancel.clone());
-        self.emit(DeviceTransferEvent::BackupServerCreated);
-
-        let service = self.clone();
-        crate::task::spawn(async move {
-            let result = service.run_sender(listener, code, key, cancel).await;
-            if let Err(error) = result {
-                log::error!("device transfer sender failed: {error:?}");
-                service.emit(DeviceTransferEvent::BackupFailed);
-            }
-            service.state.lock().await.sender_cancel = None;
-        });
-
-        self.send_remote(TransferCommand::push(&self.device_id, ip, port, code, &key))
-            .await
+        // Register before the first fallible setup await, so a concurrent cancel
+        // also owns an operation whose listener is still being created.
+        let (cancel, operation) = {
+            let mut state = self.state.lock().await;
+            let cancel = replace_transfer(&mut state.sender_cancel);
+            let operation = self.events.begin(Flow::Backup, Some(cancel.clone()));
+            (cancel, operation)
+        };
+        self.start_registered_sender(cancel, operation).await
     }
 
-    fn start_receiver(self: &Arc<Self>, remote: RemotePushData) {
+    async fn start_registered_sender(
+        self: &Arc<Self>,
+        cancel: Arc<CancellationToken>,
+        operation: u64,
+    ) -> Result<()> {
+        if operation == 0 {
+            bail!("device transfer service is closed");
+        }
+        let setup = tokio::select! {
+            biased;
+            _ = cancel.cancelled() => None,
+            setup = async {
+                let listener = TcpListener::bind(("0.0.0.0", 0)).await?;
+                let port = listener.local_addr()?.port();
+                Ok::<_, anyhow::Error>((listener, port, first_ipv4_address()?, random_u16()? % 10_000, generate_transfer_key()?))
+            } => Some(setup),
+        };
+        let (listener, port, ip, code, key) = match setup {
+            Some(Ok(setup)) => setup,
+            Some(Err(error)) => {
+                finish_transfer(&mut self.state.lock().await.sender_cancel, &cancel);
+                self.events.fail_waiting(
+                    Flow::Backup,
+                    operation,
+                    DeviceTransferEvent::BackupFailed,
+                );
+                return Err(error);
+            }
+            None => {
+                finish_transfer(&mut self.state.lock().await.sender_cancel, &cancel);
+                return Ok(());
+            }
+        };
+        {
+            let state = self.state.lock().await;
+            if cancel.is_cancelled()
+                || !state
+                    .sender_cancel
+                    .as_ref()
+                    .is_some_and(|current| Arc::ptr_eq(current, &cancel))
+            {
+                return Ok(());
+            }
+            self.events.emit_for(
+                Flow::Backup,
+                &cancel,
+                DeviceTransferEvent::BackupServerCreated,
+            );
+        }
+        let service = self.clone();
+        let worker_cancel = cancel.clone();
+        crate::task::spawn(async move {
+            let result = run_cancellable(
+                &worker_cancel,
+                service.run_sender(listener, code, key, worker_cancel.clone()),
+            )
+            .await;
+            let mut state = service.state.lock().await;
+            if finish_transfer(&mut state.sender_cancel, &worker_cancel)
+                && !worker_cancel.is_cancelled()
+            {
+                match result {
+                    Ok(()) => service.events.finish(
+                        Flow::Backup,
+                        &worker_cancel,
+                        DeviceTransferEvent::BackupSucceed,
+                    ),
+                    Err(error) => {
+                        log::error!("device transfer sender failed: {error:?}");
+                        service.events.finish(
+                            Flow::Backup,
+                            &worker_cancel,
+                            DeviceTransferEvent::BackupFailed,
+                        );
+                    }
+                }
+            }
+        });
+        let result = self
+            .send_remote(TransferCommand::push(&self.device_id, ip, port, code, &key))
+            .await;
+        if result.is_err() {
+            let current = finish_transfer(&mut self.state.lock().await.sender_cancel, &cancel);
+            if current {
+                self.events
+                    .finish(Flow::Backup, &cancel, DeviceTransferEvent::BackupFailed);
+            }
+            cancel.cancel();
+        }
+        result
+    }
+
+    fn spawn_receiver(self: &Arc<Self>, remote: RemotePushData, cancel: Arc<CancellationToken>) {
+        // Both approval paths register the token under the same lock that takes
+        // the pending request. No worker can install a token after cancellation.
         let service = self.clone();
         crate::task::spawn(async move {
-            if let Some(cancel) = service.state.lock().await.receiver_cancel.take() {
-                cancel.cancel();
+            let result =
+                run_cancellable(&cancel, service.run_receiver(remote, cancel.clone())).await;
+            let mut state = service.state.lock().await;
+            if finish_transfer(&mut state.receiver_cancel, &cancel) && !cancel.is_cancelled() {
+                match result {
+                    Ok(()) => service.events.finish(
+                        Flow::Restore,
+                        &cancel,
+                        DeviceTransferEvent::RestoreSucceed,
+                    ),
+                    Err(error) => {
+                        log::error!("device transfer receiver failed: {error:?}");
+                        service.events.finish(
+                            Flow::Restore,
+                            &cancel,
+                            DeviceTransferEvent::RestoreFailed,
+                        );
+                    }
+                }
             }
-            let cancel = CancellationToken::new();
-            service.state.lock().await.receiver_cancel = Some(cancel.clone());
-            let result = service.run_receiver(remote, cancel).await;
-            if let Err(error) = result {
-                log::error!("device transfer receiver failed: {error:?}");
-                service.emit(DeviceTransferEvent::RestoreFailed);
-            }
-            service.state.lock().await.receiver_cancel = None;
         });
     }
 
@@ -452,7 +737,7 @@ impl DeviceTransferService {
         listener: TcpListener,
         verification_code: u16,
         key: [u8; KEY_SIZE],
-        cancel: CancellationToken,
+        cancel: Arc<CancellationToken>,
     ) -> Result<()> {
         let (stream, _) = tokio::select! {
             accepted = listener.accept() => accepted?,
@@ -460,7 +745,7 @@ impl DeviceTransferService {
         };
         let (mut reader, mut writer) = stream.into_split();
         let packet = tokio::select! {
-            packet = read_packet(&mut reader, &key) => packet?,
+            packet = read_packet(&mut reader, &key, &self.account_data_dir) => packet?,
             _ = cancel.cancelled() => return Ok(()),
         };
         let Packet::Command(connect) = packet else {
@@ -470,7 +755,7 @@ impl DeviceTransferService {
             bail!("device transfer verification failed");
         }
 
-        self.emit(DeviceTransferEvent::BackupStart);
+        emit_running(&self.events, &cancel, DeviceTransferEvent::BackupStart);
         let specs = record_specs();
         let mut total = 0u64;
         for spec in &specs {
@@ -494,6 +779,7 @@ impl DeviceTransferService {
         let started = Instant::now();
         let mut bytes_sent = 0u64;
         let mut records_sent = 0u64;
+        let mut attachment_paths = std::collections::HashMap::<Uuid, PathBuf>::new();
         for spec in &specs {
             let mut offset = 0u64;
             loop {
@@ -509,24 +795,46 @@ impl DeviceTransferService {
                         }
                         _ = cancel.cancelled() => return Ok(()),
                     }
-                    self.emit(DeviceTransferEvent::BackupNetworkSpeed(transfer_speed(
-                        bytes_sent, started,
-                    )));
+                    emit_running(
+                        &self.events,
+                        &cancel,
+                        DeviceTransferEvent::BackupNetworkSpeed(transfer_speed(
+                            bytes_sent, started,
+                        )),
+                    );
                     records_sent += 1;
                     let progress = if total == 0 {
                         0.0
                     } else {
                         (records_sent as f64 / total as f64 * 100.0).clamp(0.0, 100.0)
                     };
-                    self.emit(DeviceTransferEvent::BackupProgress(progress));
+                    emit_running(
+                        &self.events,
+                        &cancel,
+                        DeviceTransferEvent::BackupProgress(progress),
+                    );
                     if matches!(spec.kind, "message" | "transcript_message") {
                         if let Some(path) = self.attachment_for_record(spec.kind, &record).await? {
                             let message_id = record
                                 .get("message_id")
                                 .and_then(Value::as_str)
                                 .ok_or_else(|| anyhow!("attachment record has no message id"))?;
-                            bytes_sent += write_file_packet(&mut writer, &key, message_id, &path)
-                                .await? as u64;
+                            let file_id = Uuid::parse_str(message_id)?;
+                            if let Some(previous) = attachment_paths.get(&file_id) {
+                                let equal = tokio::select! {
+                                    equal = attachments::same_bytes(previous, &path) => equal?,
+                                    _ = cancel.cancelled() => return Ok(()),
+                                };
+                                if !equal {
+                                    bail!("same message UUID has conflicting attachment bytes");
+                                }
+                            } else {
+                                attachment_paths.insert(file_id, path.clone());
+                            }
+                            bytes_sent += tokio::select! {
+                                result = write_file_packet(&mut writer, &key, message_id, &path) => result? as u64,
+                                _ = cancel.cancelled() => return Ok(()),
+                            };
                         }
                     }
                 }
@@ -544,16 +852,19 @@ impl DeviceTransferService {
 
         loop {
             let packet = tokio::select! {
-                packet = read_packet(&mut reader, &key) => packet?,
+                packet = read_packet(&mut reader, &key, &self.account_data_dir) => packet?,
                 _ = cancel.cancelled() => return Ok(()),
             };
             if let Packet::Command(command) = packet {
                 if command.action == "progress" {
                     if let Some(progress) = command.progress {
-                        self.emit(DeviceTransferEvent::BackupProgress(progress));
+                        emit_running(
+                            &self.events,
+                            &cancel,
+                            DeviceTransferEvent::BackupProgress(progress),
+                        );
                     }
                 } else if command.action == "finish" {
-                    self.emit(DeviceTransferEvent::BackupSucceed);
                     return Ok(());
                 } else if command.action == "close" || command.action == "cancel" {
                     bail!("receiver closed transfer");
@@ -562,7 +873,11 @@ impl DeviceTransferService {
         }
     }
 
-    async fn run_receiver(&self, remote: RemotePushData, cancel: CancellationToken) -> Result<()> {
+    async fn run_receiver(
+        &self,
+        remote: RemotePushData,
+        cancel: Arc<CancellationToken>,
+    ) -> Result<()> {
         let stream = tokio::select! {
             stream = crate::time::timeout(Duration::from_secs(60), TcpStream::connect((&*remote.ip, remote.port))) => stream??,
             _ = cancel.cancelled() => return Ok(()),
@@ -574,7 +889,7 @@ impl DeviceTransferService {
             &TransferCommand::connect(&self.device_id, remote.code, &self.user_id),
         )
         .await?;
-        self.emit(DeviceTransferEvent::RestoreConnected);
+        emit_running(&self.events, &cancel, DeviceTransferEvent::RestoreConnected);
 
         let mut total = 0u64;
         let mut progress_count = 0u64;
@@ -583,26 +898,32 @@ impl DeviceTransferService {
         let mut bytes_received = 0u64;
         loop {
             let packet = tokio::select! {
-                packet = read_packet(&mut reader, &remote.key) => packet?,
-                _ = cancel.cancelled() => {
-                    let _ = write_command(&mut writer, &remote.key, &TransferCommand::simple(&self.device_id, "close")).await;
-                    return Ok(());
-                }
+                packet = read_packet(&mut reader, &remote.key, &self.account_data_dir) => packet?,
+                _ = cancel.cancelled() => return Ok(()),
             };
             bytes_received += packet.wire_size() as u64;
-            self.emit(DeviceTransferEvent::RestoreNetworkSpeed(transfer_speed(
-                bytes_received,
-                started,
-            )));
+            emit_running(
+                &self.events,
+                &cancel,
+                DeviceTransferEvent::RestoreNetworkSpeed(transfer_speed(bytes_received, started)),
+            );
             match packet {
                 Packet::Command(command) if command.action == "start" => {
                     total = command.total.unwrap_or_default();
                     progress_count = 0;
-                    self.emit(DeviceTransferEvent::RestoreStart);
-                    self.emit(DeviceTransferEvent::RestoreProgress(0.0));
+                    emit_running(&self.events, &cancel, DeviceTransferEvent::RestoreStart);
+                    emit_running(
+                        &self.events,
+                        &cancel,
+                        DeviceTransferEvent::RestoreProgress(0.0),
+                    );
                 }
                 Packet::Command(command) if command.action == "finish" => {
-                    self.emit(DeviceTransferEvent::RestoreProgress(100.0));
+                    emit_running(
+                        &self.events,
+                        &cancel,
+                        DeviceTransferEvent::RestoreProgress(100.0),
+                    );
                     write_command(
                         &mut writer,
                         &remote.key,
@@ -616,7 +937,6 @@ impl DeviceTransferService {
                     )
                     .await?;
                     self.conversation_changes.notify_all();
-                    self.emit(DeviceTransferEvent::RestoreSucceed);
                     return Ok(());
                 }
                 Packet::Command(command)
@@ -626,18 +946,20 @@ impl DeviceTransferService {
                 }
                 Packet::Command(_) => {}
                 Packet::Json { kind, data, .. } => {
-                    if let Err(error) = self.insert_record(&kind, &data).await {
-                        log::error!(
-                            "device transfer failed to insert {kind} record: {error:?}; data={data:?}"
-                        );
-                    }
+                    self.insert_record(&kind, &data)
+                        .await
+                        .with_context(|| format!("insert transferred {kind} record"))?;
                     progress_count += 1;
                     let progress = if total == 0 {
                         0.0
                     } else {
                         (progress_count as f64 / total as f64 * 100.0).clamp(0.0, 100.0)
                     };
-                    self.emit(DeviceTransferEvent::RestoreProgress(progress));
+                    emit_running(
+                        &self.events,
+                        &cancel,
+                        DeviceTransferEvent::RestoreProgress(progress),
+                    );
                     if last_progress_sent.elapsed() >= Duration::from_millis(200) {
                         write_command(
                             &mut writer,
@@ -649,16 +971,29 @@ impl DeviceTransferService {
                     }
                 }
                 Packet::File {
-                    message_id, bytes, ..
+                    message_id, file, ..
                 } => {
-                    if let Err(error) = self.insert_attachment(&message_id, &bytes).await {
-                        log::error!(
-                            "device transfer failed to insert attachment {message_id}: {error:?}"
-                        );
+                    tokio::select! {
+                        result = self.insert_attachment(&message_id, file.path()) => result?,
+                        _ = cancel.cancelled() => return Ok(()),
                     }
                 }
             }
         }
+    }
+}
+
+/// Cancelling the owning operation drops its socket and staging files, including
+/// when a peer stops reading a control packet rather than an attachment chunk.
+#[cfg(not(target_arch = "wasm32"))]
+async fn run_cancellable(
+    cancel: &CancellationToken,
+    operation: impl std::future::Future<Output = Result<()>>,
+) -> Result<()> {
+    tokio::select! {
+        biased;
+        _ = cancel.cancelled() => Ok(()),
+        result = operation => result,
     }
 }
 
@@ -714,232 +1049,6 @@ fn hkdf_sha256(input: &[u8], info: &[u8]) -> Result<[u8; KEY_SIZE]> {
         let offset = (index as usize - 1) * 32;
         output[offset..offset + 32].copy_from_slice(&previous);
     }
-    Ok(output)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-enum Packet {
-    Command(TransferCommand),
-    Json {
-        kind: String,
-        data: Map<String, Value>,
-        size: usize,
-    },
-    File {
-        message_id: String,
-        bytes: Vec<u8>,
-        size: usize,
-    },
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl Packet {
-    fn wire_size(&self) -> usize {
-        match self {
-            Packet::Command(command) => serde_json::to_vec(command).map_or(0, |data| data.len()),
-            Packet::Json { size, .. } | Packet::File { size, .. } => *size,
-        }
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-async fn write_command<W: AsyncWrite + Unpin>(
-    writer: &mut W,
-    key: &[u8; KEY_SIZE],
-    command: &TransferCommand,
-) -> Result<usize> {
-    write_encrypted_packet(writer, key, PACKET_COMMAND, &serde_json::to_vec(command)?).await
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-async fn write_json_record<W: AsyncWrite + Unpin>(
-    writer: &mut W,
-    key: &[u8; KEY_SIZE],
-    kind: &str,
-    data: &Map<String, Value>,
-) -> Result<usize> {
-    let bytes = serde_json::to_vec(&serde_json::json!({"data": data, "type": kind}))?;
-    if bytes.len() > JSON_PACKET_LIMIT {
-        bail!("device transfer JSON packet exceeds 500KB");
-    }
-    write_encrypted_packet(writer, key, PACKET_JSON, &bytes).await
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-async fn write_encrypted_packet<W: AsyncWrite + Unpin>(
-    writer: &mut W,
-    key: &[u8; KEY_SIZE],
-    packet_type: u8,
-    data: &[u8],
-) -> Result<usize> {
-    let mut iv = [0u8; IV_SIZE];
-    SystemRandom::new()
-        .fill(&mut iv)
-        .map_err(|_| anyhow!("secure random failed"))?;
-    let encrypted = encrypt_cbc(&key[..32], &iv, data)?;
-    let mut body = Vec::with_capacity(IV_SIZE + encrypted.len());
-    body.extend_from_slice(&iv);
-    body.extend_from_slice(&encrypted);
-    write_packet_body(writer, key, packet_type, &body).await
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-async fn write_file_packet<W: AsyncWrite + Unpin>(
-    writer: &mut W,
-    key: &[u8; KEY_SIZE],
-    message_id: &str,
-    path: &Path,
-) -> Result<usize> {
-    let file = tokio::fs::read(path)
-        .await
-        .with_context(|| format!("read transfer attachment {}", path.display()))?;
-    if file.is_empty() {
-        return Ok(0);
-    }
-    let mut iv = [0u8; IV_SIZE];
-    SystemRandom::new()
-        .fill(&mut iv)
-        .map_err(|_| anyhow!("secure random failed"))?;
-    let encrypted = encrypt_cbc(&key[..32], &iv, &file)?;
-    let mut body = Vec::with_capacity(16 + IV_SIZE + encrypted.len());
-    body.extend_from_slice(Uuid::parse_str(message_id)?.as_bytes());
-    body.extend_from_slice(&iv);
-    body.extend_from_slice(&encrypted);
-    write_packet_body(writer, key, PACKET_FILE, &body).await
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-async fn write_packet_body<W: AsyncWrite + Unpin>(
-    writer: &mut W,
-    key: &[u8; KEY_SIZE],
-    packet_type: u8,
-    body: &[u8],
-) -> Result<usize> {
-    let body_length = i32::try_from(body.len()).context("transfer packet too large")?;
-    let mut hmac = <Hmac<Sha256> as HmacKeyInit>::new_from_slice(&key[32..])
-        .map_err(|_| anyhow!("invalid transfer HMAC key"))?;
-    hmac.update(body);
-    let digest = hmac.finalize().into_bytes();
-    writer.write_u8(packet_type).await?;
-    writer.write_i32(body_length).await?;
-    writer.write_all(body).await?;
-    writer.write_all(&digest).await?;
-    writer.flush().await?;
-    Ok(5 + body.len() + HMAC_SIZE)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-async fn read_packet<R: AsyncRead + Unpin>(reader: &mut R, key: &[u8; KEY_SIZE]) -> Result<Packet> {
-    let packet_type = reader.read_u8().await?;
-    let body_length = reader.read_i32().await?;
-    if body_length <= 0 {
-        bail!("invalid transfer packet length");
-    }
-    let body_length = body_length as usize;
-    let mut body = vec![0u8; body_length];
-    reader.read_exact(&mut body).await?;
-    let mut expected = [0u8; HMAC_SIZE];
-    reader.read_exact(&mut expected).await?;
-    let mut hmac = <Hmac<Sha256> as HmacKeyInit>::new_from_slice(&key[32..])
-        .map_err(|_| anyhow!("invalid transfer HMAC key"))?;
-    hmac.update(&body);
-    hmac.verify_slice(&expected)
-        .map_err(|_| anyhow!("transfer packet HMAC mismatch"))?;
-    match packet_type {
-        PACKET_COMMAND | PACKET_JSON => {
-            if body.len() < IV_SIZE {
-                bail!("encrypted transfer packet is truncated");
-            }
-            let decrypted = decrypt_cbc(&key[..32], &body[..IV_SIZE], &body[IV_SIZE..])?;
-            if packet_type == PACKET_COMMAND {
-                Ok(Packet::Command(serde_json::from_slice(&decrypted)?))
-            } else {
-                let wrapper: Value = serde_json::from_slice(&decrypted)?;
-                let kind = wrapper
-                    .get("type")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| anyhow!("transfer JSON packet has no type"))?
-                    .to_string();
-                let data = wrapper
-                    .get("data")
-                    .and_then(Value::as_object)
-                    .cloned()
-                    .ok_or_else(|| anyhow!("transfer JSON packet has no data"))?;
-                Ok(Packet::Json {
-                    kind,
-                    data,
-                    size: 5 + body_length + HMAC_SIZE,
-                })
-            }
-        }
-        PACKET_FILE => {
-            if body.len() < 16 + IV_SIZE {
-                bail!("attachment transfer packet is truncated");
-            }
-            let message_id = Uuid::from_slice(&body[..16])?.to_string();
-            let bytes = decrypt_cbc(&key[..32], &body[16..32], &body[32..])?;
-            Ok(Packet::File {
-                message_id,
-                bytes,
-                size: 5 + body_length + HMAC_SIZE,
-            })
-        }
-        _ => bail!("unknown transfer packet type: {packet_type}"),
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn encrypt_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-    let cipher = Aes256::new_from_slice(key).map_err(|_| anyhow!("invalid AES key"))?;
-    let padding = 16 - data.len() % 16;
-    let mut padded = Vec::with_capacity(data.len() + padding);
-    padded.extend_from_slice(data);
-    padded.resize(data.len() + padding, padding as u8);
-    let mut previous: [u8; 16] = iv.try_into().map_err(|_| anyhow!("invalid AES IV"))?;
-    for chunk in padded.chunks_exact_mut(16) {
-        for (byte, previous) in chunk.iter_mut().zip(previous) {
-            *byte ^= previous;
-        }
-        let mut bytes = [0u8; 16];
-        bytes.copy_from_slice(chunk);
-        let mut block = Block::<Aes256>::from(bytes);
-        cipher.encrypt_block(&mut block);
-        chunk.copy_from_slice(&block);
-        previous.copy_from_slice(chunk);
-    }
-    Ok(padded)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn decrypt_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-    if data.is_empty() || !data.len().is_multiple_of(16) {
-        bail!("invalid AES ciphertext length");
-    }
-    let cipher = Aes256::new_from_slice(key).map_err(|_| anyhow!("invalid AES key"))?;
-    let mut output = data.to_vec();
-    let mut previous: [u8; 16] = iv.try_into().map_err(|_| anyhow!("invalid AES IV"))?;
-    for chunk in output.chunks_exact_mut(16) {
-        let encrypted: [u8; 16] = chunk.try_into().expect("AES block length");
-        let mut bytes = [0u8; 16];
-        bytes.copy_from_slice(chunk);
-        let mut block = Block::<Aes256>::from(bytes);
-        cipher.decrypt_block(&mut block);
-        for (byte, previous) in block.iter_mut().zip(previous) {
-            *byte ^= previous;
-        }
-        chunk.copy_from_slice(&block);
-        previous = encrypted;
-    }
-    let padding = *output.last().unwrap() as usize;
-    if padding == 0
-        || padding > 16
-        || !output[output.len() - padding..]
-            .iter()
-            .all(|byte| *byte as usize == padding)
-    {
-        bail!("invalid AES padding");
-    }
-    output.truncate(output.len() - padding);
     Ok(output)
 }
 
@@ -1322,6 +1431,9 @@ impl DeviceTransferService {
                     }
                 }
                 normalize_outgoing_record(spec.kind, &mut data);
+                if matches!(spec.kind, "message" | "transcript_message") {
+                    self.normalize_attachment_url(spec.kind, &mut data)?;
+                }
                 Ok(data)
             })
             .collect()
@@ -1343,6 +1455,9 @@ impl DeviceTransferService {
         }
         let mut normalized = data.clone();
         normalize_incoming_record(kind, &mut normalized);
+        if matches!(kind, "message" | "transcript_message") {
+            self.normalize_attachment_url(kind, &mut normalized)?;
+        }
         let values = spec
             .columns
             .iter()
@@ -1412,56 +1527,6 @@ impl DeviceTransferService {
                     .upsert(message_id, conversation_id, &content)
                     .await?;
             }
-        }
-        Ok(())
-    }
-
-    async fn attachment_for_record(
-        &self,
-        kind: &str,
-        record: &Map<String, Value>,
-    ) -> Result<Option<PathBuf>> {
-        let message = message_from_record(record)?;
-        if !message.category.is_attachment() {
-            return Ok(None);
-        }
-        let media_status = record
-            .get("media_status")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        let transferable = if kind == "transcript_message" {
-            media_status == "DONE"
-        } else {
-            matches!(media_status, "DONE" | "READ")
-        };
-        if !transferable {
-            return Ok(None);
-        }
-        let path = if kind == "transcript_message" {
-            transcript_attachment_path(&self.account_data_dir, &message)?
-        } else {
-            attachment_path(&self.account_data_dir, &message)?
-        };
-        Ok(tokio::fs::metadata(&path)
-            .await
-            .ok()
-            .filter(|metadata| metadata.is_file() && metadata.len() > 0)
-            .map(|_| path))
-    }
-
-    async fn insert_attachment(&self, message_id: &str, bytes: &[u8]) -> Result<()> {
-        if let Some(record) = self
-            .record_by_message_id("transcript_messages", message_id)
-            .await?
-        {
-            let message = message_from_record(&record)?;
-            let path = transcript_attachment_path(&self.account_data_dir, &message)?;
-            write_attachment_if_absent(&path, bytes).await?;
-        }
-        if let Some(record) = self.record_by_message_id("messages", message_id).await? {
-            let message = message_from_record(&record)?;
-            let path = attachment_path(&self.account_data_dir, &message)?;
-            write_attachment_if_absent(&path, bytes).await?;
         }
         Ok(())
     }
@@ -1677,28 +1742,110 @@ fn message_from_record(record: &Map<String, Value>) -> Result<Message> {
     })
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-async fn write_attachment_if_absent(path: &Path, bytes: &[u8]) -> Result<()> {
-    if tokio::fs::metadata(path).await.is_ok() {
-        return Ok(());
-    }
-    let parent = path
-        .parent()
-        .ok_or_else(|| anyhow!("attachment path has no parent"))?;
-    tokio::fs::create_dir_all(parent).await?;
-    let temp = path.with_extension(format!("transfer-{}", Uuid::new_v4()));
-    tokio::fs::write(&temp, bytes).await?;
-    if let Err(error) = tokio::fs::rename(&temp, path).await {
-        let _ = tokio::fs::remove_file(&temp).await;
-        return Err(error.into());
-    }
-    Ok(())
-}
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "device_transfer/runtime_tests.rs"]
+mod runtime_tests;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn cancelling_registered_transfer_before_worker_poll_prevents_transfer_work() {
+        let mut slot = None;
+        let cancel = replace_transfer(&mut slot);
+        let worker_cancel = cancel.clone();
+        let (release, ready) = tokio::sync::oneshot::channel();
+        let worker = tokio::spawn(async move {
+            ready.await.unwrap();
+            worker_cancel.is_cancelled()
+        });
+
+        slot.take().expect("registered before spawning").cancel();
+        release.send(()).unwrap();
+        assert!(tokio::time::timeout(Duration::from_secs(1), worker)
+            .await
+            .unwrap()
+            .unwrap());
+        assert!(cancel.is_cancelled());
+        assert!(slot.is_none());
+    }
+
+    #[tokio::test]
+    async fn old_worker_completion_preserves_replacement_and_its_cancellation_handle() {
+        let slot = Arc::new(Mutex::new(None));
+        let first = replace_transfer(&mut *slot.lock().await);
+        let worker_slot = slot.clone();
+        let worker_cancel = first.clone();
+        let (release, ready) = tokio::sync::oneshot::channel();
+        let worker = tokio::spawn(async move {
+            ready.await.unwrap();
+            finish_transfer(&mut *worker_slot.lock().await, &worker_cancel)
+        });
+
+        let replacement = replace_transfer(&mut *slot.lock().await);
+        assert!(first.is_cancelled());
+        release.send(()).unwrap();
+        assert!(!tokio::time::timeout(Duration::from_secs(1), worker)
+            .await
+            .unwrap()
+            .unwrap());
+
+        let remaining = slot
+            .lock()
+            .await
+            .take()
+            .expect("replacement still owns the slot");
+        assert!(Arc::ptr_eq(&remaining, &replacement));
+        remaining.cancel();
+        assert!(replacement.is_cancelled());
+    }
+
+    #[test]
+    fn completing_current_transfer_releases_only_its_own_slot() {
+        let mut slot = None;
+        let cancel = replace_transfer(&mut slot);
+        assert!(finish_transfer(&mut slot, &cancel));
+        assert!(slot.is_none());
+        assert!(!cancel.is_cancelled());
+        assert!(!finish_transfer(&mut slot, &cancel));
+    }
+
+    #[test]
+    fn replacing_transfer_suppresses_old_start_progress_and_speed_events() {
+        let mut slot = None;
+        let previous = replace_transfer(&mut slot);
+        let current = replace_transfer(&mut slot);
+        let events = TransferEvents::default();
+        events.begin(Flow::Restore, Some(current.clone()));
+        let mut receiver = events.subscribe();
+        for event in [
+            DeviceTransferEvent::BackupStart,
+            DeviceTransferEvent::RestoreConnected,
+            DeviceTransferEvent::RestoreStart,
+            DeviceTransferEvent::BackupProgress(50.0),
+            DeviceTransferEvent::RestoreProgress(50.0),
+            DeviceTransferEvent::BackupNetworkSpeed(1024.0),
+            DeviceTransferEvent::RestoreNetworkSpeed(1024.0),
+        ] {
+            emit_running(&events, &previous, event);
+        }
+        assert!(matches!(
+            receiver.try_recv(),
+            Err(broadcast::error::TryRecvError::Empty)
+        ));
+        emit_running(
+            &events,
+            &current,
+            DeviceTransferEvent::RestoreProgress(25.0),
+        );
+        let DeviceTransferEvent::RestoreProgress(progress) = receiver.try_recv().unwrap() else {
+            panic!("expected current transfer progress");
+        };
+        assert_eq!(progress, 25.0);
+        current.cancel();
+    }
 
     #[test]
     fn transfer_crypto_round_trip() {

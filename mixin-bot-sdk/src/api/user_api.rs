@@ -110,6 +110,20 @@ impl UserApi {
         self.client.post("relationships", action).await
     }
 
+    /// Changes a user's contact name without adding them to contacts.
+    pub async fn rename_contact(&self, user_id: &str, full_name: &str) -> Result<User, ApiError> {
+        self.client
+            .post(
+                "relationships",
+                &serde_json::json!({
+                    "action": "UPDATE",
+                    "user_id": user_id,
+                    "full_name": full_name,
+                }),
+            )
+            .await
+    }
+
     pub async fn report_and_block(&self, user_id: &str) -> Result<User, ApiError> {
         self.client
             .post(
@@ -135,3 +149,7 @@ impl UserApi {
             .await
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "user_api_tests.rs"]
+mod endpoint_tests;

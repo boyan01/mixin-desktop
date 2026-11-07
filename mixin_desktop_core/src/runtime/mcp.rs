@@ -102,12 +102,16 @@ struct McpServerState {
 
 impl McpServerState {
     fn status(&self) -> McpServerStatus {
+        let running = self.running.as_ref().filter(|server| {
+            !server.cancellation.is_cancelled()
+                && self
+                    .runtime
+                    .as_ref()
+                    .is_some_and(|runtime| runtime.is_running())
+        });
         McpServerStatus {
-            running: self.running.is_some(),
-            endpoint: self
-                .running
-                .as_ref()
-                .map(|server| server.endpoint().to_owned()),
+            running: running.is_some(),
+            endpoint: running.map(|server| server.endpoint().to_owned()),
             last_error: self.last_error.clone(),
         }
     }
@@ -201,6 +205,20 @@ impl McpServer {
         if let Some(server) = state.running.take() {
             server.stop().await;
         }
+    }
+
+    #[cfg(test)]
+    pub(super) async fn wait_for_account_stop(&self) {
+        let task = self
+            .state
+            .lock()
+            .await
+            .running
+            .as_mut()
+            .and_then(|server| server.task.take())
+            .expect("test server task");
+        task.await
+            .expect("account-owned server stopped without panic");
     }
 
     async fn apply_settings(&self, settings: McpSettings) -> Result<McpServerStatus> {
@@ -335,7 +353,9 @@ impl RunningMcpServer {
             return Err(anyhow!("MCP access token is unavailable"));
         }
         let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await?;
+        let port = listener.local_addr()?.port();
         let cancellation = CancellationToken::new();
+        let mut account_shutdown = runtime.subscribe_shutdown();
         let state = ServerState {
             search_slot: Arc::new(tokio::sync::Semaphore::new(1)),
             source: McpSource::Runtime(runtime),
@@ -346,7 +366,18 @@ impl RunningMcpServer {
         let stop = cancellation.clone();
         let task = crate::task::spawn(async move {
             if let Err(error) = axum::serve(listener, app)
-                .with_graceful_shutdown(stop.cancelled_owned())
+                .with_graceful_shutdown(async move {
+                    while !*account_shutdown.borrow_and_update() {
+                        tokio::select! {
+                            biased;
+                            _ = stop.cancelled() => break,
+                            changed = account_shutdown.changed() => {
+                                if changed.is_err() { break; }
+                            }
+                        }
+                    }
+                    stop.cancel();
+                })
                 .await
             {
                 log::error!("local MCP server stopped unexpectedly: {error}");
@@ -448,10 +479,7 @@ fn http_router(state: ServerState, cancellation: &CancellationToken) -> Router {
                 }
             }),
         )
-        .layer(axum::middleware::from_fn_with_state(
-            state.settings.token.clone(),
-            authorize,
-        ))
+        .layer(axum::middleware::from_fn_with_state(state, authorize))
 }
 
 impl Drop for RunningMcpServer {
@@ -850,12 +878,18 @@ impl McpSource {
     }
 }
 
-async fn authorize(token: axum::extract::State<String>, request: Request, next: Next) -> Response {
-    if authorized(request.headers(), &token) {
-        next.run(request).await
-    } else {
-        (StatusCode::UNAUTHORIZED, "unauthorized").into_response()
+async fn authorize(
+    state: axum::extract::State<ServerState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if !authorized(request.headers(), &state.settings.token) {
+        return (StatusCode::UNAUTHORIZED, "unauthorized").into_response();
     }
+    if !state.source.is_running() {
+        return (StatusCode::SERVICE_UNAVAILABLE, "account runtime stopped").into_response();
+    }
+    next.run(request).await
 }
 
 fn authorized(headers: &HeaderMap, token: &str) -> bool {
@@ -1270,6 +1304,7 @@ impl McpService {
                             .map(|value| value.div_euclid(1_000)),
                         cursor_message_id: input.cursor,
                         limit: (limit + 1) as u32,
+                        ..Default::default()
                     },
                     cancellation,
                 )

@@ -83,6 +83,33 @@ impl UserDao {
     }
 
     pub async fn selectable_users(&self, current_user_id: &str) -> Result<Vec<User>, Error> {
+        self.selectable_users_window(current_user_id, "", 0, -1)
+            .await
+    }
+
+    pub async fn selectable_users_page(
+        &self,
+        current_user_id: &str,
+        query: &str,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<User>, Error> {
+        self.selectable_users_window(
+            current_user_id,
+            query.trim(),
+            offset.max(0),
+            limit.clamp(1, 200),
+        )
+        .await
+    }
+
+    async fn selectable_users_window(
+        &self,
+        current_user_id: &str,
+        query: &str,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<User>, Error> {
         Ok(crate::db::query_as::<User>(
             r#"SELECT * FROM users
                WHERE user_id != ?
@@ -90,11 +117,18 @@ impl UserDao {
                  AND is_deactivated = FALSE
                  AND (relationship = 'FRIEND'
                       OR (app_id IS NOT NULL AND app_id != ''))
+                 AND (instr(lower(full_name), lower(?)) > 0
+                      OR instr(lower(identity_number), lower(?)) > 0)
                ORDER BY CASE WHEN app_id IS NULL OR app_id = '' THEN 0 ELSE 1 END,
                         full_name COLLATE NOCASE,
-                        user_id"#,
+                        user_id
+               LIMIT ? OFFSET ?"#,
         )
         .bind(current_user_id)
+        .bind(query)
+        .bind(query)
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&self.0)
         .await?)
     }
@@ -105,10 +139,58 @@ impl UserDao {
         keyword: &str,
         limit: i64,
     ) -> Result<Vec<User>, Error> {
+        if limit <= 0 {
+            return Ok(Vec::new());
+        }
+        self.search_local_users_page(current_user_id, keyword, "", None, 0, limit)
+            .await
+    }
+
+    pub async fn invitable_users_page(
+        &self,
+        current_user_id: &str,
+        conversation_id: &str,
+        keyword: &str,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<User>, Error> {
+        if limit <= 0 {
+            return Ok(Vec::new());
+        }
+        Ok(crate::db::query_as::<User>(
+            "SELECT * FROM users WHERE relationship = 'FRIEND' AND user_id != ?1 AND identity_number != '0' AND is_deactivated = FALSE \
+             AND NOT EXISTS (SELECT 1 FROM participants p WHERE p.conversation_id = ?2 AND p.user_id = users.user_id) \
+             AND (instr(lower(full_name),lower(?3)) > 0 OR instr(identity_number,?3) > 0) \
+             ORDER BY (full_name = ?3 COLLATE NOCASE OR identity_number = ?3) DESC, full_name COLLATE NOCASE, user_id \
+             LIMIT ?4 OFFSET ?5")
+            .bind(current_user_id).bind(conversation_id).bind(keyword.trim()).bind(limit.min(200)).bind(offset.max(0))
+            .fetch_all(&self.0).await?)
+    }
+
+    pub async fn search_local_users_page(
+        &self,
+        current_user_id: &str,
+        keyword: &str,
+        category: &str,
+        circle_id: Option<&str>,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<User>, Error> {
+        let offset = offset.max(0);
+        let limit = limit.clamp(1, 200);
         Ok(crate::db::query_as::<User>(
             r#"SELECT * FROM users
                WHERE user_id != ?
                  AND identity_number != '0'
+                 AND CASE ?
+                     WHEN 'chats' THEN relationship = 'FRIEND'
+                     WHEN 'friends' THEN relationship = 'FRIEND'
+                     WHEN 'contacts' THEN relationship = 'FRIEND' AND app_id IS NULL
+                     WHEN 'bots' THEN app_id IS NOT NULL
+                     WHEN 'strangers' THEN relationship = 'STRANGER' AND app_id IS NULL
+                     WHEN 'groups' THEN FALSE
+                     WHEN 'circle' THEN relationship = 'FRIEND' AND EXISTS (SELECT 1 FROM circle_conversations cc WHERE cc.user_id = users.user_id AND cc.circle_id = ?)
+                     ELSE TRUE END
                  AND (instr(lower(full_name), lower(?)) > 0
                       OR instr(lower(identity_number), lower(?)) > 0)
                ORDER BY (full_name = ? COLLATE NOCASE
@@ -116,14 +198,17 @@ impl UserDao {
                         CASE relationship WHEN 'FRIEND' THEN 0 ELSE 1 END,
                         full_name COLLATE NOCASE,
                         user_id
-               LIMIT ?"#,
+               LIMIT ? OFFSET ?"#,
         )
         .bind(current_user_id)
+        .bind(category)
+        .bind(circle_id.unwrap_or_default())
         .bind(keyword)
         .bind(keyword)
         .bind(keyword)
         .bind(keyword)
         .bind(limit)
+        .bind(offset)
         .fetch_all(&self.0)
         .await?)
     }
@@ -371,6 +456,81 @@ mod tests {
     use crate::db::MixinDatabase;
 
     #[tokio::test]
+    async fn invitable_pages_exclude_existing_members_before_limit_and_reach_every_friend() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        let pool = &database.user_dao.0;
+        crate::db::query("INSERT INTO conversations (conversation_id,category,created_at,status) VALUES ('group','GROUP',0,0)").execute(pool).await.unwrap();
+        for index in 0..650 {
+            let id = format!("friend-{index:04}");
+            crate::db::query("INSERT INTO users (user_id,identity_number,full_name,relationship,is_deactivated,created_at,mute_until) VALUES (?,?,?,'FRIEND',FALSE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)")
+                .bind(&id).bind((10_000+index).to_string()).bind(format!("Person {index:04}")).execute(pool).await.unwrap();
+            if index < 50 {
+                crate::db::query("INSERT INTO participants (conversation_id,user_id,role,created_at) VALUES ('group',?,'',0)").bind(id).execute(pool).await.unwrap();
+            }
+        }
+        crate::db::query("INSERT INTO users (user_id,identity_number,full_name,relationship,created_at,mute_until) VALUES ('me','9999','Person me','FRIEND',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),('system','0','Person system','FRIEND',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP),('stranger','20000','Person stranger','STRANGER',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)").execute(pool).await.unwrap();
+        let mut ids = std::collections::HashSet::new();
+        crate::db::query("INSERT INTO users (user_id,identity_number,full_name,relationship,is_deactivated,created_at,mute_until) VALUES ('deleted','22222','Person deleted','FRIEND',TRUE,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)").execute(pool).await.unwrap();
+        let deleted: crate::runtime::model::UserProfileItem = database
+            .user_dao
+            .find_user_by_id("deleted")
+            .await
+            .unwrap()
+            .unwrap()
+            .into();
+        assert!(deleted.is_deactivated);
+        for page in 0..6 {
+            let rows = database
+                .user_dao
+                .invitable_users_page("me", "group", "", page * 100, 100)
+                .await
+                .unwrap();
+            assert_eq!(rows.len(), 100);
+            for row in rows {
+                assert!(ids.insert(row.user_id));
+            }
+        }
+        assert_eq!(ids.len(), 600);
+        assert!(ids.contains("friend-0649"));
+        assert!(!ids.contains("friend-0000"));
+        assert!(database
+            .user_dao
+            .invitable_users_page("me", "group", "", 600, 100)
+            .await
+            .unwrap()
+            .is_empty());
+        let searched = database
+            .user_dao
+            .invitable_users_page("me", "group", "10649", 0, 100)
+            .await
+            .unwrap();
+        assert_eq!(searched.len(), 1);
+        assert_eq!(searched[0].user_id, "friend-0649");
+        assert!(
+            database
+                .user_dao
+                .invitable_users_page("me", "group", "", 0, 1000)
+                .await
+                .unwrap()
+                .len()
+                <= 200
+        );
+        assert_eq!(
+            database
+                .user_dao
+                .invitable_users_page("me", "other", "10000", 0, 100)
+                .await
+                .unwrap()[0]
+                .user_id,
+            "friend-0000"
+        );
+        database.close().await;
+    }
+
+    #[tokio::test]
     async fn accepts_empty_user_batch() {
         let directory = tempfile::tempdir().unwrap();
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
@@ -472,6 +632,54 @@ mod tests {
                 .unwrap(),
             ["hello @Alicia"]
         );
+    }
+
+    #[tokio::test]
+    async fn selectable_user_pages_filter_before_paging_and_keep_stable_contact_then_bot_order() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        for (id, identity, relation, name, app, deactivated) in [
+            ("me", "7000", "ME", "Me", "", false),
+            ("first", "7001", "FRIEND", "Alice", "", false),
+            ("second", "7002", "FRIEND", "alice", "", false),
+            ("bot", "7003", "STRANGER", "A Bot", "app", false),
+            ("stranger", "7004", "STRANGER", "Alice Stranger", "", false),
+            ("gone", "7005", "FRIEND", "Alice Gone", "", true),
+            ("system", "0", "FRIEND", "Alice System", "", false),
+        ] {
+            crate::db::query("INSERT INTO users (user_id,identity_number,relationship,full_name,app_id,is_deactivated,avatar_url,phone,created_at,mute_until,has_pin,biography,is_scam,code_url,code_id,is_verified) VALUES (?,?,?,?,?,?, '', '', ?, ?, FALSE, '', FALSE, '', '', FALSE)")
+                .bind(id).bind(identity).bind(relation).bind(name).bind(app).bind(deactivated)
+                .bind(chrono::Utc::now()).bind(chrono::Utc::now()).execute(&database.user_dao.0).await.unwrap();
+        }
+        let dao = &database.user_dao;
+        let first = dao.selectable_users_page("me", "", 0, 2).await.unwrap();
+        let second = dao.selectable_users_page("me", "", 2, 2).await.unwrap();
+        assert_eq!(
+            first.iter().map(|u| u.user_id.as_str()).collect::<Vec<_>>(),
+            ["first", "second"]
+        );
+        assert_eq!(
+            second
+                .iter()
+                .map(|u| u.user_id.as_str())
+                .collect::<Vec<_>>(),
+            ["bot"]
+        );
+        let search = dao.selectable_users_page("me", "7003", 0, 2).await.unwrap();
+        assert_eq!(search.len(), 1);
+        assert_eq!(search[0].user_id, "bot");
+        assert!(dao
+            .selectable_users_page("me", "stranger", 0, 2)
+            .await
+            .unwrap()
+            .is_empty());
+        let tie = dao
+            .selectable_users_page("me", "ALICE", 1, 1)
+            .await
+            .unwrap();
+        assert_eq!(tie[0].user_id, "second");
     }
 
     #[tokio::test]

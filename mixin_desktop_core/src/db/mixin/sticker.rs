@@ -65,6 +65,55 @@ impl StickerDao {
         Ok(())
     }
 
+    /// Returns whether refreshed metadata changed the rendered sticker.
+    /// Last-use updates are persisted without invalidating failed asset views.
+    pub async fn refresh_metadata(&self, sticker: &sdk::Sticker) -> Result<bool, Error> {
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
+        let changed = crate::db::query(
+            r#"INSERT INTO stickers
+               (sticker_id, album_id, name, asset_url, asset_type, asset_width,
+                asset_height, created_at, last_use_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(sticker_id) DO UPDATE SET
+                 album_id = excluded.album_id, name = excluded.name,
+                 asset_url = excluded.asset_url, asset_type = excluded.asset_type,
+                 asset_width = excluded.asset_width, asset_height = excluded.asset_height,
+                 created_at = excluded.created_at, last_use_at = excluded.last_use_at
+               WHERE stickers.album_id IS NOT excluded.album_id
+                  OR stickers.name IS NOT excluded.name
+                  OR stickers.asset_url IS NOT excluded.asset_url
+                  OR stickers.asset_type IS NOT excluded.asset_type
+                  OR stickers.asset_width IS NOT excluded.asset_width
+                  OR stickers.asset_height IS NOT excluded.asset_height
+                  OR stickers.created_at IS NOT excluded.created_at"#,
+        )
+        .bind(&sticker.sticker_id)
+        .bind(&sticker.album_id)
+        .bind(&sticker.name)
+        .bind(&sticker.asset_url)
+        .bind(&sticker.asset_type)
+        .bind(sticker.asset_width)
+        .bind(sticker.asset_height)
+        .bind(sticker.created_at.timestamp_millis())
+        .bind(sticker.last_use_at.map(|value| value.timestamp_millis()))
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected()
+            != 0;
+        if !changed {
+            crate::db::query(
+                "UPDATE stickers SET last_use_at = ? WHERE sticker_id = ? AND last_use_at IS NOT ?",
+            )
+            .bind(sticker.last_use_at.map(|value| value.timestamp_millis()))
+            .bind(&sticker.sticker_id)
+            .bind(sticker.last_use_at.map(|value| value.timestamp_millis()))
+            .execute(&mut *transaction)
+            .await?;
+        }
+        transaction.commit().await?;
+        Ok(changed)
+    }
+
     pub async fn insert_album(&self, album: &sdk::StickerAlbum) -> Result<(), Error> {
         let ordered_at = match crate::db::query_scalar::<i64>(
             "SELECT ordered_at FROM sticker_albums WHERE album_id = ?",
@@ -301,6 +350,42 @@ mod tests {
             created_at,
             last_use_at: None,
         }
+    }
+
+    #[tokio::test]
+    async fn metadata_refresh_reports_projection_changes_but_persists_last_use_without_invalidation(
+    ) {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        let dao = &database.sticker_dao;
+        let now = DateTime::from_timestamp_millis(1_700_000_000_000).unwrap();
+        let original = sticker("refreshed", "album", now);
+        let mut used = original.clone();
+        used.last_use_at = Some(now + Duration::seconds(1));
+        let mut replaced = used.clone();
+        replaced.asset_url = "https://example.com/refreshed-v2.webp".into();
+        let mut ungrouped = replaced.clone();
+        ungrouped.album_id = None;
+        for (case, refreshed, changed) in [
+            ("missing metadata", original.clone(), true),
+            ("identical metadata", original, false),
+            ("last use only", used, false),
+            ("new asset URL", replaced, true),
+            ("nullable album removed", ungrouped, true),
+        ] {
+            assert_eq!(
+                dao.refresh_metadata(&refreshed).await.unwrap(),
+                changed,
+                "{case}"
+            );
+            let persisted = dao.find_sticker_by_id("refreshed").await.unwrap().unwrap();
+            assert_eq!(persisted.asset_url, refreshed.asset_url, "{case}");
+            assert_eq!(persisted.album_id, refreshed.album_id, "{case}");
+            assert_eq!(persisted.last_use_at, refreshed.last_use_at, "{case}");
+        }
+        database.close().await;
     }
 
     #[tokio::test]

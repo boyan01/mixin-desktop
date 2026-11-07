@@ -40,6 +40,19 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 const STATUS_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const RECONNECT_DELAY: Duration = Duration::from_secs(5);
 
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "blaze/proxy_tests.rs"]
+mod proxy_tests;
+
+async fn proxy_changed(changes: &mut Option<watch::Receiver<Option<crate::network::ProxyConfig>>>) {
+    if let Some(changes) = changes {
+        if changes.changed().await.is_ok() {
+            return;
+        }
+    }
+    std::future::pending::<()>().await;
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error("blaze authentication failed")]
 pub struct BlazeAuthenticationError;
@@ -55,6 +68,7 @@ pub struct Blaze {
     connect_running: Arc<AtomicBool>,
     reconnect: Notify,
     pending_message_statuses: PendingMessageStatusStore,
+    network: Option<crate::network::SharedNetworkService>,
 }
 
 #[derive(Clone, Default)]
@@ -243,7 +257,13 @@ impl Blaze {
             connect_running: Arc::new(AtomicBool::new(false)),
             reconnect: Notify::new(),
             pending_message_statuses: PendingMessageStatusStore::new(changes),
+            network: None,
         }
+    }
+
+    pub(crate) fn with_network(mut self, network: crate::network::SharedNetworkService) -> Self {
+        self.network = Some(network);
+        self
     }
 
     pub fn pending_message_statuses(&self) -> PendingMessageStatusStore {
@@ -259,6 +279,10 @@ impl Blaze {
     }
 
     pub async fn connect(&self) -> Result<()> {
+        self.connect_hosts(&WS_HOSTS).await
+    }
+
+    async fn connect_hosts(&self, hosts: &[&str]) -> Result<()> {
         if self
             .connect_running
             .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -267,11 +291,19 @@ impl Blaze {
             return Err(anyhow!("blaze connection loop is already running"));
         }
         let _connect_guard = ConnectLoopGuard(self.connect_running.clone());
-
+        let mut proxies = self.network.as_ref().map(|network| network.proxy_changes());
         let mut host_index = 0;
         loop {
-            let host = WS_HOSTS[host_index];
-            match self.connect_once(host).await {
+            let host = hosts[host_index];
+            let proxy = proxies
+                .as_mut()
+                .and_then(|changes| changes.borrow_and_update().clone());
+            let result = tokio::select! {
+                biased;
+                _ = proxy_changed(&mut proxies) => continue,
+                result = self.connect_once(host, proxy) => result,
+            };
+            match result {
                 Ok(SocketSessionEnd::AuthenticationFailed) => {
                     return Err(BlazeAuthenticationError.into());
                 }
@@ -283,15 +315,23 @@ impl Blaze {
                 }
             }
 
-            host_index = (host_index + 1) % WS_HOSTS.len();
+            host_index = (host_index + 1) % hosts.len();
             tokio::select! {
+                biased;
+                _ = proxy_changed(&mut proxies) => {},
                 _ = crate::time::sleep(RECONNECT_DELAY) => {}
                 _ = self.reconnect.notified() => {}
             }
         }
     }
 
-    async fn connect_once(&self, host: &str) -> Result<SocketSessionEnd> {
+    async fn connect_once(
+        &self,
+        host: &str,
+        proxy: Option<crate::network::ProxyConfig>,
+    ) -> Result<SocketSessionEnd> {
+        #[cfg(target_arch = "wasm32")]
+        let _ = proxy;
         let token = self
             .credential
             .sign_authentication_token(&Method::GET, &"/".to_string(), [])
@@ -301,6 +341,8 @@ impl Blaze {
             url: host.to_owned(),
             authorization: format!("Bearer {}", token),
             protocol: "Mixin-Blaze-1".to_owned(),
+            #[cfg(not(target_arch = "wasm32"))]
+            proxy,
         };
         let connection = crate::time::timeout(CONNECT_TIMEOUT, ws::connect(&handshake))
             .await

@@ -53,36 +53,79 @@ impl UserAccess {
             .collect())
     }
 
+    /// Loads contacts and bots eligible for selection, including an empty query.
+    pub async fn selectable_users_page(
+        &self,
+        query: String,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<model::UserProfileItem>> {
+        self.ensure_active()?;
+        Ok(self
+            .database
+            .user_dao
+            .selectable_users_page(&self.account_id, &query, offset, limit)
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect())
+    }
+
     pub async fn search_local_users(
         &self,
         query: String,
         category: String,
         limit: i64,
     ) -> Result<Vec<model::UserProfileItem>> {
-        let query = query.trim();
-        if query.is_empty() || limit <= 0 {
-            return Ok(Vec::new());
-        }
-        let users = self
+        self.search_local_users_page(query, category, None, 0, limit.min(100))
+            .await
+    }
+
+    /// Available friends are filtered before the bounded SQLite window.
+    pub async fn invitable_users_page(
+        &self,
+        conversation_id: String,
+        query: String,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<model::UserProfileItem>> {
+        self.ensure_active()?;
+        Ok(self
             .database
             .user_dao
-            .fuzzy_search_users(&self.account_id, query, limit.min(100))
-            .await?;
-        Ok(users
+            .invitable_users_page(&self.account_id, &conversation_id, &query, offset, limit)
+            .await?
             .into_iter()
-            .filter(|user| match category.as_str() {
-                "contacts" => {
-                    matches!(user.relationship, Some(sdk::UserRelationship::Friend))
-                        && user.app_id.is_none()
-                }
-                "bots" => user.app_id.is_some(),
-                "strangers" => {
-                    matches!(user.relationship, Some(sdk::UserRelationship::Stranger))
-                        && user.app_id.is_none()
-                }
-                "groups" => false,
-                _ => true,
-            })
+            .map(Into::into)
+            .collect())
+    }
+
+    /// Category filtering precedes the bounded, stable SQLite window.
+    pub async fn search_local_users_page(
+        &self,
+        query: String,
+        category: String,
+        circle_id: Option<String>,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<model::UserProfileItem>> {
+        self.ensure_active()?;
+        if query.trim().is_empty() || limit <= 0 {
+            return Ok(Vec::new());
+        }
+        Ok(self
+            .database
+            .user_dao
+            .search_local_users_page(
+                &self.account_id,
+                query.trim(),
+                &category,
+                circle_id.as_deref(),
+                offset,
+                limit,
+            )
+            .await?
+            .into_iter()
             .map(Into::into)
             .collect())
     }
@@ -283,6 +326,19 @@ impl UserAccess {
             full_name: full_name.to_string(),
         })
         .await
+    }
+
+    pub async fn rename_contact(&self, user_id: String, full_name: String) -> Result<()> {
+        let _mutation = self.mutation_gate.read().await;
+        self.ensure_active()?;
+        let user = self
+            .client
+            .user_api
+            .rename_contact(&user_id, &full_name)
+            .await?;
+        self.database.user_dao.insert_sdk_users(vec![user]).await?;
+        self.notify_all_conversations_changed();
+        Ok(())
     }
 
     pub async fn block_user(&self, user_id: String) -> Result<()> {

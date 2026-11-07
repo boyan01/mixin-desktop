@@ -21,12 +21,56 @@ pub struct AccountClient {
 }
 
 impl AccountClient {
+    pub async fn quick_search(
+        &self,
+        query: String,
+        offset: i64,
+        limit: i64,
+    ) -> ClientResult<Vec<crate::QuickSearchItem>> {
+        Ok(self.runtime.quick_search(query, offset, limit).await?)
+    }
+
     pub(crate) fn new(runtime: Arc<AccountRuntime>, desktop: Arc<DesktopRuntime>) -> Self {
         Self { runtime, desktop }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn screen_lock(&self) -> crate::ScreenLockClient {
+        crate::ScreenLockClient {
+            runtime: self.runtime.clone(),
+        }
+    }
+
+    pub fn bot(&self) -> crate::BotClient {
+        crate::BotClient::new(self.runtime.bot_access())
+    }
+
     pub fn account_id(&self) -> String {
         self.runtime.account_id().to_string()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn sticker_animation(
+        &self,
+        url: String,
+        pixels: u32,
+    ) -> ClientResult<crate::StickerAnimationClient> {
+        use mixin_desktop_media::sticker::{cache_source, cached_source, StickerAnimation};
+        if !self.runtime.is_running() {
+            return Err(crate::ClientError::Cancelled);
+        }
+        let source = match cached_source(&url) {
+            Some(source) => source,
+            None => self
+                .runtime
+                .sticker_access()
+                .animation_source(url.clone())
+                .await?
+                .into(),
+        };
+        let animation = StickerAnimation::load(url.clone(), source.clone(), pixels).await?;
+        cache_source(url, source)?;
+        Ok(crate::StickerAnimationClient(animation))
     }
 
     pub fn profile(&self) -> AccountProfile {
@@ -84,6 +128,11 @@ impl AccountClient {
         Ok(self.runtime.storage_usage().await?)
     }
 
+    /// Returns cached or downloaded text content for a known text inscription.
+    pub async fn inscription_content(&self, hash: String) -> ClientResult<Option<String>> {
+        Ok(self.runtime.inscription_content(hash).await?)
+    }
+
     pub async fn snapshot_by_trace(&self, trace_id: String) -> ClientResult<SnapshotDetailItem> {
         Ok(self.runtime.snapshot_by_trace(trace_id).await?)
     }
@@ -138,6 +187,14 @@ impl AccountClient {
 
     pub fn attachment(&self) -> AttachmentAccess {
         self.runtime.attachment_access().into()
+    }
+
+    /// Live byte progress snapshots. Dropping the stream cancels the subscription.
+    /// The first item includes active transfers; slow consumers receive the latest state.
+    pub fn attachment_progress_changes(
+        &self,
+    ) -> impl Stream<Item = Vec<crate::AttachmentTransferProgress>> + Send + 'static {
+        self.runtime.attachment_progress_changes()
     }
 
     pub fn attachment_progress(&self, message_id: String) -> f64 {
@@ -299,28 +356,41 @@ impl AccountClient {
         }
     }
 
+    /// Initial/current state followed by coalesced updates. Dropping the stream
+    /// cancels observation; account shutdown or service closure ends it.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn device_transfer_states(
+        &self,
+    ) -> impl Stream<Item = crate::DeviceTransferSnapshot> + Send + 'static {
+        crate::device_transfer::states(
+            self.runtime.device_transfer().states(),
+            self.runtime.subscribe_shutdown(),
+        )
+    }
+
+    /// Compatibility event projection. Progress may coalesce, while current
+    /// terminal phases survive slow consumers without replaying old approvals.
     #[cfg(not(target_arch = "wasm32"))]
     pub fn device_transfer_events(
         &self,
     ) -> impl Stream<Item = DeviceTransferEvent> + Send + 'static {
-        let mut events = self.runtime.device_transfer().subscribe();
-        let mut shutdown = self.runtime.subscribe_shutdown();
-        stream! {
-            loop {
-                tokio::select! {
-                    event = events.recv() => match event {
-                        Ok(event) => yield event.into(),
-                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
-                    },
-                    changed = shutdown.changed() => {
-                        if changed.is_err() || *shutdown.borrow() {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        crate::device_transfer::events(
+            self.runtime.device_transfer().states(),
+            self.runtime.subscribe_shutdown(),
+        )
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub async fn device_transfer_request_command(
+        &self,
+        command: DeviceTransferCommand,
+        request_id: u64,
+    ) -> ClientResult<()> {
+        Ok(self
+            .runtime
+            .device_transfer()
+            .request_command(command.into(), request_id)
+            .await?)
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -365,28 +435,10 @@ impl AccountClient {
     }
 
     pub fn account_health(&self) -> impl Stream<Item = String> + Send + 'static {
-        let mut health = self.runtime.subscribe_account_health();
-        let mut shutdown = self.runtime.subscribe_shutdown();
-        stream! {
-            let initial = health.borrow().clone();
-            yield initial;
-            loop {
-                tokio::select! {
-                    changed = health.changed() => {
-                        if changed.is_err() {
-                            break;
-                        }
-                        let value = health.borrow_and_update().clone();
-                        yield value;
-                    }
-                    changed = shutdown.changed() => {
-                        if changed.is_err() || *shutdown.borrow() {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        account_health_changes(
+            self.runtime.subscribe_account_health(),
+            self.runtime.subscribe_shutdown(),
+        )
     }
 
     pub async fn refresh_account_health(&self) -> ClientResult<()> {
@@ -416,5 +468,83 @@ impl AccountClient {
 
     pub async fn sign_out(&self) -> ClientResult<()> {
         Ok(self.desktop.sign_out_account(&self.runtime).await?)
+    }
+}
+
+fn account_health_changes(
+    mut health: tokio::sync::watch::Receiver<String>,
+    mut shutdown: tokio::sync::watch::Receiver<bool>,
+) -> impl Stream<Item = String> + Send + 'static {
+    stream! {
+        let mut previous = health.borrow_and_update().clone();
+        yield previous.clone();
+        loop {
+            if *shutdown.borrow_and_update() {
+                let terminal = health.borrow_and_update().clone();
+                if terminal != previous { yield terminal; }
+                break;
+            }
+            tokio::select! {
+                changed = health.changed() => {
+                    if changed.is_err() { break; }
+                    let value = health.borrow_and_update().clone();
+                    if value != previous {
+                        previous = value.clone();
+                        yield value;
+                    }
+                }
+                changed = shutdown.changed() => {
+                    if changed.is_err() || *shutdown.borrow() {
+                        let terminal = health.borrow_and_update().clone();
+                        if terminal != previous { yield terminal; }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod health_tests {
+    use super::account_health_changes;
+    use futures::StreamExt as _;
+    use std::time::Duration;
+    use tokio::sync::watch;
+
+    #[tokio::test]
+    async fn simultaneous_auth_retirement_and_shutdown_delivers_the_terminal_health_once() {
+        let (health, receiver) = watch::channel("ready".into());
+        let (shutdown, closing) = watch::channel(false);
+        let mut updates = Box::pin(account_health_changes(receiver, closing));
+        assert_eq!(updates.next().await.as_deref(), Some("ready"));
+        health.send_replace("unauthorized".into());
+        shutdown.send_replace(true);
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(3), updates.next())
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("unauthorized")
+        );
+        assert!(tokio::time::timeout(Duration::from_secs(3), updates.next())
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn subscription_started_after_shutdown_yields_current_terminal_health_and_ends() {
+        let (health, _) = watch::channel("unauthorized".into());
+        let (shutdown, _) = watch::channel(true);
+        let mut updates = Box::pin(account_health_changes(
+            health.subscribe(),
+            shutdown.subscribe(),
+        ));
+        assert_eq!(updates.next().await.as_deref(), Some("unauthorized"));
+        assert!(tokio::time::timeout(Duration::from_secs(3), updates.next())
+            .await
+            .unwrap()
+            .is_none());
     }
 }

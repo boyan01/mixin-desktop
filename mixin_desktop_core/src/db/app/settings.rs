@@ -61,6 +61,19 @@ pub struct SettingDao {
 }
 
 impl SettingDao {
+    pub fn pinned_preview_key(account_id: &str, conversation_id: &str) -> String {
+        format!("show_pin_message_box_{account_id}_{conversation_id}")
+    }
+
+    pub(crate) async fn restore_pinned_preview(
+        &self,
+        account_id: &str,
+        conversation_id: &str,
+    ) -> Result<()> {
+        self.set(&Self::pinned_preview_key(account_id, conversation_id), None)
+            .await
+    }
+
     pub(super) fn new(properties: PropertyDao) -> Self {
         let (changes, _) = broadcast::channel(64);
         Self {

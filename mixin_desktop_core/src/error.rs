@@ -2,6 +2,8 @@ pub type Result<T, E = CoreError> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CoreError {
+    #[error("permission denied")]
+    PermissionDenied,
     #[error("not found")]
     NotFound,
     #[error("{message}")]
@@ -10,15 +12,21 @@ pub enum CoreError {
 
 impl From<anyhow::Error> for CoreError {
     fn from(error: anyhow::Error) -> Self {
-        Self::Other {
-            message: error.to_string(),
+        match error.downcast::<Self>() {
+            Ok(error) => error,
+            Err(error) => Self::Other {
+                message: error.to_string(),
+            },
         }
     }
 }
 
 impl From<crate::db::error::Error> for CoreError {
     fn from(error: crate::db::error::Error) -> Self {
-        anyhow::Error::from(error).into()
+        match error {
+            crate::db::error::Error::PermissionDenied => Self::PermissionDenied,
+            error => anyhow::Error::from(error).into(),
+        }
     }
 }
 

@@ -17,6 +17,72 @@ const TRANSCRIPT_SELECT_COLUMNS: &str = r#"
     sticker_id, shared_user_id, mentions, quote_id, quote_content, caption
 "#;
 
+#[cfg(test)]
+#[path = "transcript_message/audio_tests.rs"]
+mod audio_tests;
+
+const TRANSCRIPT_LIST_SELECT: &str = r#"SELECT transcript.message_id AS message_id,
+                       parent.conversation_id AS conversation_id,
+                       COALESCE(transcript.user_id, '') AS user_id,
+                       COALESCE(sender.full_name, transcript.user_full_name, '') AS sender_name,
+                       COALESCE(sender.identity_number, '') AS sender_identity_number,
+                       COALESCE(sender.avatar_url, '') AS sender_avatar_url,
+                       COALESCE(sender.is_verified, FALSE) AS sender_is_verified,
+                       sender.membership AS sender_membership,
+                       COALESCE(sender.relationship, '') AS sender_relationship,
+                       sender.app_id AS sender_app_id,
+                       COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
+                       (sender.app_id IS NOT NULL AND sender.app_id != '') AS sender_is_bot,
+                       transcript.category AS category,
+                       transcript.content AS content,
+                       parent.status AS status,
+                       CASE WHEN typeof(transcript.created_at) = 'integer'
+                            THEN strftime('%Y-%m-%dT%H:%M:%fZ', transcript.created_at / 1000.0, 'unixepoch')
+                            ELSE transcript.created_at END AS created_at,
+                       transcript.media_url AS media_url,
+                       transcript.media_mime_type AS media_mime_type,
+                       transcript.media_size AS media_size,
+                       transcript.media_duration AS media_duration,
+                       transcript.media_width AS media_width,
+                       transcript.media_height AS media_height,
+                       transcript.thumb_image AS thumb_image,
+                       transcript.media_status AS media_status,
+                       transcript.quote_id AS quote_message_id,
+                       CASE WHEN quote_sticker.sticker_id IS NOT NULL
+            THEN json_set(transcript.quote_content,
+                '$.asset_url', quote_sticker.asset_url,
+                '$.asset_type', quote_sticker.asset_type,
+                '$.asset_width', quote_sticker.asset_width,
+                '$.asset_height', quote_sticker.asset_height,
+                '$.asset_name', quote_sticker.name)
+            ELSE transcript.quote_content END AS quote_content,
+                       quote_user.membership AS quote_user_membership,
+                       transcript.caption AS caption,
+                       transcript.media_name AS media_name,
+                       transcript.sticker_id AS sticker_id,
+                       transcript.shared_user_id AS shared_user_id,
+                       transcript.media_waveform AS media_waveform,
+                       transcript.thumb_url AS thumb_url,
+                       shared_user.full_name AS shared_user_full_name,
+                       shared_user.identity_number AS shared_user_identity_number,
+                       shared_user.avatar_url AS shared_user_avatar_url,
+                       COALESCE(shared_user.is_verified, FALSE) AS shared_user_is_verified,
+                       shared_user.membership AS shared_user_membership,
+                       shared_user.app_id AS shared_user_app_id,
+                       sticker.asset_url AS sticker_asset_url,
+                       sticker.asset_width AS sticker_asset_width,
+                       sticker.asset_height AS sticker_asset_height,
+                       sticker.name AS sticker_asset_name,
+                       sticker.asset_type AS sticker_asset_type
+                FROM transcript_messages AS transcript
+                INNER JOIN messages AS parent ON parent.message_id = transcript.transcript_id
+                LEFT JOIN users AS sender ON sender.user_id = transcript.user_id
+                LEFT JOIN users AS shared_user ON shared_user.user_id = transcript.shared_user_id
+                LEFT JOIN users AS quote_user ON quote_user.user_id = CASE WHEN json_valid(transcript.quote_content) THEN json_extract(transcript.quote_content, '$.user_id') END
+                LEFT JOIN stickers AS sticker ON sticker.sticker_id = transcript.sticker_id
+LEFT JOIN stickers quote_sticker ON quote_sticker.sticker_id = CASE WHEN json_valid(transcript.quote_content) THEN json_extract(transcript.quote_content, '$.sticker_id') END
+"#;
+
 #[derive(Clone)]
 pub struct TranscriptMessageDao(pub(crate) crate::db::Pool);
 
@@ -135,6 +201,31 @@ pub struct TranscriptMessageListItem {
 }
 
 impl TranscriptMessageDao {
+    /// Runs before account services start, when no transfer from this process can be active.
+    pub(crate) async fn recover_interrupted_uploads(&self, account_id: &str) -> Result<(), Error> {
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
+        crate::db::query(
+            "UPDATE transcript_messages SET media_status = 'CANCELED' \
+             WHERE media_status = 'PENDING' AND transcript_id IN \
+             (SELECT message_id FROM messages WHERE user_id = ? AND status = 'SENDING' \
+              AND category IN ('PLAIN_TRANSCRIPT', 'SIGNAL_TRANSCRIPT', 'ENCRYPTED_TRANSCRIPT') \
+              AND media_status = 'PENDING')",
+        )
+        .bind(account_id)
+        .execute(&mut *transaction)
+        .await?;
+        crate::db::query(
+            "UPDATE messages SET media_status = 'CANCELED' \
+             WHERE user_id = ? AND status = 'SENDING' AND media_status = 'PENDING' \
+             AND category IN ('PLAIN_TRANSCRIPT', 'SIGNAL_TRANSCRIPT', 'ENCRYPTED_TRANSCRIPT')",
+        )
+        .bind(account_id)
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(())
+    }
+
     pub async fn insert_all(&self, transcripts: &[TranscriptMessage]) -> Result<(), Error> {
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         Self::insert_all_with(&mut transaction, transcripts).await?;
@@ -194,6 +285,23 @@ impl TranscriptMessageDao {
         Ok(())
     }
 
+    pub async fn cancel_pending_transfer(
+        &self,
+        transcript_id: &str,
+        message_id: &str,
+    ) -> Result<bool, Error> {
+        Ok(crate::db::query(
+            "UPDATE transcript_messages SET media_status = 'CANCELED' \
+             WHERE transcript_id = ? AND message_id = ? AND media_status = 'PENDING'",
+        )
+        .bind(transcript_id)
+        .bind(message_id)
+        .execute(&self.0)
+        .await?
+        .rows_affected()
+            > 0)
+    }
+
     pub async fn update_media_status(
         &self,
         transcript_id: &str,
@@ -212,20 +320,73 @@ impl TranscriptMessageDao {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn complete_attachment_upload(
         &self,
         transcript_id: &str,
         message_id: &str,
+        category: &str,
         content: &str,
         media_key: Option<&str>,
         media_digest: Option<&str>,
         media_created_at: DateTime<Utc>,
     ) -> Result<(), Error> {
-        crate::db::query(
-            "UPDATE transcript_messages SET content = ?, media_key = ?, media_digest = ?, \
-             media_created_at = ?, media_status = ? \
-             WHERE transcript_id = ? AND message_id = ?",
+        self.complete_attachment_upload_with_state(
+            transcript_id,
+            message_id,
+            category,
+            content,
+            media_key,
+            media_digest,
+            media_created_at,
+            false,
         )
+        .await?;
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn complete_attachment_upload_if_pending(
+        &self,
+        transcript_id: &str,
+        message_id: &str,
+        category: &str,
+        content: &str,
+        media_key: Option<&str>,
+        media_digest: Option<&str>,
+        media_created_at: DateTime<Utc>,
+    ) -> Result<bool, Error> {
+        self.complete_attachment_upload_with_state(
+            transcript_id,
+            message_id,
+            category,
+            content,
+            media_key,
+            media_digest,
+            media_created_at,
+            true,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn complete_attachment_upload_with_state(
+        &self,
+        transcript_id: &str,
+        message_id: &str,
+        category: &str,
+        content: &str,
+        media_key: Option<&str>,
+        media_digest: Option<&str>,
+        media_created_at: DateTime<Utc>,
+        pending_only: bool,
+    ) -> Result<bool, Error> {
+        let changed = crate::db::query(
+            "UPDATE transcript_messages SET category = ?, content = ?, media_key = ?, media_digest = ?, \
+             media_created_at = ?, media_status = ? \
+             WHERE transcript_id = ? AND message_id = ? AND (NOT ? OR media_status = 'PENDING')",
+        )
+        .bind(category)
         .bind(content)
         .bind(media_key)
         .bind(media_digest)
@@ -233,9 +394,10 @@ impl TranscriptMessageDao {
         .bind(MediaStatus::Done)
         .bind(transcript_id)
         .bind(message_id)
+        .bind(pending_only)
         .execute(&self.0)
         .await?;
-        Ok(())
+        Ok(changed.rows_affected() > 0)
     }
 
     pub async fn complete_attachment_download(
@@ -310,64 +472,120 @@ impl TranscriptMessageDao {
         &self,
         transcript_id: &str,
     ) -> Result<Vec<TranscriptMessageListItem>, Error> {
-        Ok(crate::db::query_as::< TranscriptMessageListItem>(
-            r#"SELECT transcript.message_id AS message_id,
-                       parent.conversation_id AS conversation_id,
-                       COALESCE(transcript.user_id, '') AS user_id,
-                       COALESCE(sender.full_name, transcript.user_full_name, '') AS sender_name,
-                       COALESCE(sender.identity_number, '') AS sender_identity_number,
-                       COALESCE(sender.avatar_url, '') AS sender_avatar_url,
-                       COALESCE(sender.is_verified, FALSE) AS sender_is_verified,
-                       sender.membership AS sender_membership,
-                       COALESCE(sender.relationship, '') AS sender_relationship,
-                       sender.app_id AS sender_app_id,
-                       COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
-                       (sender.app_id IS NOT NULL AND sender.app_id != '') AS sender_is_bot,
-                       transcript.category AS category,
-                       transcript.content AS content,
-                       parent.status AS status,
-                       CASE WHEN typeof(transcript.created_at) = 'integer'
-                            THEN strftime('%Y-%m-%dT%H:%M:%fZ', transcript.created_at / 1000.0, 'unixepoch')
-                            ELSE transcript.created_at END AS created_at,
-                       transcript.media_url AS media_url,
-                       transcript.media_mime_type AS media_mime_type,
-                       transcript.media_size AS media_size,
-                       transcript.media_duration AS media_duration,
-                       transcript.media_width AS media_width,
-                       transcript.media_height AS media_height,
-                       transcript.thumb_image AS thumb_image,
-                       transcript.media_status AS media_status,
-                       transcript.quote_id AS quote_message_id,
-                       transcript.quote_content AS quote_content,
-                       quote_user.membership AS quote_user_membership,
-                       transcript.caption AS caption,
-                       transcript.media_name AS media_name,
-                       transcript.sticker_id AS sticker_id,
-                       transcript.shared_user_id AS shared_user_id,
-                       transcript.media_waveform AS media_waveform,
-                       transcript.thumb_url AS thumb_url,
-                       shared_user.full_name AS shared_user_full_name,
-                       shared_user.identity_number AS shared_user_identity_number,
-                       shared_user.avatar_url AS shared_user_avatar_url,
-                       COALESCE(shared_user.is_verified, FALSE) AS shared_user_is_verified,
-                       shared_user.membership AS shared_user_membership,
-                       shared_user.app_id AS shared_user_app_id,
-                       sticker.asset_url AS sticker_asset_url,
-                       sticker.asset_width AS sticker_asset_width,
-                       sticker.asset_height AS sticker_asset_height,
-                       sticker.name AS sticker_asset_name,
-                       sticker.asset_type AS sticker_asset_type
-                FROM transcript_messages AS transcript
-                INNER JOIN messages AS parent ON parent.message_id = transcript.transcript_id
-                LEFT JOIN users AS sender ON sender.user_id = transcript.user_id
-                LEFT JOIN users AS shared_user ON shared_user.user_id = transcript.shared_user_id
-                LEFT JOIN users AS quote_user ON quote_user.user_id = CASE WHEN json_valid(transcript.quote_content) THEN json_extract(transcript.quote_content, '$.user_id') END
-                LEFT JOIN stickers AS sticker ON sticker.sticker_id = transcript.sticker_id
-                WHERE transcript.transcript_id = ?
-                ORDER BY transcript.created_at, transcript.rowid"#,
+        self.list_items_window(transcript_id, 0, -1).await
+    }
+
+    pub async fn list_items_page(
+        &self,
+        transcript_id: &str,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<TranscriptMessageListItem>, Error> {
+        self.list_items_window(transcript_id, offset.max(0), limit.clamp(1, 200))
+            .await
+    }
+
+    async fn list_items_window(
+        &self,
+        transcript_id: &str,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<TranscriptMessageListItem>, Error> {
+        let query = format!(
+            "{TRANSCRIPT_LIST_SELECT} WHERE transcript.transcript_id = ? \
+             ORDER BY transcript.created_at, transcript.rowid LIMIT ? OFFSET ?"
+        );
+        Ok(
+            crate::db::query_as::<TranscriptMessageListItem>(sqlx::AssertSqlSafe(query))
+                .bind(transcript_id)
+                .bind(limit)
+                .bind(offset)
+                .fetch_all(&self.0)
+                .await?,
+        )
+    }
+
+    /// Returns only image neighbors belonging to the requested forwarded transcript.
+    pub async fn image_items_around(
+        &self,
+        transcript_id: &str,
+        message_id: &str,
+        before: i64,
+        after: i64,
+    ) -> Result<Vec<TranscriptMessageListItem>, Error> {
+        self.media_items_around(transcript_id, message_id, before, after, false)
+            .await
+    }
+
+    /// Only locally playable audio participates in a forwarded message's queue.
+    pub async fn audio_items_around(
+        &self,
+        transcript_id: &str,
+        message_id: &str,
+        before: i64,
+        after: i64,
+    ) -> Result<Vec<TranscriptMessageListItem>, Error> {
+        self.media_items_around(transcript_id, message_id, before, after, true)
+            .await
+    }
+
+    async fn media_items_around(
+        &self,
+        transcript_id: &str,
+        message_id: &str,
+        before: i64,
+        after: i64,
+        audio: bool,
+    ) -> Result<Vec<TranscriptMessageListItem>, Error> {
+        let category_filter = if audio {
+            "category IN ('PLAIN_AUDIO', 'SIGNAL_AUDIO', 'ENCRYPTED_AUDIO') AND media_status IN ('DONE', 'READ') AND media_url IS NOT NULL AND media_url != ''"
+        } else {
+            "category IN ('PLAIN_IMAGE', 'SIGNAL_IMAGE', 'ENCRYPTED_IMAGE')"
+        };
+        let query = format!(
+            r#"WITH media AS (
+                   SELECT rowid AS source_rowid, message_id,
+                          ROW_NUMBER() OVER (ORDER BY created_at, rowid) AS position
+                   FROM transcript_messages WHERE transcript_id = ?
+                     AND {category_filter}
+               ), anchor AS (SELECT position FROM media WHERE message_id = ?)
+               {TRANSCRIPT_LIST_SELECT}
+               WHERE transcript.transcript_id = ?
+                 AND parent.category IN ('PLAIN_TRANSCRIPT', 'SIGNAL_TRANSCRIPT', 'ENCRYPTED_TRANSCRIPT')
+                 AND transcript.rowid IN (
+                   SELECT source_rowid FROM media, anchor
+                   WHERE media.position BETWEEN anchor.position - ? AND anchor.position + ?
+               )
+               ORDER BY transcript.created_at, transcript.rowid"#
+        );
+        Ok(
+            crate::db::query_as::<TranscriptMessageListItem>(sqlx::AssertSqlSafe(query))
+                .bind(transcript_id)
+                .bind(message_id)
+                .bind(transcript_id)
+                .bind(before.clamp(0, 100))
+                .bind(after.clamp(0, 100))
+                .fetch_all(&self.0)
+                .await?,
+        )
+    }
+
+    pub(crate) async fn summary_content(
+        &self,
+        transcript_id: &str,
+        message_id: &str,
+    ) -> Result<Option<String>, Error> {
+        Ok(crate::db::query_scalar(
+            "SELECT transcript.content FROM transcript_messages AS transcript \
+             INNER JOIN messages AS parent ON parent.message_id = transcript.transcript_id \
+             WHERE transcript.transcript_id = ? AND transcript.message_id = ? \
+               AND parent.category IN ('PLAIN_TRANSCRIPT', 'SIGNAL_TRANSCRIPT', 'ENCRYPTED_TRANSCRIPT') \
+               AND transcript.category IN ('PLAIN_TRANSCRIPT', 'SIGNAL_TRANSCRIPT', 'ENCRYPTED_TRANSCRIPT') \
+               AND transcript.content IS NOT NULL",
         )
         .bind(transcript_id)
-        .fetch_all(&self.0)
+        .bind(message_id)
+        .fetch_optional(&self.0)
         .await?)
     }
 
@@ -490,6 +708,167 @@ where
 mod tests {
     use super::*;
     use crate::db::MixinDatabase;
+
+    #[tokio::test]
+    async fn transcript_pages_preserve_timestamp_ties_and_exclude_other_parents() {
+        use crate::db::mixin::message::Message;
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        crate::db::query(
+            "INSERT INTO conversations (conversation_id, created_at, status) VALUES (?, ?, ?)",
+        )
+        .bind("conversation")
+        .bind(Utc::now())
+        .bind(2)
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
+        for id in ["root", "other"] {
+            database
+                .message_dao
+                .insert_message(&Message {
+                    message_id: id.into(),
+                    conversation_id: "conversation".into(),
+                    category: "SIGNAL_TRANSCRIPT".into(),
+                    status: MessageStatus::Sent,
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+        }
+        let rows: Vec<TranscriptMessage> = serde_json::from_value(serde_json::json!([
+            {"transcript_id":"root", "message_id":"a", "category":"SIGNAL_TEXT", "created_at":"2024-01-02T03:04:05Z", "content":"First"},
+            {"transcript_id":"root", "message_id":"b", "category":"SIGNAL_TEXT", "created_at":"2024-01-02T03:04:05Z", "content":"Second"},
+            {"transcript_id":"root", "message_id":"c", "category":"SIGNAL_TEXT", "created_at":"2024-01-02T03:04:06Z", "content":"Third"},
+            {"transcript_id":"other", "message_id":"d", "category":"SIGNAL_TEXT", "created_at":"2024-01-02T03:04:05Z", "content":"Other"}
+        ])).unwrap();
+        database
+            .transcript_message_dao
+            .insert_all(&rows)
+            .await
+            .unwrap();
+        let dao = &database.transcript_message_dao;
+        let first = dao.list_items_page("root", 0, 2).await.unwrap();
+        let second = dao.list_items_page("root", 2, 2).await.unwrap();
+        assert_eq!(
+            first
+                .iter()
+                .map(|row| row.message_id.as_str())
+                .collect::<Vec<_>>(),
+            ["a", "b"]
+        );
+        assert_eq!(
+            second
+                .iter()
+                .map(|row| row.message_id.as_str())
+                .collect::<Vec<_>>(),
+            ["c"]
+        );
+        assert_eq!(first[0].conversation_id, "conversation");
+        assert!(dao.list_items_page("root", 3, 2).await.unwrap().is_empty());
+        let bounded = dao.list_items_page("root", -1, 0).await.unwrap();
+        assert_eq!(bounded.len(), 1);
+        assert_eq!(bounded[0].content.as_deref(), Some("First"));
+    }
+
+    #[tokio::test]
+    async fn transcript_gallery_and_nested_summary_keep_duplicate_child_ids_scoped_to_the_root() {
+        use crate::db::mixin::message::Message;
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        crate::db::query(
+            "INSERT INTO conversations (conversation_id, created_at, status) VALUES (?, ?, ?)",
+        )
+        .bind("conversation")
+        .bind(Utc::now())
+        .bind(2)
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
+        for id in ["root", "other"] {
+            database
+                .message_dao
+                .insert_message(&Message {
+                    message_id: id.into(),
+                    conversation_id: "conversation".into(),
+                    category: "SIGNAL_TRANSCRIPT".into(),
+                    status: MessageStatus::Sent,
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+        }
+        let mut rows = Vec::new();
+        for (root, name) in [("root", "Alice"), ("other", "Bob")] {
+            for (id, category) in [
+                ("a", "SIGNAL_IMAGE"),
+                ("text", "SIGNAL_TEXT"),
+                ("b", "PLAIN_IMAGE"),
+                ("c", "ENCRYPTED_IMAGE"),
+                ("nested", "SIGNAL_TRANSCRIPT"),
+            ] {
+                let summary = serde_json::to_string(
+                    &serde_json::json!([{"name":name,"category":"SIGNAL_TEXT","content":root}]),
+                )
+                .unwrap();
+                rows.push(serde_json::from_value::<TranscriptMessage>(serde_json::json!({
+                    "transcript_id":root, "message_id":id, "category":category,
+                    "user_full_name":name, "created_at":"2024-01-02T03:04:05Z", "content":summary
+                })).unwrap());
+            }
+        }
+        let dao = &database.transcript_message_dao;
+        dao.insert_all(&rows).await.unwrap();
+        let images = dao.image_items_around("root", "b", 1, 1).await.unwrap();
+        assert_eq!(
+            images
+                .iter()
+                .map(|row| row.message_id.as_str())
+                .collect::<Vec<_>>(),
+            ["a", "b", "c"]
+        );
+        assert!(images.iter().all(|row| row.sender_name == "Alice"));
+        assert_eq!(
+            dao.image_items_around("root", "b", 0, 0)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(dao
+            .image_items_around("root", "text", 1, 1)
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(dao
+            .image_items_around("missing", "b", 1, 1)
+            .await
+            .unwrap()
+            .is_empty());
+        let alice = dao
+            .summary_content("root", "nested")
+            .await
+            .unwrap()
+            .unwrap();
+        let bob = dao
+            .summary_content("other", "nested")
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(alice.contains("Alice"));
+        assert!(!alice.contains("Bob"));
+        assert!(bob.contains("Bob"));
+        assert!(dao.summary_content("root", "text").await.unwrap().is_none());
+        assert!(dao
+            .summary_content("missing", "nested")
+            .await
+            .unwrap()
+            .is_none());
+    }
 
     #[tokio::test]
     async fn parses_and_persists_flutter_transcript_payload() {

@@ -1,0 +1,4942 @@
+{
+  "1 day": {
+    "es": "1 día",
+    "id": "1 hari",
+    "ja": "1日",
+    "ms": "1 hari",
+    "ru": "1 день",
+    "zh-CN": "1 天",
+    "zh-HK": "1 天",
+    "zh-TW": "1 天"
+  },
+  "1 week": {
+    "es": "1 semana",
+    "id": "1 minggu",
+    "ja": "1週間",
+    "ms": "1 minggu",
+    "ru": "1 неделя",
+    "zh-CN": "1 周",
+    "zh-HK": "1 周",
+    "zh-TW": "1 周"
+  },
+  "10 minutes": {
+    "es": "10 minutos",
+    "id": "10 menit",
+    "ja": "10分",
+    "ms": "10 minit",
+    "ru": "10 минут",
+    "zh-CN": "10 分钟",
+    "zh-HK": "10 分鐘",
+    "zh-TW": "10 分鐘"
+  },
+  "2 hours": {
+    "es": "2 horas",
+    "id": "2 jam",
+    "ja": "2時間",
+    "ms": "2 jam",
+    "ru": "2 часа",
+    "zh-CN": "2 小时",
+    "zh-HK": "2 小時",
+    "zh-TW": "2 小時"
+  },
+  "30 seconds": {
+    "es": "30 segundos",
+    "id": "30 detik",
+    "ja": "30秒",
+    "ms": "30 saat",
+    "ru": "30 секунд",
+    "zh-CN": "30 秒",
+    "zh-HK": "30 秒",
+    "zh-TW": "30 秒"
+  },
+  "8 hours": {
+    "es": "8 horas",
+    "id": "8 jam",
+    "ja": "8時間",
+    "ms": "8 jam",
+    "ru": "8 часов",
+    "zh-CN": "8 小时",
+    "zh-HK": "8 小時",
+    "zh-TW": "8 小時"
+  },
+  "A group member": {
+    "es": "Un miembro del grupo",
+    "id": "Anggota grup",
+    "ja": "グループメンバー",
+    "ms": "Ahli kumpulan",
+    "ru": "Участник группы",
+    "zh-CN": "群成员",
+    "zh-HK": "群組成員",
+    "zh-TW": "群組成員"
+  },
+  "A screen passcode hides account content while Mixin keeps syncing in the background.": {
+    "es": "Un código de bloqueo oculta el contenido de tu cuenta mientras Mixin sigue sincronizando en segundo plano.",
+    "id": "Kode layar menyembunyikan konten akun sementara Mixin tetap menyinkronkan di latar belakang.",
+    "ja": "画面ロックのパスコードでアカウントの内容を非表示にします。Mixin はバックグラウンドで同期を続けます。",
+    "ms": "Kod laluan skrin menyembunyikan kandungan akaun sementara Mixin terus menyegerak di latar belakang.",
+    "ru": "Код блокировки скрывает содержимое аккаунта. Mixin продолжает синхронизацию в фоне.",
+    "zh-CN": "锁屏密码可隐藏账号内容。锁屏后，Mixin 仍会在后台同步消息。",
+    "zh-HK": "鎖屏密碼可隱藏賬號內容。鎖屏後，Mixin 仍會在後台同步消息。",
+    "zh-TW": "鎖屏密碼可隱藏賬號內容。鎖屏後，Mixin 仍會在背景同步訊息。"
+  },
+  "Action": {
+    "es": "Acción",
+    "id": "Tindakan",
+    "ja": "操作",
+    "ms": "Tindakan",
+    "ru": "Действие",
+    "zh-CN": "操作",
+    "zh-HK": "操作",
+    "zh-TW": "操作"
+  },
+  "Actual fit": {
+    "es": "Ajustar a la ventana",
+    "id": "Sesuaikan ke jendela",
+    "ja": "ウィンドウに合わせる",
+    "ms": "Muat pada tetingkap",
+    "ru": "По размеру окна",
+    "zh-CN": "适应窗口",
+    "zh-HK": "適應窗口",
+    "zh-TW": "適應視窗"
+  },
+  "Add": {
+    "id": "Tambah",
+    "ms": "Tambah"
+  },
+  "Add HTTP proxy": {
+    "es": "Añadir proxy HTTP",
+    "id": "Tambah proxy HTTP",
+    "ja": "HTTP プロキシを追加",
+    "ms": "Tambah proksi HTTP",
+    "ru": "Добавить HTTP-прокси",
+    "zh-CN": "添加 HTTP 代理",
+    "zh-HK": "添加 HTTP 代理",
+    "zh-TW": "新增 HTTP 代理"
+  },
+  "Add a caption…": {
+    "es": "Añadir un pie de foto…",
+    "id": "Tambah keterangan…",
+    "ja": "キャプションを追加…",
+    "ms": "Tambah kapsyen…",
+    "ru": "Добавить подпись…"
+  },
+  "Add a proxy before enabling it.": {
+    "es": "Añade un proxy antes de activarlo.",
+    "id": "Tambahkan proxy sebelum mengaktifkannya.",
+    "ja": "有効にする前にプロキシを追加してください。",
+    "ms": "Tambah proksi sebelum mendayakannya.",
+    "ru": "Добавьте прокси перед включением.",
+    "zh-CN": "请先添加代理，再开启代理连接。",
+    "zh-HK": "請先添加代理，再開啓代理連接。",
+    "zh-TW": "請先新增代理，再開啟代理連線。"
+  },
+  "Add album": {
+    "es": "Añadir álbum",
+    "id": "Tambah album",
+    "ja": "アルバムを追加",
+    "ms": "Tambah album",
+    "ru": "Добавить альбом",
+    "zh-CN": "添加贴纸专辑",
+    "zh-HK": "添加貼紙專輯",
+    "zh-TW": "新增貼紙專輯"
+  },
+  "Add contact": {
+    "es": "Añadir contacto",
+    "id": "Tambah Kontak",
+    "ja": "友だちを追加",
+    "ms": "Tambah Kenalan",
+    "ru": "Добавить контакт",
+    "zh-CN": "添加联系人",
+    "zh-HK": "添加聯繫人",
+    "zh-TW": "新增聯絡人"
+  },
+  "Add files…": {
+    "es": "Añadir archivos…",
+    "id": "Tambahkan file…",
+    "ja": "ファイルを追加…",
+    "ms": "Tambah fail…",
+    "ru": "Добавить файлы…",
+    "zh-CN": "添加文件…",
+    "zh-HK": "加入檔案…",
+    "zh-TW": "加入檔案…"
+  },
+  "Add proxy…": {
+    "es": "Añadir proxy…",
+    "id": "Tambah proxy…",
+    "ja": "プロキシを追加…",
+    "ms": "Tambah proksi…",
+    "ru": "Добавить прокси…"
+  },
+  "Add sticker": {
+    "id": "Tambah stiker",
+    "ms": "Tambah pelekat"
+  },
+  "Added": {
+    "id": "Ditambahkan",
+    "ms": "Ditambah"
+  },
+  "All": {
+    "es": "Todo",
+    "id": "Semua",
+    "ja": "すべて",
+    "ms": "Semua",
+    "ru": "Все",
+    "zh-CN": "全部",
+    "zh-HK": "全部",
+    "zh-TW": "全部"
+  },
+  "All chats": {
+    "id": "Semua obrolan",
+    "ms": "Semua sembang"
+  },
+  "Allow": {
+    "es": "Permitir",
+    "id": "Izinkan",
+    "ja": "許可",
+    "ms": "Benarkan",
+    "ru": "Разрешить",
+    "zh-CN": "允许",
+    "zh-HK": "允許",
+    "zh-TW": "允許"
+  },
+  "Allow notifications": {
+    "es": "Permitir notificaciones",
+    "id": "Izinkan notifikasi",
+    "ja": "通知を許可",
+    "ms": "Benarkan pemberitahuan",
+    "ru": "Разрешить уведомления",
+    "zh-CN": "允许通知",
+    "zh-HK": "允許通知",
+    "zh-TW": "允許通知"
+  },
+  "Allow notifications to receive new message alerts.": {
+    "es": "Permite las notificaciones para recibir avisos de nuevos mensajes.",
+    "id": "Izinkan notifikasi untuk menerima pemberitahuan pesan baru.",
+    "ja": "新着メッセージの通知を受け取るには、通知を許可してください。",
+    "ms": "Benarkan pemberitahuan untuk menerima makluman mesej baharu.",
+    "ru": "Разрешите уведомления о новых сообщениях.",
+    "zh-CN": "允许通知后，可接收新消息提醒。",
+    "zh-HK": "允許通知後，可接收新消息提醒。",
+    "zh-TW": "允許通知後，可接收新訊息提醒。"
+  },
+  "Allow this device to send chat history to your phone?": {
+    "es": "¿Permitir que este dispositivo envíe el historial de chat a tu teléfono?",
+    "id": "Izinkan perangkat ini mengirim riwayat obrolan ke ponsel Anda?",
+    "ja": "このデバイスからスマートフォンへのチャット履歴の転送を許可しますか？",
+    "ms": "Benarkan peranti ini menghantar sejarah sembang ke telefon anda?",
+    "ru": "Разрешить этому устройству отправить историю чатов на телефон?",
+    "zh-CN": "允许此设备向手机同步聊天记录吗？",
+    "zh-HK": "允許此設備向手機同步聊天記錄嗎？",
+    "zh-TW": "允許此裝置向手機同步聊天記錄嗎？"
+  },
+  "Allow your phone to send chat history to this device?": {
+    "es": "¿Permitir que tu teléfono envíe el historial de chat a este dispositivo?",
+    "id": "Izinkan ponsel Anda mengirim riwayat obrolan ke perangkat ini?",
+    "ja": "スマートフォンからこのデバイスへのチャット履歴の転送を許可しますか？",
+    "ms": "Benarkan telefon anda menghantar sejarah sembang ke peranti ini?",
+    "ru": "Разрешить телефону отправить историю чатов на это устройство?",
+    "zh-CN": "允许手机向此设备同步聊天记录吗？",
+    "zh-HK": "允許手機向此設備同步聊天記錄嗎？",
+    "zh-TW": "允許手機向此裝置同步聊天記錄嗎？"
+  },
+  "Amount": {
+    "es": "Importe",
+    "id": "Jumlah",
+    "ja": "金額",
+    "ms": "Jumlah",
+    "ru": "Сумма",
+    "zh-CN": "金额",
+    "zh-HK": "金額",
+    "zh-TW": "金額"
+  },
+  "Anyone with this link can join the group.": {
+    "es": "Cualquier persona con este enlace puede unirse al grupo.",
+    "id": "Siapa pun dengan tautan ini dapat bergabung ke grup.",
+    "ja": "このリンクを知っている人は誰でもグループに参加できます。",
+    "ms": "Sesiapa yang mempunyai pautan ini boleh menyertai kumpulan.",
+    "ru": "Любой, у кого есть эта ссылка, сможет вступить в группу.",
+    "zh-CN": "获得此链接的任何人都可以加入群组。",
+    "zh-HK": "獲得此鏈接的任何人都可以加入羣組。",
+    "zh-TW": "獲得此連結的任何人都可以加入群組。"
+  },
+  "Are you sure you want to unpin all messages?": {
+    "id": "Yakin ingin melepas sematan semua pesan?",
+    "ms": "Adakah anda pasti mahu menyahsemat semua mesej?"
+  },
+  "Aspect ratio": {
+    "es": "Relación de aspecto",
+    "id": "Rasio aspek",
+    "ja": "縦横比",
+    "ms": "Nisbah aspek",
+    "ru": "Соотношение сторон",
+    "zh-CN": "比例",
+    "zh-HK": "比例",
+    "zh-TW": "比例"
+  },
+  "Asset": {
+    "es": "Activo",
+    "id": "Aset",
+    "ja": "資産",
+    "ms": "Aset",
+    "ru": "Актив",
+    "zh-CN": "资产",
+    "zh-HK": "資產",
+    "zh-TW": "資產"
+  },
+  "Asset ID": {
+    "es": "ID del activo",
+    "id": "ID aset",
+    "ja": "資産 ID",
+    "ms": "ID aset",
+    "ru": "ID актива",
+    "zh-CN": "资产 ID",
+    "zh-HK": "資產 ID",
+    "zh-TW": "資產 ID"
+  },
+  "Automatic lock": {
+    "es": "Bloqueo automático",
+    "id": "Kunci otomatis",
+    "ja": "自動ロック",
+    "ms": "Kunci automatik",
+    "ru": "Автоблокировка"
+  },
+  "Automatic media download": {
+    "es": "Descarga automática de archivos multimedia",
+    "id": "Unduh media otomatis",
+    "ja": "メディアの自動ダウンロード",
+    "ms": "Muat turun media automatik",
+    "ru": "Автозагрузка медиа",
+    "zh-CN": "自动下载媒体",
+    "zh-HK": "自動下載媒體",
+    "zh-TW": "自動下載媒體"
+  },
+  "Automatically download media when messages arrive.": {
+    "es": "Descargar archivos multimedia al recibir mensajes.",
+    "id": "Unduh media secara otomatis saat pesan tiba.",
+    "ja": "メッセージの受信時にメディアを自動でダウンロードします。",
+    "ms": "Muat turun media secara automatik apabila mesej tiba.",
+    "ru": "Автоматически загружать медиа при получении сообщений.",
+    "zh-CN": "收到消息时自动下载媒体文件。",
+    "zh-HK": "收到消息時自動下載媒體文件。",
+    "zh-TW": "收到訊息時自動下載媒體檔案。"
+  },
+  "Back": {
+    "es": "Atrás",
+    "id": "Kembali",
+    "ja": "戻る",
+    "ms": "Kembali",
+    "ru": "Назад",
+    "zh-CN": "返回",
+    "zh-HK": "返回",
+    "zh-TW": "返回"
+  },
+  "Back to latest": {
+    "es": "Ir a los más recientes",
+    "id": "Kembali ke pesan terbaru",
+    "ja": "最新のメッセージへ",
+    "ms": "Kembali ke mesej terkini",
+    "ru": "К последним сообщениям",
+    "zh-CN": "回到最新",
+    "zh-HK": "回到最新",
+    "zh-TW": "回到最新"
+  },
+  "Basic member": {
+    "es": "Miembro básico",
+    "id": "Anggota dasar",
+    "ja": "ベーシックメンバー",
+    "ms": "Ahli asas",
+    "ru": "Базовый участник",
+    "zh-CN": "基础会员",
+    "zh-HK": "基礎會員",
+    "zh-TW": "基礎會員"
+  },
+  "Biography": {
+    "id": "Biografi",
+    "ms": "Biografi"
+  },
+  "Biometric unlock": {
+    "es": "Desbloqueo biométrico",
+    "id": "Buka dengan biometrik",
+    "ja": "生体認証でロック解除",
+    "ms": "Buka kunci biometrik",
+    "ru": "Разблокировка по биометрии",
+    "zh-CN": "生物识别解锁",
+    "zh-HK": "生物識別解鎖",
+    "zh-TW": "生物識別解鎖"
+  },
+  "Black": {
+    "es": "Negro",
+    "id": "Hitam",
+    "ja": "黒",
+    "ms": "Hitam",
+    "ru": "Чёрный",
+    "zh-CN": "黑色",
+    "zh-HK": "黑色",
+    "zh-TW": "黑色"
+  },
+  "Block this user?": {
+    "es": "¿Bloquear a este usuario?",
+    "id": "Blokir pengguna ini?",
+    "ja": "このユーザーをブロックしますか？",
+    "ms": "Sekat pengguna ini?",
+    "ru": "Заблокировать пользователя?",
+    "zh-CN": "屏蔽此用户？",
+    "zh-HK": "屏蔽此用户？",
+    "zh-TW": "封鎖此使用者？"
+  },
+  "Blue": {
+    "es": "Azul",
+    "id": "Biru",
+    "ja": "青",
+    "ms": "Biru",
+    "ru": "Синий",
+    "zh-CN": "蓝色",
+    "zh-HK": "藍色",
+    "zh-TW": "藍色"
+  },
+  "Bot": {
+    "es": "Bot",
+    "id": "Bot",
+    "ja": "ボット",
+    "ms": "Bot",
+    "ru": "Бот",
+    "zh-CN": "机器人",
+    "zh-HK": "機器人",
+    "zh-TW": "機器人"
+  },
+  "Bot windows unavailable": {
+    "es": "Las ventanas de bots no están disponibles",
+    "id": "Jendela bot tidak tersedia",
+    "ja": "ボットのウィンドウを利用できません",
+    "ms": "Tetingkap bot tidak tersedia",
+    "ru": "Окна ботов недоступны",
+    "zh-CN": "无法打开机器人窗口",
+    "zh-HK": "無法打開機器人窗口",
+    "zh-TW": "無法開啟機器人視窗"
+  },
+  "Brush": {
+    "es": "Pincel",
+    "id": "Kuas",
+    "ja": "ブラシ",
+    "ms": "Berus",
+    "ru": "Кисть",
+    "zh-CN": "画笔",
+    "zh-HK": "畫筆",
+    "zh-TW": "畫筆"
+  },
+  "Calculating storage…": {
+    "es": "Calculando almacenamiento…",
+    "id": "Menghitung penyimpanan…",
+    "ja": "ストレージを計算中…",
+    "ms": "Mengira storan…",
+    "ru": "Подсчёт хранилища…",
+    "zh-CN": "正在计算存储用量…",
+    "zh-HK": "正在計算存儲用量…",
+    "zh-TW": "正在計算儲存用量…"
+  },
+  "Cancel download": {
+    "es": "Cancelar descarga",
+    "id": "Batalkan unduhan",
+    "ja": "ダウンロードをキャンセル",
+    "ms": "Batalkan muat turun",
+    "ru": "Отменить загрузку",
+    "zh-CN": "取消下载",
+    "zh-HK": "取消下載",
+    "zh-TW": "取消下載"
+  },
+  "Cancel transfer": {
+    "es": "Cancelar transferencia",
+    "id": "Batalkan transfer",
+    "ja": "転送をキャンセル",
+    "ms": "Batalkan pemindahan",
+    "ru": "Отменить передачу",
+    "zh-CN": "取消传输",
+    "zh-HK": "取消傳輸",
+    "zh-TW": "取消傳輸"
+  },
+  "Caption": {
+    "es": "Pie de foto",
+    "id": "Keterangan",
+    "ja": "キャプション",
+    "ms": "Kapsyen",
+    "ru": "Подпись",
+    "zh-CN": "图片说明",
+    "zh-HK": "圖片説明",
+    "zh-TW": "圖片說明"
+  },
+  "Change group photo…": {
+    "es": "Cambiar foto del grupo…",
+    "id": "Ubah foto grup…",
+    "ja": "グループの写真を変更…",
+    "ms": "Tukar foto kumpulan…",
+    "ru": "Изменить фото группы…"
+  },
+  "Change photo…": {
+    "es": "Cambiar foto…",
+    "id": "Ubah foto…",
+    "ja": "写真を変更…",
+    "ms": "Tukar foto…",
+    "ru": "Изменить фото…",
+    "zh-CN": "更换头像…",
+    "zh-HK": "更換頭像…",
+    "zh-TW": "更換頭像…"
+  },
+  "Chat history": {
+    "id": "Riwayat obrolan",
+    "ms": "Sejarah sembang"
+  },
+  "Chat info": {
+    "es": "Información del chat",
+    "id": "Info obrolan",
+    "ja": "チャット情報",
+    "ms": "Maklumat sembang",
+    "ru": "Информация о чате",
+    "zh-CN": "聊天详情",
+    "zh-HK": "聊天詳情",
+    "zh-TW": "聊天詳情"
+  },
+  "Chat preferences": {
+    "es": "Preferencias de chat",
+    "id": "Preferensi obrolan",
+    "ja": "チャット設定",
+    "ms": "Keutamaan sembang",
+    "ru": "Настройки чата",
+    "zh-CN": "聊天偏好",
+    "zh-HK": "聊天偏好",
+    "zh-TW": "聊天偏好"
+  },
+  "Chat text size": {
+    "id": "Ukuran teks obrolan",
+    "ja": "チャットの文字サイズ",
+    "ms": "Saiz teks sembang",
+    "ru": "Размер текста чата"
+  },
+  "Chats": {
+    "id": "Obrolan",
+    "ms": "Sembang"
+  },
+  "Chats in this circle will remain available in All chats.": {
+    "es": "Los chats de este círculo seguirán disponibles en Todos los chats.",
+    "id": "Obrolan di lingkaran ini tetap tersedia di Semua obrolan.",
+    "ja": "このサークルのチャットは「すべてのチャット」に残ります。",
+    "ms": "Sembang dalam bulatan ini kekal tersedia dalam Semua sembang.",
+    "ru": "Чаты этого круга останутся в разделе «Все чаты».",
+    "zh-CN": "圈子中的聊天仍会保留在“全部聊天”中。",
+    "zh-HK": "圈子中的聊天仍會保留在“全部聊天”中。",
+    "zh-TW": "圈子中的聊天仍會保留在“全部聊天”中。"
+  },
+  "Check for updates": {
+    "es": "Buscar actualizaciones",
+    "id": "Periksa pembaruan",
+    "ja": "アップデートを確認",
+    "ms": "Semak kemas kini",
+    "ru": "Проверить обновления",
+    "zh-CN": "检查更新",
+    "zh-HK": "檢查更新",
+    "zh-TW": "檢查更新"
+  },
+  "Check the link and your connection, then try again.": {
+    "es": "Comprueba el enlace y tu conexión e inténtalo de nuevo.",
+    "id": "Periksa tautan dan koneksi Anda, lalu coba lagi.",
+    "ja": "リンクと接続を確認して、もう一度お試しください。",
+    "ms": "Semak pautan dan sambungan anda, kemudian cuba lagi.",
+    "ru": "Проверьте ссылку и подключение, затем повторите попытку.",
+    "zh-CN": "请检查链接和网络连接后重试。",
+    "zh-HK": "請檢查鏈接和網絡連接後重試。",
+    "zh-TW": "請檢查連結和網路連線後重試。"
+  },
+  "Check your connection and try again.": {
+    "es": "Comprueba tu conexión e inténtalo de nuevo.",
+    "id": "Periksa koneksi Anda dan coba lagi.",
+    "ja": "接続を確認して、もう一度お試しください。",
+    "ms": "Semak sambungan anda dan cuba lagi.",
+    "ru": "Проверьте подключение и повторите попытку.",
+    "zh-CN": "请检查网络连接后重试。",
+    "zh-HK": "請檢查網絡連接後重試。",
+    "zh-TW": "請檢查網路連線後重試。"
+  },
+  "Check your system clock and try again.": {
+    "es": "Comprueba el reloj del sistema e inténtalo de nuevo.",
+    "id": "Periksa jam sistem dan coba lagi.",
+    "ja": "システムの時刻を確認して、もう一度お試しください。",
+    "ms": "Semak jam sistem dan cuba lagi.",
+    "ru": "Проверьте системное время и повторите попытку.",
+    "zh-CN": "系统时间不准确，请校准后重试。",
+    "zh-HK": "系統時間不準確，請校準後重試。",
+    "zh-TW": "系統時間不準確，請校準後重試。"
+  },
+  "Checking notification permission…": {
+    "es": "Comprobando el permiso de notificaciones…",
+    "id": "Memeriksa izin notifikasi…",
+    "ja": "通知の権限を確認中…",
+    "ms": "Menyemak kebenaran pemberitahuan…",
+    "ru": "Проверка разрешения уведомлений…",
+    "zh-CN": "正在检查通知权限…",
+    "zh-HK": "正在檢查通知權限…",
+    "zh-TW": "正在檢查通知權限…"
+  },
+  "Checking screen privacy…": {
+    "es": "Comprobando la privacidad de pantalla…",
+    "id": "Memeriksa privasi layar…",
+    "ja": "画面のプライバシー設定を確認中…",
+    "ms": "Menyemak privasi skrin…",
+    "ru": "Проверка защиты экрана…",
+    "zh-CN": "正在检查锁屏设置…",
+    "zh-HK": "正在檢查鎖屏設置…",
+    "zh-TW": "正在檢查鎖屏設定…"
+  },
+  "Choose a sender": {
+    "es": "Elegir remitente",
+    "id": "Pilih pengirim",
+    "ja": "送信者を選択",
+    "ms": "Pilih pengirim",
+    "ru": "Выбрать отправителя",
+    "zh-CN": "选择发送者",
+    "zh-HK": "選擇發送者",
+    "zh-TW": "選擇傳送者"
+  },
+  "Choose circles for this chat.": {
+    "es": "Elige los círculos para este chat.",
+    "id": "Pilih lingkaran untuk obrolan ini.",
+    "ja": "このチャットのサークルを選択してください。",
+    "ms": "Pilih bulatan untuk sembang ini.",
+    "ru": "Выберите круги для этого чата.",
+    "zh-CN": "选择此聊天所属的圈子。",
+    "zh-HK": "選擇此聊天所屬的圈子。",
+    "zh-TW": "選擇此聊天所屬的圈子。"
+  },
+  "Choose recipient": {
+    "es": "Elegir destinatario",
+    "id": "Pilih penerima",
+    "ja": "送信先を選択",
+    "ms": "Pilih penerima",
+    "ru": "Выбрать получателя",
+    "zh-CN": "选择接收方",
+    "zh-HK": "選擇接收方",
+    "zh-TW": "選擇接收方"
+  },
+  "Choose recipient…": {
+    "es": "Elegir destinatario…",
+    "id": "Pilih penerima…",
+    "ja": "送信先を選択…",
+    "ms": "Pilih penerima…",
+    "ru": "Выбрать получателя…",
+    "zh-CN": "选择接收方…",
+    "zh-HK": "選擇接收方…",
+    "zh-TW": "選擇接收方…"
+  },
+  "Circle name": {
+    "es": "Nombre del círculo",
+    "id": "Nama lingkaran",
+    "ja": "サークル名",
+    "ms": "Nama bulatan",
+    "ru": "Название круга",
+    "zh-CN": "圈子名称",
+    "zh-HK": "圈子名稱",
+    "zh-TW": "圈子名稱"
+  },
+  "Clear cache": {
+    "es": "Borrar caché",
+    "id": "Hapus cache",
+    "ja": "キャッシュを削除",
+    "ms": "Kosongkan cache",
+    "ru": "Очистить кэш",
+    "zh-CN": "清除缓存",
+    "zh-HK": "清除緩存",
+    "zh-TW": "清除快取"
+  },
+  "Clear cached media from this device. Messages stay in the conversation.": {
+    "es": "Borra los archivos multimedia en caché de este dispositivo. Los mensajes permanecen en la conversación.",
+    "id": "Hapus cache media dari perangkat ini. Pesan tetap ada dalam percakapan.",
+    "ja": "このデバイスのメディアキャッシュを削除します。会話内のメッセージは残ります。",
+    "ms": "Kosongkan cache media daripada peranti ini. Mesej kekal dalam perbualan.",
+    "ru": "Удалить кэш медиа с этого устройства. Сообщения останутся в чате.",
+    "zh-CN": "清除此设备上的媒体缓存，会话中的消息会保留。",
+    "zh-HK": "清除此設備上的媒體緩存，會話中的消息會保留。",
+    "zh-TW": "清除此裝置上的媒體快取，會話中的訊息會保留。"
+  },
+  "Clear chat?": {
+    "es": "¿Vaciar el chat?",
+    "id": "Hapus isi obrolan?",
+    "ja": "チャットを消去しますか？",
+    "ms": "Kosongkan sembang?",
+    "ru": "Очистить чат?",
+    "zh-CN": "清空聊天记录？",
+    "zh-HK": "清空聊天記錄？",
+    "zh-TW": "清空聊天記錄？"
+  },
+  "Clear filters": {
+    "es": "Borrar filtros",
+    "id": "Hapus filter",
+    "ja": "フィルターを解除",
+    "ms": "Kosongkan penapis",
+    "ru": "Сбросить фильтры",
+    "zh-CN": "清除筛选",
+    "zh-HK": "清除篩選",
+    "zh-TW": "清除篩選"
+  },
+  "Clear selected cache…": {
+    "es": "Borrar caché seleccionada…",
+    "id": "Hapus cache terpilih…",
+    "ja": "選択したキャッシュを削除…",
+    "ms": "Kosongkan cache dipilih…",
+    "ru": "Очистить выбранный кэш…",
+    "zh-CN": "清除选中的缓存…",
+    "zh-HK": "清除選中的緩存…",
+    "zh-TW": "清除選中的快取…"
+  },
+  "Clear sender": {
+    "es": "Borrar remitente",
+    "id": "Hapus pengirim",
+    "ja": "送信者を解除",
+    "ms": "Kosongkan pengirim",
+    "ru": "Сбросить отправителя",
+    "zh-CN": "清除发送者",
+    "zh-HK": "清除發送者",
+    "zh-TW": "清除傳送者"
+  },
+  "Clear the selected media cache?": {
+    "es": "¿Borrar la caché multimedia seleccionada?",
+    "id": "Hapus cache media terpilih?",
+    "ja": "選択したメディアキャッシュを削除しますか？",
+    "ms": "Kosongkan cache media yang dipilih?",
+    "ru": "Очистить выбранный кэш медиа?",
+    "zh-CN": "清除选中的媒体缓存？",
+    "zh-HK": "清除選中的媒體緩存？",
+    "zh-TW": "清除選中的媒體快取？"
+  },
+  "Clearing cache…": {
+    "es": "Borrando caché…",
+    "id": "Menghapus cache…",
+    "ja": "キャッシュを削除中…",
+    "ms": "Mengosongkan cache…",
+    "ru": "Очистка кэша…",
+    "zh-CN": "正在清除缓存…",
+    "zh-HK": "正在清除緩存…",
+    "zh-TW": "正在清除快取…"
+  },
+  "Close": {
+    "id": "Tutup",
+    "ms": "Tutup"
+  },
+  "Close window": {
+    "id": "Tutup jendela",
+    "ms": "Tutup tetingkap"
+  },
+  "Collapse": {
+    "id": "Ciutkan",
+    "ms": "Runtuhkan"
+  },
+  "Collectible": {
+    "es": "Coleccionable",
+    "id": "Item koleksi",
+    "ja": "コレクティブル",
+    "ms": "Item koleksi",
+    "ru": "Коллекционный предмет",
+    "zh-CN": "藏品",
+    "zh-HK": "收藏品",
+    "zh-TW": "收藏品"
+  },
+  "Collection": {
+    "es": "Colección",
+    "id": "Koleksi",
+    "ja": "コレクション",
+    "ms": "Koleksi",
+    "ru": "Коллекция"
+  },
+  "Collection hash": {
+    "es": "Hash de la colección",
+    "id": "Hash koleksi",
+    "ja": "コレクションのハッシュ",
+    "ms": "Hash koleksi",
+    "ru": "Хеш коллекции",
+    "zh-CN": "合集哈希",
+    "zh-HK": "合集雜湊",
+    "zh-TW": "合集雜湊"
+  },
+  "Combine and forward…": {
+    "id": "Gabungkan dan teruskan…",
+    "ms": "Gabung dan majukan…"
+  },
+  "Complete this payment in Mixin on your phone.": {
+    "es": "Completa este pago en Mixin en tu teléfono.",
+    "id": "Selesaikan pembayaran ini di Mixin pada ponsel Anda.",
+    "ja": "スマートフォンの Mixin で支払いを完了してください。",
+    "ms": "Lengkapkan pembayaran ini dalam Mixin pada telefon anda.",
+    "ru": "Завершите платёж в Mixin на телефоне.",
+    "zh-CN": "请在手机 Mixin 中完成付款。",
+    "zh-HK": "請在手機 Mixin 中完成付款。",
+    "zh-TW": "請在手機 Mixin 中完成付款。"
+  },
+  "Compress images": {
+    "es": "Comprimir imágenes",
+    "id": "Kompres gambar",
+    "ja": "画像を圧縮",
+    "ms": "Mampatkan imej",
+    "ru": "Сжимать изображения",
+    "zh-CN": "压缩图片",
+    "zh-HK": "壓縮圖片",
+    "zh-TW": "壓縮圖片"
+  },
+  "Confirm your passcode": {
+    "es": "Confirma tu código",
+    "id": "Konfirmasi kode layar",
+    "ja": "パスコードを確認",
+    "ms": "Sahkan kod laluan",
+    "ru": "Подтвердите код блокировки",
+    "zh-CN": "确认锁屏密码",
+    "zh-HK": "確認鎖屏密碼",
+    "zh-TW": "確認鎖屏密碼"
+  },
+  "Confirmations": {
+    "es": "Confirmaciones",
+    "id": "Konfirmasi",
+    "ja": "承認数",
+    "ms": "Pengesahan",
+    "ru": "Подтверждения"
+  },
+  "Contact preview unavailable": {
+    "es": "Vista previa del contacto no disponible",
+    "id": "Pratinjau kontak tidak tersedia",
+    "ja": "連絡先をプレビューできません",
+    "ms": "Pratonton kenalan tidak tersedia",
+    "ru": "Предпросмотр контакта недоступен",
+    "zh-CN": "无法预览联系人",
+    "zh-HK": "無法預覽聯繫人",
+    "zh-TW": "無法預覽聯絡人"
+  },
+  "Contacts": {
+    "id": "Kontak",
+    "ms": "Kenalan"
+  },
+  "Content type": {
+    "es": "Tipo de contenido",
+    "id": "Jenis konten",
+    "ja": "コンテンツの種類",
+    "ms": "Jenis kandungan",
+    "ru": "Тип содержимого",
+    "zh-CN": "内容类型",
+    "zh-HK": "內容類型",
+    "zh-TW": "內容類型"
+  },
+  "Content unavailable": {
+    "es": "Contenido no disponible",
+    "id": "Konten tidak tersedia",
+    "ja": "コンテンツを表示できません",
+    "ms": "Kandungan tidak tersedia",
+    "ru": "Содержимое недоступно",
+    "zh-CN": "内容不可用",
+    "zh-HK": "內容不可用",
+    "zh-TW": "內容不可用"
+  },
+  "Conversation info": {
+    "es": "Información de la conversación",
+    "id": "Info percakapan",
+    "ja": "会話情報",
+    "ms": "Maklumat perbualan",
+    "ru": "Информация о чате",
+    "zh-CN": "聊天信息",
+    "zh-HK": "聊天信息",
+    "zh-TW": "聊天資訊"
+  },
+  "Conversations": {
+    "es": "Conversaciones",
+    "id": "Percakapan",
+    "ja": "会話",
+    "ms": "Perbualan",
+    "ru": "Чаты",
+    "zh-CN": "会话",
+    "zh-HK": "會話",
+    "zh-TW": "會話"
+  },
+  "Copy image": {
+    "es": "Copiar imagen",
+    "id": "Salin gambar",
+    "ja": "画像をコピー",
+    "ms": "Salin imej",
+    "ru": "Копировать изображение",
+    "zh-CN": "复制图片",
+    "zh-HK": "複製圖片",
+    "zh-TW": "複製圖片"
+  },
+  "Copy link": {
+    "id": "Salin tautan"
+  },
+  "Copy selected text": {
+    "es": "Copiar texto seleccionado",
+    "id": "Salin teks yang dipilih",
+    "ja": "選択したテキストをコピー",
+    "ms": "Salin teks dipilih",
+    "ru": "Копировать выделенный текст",
+    "zh-CN": "复制选中文字",
+    "zh-HK": "複製所選文字",
+    "zh-TW": "複製選取文字"
+  },
+  "Copy text": {
+    "es": "Copiar texto",
+    "id": "Salin teks",
+    "ja": "テキストをコピー",
+    "ms": "Salin teks",
+    "ru": "Копировать текст"
+  },
+  "Couldn’t add these files. Try again.": {
+    "es": "No se pudieron añadir estos archivos. Inténtalo de nuevo.",
+    "id": "File ini tidak dapat ditambahkan. Coba lagi.",
+    "ja": "ファイルを追加できませんでした。もう一度お試しください。",
+    "ms": "Fail ini tidak dapat ditambah. Cuba lagi.",
+    "ru": "Не удалось добавить эти файлы. Повторите попытку.",
+    "zh-CN": "无法添加这些文件，请重试。",
+    "zh-HK": "無法加入這些檔案，請重試。",
+    "zh-TW": "無法加入這些檔案，請重試。"
+  },
+  "Couldn’t clear browser data. Try again.": {
+    "es": "No se pudieron borrar los datos del navegador. Inténtalo de nuevo.",
+    "id": "Tidak dapat menghapus data browser. Coba lagi.",
+    "ja": "ブラウザーデータを削除できませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat mengosongkan data pelayar. Cuba lagi.",
+    "ru": "Не удалось удалить данные браузера. Попробуйте ещё раз.",
+    "zh-CN": "无法清除浏览器数据，请重试。",
+    "zh-HK": "無法清除瀏覽器資料，請重試。",
+    "zh-TW": "無法清除瀏覽器資料，請重試。"
+  },
+  "Couldn’t complete this action. Try again.": {
+    "es": "No se pudo completar esta acción. Inténtalo de nuevo.",
+    "id": "Tidak dapat menyelesaikan tindakan ini. Coba lagi.",
+    "ja": "操作を完了できませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat melengkapkan tindakan ini. Cuba lagi.",
+    "ru": "Не удалось выполнить действие. Повторите попытку.",
+    "zh-CN": "操作失败，请重试。",
+    "zh-HK": "操作失敗，請重試。",
+    "zh-TW": "操作失敗，請重試。"
+  },
+  "Couldn’t create a sign-in code": {
+    "es": "No se pudo crear un código de inicio de sesión",
+    "id": "Tidak dapat membuat kode masuk",
+    "ja": "ログインコードを生成できませんでした",
+    "ms": "Tidak dapat mencipta kod log masuk",
+    "ru": "Не удалось создать код входа",
+    "zh-CN": "无法获取登录二维码",
+    "zh-HK": "無法獲取登錄二維碼",
+    "zh-TW": "無法獲取登入QR Code"
+  },
+  "Couldn’t create the circle. Try again.": {
+    "es": "No se pudo crear el círculo. Inténtalo de nuevo.",
+    "id": "Tidak dapat membuat lingkaran. Coba lagi.",
+    "ja": "サークルを作成できませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat mencipta bulatan. Cuba lagi.",
+    "ru": "Не удалось создать круг. Повторите попытку.",
+    "zh-CN": "无法创建圈子，请重试。",
+    "zh-HK": "無法創建圈子，請重試。",
+    "zh-TW": "無法建立圈子，請重試。"
+  },
+  "Couldn’t display this photo.": {
+    "es": "No se pudo mostrar esta foto.",
+    "id": "Tidak dapat menampilkan foto ini.",
+    "ja": "この写真を表示できませんでした。",
+    "ms": "Tidak dapat memaparkan foto ini.",
+    "ru": "Не удалось показать фото.",
+    "zh-CN": "无法显示此图片。",
+    "zh-HK": "無法顯示此圖片。",
+    "zh-TW": "無法顯示此圖片。"
+  },
+  "Couldn’t download this file. Try again.": {
+    "es": "No se pudo descargar este archivo. Inténtalo de nuevo.",
+    "id": "Tidak dapat mengunduh berkas ini. Coba lagi.",
+    "ja": "ファイルをダウンロードできませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat memuat turun fail ini. Cuba lagi.",
+    "ru": "Не удалось скачать файл. Повторите попытку.",
+    "zh-CN": "无法下载此文件，请重试。",
+    "zh-HK": "無法下載此文件，請重試。",
+    "zh-TW": "無法下載此檔案，請重試。"
+  },
+  "Couldn’t edit this image. Undo the last edit or try again.": {
+    "es": "No se pudo editar esta imagen. Deshaz el último cambio o inténtalo de nuevo.",
+    "id": "Tidak dapat mengedit gambar ini. Urungkan edit terakhir atau coba lagi.",
+    "ja": "画像を編集できませんでした。最後の編集を取り消すか、もう一度お試しください。",
+    "ms": "Tidak dapat mengedit imej ini. Buat asal suntingan terakhir atau cuba lagi.",
+    "ru": "Не удалось изменить изображение. Отмените последнее изменение или повторите попытку.",
+    "zh-CN": "无法编辑此图片，请撤销上一步或重试。",
+    "zh-HK": "無法編輯此圖片，請撤銷上一步或重試。",
+    "zh-TW": "無法編輯此圖片，請撤銷上一步或重試。"
+  },
+  "Couldn’t find this contact. Check the ID and try again.": {
+    "es": "No se pudo encontrar este contacto. Comprueba el ID e inténtalo de nuevo.",
+    "id": "Tidak dapat menemukan kontak ini. Periksa ID dan coba lagi.",
+    "ja": "連絡先が見つかりませんでした。ID を確認して、もう一度お試しください。",
+    "ms": "Tidak dapat mencari kenalan ini. Semak ID dan cuba lagi.",
+    "ru": "Не удалось найти контакт. Проверьте ID и повторите попытку.",
+    "zh-CN": "未找到联系人，请检查 ID 后重试。",
+    "zh-HK": "未找到聯繫人，請檢查 ID 後重試。",
+    "zh-TW": "未找到聯絡人，請檢查 ID 後重試。"
+  },
+  "Couldn’t join this group. Try again.": {
+    "es": "No se pudo unir al grupo. Inténtalo de nuevo.",
+    "id": "Tidak dapat bergabung ke grup ini. Coba lagi.",
+    "ja": "グループに参加できませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat menyertai kumpulan ini. Cuba lagi.",
+    "ru": "Не удалось вступить в группу. Повторите попытку.",
+    "zh-CN": "无法加入群组，请重试。",
+    "zh-HK": "無法加入羣組，請重試。",
+    "zh-TW": "無法加入群組，請重試。"
+  },
+  "Couldn’t load chats. Try again.": {
+    "es": "No se pudieron cargar los chats. Inténtalo de nuevo.",
+    "id": "Tidak dapat memuat obrolan. Coba lagi.",
+    "ja": "チャットを読み込めませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat memuatkan sembang. Cuba lagi.",
+    "ru": "Не удалось загрузить чаты. Повторите попытку.",
+    "zh-CN": "聊天加载失败，请重试。",
+    "zh-HK": "聊天加載失敗，請重試。",
+    "zh-TW": "聊天載入失敗，請重試。"
+  },
+  "Couldn’t load content": {
+    "es": "No se pudo cargar el contenido",
+    "id": "Tidak dapat memuat konten",
+    "ja": "コンテンツを読み込めませんでした",
+    "ms": "Tidak dapat memuatkan kandungan",
+    "ru": "Не удалось загрузить содержимое",
+    "zh-CN": "无法加载内容",
+    "zh-HK": "無法載入內容",
+    "zh-TW": "無法載入內容"
+  },
+  "Couldn’t load conversations": {
+    "es": "No se pudieron cargar las conversaciones",
+    "id": "Tidak dapat memuat percakapan",
+    "ja": "会話を読み込めませんでした",
+    "ms": "Tidak dapat memuatkan perbualan",
+    "ru": "Не удалось загрузить чаты",
+    "zh-CN": "无法加载会话",
+    "zh-HK": "無法加載會話",
+    "zh-TW": "無法載入會話"
+  },
+  "Couldn’t load members. Type again to retry.": {
+    "es": "No se pudieron cargar los miembros. Escribe de nuevo para reintentar.",
+    "id": "Tidak dapat memuat anggota. Ketik lagi untuk mencoba ulang.",
+    "ja": "メンバーを読み込めませんでした。もう一度入力してお試しください。",
+    "ms": "Tidak dapat memuatkan ahli. Taip semula untuk mencuba lagi.",
+    "ru": "Не удалось загрузить участников. Введите текст ещё раз.",
+    "zh-CN": "无法加载群成员，请重新输入重试。",
+    "zh-HK": "無法加載羣成員，請重新輸入重試。",
+    "zh-TW": "無法載入群成員，請重新輸入重試。"
+  },
+  "Couldn’t load messages": {
+    "es": "No se pudieron cargar los mensajes",
+    "id": "Tidak dapat memuat pesan",
+    "ja": "メッセージを読み込めませんでした",
+    "ms": "Tidak dapat memuatkan mesej",
+    "ru": "Не удалось загрузить сообщения",
+    "zh-CN": "无法加载消息",
+    "zh-HK": "無法加載消息",
+    "zh-TW": "無法載入訊息"
+  },
+  "Couldn’t load quick search": {
+    "es": "No se pudo cargar la búsqueda rápida",
+    "id": "Tidak dapat memuat pencarian cepat",
+    "ja": "クイック検索を読み込めませんでした",
+    "ms": "Tidak dapat memuatkan carian pantas",
+    "ru": "Не удалось загрузить быстрый поиск",
+    "zh-CN": "快速搜索加载失败",
+    "zh-HK": "快速搜索加載失敗",
+    "zh-TW": "快速搜尋載入失敗"
+  },
+  "Couldn’t load recipients.": {
+    "es": "No se pudieron cargar los destinatarios.",
+    "id": "Tidak dapat memuat penerima.",
+    "ja": "送信先を読み込めませんでした。",
+    "ms": "Tidak dapat memuatkan penerima.",
+    "ru": "Не удалось загрузить получателей.",
+    "zh-CN": "无法加载接收方。",
+    "zh-HK": "無法加載接收方。",
+    "zh-TW": "無法載入接收方。"
+  },
+  "Couldn’t load senders": {
+    "es": "No se pudieron cargar los remitentes",
+    "id": "Tidak dapat memuat pengirim",
+    "ja": "送信者を読み込めませんでした",
+    "ms": "Tidak dapat memuatkan pengirim",
+    "ru": "Не удалось загрузить отправителей",
+    "zh-CN": "无法加载发送者",
+    "zh-HK": "無法載入發送者",
+    "zh-TW": "無法載入傳送者"
+  },
+  "Couldn’t load unread messages.": {
+    "es": "No se pudieron cargar los mensajes no leídos.",
+    "id": "Tidak dapat memuat pesan belum dibaca.",
+    "ja": "未読メッセージを読み込めませんでした。",
+    "ms": "Tidak dapat memuatkan mesej belum dibaca.",
+    "ru": "Не удалось загрузить непрочитанные сообщения.",
+    "zh-CN": "无法加载未读消息。",
+    "zh-HK": "無法加載未讀消息。",
+    "zh-TW": "無法載入未讀訊息。"
+  },
+  "Couldn’t load. Try again.": {
+    "es": "No se pudo cargar. Inténtalo de nuevo.",
+    "id": "Tidak dapat memuat. Coba lagi.",
+    "ja": "読み込めませんでした。再試行してください。",
+    "ms": "Tidak dapat memuatkan. Cuba lagi.",
+    "ru": "Не удалось загрузить. Попробуйте ещё раз.",
+    "zh-CN": "加载失败，请重试。",
+    "zh-HK": "載入失敗，請重試。",
+    "zh-TW": "載入失敗，請重試。"
+  },
+  "Couldn’t open Mixin": {
+    "es": "No se pudo abrir Mixin",
+    "id": "Tidak dapat membuka Mixin",
+    "ja": "Mixin を開けませんでした",
+    "ms": "Tidak dapat membuka Mixin",
+    "ru": "Не удалось открыть Mixin",
+    "zh-CN": "无法打开 Mixin",
+    "zh-HK": "無法打開 Mixin",
+    "zh-TW": "無法開啟 Mixin"
+  },
+  "Couldn’t open conversation": {
+    "es": "No se pudo abrir la conversación",
+    "id": "Tidak dapat membuka percakapan",
+    "ja": "会話を開けませんでした",
+    "ms": "Tidak dapat membuka perbualan",
+    "ru": "Не удалось открыть чат",
+    "zh-CN": "无法打开会话",
+    "zh-HK": "無法打開會話",
+    "zh-TW": "無法開啟會話"
+  },
+  "Couldn’t open the browser.": {
+    "es": "No se pudo abrir el navegador.",
+    "id": "Tidak dapat membuka peramban.",
+    "ja": "ブラウザーを開けませんでした。",
+    "ms": "Tidak dapat membuka pelayar.",
+    "ru": "Не удалось открыть браузер.",
+    "zh-CN": "无法打开浏览器。",
+    "zh-HK": "無法打開瀏覽器。",
+    "zh-TW": "無法開啟瀏覽器。"
+  },
+  "Couldn’t open the page": {
+    "es": "No se pudo abrir la página",
+    "id": "Tidak dapat membuka halaman",
+    "ja": "ページを開けませんでした",
+    "ms": "Tidak dapat membuka halaman",
+    "ru": "Не удалось открыть страницу",
+    "zh-CN": "无法打开页面",
+    "zh-HK": "無法打開頁面",
+    "zh-TW": "無法開啟頁面"
+  },
+  "Couldn’t open this link": {
+    "es": "No se pudo abrir este enlace",
+    "id": "Tidak dapat membuka tautan ini",
+    "ja": "このリンクを開けませんでした",
+    "ms": "Tidak dapat membuka pautan ini",
+    "ru": "Не удалось открыть ссылку",
+    "zh-CN": "无法打开此链接",
+    "zh-HK": "無法打開此鏈接",
+    "zh-TW": "無法開啟此連結"
+  },
+  "Couldn’t open this result. Check it and try again.": {
+    "es": "No se pudo abrir este resultado. Compruébalo e inténtalo de nuevo.",
+    "id": "Tidak dapat membuka hasil ini. Periksa dan coba lagi.",
+    "ja": "検索結果を開けませんでした。確認して、もう一度お試しください。",
+    "ms": "Tidak dapat membuka hasil ini. Semak dan cuba lagi.",
+    "ru": "Не удалось открыть результат. Проверьте его и повторите попытку.",
+    "zh-CN": "无法打开此结果，请检查后重试。",
+    "zh-HK": "無法打開此結果，請檢查後重試。",
+    "zh-TW": "無法開啟此結果，請檢查後重試。"
+  },
+  "Couldn’t open this result. Try again.": {
+    "es": "No se pudo abrir este resultado. Inténtalo de nuevo.",
+    "id": "Tidak dapat membuka hasil ini. Coba lagi.",
+    "ja": "検索結果を開けませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat membuka hasil ini. Cuba lagi.",
+    "ru": "Не удалось открыть результат. Повторите попытку.",
+    "zh-CN": "无法打开此结果，请重试。",
+    "zh-HK": "無法打開此結果，請重試。",
+    "zh-TW": "無法開啟此結果，請重試。"
+  },
+  "Couldn’t prepare the photo. Try again.": {
+    "es": "No se pudo preparar la foto. Inténtalo de nuevo.",
+    "id": "Tidak dapat menyiapkan foto. Coba lagi.",
+    "ja": "写真を準備できませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat menyediakan foto. Cuba lagi.",
+    "ru": "Не удалось подготовить фото. Повторите попытку.",
+    "zh-CN": "无法处理头像，请重试。",
+    "zh-HK": "無法處理頭像，請重試。",
+    "zh-TW": "無法處理頭像，請重試。"
+  },
+  "Couldn’t prepare this media. Send as files or choose other files.": {
+    "es": "No se pudo preparar este contenido. Envíalo como archivos o elige otros archivos.",
+    "id": "Tidak dapat menyiapkan media ini. Kirim sebagai berkas atau pilih berkas lain.",
+    "ja": "メディアを準備できませんでした。ファイルとして送信するか、別のファイルを選択してください。",
+    "ms": "Tidak dapat menyediakan media ini. Hantar sebagai fail atau pilih fail lain.",
+    "ru": "Не удалось подготовить медиа. Отправьте их как файлы или выберите другие.",
+    "zh-CN": "无法准备此媒体。可以改为文件发送，或选择其他文件。",
+    "zh-HK": "無法準備此媒體。可以改為文件發送，或選擇其他文件。",
+    "zh-TW": "無法準備此媒體。可以改為檔案傳送，或選擇其他檔案。"
+  },
+  "Couldn’t read screen privacy settings. Account content stays hidden.": {
+    "es": "No se pudieron leer los ajustes de privacidad de pantalla. El contenido de la cuenta sigue oculto.",
+    "id": "Tidak dapat membaca pengaturan privasi layar. Konten akun tetap tersembunyi.",
+    "ja": "画面のプライバシー設定を読み込めませんでした。アカウントの内容は非表示のままです。",
+    "ms": "Tidak dapat membaca tetapan privasi skrin. Kandungan akaun kekal tersembunyi.",
+    "ru": "Не удалось прочитать настройки защиты экрана. Содержимое аккаунта остаётся скрытым.",
+    "zh-CN": "无法读取锁屏设置，账号内容将保持隐藏。",
+    "zh-HK": "無法讀取鎖屏設置，賬號內容將保持隱藏。",
+    "zh-TW": "無法讀取鎖屏設定，賬號內容將保持隱藏。"
+  },
+  "Couldn’t refresh saved changes. Reload before saving again.": {
+    "es": "No se pudieron actualizar los cambios guardados. Recarga antes de volver a guardar.",
+    "id": "Tidak dapat memperbarui perubahan tersimpan. Muat ulang sebelum menyimpan lagi.",
+    "ja": "保存した変更を更新できませんでした。再読み込みしてから保存してください。",
+    "ms": "Tidak dapat menyegarkan perubahan tersimpan. Muat semula sebelum menyimpan lagi.",
+    "ru": "Не удалось обновить сохранённые изменения. Перезагрузите перед повторным сохранением.",
+    "zh-CN": "无法刷新已保存的更改，请先重新加载。",
+    "zh-HK": "無法刷新已保存的更改，請先重新加載。",
+    "zh-TW": "無法重新整理已儲存的更改，請先重新載入。"
+  },
+  "Couldn’t refresh your profile. Your saved profile is shown.": {
+    "es": "No se pudo actualizar tu perfil. Se muestra el perfil guardado.",
+    "id": "Tidak dapat memperbarui profil Anda. Profil tersimpan ditampilkan.",
+    "ja": "プロフィールを更新できませんでした。保存済みのプロフィールを表示しています。",
+    "ms": "Tidak dapat menyegarkan profil anda. Profil tersimpan dipaparkan.",
+    "ru": "Не удалось обновить профиль. Показан сохранённый профиль.",
+    "zh-CN": "无法刷新个人资料，当前显示已保存的资料。",
+    "zh-HK": "無法刷新個人資料，當前顯示已保存的資料。",
+    "zh-TW": "無法重新整理個人資料，當前顯示已儲存的資料。"
+  },
+  "Couldn’t respond to the transfer request. Try again.": {
+    "es": "No se pudo responder a la solicitud de transferencia. Inténtalo de nuevo.",
+    "id": "Tidak dapat merespons permintaan transfer. Coba lagi.",
+    "ja": "転送リクエストに応答できませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat membalas permintaan pemindahan. Cuba lagi.",
+    "ru": "Не удалось ответить на запрос переноса. Повторите попытку.",
+    "zh-CN": "无法回应同步请求，请重试。",
+    "zh-HK": "無法回應同步請求，請重試。",
+    "zh-TW": "無法回應同步請求，請重試。"
+  },
+  "Couldn’t save emoji preferences.": {
+    "es": "No se pudieron guardar las preferencias de emoji.",
+    "id": "Tidak dapat menyimpan preferensi emoji.",
+    "ja": "絵文字の設定を保存できませんでした。",
+    "ms": "Tidak dapat menyimpan keutamaan emoji.",
+    "ru": "Не удалось сохранить настройки эмодзи.",
+    "zh-CN": "无法保存表情偏好。",
+    "zh-HK": "無法保存表情偏好。",
+    "zh-TW": "無法儲存表情偏好。"
+  },
+  "Couldn’t save or load chat preferences. Try again.": {
+    "es": "No se pudieron guardar o cargar las preferencias de chat. Inténtalo de nuevo.",
+    "id": "Tidak dapat menyimpan atau memuat preferensi obrolan. Coba lagi.",
+    "ja": "チャット設定を保存または読み込みできませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat menyimpan atau memuatkan keutamaan sembang. Cuba lagi.",
+    "ru": "Не удалось сохранить или загрузить настройки чата. Повторите попытку.",
+    "zh-CN": "无法保存或读取聊天偏好，请重试。",
+    "zh-HK": "無法保存或讀取聊天偏好，請重試。",
+    "zh-TW": "無法儲存或讀取聊天偏好，請重試。"
+  },
+  "Couldn’t save sidebar settings": {
+    "es": "No se pudieron guardar los ajustes de la barra lateral",
+    "id": "Tidak dapat menyimpan pengaturan bilah samping",
+    "ja": "サイドバーの設定を保存できませんでした",
+    "ms": "Tidak dapat menyimpan tetapan bar sisi",
+    "ru": "Не удалось сохранить настройки боковой панели",
+    "zh-CN": "侧栏设置保存失败",
+    "zh-HK": "無法保存側欄設置",
+    "zh-TW": "無法儲存側欄設定"
+  },
+  "Couldn’t save the language. Try again.": {
+    "es": "No se pudo guardar el idioma. Inténtalo de nuevo.",
+    "id": "Tidak dapat menyimpan bahasa. Coba lagi.",
+    "ja": "言語を保存できませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat menyimpan bahasa. Cuba lagi.",
+    "ru": "Не удалось сохранить язык. Повторите попытку.",
+    "zh-CN": "无法保存语言，请重试。",
+    "zh-HK": "無法保存語言，請重試。",
+    "zh-TW": "無法儲存語言，請重試。"
+  },
+  "Couldn’t save your draft. Try again.": {
+    "es": "No se pudo guardar el borrador. Inténtalo de nuevo.",
+    "id": "Tidak dapat menyimpan draf Anda. Coba lagi.",
+    "ja": "下書きを保存できませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat menyimpan draf anda. Cuba lagi.",
+    "ru": "Не удалось сохранить черновик. Повторите попытку.",
+    "zh-CN": "无法保存草稿，请重试。",
+    "zh-HK": "無法保存草稿，請重試。",
+    "zh-TW": "無法儲存草稿，請重試。"
+  },
+  "Couldn’t save. Try again.": {
+    "es": "No se pudo guardar. Inténtalo de nuevo.",
+    "id": "Tidak dapat menyimpan. Coba lagi.",
+    "ja": "保存できませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat menyimpan. Cuba lagi.",
+    "ru": "Не удалось сохранить. Повторите попытку.",
+    "zh-CN": "保存失败，请重试。",
+    "zh-HK": "保存失敗，請重試。",
+    "zh-TW": "儲存失敗，請重試。"
+  },
+  "Couldn’t send this message. Try again.": {
+    "es": "No se pudo enviar este mensaje. Inténtalo de nuevo.",
+    "id": "Tidak dapat mengirim pesan ini. Coba lagi.",
+    "ja": "メッセージを送信できませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat menghantar mesej ini. Cuba lagi.",
+    "ru": "Не удалось отправить сообщение. Повторите попытку.",
+    "zh-CN": "无法发送此消息，请重试。",
+    "zh-HK": "無法發送此消息，請重試。",
+    "zh-TW": "無法傳送此訊息，請重試。"
+  },
+  "Couldn’t send. Your message is still here. Try again.": {
+    "es": "No se pudo enviar. Tu mensaje sigue aquí. Inténtalo de nuevo.",
+    "id": "Tidak dapat mengirim. Pesan Anda tetap di sini. Coba lagi.",
+    "ja": "送信できませんでした。メッセージは残っています。もう一度お試しください。",
+    "ms": "Tidak dapat menghantar. Mesej anda masih di sini. Cuba lagi.",
+    "ru": "Не удалось отправить. Сообщение сохранено здесь. Повторите попытку.",
+    "zh-CN": "发送失败，消息已保留，请重试。",
+    "zh-HK": "發送失敗，消息已保留，請重試。",
+    "zh-TW": "傳送失敗，訊息已保留，請重試。"
+  },
+  "Couldn’t unlock. Check your passcode and try again.": {
+    "es": "No se pudo desbloquear. Comprueba tu código e inténtalo de nuevo.",
+    "id": "Tidak dapat membuka kunci. Periksa kode layar dan coba lagi.",
+    "ja": "ロックを解除できませんでした。パスコードを確認して、もう一度お試しください。",
+    "ms": "Tidak dapat membuka kunci. Semak kod laluan dan cuba lagi.",
+    "ru": "Не удалось разблокировать. Проверьте код и повторите попытку.",
+    "zh-CN": "无法解锁，请检查锁屏密码后重试。",
+    "zh-HK": "無法解鎖，請檢查鎖屏密碼後重試。",
+    "zh-TW": "無法解鎖，請檢查鎖屏密碼後重試。"
+  },
+  "Couldn’t update circles. Try again.": {
+    "es": "No se pudieron actualizar los círculos. Inténtalo de nuevo.",
+    "id": "Tidak dapat memperbarui lingkaran. Coba lagi.",
+    "ja": "サークルを更新できませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat mengemas kini bulatan. Cuba lagi.",
+    "ru": "Не удалось обновить круги. Повторите попытку.",
+    "zh-CN": "更新圈子失败，请重试。",
+    "zh-HK": "更新圈子失敗，請重試。",
+    "zh-TW": "更新圈子失敗，請重試。"
+  },
+  "Couldn’t update. Try again.": {
+    "es": "No se pudo actualizar. Inténtalo de nuevo.",
+    "id": "Tidak dapat memperbarui. Coba lagi.",
+    "ja": "更新できませんでした。もう一度お試しください。",
+    "ms": "Tidak dapat mengemas kini. Cuba lagi.",
+    "ru": "Не удалось обновить. Повторите попытку.",
+    "zh-CN": "更新失败，请重试。",
+    "zh-HK": "更新失敗，請重試。",
+    "zh-TW": "更新失敗，請重試。"
+  },
+  "Couldn’t use notifications. Check system permissions and try again.": {
+    "es": "No se pudieron usar las notificaciones. Comprueba los permisos del sistema e inténtalo de nuevo.",
+    "id": "Tidak dapat menggunakan notifikasi. Periksa izin sistem dan coba lagi.",
+    "ja": "通知を利用できませんでした。システムの権限を確認して、もう一度お試しください。",
+    "ms": "Tidak dapat menggunakan pemberitahuan. Semak kebenaran sistem dan cuba lagi.",
+    "ru": "Не удалось использовать уведомления. Проверьте системные разрешения и повторите попытку.",
+    "zh-CN": "无法使用系统通知，请检查系统权限后重试。",
+    "zh-HK": "無法使用系統通知，請檢查系統權限後重試。",
+    "zh-TW": "無法使用系統通知，請檢查系統權限後重試。"
+  },
+  "Create a circle from the + menu first.": {
+    "es": "Primero crea un círculo desde el menú +.",
+    "id": "Buat lingkaran dari menu + terlebih dahulu.",
+    "ja": "まず + メニューからサークルを作成してください。",
+    "ms": "Cipta bulatan daripada menu + dahulu.",
+    "ru": "Сначала создайте круг в меню +.",
+    "zh-CN": "请先通过加号菜单创建圈子。",
+    "zh-HK": "請先通過加號菜單創建圈子。",
+    "zh-TW": "請先透過加號選單建立圈子。"
+  },
+  "Create circle": {
+    "id": "Buat lingkaran",
+    "ms": "Cipta bulatan"
+  },
+  "Created by": {
+    "es": "Creado por",
+    "id": "Dibuat oleh",
+    "ja": "作成者",
+    "ms": "Dicipta oleh",
+    "ru": "Автор",
+    "zh-CN": "开发者",
+    "zh-HK": "開發者",
+    "zh-TW": "開發者"
+  },
+  "Created {arg0}": {
+    "es": "Creado el {arg0}",
+    "id": "Dibuat {arg0}",
+    "ja": "{arg0}に作成",
+    "ms": "Dicipta pada {arg0}",
+    "ru": "Создано {arg0}"
+  },
+  "Creating…": {
+    "es": "Creando…",
+    "id": "Membuat…",
+    "ja": "作成中…",
+    "ms": "Mencipta…",
+    "ru": "Создание…",
+    "zh-CN": "正在创建…",
+    "zh-HK": "正在創建…",
+    "zh-TW": "正在建立…"
+  },
+  "Crop photo": {
+    "es": "Recortar foto",
+    "id": "Potong foto",
+    "ja": "写真を切り抜く",
+    "ms": "Pangkas foto",
+    "ru": "Обрезать фото",
+    "zh-CN": "裁剪头像",
+    "zh-HK": "裁剪頭像",
+    "zh-TW": "裁剪頭像"
+  },
+  "Crop preview. Drag or use arrow keys to move the photo.": {
+    "es": "Vista previa del recorte. Arrastra o usa las flechas para mover la foto.",
+    "id": "Pratinjau potongan. Seret atau gunakan tombol panah untuk memindahkan foto.",
+    "ja": "切り抜きプレビュー。ドラッグまたは矢印キーで写真を移動できます。",
+    "ms": "Pratonton pangkasan. Seret atau gunakan kekunci anak panah untuk mengalihkan foto.",
+    "ru": "Предпросмотр обрезки. Перемещайте фото мышью или клавишами со стрелками.",
+    "zh-CN": "头像裁剪预览。拖动或使用方向键移动图片。",
+    "zh-HK": "頭像裁剪預覽。拖動或使用方向鍵移動圖片。",
+    "zh-TW": "頭像裁剪預覽。拖動或使用方向鍵移動圖片。"
+  },
+  "Crop ratio": {
+    "es": "Proporción del recorte",
+    "id": "Rasio potong",
+    "ja": "切り抜き比率",
+    "ms": "Nisbah pangkas",
+    "ru": "Пропорции обрезки",
+    "zh-CN": "裁剪比例",
+    "zh-HK": "裁剪比例",
+    "zh-TW": "裁剪比例"
+  },
+  "Custom color…": {
+    "es": "Color personalizado…",
+    "id": "Warna khusus…",
+    "ja": "カスタムカラー…",
+    "ms": "Warna tersuai…",
+    "ru": "Другой цвет…",
+    "zh-CN": "自定义颜色…",
+    "zh-HK": "自定義顏色…",
+    "zh-TW": "自訂顏色…"
+  },
+  "Custom drawing color": {
+    "es": "Color de dibujo personalizado",
+    "id": "Warna gambar khusus",
+    "ja": "描画色を指定",
+    "ms": "Warna lukisan tersuai",
+    "ru": "Свой цвет рисования",
+    "zh-CN": "自定义画笔颜色",
+    "zh-HK": "自定義畫筆顏色",
+    "zh-TW": "自訂畫筆顏色"
+  },
+  "Custom time": {
+    "id": "Waktu khusus",
+    "ms": "Masa tersuai"
+  },
+  "Dark": {
+    "id": "Gelap",
+    "ms": "Gelap"
+  },
+  "Date": {
+    "es": "Fecha",
+    "id": "Tanggal",
+    "ja": "日時",
+    "ms": "Tarikh",
+    "ru": "Дата",
+    "zh-CN": "时间",
+    "zh-HK": "時間",
+    "zh-TW": "時間"
+  },
+  "Days": {
+    "es": "Días",
+    "id": "Hari",
+    "ja": "日",
+    "ms": "Hari",
+    "ru": "Дни",
+    "zh-CN": "天",
+    "zh-HK": "天",
+    "zh-TW": "天"
+  },
+  "Delete": {
+    "id": "Hapus",
+    "ms": "Padam"
+  },
+  "Delete chat…": {
+    "id": "Hapus obrolan…",
+    "ms": "Padam sembang…"
+  },
+  "Delete circle…": {
+    "id": "Hapus lingkaran…",
+    "ms": "Padam bulatan…"
+  },
+  "Delete for everyone?": {
+    "es": "¿Eliminar para todos?",
+    "id": "Hapus untuk semua orang?",
+    "ja": "全員から削除しますか？",
+    "ms": "Padam untuk semua orang?",
+    "ru": "Удалить у всех?",
+    "zh-CN": "为所有人删除消息？",
+    "zh-HK": "為所有人刪除消息？",
+    "zh-TW": "為所有人刪除訊息？"
+  },
+  "Delete for me?": {
+    "es": "¿Eliminar para mí?",
+    "id": "Hapus untuk saya?",
+    "ja": "自分から削除しますか？",
+    "ms": "Padam untuk saya?",
+    "ru": "Удалить у меня?",
+    "zh-CN": "为我删除消息？",
+    "zh-HK": "為我刪除消息？",
+    "zh-TW": "為我刪除訊息？"
+  },
+  "Delete “{name}”?": {
+    "es": "¿Eliminar «{name}»?",
+    "id": "Hapus “{name}”?",
+    "ja": "「{name}」を削除しますか？",
+    "ms": "Padam “{name}”?",
+    "ru": "Удалить «{name}»?",
+    "zh-CN": "删除“{name}”？",
+    "zh-HK": "刪除「{name}」？",
+    "zh-TW": "刪除「{name}」？"
+  },
+  "Delete…": {
+    "id": "Hapus…",
+    "ms": "Padam…"
+  },
+  "Delivered": {
+    "es": "Entregado",
+    "id": "Terkirim ke penerima",
+    "ja": "配信済み",
+    "ms": "Disampaikan",
+    "ru": "Доставлено",
+    "zh-CN": "已送达",
+    "zh-HK": "已送達",
+    "zh-TW": "已送達"
+  },
+  "Description": {
+    "es": "Descripción",
+    "id": "Deskripsi",
+    "ja": "説明",
+    "ms": "Penerangan",
+    "ru": "Описание",
+    "zh-CN": "群公告",
+    "zh-HK": "羣公告",
+    "zh-TW": "群公告"
+  },
+  "Disabled": {
+    "es": "Desactivado",
+    "id": "Dinonaktifkan",
+    "ja": "無効",
+    "ms": "Dilumpuhkan",
+    "ru": "Отключено"
+  },
+  "Disappearing messages": {
+    "id": "Pesan menghilang",
+    "ms": "Mesej menghilang"
+  },
+  "Discard": {
+    "id": "Buang",
+    "ja": "破棄",
+    "ms": "Buang",
+    "ru": "Отменить изменения"
+  },
+  "Discard image edits?": {
+    "es": "¿Descartar los cambios de imagen?",
+    "id": "Buang edit gambar?",
+    "ja": "画像の編集を破棄しますか？",
+    "ms": "Buang suntingan imej?",
+    "ru": "Отменить изменения изображения?",
+    "zh-CN": "放弃图片修改？",
+    "zh-HK": "放棄圖片修改？",
+    "zh-TW": "捨棄圖片修改？"
+  },
+  "Discard recording?": {
+    "es": "¿Descartar grabación?",
+    "id": "Buang rekaman?",
+    "ja": "録音を破棄しますか？",
+    "ms": "Buang rakaman?",
+    "ru": "Удалить запись?",
+    "zh-CN": "放弃录音？",
+    "zh-HK": "放棄錄音？",
+    "zh-TW": "放棄錄音？"
+  },
+  "Dismiss": {
+    "es": "Cerrar",
+    "id": "Tutup",
+    "ja": "閉じる",
+    "ms": "Tutup",
+    "ru": "Закрыть",
+    "zh-CN": "关闭",
+    "zh-HK": "關閉",
+    "zh-TW": "關閉"
+  },
+  "Download": {
+    "id": "Unduh",
+    "ms": "Muat turun"
+  },
+  "Download photo": {
+    "es": "Descargar foto",
+    "id": "Unduh foto",
+    "ja": "写真をダウンロード",
+    "ms": "Muat turun foto",
+    "ru": "Скачать фото",
+    "zh-CN": "下载图片",
+    "zh-HK": "下載圖片",
+    "zh-TW": "下載圖片"
+  },
+  "Draft": {
+    "id": "Draf",
+    "ja": "下書き",
+    "ms": "Draf",
+    "ru": "Черновик"
+  },
+  "Drag crop corners or move the crop": {
+    "es": "Arrastra las esquinas del recorte o muévelo",
+    "id": "Seret sudut potongan atau pindahkan area potong",
+    "ja": "切り抜きの角をドラッグするか、切り抜き枠を移動",
+    "ms": "Seret penjuru pangkasan atau gerakkan pangkasan",
+    "ru": "Перетащите углы или переместите область обрезки",
+    "zh-CN": "拖动裁剪角点或移动裁剪框",
+    "zh-HK": "拖動裁剪角點或移動裁剪框",
+    "zh-TW": "拖動裁剪角點或移動裁剪框"
+  },
+  "Drag to move. Use the slider to zoom. Images up to 10 MB.": {
+    "es": "Arrastra para mover. Usa el control deslizante para ampliar. Imágenes de hasta 10 MB.",
+    "id": "Seret untuk memindahkan. Gunakan penggeser untuk memperbesar. Gambar hingga 10 MB.",
+    "ja": "ドラッグで移動、スライダーで拡大できます。画像は10 MBまでです。",
+    "ms": "Seret untuk mengalih. Gunakan peluncur untuk zum. Imej sehingga 10 MB.",
+    "ru": "Перетаскивайте для перемещения. Масштаб меняется ползунком. Изображения до 10 МБ.",
+    "zh-CN": "拖动调整位置，使用滑块缩放。图片最大 10 MB。",
+    "zh-HK": "拖動調整位置，使用滑塊縮放。圖片最大 10 MB。",
+    "zh-TW": "拖動調整位置，使用滑塊縮放。圖片最大 10 MB。"
+  },
+  "Draw": {
+    "es": "Dibujar",
+    "id": "Gambar",
+    "ja": "描画",
+    "ms": "Lukis",
+    "ru": "Рисовать",
+    "zh-CN": "画笔",
+    "zh-HK": "畫筆",
+    "zh-TW": "畫筆"
+  },
+  "Draw on the image": {
+    "es": "Dibujar en la imagen",
+    "id": "Gambar pada gambar",
+    "ja": "画像に描画",
+    "ms": "Lukis pada imej",
+    "ru": "Рисовать на изображении",
+    "zh-CN": "在图片上绘画",
+    "zh-HK": "在圖片上繪畫",
+    "zh-TW": "在圖片上繪畫"
+  },
+  "Earlier messages": {
+    "es": "Mensajes anteriores",
+    "id": "Pesan sebelumnya",
+    "ja": "以前のメッセージ",
+    "ms": "Mesej terdahulu",
+    "ru": "Предыдущие сообщения",
+    "zh-CN": "更早的消息",
+    "zh-HK": "更早的消息",
+    "zh-TW": "更早的訊息"
+  },
+  "Edit": {
+    "id": "Edit",
+    "ms": "Edit"
+  },
+  "Edit group": {
+    "es": "Editar grupo",
+    "id": "Edit grup",
+    "ja": "グループを編集",
+    "ms": "Edit kumpulan",
+    "ru": "Изменить группу",
+    "zh-CN": "编辑群组",
+    "zh-HK": "編輯羣組",
+    "zh-TW": "編輯群組"
+  },
+  "Edit group…": {
+    "es": "Editar grupo…",
+    "id": "Edit grup…",
+    "ja": "グループを編集…",
+    "ms": "Edit kumpulan…",
+    "ru": "Изменить группу…",
+    "zh-CN": "编辑群组…",
+    "zh-HK": "編輯羣組…",
+    "zh-TW": "編輯群組…"
+  },
+  "Edit image…": {
+    "es": "Editar imagen…",
+    "id": "Edit gambar…",
+    "ja": "画像を編集…",
+    "ms": "Edit imej…",
+    "ru": "Изменить изображение…",
+    "zh-CN": "编辑图片…",
+    "zh-HK": "編輯圖片…",
+    "zh-TW": "編輯圖片…"
+  },
+  "Edit profile": {
+    "id": "Edit profil",
+    "ms": "Edit profil"
+  },
+  "End-to-end encrypted": {
+    "id": "Terenkripsi ujung ke ujung",
+    "ms": "Disulitkan hujung ke hujung"
+  },
+  "Enter a keyword to search": {
+    "es": "Introduce una palabra clave para buscar",
+    "id": "Masukkan kata kunci untuk mencari",
+    "ja": "検索するキーワードを入力",
+    "ms": "Masukkan kata kunci untuk mencari",
+    "ru": "Введите ключевое слово для поиска",
+    "zh-CN": "输入关键词搜索",
+    "zh-HK": "輸入關鍵詞搜索",
+    "zh-TW": "輸入關鍵字搜尋"
+  },
+  "Enter a time between 1 second and 4 weeks.": {
+    "es": "Introduce un tiempo entre 1 segundo y 4 semanas.",
+    "id": "Masukkan waktu antara 1 detik dan 4 minggu.",
+    "ja": "1秒から4週間の時間を入力してください。",
+    "ms": "Masukkan masa antara 1 saat dan 4 minggu.",
+    "ru": "Введите время от 1 секунды до 4 недель.",
+    "zh-CN": "请输入 1 秒至 4 周之间的时间。",
+    "zh-HK": "請輸入 1 秒至 4 周之間的時間。",
+    "zh-TW": "請輸入 1 秒至 4 周之間的時間。"
+  },
+  "Enter a whole number from 1 to {maximum}.": {
+    "es": "Introduce un número entero del 1 al {maximum}.",
+    "id": "Masukkan bilangan bulat dari 1 hingga {maximum}.",
+    "ja": "1 から {maximum} までの整数を入力してください。",
+    "ms": "Masukkan nombor bulat dari 1 hingga {maximum}.",
+    "ru": "Введите целое число от 1 до {maximum}.",
+    "zh-CN": "请输入 1 到 {maximum} 之间的整数。",
+    "zh-HK": "請輸入 1 到 {maximum} 之間的整數。",
+    "zh-TW": "請輸入 1 到 {maximum} 之間的整數。"
+  },
+  "Eraser": {
+    "es": "Borrador",
+    "id": "Penghapus",
+    "ja": "消しゴム",
+    "ms": "Pemadam",
+    "ru": "Ластик",
+    "zh-CN": "橡皮",
+    "zh-HK": "橡皮",
+    "zh-TW": "橡皮"
+  },
+  "Exit group?": {
+    "es": "¿Salir del grupo?",
+    "id": "Keluar dari grup?",
+    "ja": "グループを退出しますか？",
+    "ms": "Keluar daripada kumpulan?",
+    "ru": "Выйти из группы?",
+    "zh-CN": "退出群组？",
+    "zh-HK": "退出羣組？",
+    "zh-TW": "退出群組？"
+  },
+  "Expand": {
+    "es": "Expandir",
+    "id": "Perluas",
+    "ja": "展開",
+    "ms": "Kembangkan",
+    "ru": "Развернуть",
+    "zh-CN": "展开",
+    "zh-HK": "展開",
+    "zh-TW": "展開"
+  },
+  "Expired": {
+    "es": "Caducado",
+    "id": "Kedaluwarsa",
+    "ja": "期限切れ",
+    "ms": "Tamat tempoh",
+    "ru": "Срок истёк",
+    "zh-CN": "已过期",
+    "zh-HK": "已過期",
+    "zh-TW": "已過期"
+  },
+  "Failed": {
+    "id": "Gagal",
+    "ms": "Gagal"
+  },
+  "Files saved only on this device may not be downloadable again.": {
+    "es": "Es posible que los archivos guardados solo en este dispositivo no se puedan descargar de nuevo.",
+    "id": "Berkas yang hanya tersimpan di perangkat ini mungkin tidak dapat diunduh lagi.",
+    "ja": "このデバイスのみに保存されているファイルは、再ダウンロードできない場合があります。",
+    "ms": "Fail yang disimpan hanya pada peranti ini mungkin tidak dapat dimuat turun semula.",
+    "ru": "Файлы, сохранённые только на этом устройстве, могут быть недоступны для повторной загрузки.",
+    "zh-CN": "仅保存在此设备上的文件可能无法再次下载。",
+    "zh-HK": "僅保存在此設備上的文件可能無法再次下載。",
+    "zh-TW": "僅儲存在此裝置上的檔案可能無法再次下載。"
+  },
+  "Flip": {
+    "es": "Voltear",
+    "id": "Balik",
+    "ja": "反転",
+    "ms": "Balikkan",
+    "ru": "Отразить",
+    "zh-CN": "翻转",
+    "zh-HK": "翻轉",
+    "zh-TW": "翻轉"
+  },
+  "Forward messages": {
+    "es": "Reenviar mensajes",
+    "id": "Teruskan pesan",
+    "ja": "メッセージを転送",
+    "ms": "Majukan mesej",
+    "ru": "Переслать сообщения",
+    "zh-CN": "转发消息",
+    "zh-HK": "轉發消息",
+    "zh-TW": "轉發訊息"
+  },
+  "From": {
+    "es": "De",
+    "id": "Dari",
+    "ja": "送信者",
+    "ms": "Daripada",
+    "ru": "От",
+    "zh-CN": "发送者",
+    "zh-HK": "發送者",
+    "zh-TW": "傳送者"
+  },
+  "GIF search is unavailable.": {
+    "es": "La búsqueda de GIF no está disponible.",
+    "id": "Pencarian GIF tidak tersedia.",
+    "ja": "GIF 検索を利用できません。",
+    "ms": "Carian GIF tidak tersedia.",
+    "ru": "Поиск GIF недоступен.",
+    "zh-CN": "GIF 搜索暂不可用。",
+    "zh-HK": "GIF 搜索暫不可用。",
+    "zh-TW": "GIF 搜尋暫不可用。"
+  },
+  "Generate QR code": {
+    "es": "Generar código QR",
+    "id": "Buat kode QR",
+    "ja": "QR コードを生成",
+    "ms": "Jana kod QR",
+    "ru": "Создать QR-код",
+    "zh-CN": "生成二维码",
+    "zh-HK": "產生二維碼",
+    "zh-TW": "產生 QR 碼"
+  },
+  "Gray": {
+    "es": "Gris",
+    "id": "Abu-abu",
+    "ja": "グレー",
+    "ms": "Kelabu",
+    "ru": "Серый",
+    "zh-CN": "灰色",
+    "zh-HK": "灰色",
+    "zh-TW": "灰色"
+  },
+  "Green": {
+    "es": "Verde",
+    "id": "Hijau",
+    "ja": "緑",
+    "ms": "Hijau",
+    "ru": "Зелёный",
+    "zh-CN": "绿色",
+    "zh-HK": "綠色",
+    "zh-TW": "綠色"
+  },
+  "Group": {
+    "es": "Grupo",
+    "id": "Grup",
+    "ja": "グループ",
+    "ms": "Kumpulan",
+    "ru": "Группа",
+    "zh-CN": "群组",
+    "zh-HK": "羣組",
+    "zh-TW": "群組"
+  },
+  "Group participants": {
+    "id": "Peserta grup",
+    "ms": "Peserta kumpulan"
+  },
+  "Groups": {
+    "id": "Grup",
+    "ms": "Kumpulan"
+  },
+  "Groups in common": {
+    "id": "Grup bersama",
+    "ms": "Kumpulan bersama"
+  },
+  "Help": {
+    "id": "Bantuan",
+    "ms": "Bantuan"
+  },
+  "Hi!": {
+    "es": "¡Hola!",
+    "id": "Hai!",
+    "ja": "こんにちは！",
+    "ms": "Hai!",
+    "ru": "Привет!",
+    "zh-CN": "你好！",
+    "zh-HK": "你好！",
+    "zh-TW": "你好！"
+  },
+  "Hide Mixin": {
+    "id": "Sembunyikan Mixin",
+    "ms": "Sembunyikan Mixin"
+  },
+  "History": {
+    "es": "Historial",
+    "id": "Riwayat",
+    "ja": "履歴",
+    "ms": "Sejarah",
+    "ru": "История",
+    "zh-CN": "聊天记录",
+    "zh-HK": "聊天記錄",
+    "zh-TW": "聊天記錄"
+  },
+  "Host": {
+    "es": "Servidor",
+    "id": "Host",
+    "ja": "ホスト",
+    "ms": "Hos",
+    "ru": "Сервер"
+  },
+  "Hours": {
+    "es": "Horas",
+    "id": "Jam",
+    "ja": "時間",
+    "ms": "Jam",
+    "ru": "Часы",
+    "zh-CN": "小时",
+    "zh-HK": "小時",
+    "zh-TW": "小時"
+  },
+  "How are you?": {
+    "es": "¿Cómo estás?",
+    "id": "Apa kabar?",
+    "ja": "お元気ですか？",
+    "ms": "Apa khabar?",
+    "ru": "Как дела?",
+    "zh-CN": "最近怎么样？",
+    "zh-HK": "最近怎麼樣？",
+    "zh-TW": "最近怎麼樣？"
+  },
+  "Image preview": {
+    "es": "Vista previa de imagen",
+    "id": "Pratinjau gambar",
+    "ja": "画像プレビュー",
+    "ms": "Pratonton imej",
+    "ru": "Предпросмотр изображения",
+    "zh-CN": "图片预览",
+    "zh-HK": "圖片預覽",
+    "zh-TW": "圖片預覽"
+  },
+  "Import sticker…": {
+    "es": "Importar sticker…",
+    "id": "Impor stiker…",
+    "ja": "ステッカーを読み込む…",
+    "ms": "Import pelekat…",
+    "ru": "Импортировать стикер…",
+    "zh-CN": "导入贴纸…",
+    "zh-HK": "導入貼紙…",
+    "zh-TW": "匯入貼紙…"
+  },
+  "Inscription": {
+    "es": "Inscripción",
+    "id": "Inskripsi",
+    "ja": "インスクリプション",
+    "ms": "Inskripsi",
+    "ru": "Инскрипция",
+    "zh-CN": "铭文",
+    "zh-HK": "銘文",
+    "zh-TW": "銘文"
+  },
+  "Inscription details are not available yet.": {
+    "es": "Los detalles de la inscripción aún no están disponibles.",
+    "id": "Detail inskripsi belum tersedia.",
+    "ja": "インスクリプションの詳細はまだ表示できません。",
+    "ms": "Butiran inskripsi belum tersedia.",
+    "ru": "Сведения об инскрипции пока недоступны.",
+    "zh-CN": "铭文详情暂不可用。",
+    "zh-HK": "銘文詳情暫不可用。",
+    "zh-TW": "銘文詳細資訊暫不可用。"
+  },
+  "Inscription hash": {
+    "es": "Hash de la inscripción",
+    "id": "Hash inskripsi",
+    "ja": "インスクリプションのハッシュ",
+    "ms": "Hash inskripsi",
+    "ru": "Хеш инскрипции",
+    "zh-CN": "铭文哈希",
+    "zh-HK": "銘文雜湊",
+    "zh-TW": "銘文雜湊"
+  },
+  "Invalid card": {
+    "es": "Tarjeta no válida",
+    "id": "Kartu tidak valid",
+    "ja": "無効なカード",
+    "ms": "Kad tidak sah",
+    "ru": "Некорректная карточка",
+    "zh-CN": "无法读取卡片",
+    "zh-HK": "無法讀取卡片",
+    "zh-TW": "無法讀取卡片"
+  },
+  "Invalid invitation": {
+    "es": "Invitación no válida",
+    "id": "Undangan tidak valid",
+    "ja": "無効な招待",
+    "ms": "Jemputan tidak sah",
+    "ru": "Недействительное приглашение",
+    "zh-CN": "无效邀请",
+    "zh-HK": "無效邀請",
+    "zh-TW": "無效邀請"
+  },
+  "Invalid location": {
+    "es": "Ubicación no válida",
+    "id": "Lokasi tidak valid",
+    "ja": "無効な位置情報",
+    "ms": "Lokasi tidak sah",
+    "ru": "Некорректное местоположение",
+    "zh-CN": "无法读取位置",
+    "zh-HK": "無法讀取位置",
+    "zh-TW": "無法讀取位置"
+  },
+  "Invitation is unavailable.": {
+    "es": "La invitación no está disponible.",
+    "id": "Undangan tidak tersedia.",
+    "ja": "招待を利用できません。",
+    "ms": "Jemputan tidak tersedia.",
+    "ru": "Приглашение недоступно.",
+    "zh-CN": "邀请链接暂不可用。",
+    "zh-HK": "邀請鏈接暫不可用。",
+    "zh-TW": "邀請連結暫不可用。"
+  },
+  "Invite to group": {
+    "es": "Invitar al grupo",
+    "id": "Undang ke grup",
+    "ja": "グループに招待",
+    "ms": "Jemput ke kumpulan",
+    "ru": "Пригласить в группу",
+    "zh-CN": "邀请加入群组",
+    "zh-HK": "邀請加入羣組",
+    "zh-TW": "邀請加入群組"
+  },
+  "Invite to group…": {
+    "es": "Invitar al grupo…",
+    "id": "Undang ke grup…",
+    "ja": "グループに招待…",
+    "ms": "Jemput ke kumpulan…",
+    "ru": "Пригласить в группу…",
+    "zh-CN": "邀请加入群组…",
+    "zh-HK": "邀請加入羣組…",
+    "zh-TW": "邀請加入群組…"
+  },
+  "Join group": {
+    "es": "Unirse al grupo",
+    "id": "Gabung ke grup",
+    "ja": "グループに参加",
+    "ms": "Sertai kumpulan",
+    "ru": "Вступить в группу",
+    "zh-CN": "加入群组",
+    "zh-HK": "加入羣組",
+    "zh-TW": "加入群組"
+  },
+  "Joined {date}": {
+    "es": "Se unió el {date}",
+    "id": "Bergabung pada {date}",
+    "ja": "{date}に参加",
+    "ms": "Menyertai pada {date}",
+    "ru": "Дата регистрации: {date}",
+    "zh-CN": "加入时间：{date}",
+    "zh-HK": "加入時間：{date}",
+    "zh-TW": "加入時間：{date}"
+  },
+  "Keep both devices connected until the transfer finishes.": {
+    "es": "Mantén ambos dispositivos conectados hasta que termine la transferencia.",
+    "id": "Biarkan kedua perangkat tetap terhubung hingga transfer selesai.",
+    "ja": "転送が完了するまで両方のデバイスを接続したままにしてください。",
+    "ms": "Pastikan kedua-dua peranti kekal bersambung sehingga pemindahan selesai.",
+    "ru": "Не отключайте оба устройства до завершения переноса.",
+    "zh-CN": "同步完成前请保持两台设备联网。",
+    "zh-HK": "同步完成前請保持兩台設備聯網。",
+    "zh-TW": "同步完成前請保持兩臺裝置聯網。"
+  },
+  "Keep both devices on the same network and open Mixin on your phone. Confirm the transfer on the other device.": {
+    "es": "Conecta ambos dispositivos a la misma red y abre Mixin en tu teléfono. Confirma la transferencia en el otro dispositivo.",
+    "id": "Hubungkan kedua perangkat ke jaringan yang sama dan buka Mixin di ponsel Anda. Konfirmasi transfer di perangkat lain.",
+    "ja": "両方のデバイスを同じネットワークに接続し、スマートフォンで Mixin を開いてください。もう一方のデバイスで転送を承認してください。",
+    "ms": "Sambungkan kedua-dua peranti ke rangkaian yang sama dan buka Mixin pada telefon anda. Sahkan pemindahan pada peranti lain.",
+    "ru": "Подключите оба устройства к одной сети и откройте Mixin на телефоне. Подтвердите перенос на другом устройстве.",
+    "zh-CN": "请将两台设备连接到同一网络，并打开手机上的 Mixin。在另一台设备上确认同步请求。",
+    "zh-HK": "請將兩台設備連接到同一網絡，並打開手機上的 Mixin。在另一台設備上確認同步請求。",
+    "zh-TW": "請將兩臺裝置連線到同一網路，並開啟手機上的 Mixin。在另一臺裝置上確認同步請求。"
+  },
+  "Language": {
+    "es": "Idioma",
+    "id": "Bahasa",
+    "ja": "言語",
+    "ms": "Bahasa",
+    "ru": "Язык",
+    "zh-CN": "语言",
+    "zh-HK": "語言",
+    "zh-TW": "語言"
+  },
+  "Learn more": {
+    "es": "Obtener más información",
+    "id": "Pelajari Selengkapnya",
+    "ja": "こちら",
+    "ms": "Ketahui Lebih Lanjut",
+    "ru": "Узнать больше",
+    "zh-CN": "了解更多",
+    "zh-HK": "瞭解更多",
+    "zh-TW": "瞭解更多"
+  },
+  "Light": {
+    "id": "Terang",
+    "ms": "Cerah"
+  },
+  "Loading GIFs…": {
+    "es": "Cargando GIF…",
+    "id": "Memuat GIF…",
+    "ja": "GIF を読み込み中…",
+    "ms": "Memuatkan GIF…",
+    "ru": "Загрузка GIF…",
+    "zh-CN": "正在加载 GIF…",
+    "zh-HK": "正在加載 GIF…",
+    "zh-TW": "正在載入 GIF…"
+  },
+  "Loading content…": {
+    "es": "Cargando contenido…",
+    "id": "Memuat konten…",
+    "ja": "コンテンツを読み込み中…",
+    "ms": "Memuatkan kandungan…",
+    "ru": "Загрузка содержимого…",
+    "zh-CN": "正在加载内容…",
+    "zh-HK": "正在載入內容…",
+    "zh-TW": "正在載入內容…"
+  },
+  "Loading conversations…": {
+    "es": "Cargando conversaciones…",
+    "id": "Memuat percakapan…",
+    "ja": "会話を読み込み中…",
+    "ms": "Memuatkan perbualan…",
+    "ru": "Загрузка чатов…",
+    "zh-CN": "正在加载会话…",
+    "zh-HK": "正在加載會話…",
+    "zh-TW": "正在載入會話…"
+  },
+  "Loading members…": {
+    "es": "Cargando miembros…",
+    "id": "Memuat anggota…",
+    "ja": "メンバーを読み込み中…",
+    "ms": "Memuatkan ahli…",
+    "ru": "Загрузка участников…",
+    "zh-CN": "正在加载群成员…",
+    "zh-HK": "正在加載羣成員…",
+    "zh-TW": "正在載入群成員…"
+  },
+  "Loading messages…": {
+    "es": "Cargando mensajes…",
+    "id": "Memuat pesan…",
+    "ja": "メッセージを読み込み中…",
+    "ms": "Memuatkan mesej…",
+    "ru": "Загрузка сообщений…",
+    "zh-CN": "正在加载消息…",
+    "zh-HK": "正在加載消息…",
+    "zh-TW": "正在載入訊息…"
+  },
+  "Loading proxies…": {
+    "es": "Cargando proxies…",
+    "id": "Memuat proxy…",
+    "ja": "プロキシを読み込み中…",
+    "ms": "Memuatkan proksi…",
+    "ru": "Загрузка прокси…",
+    "zh-CN": "正在加载代理…",
+    "zh-HK": "正在加載代理…",
+    "zh-TW": "正在載入代理…"
+  },
+  "Loading recipient…": {
+    "es": "Cargando destinatario…",
+    "id": "Memuat penerima…",
+    "ja": "送信先を読み込み中…",
+    "ms": "Memuatkan penerima…",
+    "ru": "Загрузка получателя…",
+    "zh-CN": "正在加载接收方…",
+    "zh-HK": "正在加載接收方…",
+    "zh-TW": "正在載入接收方…"
+  },
+  "Loading senders…": {
+    "es": "Cargando remitentes…",
+    "id": "Memuat pengirim…",
+    "ja": "送信者を読み込み中…",
+    "ms": "Memuatkan pengirim…",
+    "ru": "Загрузка отправителей…",
+    "zh-CN": "正在加载发送者…",
+    "zh-HK": "正在載入發送者…",
+    "zh-TW": "正在載入傳送者…"
+  },
+  "Loading stickers…": {
+    "es": "Cargando stickers…",
+    "id": "Memuat stiker…",
+    "ja": "ステッカーを読み込み中…",
+    "ms": "Memuatkan pelekat…",
+    "ru": "Загрузка стикеров…",
+    "zh-CN": "正在加载贴纸…",
+    "zh-HK": "正在加載貼紙…",
+    "zh-TW": "正在載入貼紙…"
+  },
+  "Loading transfer…": {
+    "es": "Cargando transferencia…",
+    "id": "Memuat transfer…",
+    "ja": "送金を読み込み中…",
+    "ms": "Memuatkan pemindahan…",
+    "ru": "Загрузка перевода…",
+    "zh-CN": "正在加载转账…",
+    "zh-HK": "正在加載轉賬…",
+    "zh-TW": "正在載入轉賬…"
+  },
+  "Loading...": {
+    "id": "Memuat...",
+    "ms": "Memuatkan..."
+  },
+  "Loading…": {
+    "id": "Memuat…",
+    "ms": "Memuatkan…"
+  },
+  "Locate in chat": {
+    "id": "Temukan dalam obrolan",
+    "ms": "Cari dalam sembang"
+  },
+  "Lock": {
+    "es": "Bloquear",
+    "id": "Kunci",
+    "ja": "ロック",
+    "ms": "Kunci",
+    "ru": "Заблокировать"
+  },
+  "Lock after Mixin loses focus. Returning before the timeout cancels the lock.": {
+    "es": "Bloquear cuando Mixin pierda el foco. Si vuelves antes del tiempo límite, se cancela el bloqueo.",
+    "id": "Kunci setelah Mixin tidak lagi aktif. Kembali sebelum batas waktu membatalkan penguncian.",
+    "ja": "Mixin からフォーカスが外れるとロックの待機を開始します。時間内に戻るとロックを取り消します。",
+    "ms": "Kunci selepas Mixin kehilangan fokus. Kembali sebelum tamat masa membatalkan kunci.",
+    "ru": "Блокировать, когда Mixin теряет фокус. Возврат до истечения времени отменяет блокировку.",
+    "zh-CN": "Mixin 失去焦点后开始计时。在到期前返回应用，可取消自动锁屏。",
+    "zh-HK": "Mixin 失去焦點後開始計時。在到期前返回應用，可取消自動鎖屏。",
+    "zh-TW": "Mixin 失去焦點後開始計時。在到期前返回應用，可取消自動鎖屏。"
+  },
+  "Lock now": {
+    "es": "Bloquear ahora",
+    "id": "Kunci sekarang",
+    "ja": "今すぐロック",
+    "ms": "Kunci sekarang",
+    "ru": "Заблокировать сейчас",
+    "zh-CN": "立即锁屏",
+    "zh-HK": "立即鎖屏",
+    "zh-TW": "立即鎖屏"
+  },
+  "Locking Mixin…": {
+    "es": "Bloqueando Mixin…",
+    "id": "Mengunci Mixin…",
+    "ja": "Mixin をロック中…",
+    "ms": "Mengunci Mixin…",
+    "ru": "Блокировка Mixin…",
+    "zh-CN": "正在锁定 Mixin…",
+    "zh-HK": "正在鎖定 Mixin…",
+    "zh-TW": "正在鎖定 Mixin…"
+  },
+  "Message": {
+    "es": "Mensaje",
+    "id": "Pesan",
+    "ja": "メッセージ",
+    "ms": "Mesej",
+    "ru": "Сообщение",
+    "zh-CN": "消息",
+    "zh-HK": "消息",
+    "zh-TW": "訊息"
+  },
+  "Message preview": {
+    "id": "Pratinjau pesan",
+    "ja": "メッセージのプレビュー",
+    "ms": "Pratonton mesej"
+  },
+  "Messages": {
+    "id": "Pesan",
+    "ms": "Mesej"
+  },
+  "Messages from this user will be blocked.": {
+    "es": "Se bloquearán los mensajes de este usuario.",
+    "id": "Pesan dari pengguna ini akan diblokir.",
+    "ja": "このユーザーからのメッセージがブロックされます。",
+    "ms": "Mesej daripada pengguna ini akan disekat.",
+    "ru": "Сообщения этого пользователя будут заблокированы.",
+    "zh-CN": "将不再接收此用户的消息。",
+    "zh-HK": "將不再接收此用户的消息。",
+    "zh-TW": "將不再接收此使用者的訊息。"
+  },
+  "Messages in this chat will be removed from this device.": {
+    "es": "Los mensajes de este chat se eliminarán de este dispositivo.",
+    "id": "Pesan di obrolan ini akan dihapus dari perangkat ini.",
+    "ja": "このチャットのメッセージがこのデバイスから削除されます。",
+    "ms": "Mesej dalam sembang ini akan dibuang daripada peranti ini.",
+    "ru": "Сообщения чата будут удалены с этого устройства.",
+    "zh-CN": "将从此设备移除这段聊天的消息。",
+    "zh-HK": "將從此設備移除這段聊天的消息。",
+    "zh-TW": "將從此裝置移除這段聊天的訊息。"
+  },
+  "Messages in this conversation are end-to-end encrypted.": {
+    "es": "Los mensajes de esta conversación están cifrados de extremo a extremo.",
+    "id": "Pesan dalam percakapan ini dienkripsi secara menyeluruh.",
+    "ja": "この会話のメッセージはエンドツーエンドで暗号化されています。",
+    "ms": "Mesej dalam perbualan ini disulitkan hujung ke hujung.",
+    "ru": "Сообщения в этом чате защищены сквозным шифрованием.",
+    "zh-CN": "此对话中的消息使用端对端加密。",
+    "zh-HK": "此對話中的消息使用端對端加密。",
+    "zh-TW": "此對話中的訊息使用端對端加密。"
+  },
+  "Minutes": {
+    "es": "Minutos",
+    "id": "Menit",
+    "ja": "分",
+    "ms": "Minit",
+    "ru": "Минуты",
+    "zh-CN": "分钟",
+    "zh-HK": "分鐘",
+    "zh-TW": "分鐘"
+  },
+  "Mixin ID or phone number": {
+    "id": "Mixin ID atau nomor telepon",
+    "ms": "Mixin ID atau nombor telefon"
+  },
+  "More": {
+    "es": "Más",
+    "id": "Lainnya",
+    "ja": "その他",
+    "ms": "Lagi",
+    "ru": "Ещё",
+    "zh-CN": "更多",
+    "zh-HK": "更多",
+    "zh-TW": "更多"
+  },
+  "Move down": {
+    "es": "Mover abajo",
+    "id": "Pindah ke bawah",
+    "ja": "下へ移動",
+    "ms": "Alih ke bawah",
+    "ru": "Переместить вниз",
+    "zh-CN": "下移",
+    "zh-HK": "下移",
+    "zh-TW": "下移"
+  },
+  "Move up": {
+    "es": "Mover arriba",
+    "id": "Pindah ke atas",
+    "ja": "上へ移動",
+    "ms": "Alih ke atas",
+    "ru": "Переместить вверх",
+    "zh-CN": "上移",
+    "zh-HK": "上移",
+    "zh-TW": "上移"
+  },
+  "Mute": {
+    "id": "Bisukan",
+    "ja": "ミュート",
+    "ms": "Senyapkan"
+  },
+  "Mute notifications": {
+    "es": "Silenciar notificaciones",
+    "id": "Bisukan notifikasi",
+    "ja": "通知をミュート",
+    "ms": "Senyapkan pemberitahuan",
+    "ru": "Отключить уведомления",
+    "zh-CN": "通知静音",
+    "zh-HK": "通知靜音",
+    "zh-TW": "通知靜音"
+  },
+  "Muted": {
+    "es": "Silenciado",
+    "id": "Dibisukan",
+    "ja": "ミュート中",
+    "ms": "Disenyapkan",
+    "ru": "Уведомления отключены",
+    "zh-CN": "已静音",
+    "zh-HK": "已靜音",
+    "zh-TW": "已靜音"
+  },
+  "Mute…": {
+    "id": "Bisukan…",
+    "ja": "ミュート…",
+    "ms": "Senyapkan…"
+  },
+  "New circle": {
+    "id": "Lingkaran baru",
+    "ms": "Bulatan baharu"
+  },
+  "New circle name": {
+    "es": "Nuevo nombre del círculo",
+    "id": "Nama lingkaran baru",
+    "ja": "新しいサークル名",
+    "ms": "Nama bulatan baharu",
+    "ru": "Новое название круга",
+    "zh-CN": "新圈子名称",
+    "zh-HK": "新圈子名稱",
+    "zh-TW": "新圈子名稱"
+  },
+  "New circle…": {
+    "id": "Lingkaran baru…",
+    "ms": "Bulatan baharu…"
+  },
+  "New conversation…": {
+    "id": "Percakapan baru…",
+    "ms": "Perbualan baharu…"
+  },
+  "New group…": {
+    "id": "Grup baru…",
+    "ms": "Kumpulan baharu…"
+  },
+  "New messages disappear after the selected time.": {
+    "es": "Los mensajes nuevos desaparecerán después del tiempo elegido.",
+    "id": "Pesan baru menghilang setelah waktu yang dipilih.",
+    "ja": "新しいメッセージは選択した時間が経過すると消えます。",
+    "ms": "Mesej baharu hilang selepas masa yang dipilih.",
+    "ru": "Новые сообщения исчезнут через выбранное время.",
+    "zh-CN": "新消息将在所选时间后自动消失。",
+    "zh-HK": "新消息將在所選時間後自動消失。",
+    "zh-TW": "新訊息將在所選時間後自動消失。"
+  },
+  "Next conversation": {
+    "id": "Percakapan berikutnya",
+    "ms": "Perbualan seterusnya"
+  },
+  "Next page": {
+    "es": "Página siguiente",
+    "id": "Halaman berikutnya",
+    "ja": "次のページ",
+    "ms": "Halaman seterusnya",
+    "ru": "Следующая страница",
+    "zh-CN": "下一页",
+    "zh-HK": "下一頁",
+    "zh-TW": "下一頁"
+  },
+  "Next unread mention": {
+    "es": "Siguiente mención no leída",
+    "id": "Sebutan belum dibaca berikutnya",
+    "ja": "次の未読メンション",
+    "ms": "Sebutan belum dibaca seterusnya",
+    "ru": "Следующее непрочитанное упоминание",
+    "zh-CN": "下一条未读提及",
+    "zh-HK": "下一條未讀提及",
+    "zh-TW": "下一條未讀提及"
+  },
+  "No app permission prompt is required on this system.": {
+    "es": "Este sistema no requiere solicitar permiso de notificaciones para la aplicación.",
+    "id": "Sistem ini tidak memerlukan permintaan izin notifikasi untuk aplikasi.",
+    "ja": "このシステムでは、アプリごとの通知許可は必要ありません。",
+    "ms": "Sistem ini tidak memerlukan permintaan kebenaran pemberitahuan untuk aplikasi.",
+    "ru": "В этой системе не требуется отдельный запрос разрешения на уведомления приложения.",
+    "zh-CN": "此系统无需单独授权应用通知。",
+    "zh-HK": "此系統無需單獨授權應用程式通知。",
+    "zh-TW": "此系統無需個別授權應用程式通知。"
+  },
+  "No available contacts": {
+    "es": "No hay contactos disponibles",
+    "id": "Tidak ada kontak tersedia",
+    "ja": "追加できる連絡先がありません",
+    "ms": "Tiada kenalan tersedia",
+    "ru": "Нет доступных контактов",
+    "zh-CN": "没有可添加的联系人",
+    "zh-HK": "沒有可添加的聯繫人",
+    "zh-TW": "沒有可新增的聯絡人"
+  },
+  "No chats found": {
+    "es": "No se encontraron chats",
+    "id": "Obrolan tidak ditemukan",
+    "ja": "チャットが見つかりません",
+    "ms": "Tiada sembang ditemui",
+    "ru": "Чаты не найдены",
+    "zh-CN": "没有找到聊天",
+    "zh-HK": "沒有找到聊天",
+    "zh-TW": "沒有找到聊天"
+  },
+  "No contacts found": {
+    "es": "No se encontraron contactos",
+    "id": "Kontak tidak ditemukan",
+    "ja": "連絡先が見つかりません",
+    "ms": "Tiada kenalan ditemui",
+    "ru": "Контакты не найдены",
+    "zh-CN": "没有找到联系人",
+    "zh-HK": "沒有找到聯繫人",
+    "zh-TW": "沒有找到聯絡人"
+  },
+  "No conversations found": {
+    "es": "No se encontraron conversaciones",
+    "id": "Percakapan tidak ditemukan",
+    "ja": "会話が見つかりません",
+    "ms": "Tiada perbualan ditemui",
+    "ru": "Чаты не найдены",
+    "zh-CN": "未找到会话",
+    "zh-HK": "未找到會話",
+    "zh-TW": "未找到會話"
+  },
+  "No conversations yet": {
+    "es": "Aún no hay conversaciones",
+    "id": "Belum ada percakapan",
+    "ja": "会話はまだありません",
+    "ms": "Belum ada perbualan",
+    "ru": "Чатов пока нет",
+    "zh-CN": "暂无会话",
+    "zh-HK": "暫無會話",
+    "zh-TW": "暫無會話"
+  },
+  "No files": {
+    "es": "No hay archivos",
+    "id": "Tidak ada berkas",
+    "ja": "ファイルはありません",
+    "ms": "Tiada fail",
+    "ru": "Нет файлов",
+    "zh-CN": "暂无文件",
+    "zh-HK": "暫無檔案",
+    "zh-TW": "尚無檔案"
+  },
+  "No groups in common": {
+    "es": "No hay grupos en común",
+    "id": "Tidak ada grup bersama",
+    "ja": "共通のグループがありません",
+    "ms": "Tiada kumpulan bersama",
+    "ru": "Нет общих групп",
+    "zh-CN": "没有共同群组",
+    "zh-HK": "沒有共同羣組",
+    "zh-TW": "沒有共同群組"
+  },
+  "No messages found": {
+    "es": "No se encontraron mensajes",
+    "id": "Pesan tidak ditemukan",
+    "ja": "メッセージが見つかりません",
+    "ms": "Tiada mesej ditemui",
+    "ru": "Сообщения не найдены",
+    "zh-CN": "未找到消息",
+    "zh-HK": "未找到消息",
+    "zh-TW": "未找到訊息"
+  },
+  "No participants found": {
+    "es": "No se encontraron participantes",
+    "id": "Peserta tidak ditemukan",
+    "ja": "参加者が見つかりません",
+    "ms": "Tiada peserta ditemui",
+    "ru": "Участники не найдены",
+    "zh-CN": "未找到群成员",
+    "zh-HK": "未找到羣成員",
+    "zh-TW": "未找到群成員"
+  },
+  "No posts": {
+    "es": "No hay publicaciones",
+    "id": "Tidak ada postingan",
+    "ja": "投稿はありません",
+    "ms": "Tiada siaran",
+    "ru": "Нет публикаций",
+    "zh-CN": "暂无文章",
+    "zh-HK": "暫無文章",
+    "zh-TW": "尚無文章"
+  },
+  "No recipients found": {
+    "es": "No se encontraron destinatarios",
+    "id": "Penerima tidak ditemukan",
+    "ja": "送信先が見つかりません",
+    "ms": "Tiada penerima ditemui",
+    "ru": "Получатели не найдены",
+    "zh-CN": "没有找到接收方",
+    "zh-HK": "沒有找到接收方",
+    "zh-TW": "沒有找到接收方"
+  },
+  "No senders found": {
+    "es": "No se encontraron remitentes",
+    "id": "Pengirim tidak ditemukan",
+    "ja": "送信者が見つかりません",
+    "ms": "Tiada pengirim ditemui",
+    "ru": "Отправители не найдены",
+    "zh-CN": "未找到发送者",
+    "zh-HK": "未找到發送者",
+    "zh-TW": "未找到傳送者"
+  },
+  "No shared apps": {
+    "es": "No hay aplicaciones compartidas",
+    "id": "Tidak ada aplikasi bersama",
+    "ja": "共有アプリがありません",
+    "ms": "Tiada aplikasi dikongsi",
+    "ru": "Нет общих приложений",
+    "zh-CN": "暂无共享应用",
+    "zh-HK": "暫無共享應用",
+    "zh-TW": "暫無共享應用"
+  },
+  "No shared media": {
+    "es": "No hay archivos multimedia compartidos",
+    "id": "Tidak ada media bersama",
+    "ja": "共有メディアがありません",
+    "ms": "Tiada media dikongsi",
+    "ru": "Нет общих медиа",
+    "zh-CN": "暂无共享媒体",
+    "zh-HK": "暫無共享媒體",
+    "zh-TW": "暫無共享媒體"
+  },
+  "No stickers yet": {
+    "es": "Aún no hay stickers",
+    "id": "Belum ada stiker",
+    "ja": "ステッカーはまだありません",
+    "ms": "Belum ada pelekat",
+    "ru": "Стикеров пока нет",
+    "zh-CN": "暂无贴纸",
+    "zh-HK": "暫無貼紙",
+    "zh-TW": "暫無貼紙"
+  },
+  "No stored media": {
+    "es": "No hay archivos multimedia guardados",
+    "id": "Tidak ada media tersimpan",
+    "ja": "保存済みメディアがありません",
+    "ms": "Tiada media tersimpan",
+    "ru": "Нет сохранённых медиа",
+    "zh-CN": "暂无媒体缓存",
+    "zh-HK": "暫無媒體緩存",
+    "zh-TW": "暫無媒體快取"
+  },
+  "Not added": {
+    "es": "No añadido",
+    "id": "Belum ditambahkan",
+    "ja": "未追加",
+    "ms": "Belum ditambah",
+    "ru": "Не добавлено",
+    "zh-CN": "未添加",
+    "zh-HK": "未添加",
+    "zh-TW": "未新增"
+  },
+  "Notifications are available when you launch the packaged Mixin app.": {
+    "es": "Las notificaciones están disponibles al abrir la aplicación Mixin empaquetada.",
+    "id": "Notifikasi tersedia saat Anda membuka aplikasi Mixin yang telah dipaketkan.",
+    "ja": "パッケージ化された Mixin アプリを起動すると通知を利用できます。",
+    "ms": "Pemberitahuan tersedia apabila anda melancarkan aplikasi Mixin berpakej.",
+    "ru": "Уведомления доступны при запуске упакованного приложения Mixin.",
+    "zh-CN": "请通过打包后的 Mixin 应用使用系统通知。",
+    "zh-HK": "請通過打包後的 Mixin 應用使用系統通知。",
+    "zh-TW": "請透過打包後的 Mixin 應用使用系統通知。"
+  },
+  "Notifications are disabled in system settings": {
+    "es": "Las notificaciones están desactivadas en los ajustes del sistema",
+    "id": "Notifikasi dinonaktifkan di pengaturan sistem",
+    "ja": "システム設定で通知が無効になっています",
+    "ms": "Pemberitahuan dilumpuhkan dalam tetapan sistem",
+    "ru": "Уведомления отключены в настройках системы",
+    "zh-CN": "系统设置中已关闭通知",
+    "zh-HK": "系統設置中已關閉通知",
+    "zh-TW": "系統設定中已關閉通知"
+  },
+  "Notifications are enabled": {
+    "es": "Las notificaciones están activadas",
+    "id": "Notifikasi diaktifkan",
+    "ja": "通知は有効です",
+    "ms": "Pemberitahuan didayakan",
+    "ru": "Уведомления включены",
+    "zh-CN": "已允许通知",
+    "zh-HK": "已允許通知",
+    "zh-TW": "已允許通知"
+  },
+  "Notifications are not available on this platform yet.": {
+    "es": "Las notificaciones aún no están disponibles en esta plataforma.",
+    "id": "Notifikasi belum tersedia di platform ini.",
+    "ja": "このプラットフォームでは通知をまだ利用できません。",
+    "ms": "Pemberitahuan belum tersedia pada platform ini.",
+    "ru": "Уведомления пока недоступны на этой платформе.",
+    "zh-CN": "此平台暂不支持系统通知。",
+    "zh-HK": "此平台暫不支持系統通知。",
+    "zh-TW": "此平臺暫不支援系統通知。"
+  },
+  "OK": {
+    "es": "Aceptar",
+    "id": "OK",
+    "ja": "OK",
+    "ms": "OK",
+    "ru": "ОК",
+    "zh-CN": "好",
+    "zh-HK": "好",
+    "zh-TW": "好"
+  },
+  "Off": {
+    "es": "Desactivado",
+    "id": "Nonaktif",
+    "ja": "オフ",
+    "ms": "Mati",
+    "ru": "Выкл.",
+    "zh-CN": "关闭",
+    "zh-HK": "關閉",
+    "zh-TW": "關閉"
+  },
+  "Open": {
+    "es": "Abrir",
+    "id": "Buka",
+    "ja": "開く",
+    "ms": "Buka",
+    "ru": "Открыть"
+  },
+  "Open Mixin on your phone.": {
+    "id": "Buka Mixin di ponsel Anda.",
+    "ms": "Buka Mixin pada telefon anda.",
+    "ru": "Откройте Mixin на телефоне."
+  },
+  "Open another app?": {
+    "es": "¿Abrir otra aplicación?",
+    "id": "Buka aplikasi lain?",
+    "ja": "別のアプリを開きますか？",
+    "ms": "Buka aplikasi lain?",
+    "ru": "Открыть другое приложение?",
+    "zh-CN": "打开其他应用？",
+    "zh-HK": "打開其他應用？",
+    "zh-TW": "開啟其他應用？"
+  },
+  "Open app": {
+    "es": "Abrir aplicación",
+    "id": "Buka aplikasi",
+    "ja": "アプリを開く",
+    "ms": "Buka aplikasi",
+    "ru": "Открыть приложение",
+    "zh-CN": "打开应用",
+    "zh-HK": "打開應用",
+    "zh-TW": "開啟應用"
+  },
+  "Open chat": {
+    "es": "Abrir chat",
+    "id": "Buka obrolan",
+    "ja": "チャットを開く",
+    "ms": "Buka sembang",
+    "ru": "Открыть чат",
+    "zh-CN": "打开聊天",
+    "zh-HK": "打開聊天",
+    "zh-TW": "開啟聊天"
+  },
+  "Open content": {
+    "es": "Abrir contenido",
+    "id": "Buka konten",
+    "ja": "コンテンツを開く",
+    "ms": "Buka kandungan",
+    "ru": "Открыть содержимое",
+    "zh-CN": "打开内容",
+    "zh-HK": "開啟內容",
+    "zh-TW": "開啟內容"
+  },
+  "Open home page": {
+    "es": "Abrir página de inicio",
+    "id": "Buka halaman utama",
+    "ja": "ホームページを開く",
+    "ms": "Buka halaman utama",
+    "ru": "Открыть главную страницу",
+    "zh-CN": "打开主页",
+    "zh-HK": "開啟主頁",
+    "zh-TW": "開啟首頁"
+  },
+  "Open in browser": {
+    "es": "Abrir en el navegador",
+    "id": "Buka di peramban",
+    "ja": "ブラウザーで開く",
+    "ms": "Buka dalam pelayar",
+    "ru": "Открыть в браузере",
+    "zh-HK": "在瀏覽器中打開",
+    "zh-TW": "在瀏覽器中開啟"
+  },
+  "Open link": {
+    "es": "Abrir enlace",
+    "id": "Buka tautan",
+    "ja": "リンクを開く",
+    "ms": "Buka pautan",
+    "ru": "Открыть ссылку",
+    "zh-CN": "打开链接",
+    "zh-HK": "打開鏈接",
+    "zh-TW": "開啟連結"
+  },
+  "Open log directory": {
+    "id": "Buka direktori log",
+    "ms": "Buka direktori log"
+  },
+  "Open navigation": {
+    "es": "Abrir navegación",
+    "id": "Buka navigasi",
+    "ja": "ナビゲーションを開く",
+    "ms": "Buka navigasi",
+    "ru": "Открыть навигацию",
+    "zh-CN": "打开导航",
+    "zh-HK": "開啟導覽",
+    "zh-TW": "開啟導覽"
+  },
+  "Open notification settings": {
+    "es": "Abrir ajustes de notificaciones",
+    "id": "Buka pengaturan notifikasi",
+    "ja": "通知設定を開く",
+    "ms": "Buka tetapan pemberitahuan",
+    "ru": "Открыть настройки уведомлений",
+    "zh-CN": "打开系统通知设置",
+    "zh-HK": "打開系統通知設置",
+    "zh-TW": "開啟系統通知設定"
+  },
+  "Open profile": {
+    "es": "Abrir perfil",
+    "id": "Buka profil",
+    "ja": "プロフィールを開く",
+    "ms": "Buka profil",
+    "ru": "Открыть профиль",
+    "zh-CN": "打开个人资料",
+    "zh-HK": "打開個人資料",
+    "zh-TW": "開啟個人資料"
+  },
+  "Open this bot on your phone.": {
+    "es": "Abre este bot en tu teléfono.",
+    "id": "Buka bot ini di ponsel Anda.",
+    "ja": "スマートフォンでこのボットを開いてください。",
+    "ms": "Buka bot ini pada telefon anda.",
+    "ru": "Откройте бота на телефоне.",
+    "zh-CN": "请在手机端打开此机器人。",
+    "zh-HK": "請在手機端打開此機器人。",
+    "zh-TW": "請在手機端開啟此機器人。"
+  },
+  "Open this link in Mixin on your phone": {
+    "es": "Abre este enlace en Mixin en tu teléfono",
+    "id": "Buka tautan ini di Mixin pada ponsel Anda",
+    "ja": "スマートフォンの Mixin でこのリンクを開いてください",
+    "ms": "Buka pautan ini dalam Mixin pada telefon anda",
+    "ru": "Откройте ссылку в Mixin на телефоне",
+    "zh-CN": "请在手机 Mixin 中打开此链接",
+    "zh-HK": "請在手機 Mixin 中打開此鏈接",
+    "zh-TW": "請在手機 Mixin 中開啟此連結"
+  },
+  "Open with default app": {
+    "es": "Abrir con la aplicación predeterminada",
+    "id": "Buka dengan aplikasi bawaan",
+    "ja": "既定のアプリで開く",
+    "ms": "Buka dengan aplikasi lalai",
+    "ru": "Открыть в приложении по умолчанию",
+    "zh-CN": "使用默认应用打开",
+    "zh-HK": "使用預設應用程式開啟",
+    "zh-TW": "使用預設應用程式開啟"
+  },
+  "Opening Mixin…": {
+    "es": "Abriendo Mixin…",
+    "id": "Membuka Mixin…",
+    "ja": "Mixin を開いています…",
+    "ms": "Membuka Mixin…",
+    "ru": "Открытие Mixin…",
+    "zh-CN": "正在打开 Mixin…",
+    "zh-HK": "正在打開 Mixin…",
+    "zh-TW": "正在開啟 Mixin…"
+  },
+  "Original image": {
+    "id": "Gambar asli",
+    "ms": "Imej asal"
+  },
+  "PNG, JPEG, GIF, WebP or BMP · up to 10 MB": {
+    "es": "PNG, JPEG, GIF, WebP o BMP · hasta 10 MB",
+    "id": "PNG, JPEG, GIF, WebP atau BMP · hingga 10 MB",
+    "ja": "PNG・JPEG・GIF・WebP・BMP · 最大10 MB",
+    "ms": "PNG, JPEG, GIF, WebP atau BMP · sehingga 10 MB",
+    "ru": "PNG, JPEG, GIF, WebP или BMP · до 10 МБ",
+    "zh-CN": "PNG、JPEG、GIF、WebP 或 BMP · 最大 10 MB",
+    "zh-HK": "PNG、JPEG、GIF、WebP 或 BMP · 最大 10 MB",
+    "zh-TW": "PNG、JPEG、GIF、WebP 或 BMP · 最大 10 MB"
+  },
+  "Participants": {
+    "id": "Peserta",
+    "ms": "Peserta"
+  },
+  "Password": {
+    "es": "Contraseña",
+    "id": "Kata sandi",
+    "ja": "パスワード",
+    "ms": "Kata laluan",
+    "ru": "Пароль"
+  },
+  "Password (optional)": {
+    "es": "Contraseña (opcional)",
+    "id": "Kata sandi (opsional)",
+    "ja": "パスワード（任意）",
+    "ms": "Kata laluan (pilihan)",
+    "ru": "Пароль (необязательно)",
+    "zh-CN": "密码（可选）",
+    "zh-HK": "密碼（可選）",
+    "zh-TW": "密碼（可選）"
+  },
+  "Pause": {
+    "es": "Pausar",
+    "id": "Jeda",
+    "ja": "一時停止",
+    "ms": "Jeda",
+    "ru": "Пауза",
+    "zh-CN": "暂停",
+    "zh-HK": "暫停",
+    "zh-TW": "暫停"
+  },
+  "Payment details": {
+    "es": "Detalles del pago",
+    "id": "Detail pembayaran",
+    "ja": "支払いの詳細",
+    "ms": "Butiran pembayaran",
+    "ru": "Детали платежа",
+    "zh-CN": "付款详情",
+    "zh-HK": "付款詳情",
+    "zh-TW": "付款詳情"
+  },
+  "Photo": {
+    "id": "Foto",
+    "ms": "Foto"
+  },
+  "Photo zoom": {
+    "es": "Zoom de la foto",
+    "id": "Zoom foto",
+    "ja": "写真の拡大率",
+    "ms": "Zum foto",
+    "ru": "Масштаб фото",
+    "zh-CN": "头像缩放",
+    "zh-HK": "頭像縮放",
+    "zh-TW": "頭像縮放"
+  },
+  "Photos and videos": {
+    "es": "Fotos y vídeos",
+    "id": "Foto dan video",
+    "ja": "写真と動画",
+    "ms": "Foto dan video",
+    "ru": "Фото и видео",
+    "zh-CN": "图片和视频",
+    "zh-HK": "圖片和影片",
+    "zh-TW": "圖片與影片"
+  },
+  "Pick a conversation": {
+    "id": "Pilih percakapan",
+    "ms": "Pilih perbualan"
+  },
+  "Pictures and videos…": {
+    "es": "Fotos y vídeos…",
+    "id": "Gambar dan video…",
+    "ja": "写真と動画…",
+    "ms": "Gambar dan video…",
+    "ru": "Фото и видео…"
+  },
+  "Pinned": {
+    "es": "Fijado",
+    "id": "Disematkan",
+    "ja": "ピン留め済み",
+    "ms": "Disematkan",
+    "ru": "Закреплено",
+    "zh-CN": "已置顶",
+    "zh-HK": "已置頂",
+    "zh-TW": "已置頂"
+  },
+  "Play": {
+    "es": "Reproducir",
+    "id": "Putar",
+    "ja": "再生",
+    "ms": "Main",
+    "ru": "Воспроизвести",
+    "zh-CN": "播放",
+    "zh-HK": "播放",
+    "zh-TW": "播放"
+  },
+  "Playback failed": {
+    "es": "Error de reproducción",
+    "id": "Pemutaran gagal",
+    "ja": "再生に失敗しました",
+    "ms": "Main balik gagal",
+    "ru": "Ошибка воспроизведения",
+    "zh-CN": "播放失败",
+    "zh-HK": "播放失敗",
+    "zh-TW": "播放失敗"
+  },
+  "Playback speed": {
+    "es": "Velocidad de reproducción",
+    "id": "Kecepatan pemutaran",
+    "ja": "再生速度",
+    "ms": "Kelajuan main balik",
+    "ru": "Скорость воспроизведения",
+    "zh-CN": "播放速度",
+    "zh-HK": "播放速度",
+    "zh-TW": "播放速度"
+  },
+  "Port": {
+    "es": "Puerto",
+    "id": "Port",
+    "ja": "ポート",
+    "ms": "Port",
+    "ru": "Порт"
+  },
+  "Post": {
+    "es": "Publicación",
+    "id": "Kiriman",
+    "ja": "記事",
+    "ms": "Siaran",
+    "ru": "Публикация",
+    "zh-CN": "长文",
+    "zh-HK": "長文",
+    "zh-TW": "長文"
+  },
+  "Premium member": {
+    "es": "Miembro prémium",
+    "id": "Anggota premium",
+    "ja": "プレミアムメンバー",
+    "ms": "Ahli premium",
+    "ru": "Премиум-участник",
+    "zh-CN": "高级会员",
+    "zh-HK": "高級會員",
+    "zh-TW": "高階會員"
+  },
+  "Preparing files…": {
+    "es": "Preparando archivos…",
+    "id": "Menyiapkan berkas…",
+    "ja": "ファイルを準備中…",
+    "ms": "Menyediakan fail…",
+    "ru": "Подготовка файлов…",
+    "zh-CN": "正在准备文件…",
+    "zh-HK": "正在準備文件…",
+    "zh-TW": "正在準備檔案…"
+  },
+  "Preparing image…": {
+    "es": "Preparando imagen…",
+    "id": "Menyiapkan gambar…",
+    "ja": "画像を準備中…",
+    "ms": "Menyediakan imej…",
+    "ru": "Подготовка изображения…",
+    "zh-CN": "正在准备图片…",
+    "zh-HK": "正在準備圖片…",
+    "zh-TW": "正在準備圖片…"
+  },
+  "Preparing your code…": {
+    "es": "Preparando tu código…",
+    "id": "Menyiapkan kode Anda…",
+    "ja": "QR コードを準備中…",
+    "ms": "Menyediakan kod anda…",
+    "ru": "Подготовка кода…",
+    "zh-CN": "正在生成二维码…",
+    "zh-HK": "正在生成二維碼…",
+    "zh-TW": "正在生成QR Code…"
+  },
+  "Preparing…": {
+    "es": "Preparando…",
+    "id": "Menyiapkan…",
+    "ja": "準備中…",
+    "ms": "Menyediakan…",
+    "ru": "Подготовка…",
+    "zh-CN": "正在处理…",
+    "zh-HK": "正在處理…",
+    "zh-TW": "正在處理…"
+  },
+  "Previous": {
+    "es": "Anterior",
+    "id": "Sebelumnya",
+    "ja": "前へ",
+    "ms": "Sebelumnya",
+    "ru": "Назад",
+    "zh-CN": "上一页",
+    "zh-HK": "上一頁",
+    "zh-TW": "上一頁"
+  },
+  "Previous conversation": {
+    "id": "Percakapan sebelumnya",
+    "ms": "Perbualan sebelumnya"
+  },
+  "Previous page": {
+    "es": "Página anterior",
+    "id": "Halaman sebelumnya",
+    "ja": "前のページ",
+    "ms": "Halaman sebelumnya",
+    "ru": "Предыдущая страница",
+    "zh-CN": "上一页",
+    "zh-HK": "上一頁",
+    "zh-TW": "上一頁"
+  },
+  "Previous results": {
+    "es": "Resultados anteriores",
+    "id": "Hasil sebelumnya",
+    "ja": "前の検索結果",
+    "ms": "Hasil sebelumnya",
+    "ru": "Предыдущие результаты",
+    "zh-CN": "上一页结果",
+    "zh-HK": "上一頁結果",
+    "zh-TW": "上一頁結果"
+  },
+  "Privacy and security": {
+    "es": "Privacidad y seguridad",
+    "id": "Privasi dan keamanan",
+    "ja": "プライバシーとセキュリティ",
+    "ms": "Privasi dan keselamatan",
+    "ru": "Конфиденциальность и безопасность",
+    "zh-CN": "隐私与安全",
+    "zh-HK": "隱私與安全",
+    "zh-TW": "隱私與安全"
+  },
+  "Profile": {
+    "es": "Perfil",
+    "id": "Profil",
+    "ja": "プロフィール",
+    "ms": "Profil",
+    "ru": "Профиль",
+    "zh-CN": "个人资料",
+    "zh-HK": "個人資料",
+    "zh-TW": "個人資料"
+  },
+  "Proxy": {
+    "es": "Proxy",
+    "id": "Proxy",
+    "ja": "プロキシ",
+    "ms": "Proksi",
+    "ru": "Прокси"
+  },
+  "Purple": {
+    "es": "Morado",
+    "id": "Ungu",
+    "ja": "紫",
+    "ms": "Ungu",
+    "ru": "Фиолетовый",
+    "zh-CN": "紫色",
+    "zh-HK": "紫色",
+    "zh-TW": "紫色"
+  },
+  "QR code": {
+    "es": "Código QR",
+    "id": "Kode QR",
+    "ja": "QR コード",
+    "ms": "Kod QR",
+    "ru": "QR-код",
+    "zh-CN": "二维码",
+    "zh-HK": "二維碼",
+    "zh-TW": "QR 碼"
+  },
+  "Quantity": {
+    "es": "Cantidad",
+    "id": "Jumlah",
+    "ja": "数量",
+    "ms": "Bilangan",
+    "ru": "Количество",
+    "zh-CN": "数量",
+    "zh-HK": "數量",
+    "zh-TW": "數量"
+  },
+  "Quick search": {
+    "id": "Pencarian cepat",
+    "ms": "Carian pantas"
+  },
+  "Quick search…": {
+    "id": "Pencarian cepat…",
+    "ms": "Carian pantas…"
+  },
+  "Quit Mixin": {
+    "id": "Keluar dari Mixin",
+    "ms": "Keluar Mixin"
+  },
+  "Re-edit": {
+    "es": "Volver a editar",
+    "id": "Edit ulang",
+    "ja": "再編集",
+    "ms": "Edit semula",
+    "ru": "Редактировать заново",
+    "zh-CN": "重新编辑",
+    "zh-HK": "重新編輯",
+    "zh-TW": "重新編輯"
+  },
+  "Read": {
+    "es": "Leído",
+    "id": "Dibaca",
+    "ja": "既読",
+    "ms": "Dibaca",
+    "ru": "Прочитано",
+    "zh-CN": "已读",
+    "zh-HK": "已讀",
+    "zh-TW": "已讀"
+  },
+  "Receivers": {
+    "es": "Destinatarios",
+    "id": "Penerima",
+    "ja": "受取人",
+    "ms": "Penerima",
+    "ru": "Получатели",
+    "zh-CN": "接收方",
+    "zh-HK": "接收方",
+    "zh-TW": "接收方"
+  },
+  "Reconnect": {
+    "es": "Reconectar",
+    "id": "Hubungkan kembali",
+    "ja": "再接続",
+    "ms": "Sambung semula",
+    "ru": "Переподключиться",
+    "zh-CN": "重新连接",
+    "zh-HK": "重新連接",
+    "zh-TW": "重新連線"
+  },
+  "Reconnecting…": {
+    "es": "Reconectando…",
+    "id": "Menghubungkan kembali…",
+    "ja": "再接続中…",
+    "ms": "Menyambung semula…",
+    "ru": "Переподключение…",
+    "zh-CN": "正在重新连接…",
+    "zh-HK": "正在重新連接…",
+    "zh-TW": "正在重新連線…"
+  },
+  "Record a voice message": {
+    "es": "Grabar un mensaje de voz",
+    "id": "Rekam pesan suara",
+    "ja": "音声メッセージを録音",
+    "ms": "Rakam mesej suara",
+    "ru": "Записать голосовое сообщение",
+    "zh-CN": "录制语音消息",
+    "zh-HK": "錄製語音消息",
+    "zh-TW": "錄製語音訊息"
+  },
+  "Record again": {
+    "es": "Volver a grabar",
+    "id": "Rekam ulang",
+    "ja": "録り直す",
+    "ms": "Rakam semula",
+    "ru": "Записать заново",
+    "zh-CN": "重录",
+    "zh-HK": "重新錄製",
+    "zh-TW": "重新錄製"
+  },
+  "Recording…": {
+    "es": "Grabando…",
+    "id": "Merekam…",
+    "ja": "録音中…",
+    "ms": "Merakam…",
+    "ru": "Запись…",
+    "zh-CN": "正在录音…",
+    "zh-HK": "正在錄音…",
+    "zh-TW": "正在錄音…"
+  },
+  "Red": {
+    "es": "Rojo",
+    "id": "Merah",
+    "ja": "赤",
+    "ms": "Merah",
+    "ru": "Красный",
+    "zh-CN": "红色",
+    "zh-HK": "紅色",
+    "zh-TW": "紅色"
+  },
+  "Redo": {
+    "es": "Rehacer",
+    "id": "Ulangi",
+    "ja": "やり直す",
+    "ms": "Buat semula",
+    "ru": "Повторить",
+    "zh-CN": "重做",
+    "zh-HK": "重做",
+    "zh-TW": "重做"
+  },
+  "Refresh": {
+    "es": "Actualizar",
+    "id": "Segarkan",
+    "ja": "更新",
+    "ms": "Segarkan",
+    "ru": "Обновить",
+    "zh-CN": "刷新",
+    "zh-HK": "刷新",
+    "zh-TW": "重新整理"
+  },
+  "Refresh permission": {
+    "es": "Actualizar permiso",
+    "id": "Perbarui izin",
+    "ja": "権限を再確認",
+    "ms": "Segarkan kebenaran",
+    "ru": "Обновить разрешение",
+    "zh-CN": "刷新权限状态",
+    "zh-HK": "刷新權限狀態",
+    "zh-TW": "重新整理權限狀態"
+  },
+  "Reload": {
+    "es": "Recargar",
+    "id": "Muat ulang",
+    "ja": "再読み込み",
+    "ms": "Muat semula",
+    "ru": "Перезагрузить",
+    "zh-CN": "重新加载",
+    "zh-HK": "重新加載",
+    "zh-TW": "重新載入"
+  },
+  "Reload list": {
+    "es": "Recargar lista",
+    "id": "Muat ulang daftar",
+    "ja": "リストを再読み込み",
+    "ms": "Muat semula senarai",
+    "ru": "Перезагрузить список",
+    "zh-CN": "重新加载列表",
+    "zh-HK": "重新加載列表",
+    "zh-TW": "重新載入列表"
+  },
+  "Reload recipient": {
+    "es": "Recargar destinatario",
+    "id": "Muat ulang penerima",
+    "ja": "送信先を再読み込み",
+    "ms": "Muat semula penerima",
+    "ru": "Перезагрузить получателя",
+    "zh-CN": "重新加载接收方",
+    "zh-HK": "重新加載接收方",
+    "zh-TW": "重新載入接收方"
+  },
+  "Remove": {
+    "es": "Quitar",
+    "id": "Hapus",
+    "ja": "削除",
+    "ms": "Buang",
+    "ru": "Удалить",
+    "zh-CN": "移除",
+    "zh-HK": "移除",
+    "zh-TW": "移除"
+  },
+  "Remove album": {
+    "es": "Quitar álbum",
+    "id": "Hapus album",
+    "ja": "アルバムを削除",
+    "ms": "Buang album",
+    "ru": "Удалить альбом",
+    "zh-CN": "移除贴纸专辑",
+    "zh-HK": "移除貼紙專輯",
+    "zh-TW": "移除貼紙專輯"
+  },
+  "Remove contact?": {
+    "es": "¿Quitar contacto?",
+    "id": "Hapus kontak?",
+    "ja": "連絡先を削除しますか？",
+    "ms": "Buang kenalan?",
+    "ru": "Удалить контакт?",
+    "zh-CN": "移除联系人？",
+    "zh-HK": "移除聯繫人？",
+    "zh-TW": "移除聯絡人？"
+  },
+  "Remove from group…": {
+    "es": "Quitar del grupo…",
+    "id": "Hapus dari grup…",
+    "ja": "グループから削除…",
+    "ms": "Buang daripada kumpulan…",
+    "ru": "Удалить из группы…",
+    "zh-CN": "移出群组…",
+    "zh-HK": "移出羣組…",
+    "zh-TW": "移出群組…"
+  },
+  "Remove participant?": {
+    "es": "¿Quitar participante?",
+    "id": "Hapus peserta?",
+    "ja": "参加者を削除しますか？",
+    "ms": "Buang peserta?",
+    "ru": "Удалить участника?",
+    "zh-CN": "移除群成员？",
+    "zh-HK": "移除羣成員？",
+    "zh-TW": "移除群成員？"
+  },
+  "Remove selected file": {
+    "es": "Quitar archivo seleccionado",
+    "id": "Hapus berkas terpilih",
+    "ja": "選択したファイルを削除",
+    "ms": "Buang fail dipilih",
+    "ru": "Удалить выбранный файл",
+    "zh-CN": "移除选中文件",
+    "zh-HK": "移除選中文件",
+    "zh-TW": "移除選中檔案"
+  },
+  "Remove sticker": {
+    "es": "Quitar sticker",
+    "id": "Hapus stiker",
+    "ja": "ステッカーを削除",
+    "ms": "Buang pelekat",
+    "ru": "Удалить стикер",
+    "zh-CN": "移除贴纸",
+    "zh-HK": "移除貼紙",
+    "zh-TW": "移除貼紙"
+  },
+  "Rename…": {
+    "es": "Cambiar nombre…",
+    "id": "Ganti nama…",
+    "ja": "名前を変更…",
+    "ms": "Namakan semula…",
+    "ru": "Переименовать…",
+    "zh-CN": "重命名…",
+    "zh-HK": "重命名…",
+    "zh-TW": "重新命名…"
+  },
+  "Reply": {
+    "id": "Balas",
+    "ms": "Balas"
+  },
+  "Reply to message": {
+    "es": "Responder al mensaje",
+    "id": "Balas pesan",
+    "ja": "メッセージに返信",
+    "ms": "Balas mesej",
+    "ru": "Ответить на сообщение",
+    "zh-CN": "回复的消息",
+    "zh-HK": "回覆的消息",
+    "zh-TW": "回覆的訊息"
+  },
+  "Report and block?": {
+    "id": "Laporkan dan blokir?",
+    "ms": "Laporkan dan sekat?"
+  },
+  "Report and block…": {
+    "es": "Denunciar y bloquear…",
+    "id": "Laporkan dan blokir…",
+    "ja": "報告してブロック…",
+    "ms": "Laporkan dan sekat…",
+    "ru": "Пожаловаться и заблокировать…",
+    "zh-CN": "举报并屏蔽…",
+    "zh-HK": "舉報並屏蔽…",
+    "zh-TW": "舉報並封鎖…"
+  },
+  "Reset": {
+    "id": "Setel ulang",
+    "ms": "Tetapkan semula"
+  },
+  "Reset invitation link?": {
+    "es": "¿Restablecer el enlace de invitación?",
+    "id": "Setel ulang tautan undangan?",
+    "ja": "招待リンクをリセットしますか？",
+    "ms": "Tetapkan semula pautan jemputan?",
+    "ru": "Сбросить ссылку приглашения?",
+    "zh-CN": "重置邀请链接？",
+    "zh-HK": "重置邀請鏈接？",
+    "zh-TW": "重置邀請連結？"
+  },
+  "Reset link…": {
+    "id": "Setel ulang tautan…",
+    "ms": "Tetapkan semula pautan…"
+  },
+  "Retry preview": {
+    "es": "Reintentar vista previa",
+    "id": "Coba ulang pratinjau",
+    "ja": "プレビューを再試行",
+    "ms": "Cuba semula pratonton",
+    "ru": "Повторить предпросмотр",
+    "zh-CN": "重试预览",
+    "zh-HK": "重試預覽",
+    "zh-TW": "重試預覽"
+  },
+  "Return to message": {
+    "es": "Volver al mensaje",
+    "id": "Kembali ke pesan",
+    "ja": "メッセージに戻る",
+    "ms": "Kembali ke mesej",
+    "ru": "Вернуться к сообщению",
+    "zh-CN": "返回消息",
+    "zh-HK": "返回消息",
+    "zh-TW": "返回訊息"
+  },
+  "Rotate": {
+    "es": "Girar",
+    "id": "Putar",
+    "ja": "回転",
+    "ms": "Putar",
+    "ru": "Повернуть",
+    "zh-CN": "旋转",
+    "zh-HK": "旋轉",
+    "zh-TW": "旋轉"
+  },
+  "SCAM": {
+    "es": "ESTAFA",
+    "id": "PENIPUAN",
+    "ja": "詐欺の疑い",
+    "ms": "PENIPUAN",
+    "ru": "МОШЕННИЧЕСТВО",
+    "zh-CN": "诈骗风险",
+    "zh-HK": "詐騙風險",
+    "zh-TW": "詐騙風險"
+  },
+  "Save as…": {
+    "id": "Simpan sebagai…",
+    "ms": "Simpan sebagai…"
+  },
+  "Save these changes before selecting more than 200 chats.": {
+    "es": "Guarda estos cambios antes de seleccionar más de 200 chats.",
+    "id": "Simpan perubahan ini sebelum memilih lebih dari 200 obrolan.",
+    "ja": "200件を超えるチャットを選択する前に、変更を保存してください。",
+    "ms": "Simpan perubahan ini sebelum memilih lebih daripada 200 sembang.",
+    "ru": "Сохраните изменения перед выбором более 200 чатов.",
+    "zh-CN": "每次最多更改 200 个聊天，请先保存。",
+    "zh-HK": "每次最多更改 200 個聊天，請先保存。",
+    "zh-TW": "每次最多更改 200 個聊天，請先儲存。"
+  },
+  "Saving…": {
+    "es": "Guardando…",
+    "id": "Menyimpan…",
+    "ja": "保存中…",
+    "ms": "Menyimpan…",
+    "ru": "Сохранение…",
+    "zh-CN": "正在保存…",
+    "zh-HK": "正在保存…",
+    "zh-TW": "正在儲存…"
+  },
+  "Scan the QR code and confirm sign-in.": {
+    "id": "Pindai kode QR dan konfirmasi masuk.",
+    "ms": "Imbas kod QR dan sahkan log masuk.",
+    "ru": "Отсканируйте QR-код и подтвердите вход."
+  },
+  "Scan to sign in": {
+    "id": "Pindai untuk masuk",
+    "ms": "Imbas untuk log masuk"
+  },
+  "Screen passcode": {
+    "es": "Código de bloqueo",
+    "id": "Kode layar",
+    "ja": "画面ロックのパスコード",
+    "ms": "Kod laluan skrin",
+    "ru": "Код блокировки"
+  },
+  "Screen privacy": {
+    "es": "Privacidad de pantalla",
+    "id": "Privasi layar",
+    "ja": "画面のプライバシー",
+    "ms": "Privasi skrin",
+    "ru": "Защита экрана",
+    "zh-CN": "锁屏保护",
+    "zh-HK": "鎖屏保護",
+    "zh-TW": "鎖屏保護"
+  },
+  "Screen privacy is not available on this platform yet.": {
+    "es": "La privacidad de pantalla aún no está disponible en esta plataforma.",
+    "id": "Privasi layar belum tersedia di platform ini.",
+    "ja": "このプラットフォームでは画面のプライバシー保護をまだ利用できません。",
+    "ms": "Privasi skrin belum tersedia pada platform ini.",
+    "ru": "Защита экрана пока недоступна на этой платформе.",
+    "zh-CN": "此平台暂不支持锁屏保护。",
+    "zh-HK": "此平台暫不支持鎖屏保護。",
+    "zh-TW": "此平臺暫不支援鎖屏保護。"
+  },
+  "Search GIFs": {
+    "es": "Buscar GIF",
+    "id": "Cari GIF",
+    "ja": "GIF を検索",
+    "ms": "Cari GIF",
+    "ru": "Искать GIF",
+    "zh-CN": "搜索 GIF",
+    "zh-HK": "搜索 GIF",
+    "zh-TW": "搜尋 GIF"
+  },
+  "Search GIPHY…": {
+    "es": "Buscar en GIPHY…",
+    "id": "Cari di GIPHY…",
+    "ja": "GIPHY を検索…",
+    "ms": "Cari GIPHY…",
+    "ru": "Искать в GIPHY…",
+    "zh-CN": "搜索 GIPHY…",
+    "zh-HK": "搜索 GIPHY…",
+    "zh-TW": "搜尋 GIPHY…"
+  },
+  "Search Mixin ID": {
+    "es": "Buscar Mixin ID",
+    "id": "Cari Mixin ID",
+    "ja": "Mixin ID を検索",
+    "ms": "Cari Mixin ID",
+    "ru": "Поиск Mixin ID",
+    "zh-CN": "搜索 Mixin ID",
+    "zh-HK": "搜索 Mixin ID",
+    "zh-TW": "搜尋 Mixin ID"
+  },
+  "Search contacts": {
+    "id": "Cari kontak",
+    "ms": "Cari kenalan"
+  },
+  "Search contact…": {
+    "id": "Cari kontak…",
+    "ms": "Cari kenalan…"
+  },
+  "Search conversations and contacts": {
+    "es": "Buscar conversaciones y contactos",
+    "id": "Cari percakapan dan kontak",
+    "ja": "会話と連絡先を検索",
+    "ms": "Cari perbualan dan kenalan",
+    "ru": "Поиск чатов и контактов",
+    "zh-CN": "搜索会话和联系人",
+    "zh-HK": "搜索會話和聯繫人",
+    "zh-TW": "搜尋會話和聯絡人"
+  },
+  "Search emoji": {
+    "es": "Buscar emoji",
+    "id": "Cari emoji",
+    "ja": "絵文字を検索",
+    "ms": "Cari emoji",
+    "ru": "Искать эмодзи",
+    "zh-CN": "搜索表情",
+    "zh-HK": "搜索表情",
+    "zh-TW": "搜尋表情"
+  },
+  "Search emoji…": {
+    "es": "Buscar emoji…",
+    "id": "Cari emoji…",
+    "ja": "絵文字を検索…",
+    "ms": "Cari emoji…",
+    "ru": "Искать эмодзи…",
+    "zh-CN": "搜索表情…",
+    "zh-HK": "搜索表情…",
+    "zh-TW": "搜尋表情…"
+  },
+  "Search messages": {
+    "es": "Buscar mensajes",
+    "id": "Cari pesan",
+    "ja": "メッセージを検索",
+    "ms": "Cari mesej",
+    "ru": "Поиск сообщений",
+    "zh-CN": "搜索消息",
+    "zh-HK": "搜索消息",
+    "zh-TW": "搜尋訊息"
+  },
+  "Search messages in this conversation": {
+    "es": "Buscar mensajes en esta conversación",
+    "id": "Cari pesan dalam percakapan ini",
+    "ja": "この会話のメッセージを検索",
+    "ms": "Cari mesej dalam perbualan ini",
+    "ru": "Поиск сообщений в этом чате",
+    "zh-CN": "搜索此会话中的消息",
+    "zh-HK": "搜索此會話中的消息",
+    "zh-TW": "搜尋此會話中的訊息"
+  },
+  "Search participants": {
+    "es": "Buscar participantes",
+    "id": "Cari peserta",
+    "ja": "参加者を検索",
+    "ms": "Cari peserta",
+    "ru": "Поиск участников",
+    "zh-CN": "搜索群成员",
+    "zh-HK": "搜索羣成員",
+    "zh-TW": "搜尋群成員"
+  },
+  "Search senders": {
+    "es": "Buscar remitentes",
+    "id": "Cari pengirim",
+    "ja": "送信者を検索",
+    "ms": "Cari pengirim",
+    "ru": "Поиск отправителей",
+    "zh-CN": "搜索发送者",
+    "zh-HK": "搜索發送者",
+    "zh-TW": "搜尋傳送者"
+  },
+  "Search…": {
+    "es": "Buscar…",
+    "id": "Cari…",
+    "ja": "検索…",
+    "ms": "Cari…",
+    "ru": "Поиск…",
+    "zh-CN": "搜索…",
+    "zh-HK": "搜索…",
+    "zh-TW": "搜尋…"
+  },
+  "Seconds": {
+    "es": "Segundos",
+    "id": "Detik",
+    "ja": "秒",
+    "ms": "Saat",
+    "ru": "Секунды",
+    "zh-CN": "秒",
+    "zh-HK": "秒",
+    "zh-TW": "秒"
+  },
+  "Seconds (1–2419200)": {
+    "es": "Segundos (1–2419200)",
+    "id": "Detik (1–2419200)",
+    "ja": "秒数（1～2419200）",
+    "ms": "Saat (1–2419200)",
+    "ru": "Секунды (1–2419200)",
+    "zh-CN": "秒数（1–2419200）",
+    "zh-HK": "秒數（1–2419200）",
+    "zh-TW": "秒數（1–2419200）"
+  },
+  "Seconds (up to 4 weeks)": {
+    "es": "Segundos (hasta 4 semanas)",
+    "id": "Detik (hingga 4 minggu)",
+    "ja": "秒数（最大4週間）",
+    "ms": "Saat (sehingga 4 minggu)",
+    "ru": "Секунды (до 4 недель)",
+    "zh-CN": "秒数（最长 4 周）",
+    "zh-HK": "秒數（最長 4 周）",
+    "zh-TW": "秒數（最長 4 周）"
+  },
+  "Send a message to say hello.": {
+    "es": "Envía un mensaje para saludar.",
+    "id": "Kirim pesan untuk menyapa.",
+    "ja": "メッセージを送って挨拶しましょう。",
+    "ms": "Hantar mesej untuk menyapa.",
+    "ru": "Отправьте сообщение, чтобы поздороваться.",
+    "zh-CN": "发一条消息，打个招呼。",
+    "zh-HK": "發一條消息，打個招呼。",
+    "zh-TW": "發一條訊息，打個招呼。"
+  },
+  "Send a message to start using this bot.": {
+    "es": "Envía un mensaje para empezar a usar este bot.",
+    "id": "Kirim pesan untuk mulai menggunakan bot ini.",
+    "ja": "メッセージを送信して、このボットを使い始めましょう。",
+    "ms": "Hantar mesej untuk mula menggunakan bot ini.",
+    "ru": "Отправьте сообщение, чтобы начать пользоваться этим ботом.",
+    "zh-CN": "发送消息以开始使用此机器人。",
+    "zh-HK": "發送消息以開始使用此機械人。",
+    "zh-TW": "傳送訊息以開始使用此機器人。"
+  },
+  "Send file…": {
+    "id": "Kirim berkas…",
+    "ms": "Hantar fail…"
+  },
+  "Send message": {
+    "es": "Enviar mensaje",
+    "id": "Kirim pesan",
+    "ja": "メッセージを送信",
+    "ms": "Hantar mesej",
+    "ru": "Отправить сообщение",
+    "zh-CN": "发送消息",
+    "zh-HK": "發送消息",
+    "zh-TW": "傳送訊息"
+  },
+  "Send without notification": {
+    "es": "Enviar sin notificación",
+    "id": "Kirim tanpa notifikasi",
+    "ja": "通知せずに送信",
+    "ms": "Hantar tanpa pemberitahuan",
+    "ru": "Отправить без уведомления",
+    "zh-CN": "静音发送",
+    "zh-HK": "靜音發送",
+    "zh-TW": "靜音傳送"
+  },
+  "Send {count} files": {
+    "es": "Enviar archivos: {count}",
+    "id": "Kirim berkas: {count}",
+    "ja": "{count}件のファイルを送信",
+    "ms": "Hantar fail: {count}",
+    "ru": "Отправить файлы: {count}",
+    "zh-CN": "发送 {count} 个文件",
+    "zh-HK": "發送 {count} 個文件",
+    "zh-TW": "傳送 {count} 個檔案"
+  },
+  "Sender": {
+    "es": "Remitente",
+    "id": "Pengirim",
+    "ja": "送信者",
+    "ms": "Pengirim",
+    "ru": "Отправитель",
+    "zh-CN": "发送者",
+    "zh-HK": "發送者",
+    "zh-TW": "傳送者"
+  },
+  "Senders": {
+    "es": "Remitentes",
+    "id": "Pengirim",
+    "ja": "送信者",
+    "ms": "Pengirim",
+    "ru": "Отправители",
+    "zh-CN": "发送方",
+    "zh-HK": "發送方",
+    "zh-TW": "傳送方"
+  },
+  "Sending": {
+    "es": "Enviando",
+    "id": "Mengirim",
+    "ja": "送信中",
+    "ms": "Menghantar",
+    "ru": "Отправка",
+    "zh-CN": "发送中",
+    "zh-HK": "發送中",
+    "zh-TW": "傳送中"
+  },
+  "Sending…": {
+    "es": "Enviando…",
+    "id": "Mengirim…",
+    "ja": "送信中…",
+    "ms": "Menghantar…",
+    "ru": "Отправка…",
+    "zh-CN": "正在发送…",
+    "zh-HK": "正在發送…",
+    "zh-TW": "正在傳送…"
+  },
+  "Sent": {
+    "es": "Enviado",
+    "id": "Terkirim",
+    "ja": "送信済み",
+    "ms": "Dihantar",
+    "ru": "Отправлено",
+    "zh-CN": "已发送",
+    "zh-HK": "已發送",
+    "zh-TW": "已傳送"
+  },
+  "Sequence": {
+    "es": "Número de secuencia",
+    "id": "Nomor urut",
+    "ja": "連番",
+    "ms": "Nombor turutan",
+    "ru": "Порядковый номер",
+    "zh-CN": "序号",
+    "zh-HK": "序號",
+    "zh-TW": "序號"
+  },
+  "Set": {
+    "id": "Tetapkan",
+    "ms": "Tetapkan"
+  },
+  "Set a six-digit passcode": {
+    "es": "Configurar un código de seis dígitos",
+    "id": "Tetapkan kode layar enam digit",
+    "ja": "6桁のパスコードを設定",
+    "ms": "Tetapkan kod laluan enam digit",
+    "ru": "Задать шестизначный код",
+    "zh-CN": "设置六位锁屏密码",
+    "zh-HK": "設置六位鎖屏密碼",
+    "zh-TW": "設定六位鎖屏密碼"
+  },
+  "Settings": {
+    "id": "Pengaturan",
+    "ms": "Tetapan"
+  },
+  "Settings…": {
+    "id": "Pengaturan…",
+    "ms": "Tetapan…"
+  },
+  "Share contact": {
+    "id": "Bagikan kontak",
+    "ja": "連絡先を共有",
+    "ms": "Kongsi kenalan"
+  },
+  "Share contact…": {
+    "id": "Bagikan kontak…",
+    "ja": "連絡先を共有…",
+    "ms": "Kongsi kenalan…"
+  },
+  "Shared apps": {
+    "id": "Aplikasi bersama",
+    "ms": "Aplikasi dikongsi"
+  },
+  "Shared media preview": {
+    "es": "Vista previa de archivos compartidos",
+    "id": "Pratinjau media bersama",
+    "ja": "共有メディアのプレビュー",
+    "ms": "Pratonton media dikongsi",
+    "ru": "Просмотр общих медиафайлов",
+    "zh-CN": "共享媒体预览",
+    "zh-HK": "共享媒體預覽",
+    "zh-TW": "共享媒體預覽"
+  },
+  "Show Mixin": {
+    "id": "Tampilkan Mixin",
+    "ms": "Tunjukkan Mixin"
+  },
+  "Show Mixin ID": {
+    "es": "Mostrar Mixin ID",
+    "id": "Tampilkan Mixin ID",
+    "ja": "Mixin ID を表示",
+    "ms": "Tunjukkan Mixin ID",
+    "ru": "Показывать Mixin ID"
+  },
+  "Show avatar": {
+    "id": "Tampilkan avatar",
+    "ms": "Tunjukkan avatar"
+  },
+  "Show in folder": {
+    "es": "Mostrar en la carpeta",
+    "id": "Tampilkan dalam folder",
+    "ja": "フォルダーに表示",
+    "ms": "Tunjukkan dalam folder",
+    "ru": "Показать в папке",
+    "zh-CN": "在文件夹中显示",
+    "zh-HK": "在資料夾中顯示",
+    "zh-TW": "在檔案夾中顯示"
+  },
+  "Show message content in notifications. Turn this off to keep message content private.": {
+    "es": "Muestra el contenido de los mensajes en las notificaciones. Desactívalo para mantenerlo privado.",
+    "id": "Tampilkan isi pesan dalam notifikasi. Nonaktifkan untuk menjaga privasi isi pesan.",
+    "ja": "通知にメッセージの内容を表示します。内容を非公開にするにはオフにしてください。",
+    "ms": "Paparkan kandungan mesej dalam pemberitahuan. Matikan untuk merahsiakan kandungan mesej.",
+    "ru": "Показывать текст сообщений в уведомлениях. Отключите, чтобы скрыть содержимое.",
+    "zh-CN": "在通知中显示消息内容。关闭后，通知仅显示通用消息提示。",
+    "zh-HK": "在通知中顯示消息內容。關閉後，通知僅顯示通用消息提示。",
+    "zh-TW": "在通知中顯示訊息內容。關閉後，通知僅顯示通用訊息提示。"
+  },
+  "Show transfer": {
+    "es": "Mostrar transferencia",
+    "id": "Tampilkan transfer",
+    "ja": "転送状況を表示",
+    "ms": "Tunjukkan pemindahan",
+    "ru": "Показать перенос",
+    "zh-CN": "查看同步进度",
+    "zh-HK": "查看同步進度",
+    "zh-TW": "檢視同步進度"
+  },
+  "Showing the first 8,192 characters": {
+    "es": "Se muestran los primeros 8.192 caracteres",
+    "id": "Menampilkan 8.192 karakter pertama",
+    "ja": "最初の8,192文字を表示しています",
+    "ms": "Memaparkan 8,192 aksara pertama",
+    "ru": "Показаны первые 8 192 символа",
+    "zh-CN": "仅显示前 8,192 个字符",
+    "zh-HK": "僅顯示前 8,192 個字元",
+    "zh-TW": "僅顯示前 8,192 個字元"
+  },
+  "Sign out": {
+    "id": "Keluar",
+    "ms": "Log keluar"
+  },
+  "Sign out and remove this account’s local data?": {
+    "es": "¿Cerrar sesión y eliminar los datos locales de esta cuenta?",
+    "id": "Keluar dan hapus data lokal akun ini?",
+    "ja": "ログアウトして、このアカウントのローカルデータを削除しますか？",
+    "ms": "Log keluar dan buang data setempat akaun ini?",
+    "ru": "Выйти и удалить локальные данные аккаунта?",
+    "zh-CN": "退出登录并移除此账号的本地数据？",
+    "zh-HK": "退出登錄並移除此賬號的本地數據？",
+    "zh-TW": "退出登入並移除此賬號的本機資料？"
+  },
+  "Sign out…": {
+    "id": "Keluar…",
+    "ms": "Log keluar…"
+  },
+  "Signing out…": {
+    "es": "Cerrando sesión…",
+    "id": "Keluar…",
+    "ja": "ログアウト中…",
+    "ms": "Melog keluar…",
+    "ru": "Выход…",
+    "zh-CN": "正在退出…",
+    "zh-HK": "正在登出…",
+    "zh-TW": "正在登出…"
+  },
+  "Six-digit screen passcode": {
+    "es": "Código de pantalla de seis dígitos",
+    "id": "Kode layar enam digit",
+    "ja": "6桁の画面ロックパスコード",
+    "ms": "Kod laluan skrin enam digit",
+    "ru": "Шестизначный код блокировки",
+    "zh-CN": "六位锁屏密码",
+    "zh-HK": "六位鎖屏密碼",
+    "zh-TW": "六位鎖屏密碼"
+  },
+  "Some changes could not be saved. Check the remaining selections.": {
+    "es": "No se pudieron guardar algunos cambios. Comprueba las selecciones restantes.",
+    "id": "Beberapa perubahan tidak dapat disimpan. Periksa pilihan yang tersisa.",
+    "ja": "一部の変更を保存できませんでした。残りの選択内容を確認してください。",
+    "ms": "Sesetengah perubahan tidak dapat disimpan. Semak pilihan yang tinggal.",
+    "ru": "Не удалось сохранить часть изменений. Проверьте оставшиеся выбранные чаты.",
+    "zh-CN": "部分更改未能保存，请检查剩余选择。",
+    "zh-HK": "部分更改未能保存，請檢查剩餘選擇。",
+    "zh-TW": "部分更改未能儲存，請檢查剩餘選擇。"
+  },
+  "Some files couldn’t be sent. The remaining files are still here.": {
+    "es": "No se pudieron enviar algunos archivos. Los archivos restantes siguen aquí.",
+    "id": "Beberapa berkas tidak dapat dikirim. Berkas yang tersisa tetap di sini.",
+    "ja": "一部のファイルを送信できませんでした。未送信のファイルは残っています。",
+    "ms": "Sesetengah fail tidak dapat dihantar. Fail yang tinggal masih di sini.",
+    "ru": "Не удалось отправить часть файлов. Остальные файлы сохранены здесь.",
+    "zh-CN": "部分文件发送失败，尚未发送的文件已保留。",
+    "zh-HK": "部分文件發送失敗，尚未發送的文件已保留。",
+    "zh-TW": "部分檔案傳送失敗，尚未傳送的檔案已保留。"
+  },
+  "Some results could not be loaded. Try again.": {
+    "es": "No se pudieron cargar algunos resultados. Inténtalo de nuevo.",
+    "id": "Beberapa hasil tidak dapat dimuat. Coba lagi.",
+    "ja": "一部の検索結果を読み込めませんでした。もう一度お試しください。",
+    "ms": "Sesetengah hasil tidak dapat dimuatkan. Cuba lagi.",
+    "ru": "Не удалось загрузить часть результатов. Повторите попытку.",
+    "zh-CN": "部分搜索结果加载失败，请重试。",
+    "zh-HK": "部分搜索結果加載失敗，請重試。",
+    "zh-TW": "部分搜尋結果載入失敗，請重試。"
+  },
+  "Standard member": {
+    "es": "Miembro estándar",
+    "id": "Anggota standar",
+    "ja": "スタンダードメンバー",
+    "ms": "Ahli standard",
+    "ru": "Стандартный участник",
+    "zh-CN": "标准会员",
+    "zh-HK": "標準會員",
+    "zh-TW": "標準會員"
+  },
+  "Start the conversation": {
+    "es": "Iniciar conversación",
+    "id": "Mulai percakapan",
+    "ja": "会話を始める",
+    "ms": "Mulakan perbualan",
+    "ru": "Начать общение",
+    "zh-CN": "开始聊天",
+    "zh-HK": "開始聊天",
+    "zh-TW": "開始聊天"
+  },
+  "State": {
+    "es": "Estado",
+    "id": "Status",
+    "ja": "状態",
+    "ms": "Status",
+    "ru": "Состояние",
+    "zh-CN": "状态",
+    "zh-HK": "狀態",
+    "zh-TW": "狀態"
+  },
+  "Sticker preview unavailable": {
+    "es": "Vista previa del sticker no disponible",
+    "id": "Pratinjau stiker tidak tersedia",
+    "ja": "ステッカーをプレビューできません",
+    "ms": "Pratonton pelekat tidak tersedia",
+    "ru": "Предпросмотр стикера недоступен",
+    "zh-CN": "无法预览贴纸",
+    "zh-HK": "無法預覽貼紙",
+    "zh-TW": "無法預覽貼紙"
+  },
+  "Sticker store": {
+    "id": "Toko stiker",
+    "ms": "Kedai pelekat"
+  },
+  "Stickers": {
+    "es": "Stickers",
+    "id": "Stiker",
+    "ja": "ステッカー",
+    "ms": "Pelekat",
+    "ru": "Стикеры",
+    "zh-CN": "贴纸",
+    "zh-HK": "貼紙",
+    "zh-TW": "貼紙"
+  },
+  "Stop": {
+    "es": "Detener",
+    "id": "Hentikan",
+    "ja": "停止",
+    "ms": "Henti",
+    "ru": "Остановить",
+    "zh-CN": "停止",
+    "zh-HK": "停止",
+    "zh-TW": "停止"
+  },
+  "Strangers": {
+    "id": "Orang asing",
+    "ms": "Orang tidak dikenali"
+  },
+  "Text": {
+    "es": "Texto",
+    "id": "Teks",
+    "ja": "テキスト",
+    "ms": "Teks",
+    "ru": "Текст",
+    "zh-CN": "文字",
+    "zh-HK": "文字",
+    "zh-TW": "文字"
+  },
+  "Text content": {
+    "es": "Contenido de texto",
+    "id": "Konten teks",
+    "ja": "テキスト内容",
+    "ms": "Kandungan teks",
+    "ru": "Текстовое содержимое",
+    "zh-CN": "文本内容",
+    "zh-HK": "文字內容",
+    "zh-TW": "文字內容"
+  },
+  "Text is too long for a QR code.": {
+    "es": "El texto es demasiado largo para un código QR.",
+    "id": "Teks terlalu panjang untuk kode QR.",
+    "ja": "テキストが長すぎるため、QR コードを生成できません。",
+    "ms": "Teks terlalu panjang untuk kod QR.",
+    "ru": "Текст слишком длинный для QR-кода.",
+    "zh-CN": "文本过长，无法生成二维码。",
+    "zh-HK": "文字過長，無法產生二維碼。",
+    "zh-TW": "文字過長，無法產生 QR 碼。"
+  },
+  "The account is temporarily unavailable.": {
+    "es": "La cuenta no está disponible temporalmente.",
+    "id": "Akun sementara tidak tersedia.",
+    "ja": "アカウントを一時的に利用できません。",
+    "ms": "Akaun tidak tersedia buat sementara waktu.",
+    "ru": "Аккаунт временно недоступен.",
+    "zh-CN": "账号暂时不可用。",
+    "zh-HK": "賬號暫時不可用。",
+    "zh-TW": "賬號暫時無法使用。"
+  },
+  "The circle was created. Retry adding the remaining chats.": {
+    "es": "El círculo se ha creado. Reintenta añadir los chats restantes.",
+    "id": "Lingkaran telah dibuat. Coba lagi menambahkan obrolan yang tersisa.",
+    "ja": "サークルを作成しました。残りのチャットの追加をもう一度お試しください。",
+    "ms": "Bulatan telah dicipta. Cuba tambah semula sembang yang tinggal.",
+    "ru": "Круг создан. Повторите добавление оставшихся чатов.",
+    "zh-CN": "圈子已创建，请重试添加剩余聊天。",
+    "zh-HK": "圈子已創建，請重試添加剩餘聊天。",
+    "zh-TW": "圈子已建立，請重試新增剩餘聊天。"
+  },
+  "The devices use different transfer versions. Update both apps and try again.": {
+    "es": "Los dispositivos usan versiones de transferencia diferentes. Actualiza ambas aplicaciones e inténtalo de nuevo.",
+    "id": "Kedua perangkat menggunakan versi transfer berbeda. Perbarui kedua aplikasi dan coba lagi.",
+    "ja": "デバイス間で転送のバージョンが異なります。両方のアプリを更新して、もう一度お試しください。",
+    "ms": "Peranti menggunakan versi pemindahan berbeza. Kemas kini kedua-dua aplikasi dan cuba lagi.",
+    "ru": "Устройства используют разные версии переноса. Обновите оба приложения и повторите попытку.",
+    "zh-CN": "两台设备的同步协议版本不同，请更新应用后重试。",
+    "zh-HK": "兩台設備的同步協議版本不同，請更新應用後重試。",
+    "zh-TW": "兩臺裝置的同步協議版本不同，請更新應用後重試。"
+  },
+  "The group was created. Retry opening it.": {
+    "es": "El grupo se ha creado. Reintenta abrirlo.",
+    "id": "Grup telah dibuat. Coba buka lagi.",
+    "ja": "グループを作成しました。もう一度開いてください。",
+    "ms": "Kumpulan telah dicipta. Cuba bukanya semula.",
+    "ru": "Группа создана. Повторите открытие.",
+    "zh-CN": "群组已创建，请重试打开。",
+    "zh-HK": "羣組已創建，請重試打開。",
+    "zh-TW": "群組已建立，請重試開啟。"
+  },
+  "The image in the send preview will stay unchanged.": {
+    "es": "La imagen de la vista previa de envío no cambiará.",
+    "id": "Gambar dalam pratinjau pengiriman akan tetap sama.",
+    "ja": "送信プレビューの画像は変更されません。",
+    "ms": "Imej dalam pratonton penghantaran kekal tidak berubah.",
+    "ru": "Изображение в предпросмотре отправки останется без изменений.",
+    "zh-CN": "发送预览中的图片会保留原样。",
+    "zh-HK": "發送預覽中的圖片會保留原樣。",
+    "zh-TW": "傳送預覽中的圖片會保留原樣。"
+  },
+  "The passcodes didn’t match. Try again.": {
+    "es": "Los códigos no coinciden. Inténtalo de nuevo.",
+    "id": "Kode layar tidak cocok. Coba lagi.",
+    "ja": "パスコードが一致しません。もう一度お試しください。",
+    "ms": "Kod laluan tidak sepadan. Cuba lagi.",
+    "ru": "Коды не совпадают. Повторите попытку.",
+    "zh-CN": "两次输入的密码不一致，请重试。",
+    "zh-HK": "兩次輸入的密碼不一致，請重試。",
+    "zh-TW": "兩次輸入的密碼不一致，請重試。"
+  },
+  "The previous link will stop working.": {
+    "es": "El enlace anterior dejará de funcionar.",
+    "id": "Tautan sebelumnya akan berhenti berfungsi.",
+    "ja": "以前のリンクは無効になります。",
+    "ms": "Pautan terdahulu akan berhenti berfungsi.",
+    "ru": "Предыдущая ссылка перестанет работать.",
+    "zh-CN": "此前的邀请链接将失效。",
+    "zh-HK": "此前的邀請鏈接將失效。",
+    "zh-TW": "此前的邀請連結將失效。"
+  },
+  "The system returned an unknown notification permission.": {
+    "es": "El sistema devolvió un permiso de notificaciones desconocido.",
+    "id": "Sistem mengembalikan izin notifikasi yang tidak dikenal.",
+    "ja": "システムから不明な通知権限が返されました。",
+    "ms": "Sistem mengembalikan kebenaran pemberitahuan yang tidak diketahui.",
+    "ru": "Система вернула неизвестное разрешение уведомлений.",
+    "zh-CN": "系统返回了未知的通知权限状态。",
+    "zh-HK": "系統返回了未知的通知權限狀態。",
+    "zh-TW": "系統返回了未知的通知權限狀態。"
+  },
+  "These messages will be removed for everyone in this conversation.": {
+    "es": "Estos mensajes se eliminarán para todos en esta conversación.",
+    "id": "Pesan ini akan dihapus untuk semua orang dalam percakapan ini.",
+    "ja": "この会話の全員から、これらのメッセージが削除されます。",
+    "ms": "Mesej ini akan dibuang untuk semua orang dalam perbualan ini.",
+    "ru": "Сообщения будут удалены у всех участников чата.",
+    "zh-CN": "这些消息将从此会话所有人的聊天记录中删除。",
+    "zh-HK": "這些消息將從此會話所有人的聊天記錄中刪除。",
+    "zh-TW": "這些訊息將從此會話所有人的聊天記錄中刪除。"
+  },
+  "These messages will be removed from this device.": {
+    "es": "Estos mensajes se eliminarán de este dispositivo.",
+    "id": "Pesan ini akan dihapus dari perangkat ini.",
+    "ja": "これらのメッセージがこのデバイスから削除されます。",
+    "ms": "Mesej ini akan dibuang daripada peranti ini.",
+    "ru": "Сообщения будут удалены с этого устройства.",
+    "zh-CN": "这些消息将从此设备的聊天记录中删除。",
+    "zh-HK": "這些消息將從此設備的聊天記錄中刪除。",
+    "zh-TW": "這些訊息將從此裝置的聊天記錄中刪除。"
+  },
+  "This account will be reported and blocked.": {
+    "es": "Esta cuenta se denunciará y bloqueará.",
+    "id": "Akun ini akan dilaporkan dan diblokir.",
+    "ja": "このアカウントを報告してブロックします。",
+    "ms": "Akaun ini akan dilaporkan dan disekat.",
+    "ru": "На аккаунт будет отправлена жалоба, и он будет заблокирован.",
+    "zh-CN": "将举报并屏蔽此账号。",
+    "zh-HK": "將舉報並屏蔽此賬號。",
+    "zh-TW": "將舉報並封鎖此賬號。"
+  },
+  "This forwarded message contains a summary only. Original messages and attachments are unavailable.": {
+    "es": "Este mensaje reenviado solo contiene un resumen. Los mensajes y archivos originales no están disponibles.",
+    "id": "Pesan terusan ini hanya berisi ringkasan. Pesan dan lampiran asli tidak tersedia.",
+    "ja": "この転送メッセージには概要のみが含まれています。元のメッセージと添付ファイルは利用できません。",
+    "ms": "Mesej yang dimajukan ini hanya mengandungi ringkasan. Mesej dan lampiran asal tidak tersedia.",
+    "ru": "Это пересланное сообщение содержит только краткое содержание. Исходные сообщения и вложения недоступны.",
+    "zh-CN": "这条转发消息只保留了摘要，无法查看原始消息和附件。",
+    "zh-HK": "此轉寄訊息只保留摘要，無法查看原始訊息及附件。",
+    "zh-TW": "此轉寄訊息僅保留摘要，無法查看原始訊息和附件。"
+  },
+  "This forwarded summary is unavailable.": {
+    "es": "Este resumen reenviado no está disponible.",
+    "id": "Ringkasan terusan ini tidak tersedia.",
+    "ja": "この転送された概要は利用できません。",
+    "ms": "Ringkasan yang dimajukan ini tidak tersedia.",
+    "ru": "Это пересланное краткое содержание недоступно.",
+    "zh-CN": "无法读取这条转发摘要。",
+    "zh-HK": "無法讀取此轉寄摘要。",
+    "zh-TW": "無法讀取此轉寄摘要。"
+  },
+  "This message is no longer available.": {
+    "es": "Este mensaje ya no está disponible.",
+    "id": "Pesan ini tidak lagi tersedia.",
+    "ja": "このメッセージは利用できなくなりました。",
+    "ms": "Mesej ini tidak lagi tersedia.",
+    "ru": "Сообщение больше недоступно.",
+    "zh-CN": "此消息已不可用。",
+    "zh-HK": "此消息已不可用。",
+    "zh-TW": "此訊息已不可用。"
+  },
+  "This message type is not supported.": {
+    "es": "Este tipo de mensaje no es compatible.",
+    "id": "Jenis pesan ini tidak didukung.",
+    "ja": "この種類のメッセージには対応していません。",
+    "ms": "Jenis mesej ini tidak disokong.",
+    "ru": "Этот тип сообщений не поддерживается.",
+    "zh-CN": "暂不支持此类消息。",
+    "zh-HK": "暫不支援此類消息。",
+    "zh-TW": "暫不支援此類訊息。"
+  },
+  "This message was deleted": {
+    "es": "Este mensaje fue eliminado",
+    "id": "Pesan ini telah dihapus",
+    "ja": "このメッセージは削除されました",
+    "ms": "Mesej ini telah dipadamkan",
+    "ru": "Это сообщение удалено",
+    "zh-CN": "这条消息已被删除",
+    "zh-HK": "此訊息已被刪除",
+    "zh-TW": "此訊息已被刪除"
+  },
+  "This person is not in your contacts.": {
+    "es": "Esta persona no está en tus contactos.",
+    "id": "Orang ini tidak ada di kontak Anda.",
+    "ja": "このユーザーは連絡先に登録されていません。",
+    "ms": "Orang ini tiada dalam kenalan anda.",
+    "ru": "Этого пользователя нет в ваших контактах.",
+    "zh-CN": "对方不在你的联系人中。",
+    "zh-HK": "對方不在你的聯繫人中。",
+    "zh-TW": "對方不在你的聯絡人中。"
+  },
+  "This recording will be deleted.": {
+    "es": "Esta grabación se eliminará.",
+    "id": "Rekaman ini akan dihapus.",
+    "ja": "この録音は削除されます。",
+    "ms": "Rakaman ini akan dipadamkan.",
+    "ru": "Эта запись будет удалена.",
+    "zh-CN": "这段录音将被删除。",
+    "zh-HK": "這段錄音將被刪除。",
+    "zh-TW": "這段錄音將被刪除。"
+  },
+  "This removes the chat and its message history from this device.": {
+    "es": "Esto elimina el chat y su historial de mensajes de este dispositivo.",
+    "id": "Ini menghapus obrolan dan riwayat pesannya dari perangkat ini.",
+    "ja": "このチャットとメッセージ履歴がこのデバイスから削除されます。",
+    "ms": "Ini membuang sembang dan sejarah mesejnya daripada peranti ini.",
+    "ru": "Чат и его история сообщений будут удалены с этого устройства.",
+    "zh-CN": "此操作将从此设备删除会话及其聊天记录。",
+    "zh-HK": "此操作將從此設備刪除會話及其聊天記錄。",
+    "zh-TW": "此操作將從此裝置刪除會話及其聊天記錄。"
+  },
+  "This user has deleted their account.": {
+    "es": "Este usuario ha eliminado su cuenta.",
+    "id": "Pengguna ini telah menghapus akunnya.",
+    "ja": "このユーザーはアカウントを削除しました。",
+    "ms": "Pengguna ini telah memadamkan akaunnya.",
+    "ru": "Этот пользователь удалил свой аккаунт."
+  },
+  "This user will be removed from your contacts.": {
+    "es": "Este usuario se eliminará de tus contactos.",
+    "id": "Pengguna ini akan dihapus dari kontak Anda.",
+    "ja": "このユーザーが連絡先から削除されます。",
+    "ms": "Pengguna ini akan dibuang daripada kenalan anda.",
+    "ru": "Пользователь будет удалён из ваших контактов.",
+    "zh-CN": "此用户将从联系人中移除。",
+    "zh-HK": "此用户將從聯繫人中移除。",
+    "zh-TW": "此使用者將從聯絡人中移除。"
+  },
+  "Threshold": {
+    "es": "Umbral",
+    "id": "Ambang",
+    "ja": "署名しきい値",
+    "ms": "Ambang",
+    "ru": "Порог подписей",
+    "zh-CN": "签名阈值",
+    "zh-HK": "簽名閾值",
+    "zh-TW": "簽名閾值"
+  },
+  "Time unit": {
+    "es": "Unidad de tiempo",
+    "id": "Satuan waktu",
+    "ja": "時間の単位",
+    "ms": "Unit masa",
+    "ru": "Единица времени",
+    "zh-CN": "时间单位",
+    "zh-HK": "時間單位",
+    "zh-TW": "時間單位"
+  },
+  "Toggle chat info": {
+    "id": "Alihkan info obrolan",
+    "ms": "Togol maklumat sembang"
+  },
+  "Transfer ID": {
+    "es": "ID de transferencia",
+    "id": "ID transfer",
+    "ja": "送金 ID",
+    "ms": "ID pemindahan",
+    "ru": "ID перевода",
+    "zh-CN": "转账 ID",
+    "zh-HK": "轉賬 ID",
+    "zh-TW": "轉賬 ID"
+  },
+  "Transfer cancelled": {
+    "es": "Transferencia cancelada",
+    "id": "Transfer dibatalkan",
+    "ja": "転送がキャンセルされました",
+    "ms": "Pemindahan dibatalkan",
+    "ru": "Перенос отменён",
+    "zh-CN": "同步已取消",
+    "zh-HK": "同步已取消",
+    "zh-TW": "同步已取消"
+  },
+  "Transfer completed": {
+    "es": "Transferencia completada",
+    "id": "Transfer selesai",
+    "ja": "転送が完了しました",
+    "ms": "Pemindahan selesai",
+    "ru": "Перенос завершён"
+  },
+  "Transfer failed. Check both devices and try again.": {
+    "es": "Error en la transferencia. Comprueba ambos dispositivos e inténtalo de nuevo.",
+    "id": "Transfer gagal. Periksa kedua perangkat dan coba lagi.",
+    "ja": "転送に失敗しました。両方のデバイスを確認して、もう一度お試しください。",
+    "ms": "Pemindahan gagal. Semak kedua-dua peranti dan cuba lagi.",
+    "ru": "Перенос не удался. Проверьте оба устройства и повторите попытку.",
+    "zh-CN": "同步失败，请检查两台设备后重试。",
+    "zh-HK": "同步失敗，請檢查兩台設備後重試。",
+    "zh-TW": "同步失敗，請檢查兩臺裝置後重試。"
+  },
+  "Transferring chats…": {
+    "es": "Transfiriendo chats…",
+    "id": "Mentransfer obrolan…",
+    "ja": "チャットを転送中…",
+    "ms": "Memindahkan sembang…",
+    "ru": "Перенос чатов…"
+  },
+  "Transferring…": {
+    "es": "Transfiriendo…",
+    "id": "Mentransfer…",
+    "ja": "転送中…",
+    "ms": "Memindahkan…",
+    "ru": "Передача…",
+    "zh-CN": "正在传输…",
+    "zh-HK": "正在傳輸…",
+    "zh-TW": "正在傳輸…"
+  },
+  "Try again in {seconds}s": {
+    "es": "Inténtalo de nuevo en {seconds} s",
+    "id": "Coba lagi dalam {seconds} dtk",
+    "ja": "{seconds}秒後にもう一度お試しください",
+    "ms": "Cuba lagi dalam {seconds} s",
+    "ru": "Повторите через {seconds} с",
+    "zh-CN": "请在 {seconds} 秒后重试",
+    "zh-HK": "請在 {seconds} 秒後重試",
+    "zh-TW": "請在 {seconds} 秒後重試"
+  },
+  "Try another name or clear your filters.": {
+    "es": "Prueba otro nombre o borra los filtros.",
+    "id": "Coba nama lain atau hapus filter Anda.",
+    "ja": "別の名前を試すか、フィルターを解除してください。",
+    "ms": "Cuba nama lain atau kosongkan penapis anda.",
+    "ru": "Попробуйте другое имя или сбросьте фильтры.",
+    "zh-CN": "试试其他名称，或清除筛选条件。",
+    "zh-HK": "試試其他名稱，或清除篩選條件。",
+    "zh-TW": "試試其他名稱，或清除篩選條件。"
+  },
+  "Unable to open file: {arg0}": {
+    "id": "Tidak dapat membuka berkas: {arg0}",
+    "ms": "Tidak dapat membuka fail: {arg0}"
+  },
+  "Unblock this user?": {
+    "es": "¿Desbloquear a este usuario?",
+    "id": "Buka blokir pengguna ini?",
+    "ja": "このユーザーのブロックを解除しますか？",
+    "ms": "Nyahsekat pengguna ini?",
+    "ru": "Разблокировать пользователя?",
+    "zh-CN": "取消屏蔽此用户？",
+    "zh-HK": "取消屏蔽此用户？",
+    "zh-TW": "取消封鎖此使用者？"
+  },
+  "Undo": {
+    "es": "Deshacer",
+    "id": "Urungkan",
+    "ja": "元に戻す",
+    "ms": "Buat asal",
+    "ru": "Отменить",
+    "zh-CN": "撤销",
+    "zh-HK": "撤銷",
+    "zh-TW": "撤銷"
+  },
+  "Unlock Mixin Messenger": {
+    "es": "Desbloquear Mixin Messenger",
+    "id": "Buka kunci Mixin Messenger",
+    "ja": "Mixin Messenger のロックを解除",
+    "ms": "Buka kunci Mixin Messenger",
+    "ru": "Разблокировать Mixin Messenger"
+  },
+  "Unlock with passcode": {
+    "es": "Desbloquear con código",
+    "id": "Buka dengan kode layar",
+    "ja": "パスコードでロック解除",
+    "ms": "Buka kunci dengan kod laluan",
+    "ru": "Разблокировать кодом",
+    "zh-CN": "输入锁屏密码解锁",
+    "zh-HK": "輸入鎖屏密碼解鎖",
+    "zh-TW": "輸入鎖屏密碼解鎖"
+  },
+  "Unlocking…": {
+    "es": "Desbloqueando…",
+    "id": "Membuka kunci…",
+    "ja": "ロック解除中…",
+    "ms": "Membuka kunci…",
+    "ru": "Разблокировка…",
+    "zh-CN": "正在解锁…",
+    "zh-HK": "正在解鎖…",
+    "zh-TW": "正在解鎖…"
+  },
+  "Unpin All Messages": {
+    "id": "Lepas sematan semua pesan",
+    "ms": "Nyahsemat semua mesej"
+  },
+  "Unread": {
+    "es": "No leído",
+    "id": "Belum dibaca",
+    "ja": "未読",
+    "ms": "Belum dibaca",
+    "ru": "Не прочитано",
+    "zh-CN": "未读",
+    "zh-HK": "未讀",
+    "zh-TW": "未讀"
+  },
+  "Unread messages": {
+    "id": "Pesan belum dibaca",
+    "ms": "Mesej belum dibaca"
+  },
+  "Update Mixin Messenger to continue.": {
+    "es": "Actualiza Mixin Messenger para continuar.",
+    "id": "Perbarui Mixin Messenger untuk melanjutkan.",
+    "ja": "続けるには Mixin Messenger を更新してください。",
+    "ms": "Kemas kini Mixin Messenger untuk meneruskan.",
+    "ru": "Обновите Mixin Messenger, чтобы продолжить.",
+    "zh-CN": "当前版本需要更新。",
+    "zh-HK": "當前版本需要更新。",
+    "zh-TW": "目前版本需要更新。"
+  },
+  "Use biometrics": {
+    "es": "Usar biometría",
+    "id": "Gunakan biometrik",
+    "ja": "生体認証を使用",
+    "ms": "Gunakan biometrik",
+    "ru": "Использовать биометрию"
+  },
+  "Username": {
+    "es": "Nombre de usuario",
+    "id": "Nama pengguna",
+    "ja": "ユーザー名",
+    "ms": "Nama pengguna",
+    "ru": "Имя пользователя"
+  },
+  "Username (optional)": {
+    "es": "Nombre de usuario (opcional)",
+    "id": "Nama pengguna (opsional)",
+    "ja": "ユーザー名（任意）",
+    "ms": "Nama pengguna (pilihan)",
+    "ru": "Имя пользователя (необязательно)",
+    "zh-CN": "用户名（可选）",
+    "zh-HK": "用户名（可選）",
+    "zh-TW": "使用者名稱（可選）"
+  },
+  "Verified": {
+    "es": "Verificado",
+    "id": "Terverifikasi",
+    "ja": "認証済み",
+    "ms": "Disahkan",
+    "ru": "Подтверждён",
+    "zh-CN": "已认证",
+    "zh-HK": "已認證",
+    "zh-TW": "已認證"
+  },
+  "View profile": {
+    "es": "Ver perfil",
+    "id": "Lihat profil",
+    "ja": "プロフィールを表示",
+    "ms": "Lihat profil",
+    "ru": "Посмотреть профиль",
+    "zh-CN": "查看资料",
+    "zh-HK": "查看資料",
+    "zh-TW": "檢視資料"
+  },
+  "Voice message": {
+    "es": "Mensaje de voz",
+    "id": "Pesan suara",
+    "ja": "音声メッセージ",
+    "ms": "Mesej suara",
+    "ru": "Голосовое сообщение",
+    "zh-CN": "语音消息",
+    "zh-HK": "語音消息",
+    "zh-TW": "語音訊息"
+  },
+  "Voice message position": {
+    "es": "Posición del mensaje de voz",
+    "id": "Posisi pesan suara",
+    "ja": "音声メッセージの再生位置",
+    "ms": "Kedudukan mesej suara",
+    "ru": "Позиция голосового сообщения",
+    "zh-CN": "语音播放进度",
+    "zh-HK": "語音播放進度",
+    "zh-TW": "語音播放進度"
+  },
+  "Waiting for this message.": {
+    "es": "Esperando este mensaje.",
+    "id": "Menunggu pesan ini.",
+    "ja": "このメッセージを待機しています。",
+    "ms": "Menunggu mesej ini.",
+    "ru": "Ожидание сообщения.",
+    "zh-CN": "正在等待此消息。",
+    "zh-HK": "正在等候此訊息。",
+    "zh-TW": "正在等待此訊息。"
+  },
+  "Waiting for {sender} to get online and establish an encrypted session.": {
+    "es": "Esperando a que {sender} se conecte para establecer una sesión cifrada.",
+    "id": "Menunggu {sender} online untuk membuat sesi terenkripsi.",
+    "ja": "暗号化セッションを確立するため、{sender}がオンラインになるのを待っています。",
+    "ms": "Menunggu {sender} dalam talian untuk mewujudkan sesi disulitkan.",
+    "ru": "Ожидание подключения для создания зашифрованного сеанса: {sender}.",
+    "zh-CN": "等待{sender}上线后建立加密会话。",
+    "zh-HK": "等待{sender}上線後建立加密會話。",
+    "zh-TW": "等待{sender}上線後建立加密工作階段。"
+  },
+  "Watch live": {
+    "es": "Ver en directo",
+    "id": "Tonton siaran langsung",
+    "ja": "ライブを視聴",
+    "ms": "Tonton siaran langsung",
+    "ru": "Смотреть трансляцию",
+    "zh-CN": "观看直播",
+    "zh-HK": "觀看直播",
+    "zh-TW": "觀看直播"
+  },
+  "Webpage": {
+    "es": "Página web",
+    "id": "Halaman web",
+    "ja": "ウェブページ",
+    "ms": "Halaman web",
+    "ru": "Веб-страница",
+    "zh-CN": "网页",
+    "zh-HK": "網頁",
+    "zh-TW": "網頁"
+  },
+  "Weeks": {
+    "es": "Semanas",
+    "id": "Minggu",
+    "ja": "週",
+    "ms": "Minggu",
+    "ru": "Недели",
+    "zh-CN": "周",
+    "zh-HK": "周",
+    "zh-TW": "週"
+  },
+  "White": {
+    "es": "Blanco",
+    "id": "Putih",
+    "ja": "白",
+    "ms": "Putih",
+    "ru": "Белый",
+    "zh-CN": "白色",
+    "zh-HK": "白色",
+    "zh-TW": "白色"
+  },
+  "Window": {
+    "id": "Jendela",
+    "ms": "Tetingkap"
+  },
+  "Working…": {
+    "es": "Procesando…",
+    "id": "Memproses…",
+    "ja": "処理中…",
+    "ms": "Memproses…",
+    "ru": "Обработка…",
+    "zh-CN": "处理中…",
+    "zh-HK": "處理中…",
+    "zh-TW": "處理中…"
+  },
+  "Write a message…": {
+    "id": "Tulis pesan…"
+  },
+  "Write a post": {
+    "es": "Escribir una publicación",
+    "id": "Tulis kiriman",
+    "ja": "記事を書く",
+    "ms": "Tulis siaran",
+    "ru": "Написать публикацию",
+    "zh-CN": "撰写文章",
+    "zh-HK": "撰寫文章",
+    "zh-TW": "撰寫文章"
+  },
+  "Write in Markdown…": {
+    "es": "Escribir en Markdown…",
+    "id": "Tulis dalam Markdown…",
+    "ja": "Markdown で入力…",
+    "ms": "Tulis dalam Markdown…",
+    "ru": "Пишите в Markdown…",
+    "zh-CN": "使用 Markdown 撰写…",
+    "zh-HK": "使用 Markdown 撰寫…",
+    "zh-TW": "使用 Markdown 撰寫…"
+  },
+  "Yellow": {
+    "es": "Amarillo",
+    "id": "Kuning",
+    "ja": "黄",
+    "ms": "Kuning",
+    "ru": "Жёлтый",
+    "zh-CN": "黄色",
+    "zh-HK": "黃色",
+    "zh-TW": "黃色"
+  },
+  "Yesterday": {
+    "es": "Ayer",
+    "id": "Kemarin",
+    "ja": "昨日",
+    "ms": "Semalam",
+    "ru": "Вчера",
+    "zh-CN": "昨天",
+    "zh-HK": "昨天",
+    "zh-TW": "昨天"
+  },
+  "You deleted this message": {
+    "es": "Eliminaste este mensaje",
+    "id": "Anda menghapus pesan ini",
+    "ja": "このメッセージを削除しました",
+    "ms": "Anda memadamkan mesej ini",
+    "ru": "Вы удалили это сообщение",
+    "zh-CN": "你删除了这条消息",
+    "zh-HK": "你已刪除此訊息",
+    "zh-TW": "你已刪除此訊息"
+  },
+  "You will leave this group and remove its local conversation.": {
+    "es": "Saldrás de este grupo y se eliminará su conversación local.",
+    "id": "Anda akan keluar dari grup ini dan menghapus percakapan lokalnya.",
+    "ja": "このグループから退出し、ローカルの会話を削除します。",
+    "ms": "Anda akan keluar daripada kumpulan ini dan membuang perbualan setempatnya.",
+    "ru": "Вы выйдете из группы и удалите её локальный чат.",
+    "zh-CN": "你将退出此群组并移除本地会话。",
+    "zh-HK": "你將退出此羣組並移除本地會話。",
+    "zh-TW": "你將退出此群組並移除本機會話。"
+  },
+  "Your albums": {
+    "es": "Tus álbumes",
+    "id": "Album Anda",
+    "ja": "自分のアルバム",
+    "ms": "Album anda",
+    "ru": "Ваши альбомы",
+    "zh-CN": "我的贴纸专辑",
+    "zh-HK": "我的貼紙專輯",
+    "zh-TW": "我的貼紙專輯"
+  },
+  "Your conversations will appear here as they sync.": {
+    "es": "Tus conversaciones aparecerán aquí al sincronizarse.",
+    "id": "Percakapan Anda akan muncul di sini saat disinkronkan.",
+    "ja": "同期された会話がここに表示されます。",
+    "ms": "Perbualan anda akan muncul di sini apabila disegerakkan.",
+    "ru": "Чаты появятся здесь по мере синхронизации.",
+    "zh-CN": "同步后的会话会显示在这里。",
+    "zh-HK": "同步後的會話會顯示在這裏。",
+    "zh-TW": "同步後的會話會顯示在這裡。"
+  },
+  "ZIP archive": {
+    "es": "Archivo ZIP",
+    "id": "Arsip ZIP",
+    "ja": "ZIP アーカイブ",
+    "ms": "Arkib ZIP",
+    "ru": "ZIP-архив",
+    "zh-CN": "ZIP 压缩包",
+    "zh-HK": "ZIP 壓縮檔",
+    "zh-TW": "ZIP 壓縮檔"
+  },
+  "Zoom in": {
+    "es": "Acercar",
+    "id": "Perbesar",
+    "ja": "拡大",
+    "ms": "Zum masuk",
+    "ru": "Увеличить",
+    "zh-CN": "放大",
+    "zh-HK": "放大",
+    "zh-TW": "放大"
+  },
+  "Zoom out": {
+    "es": "Alejar",
+    "id": "Perkecil",
+    "ja": "縮小",
+    "ms": "Zum keluar",
+    "ru": "Уменьшить",
+    "zh-CN": "缩小",
+    "zh-HK": "縮小",
+    "zh-TW": "縮小"
+  },
+  "a message": {
+    "id": "sebuah pesan",
+    "ms": "satu mesej"
+  },
+  "the sender": {
+    "es": "el remitente",
+    "id": "pengirim",
+    "ja": "送信者",
+    "ms": "pengirim",
+    "ru": "отправитель",
+    "zh-CN": "发送者",
+    "zh-HK": "發送者",
+    "zh-TW": "傳送者"
+  },
+  "your linked device": {
+    "es": "tu dispositivo vinculado",
+    "id": "perangkat tertaut Anda",
+    "ja": "自分のリンク済み端末",
+    "ms": "peranti terpaut anda",
+    "ru": "ваше связанное устройство",
+    "zh-CN": "你的关联设备",
+    "zh-HK": "你的關聯裝置",
+    "zh-TW": "你的連結裝置"
+  },
+  "{count} chats": {
+    "es": "Chats: {count}",
+    "id": "Obrolan: {count}",
+    "ja": "{count}件のチャット",
+    "ms": "Sembang: {count}",
+    "ru": "Чатов: {count}",
+    "zh-CN": "{count} 个聊天",
+    "zh-HK": "{count} 個聊天",
+    "zh-TW": "{count} 個聊天"
+  },
+  "{count} day": {
+    "es": "{count} día",
+    "id": "{count} hari",
+    "ja": "{count}日",
+    "ms": "{count} hari",
+    "ru": "{count} дн.",
+    "zh-CN": "{count} 天",
+    "zh-HK": "{count} 天",
+    "zh-TW": "{count} 天"
+  },
+  "{count} days": {
+    "es": "{count} días",
+    "id": "{count} hari",
+    "ja": "{count}日",
+    "ms": "{count} hari",
+    "ru": "{count} дн.",
+    "zh-CN": "{count} 天",
+    "zh-HK": "{count} 天",
+    "zh-TW": "{count} 天"
+  },
+  "{count} hour": {
+    "es": "{count} h",
+    "id": "{count} jam",
+    "ja": "{count}時間",
+    "ms": "{count} j",
+    "ru": "{count} ч",
+    "zh-CN": "{count} 小时",
+    "zh-HK": "{count} 小時",
+    "zh-TW": "{count} 小時"
+  },
+  "{count} hours": {
+    "es": "{count} h",
+    "id": "{count} jam",
+    "ja": "{count}時間",
+    "ms": "{count} j",
+    "ru": "{count} ч",
+    "zh-CN": "{count} 小时",
+    "zh-HK": "{count} 小時",
+    "zh-TW": "{count} 小時"
+  },
+  "{count} members": {
+    "es": "Miembros: {count}",
+    "id": "Anggota: {count}",
+    "ja": "{count}人のメンバー",
+    "ms": "Ahli: {count}",
+    "ru": "Участников: {count}",
+    "zh-CN": "{count} 位成员",
+    "zh-HK": "{count} 位成員",
+    "zh-TW": "{count} 位成員"
+  },
+  "{count} minute": {
+    "es": "{count} min",
+    "id": "{count} mnt",
+    "ja": "{count}分",
+    "ms": "{count} min",
+    "ru": "{count} мин",
+    "zh-CN": "{count} 分钟",
+    "zh-HK": "{count} 分鐘",
+    "zh-TW": "{count} 分鐘"
+  },
+  "{count} minutes": {
+    "es": "{count} min",
+    "id": "{count} mnt",
+    "ja": "{count}分",
+    "ms": "{count} min",
+    "ru": "{count} мин",
+    "zh-CN": "{count} 分钟",
+    "zh-HK": "{count} 分鐘",
+    "zh-TW": "{count} 分鐘"
+  },
+  "{count} second": {
+    "es": "{count} s",
+    "id": "{count} dtk",
+    "ja": "{count}秒",
+    "ms": "{count} s",
+    "ru": "{count} с",
+    "zh-CN": "{count} 秒",
+    "zh-HK": "{count} 秒",
+    "zh-TW": "{count} 秒"
+  },
+  "{count} seconds": {
+    "es": "{count} s",
+    "id": "{count} dtk",
+    "ja": "{count}秒",
+    "ms": "{count} s",
+    "ru": "{count} с",
+    "zh-CN": "{count} 秒",
+    "zh-HK": "{count} 秒",
+    "zh-TW": "{count} 秒"
+  },
+  "{count} selected": {
+    "es": "Seleccionados: {count}",
+    "id": "Dipilih: {count}",
+    "ja": "{count}件を選択中",
+    "ms": "Dipilih: {count}",
+    "ru": "Выбрано: {count}",
+    "zh-CN": "已选择 {count} 条消息",
+    "zh-HK": "已選擇 {count} 條消息",
+    "zh-TW": "已選擇 {count} 則訊息"
+  },
+  "{count} week": {
+    "es": "{count} semana",
+    "id": "{count} minggu",
+    "ja": "{count}週間",
+    "ms": "{count} minggu",
+    "ru": "{count} нед.",
+    "zh-CN": "{count} 周",
+    "zh-HK": "{count} 週",
+    "zh-TW": "{count} 週"
+  },
+  "{count} weeks": {
+    "es": "{count} semanas",
+    "id": "{count} minggu",
+    "ja": "{count}週間",
+    "ms": "{count} minggu",
+    "ru": "{count} нед.",
+    "zh-CN": "{count} 周",
+    "zh-HK": "{count} 週",
+    "zh-TW": "{count} 週"
+  },
+  "{hours} h": {
+    "es": "{hours} h",
+    "id": "{hours} jam",
+    "ja": "{hours}時間",
+    "ms": "{hours} jam",
+    "ru": "{hours} ч",
+    "zh-CN": "{hours} 小时",
+    "zh-HK": "{hours} 小時",
+    "zh-TW": "{hours} 小時"
+  },
+  "{minutes} min": {
+    "es": "{minutes} min",
+    "id": "{minutes} mnt",
+    "ja": "{minutes}分",
+    "ms": "{minutes} min",
+    "ru": "{minutes} мин",
+    "zh-CN": "{minutes} 分钟",
+    "zh-HK": "{minutes} 分鐘",
+    "zh-TW": "{minutes} 分鐘"
+  },
+  "{name} pinned {message}": {
+    "es": "Mensaje fijado por {name}: {message}",
+    "id": "{name} menyematkan {message}",
+    "ja": "{name}が{message}をピン留めしました",
+    "ms": "{name} menyematkan {message}",
+    "ru": "Закрепление от {name}: {message}",
+    "zh-CN": "{name}置顶了{message}",
+    "zh-HK": "{name}置頂了{message}",
+    "zh-TW": "{name}釘選了{message}"
+  },
+  "{participant} became an admin": {
+    "es": "Nuevo administrador: {participant}",
+    "id": "{participant} menjadi admin",
+    "ja": "{participant}が管理者になりました",
+    "ms": "{participant} menjadi pentadbir",
+    "ru": "Новый администратор: {participant}",
+    "zh-CN": "{participant}成为了管理员",
+    "zh-HK": "{participant}成為了管理員",
+    "zh-TW": "{participant}成為了管理員"
+  },
+  "{participant} joined the group": {
+    "es": "Entrada al grupo: {participant}",
+    "id": "{participant} bergabung ke grup",
+    "ja": "{participant}がグループに参加しました",
+    "ms": "{participant} menyertai kumpulan",
+    "ru": "Вступление в группу: {participant}",
+    "zh-CN": "{participant}加入了群组",
+    "zh-HK": "{participant}加入了群組",
+    "zh-TW": "{participant}加入了群組"
+  },
+  "{participant} left the group": {
+    "es": "Salida del grupo: {participant}",
+    "id": "{participant} keluar dari grup",
+    "ja": "{participant}がグループを退出しました",
+    "ms": "{participant} meninggalkan kumpulan",
+    "ru": "Выход из группы: {participant}",
+    "zh-CN": "{participant}退出了群组",
+    "zh-HK": "{participant}退出了群組",
+    "zh-TW": "{participant}退出了群組"
+  },
+  "{sender} added {participant}": {
+    "es": "Participante añadido: {participant} · Por: {sender}",
+    "id": "{sender} menambahkan {participant}",
+    "ja": "{sender}が{participant}を追加しました",
+    "ms": "{sender} menambah {participant}",
+    "ru": "{sender}: добавление участника {participant}",
+    "zh-CN": "{sender}添加了{participant}",
+    "zh-HK": "{sender}添加了{participant}",
+    "zh-TW": "{sender}新增了{participant}"
+  },
+  "{sender} changed disappearing message settings": {
+    "es": "Ajustes de mensajes temporales cambiados por: {sender}",
+    "id": "{sender} mengubah pengaturan pesan sementara",
+    "ja": "{sender}が消えるメッセージの設定を変更しました",
+    "ms": "{sender} mengubah tetapan mesej sementara",
+    "ru": "{sender}: настройки исчезающих сообщений изменены",
+    "zh-CN": "{sender}修改了消息自动销毁设置",
+    "zh-HK": "{sender}修改了消息自動銷毀設定",
+    "zh-TW": "{sender}修改了訊息自動銷毀設定"
+  },
+  "{sender} created this group": {
+    "es": "Grupo creado por: {sender}",
+    "id": "{sender} membuat grup ini",
+    "ja": "{sender}がこのグループを作成しました",
+    "ms": "{sender} mencipta kumpulan ini",
+    "ru": "{sender}: группа создана",
+    "zh-CN": "{sender}创建了群组",
+    "zh-HK": "{sender}建立了群組",
+    "zh-TW": "{sender}建立了群組"
+  },
+  "{sender} disabled disappearing messages": {
+    "es": "Mensajes temporales desactivados por: {sender}",
+    "id": "{sender} menonaktifkan pesan sementara",
+    "ja": "{sender}が消えるメッセージを無効にしました",
+    "ms": "{sender} mematikan mesej sementara",
+    "ru": "{sender}: исчезающие сообщения отключены",
+    "zh-CN": "{sender}关闭了消息自动销毁",
+    "zh-HK": "{sender}關閉了消息自動銷毀",
+    "zh-TW": "{sender}關閉了訊息自動銷毀"
+  },
+  "{sender} pinned {message}": {
+    "es": "Mensaje fijado por {sender}: {message}",
+    "id": "{sender} menyematkan {message}",
+    "ja": "{sender}が{message}をピン留めしました",
+    "ms": "{sender} menyematkan {message}",
+    "ru": "Закрепление от {sender}: {message}",
+    "zh-CN": "{sender}置顶了{message}",
+    "zh-HK": "{sender}置頂了{message}",
+    "zh-TW": "{sender}釘選了{message}"
+  },
+  "{sender} removed {participant}": {
+    "es": "Participante eliminado: {participant} · Por: {sender}",
+    "id": "{sender} menghapus {participant}",
+    "ja": "{sender}が{participant}を削除しました",
+    "ms": "{sender} mengeluarkan {participant}",
+    "ru": "{sender}: удаление участника {participant}",
+    "zh-CN": "{sender}移除了{participant}",
+    "zh-HK": "{sender}移除了{participant}",
+    "zh-TW": "{sender}移除了{participant}"
+  },
+  "{sender} set disappearing messages to {duration}": {
+    "es": "Mensajes temporales: {duration} · Configurado por: {sender}",
+    "id": "{sender} mengatur pesan sementara menjadi {duration}",
+    "ja": "{sender}が消えるメッセージを{duration}に設定しました",
+    "ms": "{sender} menetapkan mesej sementara kepada {duration}",
+    "ru": "{sender}: таймер исчезающих сообщений — {duration}",
+    "zh-CN": "{sender}将消息自动销毁时间设置为{duration}",
+    "zh-HK": "{sender}將消息自動銷毀時間設為{duration}",
+    "zh-TW": "{sender}將訊息自動銷毀時間設為{duration}"
+  },
+  "↑↓ Select · Enter Open · Esc Close": {
+    "es": "↑↓ Seleccionar · Enter Abrir · Esc Cerrar",
+    "id": "↑↓ Pilih · Enter Buka · Esc Tutup",
+    "ja": "↑↓ 選択 · Enter 開く · Esc 閉じる",
+    "ms": "↑↓ Pilih · Enter Buka · Esc Tutup",
+    "ru": "↑↓ Выбрать · Enter Открыть · Esc Закрыть",
+    "zh-CN": "↑↓ 选择 · Enter 打开 · Esc 关闭",
+    "zh-HK": "↑↓ 選擇 · Enter 打開 · Esc 關閉",
+    "zh-TW": "↑↓ 選擇 · Enter 開啟 · Esc 關閉"
+  }
+}

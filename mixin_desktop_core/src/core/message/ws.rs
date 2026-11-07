@@ -27,6 +27,8 @@ pub(crate) struct Handshake {
     pub authorization: String,
     /// Requested subprotocol, `Mixin-Blaze-1`.
     pub protocol: String,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub proxy: Option<crate::network::ProxyConfig>,
 }
 
 /// Failure to open the WebSocket, classified for the connect loop.

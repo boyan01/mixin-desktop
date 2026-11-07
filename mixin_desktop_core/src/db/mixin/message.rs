@@ -17,6 +17,16 @@ use crate::db::mixin::transcript_message::{TranscriptMessage, TranscriptMessageD
 use crate::db::mixin::util::{expand_var, BindList};
 use crate::db::Error;
 
+#[cfg(test)]
+mod pinned_media_tests;
+mod pinning;
+
+#[cfg(test)]
+mod quote_projection_tests;
+
+#[cfg(test)]
+mod notification_tests;
+
 #[derive(Clone)]
 pub struct MessageDao(pub(crate) crate::db::Pool);
 
@@ -186,7 +196,14 @@ SELECT message.message_id,
        message.thumb_image,
        message.media_status,
        message.quote_message_id,
-       message.quote_content,
+       CASE WHEN quote_sticker.sticker_id IS NOT NULL
+            THEN json_set(message.quote_content,
+                '$.asset_url', quote_sticker.asset_url,
+                '$.asset_type', quote_sticker.asset_type,
+                '$.asset_width', quote_sticker.asset_width,
+                '$.asset_height', quote_sticker.asset_height,
+                '$.asset_name', quote_sticker.name)
+            ELSE message.quote_content END AS quote_content,
        quote_user.membership AS quote_user_membership,
        message.caption,
        message.action,
@@ -247,6 +264,7 @@ LEFT JOIN conversations conversation ON conversation.conversation_id = message.c
 LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
 LEFT JOIN users quote_user ON quote_user.user_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.user_id') END
 LEFT JOIN stickers sticker ON sticker.sticker_id = message.sticker_id
+LEFT JOIN stickers quote_sticker ON quote_sticker.sticker_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.sticker_id') END
 LEFT JOIN snapshots snapshot ON snapshot.snapshot_id = message.snapshot_id
 LEFT JOIN safe_snapshots safe_snapshot ON safe_snapshot.snapshot_id = message.snapshot_id
 LEFT JOIN assets asset ON asset.asset_id = snapshot.asset_id
@@ -391,7 +409,11 @@ pub struct NotificationMessageItem {
     pub conversation_id: String,
     pub user_id: String,
     pub sender_name: String,
+    pub action: Option<String>,
+    pub participant_id: Option<String>,
+    pub participant_name: Option<String>,
     pub category: String,
+    pub status: MessageStatus,
     pub content: Option<String>,
     pub quote_content: Option<String>,
     pub created_at: NaiveDateTime,
@@ -414,9 +436,13 @@ SELECT message.rowid AS row_id,
        message.conversation_id,
        message.user_id,
        COALESCE(sender.full_name, '') AS sender_name,
+       message.action,
+       message.participant_id,
+       participant.full_name AS participant_name,
        message.category,
        message.content,
        message.quote_content,
+       message.status,
        message.created_at,
        CASE WHEN conversation.category = 'GROUP'
             THEN conversation.name ELSE COALESCE(owner.full_name, '') END AS conversation_name,
@@ -429,6 +455,7 @@ INNER JOIN conversations conversation
         ON conversation.conversation_id = message.conversation_id
 LEFT JOIN users owner ON owner.user_id = conversation.owner_id
 LEFT JOIN users sender ON sender.user_id = message.user_id
+LEFT JOIN users participant ON participant.user_id = message.participant_id
 WHERE message.user_id != ?1
   AND message.rowid > ?2
 ORDER BY message.rowid ASC
@@ -465,6 +492,21 @@ LIMIT ?4
         .fetch_all(&self.0)
         .await?;
         Ok(result)
+    }
+
+    pub async fn first_unread_message_id(
+        &self,
+        conversation_id: &str,
+        current_user_id: &str,
+    ) -> Result<Option<String>, Error> {
+        Ok(crate::db::query_scalar::<String>(
+            "SELECT message_id FROM messages WHERE conversation_id = ? AND user_id != ? \
+             AND status IN ('SENT', 'DELIVERED') ORDER BY created_at ASC, rowid ASC LIMIT 1",
+        )
+        .bind(conversation_id)
+        .bind(current_user_id)
+        .fetch_optional(&self.0)
+        .await?)
     }
 
     pub async fn mark_conversation_read(
@@ -690,7 +732,14 @@ SELECT message.message_id,
        message.thumb_image,
        message.media_status,
        message.quote_message_id,
-       message.quote_content,
+       CASE WHEN quote_sticker.sticker_id IS NOT NULL
+            THEN json_set(message.quote_content,
+                '$.asset_url', quote_sticker.asset_url,
+                '$.asset_type', quote_sticker.asset_type,
+                '$.asset_width', quote_sticker.asset_width,
+                '$.asset_height', quote_sticker.asset_height,
+                '$.asset_name', quote_sticker.name)
+            ELSE message.quote_content END AS quote_content,
        quote_user.membership AS quote_user_membership,
        message.caption,
        message.action,
@@ -751,6 +800,7 @@ LEFT JOIN conversations conversation ON conversation.conversation_id = message.c
 LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
 LEFT JOIN users quote_user ON quote_user.user_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.user_id') END
 LEFT JOIN stickers sticker ON sticker.sticker_id = message.sticker_id
+LEFT JOIN stickers quote_sticker ON quote_sticker.sticker_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.sticker_id') END
 LEFT JOIN snapshots snapshot ON snapshot.snapshot_id = message.snapshot_id
 LEFT JOIN safe_snapshots safe_snapshot ON safe_snapshot.snapshot_id = message.snapshot_id
 LEFT JOIN assets asset ON asset.asset_id = snapshot.asset_id
@@ -814,6 +864,61 @@ WHERE message.conversation_id =
             );
         }
         Ok(items)
+    }
+
+    pub(crate) async fn list_items_by_sender(
+        &self,
+        conversation_id: &str,
+        sender_id: &str,
+        categories: &[String],
+        cursor: Option<&str>,
+        limit: u32,
+    ) -> Result<Vec<MessageListItem>, Error> {
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+        let anchor = if let Some(cursor) = cursor {
+            let anchor = crate::db::query_as::<(i64, i64)>(
+                "SELECT created_at, rowid FROM messages WHERE conversation_id = ? AND user_id = ? AND message_id = ?",
+            ).bind(conversation_id).bind(sender_id).bind(cursor).fetch_optional(&self.0).await?;
+            let Some(anchor) = anchor else {
+                return Ok(Vec::new());
+            };
+            Some(anchor)
+        } else {
+            None
+        };
+        let mut query = QueryBuilder::new(MESSAGE_LIST_QUERY_PREFIX);
+        query
+            .push(" WHERE message.conversation_id = ")
+            .push_bind(conversation_id)
+            .push(" AND message.user_id = ")
+            .push_bind(sender_id);
+        if !categories.is_empty() {
+            query.push(" AND message.category IN (");
+            let mut values = query.separated(", ");
+            for category in categories {
+                values.push_bind(category);
+            }
+            values.push_unseparated(")");
+        }
+        if let Some((created_at, rowid)) = anchor {
+            query
+                .push(" AND (message.created_at < ")
+                .push_bind(created_at)
+                .push(" OR (message.created_at = ")
+                .push_bind(created_at)
+                .push(" AND message.rowid < ")
+                .push_bind(rowid)
+                .push("))");
+        }
+        query
+            .push(" ORDER BY message.created_at DESC, message.rowid DESC LIMIT ")
+            .push_bind(limit.min(200));
+        Ok(query
+            .build_query_as::<MessageListItem>()
+            .fetch_all(&self.0)
+            .await?)
     }
 
     pub async fn message_order_info(
@@ -883,6 +988,30 @@ LIMIT ?
         &self,
         conversation_id: &str,
     ) -> Result<Vec<MessageListItem>, Error> {
+        self.pinned_items(conversation_id, 0, i64::MAX).await
+    }
+
+    pub async fn list_pinned_items_page(
+        &self,
+        conversation_id: &str,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<MessageListItem>, Error> {
+        self.pinned_items(conversation_id, offset.max(0), limit.clamp(1, 200))
+            .await
+    }
+
+    pub async fn pinned_message_count(&self, conversation_id: &str) -> Result<i64, Error> {
+        Ok(crate::db::query_scalar("SELECT COUNT(*) FROM pin_messages pin INNER JOIN messages message ON message.message_id = pin.message_id WHERE pin.conversation_id = ?")
+            .bind(conversation_id).fetch_one(&self.0).await?)
+    }
+
+    async fn pinned_items(
+        &self,
+        conversation_id: &str,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<MessageListItem>, Error> {
         Ok(crate::db::query_as::< MessageListItem>(
             r#"
 SELECT message.message_id,
@@ -912,7 +1041,14 @@ SELECT message.message_id,
        message.thumb_image,
        message.media_status,
        message.quote_message_id,
-       message.quote_content,
+       CASE WHEN quote_sticker.sticker_id IS NOT NULL
+            THEN json_set(message.quote_content,
+                '$.asset_url', quote_sticker.asset_url,
+                '$.asset_type', quote_sticker.asset_type,
+                '$.asset_width', quote_sticker.asset_width,
+                '$.asset_height', quote_sticker.asset_height,
+                '$.asset_name', quote_sticker.name)
+            ELSE message.quote_content END AS quote_content,
        quote_user.membership AS quote_user_membership,
        message.caption,
        message.action,
@@ -974,6 +1110,7 @@ LEFT JOIN conversations conversation ON conversation.conversation_id = message.c
 LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
 LEFT JOIN users quote_user ON quote_user.user_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.user_id') END
 LEFT JOIN stickers sticker ON sticker.sticker_id = message.sticker_id
+LEFT JOIN stickers quote_sticker ON quote_sticker.sticker_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.sticker_id') END
 LEFT JOIN snapshots snapshot ON snapshot.snapshot_id = message.snapshot_id
 LEFT JOIN safe_snapshots safe_snapshot ON safe_snapshot.snapshot_id = message.snapshot_id
 LEFT JOIN assets asset ON asset.asset_id = snapshot.asset_id
@@ -987,11 +1124,39 @@ LEFT JOIN message_mentions mention ON mention.message_id = message.message_id
 LEFT JOIN expired_messages expired ON expired.message_id = message.message_id
 WHERE selected_pin.conversation_id = ?1
 ORDER BY message.created_at DESC, message.message_id DESC
+LIMIT ?2 OFFSET ?3
             "#,
         )
         .bind(conversation_id)
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&self.0)
         .await?)
+    }
+
+    /// A stable adjacent page in timeline order (newest first), excluding its anchor.
+    pub async fn list_items_relative(
+        &self,
+        conversation_id: &str,
+        anchor_message_id: &str,
+        older: bool,
+        limit: i64,
+    ) -> Result<Vec<MessageListItem>, Error> {
+        if limit <= 0 {
+            return Ok(Vec::new());
+        }
+        let limit = limit.min(100);
+        let mut rows = self
+            .list_items_around(
+                conversation_id,
+                anchor_message_id,
+                if older { limit } else { 0 },
+                if older { 0 } else { limit },
+            )
+            .await?;
+        rows.retain(|row| row.message_id != anchor_message_id);
+        rows.reverse();
+        Ok(rows)
     }
 
     pub async fn list_items_around(
@@ -1068,7 +1233,14 @@ SELECT message.message_id,
        message.thumb_image,
        message.media_status,
        message.quote_message_id,
-       message.quote_content,
+       CASE WHEN quote_sticker.sticker_id IS NOT NULL
+            THEN json_set(message.quote_content,
+                '$.asset_url', quote_sticker.asset_url,
+                '$.asset_type', quote_sticker.asset_type,
+                '$.asset_width', quote_sticker.asset_width,
+                '$.asset_height', quote_sticker.asset_height,
+                '$.asset_name', quote_sticker.name)
+            ELSE message.quote_content END AS quote_content,
        quote_user.membership AS quote_user_membership,
        message.caption,
        message.action,
@@ -1130,6 +1302,7 @@ LEFT JOIN conversations conversation ON conversation.conversation_id = message.c
 LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
 LEFT JOIN users quote_user ON quote_user.user_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.user_id') END
 LEFT JOIN stickers sticker ON sticker.sticker_id = message.sticker_id
+LEFT JOIN stickers quote_sticker ON quote_sticker.sticker_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.sticker_id') END
 LEFT JOIN snapshots snapshot ON snapshot.snapshot_id = message.snapshot_id
 LEFT JOIN safe_snapshots safe_snapshot ON safe_snapshot.snapshot_id = message.snapshot_id
 LEFT JOIN assets asset ON asset.asset_id = snapshot.asset_id
@@ -1156,6 +1329,84 @@ ORDER BY message.created_at ASC, message.rowid ASC
         Ok(result)
     }
 
+    /// Select eligible audio before applying the bounded neighbor window.
+    pub async fn list_audio_items_around(
+        &self,
+        conversation_id: &str,
+        target_message_id: &str,
+        before: i64,
+        after: i64,
+    ) -> Result<Vec<MessageListItem>, Error> {
+        self.audio_items_around(conversation_id, target_message_id, before, after, false)
+            .await
+    }
+
+    pub async fn list_pinned_audio_items_around(
+        &self,
+        conversation_id: &str,
+        target_message_id: &str,
+        before: i64,
+        after: i64,
+    ) -> Result<Vec<MessageListItem>, Error> {
+        self.audio_items_around(conversation_id, target_message_id, before, after, true)
+            .await
+    }
+
+    async fn audio_items_around(
+        &self,
+        conversation_id: &str,
+        target_message_id: &str,
+        before: i64,
+        after: i64,
+        pinned_only: bool,
+    ) -> Result<Vec<MessageListItem>, Error> {
+        let ids = crate::db::query_scalar::<String>(
+            r#"
+WITH eligible AS (
+    SELECT message_id, created_at, rowid AS row_id FROM messages
+    WHERE conversation_id = ?1
+      AND category IN ('PLAIN_AUDIO', 'SIGNAL_AUDIO', 'ENCRYPTED_AUDIO')
+      AND media_status IN ('DONE', 'READ') AND COALESCE(media_url, '') != ''
+      AND (?5 = FALSE OR EXISTS (
+          SELECT 1 FROM pin_messages pin
+          WHERE pin.message_id = messages.message_id AND pin.conversation_id = ?1
+      ))
+), anchor AS (
+    SELECT * FROM eligible WHERE message_id = ?2
+), audio_window AS (
+    SELECT * FROM (
+        SELECT candidate.* FROM eligible candidate, anchor
+        WHERE candidate.created_at < anchor.created_at
+           OR (candidate.created_at = anchor.created_at AND candidate.row_id < anchor.row_id)
+        ORDER BY candidate.created_at DESC, candidate.row_id DESC LIMIT ?3
+    )
+    UNION ALL SELECT * FROM anchor
+    UNION ALL SELECT * FROM (
+        SELECT candidate.* FROM eligible candidate, anchor
+        WHERE candidate.created_at > anchor.created_at
+           OR (candidate.created_at = anchor.created_at AND candidate.row_id > anchor.row_id)
+        ORDER BY candidate.created_at ASC, candidate.row_id ASC LIMIT ?4
+    )
+)
+SELECT message_id FROM audio_window ORDER BY created_at ASC, row_id ASC
+            "#,
+        )
+        .bind(conversation_id)
+        .bind(target_message_id)
+        .bind(before.clamp(0, 100))
+        .bind(after.clamp(0, 100))
+        .bind(pinned_only)
+        .fetch_all(&self.0)
+        .await?;
+        let mut items = self
+            .list_items_by_ids(&ids)
+            .await?
+            .into_iter()
+            .map(|item| (item.message_id.clone(), item))
+            .collect::<HashMap<_, _>>();
+        Ok(ids.into_iter().filter_map(|id| items.remove(&id)).collect())
+    }
+
     pub async fn list_image_items_around(
         &self,
         conversation_id: &str,
@@ -1163,50 +1414,71 @@ ORDER BY message.created_at ASC, message.rowid ASC
         before: i64,
         after: i64,
     ) -> Result<Vec<ImageMessageItem>, Error> {
-        let Some(anchor) = crate::db::query_as::<MessageOrderInfo>(
-            "SELECT message_id, rowid AS row_id, created_at FROM messages \
-             WHERE conversation_id = ? AND message_id = ? \
-             AND category IN ('SIGNAL_IMAGE', 'PLAIN_IMAGE', 'ENCRYPTED_IMAGE') \
-             AND COALESCE(media_url, '') != '' LIMIT 1",
-        )
-        .bind(conversation_id)
-        .bind(target_message_id)
-        .fetch_optional(&self.0)
-        .await?
-        else {
-            return Ok(Vec::new());
-        };
+        self.image_items_around(conversation_id, target_message_id, before, after, false)
+            .await
+    }
+
+    pub async fn list_pinned_image_items_around(
+        &self,
+        conversation_id: &str,
+        target_message_id: &str,
+        before: i64,
+        after: i64,
+    ) -> Result<Vec<ImageMessageItem>, Error> {
+        self.image_items_around(conversation_id, target_message_id, before, after, true)
+            .await
+    }
+
+    async fn image_items_around(
+        &self,
+        conversation_id: &str,
+        target_message_id: &str,
+        before: i64,
+        after: i64,
+        pinned_only: bool,
+    ) -> Result<Vec<ImageMessageItem>, Error> {
         Ok(crate::db::query_as::<ImageMessageItem>(
             r#"
-WITH image_window AS (
+WITH anchor AS (
+    SELECT message_id, rowid AS row_id, created_at FROM messages
+    WHERE conversation_id = ?1 AND message_id = ?2
+      AND category IN ('SIGNAL_IMAGE', 'PLAIN_IMAGE', 'ENCRYPTED_IMAGE')
+      AND COALESCE(media_url, '') != ''
+      AND (?5 = FALSE OR EXISTS (SELECT 1 FROM pin_messages pin
+           WHERE pin.message_id = messages.message_id AND pin.conversation_id = ?1))
+), image_window AS (
     SELECT message_id FROM (
         SELECT candidate.message_id
-        FROM messages candidate
+        FROM messages candidate, anchor
         WHERE candidate.conversation_id = ?1
           AND candidate.category IN ('SIGNAL_IMAGE', 'PLAIN_IMAGE', 'ENCRYPTED_IMAGE')
           AND COALESCE(candidate.media_url, '') != ''
+          AND (?5 = FALSE OR EXISTS (SELECT 1 FROM pin_messages pin
+               WHERE pin.message_id = candidate.message_id AND pin.conversation_id = ?1))
           AND (
-              candidate.created_at < ?3
-              OR (candidate.created_at = ?3 AND candidate.rowid < ?4)
+              candidate.created_at < anchor.created_at
+              OR (candidate.created_at = anchor.created_at AND candidate.rowid < anchor.row_id)
           )
         ORDER BY candidate.created_at DESC, candidate.rowid DESC
-        LIMIT ?5
+        LIMIT ?3
     )
     UNION ALL
-    SELECT ?2 AS message_id
+    SELECT message_id FROM anchor
     UNION ALL
     SELECT message_id FROM (
         SELECT candidate.message_id
-        FROM messages candidate
+        FROM messages candidate, anchor
         WHERE candidate.conversation_id = ?1
           AND candidate.category IN ('SIGNAL_IMAGE', 'PLAIN_IMAGE', 'ENCRYPTED_IMAGE')
           AND COALESCE(candidate.media_url, '') != ''
+          AND (?5 = FALSE OR EXISTS (SELECT 1 FROM pin_messages pin
+               WHERE pin.message_id = candidate.message_id AND pin.conversation_id = ?1))
           AND (
-              candidate.created_at > ?3
-              OR (candidate.created_at = ?3 AND candidate.rowid > ?4)
+              candidate.created_at > anchor.created_at
+              OR (candidate.created_at = anchor.created_at AND candidate.rowid > anchor.row_id)
           )
         ORDER BY candidate.created_at ASC, candidate.rowid ASC
-        LIMIT ?6
+        LIMIT ?4
     )
 )
 SELECT message.message_id,
@@ -1234,10 +1506,9 @@ ORDER BY message.created_at ASC, message.rowid ASC
         )
         .bind(conversation_id)
         .bind(target_message_id)
-        .bind(anchor.created_at.and_utc().timestamp_millis())
-        .bind(anchor.row_id)
         .bind(before.clamp(0, 100))
         .bind(after.clamp(0, 100))
+        .bind(pinned_only)
         .fetch_all(&self.0)
         .await?)
     }
@@ -1323,6 +1594,7 @@ ORDER BY message.created_at ASC, message.rowid ASC
 
     pub async fn insert_pending_outgoing_message(&self, message: &Message) -> Result<(), Error> {
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
+        Self::ensure_can_send_with(&mut transaction, message).await?;
         insert_message_with(&mut *transaction, message).await?;
         crate::db::query(
             "UPDATE conversations SET last_message_id = ?, last_message_created_at = ?, \
@@ -1350,11 +1622,59 @@ ORDER BY message.created_at ASC, message.rowid ASC
         Ok(())
     }
 
+    pub(crate) async fn insert_outgoing_batch_with_transcripts(
+        &self,
+        messages: &[(&Message, &Job, Option<&[TranscriptMessage]>)],
+    ) -> Result<(), Error> {
+        let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
+        for (message, job, transcripts) in messages {
+            if let Some(transcripts) = transcripts {
+                TranscriptMessageDao::insert_all_with(&mut transaction, transcripts).await?;
+            }
+            Self::insert_outgoing_message_with(&mut transaction, message, job).await?;
+        }
+        transaction.commit().await?;
+        Ok(())
+    }
+
+    /// Account startup runs this before any attachment transfer can be active.
+    pub(crate) async fn recover_interrupted_uploads(&self, account_id: &str) -> Result<(), Error> {
+        crate::db::query(
+            "UPDATE messages SET media_status = 'CANCELED' \
+             WHERE user_id = ? AND status = 'SENDING' AND media_status = 'PENDING' \
+             AND category IN ('PLAIN_IMAGE', 'SIGNAL_IMAGE', 'ENCRYPTED_IMAGE', \
+              'PLAIN_VIDEO', 'SIGNAL_VIDEO', 'ENCRYPTED_VIDEO', \
+              'PLAIN_AUDIO', 'SIGNAL_AUDIO', 'ENCRYPTED_AUDIO', \
+              'PLAIN_DATA', 'SIGNAL_DATA', 'ENCRYPTED_DATA')",
+        )
+        .bind(account_id)
+        .execute(&self.0)
+        .await?;
+        Ok(())
+    }
+
+    async fn ensure_can_send_with(
+        transaction: &mut crate::db::Transaction<'_>,
+        message: &Message,
+    ) -> Result<(), Error> {
+        if !super::conversation::ConversationDao::can_send_with(
+            &mut **transaction,
+            &message.conversation_id,
+            &message.user_id,
+        )
+        .await?
+        {
+            return Err(Error::PermissionDenied);
+        }
+        Ok(())
+    }
+
     async fn insert_outgoing_message_with(
         transaction: &mut crate::db::Transaction<'_>,
         message: &Message,
         job: &Job,
     ) -> Result<(), Error> {
+        Self::ensure_can_send_with(transaction, message).await?;
         insert_message_with(&mut **transaction, message).await?;
         crate::db::query(
             "UPDATE conversations SET last_message_id = ?, last_message_created_at = ?, \
@@ -1369,7 +1689,7 @@ ORDER BY message.created_at ASC, message.rowid ASC
         Ok(())
     }
 
-    async fn insert_job_with(
+    pub(super) async fn insert_job_with(
         transaction: &mut crate::db::Transaction<'_>,
         job: &Job,
     ) -> Result<(), Error> {
@@ -1418,7 +1738,9 @@ ORDER BY message.created_at ASC, message.rowid ASC
             MessageStatus::Sent => "SENT",
             MessageStatus::Failed => "FAILED",
             _ => {
-                return Err(anyhow::anyhow!("invalid sending completion status: {status:?}").into())
+                return Err(
+                    anyhow::anyhow!("invalid sending completion status: {status:?}").into(),
+                );
             }
         };
         crate::db::query(
@@ -1506,7 +1828,7 @@ ORDER BY message.created_at ASC, message.rowid ASC
         .bind(update.media_height)
         .bind(encode_attachment_material(&update.media_digest))
         .bind(encode_attachment_material(&update.media_key))
-        .bind(&update.media_waveform)
+        .bind(encode_attachment_material(&update.media_waveform))
         .bind(&update.caption)
         .bind(&update.name)
         .bind(&update.thumb_image)
@@ -1542,7 +1864,7 @@ ORDER BY message.created_at ASC, message.rowid ASC
         .bind(update.media_height)
         .bind(encode_attachment_material(&update.media_digest))
         .bind(encode_attachment_material(&update.media_key))
-        .bind(&update.media_waveform)
+        .bind(encode_attachment_material(&update.media_waveform))
         .bind(&update.caption)
         .bind(&update.name)
         .bind(&update.thumb_image)
@@ -1581,7 +1903,7 @@ ORDER BY message.created_at ASC, message.rowid ASC
         .bind(update.media_height)
         .bind(encode_attachment_material(&update.media_digest))
         .bind(encode_attachment_material(&update.media_key))
-        .bind(&update.media_waveform)
+        .bind(encode_attachment_material(&update.media_waveform))
         .bind(&update.caption)
         .bind(&update.name)
         .bind(&update.thumb_image)
@@ -1645,6 +1967,32 @@ ORDER BY message.created_at ASC, message.rowid ASC
         .execute(&self.0)
         .await?;
         Ok(())
+    }
+
+    /// Failure recovery must not overwrite an already completed upload/job.
+    pub async fn cancel_pending_transfer(&self, message_id: &str) -> Result<bool, Error> {
+        Ok(crate::db::query(
+            "UPDATE messages SET media_status = 'CANCELED' WHERE message_id = ? \
+             AND media_status = 'PENDING'",
+        )
+        .bind(message_id)
+        .execute(&self.0)
+        .await?
+        .rows_affected()
+            > 0)
+    }
+
+    /// Failure recovery for an accepted outgoing send must preserve completed jobs.
+    pub async fn cancel_pending_attachment(&self, message_id: &str) -> Result<bool, Error> {
+        Ok(crate::db::query(
+            "UPDATE messages SET media_status = 'CANCELED' WHERE message_id = ? \
+             AND media_status = 'PENDING' AND status = 'SENDING'",
+        )
+        .bind(message_id)
+        .execute(&self.0)
+        .await?
+        .rows_affected()
+            > 0)
     }
 
     pub async fn update_media_status(
@@ -2271,8 +2619,8 @@ mod tests {
             .await
             .unwrap();
         crate::db::query(
-            "INSERT INTO conversations (conversation_id, created_at, status) \
-             VALUES ('conversation', 0, 0)",
+            "INSERT INTO conversations (conversation_id, created_at, status, category) \
+             VALUES ('conversation', 0, 0, 'CONTACT')",
         )
         .execute(&database.message_dao.0)
         .await
@@ -2310,6 +2658,324 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn sender_search_without_keywords_filters_before_stable_cursor_paging() {
+        let (_directory, database) = test_database().await;
+        crate::db::query("INSERT INTO conversations (conversation_id, created_at, status) VALUES ('other-chat', 0, 0)").execute(&database.message_dao.0).await.unwrap();
+        let dao = &database.message_dao;
+        let created_at = Utc::now().naive_utc();
+        for (id, sender, category, conversation) in [
+            ("first", "sender", PLAIN_TEXT, "conversation"),
+            ("picture", "sender", PLAIN_IMAGE, "conversation"),
+            ("second", "sender", PLAIN_TEXT, "conversation"),
+            ("other-user", "other", PLAIN_TEXT, "conversation"),
+            ("other-chat", "sender", PLAIN_TEXT, "other-chat"),
+            ("third", "sender", PLAIN_TEXT, "conversation"),
+        ] {
+            dao.insert_message(&Message {
+                created_at,
+                user_id: sender.into(),
+                category: category.into(),
+                conversation_id: conversation.into(),
+                ..message(id)
+            })
+            .await
+            .unwrap();
+        }
+        let categories = vec![PLAIN_TEXT.to_string()];
+        let first = dao
+            .list_items_by_sender("conversation", "sender", &categories, None, 2)
+            .await
+            .unwrap();
+        assert_eq!(
+            first
+                .iter()
+                .map(|row| row.message_id.as_str())
+                .collect::<Vec<_>>(),
+            ["third", "second"]
+        );
+        let second = dao
+            .list_items_by_sender("conversation", "sender", &categories, Some("second"), 2)
+            .await
+            .unwrap();
+        assert_eq!(
+            second
+                .iter()
+                .map(|row| row.message_id.as_str())
+                .collect::<Vec<_>>(),
+            ["first"]
+        );
+        let all = dao
+            .list_items_by_sender("conversation", "sender", &[], None, 10)
+            .await
+            .unwrap();
+        assert_eq!(
+            all.iter()
+                .map(|row| row.message_id.as_str())
+                .collect::<Vec<_>>(),
+            ["third", "second", "picture", "first"]
+        );
+        for cursor in ["missing", "other-user", "other-chat"] {
+            assert!(dao
+                .list_items_by_sender("conversation", "sender", &[], Some(cursor), 2)
+                .await
+                .unwrap()
+                .is_empty());
+        }
+        assert!(dao
+            .list_items_by_sender("conversation", "sender", &[], None, 0)
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn adjacent_timeline_pages_exclude_anchor_and_keep_stable_descending_order_for_ties() {
+        let (_directory, database) = test_database().await;
+        let dao = &database.message_dao;
+        let created_at = Utc::now().naive_utc();
+        for id in ["one", "two", "anchor", "four", "five"] {
+            dao.insert_message(&Message {
+                created_at,
+                ..message(id)
+            })
+            .await
+            .unwrap();
+        }
+        for (older, expected) in [(true, vec!["two", "one"]), (false, vec!["five", "four"])] {
+            let rows = dao
+                .list_items_relative("conversation", "anchor", older, 2)
+                .await
+                .unwrap();
+            assert_eq!(
+                rows.iter()
+                    .map(|row| row.message_id.as_str())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+        }
+        assert!(dao
+            .list_items_relative("other", "anchor", true, 2)
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(dao
+            .list_items_relative("conversation", "missing", false, 2)
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(dao
+            .list_items_relative("conversation", "anchor", false, 0)
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn attachment_completion_and_retry_store_binary_waveforms_as_base64_text() {
+        let (_directory, database) = test_database().await;
+        let dao = &database.message_dao;
+        let waveform = vec![0, 127, 128, 255];
+        let update = AttachmentMessageUpdate {
+            status: MessageStatus::Sending,
+            content: "attachment".into(),
+            media_mime_type: "audio/ogg".into(),
+            media_size: 42,
+            media_status: MediaStatus::Done,
+            media_width: None,
+            media_height: None,
+            media_digest: None,
+            media_key: None,
+            media_waveform: Some(waveform.clone()),
+            caption: None,
+            name: None,
+            thumb_image: None,
+            media_duration: Some("500".into()),
+        };
+        for id in ["ordinary", "pending", "retry"] {
+            dao.insert_message(&Message {
+                category: "SIGNAL_AUDIO".into(),
+                media_status: MediaStatus::Pending,
+                ..message(id)
+            })
+            .await
+            .unwrap();
+        }
+        dao.update_attachment_message("ordinary", &update)
+            .await
+            .unwrap();
+        let job = Job::create_sending_job("pending", "conversation", None, None, false, false, 0);
+        assert!(dao
+            .complete_pending_attachment("pending", "test.ogg", &update, &job)
+            .await
+            .unwrap());
+        assert!(dao
+            .complete_attachment_retry_if_pending("retry", &update)
+            .await
+            .unwrap());
+        for id in ["ordinary", "pending", "retry"] {
+            let stored: (String, String) = crate::db::query_as(
+                "SELECT typeof(media_waveform), media_waveform FROM messages WHERE message_id = ?",
+            )
+            .bind(id)
+            .fetch_one(&dao.0)
+            .await
+            .unwrap();
+            assert_eq!(stored.0, "text");
+            assert_eq!(Base64::decode_vec(&stored.1).unwrap(), waveform);
+            let message = dao
+                .find_message_by_id(&id.to_owned())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(message.media_waveform.as_deref(), Some(stored.1.as_str()));
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_upload_is_retryable_without_overwriting_completed_attachment_state() {
+        let (_directory, database) = test_database().await;
+        let dao = &database.message_dao;
+        for (id, media_status) in [
+            ("pending", MediaStatus::Pending),
+            ("completed", MediaStatus::Done),
+        ] {
+            dao.insert_message(&Message {
+                category: "SIGNAL_DATA".into(),
+                media_status,
+                ..message(id)
+            })
+            .await
+            .unwrap();
+        }
+        assert!(dao.cancel_pending_attachment("pending").await.unwrap());
+        assert!(!dao.cancel_pending_attachment("completed").await.unwrap());
+        assert!(!dao.cancel_pending_attachment("missing").await.unwrap());
+        assert_eq!(
+            dao.find_message_by_id(&"pending".to_owned())
+                .await
+                .unwrap()
+                .unwrap()
+                .media_status,
+            MediaStatus::Canceled
+        );
+        assert_eq!(
+            dao.find_message_by_id(&"completed".to_owned())
+                .await
+                .unwrap()
+                .unwrap()
+                .media_status,
+            MediaStatus::Done
+        );
+    }
+
+    #[tokio::test]
+    async fn audio_neighbors_filter_before_limits_and_unread_uses_stable_message_order() {
+        let (_directory, database) = test_database().await;
+        let dao = &database.message_dao;
+        let time = Utc::now().naive_utc();
+        for (id, category, media_status, sender, status) in [
+            (
+                "read",
+                "PLAIN_AUDIO",
+                MediaStatus::Read,
+                "other",
+                MessageStatus::Read,
+            ),
+            (
+                "self",
+                "PLAIN_AUDIO",
+                MediaStatus::Done,
+                "me",
+                MessageStatus::Sent,
+            ),
+            (
+                "first",
+                "SIGNAL_AUDIO",
+                MediaStatus::Done,
+                "other",
+                MessageStatus::Sent,
+            ),
+            (
+                "text",
+                "PLAIN_TEXT",
+                MediaStatus::Done,
+                "other",
+                MessageStatus::Read,
+            ),
+            (
+                "pending",
+                "PLAIN_AUDIO",
+                MediaStatus::Pending,
+                "other",
+                MessageStatus::Read,
+            ),
+            (
+                "anchor",
+                "PLAIN_AUDIO",
+                MediaStatus::Done,
+                "other",
+                MessageStatus::Delivered,
+            ),
+            (
+                "last",
+                "ENCRYPTED_AUDIO",
+                MediaStatus::Read,
+                "other",
+                MessageStatus::Sent,
+            ),
+        ] {
+            dao.insert_message(&Message {
+                category: category.into(),
+                media_status,
+                user_id: sender.into(),
+                status,
+                media_url: Some(format!("/{id}.ogg")),
+                created_at: time,
+                ..message(id)
+            })
+            .await
+            .unwrap();
+        }
+        let audio = dao
+            .list_audio_items_around("conversation", "anchor", 1, 1)
+            .await
+            .unwrap();
+        assert_eq!(
+            audio
+                .iter()
+                .map(|item| item.message_id.as_str())
+                .collect::<Vec<_>>(),
+            ["first", "anchor", "last"]
+        );
+        assert!(dao
+            .list_audio_items_around("conversation", "pending", 1, 1)
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(dao
+            .list_audio_items_around("other-conversation", "anchor", 1, 1)
+            .await
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            dao.first_unread_message_id("conversation", "me")
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("first")
+        );
+        dao.mark_conversation_read("conversation", "me")
+            .await
+            .unwrap();
+        assert_eq!(
+            dao.first_unread_message_id("conversation", "me")
+                .await
+                .unwrap(),
+            None
+        );
+    }
+
+    #[tokio::test]
     async fn stores_attachment_material_as_base64_and_decodes_on_read() {
         let (_directory, database) = test_database().await;
         let message = Message {
@@ -2342,6 +3008,170 @@ mod tests {
             .unwrap();
         assert_eq!(loaded.media_key, message.media_key);
         assert_eq!(loaded.media_digest, message.media_digest);
+    }
+
+    #[tokio::test]
+    async fn nonmembers_and_quit_groups_reject_every_outgoing_insert_without_changing_draft_or_projection(
+    ) {
+        for quit in [false, true] {
+            for kind in ["message", "pending", "transcript", "batch"] {
+                let (_directory, database) = test_database().await;
+                crate::db::query("UPDATE conversations SET category = 'GROUP', status = ?, draft = 'unfinished', last_message_id = 'previous', last_message_created_at = 7")
+                    .bind(if quit { 3 } else { 2 }).execute(&database.message_dao.0).await.unwrap();
+                if quit {
+                    crate::db::query("INSERT INTO participants (conversation_id, user_id, role, created_at) VALUES ('conversation', 'sender', '', 0)")
+                        .execute(&database.message_dao.0).await.unwrap();
+                }
+                assert!(!database
+                    .conversation_dao
+                    .can_send("conversation", "sender")
+                    .await
+                    .unwrap());
+                let outgoing = message("denied");
+                let job =
+                    Job::create_sending_job("denied", "conversation", None, None, false, false, 0);
+                let transcripts = [serde_json::from_value::<TranscriptMessage>(
+                    serde_json::json!({
+                        "transcript_id": "denied", "message_id": "child", "category": PLAIN_TEXT,
+                        "created_at": Utc::now().to_rfc3339(), "content": "hello"
+                    }),
+                )
+                .unwrap()];
+                let result = match kind {
+                    "pending" => {
+                        database
+                            .message_dao
+                            .insert_pending_outgoing_message(&outgoing)
+                            .await
+                    }
+                    "transcript" => {
+                        database
+                            .message_dao
+                            .insert_outgoing_message_with_transcripts(&outgoing, &job, &transcripts)
+                            .await
+                    }
+                    "batch" => {
+                        database
+                            .message_dao
+                            .insert_outgoing_batch_with_transcripts(&[(
+                                &outgoing,
+                                &job,
+                                Some(&transcripts),
+                            )])
+                            .await
+                    }
+                    _ => {
+                        database
+                            .message_dao
+                            .insert_outgoing_message(&outgoing, &job)
+                            .await
+                    }
+                };
+                assert!(
+                    matches!(result, Err(Error::PermissionDenied)),
+                    "{kind}, quit={quit}"
+                );
+                let counts: (i64, i64, i64) = crate::db::query_as("SELECT (SELECT COUNT(*) FROM messages), (SELECT COUNT(*) FROM jobs), (SELECT COUNT(*) FROM transcript_messages)")
+                    .fetch_one(&database.message_dao.0).await.unwrap();
+                assert_eq!(counts, (0, 0, 0), "{kind}, quit={quit}");
+                let projection: (String, String, i64) = crate::db::query_as("SELECT draft, last_message_id, last_message_created_at FROM conversations WHERE conversation_id = 'conversation'")
+                    .fetch_one(&database.message_dao.0).await.unwrap();
+                assert_eq!(projection, ("unfinished".into(), "previous".into(), 7));
+                database
+                    .message_dao
+                    .insert_message(&Message {
+                        user_id: "peer".into(),
+                        status: MessageStatus::Delivered,
+                        ..message("incoming")
+                    })
+                    .await
+                    .unwrap();
+                assert!(database
+                    .message_dao
+                    .find_message_by_id(&"incoming".into())
+                    .await
+                    .unwrap()
+                    .is_some());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn contacts_and_existing_group_members_can_send_without_requiring_success_status() {
+        for category in ["CONTACT", "GROUP"] {
+            for status in [0, 1, 2, 3] {
+                if category == "GROUP" && status == 3 {
+                    continue;
+                }
+                let (_directory, database) = test_database().await;
+                crate::db::query("UPDATE conversations SET category = ?, status = ?")
+                    .bind(category)
+                    .bind(status)
+                    .execute(&database.message_dao.0)
+                    .await
+                    .unwrap();
+                if category == "GROUP" {
+                    crate::db::query("INSERT INTO participants (conversation_id, user_id, role, created_at) VALUES ('conversation', 'sender', '', 0)")
+                        .execute(&database.message_dao.0).await.unwrap();
+                }
+                assert!(database
+                    .conversation_dao
+                    .can_send("conversation", "sender")
+                    .await
+                    .unwrap());
+                let outgoing = message("allowed");
+                let job =
+                    Job::create_sending_job("allowed", "conversation", None, None, false, false, 0);
+                database
+                    .message_dao
+                    .insert_outgoing_message(&outgoing, &job)
+                    .await
+                    .unwrap();
+                let counts: (i64, i64) = crate::db::query_as(
+                    "SELECT (SELECT COUNT(*) FROM messages), (SELECT COUNT(*) FROM jobs)",
+                )
+                .fetch_one(&database.message_dao.0)
+                .await
+                .unwrap();
+                assert_eq!(counts, (1, 1));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn membership_removed_after_preflight_is_rechecked_inside_outgoing_transaction() {
+        let (_directory, database) = test_database().await;
+        crate::db::query(
+            "UPDATE conversations SET category = 'GROUP', status = 2, draft = 'unfinished'",
+        )
+        .execute(&database.message_dao.0)
+        .await
+        .unwrap();
+        crate::db::query("INSERT INTO participants (conversation_id, user_id, role, created_at) VALUES ('conversation', 'sender', '', 0)")
+            .execute(&database.message_dao.0).await.unwrap();
+        assert!(database
+            .conversation_dao
+            .can_send("conversation", "sender")
+            .await
+            .unwrap());
+        let mut transaction = database
+            .message_dao
+            .0
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .unwrap();
+        crate::db::query("DELETE FROM participants WHERE conversation_id = 'conversation' AND user_id = 'sender'")
+            .execute(&mut *transaction).await.unwrap();
+        let outgoing = message("denied");
+        let job = Job::create_sending_job("denied", "conversation", None, None, false, false, 0);
+        assert!(matches!(
+            MessageDao::insert_outgoing_message_with(&mut transaction, &outgoing, &job).await,
+            Err(Error::PermissionDenied)
+        ));
+        transaction.commit().await.unwrap();
+        let counts: (i64, i64, String) = crate::db::query_as("SELECT (SELECT COUNT(*) FROM messages), (SELECT COUNT(*) FROM jobs), draft FROM conversations WHERE conversation_id = 'conversation'")
+            .fetch_one(&database.message_dao.0).await.unwrap();
+        assert_eq!(counts, (0, 0, "unfinished".into()));
     }
 
     #[tokio::test]
@@ -2409,6 +3239,209 @@ mod tests {
             last_message_id.as_deref(),
             Some(outgoing.message_id.as_str())
         );
+    }
+
+    #[tokio::test]
+    async fn second_batch_message_or_job_failure_rolls_back_all_rows_and_conversation_projection() {
+        for failing_table in ["messages", "jobs"] {
+            let (_directory, database) = test_database().await;
+            crate::db::query("UPDATE conversations SET draft = 'unfinished', last_message_id = 'previous', last_message_created_at = 7")
+                .execute(&database.message_dao.0).await.unwrap();
+            let first = message("first");
+            let second = message("second");
+            let mut first_job =
+                Job::create_sending_job("first", "conversation", None, None, false, false, 0);
+            first_job.job_id = "first-job".into();
+            let mut second_job =
+                Job::create_sending_job("second", "conversation", None, None, false, false, 0);
+            second_job.job_id = "second-job".into();
+            let transcripts = [
+                serde_json::from_value::<TranscriptMessage>(serde_json::json!({
+                    "transcript_id": "first", "message_id": "child", "category": PLAIN_TEXT,
+                    "created_at": Utc::now().to_rfc3339(), "content": "hello"
+                }))
+                .unwrap(),
+            ];
+            let trigger = if failing_table == "messages" {
+                "CREATE TRIGGER reject_second BEFORE INSERT ON messages WHEN NEW.message_id = 'second' BEGIN SELECT RAISE(ABORT, 'rejected'); END"
+            } else {
+                "CREATE TRIGGER reject_second BEFORE INSERT ON jobs WHEN NEW.job_id = 'second-job' BEGIN SELECT RAISE(ABORT, 'rejected'); END"
+            };
+            crate::db::query(trigger)
+                .execute(&database.message_dao.0)
+                .await
+                .unwrap();
+            let batch = [
+                (&first, &first_job, Some(transcripts.as_slice())),
+                (&second, &second_job, None),
+            ];
+            assert!(database
+                .message_dao
+                .insert_outgoing_batch_with_transcripts(&batch)
+                .await
+                .is_err());
+            for (table, sql) in [
+                ("messages", "SELECT COUNT(*) FROM messages"),
+                ("jobs", "SELECT COUNT(*) FROM jobs"),
+                (
+                    "transcript_messages",
+                    "SELECT COUNT(*) FROM transcript_messages",
+                ),
+            ] {
+                let count: i64 = crate::db::query_scalar(sql)
+                    .fetch_one(&database.message_dao.0)
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    count, 0,
+                    "{table} must roll back when {failing_table} rejects the second item"
+                );
+            }
+            let projection: (String, String, i64) = crate::db::query_as("SELECT draft, last_message_id, last_message_created_at FROM conversations WHERE conversation_id = 'conversation'")
+                .fetch_one(&database.message_dao.0).await.unwrap();
+            assert_eq!(projection, ("unfinished".into(), "previous".into(), 7));
+            crate::db::query("DROP TRIGGER reject_second")
+                .execute(&database.message_dao.0)
+                .await
+                .unwrap();
+            database
+                .message_dao
+                .insert_outgoing_batch_with_transcripts(&batch)
+                .await
+                .unwrap();
+            assert_eq!(database.job_dao.sending_jobs().await.unwrap().len(), 2);
+            assert_eq!(
+                database
+                    .transcript_message_dao
+                    .find_by_transcript_id("first")
+                    .await
+                    .unwrap()
+                    .len(),
+                1
+            );
+            let projection: (String, String) = crate::db::query_as("SELECT draft, last_message_id FROM conversations WHERE conversation_id = 'conversation'")
+                .fetch_one(&database.message_dao.0).await.unwrap();
+            assert_eq!(projection, (String::new(), "second".into()));
+        }
+    }
+
+    #[tokio::test]
+    async fn reopened_database_recovers_only_current_accounts_interrupted_outgoing_attachments() {
+        let (directory, database) = test_database().await;
+        let cases = [
+            (
+                "image",
+                "me",
+                MessageStatus::Sending,
+                "SIGNAL_IMAGE",
+                MediaStatus::Pending,
+                MediaStatus::Canceled,
+            ),
+            (
+                "video",
+                "me",
+                MessageStatus::Sending,
+                "ENCRYPTED_VIDEO",
+                MediaStatus::Pending,
+                MediaStatus::Canceled,
+            ),
+            (
+                "audio",
+                "me",
+                MessageStatus::Sending,
+                "PLAIN_AUDIO",
+                MediaStatus::Pending,
+                MediaStatus::Canceled,
+            ),
+            (
+                "data",
+                "me",
+                MessageStatus::Sending,
+                "SIGNAL_DATA",
+                MediaStatus::Pending,
+                MediaStatus::Canceled,
+            ),
+            (
+                "ready",
+                "me",
+                MessageStatus::Sending,
+                "SIGNAL_IMAGE",
+                MediaStatus::Done,
+                MediaStatus::Done,
+            ),
+            (
+                "peer",
+                "peer",
+                MessageStatus::Sending,
+                "SIGNAL_IMAGE",
+                MediaStatus::Pending,
+                MediaStatus::Pending,
+            ),
+            (
+                "sent",
+                "me",
+                MessageStatus::Sent,
+                "SIGNAL_IMAGE",
+                MediaStatus::Pending,
+                MediaStatus::Pending,
+            ),
+            (
+                "text",
+                "me",
+                MessageStatus::Sending,
+                "SIGNAL_TEXT",
+                MediaStatus::Pending,
+                MediaStatus::Pending,
+            ),
+        ];
+        let mut job_ids = Vec::new();
+        for (id, sender, status, category, before, _) in cases.clone() {
+            let outgoing = Message {
+                user_id: sender.into(),
+                status,
+                category: category.into(),
+                media_status: before,
+                ..message(id)
+            };
+            let job = Job::create_sending_job(id, "conversation", None, None, false, false, 0);
+            database
+                .message_dao
+                .insert_outgoing_message(&outgoing, &job)
+                .await
+                .unwrap();
+            job_ids.push(job.job_id);
+        }
+        database.close().await;
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        database
+            .message_dao
+            .recover_interrupted_uploads("me")
+            .await
+            .unwrap();
+        for (id, _, status, _, _, expected) in cases {
+            let stored = database
+                .message_dao
+                .find_message_by_id(&id.to_string())
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(
+                stored.media_status, expected,
+                "unexpected recovery for {id}"
+            );
+            assert_eq!(stored.status, status);
+        }
+        let stored_job_ids = database
+            .job_dao
+            .sending_jobs()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|job| job.job_id)
+            .collect::<HashSet<_>>();
+        assert_eq!(stored_job_ids, job_ids.into_iter().collect());
     }
 
     #[tokio::test]
@@ -3216,6 +4249,154 @@ mod tests {
         assert_eq!(items[0].shared_user_full_name.as_deref(), Some("Shared"));
         assert_eq!(items[0].sticker_asset_url.as_deref(), Some("sticker.webp"));
         assert_eq!(items[0].sticker_asset_width, Some(128));
+        assert_eq!(dao.pinned_message_count("conversation").await.unwrap(), 3);
+        let page = dao
+            .list_pinned_items_page("conversation", 1, 1)
+            .await
+            .unwrap();
+        assert_eq!(page.len(), 1);
+        assert_eq!(page[0].message_id, "beta");
+        assert_eq!(
+            dao.pinned_message_offset("conversation", "beta")
+                .await
+                .unwrap(),
+            Some(1)
+        );
+        assert_eq!(
+            dao.pinned_message_offset("other", "beta").await.unwrap(),
+            None
+        );
+        assert_eq!(
+            dao.pinned_message_offset("conversation", "absent")
+                .await
+                .unwrap(),
+            None
+        );
+        assert!(dao
+            .list_pinned_items_page("conversation", 3, 50)
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn unpin_all_rolls_back_every_chunk_when_a_later_job_fails_then_retries_atomically() {
+        let (_directory, database) = test_database().await;
+        let dao = &database.message_dao;
+        for index in 0..205 {
+            let id = format!("pin-{index:03}");
+            dao.insert_message(&message(&id)).await.unwrap();
+            crate::db::query("INSERT INTO pin_messages (message_id,conversation_id,created_at) VALUES (?,'conversation',0)")
+                .bind(id).execute(&dao.0).await.unwrap();
+        }
+        crate::db::query("INSERT INTO conversations (conversation_id,created_at,status,category) VALUES ('other',0,0,'CONTACT')")
+            .execute(&dao.0).await.unwrap();
+        let mut other = message("other-pin");
+        other.conversation_id = "other".into();
+        dao.insert_message(&other).await.unwrap();
+        crate::db::query("INSERT INTO pin_messages (message_id,conversation_id,created_at) VALUES ('other-pin','other',0)").execute(&dao.0).await.unwrap();
+        assert_eq!(
+            dao.list_pinned_items_page("conversation", 0, 1000)
+                .await
+                .unwrap()
+                .len(),
+            200
+        );
+        crate::db::query("CREATE TRIGGER reject_second_unpin BEFORE INSERT ON jobs WHEN (SELECT COUNT(*) FROM jobs)>0 BEGIN SELECT RAISE(ABORT,'reject second chunk'); END")
+            .execute(&dao.0).await.unwrap();
+        assert!(dao
+            .unpin_all_with_jobs("conversation", "sender")
+            .await
+            .is_err());
+        assert_eq!(dao.pinned_message_count("conversation").await.unwrap(), 205);
+        let jobs: i64 = crate::db::query_scalar("SELECT COUNT(*) FROM jobs")
+            .fetch_one(&dao.0)
+            .await
+            .unwrap();
+        assert_eq!(jobs, 0);
+        crate::db::query("DROP TRIGGER reject_second_unpin")
+            .execute(&dao.0)
+            .await
+            .unwrap();
+        dao.unpin_all_with_jobs("conversation", "sender")
+            .await
+            .unwrap();
+        assert_eq!(dao.pinned_message_count("conversation").await.unwrap(), 0);
+        assert_eq!(dao.pinned_message_count("other").await.unwrap(), 1);
+        let payloads: Vec<String> =
+            crate::db::query_scalar("SELECT blaze_message FROM jobs WHERE action = ?")
+                .bind(sdk::PIN_MESSAGE)
+                .fetch_all(&dao.0)
+                .await
+                .unwrap();
+        assert_eq!(payloads.len(), 3);
+        let mut unpinned = HashSet::new();
+        for payload in payloads {
+            let sdk::PinMessagePayload::Unpin(ids) = serde_json::from_str(&payload).unwrap() else {
+                panic!("expected unpin job");
+            };
+            assert!(ids.len() <= 100);
+            for id in ids {
+                assert!(unpinned.insert(id));
+            }
+        }
+        assert_eq!(unpinned.len(), 205);
+        dao.unpin_all_with_jobs("conversation", "sender")
+            .await
+            .unwrap();
+        let jobs: i64 = crate::db::query_scalar("SELECT COUNT(*) FROM jobs")
+            .fetch_one(&dao.0)
+            .await
+            .unwrap();
+        assert_eq!(jobs, 3);
+        database.close().await;
+    }
+
+    #[tokio::test]
+    async fn unpin_all_rechecks_group_membership_before_enqueuing_or_removing_pins() {
+        let (_directory, database) = test_database().await;
+        let dao = &database.message_dao;
+        dao.insert_message(&message("pinned")).await.unwrap();
+        crate::db::query("INSERT INTO pin_messages (message_id,conversation_id,created_at) VALUES ('pinned','conversation',0)").execute(&dao.0).await.unwrap();
+        crate::db::query(
+            "UPDATE conversations SET category='GROUP' WHERE conversation_id='conversation'",
+        )
+        .execute(&dao.0)
+        .await
+        .unwrap();
+        assert!(matches!(
+            dao.unpin_all_with_jobs("conversation", "removed-member")
+                .await,
+            Err(Error::PermissionDenied)
+        ));
+        assert_eq!(dao.pinned_message_count("conversation").await.unwrap(), 1);
+        let jobs: i64 = crate::db::query_scalar("SELECT COUNT(*) FROM jobs")
+            .fetch_one(&dao.0)
+            .await
+            .unwrap();
+        assert_eq!(jobs, 0);
+        crate::db::query("INSERT INTO participants (conversation_id,user_id,role,created_at) VALUES ('conversation','active-member','',0)")
+            .execute(&dao.0).await.unwrap();
+        assert!(dao
+            .can_unpin_messages("conversation", "active-member")
+            .await
+            .unwrap());
+        crate::db::query("UPDATE conversations SET status=? WHERE conversation_id='conversation'")
+            .bind(ConversationStatus::QUIT.0)
+            .execute(&dao.0)
+            .await
+            .unwrap();
+        assert!(!dao
+            .can_unpin_messages("conversation", "active-member")
+            .await
+            .unwrap());
+        assert!(matches!(
+            dao.unpin_all_with_jobs("conversation", "active-member")
+                .await,
+            Err(Error::PermissionDenied)
+        ));
+        assert_eq!(dao.pinned_message_count("conversation").await.unwrap(), 1);
+        database.close().await;
     }
 
     #[tokio::test]
@@ -4117,7 +5298,11 @@ crate::db::storage::row_mapping!(NotificationMessageItem {
     conversation_id: "conversation_id",
     user_id: "user_id",
     sender_name: "sender_name",
+    action: "action",
+    participant_id: "participant_id",
+    participant_name: "participant_name",
     category: "category",
+    status: "status",
     content: "content",
     quote_content: "quote_content",
     created_at: "created_at" => crate::db::datetime::DatabaseDateTime,

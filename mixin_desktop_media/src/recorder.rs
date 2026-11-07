@@ -1,5 +1,7 @@
 use std::fs;
+use std::future::Future;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex, Weak};
 use std::time::Duration;
 
@@ -14,6 +16,9 @@ use crate::{MediaError, MediaResult};
 const MAX_RECORDING_DURATION: Duration = Duration::from_secs(60);
 const WAVEFORM_SAMPLES: usize = 100;
 
+mod progress;
+use progress::{CaptureProgress, ProgressWriter};
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum VoiceRecorderStatus {
     Idle,
@@ -21,17 +26,34 @@ pub enum VoiceRecorderStatus {
     Recorded,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[non_exhaustive]
 pub struct VoiceRecording {
+    pub session_id: u64,
+    _file: Option<Arc<RecordedFile>>,
     pub path: String,
     pub duration_millis: u64,
     pub waveform: Vec<u8>,
 }
 
+#[derive(Debug, Eq, PartialEq)]
+struct RecordedFile(PathBuf);
+
+impl Drop for RecordedFile {
+    fn drop(&mut self) {
+        let _ = remove_file_if_present(&self.0);
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VoiceRecorderSnapshot {
+    pub session_id: Option<u64>,
     pub status: VoiceRecorderStatus,
     pub recording: Option<VoiceRecording>,
+    /// Captured PCM duration while recording; final encoded duration in preview.
+    pub duration_millis: u64,
+    /// Bounded recent capture peaks while recording; final protocol waveform in preview.
+    pub waveform: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -46,6 +68,8 @@ pub struct VoiceRecorder {
 }
 
 struct RecorderInner {
+    operation: Mutex<()>,
+    closed: AtomicBool,
     state: Mutex<RecorderState>,
     events: broadcast::Sender<VoiceRecorderEvent>,
     next_generation: Mutex<u64>,
@@ -69,6 +93,7 @@ struct CaptureBuffer {
     samples: Mutex<Vec<f32>>,
     sample_rate: u32,
     max_samples: usize,
+    progress: CaptureProgress,
 }
 
 impl VoiceRecorder {
@@ -76,6 +101,8 @@ impl VoiceRecorder {
         let (events, _) = broadcast::channel(32);
         Self {
             inner: Arc::new(RecorderInner {
+                operation: Mutex::new(()),
+                closed: AtomicBool::new(false),
                 state: Mutex::new(RecorderState::Idle),
                 events,
                 next_generation: Mutex::new(0),
@@ -91,14 +118,24 @@ impl VoiceRecorder {
         snapshot_for(&self.inner.state.lock().expect("recorder state poisoned"))
     }
 
+    pub fn is_closed(&self) -> bool {
+        self.inner.closed.load(Ordering::Acquire)
+    }
+
     pub fn start(&self) -> MediaResult<()> {
+        self.start_session().map(|_| ())
+    }
+
+    pub fn start_session(&self) -> MediaResult<u64> {
+        let _operation = self.inner.operation.lock().expect("recorder operation");
+        self.ensure_open()?;
         {
             let state = self.inner.state.lock().expect("recorder state poisoned");
             if matches!(*state, RecorderState::Active(_)) {
                 return Err(MediaError::RecorderActive);
             }
         }
-        self.cancel()?;
+        self.cancel_locked()?;
 
         let host = cpal::default_host();
         let device = host
@@ -116,6 +153,7 @@ impl VoiceRecorder {
             sample_rate: supported.sample_rate(),
             max_samples: supported.sample_rate() as usize
                 * MAX_RECORDING_DURATION.as_secs() as usize,
+            progress: CaptureProgress::new(supported.sample_rate()),
         });
         let stream = build_input_stream(
             &device,
@@ -125,6 +163,7 @@ impl VoiceRecorder {
             capture.clone(),
             Arc::downgrade(&self.inner),
         )?;
+        self.ensure_open()?;
         stream
             .play()
             .map_err(|error| MediaError::Stream(error.to_string()))?;
@@ -142,6 +181,7 @@ impl VoiceRecorder {
         let (cancel_timer, timer) = mpsc::channel();
         {
             let mut state = self.inner.state.lock().expect("recorder state poisoned");
+            self.ensure_open()?;
             *state = RecorderState::Active(ActiveRecording {
                 stream,
                 capture,
@@ -165,14 +205,55 @@ impl VoiceRecorder {
                 }
             }
         });
-        Ok(())
+        Ok(generation)
+    }
+
+    /// Marks the session closed without waiting for an in-flight device operation.
+    pub fn close(&self) -> impl Future<Output = MediaResult<()>> + Send + 'static {
+        self.inner.closed.store(true, Ordering::Release);
+        let recorder = self.clone();
+        async move {
+            tokio::task::spawn_blocking(move || recorder.cancel())
+                .await
+                .map_err(|error| MediaError::Stream(format!("recording cleanup failed: {error}")))?
+        }
+    }
+
+    fn ensure_open(&self) -> MediaResult<()> {
+        if self.inner.closed.load(Ordering::Acquire) {
+            Err(MediaError::Stream("recording session is closed".into()))
+        } else {
+            Ok(())
+        }
     }
 
     pub fn stop(&self) -> MediaResult<VoiceRecording> {
         finish_recording(&self.inner, None)
     }
 
+    pub fn stop_session(&self, session_id: u64) -> MediaResult<VoiceRecording> {
+        finish_recording(&self.inner, Some(session_id))
+    }
+
+    pub fn cancel_session(&self, session_id: u64) -> MediaResult<()> {
+        let _operation = self.inner.operation.lock().expect("recorder operation");
+        let matches = match &*self.inner.state.lock().expect("recorder state") {
+            RecorderState::Active(active) => active.generation == session_id,
+            RecorderState::Recorded(recording) => recording.session_id == session_id,
+            RecorderState::Idle => false,
+        };
+        if matches {
+            self.cancel_locked()?;
+        }
+        Ok(())
+    }
+
     pub fn cancel(&self) -> MediaResult<()> {
+        let _operation = self.inner.operation.lock().expect("recorder operation");
+        self.cancel_locked()
+    }
+
+    fn cancel_locked(&self) -> MediaResult<()> {
         let previous = {
             let mut state = self.inner.state.lock().expect("recorder state poisoned");
             std::mem::replace(&mut *state, RecorderState::Idle)
@@ -184,9 +265,7 @@ impl VoiceRecorder {
                 drop(active.stream);
                 remove_file_if_present(&active.path)?;
             }
-            RecorderState::Recorded(recording) => {
-                remove_file_if_present(PathBuf::from(recording.path).as_path())?;
-            }
+            RecorderState::Recorded(recording) => drop(recording),
             RecorderState::Idle => {}
         }
         emit_snapshot(&self.inner);
@@ -204,10 +283,16 @@ fn finish_recording(
     inner: &Arc<RecorderInner>,
     required_generation: Option<u64>,
 ) -> MediaResult<VoiceRecording> {
+    let _operation = inner.operation.lock().expect("recorder operation");
     let previous = {
         let mut state = inner.state.lock().expect("recorder state poisoned");
         match &*state {
-            RecorderState::Recorded(recording) => return Ok(recording.clone()),
+            RecorderState::Recorded(recording) => {
+                if required_generation.is_some_and(|id| id != recording.session_id) {
+                    return Err(MediaError::RecorderInactive);
+                }
+                return Ok(recording.clone());
+            }
             RecorderState::Idle => return Err(MediaError::RecorderInactive),
             RecorderState::Active(active)
                 if required_generation.is_some_and(|value| value != active.generation) =>
@@ -247,6 +332,8 @@ fn finish_recording(
     let encoded = encode_voice(&pcm)?;
     fs::write(&active.path, encoded)?;
     let recording = VoiceRecording {
+        session_id: active.generation,
+        _file: Some(Arc::new(RecordedFile(active.path.clone()))),
         path: active.path.to_string_lossy().into_owned(),
         duration_millis: pcm.len() as u64 * 1_000 / u64::from(VOICE_SAMPLE_RATE),
         waveform: waveform(&pcm),
@@ -300,6 +387,7 @@ where
     T: Sample + SizedSample,
     f32: FromSample<T>,
 {
+    let mut progress = ProgressWriter::new();
     device
         .build_input_stream(
             config,
@@ -312,8 +400,11 @@ where
                         break;
                     }
                     let sum = frame.iter().copied().map(f32::from_sample).sum::<f32>();
-                    samples.push(sum / channels as f32);
+                    let sample = sum / channels as f32;
+                    samples.push(sample);
+                    progress.record(sample, &capture.progress);
                 }
+                progress.publish(&capture.progress);
             },
             move |error| {
                 if let Some(inner) = inner.upgrade() {
@@ -391,16 +482,28 @@ fn remove_file_if_present(path: &std::path::Path) -> MediaResult<()> {
 fn snapshot_for(state: &RecorderState) -> VoiceRecorderSnapshot {
     match state {
         RecorderState::Idle => VoiceRecorderSnapshot {
+            session_id: None,
             status: VoiceRecorderStatus::Idle,
             recording: None,
+            duration_millis: 0,
+            waveform: Vec::new(),
         },
-        RecorderState::Active(_) => VoiceRecorderSnapshot {
-            status: VoiceRecorderStatus::Recording,
-            recording: None,
-        },
+        RecorderState::Active(active) => {
+            let (duration_millis, waveform) = active.capture.progress.snapshot();
+            VoiceRecorderSnapshot {
+                session_id: Some(active.generation),
+                status: VoiceRecorderStatus::Recording,
+                recording: None,
+                duration_millis,
+                waveform,
+            }
+        }
         RecorderState::Recorded(recording) => VoiceRecorderSnapshot {
+            session_id: Some(recording.session_id),
             status: VoiceRecorderStatus::Recorded,
             recording: Some(recording.clone()),
+            duration_millis: recording.duration_millis,
+            waveform: recording.waveform.clone(),
         },
     }
 }
@@ -413,6 +516,67 @@ fn emit_snapshot(inner: &RecorderInner) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn closing_a_session_rejects_a_queued_start_without_waiting_for_the_operation_lock() {
+        let recorder = VoiceRecorder::new();
+        let held = recorder.inner.operation.lock().unwrap();
+        let queued = recorder.clone();
+        let (entered, ready) = mpsc::sync_channel(0);
+        let worker = std::thread::spawn(move || {
+            entered.send(()).unwrap();
+            queued.start_session()
+        });
+        ready.recv_timeout(Duration::from_secs(5)).unwrap();
+        let closing = recorder.close();
+        drop(held);
+        assert!(
+            matches!(worker.join().unwrap(), Err(MediaError::Stream(message)) if message.contains("closed"))
+        );
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(closing).unwrap();
+        assert_eq!(recorder.snapshot().status, VoiceRecorderStatus::Idle);
+        assert!(recorder.start_session().is_err());
+    }
+
+    #[test]
+    fn a_detached_send_keeps_its_source_and_cannot_cancel_a_newer_recording() {
+        let directory = tempfile::tempdir().unwrap();
+        let first = directory.path().join("first.ogg");
+        let second = directory.path().join("second.ogg");
+        fs::write(&first, b"first recording").unwrap();
+        fs::write(&second, b"second recording").unwrap();
+        let recorder = VoiceRecorder::new();
+        let recording = |path: &PathBuf, session_id| VoiceRecording {
+            path: path.to_string_lossy().into_owned(),
+            session_id,
+            duration_millis: 1000,
+            waveform: vec![1],
+            _file: Some(Arc::new(RecordedFile(path.clone()))),
+        };
+        *recorder.inner.state.lock().unwrap() = RecorderState::Recorded(recording(&first, 1));
+        assert_eq!(recorder.snapshot().duration_millis, 1000);
+        assert_eq!(recorder.snapshot().waveform, vec![1]);
+        let sending = recorder.snapshot().recording.unwrap();
+        recorder.cancel_session(1).unwrap();
+        assert_eq!(recorder.snapshot().status, VoiceRecorderStatus::Idle);
+        assert_eq!(recorder.snapshot().duration_millis, 0);
+        assert!(recorder.snapshot().waveform.is_empty());
+        *recorder.inner.state.lock().unwrap() = RecorderState::Recorded(recording(&second, 2));
+        recorder.cancel_session(1).unwrap();
+        assert_eq!(recorder.snapshot().session_id, Some(2));
+        assert!(first.is_file());
+        assert!(second.is_file());
+        assert!(recorder.stop_session(1).is_err());
+        drop(sending);
+        assert!(!first.exists());
+        assert!(second.exists());
+        recorder.cancel_session(2).unwrap();
+        assert!(!second.exists());
+    }
 
     #[test]
     fn waveform_always_has_protocol_width_and_normalizes_peak() {

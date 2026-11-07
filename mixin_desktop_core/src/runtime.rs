@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::io::{Cursor, ErrorKind};
+use std::io::Cursor;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use log::{error, warn};
@@ -31,7 +29,6 @@ use crate::core::message::sender::MessageSender;
 use crate::core::model::auth::AuthService;
 use crate::core::model::signal::SignalService;
 use crate::core::model::{AppService, AttachmentExtra, ConversationService};
-use crate::core::user_agent::generate_user_agent;
 use crate::db::app::{Auth, SettingDao};
 use crate::db::mixin::message::{MediaStatus, Message};
 use crate::db::mixin::sticker::{Sticker, StickerAlbum};
@@ -41,20 +38,34 @@ use crate::db::{MixinDatabase, SignalDatabase};
 const MIXIN_DATABASE_OPEN_ERROR_PREFIX: &str = "mixin_database_open_error";
 
 mod attachment;
+mod attachment_progress;
+mod bot;
 mod conversation;
 mod conversion;
 pub mod desktop;
+mod gif;
+mod inscription;
+mod lifecycle;
 pub mod logging;
 pub mod login;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod mcp;
+mod membership;
 mod message;
+mod notifications;
+mod quick_search;
+pub use membership::active_membership_plan;
 pub mod model;
 mod runner;
+#[cfg(not(target_arch = "wasm32"))]
+mod screen_lock;
+#[cfg(not(target_arch = "wasm32"))]
+mod screen_privacy;
 mod sticker;
 mod user;
 
 pub use attachment::AttachmentAccess;
+pub use bot::BotAccess;
 pub use conversation::ConversationAccess;
 pub use message::MessageAccess;
 pub use sticker::StickerAccess;
@@ -95,6 +106,7 @@ pub struct AccountRuntime {
 #[doc(hidden)]
 pub struct AccountState {
     account_id: String,
+    account_data_dir: PathBuf,
     profile: watch::Sender<Account>,
     auth_service: Arc<AuthService>,
     client: Arc<Client>,
@@ -108,11 +120,16 @@ pub struct AccountState {
     /// Desktop-to-desktop pairing is a native-only service.
     #[cfg(not(target_arch = "wasm32"))]
     device_transfer: Arc<DeviceTransferService>,
+    #[cfg(not(target_arch = "wasm32"))]
+    screen_lock: tokio::sync::OnceCell<Arc<screen_lock::ScreenLockService>>,
     account_health: watch::Sender<String>,
     active: AtomicBool,
     mutation_gate: RwLock<()>,
     attachment_downloads: Mutex<HashMap<String, CancellationToken>>,
-    attachment_progresses: Mutex<HashMap<String, f64>>,
+    attachment_progresses: attachment_progress::AttachmentProgresses,
+    bot_public_keys: tokio::sync::Mutex<HashMap<String, [u8; 32]>>,
+    network: crate::network::SharedNetworkService,
+    settings: SettingDao,
 }
 
 impl Deref for AccountRuntime {
@@ -155,23 +172,28 @@ impl AccountState {
     }
 
     fn set_attachment_progress(&self, message_id: &str, completed: u64, total: u64) {
-        let value = if total == 0 {
-            0.0
-        } else {
-            completed as f64 / total as f64
-        }
-        .clamp(0.0, 1.0);
         self.attachment_progresses
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .insert(message_id.to_string(), value);
+            .set(None, message_id, completed, total);
     }
 
     fn remove_attachment_progress(&self, message_id: &str) {
+        self.attachment_progresses.remove(None, message_id);
+    }
+
+    fn set_transcript_attachment_progress(
+        &self,
+        transcript_id: &str,
+        message_id: &str,
+        completed: u64,
+        total: u64,
+    ) {
         self.attachment_progresses
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .remove(message_id);
+            .set(Some(transcript_id), message_id, completed, total);
+    }
+
+    fn remove_transcript_attachment_progress(&self, transcript_id: &str, message_id: &str) {
+        self.attachment_progresses
+            .remove(Some(transcript_id), message_id);
     }
 }
 
@@ -188,12 +210,14 @@ impl AccountRuntime {
     }
 
     pub fn attachment_progress(&self, message_id: &str) -> f64 {
+        self.attachment_progresses.fraction(message_id)
+    }
+
+    pub fn attachment_progress_changes(
+        &self,
+    ) -> impl futures::Stream<Item = Vec<model::AttachmentTransferProgress>> + Send + 'static {
         self.attachment_progresses
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .get(message_id)
-            .copied()
-            .unwrap_or_default()
+            .changes(self.shutdown.subscribe())
     }
 
     pub async fn start(
@@ -201,15 +225,35 @@ impl AccountRuntime {
         auth_service: Arc<AuthService>,
         setting_dao: SettingDao,
     ) -> Result<Self> {
+        let network = Arc::new(crate::network::NetworkService::new(setting_dao.clone()).await?);
+        Self::start_with_network(auth, auth_service, setting_dao, network).await
+    }
+
+    pub(crate) async fn start_with_network(
+        auth: Auth,
+        auth_service: Arc<AuthService>,
+        setting_dao: SettingDao,
+        network: crate::network::SharedNetworkService,
+    ) -> Result<Self> {
         crate::core::message::ws::validate_configuration()?;
         let account_id = auth.account.user_id.clone();
         let account = auth.account.clone();
+        let account_data_dir = account_data_directory(&account.identity_number)?;
+        let session = auth.clone();
         let (profile, _) = watch::channel(account);
-        let client = Arc::new(Client::new_with_user_agent(
-            credential(&auth),
-            Some(generate_user_agent()),
-        ));
-        let initial_account_health = startup_account_health(client.account_api.get_me().await)?;
+        let client = Arc::new(network.sdk_client(credential(&auth)));
+        let initial_account_health = match startup_account_health(client.account_api.get_me().await)
+        {
+            Ok(health) => health,
+            Err(error) => {
+                if error.downcast_ref::<SessionUnauthorized>().is_some() {
+                    if let Err(persistence) = auth_service.invalidate_session(&auth).await {
+                        warn!("failed to remove rejected startup session: {persistence}");
+                    }
+                }
+                return Err(error);
+            }
+        };
         let (shutdown, shutdown_receiver) = watch::channel(false);
         let conversation_changes = ConversationChangeNotifier::new();
         let (notification_changes, _) = watch::channel(0);
@@ -226,9 +270,10 @@ impl AccountRuntime {
                 shutdown_receiver,
                 conversation_changes: account_conversation_changes,
                 notification_changes: account_notification_changes,
-                account_health_updates: account_health_updates.clone(),
                 initial_account_health,
                 attachment_transfer_requests: attachment_transfer_sender,
+                settings: setting_dao.clone(),
+                network: network.clone(),
                 ready_sender,
             },
         )?;
@@ -248,6 +293,7 @@ impl AccountRuntime {
         account_health_updates.send_replace(initial_account_health);
         let state = Arc::new(AccountState {
             account_id,
+            account_data_dir,
             profile,
             auth_service,
             client,
@@ -260,16 +306,27 @@ impl AccountRuntime {
             blaze,
             #[cfg(not(target_arch = "wasm32"))]
             device_transfer,
+            #[cfg(not(target_arch = "wasm32"))]
+            screen_lock: tokio::sync::OnceCell::new(),
             account_health: account_health_updates,
             active: AtomicBool::new(true),
             mutation_gate: RwLock::new(()),
             attachment_downloads: Mutex::new(HashMap::new()),
-            attachment_progresses: Mutex::new(HashMap::new()),
+            attachment_progresses: attachment_progress::AttachmentProgresses::default(),
+            bot_public_keys: tokio::sync::Mutex::new(HashMap::new()),
+            network,
+            settings: setting_dao.clone(),
         });
         crate::task::spawn(run_attachment_transfer_requests(
             state.clone(),
             attachment_transfer_requests,
             setting_dao,
+        ));
+        crate::task::spawn(lifecycle::monitor_session(
+            state.clone(),
+            session,
+            shutdown.clone(),
+            runner.completion(),
         ));
         Ok(Self {
             state,
@@ -280,6 +337,10 @@ impl AccountRuntime {
 
     pub fn conversation_access(&self) -> ConversationAccess {
         ConversationAccess::new(self.state.clone())
+    }
+
+    pub fn bot_access(&self) -> BotAccess {
+        BotAccess::new(self.state.clone())
     }
 
     pub fn message_access(&self) -> MessageAccess {
@@ -336,64 +397,6 @@ impl AccountRuntime {
         self.notification_changes.subscribe()
     }
 
-    pub async fn notification_event_batch(
-        &self,
-        after_created_at_micros: i64,
-        after_row_id: i64,
-        limit: i64,
-    ) -> Result<model::NotificationEventBatch> {
-        let limit = limit.clamp(1, 200);
-        let messages = self
-            .database
-            .message_dao
-            .notification_items_after(&self.account_id, after_row_id, limit)
-            .await?;
-        let (next_created_at_micros, next_row_id) = messages
-            .last()
-            .map(|message| {
-                (
-                    message.created_at.and_utc().timestamp_micros(),
-                    message.row_id,
-                )
-            })
-            .unwrap_or((after_created_at_micros, after_row_id));
-        let has_more = messages.len() == limit as usize;
-        let identity_number = self.account().identity_number;
-        let mut events = messages
-            .into_iter()
-            .filter_map(|message| {
-                model::NotificationEvent::from_message(message, &self.account_id, &identity_number)
-            })
-            .collect::<Vec<_>>();
-        let text_event_indices = events
-            .iter()
-            .enumerate()
-            .filter_map(|(index, event)| event.category.contains("TEXT").then_some(index))
-            .collect::<Vec<_>>();
-        let text_contents = text_event_indices
-            .iter()
-            .map(|index| events[*index].content.clone())
-            .collect::<Vec<_>>();
-        for (index, content) in text_event_indices.into_iter().zip(
-            self.database
-                .user_dao
-                .replace_mentions(&text_contents)
-                .await?,
-        ) {
-            events[index].content = content;
-        }
-        Ok(model::NotificationEventBatch {
-            events,
-            next_created_at_micros,
-            next_row_id,
-            has_more,
-        })
-    }
-
-    pub async fn latest_notification_row_id(&self) -> Result<i64> {
-        Ok(self.database.message_dao.latest_row_id().await?)
-    }
-
     pub fn subscribe_shutdown(&self) -> watch::Receiver<bool> {
         self.shutdown.subscribe()
     }
@@ -411,7 +414,9 @@ impl AccountRuntime {
     }
 
     pub async fn refresh_account_health(&self) -> Result<()> {
+        self.ensure_active()?;
         let health = account_health(self.client.account_api.get_me().await)?;
+        self.ensure_active()?;
         self.account_health.send_replace(health);
         self.blaze.retry_connection();
         Ok(())
@@ -761,56 +766,10 @@ impl AccountRuntime {
     async fn shutdown_inner(&self) {
         self.active.store(false, Ordering::Release);
         self.cancel_attachment_downloads();
+        #[cfg(not(target_arch = "wasm32"))]
+        self.device_transfer.shutdown().await;
         let _ = self.shutdown.send(true);
         self.runner.wait().await;
-    }
-
-    pub async fn revoke_session(&self) {
-        let session_id = self.account().session_id;
-        if let Err(error) = self.client.account_api.logout(&session_id).await {
-            warn!("failed to revoke account session during sign out: {error}");
-        }
-    }
-
-    pub fn begin_sign_out(&self) {
-        self.active.store(false, Ordering::Release);
-        self.cancel_attachment_downloads();
-    }
-
-    pub async fn sign_out(&self) -> Result<()> {
-        let data_directory = account_data_directory(&self.account().identity_number)?;
-        self.begin_sign_out();
-        let clear_auth_error = self.auth_service.clear_auth(&self.account_id).await.err();
-        let _mutation = self.mutation_gate.write().await;
-        let session_id = self.account().session_id;
-        self.shutdown_inner().await;
-        self.revoke_session().await;
-        if let Err(error) = self.signal_database.clear().await {
-            warn!("failed to clear signal state during sign out: {error}");
-        }
-        if let Err(error) = self
-            .database
-            .participant_session_dao
-            .clear_for_sign_out(&session_id)
-            .await
-        {
-            warn!("failed to clear participant sessions during sign out: {error}");
-        }
-        self.signal_database.close().await;
-        self.database.close().await;
-        crate::db::storage::files::remove_directory(&data_directory).await?;
-        match crate::fs::remove_dir_all(&data_directory).await {
-            Ok(()) => {}
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => warn!(
-                "failed to clear account data directory {} after sign out: {error}",
-                data_directory.display()
-            ),
-        }
-        if let Some(error) = clear_auth_error {
-            warn!("failed to clear local auth after sign out: {error}");
-        }
-        Ok(())
     }
 }
 
@@ -913,33 +872,21 @@ struct AccountRunContext {
     shutdown_receiver: watch::Receiver<bool>,
     conversation_changes: ConversationChangeNotifier,
     notification_changes: watch::Sender<u64>,
-    account_health_updates: watch::Sender<String>,
     initial_account_health: String,
     attachment_transfer_requests: mpsc::UnboundedSender<AttachmentTransferRequest>,
     ready_sender: oneshot::Sender<AccountStartupResult>,
+    settings: SettingDao,
+    network: crate::network::SharedNetworkService,
 }
 
-async fn run_account(context: AccountRunContext) {
+async fn run_account(context: AccountRunContext) -> runner::Exit {
+    let result = prepare_account(&context).await;
     let AccountRunContext {
-        auth,
-        client,
         mut shutdown_receiver,
         conversation_changes,
-        notification_changes,
-        account_health_updates,
-        initial_account_health,
-        attachment_transfer_requests,
         ready_sender,
+        ..
     } = context;
-    let result = prepare_account(
-        &auth,
-        client.clone(),
-        conversation_changes.clone(),
-        notification_changes,
-        initial_account_health,
-        attachment_transfer_requests,
-    )
-    .await;
     let AccountServices {
         database,
         signal_database,
@@ -955,7 +902,7 @@ async fn run_account(context: AccountRunContext) {
         Ok(services) => services,
         Err(error) => {
             let _ = ready_sender.send(Err(error.to_string()));
-            return;
+            return runner::Exit::Stopped;
         }
     };
     let ready = AccountStartupReady {
@@ -968,7 +915,7 @@ async fn run_account(context: AccountRunContext) {
         account_health,
     };
     if ready_sender.send(Ok(ready)).is_err() {
-        return;
+        return runner::Exit::Stopped;
     }
 
     // Native runs the device-transfer service. The web has no desktop-to-
@@ -985,6 +932,9 @@ async fn run_account(context: AccountRunContext) {
     tokio::select! {
         result = blaze.connect() => {
             if let Err(error) = result {
+                if error.downcast_ref::<crate::core::message::blaze::BlazeAuthenticationError>().is_some() {
+                    return runner::Exit::Unauthorized;
+                }
                 error!("Blaze stopped: {error:?}");
             }
         }
@@ -1005,30 +955,9 @@ async fn run_account(context: AccountRunContext) {
                 error!("job service stopped: {error:?}");
             }
         }
-        _ = forward_account_health(client, account_health_updates) => {
-            warn!("account health monitor stopped");
-        }
         _ = shutdown_receiver.changed() => {}
     }
-}
-
-async fn forward_account_health(client: Arc<Client>, health: watch::Sender<String>) {
-    let mut errors = client.subscribe_server_error_codes();
-    loop {
-        if let Some(code) = *errors.borrow_and_update() {
-            let value = match code {
-                sdk::err::error_code::TIME_INACCURATE => "time_inaccurate",
-                sdk::err::error_code::OLD_VERSION => "update_required",
-                _ => "ready",
-            };
-            if value != "ready" {
-                health.send_replace(value.to_string());
-            }
-        }
-        if errors.changed().await.is_err() {
-            return;
-        }
-    }
+    runner::Exit::Stopped
 }
 
 /// Services assembled by `prepare_account` and consumed by the account loop.
@@ -1045,14 +974,18 @@ struct AccountServices {
     account_health: String,
 }
 
-async fn prepare_account(
-    auth: &Auth,
-    client: Arc<Client>,
-    conversation_changes: ConversationChangeNotifier,
-    notification_changes: watch::Sender<u64>,
-    account_health: String,
-    attachment_transfer_requests: mpsc::UnboundedSender<AttachmentTransferRequest>,
-) -> Result<AccountServices> {
+async fn prepare_account(context: &AccountRunContext) -> Result<AccountServices> {
+    let AccountRunContext {
+        auth,
+        client,
+        conversation_changes,
+        notification_changes,
+        initial_account_health: account_health,
+        attachment_transfer_requests,
+        settings,
+        network,
+        ..
+    } = context;
     let account = &auth.account;
     let account_id = account.user_id.clone();
     let credential = credential(auth);
@@ -1062,18 +995,29 @@ async fn prepare_account(
             .await
             .map_err(|error| database_open_error(error.as_ref()))?,
     );
+    database
+        .transcript_message_dao
+        .recover_interrupted_uploads(&account_id)
+        .await?;
+    database
+        .message_dao
+        .recover_interrupted_uploads(&account_id)
+        .await?;
     let signal_database = Arc::new(
         SignalDatabase::connect(account.identity_number.clone())
             .await
             .map_err(|error| anyhow!(error.to_string()))?,
     );
-    let blaze = Arc::new(Blaze::new(
-        database.clone(),
-        client.clone(),
-        credential,
-        account_id.clone(),
-        Some(conversation_changes.clone()),
-    ));
+    let blaze = Arc::new(
+        Blaze::new(
+            database.clone(),
+            client.clone(),
+            credential,
+            account_id.clone(),
+            Some(conversation_changes.clone()),
+        )
+        .with_network(network.clone()),
+    );
     let signal_protocol = Arc::new(SignalProtocol::new(
         signal_database.clone(),
         account_id.clone(),
@@ -1096,20 +1040,16 @@ async fn prepare_account(
     ));
     let account_data_dir = account_data_directory(&account.identity_number)?;
     crate::fs::create_dir_all(account_data_dir.join("Media")).await?;
-    // wasm: the browser owns network timeouts; reqwest's browser backend
-    // exposes no client-level connect/read timeouts (see network::build_client).
-    #[cfg(not(target_arch = "wasm32"))]
-    let attachment_http_client = reqwest::Client::builder()
-        .connect_timeout(Duration::from_secs(10))
-        .read_timeout(Duration::from_secs(150))
-        .build()?;
-    #[cfg(target_arch = "wasm32")]
-    let attachment_http_client = reqwest::Client::builder().build()?;
-    let attachment = Arc::new(AttachmentService::new(
-        client.clone(),
-        attachment_http_client,
-        account_data_dir.clone(),
-    ));
+    let attachment_http_clients = network.http_clients();
+    let attachment_http_client = attachment_http_clients.borrow().clone();
+    let attachment = Arc::new(
+        AttachmentService::new(
+            client.clone(),
+            attachment_http_client,
+            account_data_dir.clone(),
+        )
+        .with_http_clients(attachment_http_clients),
+    );
     let app_service = Arc::new(AppService::new(
         database.clone(),
         client.clone(),
@@ -1139,10 +1079,11 @@ async fn prepare_account(
             blaze.pending_message_statuses(),
             auth,
         )
-        .with_conversation_changes(conversation_changes)
-        .with_notification_changes(notification_changes)
+        .with_conversation_changes(conversation_changes.clone())
+        .with_notification_changes(notification_changes.clone())
         .with_device_transfer_controls(device_transfer_control_sender)
-        .with_attachment_transfer_requests(attachment_transfer_requests),
+        .with_attachment_transfer_requests(attachment_transfer_requests.clone())
+        .with_settings(settings.clone()),
     );
     Ok(AccountServices {
         database,
@@ -1154,7 +1095,7 @@ async fn prepare_account(
         #[cfg(not(target_arch = "wasm32"))]
         device_transfer,
         device_transfer_controls,
-        account_health,
+        account_health: account_health.clone(),
     })
 }
 
@@ -1309,6 +1250,7 @@ fn validate_combine_forward_source(source: &Message) -> Result<()> {
             source.message_id
         ));
     }
+    combine_transcript_category(&source.category, "SIGNAL")?;
     if source.category.is_attachment() {
         if !matches!(source.media_status, MediaStatus::Done | MediaStatus::Read) {
             return Err(anyhow!(
@@ -1385,6 +1327,9 @@ fn forward_transcript_category(source: &str, target_prefix: &str) -> Result<Stri
         || source == sdk::message_category::APP_BUTTON_GROUP
     {
         return Ok(source.to_string());
+    }
+    if source.to_string().is_attachment() {
+        return forward_category(source, target_prefix);
     }
     let category = source.to_string();
     let suffix = if category.is_text() {

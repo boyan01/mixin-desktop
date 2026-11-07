@@ -23,6 +23,7 @@ pub mod offset;
 pub mod participant;
 pub mod participant_session;
 pub mod pin_message;
+pub(crate) mod quick_search;
 pub mod safe_snapshot;
 pub mod snapshot;
 pub mod sticker;

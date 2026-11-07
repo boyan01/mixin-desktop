@@ -83,10 +83,28 @@ pub struct UserProfileItem {
     pub avatar_url: String,
     pub biography: String,
     pub is_verified: bool,
+    pub is_deactivated: bool,
     pub is_bot: bool,
     pub relationship: String,
     pub code_url: String,
     pub membership: Option<String>,
+}
+
+/// One ranked command-palette result, ready for presentation.
+#[derive(Clone, Debug, serde::Serialize)]
+pub enum QuickSearchItem {
+    User(Box<UserProfileItem>),
+    Conversation(Box<ConversationListData>),
+}
+
+/// One membership change in an account-scoped circle command.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct CircleConversationEdit {
+    pub conversation_id: String,
+    pub owner_id: String,
+    pub is_group: bool,
+    pub add: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Serialize)]
@@ -164,6 +182,13 @@ pub struct SnapshotDetailItem {
     pub deposit_hash: Option<String>,
     pub withdrawal_hash: Option<String>,
     pub withdrawal_receiver: Option<String>,
+    pub inscription_hash: Option<String>,
+    pub inscription_collection_hash: Option<String>,
+    pub inscription_sequence: Option<i64>,
+    pub inscription_content_type: Option<String>,
+    pub inscription_content_url: Option<String>,
+    pub inscription_name: Option<String>,
+    pub inscription_icon_url: Option<String>,
 }
 
 impl SnapshotDetailItem {
@@ -203,6 +228,13 @@ impl SnapshotDetailItem {
             deposit_hash: None,
             withdrawal_hash: None,
             withdrawal_receiver: None,
+            inscription_hash: None,
+            inscription_collection_hash: None,
+            inscription_sequence: None,
+            inscription_content_type: None,
+            inscription_content_url: None,
+            inscription_name: None,
+            inscription_icon_url: None,
         }
     }
 
@@ -263,6 +295,13 @@ impl SnapshotDetailItem {
                 .as_ref()
                 .map(|value| value.withdrawal_hash.clone()),
             withdrawal_receiver: withdrawal.map(|value| value.receiver),
+            inscription_hash: detail.inscription_hash,
+            inscription_collection_hash: detail.inscription_collection_hash,
+            inscription_sequence: detail.inscription_sequence,
+            inscription_content_type: detail.inscription_content_type,
+            inscription_content_url: detail.inscription_content_url,
+            inscription_name: detail.inscription_name,
+            inscription_icon_url: detail.inscription_icon_url,
         }
     }
 }
@@ -333,6 +372,29 @@ pub struct StickerDetailItem {
     pub album: Option<StickerAlbumItem>,
     pub album_stickers: Vec<StickerItem>,
     pub is_personal: bool,
+}
+
+/// Current business permissions for a message. Commands always revalidate on execution.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct MessageActions {
+    pub message_id: String,
+    pub can_reply: bool,
+    pub can_forward: bool,
+    pub can_combine_forward: bool,
+    pub can_recall: bool,
+    pub can_pin: bool,
+}
+
+/// Read-only contents retained by a nested forwarded-message summary.
+/// The wire format does not retain original message IDs, timestamps, or attachments.
+#[derive(Clone, Debug, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub struct TranscriptSummaryItem {
+    pub sender_name: String,
+    pub category: String,
+    pub content: String,
 }
 
 /// Shared message read model used by the desktop UI bridges.
@@ -428,7 +490,12 @@ pub struct NotificationEvent {
     pub message_id: String,
     pub conversation_id: String,
     pub sender_name: String,
+    pub sender_id: String,
+    pub action: Option<String>,
+    pub participant_id: Option<String>,
+    pub participant_name: Option<String>,
     pub category: String,
+    pub status: String,
     pub content: String,
     pub created_at_micros: i64,
     pub conversation_name: String,
@@ -461,8 +528,20 @@ impl NotificationEvent {
             message_id: value.message_id,
             conversation_id: value.conversation_id,
             sender_name: value.sender_name,
+            sender_id: value.user_id,
+            action: value.action,
+            participant_id: value.participant_id,
+            participant_name: value.participant_name,
             category: value.category,
-            content: value.content.unwrap_or_default(),
+            content: if matches!(
+                value.status,
+                sdk::MessageStatus::Unknown | sdk::MessageStatus::Failed
+            ) {
+                String::new()
+            } else {
+                value.content.unwrap_or_default()
+            },
+            status: value.status.into(),
             created_at_micros: value.created_at.and_utc().timestamp_micros(),
             conversation_name: value.conversation_name,
             conversation_category: value.conversation_category,
@@ -479,7 +558,12 @@ pub(crate) fn agent_trigger(
     current_user_id: &str,
     current_identity_number: &str,
 ) -> Option<&'static str> {
-    if value.category == sdk::message_category::MESSAGE_RECALL {
+    if value.category == sdk::message_category::MESSAGE_RECALL
+        || matches!(
+            value.status,
+            sdk::MessageStatus::Unknown | sdk::MessageStatus::Failed
+        )
+    {
         return None;
     }
     let group = value.conversation_category == "GROUP";
@@ -565,7 +649,11 @@ mod notification_tests {
             conversation_id: "conversation".to_string(),
             user_id: "sender".to_string(),
             sender_name: "Sender".to_string(),
+            action: None,
+            participant_id: None,
+            participant_name: None,
             category: category.to_string(),
+            status: sdk::MessageStatus::Read,
             content: Some(content.to_string()),
             quote_content: quote_content.map(str::to_string),
             created_at: DateTime::UNIX_EPOCH.naive_utc(),
@@ -670,4 +758,89 @@ mod notification_tests {
             );
         }
     }
+}
+
+/// A GIF discovery result, with distinct preview and send representations.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct GifItem {
+    pub id: String,
+    pub url: String,
+    pub preview_url: String,
+    pub width: i32,
+    pub height: i32,
+}
+
+/// A send accepted by the durable store. An upload error belongs to this
+/// existing message; retrying must use its ID rather than create another send.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct SendReceipt {
+    pub message_id: String,
+    pub upload_error: Option<String>,
+}
+
+/// Screen privacy state; secret passcode material never crosses this boundary.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ScreenLockState {
+    pub available: bool,
+    pub enabled: bool,
+    pub locked: bool,
+    pub auto_lock_minutes: u32,
+    pub biometrics_available: bool,
+    pub biometric_enabled: bool,
+    pub retry_after_millis: u64,
+}
+
+/// Internal commands behind the application-facing screen privacy client.
+/// Deliberately does not implement Debug: commands can contain passcodes.
+pub enum ScreenLockCommand {
+    SetPasscode(String),
+    DisablePasscode,
+    Lock,
+    Unlock(String),
+    SetAutoLockMinutes(u32),
+    SetBiometricEnabled(bool),
+    UnlockWithBiometrics(String),
+}
+
+/// Bot metadata and account context safe to expose to a presentation host.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct BotContext {
+    pub app_id: String,
+    pub title: String,
+    pub home_url: String,
+    pub icon_url: String,
+    pub immersive: bool,
+    pub currency: String,
+    pub source_conversation: Option<String>,
+}
+
+/// Protocol content prepared for an explicit web-page forwarding action.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum WebShareContent {
+    Text(String),
+    AppCard(String),
+}
+
+/// A short-lived signed bot request. Do not log its contents.
+#[derive(Clone)]
+#[non_exhaustive]
+pub struct BotSignature {
+    pub timestamp: i64,
+    pub signature: String,
+}
+
+/// A live attachment transfer. Transcript children are scoped by their root message.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentTransferProgress {
+    pub message_id: String,
+    pub transcript_id: Option<String>,
+    pub completed: u64,
+    /// Zero means that the transfer has not reported a total yet.
+    pub total: u64,
 }

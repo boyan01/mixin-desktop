@@ -34,21 +34,23 @@ impl UpdateStickerJobRunner {
                 self.database.job_dao.delete_job_by_id(&job.job_id).await?;
                 continue;
             };
-            let result: Result<()> =
+            let result: Result<bool> =
                 match self.client.account_api.get_sticker_by_id(sticker_id).await {
                     Ok(sticker) => self
                         .database
                         .sticker_dao
-                        .insert(&sticker)
+                        .refresh_metadata(&sticker)
                         .await
                         .map_err(Into::into),
                     Err(error) => Err(error.into()),
                 };
             match result {
-                Ok(()) => {
+                Ok(changed) => {
                     self.database.job_dao.delete_job_by_id(&job.job_id).await?;
-                    if let Some(changes) = &self.changes {
-                        changes.notify_messages();
+                    if changed {
+                        if let Some(changes) = &self.changes {
+                            changes.notify_all();
+                        }
                     }
                 }
                 Err(error)
