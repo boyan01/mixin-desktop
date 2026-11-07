@@ -401,9 +401,12 @@ impl Voice {
         cleanup(move || {
             disposed.store(true, Ordering::Release);
             let id = session.swap(0, Ordering::AcqRel);
-            let preview = voice
-                .snapshot
-                .with_untracked(|s| s.recording.as_ref().map(|r| r.path.clone()));
+            // Signals are already disposed with the owner here; ask the recorder.
+            let preview = media
+                .voice_recorder_snapshot()
+                .recording
+                .as_ref()
+                .map(|r| r.path.clone());
             drop(runtime::commit(async move {
                 let stopping = stop_preview(&media, preview.as_deref()).await;
                 let cancelling = media.cancel_voice_session(id).await;
