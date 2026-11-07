@@ -54,7 +54,7 @@ impl Page {
             Self::Profile => ui::Icon::Person,
             Self::Notifications => ui::Icon::Bell,
             Self::Storage => ui::Icon::Database,
-            Self::Transfer => ui::Icon::Upload,
+            Self::Transfer => ui::Icon::Backup,
             Self::Security => ui::Icon::Shield,
             Self::Proxy => ui::Icon::Globe,
             Self::Appearance => ui::Icon::Brush,
@@ -95,7 +95,8 @@ pub(crate) fn navigation(
         .child(when(compact, move || {
             parts::page_header(
                 move || i18n.text(Key::Settings),
-                parts::back_button(on_back),
+                None,
+                Some(parts::close_button(on_back)),
             )
         }))
         .child(when(move || !compact(), ui::title_bar))
@@ -176,6 +177,7 @@ pub(crate) fn screen(
     account: Arc<AccountClient>,
     page: Signal<Page>,
     profile_draft: Signal<Option<(String, String)>>,
+    narrow: impl Fn() -> bool + Copy + 'static,
     on_back: impl Fn() + Copy + 'static,
     on_signed_out: impl Fn() + 'static,
     session_owner: Owner,
@@ -190,7 +192,17 @@ pub(crate) fn screen(
         // Storage draws its own bar: its detail page has another title and Back.
         .child(when(
             move || page.get() != Page::Storage,
-            move || parts::page_header(move || page.get().title(i18n), parts::back_button(on_back)),
+            move || {
+                // Wide windows keep the list beside the page, so there is nothing to go back to.
+                parts::page_header(
+                    move || page.get().title(i18n),
+                    Some(
+                        parts::back_button(on_back)
+                            .style_when(move || !narrow(), |style| style.hidden()),
+                    ),
+                    None,
+                )
+            },
         ))
         .child(dynamic(move || {
             let current = page.get();
@@ -210,7 +222,7 @@ pub(crate) fn screen(
                 )
                 .into_element(),
                 Page::Storage => {
-                    storage::screen(account, move || Page::Storage.title(i18n), on_back)
+                    storage::screen(account, move || Page::Storage.title(i18n), narrow, on_back)
                         .into_element()
                 }
                 Page::Transfer => crate::transfer::screen(

@@ -651,13 +651,8 @@ impl Home {
                                 self.client(),
                                 settings_page,
                                 profile_draft,
-                                move || {
-                                    if self.narrow() {
-                                        settings_detail.set(false);
-                                    } else {
-                                        nav.settings.set(false);
-                                    }
-                                },
+                                move || self.narrow(),
+                                move || settings_detail.set(false),
                                 on_account_ended,
                                 owner,
                             )

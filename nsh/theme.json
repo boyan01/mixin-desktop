@@ -68,7 +68,7 @@
       "bubble-nip-height": "12px",
       "bubble-nip-offset": "9px",
       "pin-banner-height": "64px",
-      "thumbnail-grid-size": "96px",
+      "thumbnail-grid-size": "64px",
       "pin-banner-inset": "10px",
       "pin-nip-width": "7px",
       "pin-nip-height": "10px",
@@ -133,6 +133,8 @@
       "profile-bio-height": "120px",
       "sticker-panel-width": "464px",
       "sticker-panel-height": "407px",
+      "sticker-tab-bar-height": "50px",
+      "sticker-tab-size": "40px",
       "card-width": "260px"
     },
     "light": {

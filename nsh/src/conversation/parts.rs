@@ -26,17 +26,40 @@ pub(crate) fn back_button(on_press: impl Fn() + 'static) -> ButtonElement {
         .child(ui::icon(ui::Icon::ArrowLeft))
 }
 
-/// The bar of a page, in the row shared with the native window controls. The
-/// spacer balances `back` so the title centers.
-pub(crate) fn page_header(title: impl IntoReactive<SharedString>, back: ButtonElement) -> View {
+/// Closes the panel the page sits in. It stands at the trailing edge, where Back never does.
+pub(crate) fn close_button(on_press: impl Fn() + 'static) -> ButtonElement {
+    let i18n = i18n::current();
+    ui::round_button()
+        .size_8()
+        .accessibility_label(move || Some(i18n.tr("Close", "关闭").into()))
+        .on_press(on_press)
+        .child(ui::icon(ui::Icon::Close))
+}
+
+/// A fixed slot of a page bar, so the title stays centered whatever it holds.
+fn bar_slot(button: Option<ButtonElement>) -> View {
+    let slot = view().size_8().flex_shrink_0();
+    match button {
+        Some(button) => slot.child(button),
+        None => slot,
+    }
+}
+
+/// The bar of a page, in the row shared with the native window controls: `leading`
+/// goes back one page, `trailing` closes the panel. A page shows one of them, and
+/// the body's own background shows through.
+pub(crate) fn page_header(
+    title: impl IntoReactive<SharedString>,
+    leading: Option<ButtonElement>,
+    trailing: Option<ButtonElement>,
+) -> View {
     let nav = use_context::<Navigation>().expect("Home provides navigation");
     ui::title_bar()
         .px(ui::space_lg())
         .gap(ui::space_md())
-        .bg(ui::surface_list)
         .border_b_1()
         .border_color(ui::hairline)
-        .child(back)
+        .child(bar_slot(leading))
         // The title keeps its own width and the slot centers it, so a resize moves the
         // text, which eases like any frame, instead of re-centering glyphs in a resized one.
         .child(
@@ -47,7 +70,7 @@ pub(crate) fn page_header(title: impl IntoReactive<SharedString>, back: ButtonEl
                     .text_role(ui::TextRole::Title),
             ),
         )
-        .child(view().size_8().flex_shrink_0())
+        .child(bar_slot(trailing))
         // Clears the window controls beside the narrowest rail, so the bar does not shift
         // while the rail eases between its widths.
         .pl(move || {

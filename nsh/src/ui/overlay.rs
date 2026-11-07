@@ -96,6 +96,11 @@ pub(crate) fn menu_groups(groups: impl IntoIterator<Item = Vec<MenuItem>>) -> Ve
     items
 }
 
+/// A popover whose content reaches its edges: the content brings its own padding.
+pub(crate) fn popover_flush() -> PopoverElement {
+    popover().popup_style(|style| popup(style).p_0().overflow_hidden())
+}
+
 pub(crate) fn popover() -> PopoverElement {
     nsh_base::popover()
         .popup_style(popup)

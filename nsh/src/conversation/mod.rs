@@ -307,22 +307,27 @@ pub(crate) fn screen(
             }
         }
     });
-    let back = move || {
-        if state.page.get_untracked() == Page::Info {
-            state.close();
-        } else {
-            state.page.set(Page::Info);
-        }
-    };
     view()
         .flex_1()
         .min_h_0()
         .child(
-            parts::page_header(move || state.page.get().title(), parts::back_button(back))
-                .style_when(
-                    move || state.page.get().profile_flow(),
-                    |style| style.hidden(),
+            parts::page_header(
+                move || state.page.get().title(),
+                Some(
+                    parts::back_button(move || state.page.set(Page::Info)).style_when(
+                        move || state.page.get() == Page::Info,
+                        |style| style.hidden(),
+                    ),
                 ),
+                Some(parts::close_button(move || state.close()).style_when(
+                    move || state.page.get() != Page::Info,
+                    |style| style.hidden(),
+                )),
+            )
+            .style_when(
+                move || state.page.get().profile_flow(),
+                |style| style.hidden(),
+            ),
         )
         .child(when(
             move || state.loading.get() && state.row.with(Option::is_none),

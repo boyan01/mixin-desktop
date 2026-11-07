@@ -40,6 +40,7 @@ impl From<crate::db::mixin::conversation::ConversationListItem> for Conversation
                 .map(str::to_string)
                 .collect(),
             participant_count: item.participant_count,
+            expire_in: item.expire_in,
             group_avatars: item
                 .group_avatar_data
                 .split('\u{1e}')

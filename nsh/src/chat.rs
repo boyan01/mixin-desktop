@@ -159,6 +159,19 @@ pub(crate) fn screen(
     let timeline =
         timeline::Timeline::mount(conversation.clone(), target, history, messages, actions);
     let loading = timeline.loading;
+    // A page usually arrives within a frame or two: an indicator shows only for a slow one.
+    let slow_loading = signal(false);
+    effect(move || {
+        if loading.get() {
+            set_timeout(std::time::Duration::from_millis(400), move || {
+                if loading.get_untracked() {
+                    slow_loading.set(true);
+                }
+            });
+        } else {
+            slow_loading.set(false);
+        }
+    });
     let failed = timeline.failed;
     unread.mark_read_while_visible(messages, move || {
         !loading.get() && !failed.get() && !timeline.has_newer.get()
@@ -210,7 +223,7 @@ pub(crate) fn screen(
         .on_file_drop(move |event: &FileDropEvent| {
             dragging.set(false);
             if can_send.get_untracked() {
-                incoming_files.set(local_paths(&event.uris));
+                incoming_files.set(composer::local_sources(&event.uris));
             }
         })
         .flex_1()
@@ -243,7 +256,7 @@ pub(crate) fn screen(
                         .items_center()
                         .justify_center()
                         .child(ui::busy_indicator(
-                            || true,
+                            move || slow_loading.get(),
                             move || i18n.text(Key::LoadingMessages).into(),
                         ))
                 }))
@@ -406,12 +419,4 @@ pub(crate) fn screen(
                     },
                 )),
         )
-}
-
-fn local_paths(uris: &[String]) -> Vec<composer::AttachmentSource> {
-    uris.iter()
-        .filter_map(|uri| url::Url::parse(uri).ok()?.to_file_path().ok())
-        .filter(|path| path.is_absolute())
-        .map(|path| composer::AttachmentSource::Path(path.to_string_lossy().into_owned()))
-        .collect()
 }

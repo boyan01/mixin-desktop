@@ -33,6 +33,8 @@ pub struct ConversationListData {
     pub circle_ids: Vec<String>,
     pub participant_count: i64,
     pub group_avatars: Vec<GroupAvatar>,
+    /// Seconds a new message lives after it is read; zero when messages stay.
+    pub expire_in: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]

@@ -239,6 +239,10 @@ impl Cells {
                             None => view().hidden().into_element(),
                         })
                     }))
+                    .child(when(
+                        move || read(row, |row| row.expire_in > 0),
+                        || ui::icon(ui::Icon::Disappearing).text_color(ui::fg_secondary),
+                    ))
                     .child(
                         text(move || read(row, |row| self.preview(row)))
                             .flex_1()

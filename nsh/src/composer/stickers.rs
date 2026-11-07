@@ -25,8 +25,8 @@ pub(super) fn columns(cell: f32) -> u32 {
 /// A compact tab of the panel, with the shared selected treatment.
 pub(super) fn panel_tab() -> ButtonElement {
     ui::button(ui::ButtonTone::Ghost, ui::ButtonSize::Small)
-        .min_w(ui::button_height_small())
-        .h(ui::button_height_small())
+        .min_w(ui::sticker_tab_size())
+        .h(ui::sticker_tab_size())
         .px_1()
 }
 
@@ -175,7 +175,24 @@ pub(crate) fn stickers(
     let i18n = i18n::current();
     let state = State::new(account, id, false, failed);
     let insert = stored(insert);
-    ui::popover()
+    // The panel opens while the pointer rests on the button or the panel, and closes a
+    // moment after it leaves both, so crossing the gap between them keeps it open.
+    let over_button = signal(false);
+    let over_panel = signal(false);
+    let hover_owner = Owner::current();
+    let hover = move |entered: bool, flag: Signal<bool>| {
+        flag.set(entered);
+        let delay = if entered { 120 } else { 250 };
+        hover_owner.run(|| {
+            set_timeout(std::time::Duration::from_millis(delay), move || {
+                let hovered = over_button.get_untracked() || over_panel.get_untracked();
+                if hovered != state.open.get_untracked() && !state.busy.get_untracked() {
+                    state.open.set(hovered);
+                }
+            });
+        });
+    };
+    ui::popover_flush()
         .open(move || Some(state.open.get()))
         .on_open_change(move |event: &PopoverEvent| {
             if let PopoverEvent::OpenChange(value, _) = event
@@ -186,9 +203,14 @@ pub(crate) fn stickers(
         })
         .offset(ui::space_sm())
         .trigger(
-            tool_button()
-                .accessibility_label(move || Some(i18n.text(Key::Emoji).into()))
-                .child(ui::icon(ui::Icon::Sticker)),
+            view()
+                .on_mouse_enter(move |_: &MouseEvent| hover(true, over_button))
+                .on_mouse_leave(move |_: &MouseEvent| hover(false, over_button))
+                .child(
+                    tool_button()
+                        .accessibility_label(move || Some(i18n.text(Key::Emoji).into()))
+                        .child(ui::icon(ui::Icon::Sticker)),
+                ),
         )
         .child(when(state.open, move || {
             state.observe_updates();
@@ -208,10 +230,15 @@ pub(crate) fn stickers(
                 });
             });
             view()
-                .w(ui::sticker_panel_width())
-                .max_w(relative(0.95))
+                .style_with(|style| {
+                    style.w(px(
+                        (window().width.0 * 0.95).min(ui::sticker_panel_width().0)
+                    ))
+                })
                 .h(ui::sticker_panel_height())
                 .min_h_0()
+                .on_mouse_enter(move |_: &MouseEvent| hover(true, over_panel))
+                .on_mouse_leave(move |_: &MouseEvent| hover(false, over_panel))
                 .child(
                     view()
                         .flex_1()
@@ -250,87 +277,107 @@ pub(crate) fn stickers(
                 )
                 .child(ui::divider())
                 .child(
-                    scroll().horizontal().bg(ui::surface_list).child(
-                        view()
-                            .flex_row()
-                            .gap_1()
-                            .p_1()
-                            .children(
-                                [
-                                    (
-                                        Tab::Store,
-                                        TabLabel::Icon(ui::Icon::Add),
-                                        "Sticker store",
-                                        "贴纸商店",
-                                    ),
-                                    (Tab::Emoji, TabLabel::Text("😀"), "Emoji", "表情"),
-                                    (
-                                        Tab::Recent,
-                                        TabLabel::Icon(ui::Icon::Clock),
-                                        "Recent stickers",
-                                        "最近使用的贴纸",
-                                    ),
-                                    (
-                                        Tab::Personal,
-                                        TabLabel::Icon(ui::Icon::Star),
-                                        "My stickers",
-                                        "我的贴纸",
-                                    ),
-                                    (Tab::Gif, TabLabel::Text("GIF"), "GIFs", "GIF"),
-                                ]
-                                .into_iter()
-                                .map(
-                                    move |(tab, title, en, zh)| {
-                                        let tab = stored(tab);
-                                        panel_tab()
-                                            .accessibility_label(move || {
-                                                Some(tr(i18n, en, zh).into())
-                                            })
-                                            .selected(move || {
-                                                state.tab.get() == tab.with(|t| t.clone())
-                                            })
-                                            .on_press(move || {
-                                                state.tab.set(tab.with(|t| t.clone()))
-                                            })
-                                            .child(title.element())
-                                    },
-                                ),
-                            )
-                            .child(each(
-                                move || {
-                                    state.albums.with(|rows| {
-                                        rows.iter()
-                                            .map(|album| {
+                    // The platform keeps a horizontal indicator, so the scroll view is taller
+                    // than this clipping frame and its bar falls outside.
+                    view()
+                        .w_full()
+                        .h(ui::sticker_tab_bar_height())
+                        .flex_shrink_0()
+                        .overflow_hidden()
+                        .bg(ui::surface_list)
+                        .child(
+                            scroll()
+                                .horizontal()
+                                .scrollbar(false)
+                                .w_full()
+                                .h(ui::sticker_tab_bar_height() + ui::space_xl())
+                                .child(
+                                    view()
+                                        .flex_row()
+                                        .items_center()
+                                        .h(ui::sticker_tab_bar_height())
+                                        .children(
+                                            [
                                                 (
-                                                    album.album_id.clone(),
-                                                    album.name.clone(),
-                                                    album.icon_url.clone(),
-                                                )
-                                            })
-                                            .collect::<Vec<_>>()
-                                    })
-                                },
-                                |album| album.0.clone(),
-                                move |album, _| {
-                                    panel_tab()
-                                        .accessibility_label(move || {
-                                            Some(album.with(|a| a.1.clone()).into())
-                                        })
-                                        .on_press(move || {
-                                            state.tab.set(Tab::Album(album.with(|a| a.0.clone())))
-                                        })
-                                        .selected(move || {
-                                            state.tab.get()
-                                                == Tab::Album(album.with(|a| a.0.clone()))
-                                        })
-                                        .child(crate::sticker::album_icon(
-                                            state.client(),
-                                            move || album.with(|a| a.2.clone()),
-                                            ui::icon_lg().0,
-                                        ))
-                                },
-                            )),
-                    ),
+                                                    Tab::Store,
+                                                    TabLabel::Icon(ui::Icon::Add),
+                                                    "Sticker store",
+                                                    "贴纸商店",
+                                                ),
+                                                (Tab::Emoji, TabLabel::Text("😀"), "Emoji", "表情"),
+                                                (
+                                                    Tab::Recent,
+                                                    TabLabel::Icon(ui::Icon::Clock),
+                                                    "Recent stickers",
+                                                    "最近使用的贴纸",
+                                                ),
+                                                (
+                                                    Tab::Personal,
+                                                    TabLabel::Icon(ui::Icon::Star),
+                                                    "My stickers",
+                                                    "我的贴纸",
+                                                ),
+                                                (Tab::Gif, TabLabel::Text("GIF"), "GIFs", "GIF"),
+                                            ]
+                                            .into_iter()
+                                            .map(
+                                                move |(tab, title, en, zh)| {
+                                                    let tab = stored(tab);
+                                                    panel_tab()
+                                                        .accessibility_label(move || {
+                                                            Some(tr(i18n, en, zh).into())
+                                                        })
+                                                        .selected(move || {
+                                                            state.tab.get()
+                                                                == tab.with(|t| t.clone())
+                                                        })
+                                                        .on_press(move || {
+                                                            state.tab.set(tab.with(|t| t.clone()))
+                                                        })
+                                                        .child(title.element())
+                                                },
+                                            ),
+                                        )
+                                        .child(each(
+                                            move || {
+                                                state.albums.with(|rows| {
+                                                    rows.iter()
+                                                        .map(|album| {
+                                                            (
+                                                                album.album_id.clone(),
+                                                                album.name.clone(),
+                                                                album.icon_url.clone(),
+                                                            )
+                                                        })
+                                                        .collect::<Vec<_>>()
+                                                })
+                                            },
+                                            |album| album.0.clone(),
+                                            move |album, _| {
+                                                panel_tab()
+                                                    .accessibility_label(move || {
+                                                        Some(album.with(|a| a.1.clone()).into())
+                                                    })
+                                                    .on_press(move || {
+                                                        state.tab.set(Tab::Album(
+                                                            album.with(|a| a.0.clone()),
+                                                        ))
+                                                    })
+                                                    .selected(move || {
+                                                        state.tab.get()
+                                                            == Tab::Album(
+                                                                album.with(|a| a.0.clone()),
+                                                            )
+                                                    })
+                                                    .child(crate::sticker::album_icon(
+                                                        state.client(),
+                                                        move || album.with(|a| a.2.clone()),
+                                                        ui::icon_lg().0,
+                                                    ))
+                                            },
+                                        )),
+                                ),
+                        ),
                 )
         }))
 }
@@ -537,17 +584,4 @@ pub(super) fn grid_items(
                 |style| style.hidden().invisible(),
             ),
         )
-        .child(when(
-            move || matches!(tab.with(|t| t.clone()), Tab::Album(_)),
-            move || {
-                let album = tab.with(|t| {
-                    if let Tab::Album(id) = t {
-                        id.clone()
-                    } else {
-                        String::new()
-                    }
-                });
-                sticker_store::album_toggle(state, album)
-            },
-        ))
 }

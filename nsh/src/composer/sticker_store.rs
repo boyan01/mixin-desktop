@@ -17,32 +17,6 @@ use crate::{
 /// The album's bitmap in the store list.
 const ALBUM_ICON: f32 = 48.0;
 
-pub(super) fn album_toggle(state: State, album: String) -> impl IntoElement {
-    let i18n = i18n::current();
-    let album = stored(album);
-    ui::action(
-        move || {
-            if state
-                .albums
-                .with(|albums| albums.iter().any(|a| album.with(|id| a.album_id == *id)))
-            {
-                tr(i18n, "Remove album", "移除贴纸专辑")
-            } else {
-                tr(i18n, "Add album", "添加贴纸专辑")
-            }
-        },
-        move || {
-            let id = album.with(|id| id.clone());
-            let added = state
-                .albums
-                .with(|albums| albums.iter().any(|a| a.album_id == id));
-            let client = state.client();
-            state.update(async move { client.sticker().set_sticker_album_added(id, !added).await });
-        },
-    )
-    .disabled(state.busy)
-}
-
 pub(super) fn panel(state: State) -> impl IntoElement {
     let i18n = i18n::current();
     let store = signal_with(Vec::<StickerAlbumItem>::new(), SignalEquals::Never);

@@ -35,11 +35,11 @@ pub(crate) use feedback::{
     busy_indicator, count_pill, divider, empty, error_text, placeholder, section, section_label,
 };
 pub(crate) use form::{
-    NO_LABEL, checkbox, field, radio, search_input, search_pill, select, select_trigger, slider,
+    NO_LABEL, checkbox, field, search_input, search_pill, select, select_trigger, slider,
     slider_compact, slider_over_scale, slider_over_wave, tab, textarea,
 };
 pub(crate) use icon::{Icon, icon, logo, wallpaper};
-pub(crate) use overlay::{hint, menu, menu_groups, menu_row, native_context_menu, popover};
+pub(crate) use overlay::{hint, menu, menu_groups, menu_row, native_context_menu, popover_flush};
 pub(crate) use owned::owned;
 pub(crate) use rows::{list_row, nav_row, option_row};
 pub(crate) use state::ring;

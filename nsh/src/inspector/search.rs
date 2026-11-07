@@ -449,7 +449,14 @@ pub(super) fn screen(
                     i18n.text(Key::SearchMessages)
                 }
             },
-            parts::back_button(back),
+            Some(
+                parts::back_button(back)
+                    .style_when(move || !senders.open.get(), |style| style.hidden()),
+            ),
+            Some(
+                parts::close_button(back)
+                    .style_when(move || senders.open.get(), |style| style.hidden()),
+            ),
         ))
         .child(filters(results, senders, input, back))
         .child(

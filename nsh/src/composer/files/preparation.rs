@@ -140,27 +140,31 @@ pub(super) async fn prepare_sources(
     Ok(items)
 }
 
-pub(super) fn local_sources(uris: &[String]) -> Vec<AttachmentSource> {
+/// The local paths of dropped or pasted URIs.
+pub(crate) fn local_sources(uris: &[String]) -> Vec<AttachmentSource> {
     uris.iter()
-        .filter_map(|uri| url::Url::parse(uri).ok()?.to_file_path().ok())
-        .map(|path| AttachmentSource::Path(path.to_string_lossy().into_owned()))
+        .filter_map(|uri| file_path(uri))
+        .map(AttachmentSource::Path)
         .collect()
 }
 
-pub(super) fn pasted_sources(event: &nsh_core::PasteEvent) -> Vec<AttachmentSource> {
-    let paths = local_sources(&event.uris);
-    if !paths.is_empty() {
-        paths
-    } else {
-        event
-            .files
-            .iter()
-            .map(|file| AttachmentSource::Clipboard {
-                name: file.name.clone(),
-                bytes: Arc::new(file.data.clone()),
-            })
-            .collect()
+/// Finder hands over file references (`file:///.file/id=…`), which only Foundation can
+/// resolve to a path.
+#[cfg(target_os = "macos")]
+fn file_path(uri: &str) -> Option<String> {
+    use objc2_foundation::{NSString, NSURL};
+    let url = NSURL::URLWithString(&NSString::from_str(uri))?;
+    if !url.isFileURL() {
+        return None;
     }
+    let resolved = url.filePathURL()?;
+    Some(resolved.path()?.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn file_path(uri: &str) -> Option<String> {
+    let path = url::Url::parse(uri).ok()?.to_file_path().ok()?;
+    Some(path.to_string_lossy().into_owned())
 }
 
 pub(super) async fn clipboard_sources() -> Vec<AttachmentSource> {

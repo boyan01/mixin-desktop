@@ -72,6 +72,7 @@ pub struct ConversationListItem {
     pub circle_ids: String,
     pub participant_count: i64,
     pub group_avatar_data: String,
+    pub expire_in: i64,
 }
 
 #[derive(Debug)]
@@ -160,7 +161,8 @@ SELECT conversation.conversation_id,
                ORDER BY participant.created_at ASC
                LIMIT 4
            ) avatar_user
-       ), '') ELSE '' END AS group_avatar_data
+       ), '') ELSE '' END AS group_avatar_data,
+       COALESCE(conversation.expire_in, 0) AS expire_in
 "#;
 
 const CONVERSATION_LIST_SCOPE: &str = r#"FROM conversations conversation
@@ -1068,7 +1070,7 @@ mod tests {
                 created_at: now,
                 status: ConversationStatus::SUCCESS,
                 mute_until: now,
-                expire_in: 0,
+                expire_in: 3600,
             })
             .await
             .unwrap();
@@ -1117,6 +1119,7 @@ mod tests {
             Some("read-boundary")
         );
         assert_eq!(items[0].unseen_count, 1);
+        assert_eq!(items[0].expire_in, 3600);
         assert!(items[0].is_muted);
         assert!(items[0].is_verified);
         assert_eq!(items[0].updated_at_millis(), now.timestamp_millis());
@@ -1205,6 +1208,7 @@ crate::db::storage::row_mapping!(ConversationListItem {
     circle_ids: "circle_ids",
     participant_count: "participant_count",
     group_avatar_data: "group_avatar_data",
+    expire_in: "expire_in",
 });
 
 crate::db::storage::row_mapping!(ConversationUnseenCountItem {

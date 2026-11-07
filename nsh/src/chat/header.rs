@@ -101,7 +101,14 @@ pub(super) fn bar(
                                             membership.as_deref(),
                                         )
                                     })
-                                }))),
+                                })))
+                                .child(when(
+                                    move || row.with(|row| row.expire_in > 0),
+                                    || {
+                                        ui::icon(ui::Icon::Disappearing)
+                                            .text_color(ui::fg_secondary)
+                                    },
+                                )),
                         )
                         .child(
                             text(move || {

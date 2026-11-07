@@ -266,7 +266,8 @@ fn reader(
         .min_h_0()
         .child(parts::page_header(
             move || format!("{} ({})", i18n.text(Key::Pinned), state.total.get()),
-            parts::back_button(close),
+            None,
+            Some(parts::close_button(close)),
         ))
         .child(when(
             move || state.loading.get() && state.rows.with(Vec::is_empty),

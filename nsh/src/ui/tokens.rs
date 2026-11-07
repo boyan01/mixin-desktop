@@ -123,6 +123,9 @@ lengths! {
     profile_bio_height = "profile-bio-height";
     sticker_panel_width = "sticker-panel-width";
     sticker_panel_height = "sticker-panel-height";
+    /// The sticker panel's bottom tab bar, and one tab in it.
+    sticker_tab_bar_height = "sticker-tab-bar-height";
+    sticker_tab_size = "sticker-tab-size";
     radius_login = "radius-login";
     radius_composer = "radius-composer";
     /// A day separator and a notice in the timeline.

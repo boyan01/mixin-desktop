@@ -38,6 +38,7 @@ impl Download {
 pub(super) fn screen(
     account: Arc<AccountClient>,
     title: impl Fn() -> &'static str + Copy + 'static,
+    show_back: impl Fn() -> bool + Copy + 'static,
     on_back: impl Fn() + Copy + 'static,
 ) -> impl IntoElement {
     let selected = signal(None::<(String, String)>);
@@ -54,7 +55,14 @@ pub(super) fn screen(
             None => view()
                 .flex_1()
                 .min_h_0()
-                .child(parts::page_header(title, parts::back_button(on_back)))
+                .child(parts::page_header(
+                    title,
+                    Some(
+                        parts::back_button(on_back)
+                            .style_when(move || !show_back(), |style| style.hidden()),
+                    ),
+                    None,
+                ))
                 .child(overview(account, selected, revision))
                 .into_element(),
         })
@@ -364,7 +372,8 @@ fn detail(
         .min_h_0()
         .child(parts::page_header(
             name,
-            parts::back_button(on_back).disabled(feedback.busy),
+            Some(parts::back_button(on_back).disabled(feedback.busy)),
+            None,
         ))
         .child(
             scroll().flex_1().min_h_0().child(

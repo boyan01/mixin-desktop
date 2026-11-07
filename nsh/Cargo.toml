@@ -22,6 +22,7 @@ qrcode = { version = "0.14", default-features = false, features = ["image"] }
 tokio = { version = "1", features = ["rt-multi-thread", "signal", "sync", "time", "net", "io-util", "macros"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 unicode-segmentation = "1"
+emojis = "0.9.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 nsh-platform-linux = { version = "0.4.0", default-features = false }

@@ -50,6 +50,10 @@ pub(crate) enum Icon {
     Shield,
     Brush,
     InfoCircle,
+    /// Chat backup and restore.
+    Backup,
+    /// A conversation whose messages disappear.
+    Disappearing,
     /// Share: a box with an arrow leaving it.
     Share,
     /// Two speech bubbles: open the conversation.
@@ -98,16 +102,18 @@ pub(crate) fn icon(icon: Icon) -> Svg {
             "<rect x='9' y='9' width='11' height='11' rx='2'/><path d='M5 15V6a2 2 0 0 1 2-2h9'/>",
         ),
         Icon::Save => stroke("<path d='M5 4h11l3 3v13H5Z'/><path d='M8 4v5h7V4M8 20v-6h8v6'/>"),
-        Icon::ArrowLeft => stroke("<path d='M19 12H5m6-6-6 6 6 6'/>"),
+        Icon::ArrowLeft => asset(include_str!("../../assets/ic_back.svg")),
         Icon::Menu => stroke("<path d='M4 6h16M4 12h16M4 18h16'/>"),
         Icon::Play => stroke("<path d='m8 5 11 7-11 7Z'/>"),
         Icon::Download => stroke("<path d='M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4'/>"),
         Icon::Upload => stroke("<path d='M12 16V4m-5 5 5-5 5 5M5 17v4h14v-4'/>"),
-        Icon::Close => stroke("<path d='m6 6 12 12M6 18 18 6'/>"),
+        Icon::Disappearing => asset(include_str!(
+            "../../assets/disappearing_message_indicator.svg"
+        )),
+        Icon::Backup => asset(include_str!("../../assets/ic_backup.svg")),
+        Icon::Close => asset(include_str!("../../assets/ic_close.svg")),
         Icon::Send => stroke("<path d='m22 2-7 20-4-9-9-4Z'/><path d='M22 2 11 13'/>"),
-        Icon::Globe => stroke(
-            "<circle cx='12' cy='12' r='9'/><path d='M3 12h18M12 3a17 17 0 0 1 0 18 17 17 0 0 1 0-18Z'/>",
-        ),
+        Icon::Globe => asset(include_str!("../../assets/proxy.svg")),
         Icon::Lock => stroke(
             "<rect x='5' y='10' width='14' height='11' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/>",
         ),
@@ -117,18 +123,12 @@ pub(crate) fn icon(icon: Icon) -> Svg {
         ),
         Icon::Check => stroke("<path d='m5 12 4 4L19 6'/>"),
         Icon::Pin => stroke("<path d='m16 3 5 5-4 1-4 4-1 5-3-3-6 6 6-6-3-3 5-1 4-4Z'/>"),
-        Icon::Person => stroke("<circle cx='12' cy='8' r='4'/><path d='M4 21a8 8 0 0 1 16 0'/>"),
-        Icon::Bell => stroke(
-            "<path d='M6 9a6 6 0 0 1 12 0c0 6 2.5 8 2.5 8h-17S6 15 6 9Z'/><path d='M10 20.5a2.2 2.2 0 0 0 4 0'/>",
-        ),
-        Icon::Database => stroke(
-            "<ellipse cx='12' cy='5.5' rx='8' ry='3'/><path d='M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13'/><path d='M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3'/>",
-        ),
-        Icon::Shield => stroke("<path d='M12 3 5 6v5.5c0 4.5 3 8 7 9.5 4-1.5 7-5 7-9.5V6Z'/>"),
-        Icon::Brush => stroke(
-            "<path d='M20.5 3.5a2.1 2.1 0 0 0-3 0l-8.8 8.8 3 3 8.8-8.8a2.1 2.1 0 0 0 0-3Z'/><path d='M8.7 12.3C6.5 12.3 5 13.8 5 16c0 1.6-.8 2.6-2 3 1.5 1.3 3.2 2 5 2 3 0 4.7-2.6 3.7-5.7Z'/>",
-        ),
-        Icon::InfoCircle => stroke("<circle cx='12' cy='12' r='9'/><path d='M12 11v5M12 8h.01'/>"),
+        Icon::Person => asset(include_str!("../../assets/ic_profile.svg")),
+        Icon::Bell => asset(include_str!("../../assets/ic_notification.svg")),
+        Icon::Database => asset(include_str!("../../assets/ic_storage_usage.svg")),
+        Icon::Shield => asset(include_str!("../../assets/shield.svg")),
+        Icon::Brush => asset(include_str!("../../assets/ic_appearance.svg")),
+        Icon::InfoCircle => asset(include_str!("../../assets/ic_about.svg")),
     }
 }
 

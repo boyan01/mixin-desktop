@@ -1,17 +1,18 @@
-use mixin_desktop_api::{MediaClient, PreparedAttachment};
-use nsh_base::radio_group;
+use mixin_desktop_api::{AccountClient, MediaClient, MessageListView, PreparedAttachment};
 use nsh_core::prelude::*;
-use std::sync::Arc;
+use std::{rc::Rc, sync::Arc};
 
-use super::{
-    AttachmentSource, attachments::Host, clear_quote, media_client, quote_id, tr, wide_dialog,
-};
+use super::{AttachmentSource, clear_quote, media_client, quote_id, tr};
 use crate::{
     i18n::{self, I18n, Key},
     motion::Presence,
     runtime,
     ui::{self, Typography as _},
 };
+
+const MEDIA_EXTENSIONS: [&str; 13] = [
+    "jpg", "jpeg", "png", "gif", "webp", "heic", "bmp", "mp4", "mov", "m4v", "webm", "mkv", "avi",
+];
 
 #[derive(Clone, Copy, PartialEq)]
 pub(super) enum Mode {
@@ -21,7 +22,7 @@ pub(super) enum Mode {
     Archive,
 }
 
-mod preparation;
+pub(super) mod preparation;
 use preparation::{Cache, Source, prepare_source, prepare_sources};
 
 struct Outcome {
@@ -31,9 +32,23 @@ struct Outcome {
     caption_sent: bool,
 }
 
+/// What the tray shares with the composer that owns it.
+#[derive(Clone, Copy)]
+struct Context {
+    account: Stored<Arc<AccountClient>>,
+    conversation: Stored<String>,
+    quote: Signal<Option<MessageListView>>,
+    failed: Signal<bool>,
+    navigation: crate::navigation::ChatNavigation,
+}
+
+/// The files waiting under the composer's input, and everything that sends them.
+#[derive(Clone, Copy)]
+pub(crate) struct Tray(Preview);
+
 #[derive(Clone, Copy)]
 struct Preview {
-    host: Host,
+    ctx: Context,
     i18n: I18n,
     media: Stored<Arc<MediaClient>>,
     // Dialog tasks run here, not under the `when` branch of the control that
@@ -50,7 +65,9 @@ struct Preview {
     mode: Signal<Mode>,
     compress: Signal<bool>,
     silent: Signal<bool>,
-    caption: Signal<String>,
+    // The composer's draft: it is the caption of the first picture.
+    caption: Memo<String>,
+    clear_caption: Stored<Rc<dyn Fn()>>,
     password: Signal<String>,
     input_rejected: Signal<bool>,
     loading: Signal<bool>,
@@ -61,45 +78,43 @@ struct Preview {
     retry: Signal<u64>,
 }
 
-pub(super) fn preview(
-    host: Host,
-    files: Vec<AttachmentSource>,
-    initial_mode: Mode,
-    incoming: Signal<Vec<AttachmentSource>>,
-) -> impl IntoElement {
-    let mut unique = Vec::new();
-    for input in files {
-        if !unique.contains(&input) {
-            unique.push(input);
-        }
-    }
-    let sources = unique
-        .into_iter()
-        .enumerate()
-        .map(|(id, input)| Source::new(id as u64, input))
-        .collect::<Vec<_>>();
-    let next_id = sources.len() as u64;
+pub(crate) fn mount(
+    account: Arc<AccountClient>,
+    conversation: String,
+    failed: Signal<bool>,
+    quote: Signal<Option<MessageListView>>,
+    caption: Memo<String>,
+    clear_caption: Rc<dyn Fn()>,
+) -> Tray {
     let editing = signal(None::<u64>);
     let preview = Preview {
-        host,
+        ctx: Context {
+            account: stored(account),
+            conversation: stored(conversation),
+            quote,
+            failed,
+            navigation: use_context::<crate::navigation::ChatNavigation>()
+                .expect("Home provides chat navigation"),
+        },
         i18n: i18n::current(),
         media: stored(media_client()),
         owner: Owner::current(),
-        sources: signal_with(sources, SignalEquals::Never),
-        next_id: stored(next_id),
+        sources: signal_with(Vec::new(), SignalEquals::Never),
+        next_id: stored(0),
         cache: stored(Cache::default()),
         prepared: signal_with(Vec::new(), SignalEquals::Never),
         selected: signal(0),
         editing,
         editor: Presence::fade(move || editing.with(Option::is_some)),
         preparing_edit: signal(false),
-        mode: signal(initial_mode),
+        mode: signal(Mode::Auto),
         compress: signal(true),
         silent: signal(false),
-        caption: signal(String::new()),
+        caption,
+        clear_caption: stored(clear_caption),
         password: signal(String::new()),
         input_rejected: signal(false),
-        loading: signal(true),
+        loading: signal(false),
         busy: signal(false),
         picking: signal(false),
         send_failed: signal(false),
@@ -107,31 +122,71 @@ pub(super) fn preview(
         retry: signal(0),
     };
     preview.prepare();
-    effect(move || {
-        if !host.presence.interactive() || incoming.with(Vec::is_empty) {
-            return;
-        }
-        let mut inputs = Vec::new();
-        incoming.update(|items| inputs = std::mem::take(items));
-        preview.append(inputs);
-    });
+    // With focus outside the input, paste still adds the clipboard's files.
     on_key_with(
         "mod+v",
         KeyOptions {
             when: nsh_core::keymap::When::NotEditing,
             ..Default::default()
         },
-        move |_| preview.paste(),
+        move |_| {
+            if preview.busy.get_untracked() || preview.editor.mounted() {
+                return;
+            }
+            preview.owner.run(|| {
+                spawn(async move { preview.append(preparation::clipboard_sources().await) });
+            });
+        },
     );
-    view()
-        .child(
-            ui::dialog(host.presence, move || preview.dismiss(), preview.body())
-                .style_when(move || preview.editor.mounted(), |style| style.hidden()),
-        )
-        .child(when(
+    Tray(preview)
+}
+
+impl Tray {
+    /// Whether files wait in the tray: the composer then sends them, with its text as caption.
+    pub fn active(self) -> bool {
+        self.0.sources.with(|sources| !sources.is_empty())
+    }
+
+    pub fn busy(self) -> bool {
+        self.0.busy.get()
+    }
+
+    /// Whether the tray can send now: prepared, and nothing else holds it.
+    pub fn ready(self) -> bool {
+        self.0.ready()
+    }
+
+    pub fn add(self, inputs: Vec<AttachmentSource>) {
+        self.0.append(inputs);
+    }
+
+    /// Opens the file dialog. A tray with nothing in it sends what it gets as that kind.
+    pub fn pick(self, media: bool) {
+        if self.0.sources.with_untracked(Vec::is_empty) {
+            self.0
+                .mode
+                .set(if media { Mode::Media } else { Mode::Files });
+        }
+        self.0.pick_more(media);
+    }
+
+    pub fn send(self, silent: bool) {
+        self.0.silent.set(silent);
+        self.0.send();
+    }
+
+    pub fn view(self) -> impl IntoElement {
+        self.0.tray()
+    }
+
+    /// The image editor, over the whole window while an image is edited.
+    pub fn editor(self) -> impl IntoElement {
+        let preview = self.0;
+        when(
             move || preview.editor.mounted(),
             move || preview.image_editor(),
-        ))
+        )
+    }
 }
 
 impl Preview {
@@ -184,20 +239,11 @@ impl Preview {
         self.cache.with(|cache| cache.item(id))
     }
 
-    fn dismiss(self) {
-        if !self.busy.get_untracked()
-            && !self.picking.get_untracked()
-            && self.editing.get_untracked().is_none()
-        {
-            self.host.close();
-        }
-    }
-
     fn append(self, inputs: Vec<AttachmentSource>) {
         if inputs.is_empty() {
             return;
         }
-        if self.busy.get_untracked() || !self.host.presence.interactive() {
+        if self.busy.get_untracked() {
             self.input_rejected.set(true);
             return;
         }
@@ -223,31 +269,24 @@ impl Preview {
         });
     }
 
-    fn paste(self) {
-        if !self.host.presence.interactive() || self.editor.mounted() {
-            return;
-        }
-        if self.busy.get_untracked() {
-            self.input_rejected.set(true);
-            return;
-        }
-        self.owner.run(|| {
-            spawn(async move { self.append(preparation::clipboard_sources().await) });
-        });
-    }
-
-    fn pick_more(self) {
-        if self.busy.get_untracked()
-            || self.picking.get_untracked()
-            || !self.host.presence.interactive()
-        {
+    fn pick_more(self, media: bool) {
+        if self.busy.get_untracked() || self.picking.get_untracked() {
             return;
         }
         self.picking.set(true);
+        let i18n = self.i18n;
         self.owner.run(|| {
             spawn(async move {
-                let result =
-                    pick_paths(nsh_core::file_dialog::OpenDialog::files().multiple(true)).await;
+                let dialog = nsh_core::file_dialog::OpenDialog::files().multiple(true);
+                let dialog = if media {
+                    dialog.filter(nsh_core::file_dialog::FileFilter::new(
+                        tr(i18n, "Pictures and videos", "图片和视频"),
+                        MEDIA_EXTENSIONS,
+                    ))
+                } else {
+                    dialog
+                };
+                let result = pick_paths(dialog).await;
                 self.picking.set(false);
                 match result {
                     Ok(Some(paths)) => self.append(
@@ -273,7 +312,12 @@ impl Preview {
             }
         });
         match self.sources.with_untracked(Vec::len) {
-            0 => self.host.close(),
+            0 => batch(|| {
+                self.selected.set(0);
+                self.mode.set(Mode::Auto);
+                self.password.set(String::new());
+                self.silent.set(false);
+            }),
             remaining => {
                 let selected = self.selected.get_untracked();
                 let selected = if index < selected {
@@ -355,11 +399,11 @@ impl Preview {
     }
 
     fn send(self) {
-        if !self.host.presence.interactive() || self.busy.get_untracked() {
+        if self.busy.get_untracked() || !self.ready() {
             return;
         }
-        let client = self.host.account();
-        let id = self.host.conversation();
+        let client = self.ctx.account.with(|account| account.clone());
+        let id = self.ctx.conversation.with(|id| id.clone());
         let media = self.media.with(|media| media.clone());
         let items = self.prepared.get_untracked();
         let source_guards = self.sources.get_untracked();
@@ -367,7 +411,7 @@ impl Preview {
         let password = self.password.get_untracked();
         let mut caption = Some(self.caption.get_untracked()).filter(|text| !text.trim().is_empty());
         let silent = self.silent.get_untracked();
-        let sent_quote = quote_id(self.host.quote);
+        let sent_quote = quote_id(self.ctx.quote);
         let quote = sent_quote.clone();
         self.busy.set(true);
         self.send_failed.set(false);
@@ -428,14 +472,24 @@ impl Preview {
                 self.busy.set(false);
                 match result {
                     Ok(outcome) if outcome.finished => {
-                        self.host.failed.set(outcome.upload_failed);
-                        clear_quote(self.host.quote, sent_quote);
-                        self.host.sent();
+                        self.ctx.failed.set(outcome.upload_failed);
+                        clear_quote(self.ctx.quote, sent_quote);
+                        self.ctx.navigation.show_latest();
+                        if outcome.caption_sent {
+                            self.clear_caption.with(|clear| clear());
+                        }
+                        batch(|| {
+                            self.sources.set(Vec::new());
+                            self.selected.set(0);
+                            self.mode.set(Mode::Auto);
+                            self.password.set(String::new());
+                            self.silent.set(false);
+                        });
                     }
                     Ok(outcome) => {
-                        self.host.failed.set(outcome.upload_failed);
+                        self.ctx.failed.set(outcome.upload_failed);
                         if outcome.caption_sent {
-                            self.caption.set(String::new());
+                            self.clear_caption.with(|clear| clear());
                         }
                         if outcome.accepted > 0 {
                             self.sources.update(|sources| {
@@ -451,111 +505,28 @@ impl Preview {
         });
     }
 
-    fn body(self) -> View {
-        let i18n = self.i18n;
-        let dragging = signal(false);
-        on_key_with(
-            "enter",
-            KeyOptions {
-                when: nsh_core::keymap::When::NotEditing,
-                ..KeyOptions::default()
-            },
-            move |_| {
-                if self.ready() {
-                    self.send();
-                }
-            },
-        );
-        wide_dialog()
-            .relative()
-            .on_file_drag_enter(move |_: &()| dragging.set(true))
-            .on_file_drag_leave(move |_: &()| dragging.set(false))
-            .on_file_drop(move |event: &FileDropEvent| {
-                dragging.set(false);
-                self.append(preparation::local_sources(&event.uris))
-            })
-            .child(ui::dialog_title(move || {
-                let count = self.sources.with(Vec::len);
-                if count == 1 {
-                    tr(i18n, "Send 1 file", "发送 1 个文件").to_owned()
-                } else {
-                    i18n.format(
-                        "Send {count} files",
-                        "发送 {count} 个文件",
-                        &[("count", &count.to_string())],
-                    )
-                }
-            }))
-            .child(
-                scroll().flex_shrink(1.0).min_h_0().child(
-                    view()
-                        .gap_3()
-                        .child(self.selected_preview())
-                        .child(self.thumbnails())
-                        .child(self.mode_picker())
-                        .child(self.options())
-                        .child(self.status()),
-                ),
+    fn tray(self) -> impl IntoElement {
+        view()
+            .px_2()
+            .pt_2()
+            .gap_2()
+            .style_when(
+                move || self.sources.with(Vec::is_empty),
+                |style| style.hidden(),
             )
-            .child(self.footer())
-            .child(when(dragging, move || {
-                view()
-                    .absolute()
-                    .inset_0()
-                    .items_center()
-                    .justify_center()
-                    .rounded(ui::radius_lg())
-                    .border_2()
-                    .border_color(ui::accent)
-                    .bg(|| ui::accent().opacity(0.12))
-                    .pointer_events(PointerEvents::None)
-                    .child(
-                        text(move || tr(i18n, "Drop to add files", "拖拽到此处添加文件"))
-                            .text_role(ui::TextRole::Title)
-                            .text_color(ui::accent),
-                    )
-            }))
+            .child(self.thumbnails())
+            .child(self.options())
+            .child(self.status())
     }
 
-    fn selected_preview(self) -> impl IntoElement {
-        let i18n = self.i18n;
-        view()
-            .gap_2()
-            .child(dynamic(move || {
-                let current = self.selected_item();
-                untracked(|| match current {
-                    Some(item) if item.kind == "IMAGE" => image(item.path)
-                        .w_full()
-                        .h_56()
-                        .object_fit(ResizeMode::Contain)
-                        .label(move || i18n.text(Key::Photo))
-                        .into_element(),
-                    Some(item) if item.kind == "VIDEO" => video(item.path)
-                        .w_full()
-                        .h_56()
-                        .paused(true)
-                        .controls(true)
-                        .into_element(),
-                    _ => view().hidden().into_element(),
-                })
-            }))
-            .child(when(
-                move || {
-                    self.mode_value() == Mode::Media
-                        && self
-                            .selected_item()
-                            .is_some_and(|item| item.kind == "IMAGE")
-                },
-                move || {
-                    ui::action(
-                        move || tr(i18n, "Edit image…", "编辑图片…"),
-                        move || self.edit_selected(),
-                    )
-                    .disabled(move || {
-                        self.busy.get() || self.loading.get() || self.preparing_edit.get()
-                    })
-                },
-            ))
+    fn open_selected(self, index: usize) {
+        self.selected.set(index);
+        if self
+            .selected_item()
+            .is_some_and(|item| item.kind == "IMAGE")
+        {
+            self.edit_selected();
+        }
     }
 
     /// The files as a grid of thumbnails: select one to preview it, remove it with its
@@ -563,180 +534,164 @@ impl Preview {
     fn thumbnails(self) -> impl IntoElement {
         let i18n = self.i18n;
         let cell = ui::thumbnail_grid_size;
-        view()
-            .flex_row()
-            .flex_wrap()
-            .gap_2()
-            .child(each(
-                move || {
-                    self.sources
-                        .with(|rows| rows.iter().map(|source| source.id).collect::<Vec<_>>())
-                },
-                |id| *id,
-                move |id, _| {
-                    let id = id.with(|id| *id);
-                    let index = move || {
+        scroll().horizontal().scrollbar(false).child(
+            view()
+                .flex_row()
+                .gap_2()
+                .child(each(
+                    move || {
                         self.sources
-                            .with(|rows| rows.iter().position(|source| source.id == id))
-                    };
-                    let item = move || {
-                        self.prepared.with(|_| ());
-                        self.cache.with(|cache| cache.item(id))
-                    };
-                    view()
-                        .relative()
+                            .with(|rows| rows.iter().map(|source| source.id).collect::<Vec<_>>())
+                    },
+                    |id| *id,
+                    move |id, _| {
+                        let id = id.with(|id| *id);
+                        let index = move || {
+                            self.sources
+                                .with(|rows| rows.iter().position(|source| source.id == id))
+                        };
+                        let item = move || {
+                            self.prepared.with(|_| ());
+                            self.cache.with(|cache| cache.item(id))
+                        };
+                        view()
+                            .relative()
+                            .size(cell())
+                            .flex_shrink_0()
+                            .rounded(ui::radius_thumb())
+                            .overflow_hidden()
+                            .bg(ui::surface_list)
+                            .child(
+                                ui::command()
+                                    .absolute()
+                                    .inset_0()
+                                    .p_0()
+                                    .disabled(self.busy)
+                                    .accessibility_label(move || {
+                                        Some(
+                                            item().map(|item| item.name).unwrap_or_default().into(),
+                                        )
+                                    })
+                                    .on_press(move || {
+                                        if let Some(index) = index() {
+                                            self.open_selected(index);
+                                        }
+                                    })
+                                    .child(dynamic(move || {
+                                        let current = item();
+                                        untracked(|| match current {
+                                            Some(item) if item.kind == "IMAGE" => image(item.path)
+                                                .size_full()
+                                                .object_fit(ResizeMode::Cover)
+                                                .into_element(),
+                                            Some(item) => view()
+                                                .size_full()
+                                                .items_center()
+                                                .justify_center()
+                                                .p_1()
+                                                .gap_1()
+                                                .child(ui::icon(if item.kind == "VIDEO" {
+                                                    ui::Icon::Play
+                                                } else {
+                                                    ui::Icon::Save
+                                                }))
+                                                .child(
+                                                    text(item.name)
+                                                        .text_role(ui::TextRole::Caption)
+                                                        .number_of_lines(2),
+                                                )
+                                                .child(
+                                                    text(size_label(item.size))
+                                                        .text_role(ui::TextRole::Caption)
+                                                        .text_color(ui::fg_secondary),
+                                                )
+                                                .into_element(),
+                                            None => ui::busy_indicator(
+                                                || true,
+                                                move || tr(i18n, "Preparing…", "准备中…").into(),
+                                            )
+                                            .into_element(),
+                                        })
+                                    })),
+                            )
+                            .child(
+                                ui::icon_button()
+                                    .absolute()
+                                    .top_1()
+                                    .right_1()
+                                    .size_5()
+                                    .px_0()
+                                    .py_0()
+                                    .rounded_full()
+                                    .bg(ui::media_overlay)
+                                    .disabled(move || self.busy.get() || self.loading.get())
+                                    .accessibility_label(move || {
+                                        Some(tr(i18n, "Remove", "移除").into())
+                                    })
+                                    .on_press(move || {
+                                        if let Some(index) = index() {
+                                            self.remove_at(index);
+                                        }
+                                    })
+                                    .child(
+                                        ui::icon(ui::Icon::Close)
+                                            .size(ui::icon_sm())
+                                            .text_color(ui::media_overlay_foreground),
+                                    ),
+                            )
+                    },
+                ))
+                .child(
+                    ui::command()
                         .size(cell())
                         .flex_shrink_0()
                         .rounded(ui::radius_thumb())
-                        .overflow_hidden()
                         .bg(ui::surface_list)
-                        .child(
-                            ui::command()
-                                .absolute()
-                                .inset_0()
-                                .p_0()
-                                .disabled(self.busy)
-                                .accessibility_label(move || {
-                                    Some(item().map(|item| item.name).unwrap_or_default().into())
-                                })
-                                .on_press(move || {
-                                    if let Some(index) = index() {
-                                        self.selected.set(index);
-                                    }
-                                })
-                                .child(dynamic(move || {
-                                    let current = item();
-                                    untracked(|| match current {
-                                        Some(item) if item.kind == "IMAGE" => image(item.path)
-                                            .size_full()
-                                            .object_fit(ResizeMode::Cover)
-                                            .into_element(),
-                                        Some(item) => view()
-                                            .size_full()
-                                            .items_center()
-                                            .justify_center()
-                                            .p_1()
-                                            .gap_1()
-                                            .child(ui::icon(if item.kind == "VIDEO" {
-                                                ui::Icon::Play
-                                            } else {
-                                                ui::Icon::Save
-                                            }))
-                                            .child(
-                                                text(item.name)
-                                                    .text_role(ui::TextRole::Caption)
-                                                    .number_of_lines(2),
-                                            )
-                                            .child(
-                                                text(size_label(item.size))
-                                                    .text_role(ui::TextRole::Caption)
-                                                    .text_color(ui::fg_secondary),
-                                            )
-                                            .into_element(),
-                                        None => ui::busy_indicator(
-                                            || true,
-                                            move || tr(i18n, "Preparing…", "准备中…").into(),
-                                        )
-                                        .into_element(),
-                                    })
-                                })),
-                        )
-                        .child(when(
-                            move || index().is_some_and(|index| self.selected.get() == index),
-                            move || {
-                                view()
-                                    .absolute()
-                                    .inset_0()
-                                    .rounded(ui::radius_thumb())
-                                    .border_2()
-                                    .border_color(ui::accent)
-                                    .pointer_events(PointerEvents::None)
-                            },
-                        ))
-                        .child(
-                            ui::icon_button()
-                                .absolute()
-                                .top_1()
-                                .right_1()
-                                .size_5()
-                                .px_0()
-                                .py_0()
-                                .rounded_full()
-                                .bg(ui::media_overlay)
-                                .disabled(move || self.busy.get() || self.loading.get())
-                                .accessibility_label(move || {
-                                    Some(tr(i18n, "Remove", "移除").into())
-                                })
-                                .on_press(move || {
-                                    if let Some(index) = index() {
-                                        self.remove_at(index);
-                                    }
-                                })
-                                .child(
-                                    ui::icon(ui::Icon::Close)
-                                        .size(ui::icon_sm())
-                                        .text_color(ui::media_overlay_foreground),
-                                ),
-                        )
-                },
-            ))
-            .child(
-                ui::command()
-                    .size(cell())
-                    .flex_shrink_0()
-                    .rounded(ui::radius_thumb())
-                    .bg(ui::surface_list)
-                    .disabled(move || self.busy.get() || self.picking.get())
-                    .accessibility_label(move || Some(tr(i18n, "Add files…", "添加文件…").into()))
-                    .on_press(move || self.pick_more())
-                    .child(ui::icon(ui::Icon::Add).size(ui::icon_lg())),
-            )
-    }
-
-    fn mode_picker(self) -> impl IntoElement {
-        let i18n = self.i18n;
-        let choice = move || {
-            self.sources.with(Vec::len) >= 2
-                || self.prepared.with(|items| {
-                    items
-                        .iter()
-                        .any(|item| matches!(item.kind.as_str(), "IMAGE" | "VIDEO"))
-                })
-        };
-        when(choice, move || {
-            radio_group().flex_row().flex_wrap().gap_2().children(
-                [
-                    (Mode::Media, "Photos and videos", "图片和视频"),
-                    (Mode::Files, "Files", "文件"),
-                    (Mode::Archive, "ZIP archive", "ZIP 压缩包"),
-                ]
-                .into_iter()
-                .map(move |(choice, english, chinese)| {
-                    let checked = move || self.mode_value() == choice;
-                    ui::radio(
-                        Some(move || tr(i18n, english, chinese)),
-                        checked,
-                        move || {
-                            self.busy.get()
-                                || self.preparing_edit.get()
-                                || (choice == Mode::Archive && self.sources.with(Vec::len) < 2)
-                        },
-                        move |selected| {
-                            if selected {
-                                self.mode.set(choice);
-                            }
-                        },
-                    )
-                }),
-            )
-        })
+                        .disabled(move || self.busy.get() || self.picking.get())
+                        .accessibility_label(move || {
+                            Some(tr(i18n, "Add files…", "添加文件…").into())
+                        })
+                        .on_press(move || self.pick_more(false))
+                        .child(ui::icon(ui::Icon::Add).size(ui::icon_lg())),
+                ),
+        )
     }
 
     fn options(self) -> impl IntoElement {
         let i18n = self.i18n;
         let busy = move || self.busy.get();
         view()
-            .gap_3()
+            .gap_2()
+            .child(
+                view()
+                    .flex_row()
+                    .flex_wrap()
+                    .gap_3()
+                    .child(when(
+                        move || self.mode_value() == Mode::Media,
+                        move || {
+                            option(
+                                move || tr(i18n, "Compress images", "压缩图片"),
+                                self.compress,
+                                busy,
+                            )
+                        },
+                    ))
+                    .child(when(
+                        move || self.sources.with(Vec::len) >= 2,
+                        move || {
+                            ui::checkbox(
+                                Some(move || tr(i18n, "ZIP archive", "ZIP 压缩包")),
+                                move || self.mode.get() == Mode::Archive,
+                                busy,
+                                move |value| {
+                                    self.mode
+                                        .set(if value { Mode::Archive } else { Mode::Auto })
+                                },
+                            )
+                        },
+                    )),
+            )
             .child(when(
                 move || self.mode_value() == Mode::Archive,
                 move || {
@@ -750,41 +705,6 @@ impl Preview {
                         .value(move || self.password.get())
                         .on_change(move |value: &str| self.password.set(value.to_owned()))
                 },
-            ))
-            .child(when(
-                move || self.mode_value() == Mode::Media,
-                move || {
-                    option(
-                        move || tr(i18n, "Compress images", "压缩图片"),
-                        self.compress,
-                        busy,
-                    )
-                },
-            ))
-            .child(when(
-                move || {
-                    self.mode_value() == Mode::Media
-                        && self
-                            .prepared
-                            .with(|rows| rows.iter().any(|item| item.kind == "IMAGE"))
-                },
-                move || {
-                    ui::textarea()
-                        .max_h_24()
-                        .label(move || tr(i18n, "Caption", "图片说明"))
-                        .placeholder(move || tr(i18n, "Add a caption…", "添加图片说明…").to_owned())
-                        .readonly(self.busy)
-                        .value(move || self.caption.get())
-                        .on_change(move |value: &str| self.caption.set(value.to_owned()))
-                        .on_paste(move |event: &nsh_core::PasteEvent| {
-                            self.append(preparation::pasted_sources(event))
-                        })
-                },
-            ))
-            .child(option(
-                move || tr(i18n, "Send without notification", "静音发送"),
-                self.silent,
-                busy,
             ))
     }
 
@@ -847,31 +767,6 @@ impl Preview {
                     )
                 })
             }))
-    }
-
-    fn footer(self) -> impl IntoElement {
-        let i18n = self.i18n;
-        view()
-            .flex_none()
-            .flex_row()
-            .justify_end()
-            .gap_2()
-            .child(
-                ui::action(move || i18n.text(Key::Cancel), move || self.dismiss())
-                    .disabled(move || self.busy.get() || self.picking.get()),
-            )
-            .child(
-                ui::primary()
-                    .disabled(move || !self.ready())
-                    .child(text(move || {
-                        i18n.text(if self.busy.get() {
-                            Key::Sending
-                        } else {
-                            Key::Send
-                        })
-                    }))
-                    .on_press(move || self.send()),
-            )
     }
 
     fn image_editor(self) -> impl IntoElement {

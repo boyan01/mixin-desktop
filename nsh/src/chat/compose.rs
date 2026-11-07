@@ -210,6 +210,43 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
         session_owner,
         eligibility,
     });
+    let tray = composer::mount_tray(
+        account.clone(),
+        conversation_id.clone(),
+        operation_failed,
+        quote,
+        draft,
+        Rc::new(move || {
+            let id = draft_id.with(|id| id.clone());
+            draft_writer.save(id.clone(), String::new());
+            drafts.update(|rows| {
+                rows.insert(id, String::new());
+            });
+        }),
+    );
+    // Files dropped, pasted or picked wait in the tray, under the input.
+    effect(move || {
+        if incoming_files.with(Vec::is_empty) {
+            return;
+        }
+        let mut files = Vec::new();
+        incoming_files.update(|items| files = std::mem::take(items));
+        tray.add(files);
+    });
+    let busy = computed(move || sending.get() || tray.busy());
+    // With files waiting the draft is their caption, so one send goes to the tray.
+    let submit: Rc<dyn Fn(bool)> = {
+        let send = send.clone();
+        Rc::new(move |silent| {
+            if tray.active() {
+                if !input.composing() {
+                    tray.send(silent);
+                }
+            } else {
+                send(silent);
+            }
+        })
+    };
     let apply: Rc<dyn Fn(String, (u32, u32))> = Rc::new(move |text, caret| {
         if sending.get_untracked() {
             return;
@@ -296,99 +333,119 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
             ui::error_text(move || i18n.text(Key::SendFailed))
         }))
         .child(
-            // Inner controls are 4pt inside this outline and share its curvature.
+            // The outline holds the waiting files above the controls.
             view()
-                .flex_row()
-                .items_end()
-                .gap_1()
-                .p_1()
                 .rounded(ui::radius_composer())
                 .bg(ui::bubble_in)
                 .border_1()
                 .border_color(ui::hairline)
-                .child(composer::attachments(
-                    account.clone(),
-                    conversation_id.clone(),
-                    operation_failed,
-                    quote,
-                    incoming_files,
-                ))
-                .child(composer::stickers(
-                    account,
-                    conversation_id,
-                    operation_failed,
-                    insert,
-                    quote,
-                ))
-                .child(input.view(
-                    move || {
-                        i18n.text(if encrypted.get() {
-                            Key::EncryptedPlaceholder
-                        } else {
-                            Key::MessagePlaceholder
-                        })
-                        .to_owned()
-                    },
-                    sending,
-                    input_focused,
-                    Rc::new(move |event| {
-                        let paths = super::local_paths(&event.uris);
-                        if !paths.is_empty() {
-                            incoming_files.set(paths);
-                        } else if !event.files.is_empty() {
-                            incoming_files.set(
-                                event
-                                    .files
-                                    .iter()
-                                    .map(|file| composer::AttachmentSource::Clipboard {
-                                        name: file.name.clone(),
-                                        bytes: Arc::new(file.data.clone()),
-                                    })
-                                    .collect(),
-                            );
-                        }
-                    }),
-                    {
-                        let send = send.clone();
-                        Rc::new(move || send(false))
-                    },
-                ))
+                .child(tray.view())
                 .child(
-                    when(
-                        move || !draft.with(|s| s.trim().is_empty()) && !input.composing(),
-                        move || {
-                            let send = send.clone();
-                            let silent = send.clone();
-                            ui::native_context_menu(
-                                ui::primary()
-                                    .size_10()
-                                    .min_h_0()
-                                    .px_0()
-                                    .py_0()
-                                    .rounded(ui::radius_full())
-                                    .disabled(sending)
-                                    .accessibility_label(move || Some(i18n.text(Key::Send).into()))
-                                    .on_press(move || send(false))
-                                    .child(ui::icon(ui::Icon::Send).text_color(ui::fg_on_accent)),
+                    // Inner controls are 4pt inside this outline and share its curvature.
+                    view()
+                        .flex_row()
+                        .items_end()
+                        .gap_1()
+                        .p_1()
+                        .child(composer::attachments(
+                            account.clone(),
+                            conversation_id.clone(),
+                            quote,
+                            tray,
+                        ))
+                        .child(composer::stickers(
+                            account,
+                            conversation_id,
+                            operation_failed,
+                            insert,
+                            quote,
+                        ))
+                        .child(input.view(
+                            move || {
+                                i18n.text(if encrypted.get() {
+                                    Key::EncryptedPlaceholder
+                                } else {
+                                    Key::MessagePlaceholder
+                                })
+                                .to_owned()
+                            },
+                            busy,
+                            input_focused,
+                            Rc::new(move |event| {
+                                let paths = composer::local_sources(&event.uris);
+                                if !paths.is_empty() {
+                                    incoming_files.set(paths);
+                                } else if !event.files.is_empty() {
+                                    incoming_files.set(
+                                        event
+                                            .files
+                                            .iter()
+                                            .map(|file| composer::AttachmentSource::Clipboard {
+                                                name: file.name.clone(),
+                                                bytes: Arc::new(file.data.clone()),
+                                            })
+                                            .collect(),
+                                    );
+                                }
+                            }),
+                            {
+                                let submit = submit.clone();
+                                Rc::new(move || submit(false))
+                            },
+                        ))
+                        .child(
+                            when(
                                 move || {
-                                    let silent = silent.clone();
-                                    vec![
-                                        nsh_core::element::desktop::MenuItem::new(
-                                            i18n.tr("Send Without Notification", "静音发送"),
-                                        )
-                                        .on_select(move || silent(true)),
-                                    ]
+                                    (!draft.with(|s| s.trim().is_empty()) || tray.active())
+                                        && !input.composing()
+                                },
+                                move || {
+                                    let send = submit.clone();
+                                    let silent = submit.clone();
+                                    ui::native_context_menu(
+                                        ui::primary()
+                                            .size_10()
+                                            .min_h_0()
+                                            .px_0()
+                                            .py_0()
+                                            .rounded(ui::radius_full())
+                                            .disabled(move || {
+                                                busy.get() || (tray.active() && !tray.ready())
+                                            })
+                                            .accessibility_label(move || {
+                                                Some(i18n.text(Key::Send).into())
+                                            })
+                                            .on_press(move || send(false))
+                                            .child(
+                                                ui::icon(ui::Icon::Send)
+                                                    .text_color(ui::fg_on_accent),
+                                            ),
+                                        move || {
+                                            let silent = silent.clone();
+                                            vec![
+                                                nsh_core::element::desktop::MenuItem::new(
+                                                    i18n.tr(
+                                                        "Send Without Notification",
+                                                        "静音发送",
+                                                    ),
+                                                )
+                                                .on_select(move || silent(true)),
+                                            ]
+                                        },
+                                    )
                                 },
                             )
-                        },
-                    )
-                    .otherwise(move || voice.button()),
+                            .otherwise(move || voice.button()),
+                        ),
                 ),
         );
-    view().child(voice.composer(editor)).child(when(
-        move || !can_send.get(),
-        move || unavailable(eligibility, i18n),
-    ))
+    view()
+        .child(voice.composer(editor))
+        .child(tray.editor())
+        .child(when(
+            move || !can_send.get(),
+            move || unavailable(eligibility, i18n),
+        ))
 }
 
 struct SendContext {

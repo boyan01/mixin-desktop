@@ -424,13 +424,19 @@ pub(super) fn profile_at(
         }
     };
     let title = move || page.destination.get().title();
+    // The first page of the flow closes the panel; every later one goes back.
+    let at_root = move || page.destination.get() == initial && page.history.with(Vec::is_empty);
+    let close_target = parts::close_button(close)
+        .disabled(page.busy)
+        .style_when(move || !at_root(), |style| style.hidden());
     let back = parts::back_button(back)
         .element_ref(&back_button)
-        .disabled(page.busy);
+        .disabled(page.busy)
+        .style_when(at_root, |style| style.hidden());
     view()
         .flex_1()
         .min_h_0()
-        .child(parts::page_header(title, back))
+        .child(parts::page_header(title, Some(back), Some(close_target)))
         .child(when(
             move || {
                 page.loading.get()

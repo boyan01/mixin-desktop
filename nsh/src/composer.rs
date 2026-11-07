@@ -12,6 +12,7 @@ mod stickers;
 mod voice;
 
 pub(crate) use attachments::attachments;
+pub(crate) use files::{Tray, mount as mount_tray, preparation::local_sources};
 pub(crate) use input::Input;
 pub(crate) use mentions::mentions;
 pub(crate) use sticker_store::detail as sticker_detail;

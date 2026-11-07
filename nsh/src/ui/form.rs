@@ -2,8 +2,8 @@
 //! sliders and tabs.
 
 use nsh_base::{
-    ButtonElement, CheckboxElement, Input, RadioElement, SelectElement, SelectEntry, SelectEvent,
-    SliderElement, TabElement, input, select as base_select,
+    ButtonElement, CheckboxElement, Input, SelectElement, SelectEntry, SelectEvent, SliderElement,
+    TabElement, input, select as base_select,
 };
 use nsh_core::prelude::*;
 
@@ -14,9 +14,8 @@ use super::{
     state::{feedback_transition, inset_ring, ring},
     tokens::{
         TextRole, Typography, accent, button_height, fg_on_accent, fg_primary, fg_secondary,
-        field_height, focus_ring, icon_md, icon_sm, input_border, input_fill, opacity_disabled,
-        radius_full, radius_md, radius_sm, space_md, space_sm, space_xs, state_hover,
-        state_pressed,
+        field_height, focus_ring, icon_sm, input_border, input_fill, opacity_disabled, radius_md,
+        radius_sm, space_md, space_sm, space_xs, state_hover, state_pressed,
     },
 };
 use crate::motion;
@@ -193,42 +192,6 @@ pub(crate) fn checkbox(
         Some(label) => frame.child(choice_label(label)),
         None => frame,
     }
-}
-
-/// One choice of a `radio_group`.
-pub(crate) fn radio(
-    label: Option<impl Fn() -> &'static str + 'static>,
-    checked: impl Fn() -> bool + Copy + 'static,
-    disabled: impl Fn() -> bool + 'static,
-    on_change: impl Fn(bool) + 'static,
-) -> RadioElement {
-    let frame = choice_frame!(nsh_base::radio())
-        .checked(checked)
-        .disabled(disabled)
-        .on_change(move |checked: &bool| on_change(*checked))
-        .child(radio_mark(checked));
-    match label {
-        Some(label) => frame.child(choice_label(label)),
-        None => frame,
-    }
-}
-
-fn radio_mark(checked: impl Fn() -> bool + Copy + 'static) -> View {
-    view()
-        .size(icon_md())
-        .flex_shrink_0()
-        .rounded(radius_full())
-        .border_1()
-        .border_color(move || if checked() { accent() } else { input_border() })
-        .items_center()
-        .justify_center()
-        .child(
-            view()
-                .size(space_sm())
-                .rounded(radius_full())
-                .bg(accent)
-                .style_when(move || !checked(), |s| s.invisible()),
-        )
 }
 
 /// A value on a scale. Callers supply the range, value and change handler.
