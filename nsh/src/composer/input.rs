@@ -211,7 +211,7 @@ impl Input {
         // document height. The bounded application scroll below is the only
         // region with a vertical range, as in the readonly message reader.
         classes.root = Some("grid".into());
-        classes.content = Some("px-3 py-3 text-sm text-foreground".into());
+        classes.content = Some("px-0 py-1.5 text-sm text-foreground".into());
         classes.caret = Some("bg-primary".into());
         classes.nodes = Some(BTreeMap::from([("mention".into(), "text-primary".into())]));
         let placeholder = stored(placeholder);
@@ -219,6 +219,8 @@ impl Input {
         let viewport = stored(Size::<Points>::default());
         let scroll_top = stored(Points::ZERO);
         let reveal_queued = stored(false);
+        let editor_height = signal(crate::ui::button_height_small());
+        let measured = stored(false);
         let reveal = move || {
             if reveal_queued.replace(true) {
                 return;
@@ -280,8 +282,7 @@ impl Input {
         view().min_w_0().overflow_hidden().child(
             scroll()
                 .element_ref(&scroll_ref)
-                .min_h_14()
-                .max_h_40()
+                .h(move || editor_height.get())
                 .on_layout(move |bounds: &Bounds<Points>| {
                     if viewport.with(|size| *size != bounds.size) {
                         viewport.replace(bounds.size);
@@ -292,7 +293,27 @@ impl Input {
                     scroll_top.replace(event.offset.y);
                     viewport.replace(event.size);
                 })
-                .child(editor),
+                .child(
+                    view()
+                        .flex_none()
+                        .on_layout(move |bounds: &Bounds<Points>| {
+                            let first = !measured.replace(true);
+                            let height = bounds.size.height.clamp(
+                                crate::ui::button_height_small(),
+                                px(crate::ui::composer_text_max_height().0 * font_scale()),
+                            );
+                            if height != editor_height.get_untracked() {
+                                // Resize the viewport after the document's own layout
+                                // commits. Animating both in one commit can clip native
+                                // text at its old one-line bounds on macOS.
+                                if !first && !reduce_motion() {
+                                    scroll_ref.animate_layout(crate::motion::COMPOSER_RESIZE);
+                                }
+                                editor_height.set(height);
+                            }
+                        })
+                        .child(editor),
+                ),
         )
     }
 }

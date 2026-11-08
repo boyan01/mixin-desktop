@@ -71,12 +71,46 @@ pub(crate) fn settings_client() -> SettingsClient {
         .expect("Desktop settings are initialized")
 }
 
-/// The process media client. Only screens mounted after launch may call this.
+/// Account media inside Home; process media during startup and sign-in.
 pub(crate) fn media_client() -> Arc<MediaClient> {
-    clients()
-        .media
+    use_context::<Stored<Option<Arc<MediaClient>>>>()
+        .unwrap_or_else(|| clients().media)
         .with(|client| client.clone())
         .expect("Desktop media is initialized")
+}
+
+#[cfg(test)]
+mod media_scope_tests {
+    use super::*;
+    use nsh_core::element::create_root;
+
+    #[test]
+    fn account_scope_resolves_its_player_without_replacing_process_media() {
+        let graph = nsh_core::element::Runtime::default();
+        let _entered = graph.enter();
+        let process = Arc::new(MediaClient::new());
+        let (root, ()) = create_root(|| {
+            provide_context(Clients {
+                settings: stored(None),
+                media: stored(Some(process.clone())),
+            });
+            assert!(Arc::ptr_eq(&media_client(), &process));
+            for _ in 0..2 {
+                let account = Arc::new(MediaClient::new());
+                let (scope, resolved) = create_root(|| {
+                    provide_context(stored(Some(account.clone())));
+                    media_client()
+                });
+                assert!(
+                    Arc::ptr_eq(&resolved, &account),
+                    "voice commands must use the same player as account playback events"
+                );
+                scope.dispose();
+                assert!(Arc::ptr_eq(&media_client(), &process));
+            }
+        });
+        root.dispose();
+    }
 }
 
 #[derive(Clone)]

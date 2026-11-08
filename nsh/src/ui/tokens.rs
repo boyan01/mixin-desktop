@@ -90,6 +90,8 @@ lengths! {
     button_height = "control-button";
     button_height_small = "control-button-sm";
     field_height = "control-field";
+    /// Six 20pt editor lines plus the content's vertical inset, before text scaling.
+    composer_text_max_height = "composer-text-max-height";
     badge_height = "control-badge";
     badge_min_width = "control-badge-min-width";
 

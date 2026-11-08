@@ -558,7 +558,16 @@ impl Preview {
     }
 
     fn tray(self) -> impl IntoElement {
+        let frame = element_ref();
+        let first = stored(true);
+        effect(move || {
+            self.sources.with(Vec::len);
+            if !first.replace(false) && !reduce_motion() {
+                frame.animate_layout(crate::motion::COMPOSER_RESIZE);
+            }
+        });
         view()
+            .element_ref(&frame)
             .px_3()
             .pt_3()
             .gap_2()
@@ -566,12 +575,19 @@ impl Preview {
                 move || self.sources.with(Vec::is_empty),
                 |style| style.hidden(),
             )
-            .child(attachment_strip(
-                move || self.mode_value() == Mode::Archive,
-                move || self.sources.with(Vec::len),
-                self.thumbnails(),
-                archive_password(self.password, self.busy),
-            ))
+            .child(
+                view()
+                    .flex_row()
+                    .items_start()
+                    .gap_2()
+                    .child(view().flex_1().min_w_0().child(attachment_strip(
+                        move || self.mode_value() == Mode::Archive,
+                        move || self.sources.with(Vec::len),
+                        self.thumbnails(),
+                        archive_password(self.password, self.busy),
+                    )))
+                    .child(Tray(self).controls().flex_shrink_0()),
+            )
             .child(self.status())
     }
 

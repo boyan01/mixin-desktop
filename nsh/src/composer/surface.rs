@@ -17,20 +17,87 @@ pub(crate) fn editor(
     tools: impl IntoElement,
     submit: impl IntoElement,
 ) -> View {
-    frame()
-        .child(files)
-        .child(view().px_1().pt_1().child(input))
+    frame().child(files).child(
+        view()
+            .flex_row()
+            .items_end()
+            .p_2()
+            .gap_2()
+            .child(tools)
+            .child(view().flex_1().min_w_0().child(input))
+            .child(submit),
+    )
+}
+
+/// Both actions retain their identity and share one fixed keyboard/pointer slot.
+pub(crate) fn primary_action(
+    sending: Memo<bool>,
+    send: impl IntoElement,
+    record: impl IntoElement,
+) -> View {
+    let send_opacity = animated_value(if sending.get_untracked() { 1.0 } else { 0.0 });
+    let record_opacity = animated_value(if sending.get_untracked() { 0.0 } else { 1.0 });
+    effect(move || {
+        let sending = sending.get();
+        let ms = crate::motion::duration(crate::motion::FEEDBACK_MS);
+        let _ = send_opacity.timing(
+            if sending { 1.0 } else { 0.0 },
+            ms,
+            nsh_core::animation::Easing::EaseOut,
+        );
+        let _ = record_opacity.timing(
+            if sending { 0.0 } else { 1.0 },
+            ms,
+            nsh_core::animation::Easing::EaseOut,
+        );
+    });
+    let layer = move |active: Memo<bool>| {
+        view()
+            .absolute()
+            .inset_0()
+            .disabled(move || !active.get())
+            .accessibility_elements_hidden(move || !active.get())
+            .pointer_events(move || {
+                if active.get() {
+                    nsh_core::PointerEvents::Auto
+                } else {
+                    nsh_core::PointerEvents::None
+                }
+            })
+    };
+    view()
+        .relative()
+        .size_8()
+        .flex_shrink_0()
+        .child(layer(sending).bind_opacity(&send_opacity).child(send))
         .child(
-            view()
-                .flex_row()
-                .items_center()
-                .justify_between()
-                .px_2()
-                .pb_2()
-                .gap_2()
-                .child(tools)
-                .child(submit),
+            layer(computed(move || !sending.get()))
+                .bind_opacity(&record_opacity)
+                .child(record),
         )
+}
+
+/// Keep the editor mounted so switching modes never loses its document or caret.
+pub(crate) fn text_mode(recording: Memo<bool>, editor: View) -> View {
+    let opacity = animated_value(if recording.get_untracked() { 0.0 } else { 1.0 });
+    effect(move || {
+        let _ = opacity.timing(
+            if recording.get() { 0.0 } else { 1.0 },
+            crate::motion::duration(crate::motion::FEEDBACK_MS),
+            nsh_core::animation::Easing::EaseOut,
+        );
+    });
+    editor
+        .bind_opacity(&opacity)
+        .disabled(recording)
+        .accessibility_elements_hidden(recording)
+        .pointer_events(move || {
+            if recording.get() {
+                nsh_core::PointerEvents::None
+            } else {
+                nsh_core::PointerEvents::Auto
+            }
+        })
 }
 
 pub(crate) fn send_button() -> ButtonElement {

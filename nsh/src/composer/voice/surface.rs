@@ -5,12 +5,25 @@ use crate::{
 };
 
 impl Voice {
-    pub(crate) fn composer(self, content: View) -> impl IntoElement {
+    pub(crate) fn composer(self, content: View, input: super::super::Input) -> impl IntoElement {
+        let previous = stored(false);
+        effect(move || {
+            let active = self.active();
+            let was_active = previous.replace(active);
+            if active && !was_active {
+                input.blur();
+            } else if was_active && !active {
+                after_answer(move || input.focus());
+            }
+        });
         view()
             .relative()
             .element_ref(&self.anchor)
             .on_layout(move |_: &Bounds<Points>| self.measure())
-            .child(content.style_when(move || self.active(), |style| style.invisible()))
+            .child(super::super::surface::text_mode(
+                computed(move || self.active()),
+                content,
+            ))
             .child(self.surface())
     }
 
@@ -20,6 +33,7 @@ impl Voice {
             tool_button()
                 .disabled(move || disabled.get() || self.busy.get() || self.open.get())
                 .accessibility_label(move || Some(i18n.text(Key::Record).into()))
+                .rounded_full()
                 .child(ui::icon(ui::Icon::Microphone))
                 .on_press(move || self.start()),
             move || tr(i18n, "Record voice message", "录制语音消息").to_owned(),
@@ -28,7 +42,22 @@ impl Voice {
 
     fn surface(self) -> impl IntoElement {
         let voice = self;
-        let presence = crate::motion::Presence::bottom(move || voice.open.get());
+        let presence = crate::motion::Presence::fade(move || voice.open.get());
+        // Capture uses a native modal; preview is inline. Fade each retained
+        // surface across that ownership change as well as entering/leaving voice.
+        let capturing = crate::motion::Presence::fade(move || {
+            voice.open.get()
+                && voice
+                    .snapshot
+                    .with(|s| s.status == VoiceRecorderStatus::Recording)
+                && voice.bounds.with(Option::is_some)
+        });
+        let preview = crate::motion::Presence::fade(move || {
+            voice.open.get()
+                && voice
+                    .snapshot
+                    .with(|s| s.status != VoiceRecorderStatus::Recording)
+        });
         when(
             move || presence.mounted(),
             move || {
@@ -43,12 +72,7 @@ impl Voice {
                     .right_0()
                     .bottom_0()
                     .child(when(
-                        move || {
-                            voice
-                                .snapshot
-                                .with(|s| s.status == VoiceRecorderStatus::Recording)
-                                && voice.bounds.with(Option::is_some)
-                        },
+                        move || capturing.mounted(),
                         move || {
                             // Only capture intercepts outside interaction. The native
                             // surface keeps pointer/keyboard focus out of the composer.
@@ -68,7 +92,7 @@ impl Voice {
                                                 .on_press(move || voice.request_discard()),
                                         )
                                         .child(
-                                            presence.surface(
+                                            capturing.surface(
                                                 view()
                                                     .absolute()
                                                     .left(move || {
@@ -100,12 +124,8 @@ impl Voice {
                         },
                     ))
                     .child(when(
-                        move || {
-                            voice
-                                .snapshot
-                                .with(|s| s.status != VoiceRecorderStatus::Recording)
-                        },
-                        move || presence.surface(view().child(bar(voice))),
+                        move || preview.mounted(),
+                        move || preview.surface(view().child(bar(voice))),
                     ))
             },
         )
@@ -203,13 +223,6 @@ impl RecordingPanel {
                 0
             }
         });
-        let toggle_label = move || {
-            if recording() {
-                tr(i18n, "Stop and preview", "停止并试听")
-            } else {
-                tr(i18n, "Record again", "重新录音")
-            }
-        };
         let cancel = hinted(
             tool_button()
                 .disabled(busy)
@@ -218,118 +231,99 @@ impl RecordingPanel {
                 .child(ui::icon(ui::Icon::Close)),
             move || tr(i18n, "Discard recording", "放弃录音").to_owned(),
         );
-        let toggle = hinted(
-            tool_button()
-                .disabled(busy)
-                .accessibility_label(move || {
-                    Some(
-                        if recording() {
-                            i18n.text(Key::Stop)
-                        } else {
-                            toggle_label()
-                        }
-                        .into(),
-                    )
-                })
+        let stop = hinted(
+            send_button()
+                .disabled(move || busy.get() || !recording())
+                .accessibility_label(move || Some(i18n.text(Key::Stop).into()))
                 .on_press(move || toggle())
-                .child(
-                    when(recording, || ui::icon(ui::Icon::Stop))
-                        .otherwise(|| ui::icon(ui::Icon::Rotate)),
-                ),
-            move || toggle_label().to_owned(),
+                .child(ui::icon(ui::Icon::Stop).text_color(ui::fg_on_accent)),
+            move || tr(i18n, "Stop and preview", "停止并试听").to_owned(),
         );
         let send = hinted(
             send_button()
-                .disabled(move || {
-                    busy.get() || snapshot.with(|s| s.status == VoiceRecorderStatus::Idle)
-                })
+                .disabled(move || busy.get() || snapshot.with(|s| s.recording.is_none()))
                 .accessibility_label(move || Some(i18n.text(Key::Send).into()))
                 .on_press(move || send())
                 .child(ui::icon(ui::Icon::Send).text_color(ui::fg_on_accent)),
             move || tr(i18n, "Send voice message", "发送语音").to_owned(),
         );
+        let preview =
+            computed(move || snapshot.with(|s| s.status == VoiceRecorderStatus::Recorded));
+        let play = hinted(
+            tool_button()
+                .disabled(move || busy.get() || !preview.get())
+                .accessibility_label(move || {
+                    Some(
+                        tr(
+                            i18n,
+                            if playing.get() { "Pause" } else { "Play" },
+                            if playing.get() { "暂停" } else { "播放" },
+                        )
+                        .into(),
+                    )
+                })
+                .on_press(move || play())
+                .child(
+                    when(playing, || ui::icon(ui::Icon::Pause))
+                        .otherwise(|| ui::icon(ui::Icon::Play)),
+                ),
+            move || tr(i18n, "Listen to recording", "试听录音").to_owned(),
+        );
         view().px_4().pt_2().pb_3().child(
             frame()
-                .p_3()
-                .gap_2()
                 .child(
                     view()
                         .flex_row()
                         .items_center()
-                        .gap_3()
-                        .min_h_10()
-                        .child(
-                            when(recording, move || {
-                                view().size_2().rounded_full().bg(ui::danger)
-                            })
-                            .otherwise(move || {
-                                let play = play.clone();
-                                let label = move || {
-                                    if playing.get() {
-                                        tr(i18n, "Pause", "暂停")
-                                    } else {
-                                        tr(i18n, "Listen to recording", "试听录音")
-                                    }
-                                };
-                                hinted(
-                                    tool_button()
-                                        .disabled(busy)
-                                        .accessibility_label(move || Some(label().into()))
-                                        .on_press(move || play())
-                                        .child(
-                                            when(playing, || ui::icon(ui::Icon::Pause))
-                                                .otherwise(|| ui::icon(ui::Icon::Play)),
-                                        ),
-                                    move || label().to_owned(),
-                                )
-                            }),
-                        )
+                        .p_2()
+                        .gap_2()
+                        .child(cancel)
+                        .child(super::super::surface::primary_action(
+                            preview,
+                            play,
+                            view().size_8().items_center().justify_center().child(
+                                view()
+                                    .size_2()
+                                    .rounded_full()
+                                    .bg(ui::danger)
+                                    .style_when(move || !recording(), |s| s.invisible()),
+                            ),
+                        ))
                         .child(
                             view()
-                                .flex_shrink_0()
-                                .gap_1()
+                                .flex_row()
+                                .flex_1()
+                                .min_w_0()
+                                .items_center()
+                                .gap_2()
+                                .child(waveform(snapshot, position, active, busy, seek))
                                 .child(
                                     text(move || {
                                         if busy.get() {
-                                            tr(i18n, "Working…", "处理中…")
-                                        } else if recording() {
-                                            tr(i18n, "Recording", "正在录音")
+                                            tr(i18n, "Working…", "处理中…").to_owned()
                                         } else {
-                                            tr(i18n, "Voice message", "语音消息")
+                                            snapshot.with(|s| {
+                                                let total = time(s.duration_millis);
+                                                if s.status == VoiceRecorderStatus::Recording {
+                                                    total
+                                                } else {
+                                                    format!("{} / {total}", time(position.get()))
+                                                }
+                                            })
                                         }
                                     })
-                                    .text_role(ui::TextRole::Body)
-                                    .text_emphasis(),
-                                )
-                                .child(
-                                    text(move || {
-                                        snapshot.with(|s| {
-                                            let total = time(s.duration_millis);
-                                            if s.status == VoiceRecorderStatus::Recording {
-                                                total
-                                            } else {
-                                                format!("{} / {total}", time(position.get()))
-                                            }
-                                        })
-                                    })
+                                    .flex_shrink_0()
                                     .text_role(ui::TextRole::Caption)
                                     .text_color(ui::fg_secondary),
                                 ),
                         )
-                        .child(waveform(snapshot, position, active, busy, seek)),
-                )
-                .child(
-                    view()
-                        .flex_row()
-                        .items_center()
-                        .gap_2()
-                        .child(cancel)
-                        .child(view().flex_1())
-                        .child(toggle)
-                        .child(send),
+                        .child(super::super::surface::primary_action(preview, send, stop)),
                 )
                 .child(when(failed, move || {
-                    ui::error_text(move || i18n.text(Key::CommandFailed))
+                    view()
+                        .px_3()
+                        .pb_2()
+                        .child(ui::error_text(move || i18n.text(Key::CommandFailed)))
                 })),
         )
     }

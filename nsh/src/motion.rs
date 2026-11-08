@@ -9,6 +9,10 @@ use nsh_core::{
 
 pub(crate) const FEEDBACK_MS: f32 = 120.0;
 
+/// The input grows upward while its tools keep their bottom alignment.
+pub(crate) const COMPOSER_RESIZE: nsh_core::LayoutTransition =
+    nsh_core::LayoutTransition::new(nsh_core::LayoutCurve::EaseOut, 160.0);
+
 /// A pane that grows or shrinks: it and the panes beside it ease to their new frames.
 pub(crate) const PANEL_WIDTH: nsh_core::LayoutTransition =
     nsh_core::LayoutTransition::new(nsh_core::LayoutCurve::EaseOut, 220.0);

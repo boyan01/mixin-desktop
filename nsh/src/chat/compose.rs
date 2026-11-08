@@ -369,61 +369,61 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
             ),
             view()
                 .flex_row()
-                .child(
-                    view()
-                        .flex_row()
-                        .style_when(move || tray.active(), |s| s.hidden())
-                        .child(composer::attachments(
-                            account.clone(),
-                            conversation_id.clone(),
-                            quote,
-                            tray,
-                        ))
-                        .child(composer::stickers(
-                            account,
-                            conversation_id,
-                            operation_failed,
-                            insert,
-                            quote,
-                        ))
-                        .child(voice.button(busy)),
-                )
-                .child(tray.controls()),
-            {
-                let send = submit.clone();
-                let silent = submit.clone();
-                ui::native_context_menu(
-                    composer::surface::send_button()
-                        .disabled(move || {
-                            busy.get()
-                                || input.composing()
-                                || if tray.active() {
-                                    !tray.ready()
-                                } else {
-                                    draft.with(|s| s.trim().is_empty())
-                                }
-                        })
-                        .accessibility_label(move || Some(i18n.text(Key::Send).into()))
-                        .on_press(move || send(false))
-                        .child(ui::icon(ui::Icon::Send).text_color(ui::fg_on_accent)),
-                    move || {
-                        let silent = silent.clone();
-                        vec![
-                            nsh_core::element::desktop::MenuItem::new(
-                                i18n.tr("Send Without Notification", "静音发送"),
-                            )
-                            .icon(ui::MenuIcon::Mute.src())
-                            .on_select(move || silent(true)),
-                        ]
-                    },
-                )
-                .tooltip(ui::hint(move || {
-                    i18n.tr("Send · Enter", "发送 · Enter").to_owned()
-                }))
-            },
+                .style_when(move || tray.active(), |s| s.hidden())
+                .child(composer::attachments(
+                    account.clone(),
+                    conversation_id.clone(),
+                    quote,
+                    tray,
+                ))
+                .child(composer::stickers(
+                    account,
+                    conversation_id,
+                    operation_failed,
+                    insert,
+                    quote,
+                )),
+            composer::surface::primary_action(
+                computed(move || {
+                    busy.get() || tray.active() || draft.with(|text| !text.trim().is_empty())
+                }),
+                {
+                    let send = submit.clone();
+                    let silent = submit.clone();
+                    ui::native_context_menu(
+                        composer::surface::send_button()
+                            .disabled(move || {
+                                busy.get()
+                                    || input.composing()
+                                    || if tray.active() {
+                                        !tray.ready()
+                                    } else {
+                                        draft.with(|s| s.trim().is_empty())
+                                    }
+                            })
+                            .accessibility_label(move || Some(i18n.text(Key::Send).into()))
+                            .on_press(move || send(false))
+                            .child(ui::icon(ui::Icon::Send).text_color(ui::fg_on_accent)),
+                        move || {
+                            let silent = silent.clone();
+                            vec![
+                                nsh_core::element::desktop::MenuItem::new(
+                                    i18n.tr("Send Without Notification", "静音发送"),
+                                )
+                                .icon(ui::MenuIcon::Mute.src())
+                                .on_select(move || silent(true)),
+                            ]
+                        },
+                    )
+                    .tooltip(ui::hint(move || {
+                        i18n.tr("Send · Enter", "发送 · Enter").to_owned()
+                    }))
+                },
+                voice.button(busy),
+            ),
         ));
     view()
-        .child(voice.composer(editor))
+        .child(voice.composer(editor, input))
         .child(tray.editor())
         .child(when(
             move || !can_send.get(),

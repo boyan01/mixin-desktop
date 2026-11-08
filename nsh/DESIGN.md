@@ -156,22 +156,30 @@ a component takes `.focus(ui::ring)`.
 
 `Primary` marks the one default commitment of a decision area, not the only button.
 
-The chat composer separates the growing editor from a compact bottom toolbar.
-Attachment, sticker and microphone commands use unframed icon buttons; Send is
-one accent-filled circle at the trailing edge. Recording and playback reuse the
-same 16pt composer frame, with status and duration above the icon-only commands.
+The chat composer starts as one compact row. Attachment and sticker commands sit
+on the left; one fixed trailing slot crossfades between microphone (empty draft)
+and Send (text, attachments or a pending send). The editor grows upward to about
+six visible lines before scrolling, with bottom-aligned tools and a short native
+layout transition. Recording replaces the whole row with cancel, waveform and
+duration; the trailing Stop action becomes Send after capture, with inline playback.
+Text/voice and capture/preview surfaces crossfade without discarding the editor
+document. Motion honors reduced-motion settings. Recording and playback reuse the
+same 16pt composer radius and compact row geometry.
 Document attachments fit their filename/size up to the card-width cap; pictures retain
 square thumbnails. Tooltips and accessible names explain hidden toolbar labels.
 The editor keeps a neutral border while focused; its caret indicates text focus,
 while individual keyboard controls retain their focus rings. Original-image and
-ZIP choices are conditional icon toggles in the existing bottom toolbar. Original
+ZIP choices are conditional icon toggles beside the attachment previews. Original
 images light the image control; ZIP appears for multiple attachments. ZIP keeps
 original files, temporarily locks image quality and folds the previews into one
 counted archive summary with a short native height/opacity animation. Both preview
 layers retain their own geometry, and packaging preserves the source thumbnails.
 Unfolding restores the previous image quality. The archive summary's lock opens
-the optional ZIP password. While attachments are present, the bottom toolbar hides
-attachment, emoji and microphone commands; the preview's plus adds more files.
+the optional ZIP password. While attachments are present, the input row hides
+attachment and emoji commands; the preview's plus adds more files, and the trailing
+action remains Send even with an empty caption.
 Reprocessing stays inside the attachment area without inserting a status row.
-Voice previews show elapsed and
-total time, played waveform bars, pause/resume and seeking.
+Voice previews keep the waveform and elapsed/total time together, with waveform
+width capped at `audio-wave-width`; the trailing action remains at the right edge.
+Played bars, pause/resume and seeking follow the account's shared playback client,
+which also owns the recorder within that account scope.

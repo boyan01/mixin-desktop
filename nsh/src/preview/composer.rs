@@ -11,16 +11,16 @@ use mixin_desktop_api::{
 use nsh_core::prelude::*;
 use std::rc::Rc;
 
-pub(super) const ACTIONS: &[&str] = &[];
+pub(super) const ACTIONS: &[&str] = &["Text", "Lines", "Clear", "Record", "Preview", "Cancel"];
 
-pub(super) fn scene(_: Actions) -> View {
+pub(super) fn scene(actions: Actions) -> View {
     view().flex_1().min_h_0().bg(ui::surface_chat).child(
         scroll().flex_1().min_h_0().child(
             view()
                 .py_4()
                 .gap_4()
-                .child(example("Message", editor(false)))
-                .child(example("Attachments & caption", editor(true)))
+                .child(example("Message", editor(false, actions)))
+                .child(example("Attachments & caption", editor(true, actions)))
                 .child(example("Recording", recording(false)))
                 .child(example("Voice preview", recording(true))),
         ),
@@ -34,7 +34,7 @@ fn example(label: &'static str, content: impl IntoElement) -> View {
         .child(content)
 }
 
-fn editor(files: bool) -> View {
+fn editor(files: bool, actions: Actions) -> View {
     let i18n = i18n::current();
     let draft = signal(if files {
         "Here are the files for tomorrow’s review.".to_owned()
@@ -42,6 +42,49 @@ fn editor(files: bool) -> View {
         String::new()
     });
     let input = composer::Input::detached(draft);
+    let open = signal(false);
+    let snapshot = signal(voice_snapshot(false));
+    if !files {
+        for (name, before, after) in [
+            ("Text", "", "See you tomorrow."),
+            (
+                "Lines",
+                "See you tomorrow.",
+                "First line\nSecond line\nThird line\nFourth line",
+            ),
+            (
+                "Clear",
+                "First line\nSecond line\nThird line\nFourth line",
+                "",
+            ),
+        ] {
+            actions.on(
+                name,
+                move || {
+                    open.set(false);
+                    draft.set(before.to_owned());
+                },
+                move || draft.set(after.to_owned()),
+            );
+        }
+        for name in ["Record", "Preview", "Cancel"] {
+            actions.on(
+                name,
+                move || {
+                    draft.set(String::new());
+                    snapshot.set(voice_snapshot(false));
+                    open.set(name != "Record");
+                },
+                move || {
+                    if name == "Preview" {
+                        snapshot.set(voice_snapshot(true));
+                    } else {
+                        open.set(name == "Record");
+                    }
+                },
+            );
+        }
+    }
     let tray = if files {
         let mut item = PreparedAttachment::default();
         item.name = "2026-Q4-project-proposal-and-supporting-documentation-final.pdf".into();
@@ -62,7 +105,7 @@ fn editor(files: bool) -> View {
     } else {
         view().hidden()
     };
-    view().px_4().pt_2().pb_3().child(composer::surface::editor(
+    let editor = view().px_4().pt_2().pb_3().child(composer::surface::editor(
         tray,
         input.view(
             move || i18n.text(Key::EncryptedPlaceholder).to_owned(),
@@ -75,12 +118,38 @@ fn editor(files: bool) -> View {
             .flex_row()
             .child(composer::attachment_menu(|| {}, || {}, || {}, || {}))
             .child(tool(ui::Icon::Sticker, "Emoji and stickers"))
-            .child(tool(ui::Icon::Microphone, "Record voice message")),
-        composer::surface::send_button()
-            .disabled(move || !files && draft.with(|s| s.trim().is_empty()))
-            .accessibility_label(move || Some(i18n.text(Key::Send).into()))
-            .child(ui::icon(ui::Icon::Send)),
-    ))
+            .style_when(move || files, |s| s.hidden()),
+        composer::surface::primary_action(
+            computed(move || files || draft.with(|s| !s.trim().is_empty())),
+            composer::surface::send_button()
+                .accessibility_label(move || Some(i18n.text(Key::Send).into()))
+                .child(ui::icon(ui::Icon::Send)),
+            tool(ui::Icon::Microphone, "Record voice message").on_press(move || {
+                snapshot.set(voice_snapshot(false));
+                open.set(true);
+            }),
+        ),
+    ));
+    let presence = crate::motion::Presence::fade(move || open.get());
+    view()
+        .relative()
+        .child(composer::surface::text_mode(
+            computed(move || open.get()),
+            editor,
+        ))
+        .child(when(
+            move || presence.mounted(),
+            move || {
+                presence.surface(
+                    view()
+                        .absolute()
+                        .left_0()
+                        .right_0()
+                        .bottom_0()
+                        .child(recording_panel(snapshot, Rc::new(move || open.set(false)))),
+                )
+            },
+        ))
 }
 
 fn tool(icon: ui::Icon, label: &'static str) -> nsh_base::ButtonElement {
@@ -89,9 +158,9 @@ fn tool(icon: ui::Icon, label: &'static str) -> nsh_base::ButtonElement {
         .child(ui::icon(icon))
 }
 
-fn recording(recorded: bool) -> impl IntoElement {
+fn voice_snapshot(recorded: bool) -> VoiceRecorderSnapshot {
     let wave: Vec<u8> = (0..64).map(|i| ((i * 37 + 29) % 220 + 20) as u8).collect();
-    let snapshot = signal(VoiceRecorderSnapshot {
+    VoiceRecorderSnapshot {
         session_id: Some(1),
         status: if recorded {
             VoiceRecorderStatus::Recorded
@@ -106,7 +175,17 @@ fn recording(recorded: bool) -> impl IntoElement {
         }),
         duration_millis: 18_000,
         waveform: wave,
-    });
+    }
+}
+
+fn recording(recorded: bool) -> impl IntoElement {
+    recording_panel(signal(voice_snapshot(recorded)), Rc::new(|| {}))
+}
+
+fn recording_panel(
+    snapshot: Signal<VoiceRecorderSnapshot>,
+    close: Rc<dyn Fn()>,
+) -> impl IntoElement {
     composer::RecordingPanel {
         snapshot,
         playback: signal(mixin_desktop_api::AudioPlaybackSnapshot {
@@ -119,10 +198,10 @@ fn recording(recorded: bool) -> impl IntoElement {
         seek: Rc::new(|_| {}),
         busy: signal(false),
         failed: signal(false),
-        cancel: Rc::new(|| {}),
+        cancel: close.clone(),
         play: Rc::new(|| {}),
-        toggle: Rc::new(|| {}),
-        send: Rc::new(|| {}),
+        toggle: Rc::new(move || snapshot.set(voice_snapshot(true))),
+        send: close,
     }
     .view()
 }
@@ -231,6 +310,32 @@ fn details(actions: Actions, bottom: bool) -> View {
     );
     after_answer(move || input.focus());
 
+    let controls = view()
+        .flex_row()
+        .flex_shrink_0()
+        .child(when(
+            move || images.get() && count.get() > 0,
+            move || {
+                composer::original_toggle(
+                    move || !compress.get() || archive.get(),
+                    move || busy.get() || archive.get(),
+                    move || archive.get(),
+                    move || compress.update(|value| *value = !*value),
+                )
+            },
+        ))
+        .child(when(
+            move || count.get() >= 2,
+            move || {
+                composer::zip_toggle(
+                    move || archive.get(),
+                    move || busy.get(),
+                    move || count.get(),
+                    move || archive.update(|value| *value = !*value),
+                )
+            },
+        ));
+
     view()
         .flex_1()
         .bg(ui::surface_chat)
@@ -241,8 +346,11 @@ fn details(actions: Actions, bottom: bool) -> View {
             view()
                 .px_3()
                 .pt_3()
+                .flex_row()
+                .items_start()
+                .gap_2()
                 .style_when(move || count.get() == 0, |s| s.hidden())
-                .child(dynamic(move || {
+                .child(view().flex_1().min_w_0().child(dynamic(move || {
                     strip_revision.get();
                     untracked(|| {
                         composer::attachment_strip(
@@ -252,7 +360,8 @@ fn details(actions: Actions, bottom: bool) -> View {
                             composer::archive_password(password, busy),
                         )
                     })
-                })),
+                })))
+                .child(controls),
             input.view(
                 move || i18n.text(Key::EncryptedPlaceholder).to_owned(),
                 computed(|| false),
@@ -260,44 +369,23 @@ fn details(actions: Actions, bottom: bool) -> View {
                 Rc::new(|_| {}),
                 Rc::new(|| {}),
             ),
-            view()
-                .flex_row()
-                .child(
-                    view()
-                        .flex_row()
-                        .style_when(move || count.get() > 0, |s| s.hidden())
-                        .child(composer::attachment_menu(
-                            move || last.set("Media selected".into()),
-                            move || last.set("Files selected".into()),
-                            move || last.set("Contact selected".into()),
-                            move || last.set("Post selected".into()),
-                        ))
-                        .child(tool(ui::Icon::Sticker, "Emoji and stickers"))
-                        .child(tool(ui::Icon::Microphone, "Record voice message")),
-                )
-                .child(when(
-                    move || images.get() && count.get() > 0,
-                    move || {
-                        composer::original_toggle(
-                            move || !compress.get() || archive.get(),
-                            move || busy.get() || archive.get(),
-                            move || archive.get(),
-                            move || compress.update(|value| *value = !*value),
-                        )
-                    },
-                ))
-                .child(when(
-                    move || count.get() >= 2,
-                    move || {
-                        composer::zip_toggle(
-                            move || archive.get(),
-                            move || busy.get(),
-                            move || count.get(),
-                            move || archive.update(|value| *value = !*value),
-                        )
-                    },
-                )),
-            composer::surface::send_button().child(ui::icon(ui::Icon::Send)),
+            view().flex_row().child(
+                view()
+                    .flex_row()
+                    .style_when(move || count.get() > 0, |s| s.hidden())
+                    .child(composer::attachment_menu(
+                        move || last.set("Media selected".into()),
+                        move || last.set("Files selected".into()),
+                        move || last.set("Contact selected".into()),
+                        move || last.set("Post selected".into()),
+                    ))
+                    .child(tool(ui::Icon::Sticker, "Emoji and stickers")),
+            ),
+            composer::surface::primary_action(
+                computed(move || count.get() > 0 || draft.with(|text| !text.trim().is_empty())),
+                composer::surface::send_button().child(ui::icon(ui::Icon::Send)),
+                tool(ui::Icon::Microphone, "Record voice message"),
+            ),
         ))
         .when(!bottom, |v| {
             v.child(text(move || last.get())).child(live_recording())
@@ -375,9 +463,18 @@ fn live_recording() -> View {
     let Ok(path) = std::env::var("MIXIN_PREVIEW_AUDIO") else {
         return view().child(recording(true));
     };
-    let media = std::sync::Arc::new(MediaClient::new());
-    let playback = signal(media.audio_playback_snapshot());
-    let observe = media.clone();
+    // Match Home: process services exist before the account playback client.
+    // Commands and the observed snapshot must resolve to that same scoped client.
+    let process = std::sync::Arc::new(MediaClient::new());
+    let account_media = std::sync::Arc::new(MediaClient::new());
+    provide_context(crate::Clients {
+        settings: stored(None),
+        media: stored(Some(process.clone())),
+    });
+    provide_context(stored(Some(account_media.clone())));
+    let media = crate::media_client();
+    let playback = signal(account_media.audio_playback_snapshot());
+    let observe = account_media.clone();
     let failed = signal(false);
     spawn(async move {
         let mut events = Box::pin(crate::runtime::observe(observe.subscribe_audio_playback()));
@@ -389,8 +486,14 @@ fn live_recording() -> View {
             }
         }
     });
-    let close = media.clone();
-    cleanup(move || drop(crate::runtime::commit(close.close())));
+    cleanup(move || {
+        drop(crate::runtime::commit(async move {
+            let account = account_media.close().await;
+            let process = process.close().await;
+            account?;
+            process
+        }));
+    });
     let mut recording = VoiceRecording::default();
     recording.path = path;
     recording.duration_millis = 2_400;
