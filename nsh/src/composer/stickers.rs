@@ -53,7 +53,6 @@ pub(crate) enum Tab {
     Emoji,
     Recent,
     Personal,
-    Store,
     Album(String),
 }
 #[derive(Clone, Copy)]
@@ -197,6 +196,7 @@ pub(crate) fn stickers(
     let i18n = i18n::current();
     let state = State::new(account, id, false, failed);
     let insert = stored(insert);
+    let store_open = signal(false);
     // The panel opens while the pointer rests on the button or the panel, and closes a
     // moment after it leaves both, so crossing the gap between them keeps it open.
     let over_button = signal(false);
@@ -208,93 +208,121 @@ pub(crate) fn stickers(
         hover_owner.run(|| {
             set_timeout(std::time::Duration::from_millis(delay), move || {
                 let hovered = over_button.get_untracked() || over_panel.get_untracked();
-                if hovered != state.open.get_untracked() && !state.busy.get_untracked() {
+                if !store_open.get_untracked()
+                    && hovered != state.open.get_untracked()
+                    && !state.busy.get_untracked()
+                {
                     state.open.set(hovered);
                 }
             });
         });
     };
-    ui::popover_flush()
-        .open(move || Some(state.open.get()))
-        .on_open_change(move |event: &PopoverEvent| {
-            if let PopoverEvent::OpenChange(value, _) = event
-                && !state.busy.get_untracked()
-            {
-                state.open.set(*value);
-            }
-        })
-        .offset(ui::space_sm())
-        .trigger(
-            view()
-                .tooltip(ui::hint(move || {
-                    tr(i18n, "Emoji and stickers", "表情与贴纸").to_owned()
-                }))
-                .on_mouse_enter(move |_: &MouseEvent| hover(true, over_button))
-                .on_mouse_leave(move |_: &MouseEvent| hover(false, over_button))
-                .child(
-                    tool_button()
-                        .accessibility_label(move || Some(i18n.text(Key::Emoji).into()))
-                        .style_when(state.open, |s| {
-                            s.bg(ui::state_selected).text_color(ui::fg_primary)
-                        })
-                        .child(ui::icon(ui::Icon::Sticker)),
-                ),
-        )
-        .child(when(state.open, move || {
-            state.observe_updates();
-            // Panel errors belong to the panel, not to the composer behind it.
-            cleanup(move || {
-                let _ = state.failed.try_set(false);
-            });
-            effect(move || {
-                state.revision.get();
-                let client = state.client();
-                spawn(async move {
-                    match runtime::run(async move { client.sticker().sticker_albums().await }).await
+    view()
+        .child(
+            ui::popover_flush()
+                .open(move || Some(state.open.get()))
+                .on_open_change(move |event: &PopoverEvent| {
+                    if let PopoverEvent::OpenChange(value, _) = event
+                        && !state.busy.get_untracked()
+                        && !store_open.get_untracked()
                     {
-                        Ok(values) => state.albums.set(values),
-                        Err(_) => state.failed.set(true),
+                        state.open.set(*value);
                     }
-                });
-            });
-            panel_surface(
-                Some(state.client()),
-                state.tab,
-                state.albums,
-                view()
-                    .flex_1()
-                    .min_h_0()
-                    .gap_2()
-                    .child(when(state.failed, move || {
-                        view()
-                            .flex_row()
-                            .items_center()
-                            .gap_2()
-                            .child(ui::error_text(move || i18n.text(Key::CommandFailed)).flex_1())
-                            .child(ui::action(
-                                move || i18n.text(Key::Retry),
-                                move || {
-                                    state.failed.set(false);
-                                    state.reload();
-                                },
-                            ))
-                    }))
-                    .child(dynamic(move || {
-                        let tab = state.tab.get();
-                        untracked(|| match tab {
-                            Tab::Emoji => emoji::panel(
-                                insert.with(|i| i.clone()),
-                                state.account.with(|a| a.account_id()),
+                })
+                .offset(ui::space_sm())
+                .trigger(
+                    view()
+                        .tooltip(ui::hint(move || {
+                            tr(i18n, "Emoji and stickers", "表情与贴纸").to_owned()
+                        }))
+                        .on_mouse_enter(move |_: &MouseEvent| hover(true, over_button))
+                        .on_mouse_leave(move |_: &MouseEvent| hover(false, over_button))
+                        .child(
+                            tool_button()
+                                .accessibility_label(move || Some(i18n.text(Key::Emoji).into()))
+                                .style_when(state.open, |s| {
+                                    s.bg(ui::state_selected).text_color(ui::fg_primary)
+                                })
+                                .child(ui::icon(ui::Icon::Sticker)),
+                        ),
+                )
+                .child(when(state.open, move || {
+                    state.observe_updates();
+                    // Panel errors belong to the panel, not to the composer behind it.
+                    cleanup(move || {
+                        let _ = state.failed.try_set(false);
+                    });
+                    effect(move || {
+                        state.revision.get();
+                        let client = state.client();
+                        spawn(async move {
+                            match runtime::run(
+                                async move { client.sticker().sticker_albums().await },
                             )
-                            .into_element(),
-                            Tab::Store => sticker_store::panel(state).into_element(),
-                            tab => grid(state, tab).into_element(),
-                        })
-                    })),
-            )
-            .on_mouse_enter(move |_: &MouseEvent| hover(true, over_panel))
-            .on_mouse_leave(move |_: &MouseEvent| hover(false, over_panel))
-        }))
+                            .await
+                            {
+                                Ok(values) => batch(|| {
+                                    if let Tab::Album(id) = state.tab.get_untracked()
+                                        && !values.iter().any(|album| album.album_id == id)
+                                    {
+                                        state.tab.set(Tab::Recent);
+                                    }
+                                    state.albums.set(values);
+                                }),
+                                Err(_) => state.failed.set(true),
+                            }
+                        });
+                    });
+                    panel_surface(
+                        Some(state.client()),
+                        state.tab,
+                        state.albums,
+                        view()
+                            .flex_1()
+                            .min_h_0()
+                            .gap_2()
+                            .child(when(state.failed, move || {
+                                view()
+                                    .flex_row()
+                                    .items_center()
+                                    .gap_2()
+                                    .child(
+                                        ui::error_text(move || i18n.text(Key::CommandFailed))
+                                            .flex_1(),
+                                    )
+                                    .child(ui::action(
+                                        move || i18n.text(Key::Retry),
+                                        move || {
+                                            state.failed.set(false);
+                                            state.reload();
+                                        },
+                                    ))
+                            }))
+                            .child(dynamic(move || {
+                                let tab = state.tab.get();
+                                untracked(|| match tab {
+                                    Tab::Emoji => emoji::panel(
+                                        insert.with(|i| i.clone()),
+                                        state.account.with(|a| a.account_id()),
+                                    )
+                                    .into_element(),
+                                    tab => grid(state, tab).into_element(),
+                                })
+                            })),
+                        move || {
+                            batch(|| {
+                                state.open.set(false);
+                                over_button.set(false);
+                                over_panel.set(false);
+                                store_open.set(true);
+                            })
+                        },
+                    )
+                    .on_mouse_enter(move |_: &MouseEvent| hover(true, over_panel))
+                    .on_mouse_leave(move |_: &MouseEvent| hover(false, over_panel))
+                })),
+        )
+        .child(sticker_store::dialog(state, store_open))
 }
 
 pub(super) fn grid(state: State, tab: Tab) -> impl IntoElement {
@@ -502,9 +530,11 @@ pub(crate) fn panel_surface(
     tab: Signal<Tab>,
     albums: Signal<Vec<StickerAlbumItem>>,
     content: impl IntoElement,
+    open_store: impl Fn() + 'static,
 ) -> View {
     let i18n = i18n::current();
     let account = stored(account);
+    let open_store = stored(open_store);
     view()
         .style_with(|style| {
             style.w(px(
@@ -537,16 +567,16 @@ pub(crate) fn panel_surface(
                                 .h(ui::sticker_tab_bar_height())
                                 .children(
                                     [
+                                        (None, ui::Icon::StickerStore, "Sticker store", "贴纸商店"),
+                                        (Some(Tab::Emoji), ui::Icon::Sticker, "Emoji", "表情"),
                                         (
-                                            Tab::Store,
-                                            ui::Icon::StickerStore,
-                                            "Sticker store",
-                                            "贴纸商店",
+                                            Some(Tab::Recent),
+                                            ui::Icon::Clock,
+                                            "Recently used",
+                                            "最近使用",
                                         ),
-                                        (Tab::Emoji, ui::Icon::Sticker, "Emoji", "表情"),
-                                        (Tab::Recent, ui::Icon::Clock, "Recently used", "最近使用"),
                                         (
-                                            Tab::Personal,
+                                            Some(Tab::Personal),
                                             ui::Icon::StickerFavorite,
                                             "My stickers",
                                             "我的贴纸",
@@ -562,10 +592,20 @@ pub(crate) fn panel_surface(
                                                     Some(tr(i18n, en, zh).into())
                                                 })
                                                 .selected(move || {
-                                                    tab.get() == target.with(|v| v.clone())
+                                                    target.with(|v| {
+                                                        v.as_ref().is_some_and(|value| {
+                                                            tab.with(|tab| tab == value)
+                                                        })
+                                                    })
                                                 })
                                                 .on_press(move || {
-                                                    tab.set(target.with(|v| v.clone()))
+                                                    if let Some(destination) =
+                                                        target.with(|v| v.clone())
+                                                    {
+                                                        tab.set(destination);
+                                                    } else {
+                                                        open_store.with(|open| open());
+                                                    }
                                                 })
                                                 .child(
                                                     view()

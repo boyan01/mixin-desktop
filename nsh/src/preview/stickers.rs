@@ -103,6 +103,7 @@ pub(super) fn scene(actions: Actions) -> View {
                             .min_h_0()
                             .style_when(empty, |s| s.hidden().invisible()),
                         ),
+                    || {},
                 )),
         )
 }

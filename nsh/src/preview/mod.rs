@@ -9,6 +9,7 @@ mod loading;
 mod messages;
 mod posts;
 mod sidebar;
+mod sticker_store;
 mod stickers;
 mod stress;
 
@@ -31,6 +32,11 @@ struct Scene {
 }
 
 const SCENES: &[Scene] = &[
+    Scene {
+        name: "sticker-store",
+        actions: sticker_store::ACTIONS,
+        mount: sticker_store::scene,
+    },
     Scene {
         name: "stickers",
         actions: stickers::ACTIONS,

@@ -6,7 +6,7 @@ mod forms;
 mod image_editor;
 mod input;
 mod mentions;
-mod sticker_store;
+pub(crate) mod sticker_store;
 pub(crate) mod stickers;
 pub(crate) mod surface;
 mod voice;

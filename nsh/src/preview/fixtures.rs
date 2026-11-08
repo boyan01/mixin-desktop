@@ -741,3 +741,31 @@ pub(super) fn sticker_image(index: usize) -> String {
         ][index % 3]
     )
 }
+
+pub(super) fn sticker_store_albums() -> Vec<mixin_desktop_api::StickerAlbumItem> {
+    const ALBUMS: [(&str, &str); 6] = [
+        ("猫咪的日常", "打招呼、撒娇和发呆，让猫咪替你表达心情。"),
+        (
+            "今天也要开心：工作与生活中的每一个小表情",
+            "从周一早安到周末快乐，一套可以陪你聊天、工作和放松的日常贴纸。",
+        ),
+        ("摸鱼俱乐部", "忙里偷闲，快乐加倍。"),
+        ("小小心意", "把感谢与关心送给朋友。"),
+        ("周末计划", "出发、吃饭、看电影，还有好好休息。"),
+        (
+            "Hello, friends!",
+            "A small collection for everyday conversations.",
+        ),
+    ];
+    sticker_albums()
+        .into_iter()
+        .zip(ALBUMS)
+        .enumerate()
+        .map(|(index, (mut album, (name, description)))| {
+            album.added = index < 3;
+            album.name = name.into();
+            album.description = description.into();
+            album
+        })
+        .collect()
+}

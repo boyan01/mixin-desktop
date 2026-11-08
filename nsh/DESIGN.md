@@ -187,4 +187,8 @@ which also owns the recorder within that account scope.
 The emoji/sticker popover gives its content the full area above one compact footer.
 Store, emoji, recent, personal and album shortcuts share that footer, following the
 Flutter reference. Personal stickers begin with a dashed import tile in the same
-virtual grid. GIF discovery is not part of the composer.
+virtual grid. The store shortcut closes the popover and opens a separate dialog.
+Its catalog offers inline add/remove commands, with an unframed subscription
+management command and a close icon in the header. Subscription ordering and
+removal occupy a separate page in that dialog, with back navigation to the catalog.
+GIF discovery is not part of the composer.

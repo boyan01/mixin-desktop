@@ -109,14 +109,6 @@ pub(crate) fn framed_asset(
     })
 }
 
-pub(crate) fn album_icon(
-    account: Arc<AccountClient>,
-    url: impl Fn() -> String + 'static,
-    size: f32,
-) -> impl IntoElement {
-    framed_album_icon(Some(account), url, size)
-}
-
 pub(crate) fn framed_album_icon(
     account: Option<Arc<AccountClient>>,
     url: impl Fn() -> String + 'static,

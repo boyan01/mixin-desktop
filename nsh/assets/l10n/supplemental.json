@@ -2376,6 +2376,16 @@
     "zh-HK": "正在鎖定 Mixin…",
     "zh-TW": "正在鎖定 Mixin…"
   },
+  "Manage subscriptions": {
+    "es": "Gestionar suscripciones",
+    "id": "Kelola langganan",
+    "ja": "登録を管理",
+    "ms": "Urus langganan",
+    "ru": "Управление подписками",
+    "zh-CN": "管理已订阅",
+    "zh-HK": "管理已訂閱",
+    "zh-TW": "管理已訂閱"
+  },
   "Message": {
     "es": "Mensaje",
     "id": "Pesan",
@@ -2828,6 +2838,16 @@
     "zh-CN": "暂无陌生人会话",
     "zh-HK": "暫無陌生人會話",
     "zh-TW": "暫無陌生人會話"
+  },
+  "No subscribed sticker albums": {
+    "es": "No hay packs de stickers suscritos",
+    "id": "Belum ada paket stiker langganan",
+    "ja": "登録済みのステッカーパックはありません",
+    "ms": "Tiada pek pelekat dilanggan",
+    "ru": "Нет подписок на наборы стикеров",
+    "zh-CN": "还没有订阅表情专辑",
+    "zh-HK": "尚未訂閱貼圖專輯",
+    "zh-TW": "尚未訂閱貼圖專輯"
   },
   "No unread conversations": {
     "es": "No hay conversaciones sin leer",
@@ -4290,6 +4310,16 @@
   "Strangers": {
     "id": "Orang asing",
     "ms": "Orang tidak dikenali"
+  },
+  "Subscribed stickers": {
+    "es": "Stickers suscritos",
+    "id": "Stiker langganan",
+    "ja": "登録済みステッカー",
+    "ms": "Pelekat dilanggan",
+    "ru": "Подписки на стикеры",
+    "zh-CN": "已订阅的表情",
+    "zh-HK": "已訂閱的貼圖",
+    "zh-TW": "已訂閱的貼圖"
   },
   "Text": {
     "es": "Texto",

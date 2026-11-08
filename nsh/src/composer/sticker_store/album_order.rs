@@ -1,14 +1,15 @@
+use mixin_desktop_api::StickerAlbumItem;
 use nsh_core::{PointerEvents, TouchEvent, TouchPhase, prelude::*};
-use std::{sync::Arc, time::Duration};
+use std::{rc::Rc, sync::Arc, time::Duration};
 
-use super::{State, tr};
+use super::tr;
 use crate::{
     i18n, motion,
     ui::{self, Typography as _},
 };
 
 fn row_height() -> f32 {
-    ui::button_height().0
+    ui::row_height().0
 }
 
 #[derive(Clone, PartialEq)]
@@ -38,18 +39,21 @@ impl Drag {
     }
 }
 
-fn order(state: State) -> Vec<String> {
-    state
-        .albums
-        .with_untracked(|rows| rows.iter().map(|row| row.album_id.clone()).collect())
-}
-
-fn save(state: State, ids: Vec<String>) {
-    let client = state.client();
-    state.update(async move { client.sticker().set_sticker_album_order(ids).await });
-}
-
-pub(super) fn list(state: State) -> impl IntoElement {
+pub(super) fn list(
+    albums: Signal<Vec<StickerAlbumItem>>,
+    busy: Signal<bool>,
+    save: impl Fn(Vec<String>) + 'static,
+    remove: impl Fn(String) + 'static,
+) -> impl IntoElement {
+    let remove = stored(Rc::new(remove) as Rc<dyn Fn(String)>);
+    let save = stored(Rc::new(save) as Rc<dyn Fn(Vec<String>)>);
+    let order = move || {
+        albums.with_untracked(|rows| {
+            rows.iter()
+                .map(|row| row.album_id.clone())
+                .collect::<Vec<_>>()
+        })
+    };
     let i18n = i18n::current();
     let drag = signal(None::<Drag>);
     let candidate = stored(None::<(f64, String)>);
@@ -59,12 +63,7 @@ pub(super) fn list(state: State) -> impl IntoElement {
     let list_ref = element_ref();
     // This is a gesture draft, never another source of persisted album order.
     effect(move || {
-        let _ = (
-            state.albums.get(),
-            state.busy.get(),
-            window().width,
-            window().height,
-        );
+        let _ = (albums.get(), busy.get(), window().width, window().height);
         drag.set(None);
         candidate.replace(None);
     });
@@ -91,7 +90,7 @@ pub(super) fn list(state: State) -> impl IntoElement {
                 {
                     break;
                 }
-                let maximum = (state.albums.with_untracked(Vec::len) as f32 * row_height()
+                let maximum = (albums.with_untracked(Vec::len) as f32 * row_height()
                     - viewport.get_untracked().1)
                     .max(0.0);
                 let next =
@@ -105,7 +104,7 @@ pub(super) fn list(state: State) -> impl IntoElement {
         });
     });
     view()
-        .h_20()
+        .flex_1()
         .min_h_0()
         .overflow_hidden()
         .on_layout(move |bounds: &Bounds<Points>| {
@@ -119,9 +118,9 @@ pub(super) fn list(state: State) -> impl IntoElement {
             TouchClaim::on_start()
                 .capture()
                 .ask(move |request: &ClaimRequest| {
-                    if !state.busy.get_untracked()
+                    if !busy.get_untracked()
                         && request.event.gesture.active_touches == 1
-                        && state.albums.with_untracked(Vec::len) > 1
+                        && albums.with_untracked(Vec::len) > 1
                         && candidate.with(|value| {
                             value
                                 .as_ref()
@@ -137,10 +136,10 @@ pub(super) fn list(state: State) -> impl IntoElement {
             let Some((_, id)) = candidate.replace(None) else {
                 return;
             };
-            if state.busy.get_untracked() {
+            if busy.get_untracked() {
                 return;
             }
-            let rows = state.albums.get_untracked();
+            let rows = albums.get_untracked();
             let Some(from) = rows.iter().position(|row| row.album_id == id) else {
                 return;
             };
@@ -174,17 +173,17 @@ pub(super) fn list(state: State) -> impl IntoElement {
                 return;
             };
             drag.set(None);
-            if state.busy.get_untracked()
+            if busy.get_untracked()
                 || !value.active
                 || value.from == value.target
-                || value.order.as_ref() != order(state).as_slice()
+                || value.order.as_ref() != order().as_slice()
             {
                 return;
             }
             let mut ids = value.order.to_vec();
             let id = ids.remove(value.from);
             ids.insert(value.target, id);
-            save(state, ids);
+            save.with(|save| save(ids));
         })
         .on_responder_terminate(move |_: &ResponderEvent| drag.set(None))
         .child(when(
@@ -196,15 +195,13 @@ pub(super) fn list(state: State) -> impl IntoElement {
         ))
         .child(
             virtual_list(
-                move || state.albums.with(Vec::len),
+                move || albums.with(Vec::len),
                 move |at| {
                     let id = move || {
-                        state
-                            .albums
-                            .with(|rows| rows.get(at.index()).map(|row| row.album_id.clone()))
+                        albums.with(|rows| rows.get(at.index()).map(|row| row.album_id.clone()))
                     };
                     view()
-                        .h(ui::button_height())
+                        .h(ui::row_height())
                         .flex_row()
                         .items_center()
                         .gap_2()
@@ -243,7 +240,7 @@ pub(super) fn list(state: State) -> impl IntoElement {
                         )
                         .child(
                             text(move || {
-                                state.albums.with(|rows| {
+                                albums.with(|rows| {
                                     rows.get(at.index())
                                         .map(|row| row.name.clone())
                                         .unwrap_or_default()
@@ -273,34 +270,45 @@ pub(super) fn list(state: State) -> impl IntoElement {
                                     )
                                 })
                                 .disabled(move || {
-                                    state.busy.get()
+                                    busy.get()
                                         || drag.with(Option::is_some)
                                         || (direction < 0 && at.index() == 0)
                                         || (direction > 0
-                                            && at.index() + 1 >= state.albums.with(Vec::len))
+                                            && at.index() + 1 >= albums.with(Vec::len))
                                 })
                                 .child(text(if direction < 0 { "↑" } else { "↓" }))
                                 .on_press(move || {
-                                    let mut ids = order(state);
+                                    let mut ids = order();
                                     let from = at.index();
                                     let to = (from as isize + direction) as usize;
                                     if from >= ids.len() || to >= ids.len() {
                                         return;
                                     }
                                     ids.swap(from, to);
-                                    save(state, ids);
+                                    save.with(|save| save(ids));
                                 })
                         }))
+                        .child(
+                            ui::button(ui::ButtonTone::Ghost, ui::ButtonSize::Small)
+                                .disabled(move || busy.get() || drag.with(Option::is_some))
+                                .on_press(move || {
+                                    if let Some(id) = id() {
+                                        remove.with(|remove| remove(id));
+                                    }
+                                })
+                                .child(text(move || tr(i18n, "Remove", "移除"))),
+                        )
                 },
             )
             .keys(move || {
-                state.albums.with(|rows| {
+                albums.with(|rows| {
                     rows.iter()
                         .map(|row| row.album_id.clone())
                         .collect::<Vec<_>>()
                 })
             })
-            .estimated_item_size(ui::button_height())
+            .content_padding_x(ui::space_lg())
+            .estimated_item_size(ui::row_height())
             .flex_1()
             .min_h_0()
             .element_ref(&list_ref)
@@ -326,8 +334,8 @@ pub(super) fn list(state: State) -> impl IntoElement {
                             .top_0()
                             .left_0()
                             .right_0()
-                            .h(ui::button_height())
-                            .px_2()
+                            .h(ui::row_height())
+                            .px(ui::space_lg() + ui::button_height_small() + ui::space_sm())
                             .justify_center()
                             .rounded(ui::radius_md())
                             .bg(ui::surface_popover)
@@ -362,8 +370,8 @@ pub(super) fn list(state: State) -> impl IntoElement {
                             view()
                                 .absolute()
                                 .top_0()
-                                .left_2()
-                                .right_2()
+                                .left(ui::space_lg())
+                                .right(ui::space_lg())
                                 .h(ui::space_2xs())
                                 .bg(ui::accent)
                                 // Follows the target row: measured gesture geometry.
