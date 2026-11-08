@@ -8,19 +8,12 @@ use std::sync::Arc;
 use mixin_desktop_api::AccountClient;
 use nsh_core::prelude::*;
 
-use crate::{conversation, ui};
-
-#[derive(Clone, Copy, PartialEq)]
-pub(crate) enum Mode {
-    Info,
-    Search,
-    Pinned,
-}
+use crate::{conversation, navigation::Panel, ui};
 
 pub(crate) fn screen(
     account: Arc<AccountClient>,
     id: String,
-    mode: Mode,
+    destination: Panel,
     close: impl Fn() + Copy + 'static,
     target: Signal<Option<String>>,
     compact: impl Fn() -> bool + Copy + 'static,
@@ -33,12 +26,12 @@ pub(crate) fn screen(
         .bg(ui::surface_popover)
         .border_l_1()
         .border_color(ui::border);
-    if mode == Mode::Info {
+    if destination == Panel::Info {
         return panel
             .child(conversation::screen(account, id, target, close))
             .into_element();
     }
-    if mode == Mode::Search {
+    if destination == Panel::Search {
         return panel
             .child(search::screen(account, id, close, target))
             .into_element();

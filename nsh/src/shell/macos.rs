@@ -17,7 +17,6 @@ use objc2_foundation::{
 };
 use serde_json::Value;
 
-#[path = "shell_macos/urls.rs"]
 mod urls;
 pub(super) use urls::UrlCapture;
 

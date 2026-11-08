@@ -7,11 +7,11 @@ pub(crate) use palette::surface as palette;
 mod results;
 
 use crate::{
-    conversation::parts,
     i18n::{self, Key, tr},
     navigation::ChatNavigation,
+    navigation::Navigation,
     runtime,
-    sidebar::Navigation,
+    ui::parts,
     ui::{self, Typography as _},
 };
 use mixin_desktop_api::{AccountClient, ConversationListData, MessageListView, UserProfileItem};

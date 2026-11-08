@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use crate::{
     i18n::{self, Key},
-    inspector, presentation, runtime,
+    navigation, presentation, runtime,
     ui::{self, Typography},
 };
 
@@ -17,7 +17,7 @@ pub(super) fn banner(
     account: Arc<AccountClient>,
     conversation_id: String,
     target: Signal<Option<String>>,
-    side: Signal<Option<inspector::Mode>>,
+    side: Signal<Option<navigation::Panel>>,
 ) -> impl IntoElement {
     let i18n = i18n::current();
     let owner = Owner::current();
@@ -31,10 +31,7 @@ pub(super) fn banner(
     let failed = signal(false);
     let preference_failed = signal(false);
     let retry = signal(0_u64);
-    let settings = use_context::<Stored<Option<SettingsClient>>>()
-        .expect("App provides settings")
-        .with(|settings| settings.clone())
-        .expect("Desktop settings initialized");
+    let settings = crate::settings_client();
     let setting_key = stored(SettingsClient::pinned_preview_key(
         &account.account_id(),
         &conversation_id,
@@ -222,10 +219,10 @@ pub(super) fn banner(
                                 .accessibility_label(move || Some(i18n.text(Key::Pinned).into()))
                                 .on_press(move || {
                                     side.set(
-                                        if side.get_untracked() == Some(inspector::Mode::Pinned) {
+                                        if side.get_untracked() == Some(navigation::Panel::Pinned) {
                                             None
                                         } else {
-                                            Some(inspector::Mode::Pinned)
+                                            Some(navigation::Panel::Pinned)
                                         },
                                     );
                                 })

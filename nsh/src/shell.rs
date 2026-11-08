@@ -5,14 +5,17 @@ mod menus;
 mod window_state;
 
 #[cfg(target_os = "macos")]
-#[path = "platform/shell_macos.rs"]
-mod native;
+mod macos;
+#[cfg(target_os = "macos")]
+use macos as native;
 #[cfg(target_os = "windows")]
-#[path = "platform/shell_windows.rs"]
-mod native;
+mod windows;
+#[cfg(target_os = "windows")]
+use windows as native;
 #[cfg(target_os = "linux")]
-#[path = "platform/shell_linux.rs"]
-mod native;
+mod linux;
+#[cfg(target_os = "linux")]
+use linux as native;
 
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, ConversationListData};
@@ -224,7 +227,7 @@ pub(crate) fn attach(
 ) {
     let owner = Owner::current();
     let navigation =
-        use_context::<crate::sidebar::Navigation>().expect("Home provides sidebar navigation");
+        use_context::<crate::navigation::Navigation>().expect("Home provides sidebar navigation");
     handle.signed_in.set(true);
     handle.handler.replace(Some(Rc::new(move |command| {
         owner.run(|| on_command(command))

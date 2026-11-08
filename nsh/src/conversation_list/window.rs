@@ -6,8 +6,8 @@ use mixin_desktop_api::{AccountClient, ConversationListData};
 use nsh_core::{element::ViewableItems, prelude::*};
 
 use crate::{
-    navigation::ChatNavigation, presentation::message_window::splice_by, runtime,
-    sidebar::Navigation,
+    navigation::ChatNavigation, navigation::Navigation, presentation::message_window::splice_by,
+    runtime,
 };
 
 const PAGE_SIZE: i64 = 100;

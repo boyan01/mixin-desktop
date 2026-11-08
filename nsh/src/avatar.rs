@@ -32,9 +32,7 @@ impl Picker {
                 source.set(None);
             }
         });
-        let media = use_context::<Stored<Option<Arc<MediaClient>>>>()
-            .and_then(|media| media.with(|media| media.clone()))
-            .expect("Account pages have the desktop media client");
+        let media = crate::media_client();
         Self {
             source,
             picking: signal(false),

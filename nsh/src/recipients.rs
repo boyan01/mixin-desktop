@@ -1,7 +1,11 @@
 use mixin_desktop_api::{AccountClient, ConversationListData, UserProfileItem};
 use std::sync::Arc;
 
-use crate::{conversation::parts, i18n::tr, runtime, ui};
+use crate::{
+    i18n::tr,
+    runtime,
+    ui::{self, parts},
+};
 use nsh_core::prelude::*;
 
 const PAGE_SIZE: i64 = 60;

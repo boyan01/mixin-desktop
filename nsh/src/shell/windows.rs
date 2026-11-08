@@ -23,7 +23,6 @@ use windows::{
     core::w,
 };
 
-#[path = "shell_windows/tray.rs"]
 mod tray;
 
 const SUBCLASS: usize = 0x4d_58_53;

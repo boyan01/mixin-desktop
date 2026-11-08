@@ -1,7 +1,6 @@
 //! Image/video cards share transfers and account-owned previews with the timeline.
-use std::sync::Arc;
 
-use mixin_desktop_api::{MediaClient, MessageListView};
+use mixin_desktop_api::MessageListView;
 use nsh_core::{element::ImageSrc, prelude::*};
 
 use super::{message_actions::Actions, message_appearance, message_content::available};
@@ -30,9 +29,7 @@ pub(crate) fn thumbnail(
     let source = computed(source);
     let loaded = signal(None::<SharedString>);
     let owner = Owner::current();
-    let media = use_context::<Stored<Option<Arc<MediaClient>>>>()
-        .expect("Home provides media")
-        .with(|media| media.as_ref().expect("Media is initialized").clone());
+    let media = crate::media_client();
     effect(move || {
         let data = source.get();
         loaded.set(None);
@@ -69,7 +66,7 @@ pub(super) struct Transfer {
     id: Stored<String>,
     root: Stored<Option<String>>,
     queued: bool,
-    progress: crate::home::AttachmentProgress,
+    progress: crate::attachment_progress::AttachmentProgress,
 }
 
 impl Transfer {
@@ -78,7 +75,7 @@ impl Transfer {
             id: stored(row.message_id.clone()),
             root: stored(transcript),
             queued: matches!(row.media_status.as_str(), "PENDING" | "PROCESSING"),
-            progress: use_context::<crate::home::AttachmentProgress>()
+            progress: use_context::<crate::attachment_progress::AttachmentProgress>()
                 .expect("Home provides attachment progress"),
         }
     }

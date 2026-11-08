@@ -1,7 +1,7 @@
 use crate::{
-    conversation::parts,
     i18n::{self, Key},
     ui,
+    ui::parts,
 };
 use mixin_desktop_api::{DesktopClient, SettingsClient};
 use nsh_core::prelude::*;

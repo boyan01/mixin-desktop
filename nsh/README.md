@@ -87,16 +87,19 @@ sign-out. Their native desktop behavior remains unverified.
 - `security/`, `notifications/`, `playback.rs`, `transfer/`: account presentation
   coordinators over shared business handles and event streams.
 - `bot/`: shared browser presentation, bridge context and account-window routing.
-- `shell/`, `platform/`: process-instance handoff, native window lifecycle and
-  target-specific WebKit/WebView2, notifications and tray adapters. Window bounds
+- `shell/`: process-instance handoff and native window lifecycle. Window bounds
   use the existing process SettingsClient, with one bounded latest-value queue.
-  Bot signing and private credentials stay in Core.
+- Target-specific adapters sit beside the feature they serve, as `macos`,
+  `windows` and `linux` child modules: `shell/` (URL capture, tray), `bot/`
+  (WebKit/WebView2 hosts) and `notifications/native/`. Bot signing and private
+  credentials stay in Core.
 - `native/webkit-extension/`: Linux's small C process-boundary adapter. It supplies
   native frame/document provenance; it contains no signing or business logic.
 - `runtime.rs`: cancellable business reads, bounded subscription delivery and
   completion of user-committed writes after their awaiting view is disposed.
 - `ui/`, `theme.json`, `DESIGN.md`: reusable native controls, semantic colors and layout
-  tokens. Original icons, logo and chat wallpaper are retained as assets.
+  tokens; `ui::parts` holds the page and dialog parts shared across features.
+  Original icons, logo and chat wallpaper are retained as assets.
 
 UI signals stay on the NSH engine thread. No NSH screen imports Core DAOs or keeps
 an independent durable profile, message, conversation or settings store.

@@ -4,9 +4,9 @@ mod contacts;
 mod lookup;
 
 use crate::{
-    conversation::parts,
     i18n::{self, Key, tr},
     navigation::ChatNavigation,
+    ui::parts,
     ui::{self, Typography as _},
 };
 use mixin_desktop_api::{AccountClient, ConversationListData};

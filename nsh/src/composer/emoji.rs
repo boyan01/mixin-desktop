@@ -193,10 +193,7 @@ fn writer(settings: SettingsClient, key: String) -> watch::Sender<Option<String>
 
 pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl IntoElement {
     let i18n = i18n::current();
-    let settings = use_context::<Stored<Option<SettingsClient>>>()
-        .expect("App provides settings")
-        .with(|s| s.clone())
-        .expect("Desktop settings initialized");
+    let settings = crate::settings_client();
     let preferences =
         Preferences::mount(settings, format!("desktop_emoji_preferences_{account_id}"));
     let query = signal(String::new());

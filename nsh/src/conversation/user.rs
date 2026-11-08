@@ -178,7 +178,7 @@ fn dialog_body(page: Page, opened: impl Fn() + Copy + 'static) -> impl IntoEleme
         use_context::<ChatNavigation>().expect("The signed-in session provides navigation");
     let unavailable = move || page.busy.get();
     let known = move || page.is(|profile| profile.identity_number != ANONYMOUS_ID);
-    let open = move |panel: Option<crate::inspector::Mode>| {
+    let open = move |panel: Option<crate::navigation::Panel>| {
         navigation.open_user_then(
             page.client(),
             page.id.get_untracked(),
@@ -271,7 +271,7 @@ fn dialog_body(page: Page, opened: impl Fn() + Copy + 'static) -> impl IntoEleme
                     ui::profile_action(
                         ui::Icon::Profile,
                         move || tr("Profile", "个人资料"),
-                        move || open(Some(crate::inspector::Mode::Info)),
+                        move || open(Some(crate::navigation::Panel::Info)),
                     )
                     .disabled(unavailable)
                 },

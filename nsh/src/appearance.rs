@@ -52,9 +52,7 @@ pub(crate) struct Appearance {
 }
 
 pub(crate) fn mount() -> Appearance {
-    let client = use_context::<Stored<Option<SettingsClient>>>()
-        .and_then(|client| client.with(|client| client.clone()))
-        .expect("App provides initialized settings before the account presentation");
+    let client = crate::settings_client();
     let state = Appearance {
         owner: Owner::current(),
         client: stored(client),

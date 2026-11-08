@@ -2,8 +2,8 @@ use nsh_core::prelude::*;
 
 use super::{LinkNavigation, Panel, tr};
 use crate::{
-    conversation::parts,
     runtime,
+    ui::parts,
     ui::{self, Typography as _},
 };
 

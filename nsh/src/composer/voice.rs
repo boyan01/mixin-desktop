@@ -11,7 +11,8 @@ use std::sync::{
 
 mod surface;
 
-use super::{clear_quote, media_client, quote_id, tr};
+use super::{clear_quote, quote_id, tr};
+use crate::media_client;
 use crate::{
     i18n::{self, Key},
     runtime,

@@ -1,6 +1,7 @@
 //! Native Rust presentation over the platform-neutral Mixin client API.
 
 mod appearance;
+mod attachment_progress;
 mod avatar;
 mod bot;
 mod chat;
@@ -17,7 +18,6 @@ mod login;
 mod motion;
 mod navigation;
 mod notifications;
-mod platform;
 mod playback;
 mod presentation;
 mod qr;
@@ -46,6 +46,33 @@ fn native(registry: &mut Registry) {
     registry.register::<App>();
 }
 
+/// Process clients, set once the desktop runtime opens and before any account screen mounts.
+#[derive(Clone, Copy)]
+struct Clients {
+    settings: Stored<Option<SettingsClient>>,
+    media: Stored<Option<Arc<MediaClient>>>,
+}
+
+fn clients() -> Clients {
+    use_context::<Clients>().expect("App provides process clients")
+}
+
+/// The process settings client. Only screens mounted after launch may call this.
+pub(crate) fn settings_client() -> SettingsClient {
+    clients()
+        .settings
+        .with(|client| client.clone())
+        .expect("Desktop settings are initialized")
+}
+
+/// The process media client. Only screens mounted after launch may call this.
+pub(crate) fn media_client() -> Arc<MediaClient> {
+    clients()
+        .media
+        .with(|client| client.clone())
+        .expect("Desktop media is initialized")
+}
+
 #[derive(Clone)]
 pub(crate) enum Phase {
     Launching,
@@ -69,10 +96,11 @@ pub fn App() -> impl IntoElement {
     provide_context(shell);
     let notifications = notifications::mount();
     provide_context(notifications);
-    let settings = stored(None::<SettingsClient>);
-    provide_context(settings);
-    let media = stored(None::<Arc<MediaClient>>);
-    provide_context(media);
+    let clients = Clients {
+        settings: stored(None),
+        media: stored(None),
+    };
+    provide_context(clients);
     let phase = signal_with(Phase::Launching, SignalEquals::Never);
     let retry = signal(0_u64);
     cleanup(runtime::stop);
@@ -80,7 +108,7 @@ pub fn App() -> impl IntoElement {
         let _revision = retry.get();
         phase.set(Phase::Launching);
         spawn(async move {
-            let result = launch(i18n, settings, media).await;
+            let result = launch(i18n, clients).await;
             phase.set(result.unwrap_or_else(|error| {
                 log::warn!("Opening the desktop runtime failed: {error}");
                 Phase::Failed
@@ -152,14 +180,10 @@ fn status_screen(content: View) -> View {
     )
 }
 
-async fn launch(
-    i18n: i18n::I18n,
-    settings: Stored<Option<SettingsClient>>,
-    media: Stored<Option<Arc<MediaClient>>>,
-) -> ClientResult<Phase> {
+async fn launch(i18n: i18n::I18n, clients: Clients) -> ClientResult<Phase> {
     let desktop = runtime::run(DesktopClient::open()).await?;
-    media.replace(Some(desktop.media()));
-    settings.replace(Some(desktop.settings()));
+    clients.media.replace(Some(desktop.media()));
+    clients.settings.replace(Some(desktop.settings()));
     follow_appearance(desktop.settings());
     i18n.load(desktop.settings()).await;
     runtime::run(async move {
@@ -220,7 +244,7 @@ pub fn register_native_components(components: &nsh_platform_windows::Components)
 /// Drains platform work after the native UI loop has stopped accepting events.
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 pub fn finish_native_shutdown() {
-    platform::notifications::finish_shutdown();
+    notifications::native::finish_shutdown();
 }
 
 /// Packaged toast activation must be received before forwarding a second launch.
@@ -228,8 +252,8 @@ pub fn finish_native_shutdown() {
 pub fn prepare_notification_activation()
 -> Result<Option<NotificationTarget>, Box<dyn std::error::Error>> {
     Ok(
-        platform::notifications::prepare_activation()?.map(|event| match event {
-            platform::notifications::Event::Clicked {
+        notifications::native::prepare_activation()?.map(|event| match event {
+            notifications::native::Event::Clicked {
                 account_id,
                 conversation_id,
                 message_id,

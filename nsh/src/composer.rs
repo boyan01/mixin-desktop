@@ -19,9 +19,7 @@ pub(crate) use sticker_store::detail as sticker_detail;
 pub(crate) use stickers::stickers;
 pub(crate) use voice::Voice;
 
-use std::sync::Arc;
-
-use mixin_desktop_api::{MediaClient, MessageListView};
+use mixin_desktop_api::MessageListView;
 use nsh_base::ButtonElement;
 use nsh_core::prelude::*;
 
@@ -38,13 +36,6 @@ pub(crate) enum AttachmentSource {
 
 fn tr(i18n: I18n, en: &'static str, zh: &'static str) -> &'static str {
     i18n.tr(en, zh)
-}
-
-fn media_client() -> Arc<MediaClient> {
-    use_context::<Stored<Option<Arc<MediaClient>>>>()
-        .expect("App provides media")
-        .with(|media| media.clone())
-        .expect("Desktop media initialized")
 }
 
 fn quote_id(quote: Signal<Option<MessageListView>>) -> Option<String> {

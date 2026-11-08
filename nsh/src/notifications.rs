@@ -6,11 +6,11 @@ use futures::StreamExt as _;
 use mixin_desktop_api::DesktopClient;
 use nsh_core::{platform::Lifecycle, prelude::*};
 
-use crate::{
-    platform::notifications::{self as native, Availability, NativeNotifications, Permission},
-    runtime,
-    shell::NotificationTarget,
-};
+pub(crate) mod native;
+
+use native::{Availability, NativeNotifications, Permission};
+
+use crate::{runtime, shell::NotificationTarget};
 
 mod session;
 pub(crate) use session::attach;

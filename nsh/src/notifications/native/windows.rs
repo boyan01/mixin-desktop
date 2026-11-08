@@ -21,7 +21,6 @@ use windows::{
 
 use super::{Availability, Error, Event, Notification, Permission};
 
-#[path = "notifications_windows/activation.rs"]
 mod activation;
 
 const CAPACITY: usize = 512;

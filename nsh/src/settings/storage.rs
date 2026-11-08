@@ -8,9 +8,9 @@ use nsh_core::prelude::*;
 
 use super::{Feedback, client};
 use crate::{
-    conversation::parts,
     i18n::{self, Key},
     runtime,
+    ui::parts,
     ui::{self, Typography as _},
 };
 

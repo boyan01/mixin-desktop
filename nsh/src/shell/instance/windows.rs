@@ -17,7 +17,6 @@ use windows::Win32::{
 
 use super::{Event, protocol};
 
-#[path = "windows/security.rs"]
 mod security;
 
 const DEADLINE: Duration = Duration::from_secs(2);

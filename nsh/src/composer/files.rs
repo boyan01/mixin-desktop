@@ -2,7 +2,8 @@ use mixin_desktop_api::{AccountClient, MediaClient, MessageListView, PreparedAtt
 use nsh_core::prelude::*;
 use std::{rc::Rc, sync::Arc};
 
-use super::{AttachmentSource, clear_quote, media_client, quote_id, tr};
+use super::{AttachmentSource, clear_quote, quote_id, tr};
+use crate::media_client;
 use crate::{
     i18n::{self, I18n, Key},
     motion::Presence,

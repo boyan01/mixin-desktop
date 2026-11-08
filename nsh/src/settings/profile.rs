@@ -1,8 +1,8 @@
 use super::Feedback;
 use crate::{
-    conversation::parts,
     i18n::{self, Key},
     runtime,
+    ui::parts,
     ui::{self, Typography as _},
 };
 use futures::StreamExt as _;

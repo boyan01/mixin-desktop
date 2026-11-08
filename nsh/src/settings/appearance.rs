@@ -1,9 +1,9 @@
 use super::{Feedback, client};
 use crate::{
     appearance::Appearance,
-    conversation::parts,
     i18n::{self, I18n, Key},
     runtime,
+    ui::parts,
     ui::{self, Typography as _},
 };
 use nsh_base::{SelectItem, SliderValue};

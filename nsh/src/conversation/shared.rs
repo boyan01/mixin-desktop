@@ -208,7 +208,8 @@ fn panel(
         )
         .await;
     });
-    let navigation = use_context::<crate::sidebar::Navigation>().expect("Home provides navigation");
+    let navigation =
+        use_context::<crate::navigation::Navigation>().expect("Home provides navigation");
     // A memo, so resizing the window rebuilds the list only when the count changes.
     let columns = computed(move || {
         let content = window().width.0 - navigation.width().0;
@@ -376,7 +377,7 @@ fn media(
     shared: Shared,
 ) -> impl IntoElement {
     let i18n = i18n::current();
-    let progress = use_context::<crate::home::AttachmentProgress>()
+    let progress = use_context::<crate::attachment_progress::AttachmentProgress>()
         .expect("Home provides attachment progress");
     let thumbnail =
         crate::chat::message_media::thumbnail(move || message().and_then(|row| row.thumb_image));

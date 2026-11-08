@@ -5,7 +5,6 @@ use crate::{
 };
 use nsh_core::prelude::*;
 
-#[path = "message_selection/copy.rs"]
 mod copy;
 
 pub(super) fn selection_bar(actions: Actions, conversation_id: Stored<String>) -> impl IntoElement {

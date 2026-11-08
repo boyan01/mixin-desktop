@@ -4,8 +4,8 @@ use super::{
     tr,
 };
 use crate::{
-    conversation::parts,
     runtime,
+    ui::parts,
     ui::{self, Typography as _},
 };
 use mixin_desktop_api::ClientError;

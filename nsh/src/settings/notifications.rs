@@ -1,11 +1,11 @@
 use nsh_core::prelude::*;
 
 use crate::{
-    conversation::parts,
     i18n::{self, I18n, Key},
     notifications::Handle,
-    platform::notifications::{Availability, Permission},
+    notifications::native::{Availability, Permission},
     ui,
+    ui::parts,
 };
 
 pub(super) fn screen() -> impl IntoElement {

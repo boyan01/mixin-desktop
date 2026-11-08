@@ -17,9 +17,7 @@ pub(super) struct Preference {
 
 impl Preference {
     pub(super) fn new(nav: Navigation) -> Self {
-        let settings = use_context::<Stored<Option<SettingsClient>>>()
-            .and_then(|client| client.with(|client| client.clone()))
-            .expect("App provides settings before the account presentation");
+        let settings = crate::settings_client();
         let state = Self {
             settings: stored(settings),
             nav,

@@ -1,4 +1,5 @@
 //! Page parts shared by Info, Inspector, Settings and the creation surfaces.
+//! Unlike the flat component exports, callers keep the `parts::` prefix.
 
 use std::time::Duration;
 
@@ -8,7 +9,7 @@ use nsh_core::prelude::*;
 
 use crate::{
     i18n::{self, Key, tr},
-    sidebar::Navigation,
+    navigation::Navigation,
     ui::{self, Typography as _},
 };
 

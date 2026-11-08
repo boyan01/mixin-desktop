@@ -2,8 +2,8 @@ use nsh_core::prelude::*;
 
 use super::{Command, Direction, Handle, Status};
 use crate::{
-    conversation::parts,
     i18n::{self, I18n, Key},
+    ui::parts,
     ui::{self, Typography as _},
 };
 

@@ -1,9 +1,9 @@
 //! Native Canvas uses the same raster coordinates and ImageEdit contract as the composer.
 use super::Picker;
 use crate::{
-    conversation::parts,
     i18n::tr,
     runtime,
+    ui::parts,
     ui::{self, Typography as _},
 };
 use mixin_desktop_api::{ImageEdit, PreparedAttachment};

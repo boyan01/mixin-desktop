@@ -8,32 +8,15 @@ use nsh_core::prelude::*;
 use crate::{
     chat, conversation_list, create,
     i18n::{self, I18n, Key},
+    navigation::Navigation,
     playback::Playback,
     runtime, settings,
     shell::Command,
-    sidebar::{self, Navigation},
+    sidebar,
     ui::{self, Typography as _},
 };
 
 const NARROW_CONTENT_WIDTH: f32 = 620.0;
-
-/// Transient presentation of the account's authoritative transfer snapshots.
-#[derive(Clone, Copy)]
-pub(crate) struct AttachmentProgress(Signal<Vec<mixin_desktop_api::AttachmentTransferProgress>>);
-
-impl AttachmentProgress {
-    pub(crate) fn bytes(self, transcript_id: Option<&str>, message_id: &str) -> Option<(u64, u64)> {
-        self.0.with(|values| {
-            values
-                .iter()
-                .find(|value| {
-                    value.message_id == message_id
-                        && value.transcript_id.as_deref() == transcript_id
-                })
-                .map(|value| (value.completed, value.total))
-        })
-    }
-}
 
 /// The signed-in session's view state. Business state stays in the account.
 #[derive(Clone, Copy)]
@@ -65,15 +48,9 @@ pub(crate) fn screen(
     account: Arc<AccountClient>,
     on_signed_out: impl Fn() + Copy + 'static,
 ) -> impl IntoElement {
-    let attachment_progress = signal(Vec::new());
-    provide_context(AttachmentProgress(attachment_progress));
-    let progress_changes = runtime::observe(account.attachment_progress_changes());
-    spawn(async move {
-        futures::pin_mut!(progress_changes);
-        while let Some(snapshot) = progress_changes.next().await {
-            attachment_progress.set(snapshot);
-        }
-    });
+    provide_context(crate::attachment_progress::AttachmentProgress::mount(
+        &account,
+    ));
     let locate = signal_with(None::<String>, SignalEquals::Never);
     let selected = signal_with(None::<ConversationListData>, SignalEquals::Never);
     let security = crate::security::mount(account.clone());
@@ -180,12 +157,12 @@ pub(crate) fn screen(
             }
             Command::SearchConversation => chat_navigation
                 .panel
-                .set(Some(crate::inspector::Mode::Search)),
+                .set(Some(crate::navigation::Panel::Search)),
             Command::ToggleInfo => chat_navigation.panel.update(|panel| {
-                *panel = if *panel == Some(crate::inspector::Mode::Info) {
+                *panel = if *panel == Some(crate::navigation::Panel::Info) {
                     None
                 } else {
-                    Some(crate::inspector::Mode::Info)
+                    Some(crate::navigation::Panel::Info)
                 }
             }),
             command => home.dispatch(command),

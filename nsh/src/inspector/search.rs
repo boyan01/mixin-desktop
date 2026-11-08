@@ -10,10 +10,10 @@ use nsh_core::prelude::*;
 
 use crate::presentation::message_window::splice_phase;
 use crate::{
-    conversation::parts,
     i18n::{self, Key, tr},
     navigation::ChatNavigation,
     presentation, runtime,
+    ui::parts,
     ui::{self, Typography as _},
 };
 

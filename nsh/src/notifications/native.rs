@@ -3,15 +3,12 @@ use std::{fmt, future::Future};
 use tokio::sync::mpsc::UnboundedReceiver;
 
 #[cfg(target_os = "macos")]
-#[path = "notifications_macos.rs"]
 mod macos;
 
 #[cfg(target_os = "linux")]
-#[path = "notifications_linux.rs"]
 mod linux;
 
 #[cfg(target_os = "windows")]
-#[path = "notifications_windows.rs"]
 mod windows;
 
 #[cfg(target_os = "linux")]

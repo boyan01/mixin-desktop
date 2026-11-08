@@ -5,9 +5,9 @@ use mixin_desktop_api::{AccountClient, CircleConversationEdit, CircleItem, Conve
 use nsh_core::prelude::*;
 
 use crate::{
-    conversation::parts,
     i18n::tr,
     runtime,
+    ui::parts,
     ui::{self, Typography as _},
 };
 

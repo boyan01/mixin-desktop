@@ -1,13 +1,12 @@
 mod circles;
 mod info;
 mod members;
-pub(crate) mod parts;
 mod shared;
 mod user;
 
 pub(crate) use user::{profile, profile_with_opened};
 
-use parts::{Prompt, confirm};
+use crate::ui::parts::{self, Prompt, confirm};
 
 use std::{future::Future, rc::Rc, sync::Arc};
 

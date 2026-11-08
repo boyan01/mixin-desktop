@@ -3,9 +3,9 @@ use nsh_core::prelude::*;
 
 use super::{Feedback, client};
 use crate::{
-    conversation::parts::{self, Prompt, confirm},
     i18n::{self, Key},
     runtime,
+    ui::parts::{self, Prompt, confirm},
     ui::{self, Typography as _},
 };
 

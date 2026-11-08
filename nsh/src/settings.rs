@@ -6,9 +6,9 @@ use nsh_core::prelude::*;
 
 use crate::{
     appearance::identity_badge,
-    conversation::parts,
     i18n::{self, I18n, Key},
     runtime,
+    ui::parts,
     ui::{self, Typography as _},
 };
 

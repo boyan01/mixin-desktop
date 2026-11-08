@@ -3,9 +3,9 @@ use nsh_core::prelude::*;
 
 use super::{Handle, passcode};
 use crate::{
-    conversation::parts::{self, Prompt, confirm},
     i18n::{self, Key},
     ui,
+    ui::parts::{self, Prompt, confirm},
 };
 
 pub(crate) fn settings(handle: Handle) -> impl IntoElement {

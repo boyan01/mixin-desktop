@@ -3,8 +3,8 @@ use nsh_core::prelude::*;
 
 use super::{Handle, passcode};
 use crate::{
-    conversation::parts,
     i18n::{self, Key},
+    ui::parts,
     ui::{self, Typography as _},
 };
 

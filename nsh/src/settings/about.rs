@@ -1,6 +1,6 @@
 use crate::{
-    conversation::parts,
     i18n::{self, Key},
+    ui::parts,
     ui::{self, Typography as _},
 };
 use nsh_core::prelude::*;

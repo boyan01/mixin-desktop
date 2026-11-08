@@ -19,22 +19,14 @@ use objc2::{
 use objc2_foundation::{NSPoint, NSRect, NSSize, NSString, NSURL};
 use serde_json::Value;
 
-#[path = "webview_macos/chrome.rs"]
 mod chrome;
-#[path = "webview_macos/delegate.rs"]
 mod delegate;
-#[path = "webview_macos/dialogs.rs"]
 mod dialogs;
-#[path = "webview_macos/downloads.rs"]
 mod downloads;
-#[path = "webview_macos/header.rs"]
 mod header;
 use delegate::Delegate;
-#[path = "webview_macos/resources.rs"]
 mod resources;
-#[path = "webview_macos/session.rs"]
 mod session;
-#[path = "webview_macos/window.rs"]
 mod window;
 
 // Link the system framework before querying its Objective-C classes.

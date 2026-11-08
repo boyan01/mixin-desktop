@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use mixin_desktop_api::{AccountClient, MediaClient, MessageActions, MessageListView};
+use mixin_desktop_api::{AccountClient, MessageActions, MessageListView};
 use nsh_core::{file_dialog::SaveDialog, prelude::*};
 
 use super::{
@@ -35,15 +35,7 @@ impl MediaPreview {
     }
 
     fn new_with_context(account: Arc<AccountClient>, pinned_page: bool) -> Self {
-        let media = use_context::<Stored<Option<Arc<MediaClient>>>>()
-            .expect("App provides media")
-            .with(|media| {
-                media
-                    .as_ref()
-                    .expect("Desktop media is initialized")
-                    .as_ref()
-                    .clone()
-            });
+        let media = crate::media_client().as_ref().clone();
         let failed = signal(false);
         let playback = use_context::<crate::playback::Playback>()
             .expect("Home provides playback")

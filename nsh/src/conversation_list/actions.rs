@@ -5,9 +5,9 @@ use nsh_base::alert_dialog;
 use nsh_core::{element::desktop::MenuItem, prelude::*};
 
 use crate::{
-    conversation::parts,
     i18n::{self, Key},
     runtime, ui,
+    ui::parts,
 };
 
 #[derive(Clone, Copy)]

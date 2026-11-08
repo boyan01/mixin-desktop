@@ -9,9 +9,9 @@ use nsh_core::{element::ViewableItems, prelude::*};
 
 use crate::{
     chat::MediaPreview,
-    conversation::parts,
     i18n::{self, Key},
     presentation, runtime,
+    ui::parts,
     ui::{self, Typography as _},
 };
 

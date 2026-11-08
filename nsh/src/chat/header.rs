@@ -4,8 +4,8 @@ use nsh_core::prelude::*;
 
 use crate::{
     i18n::{self, Key},
-    inspector::Mode,
     navigation::ChatNavigation,
+    navigation::Panel,
     ui::{self, Typography},
 };
 
@@ -33,7 +33,7 @@ pub(super) fn bar(
     });
     let badge =
         computed(move || row.with(|row| (row.is_verified, row.is_bot, row.membership.clone())));
-    let rail = use_context::<crate::sidebar::Navigation>().expect("Home provides navigation");
+    let rail = use_context::<crate::navigation::Navigation>().expect("Home provides navigation");
     ui::title_bar()
         .gap_2()
         // Alone in the window, the bar reaches the native controls over a narrow rail.
@@ -66,7 +66,7 @@ pub(super) fn bar(
                 .py_0()
                 .gap_3()
                 .accessibility_label(move || Some(i18n.text(Key::ChatInfo).into()))
-                .on_press(move || navigation.toggle_panel(Mode::Info))
+                .on_press(move || navigation.toggle_panel(Panel::Info))
                 .child(ui::conversation_avatar(
                     move || {
                         avatar.with(|_| ());
@@ -154,13 +154,13 @@ pub(super) fn bar(
             navigation,
             ui::Icon::Search,
             Key::SearchMessages,
-            Mode::Search,
+            Panel::Search,
         ))
         .child(panel_toggle(
             navigation,
             ui::Icon::InfoCircle,
             Key::ChatInfo,
-            Mode::Info,
+            Panel::Info,
         ))
 }
 
@@ -168,7 +168,7 @@ fn panel_toggle(
     navigation: ChatNavigation,
     icon: ui::Icon,
     label: Key,
-    mode: Mode,
+    mode: Panel,
 ) -> impl IntoElement {
     let i18n = i18n::current();
     ui::round_button()

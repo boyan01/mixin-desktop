@@ -13,6 +13,7 @@ mod icon;
 mod menu_icon;
 mod overlay;
 mod owned;
+pub(crate) mod parts;
 mod rows;
 mod state;
 mod toast;

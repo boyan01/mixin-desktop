@@ -18,21 +18,24 @@ use crate::{
     runtime,
 };
 
-#[cfg(target_os = "macos")]
 const NATIVE_WINDOWS: bool = cfg!(any(
     target_os = "macos",
     target_os = "windows",
     target_os = "linux"
 ));
 
-#[path = "platform/webview_macos.rs"]
-mod native;
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "macos")]
+use macos as native;
 #[cfg(target_os = "windows")]
-#[path = "platform/webview_windows.rs"]
-mod native;
+mod windows;
+#[cfg(target_os = "windows")]
+use windows as native;
 #[cfg(target_os = "linux")]
-#[path = "platform/webview_linux.rs"]
-mod native;
+mod linux;
+#[cfg(target_os = "linux")]
+use linux as native;
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 pub(crate) use native::register as register_native_components;
 

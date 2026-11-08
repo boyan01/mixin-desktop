@@ -31,7 +31,7 @@ pub(crate) mod reedit;
 mod timeline;
 mod unread;
 
-use mixin_desktop_api::{AccountClient, ConversationListData, MediaClient, MessageListView};
+use mixin_desktop_api::{AccountClient, ConversationListData, MessageListView};
 use nsh_core::{platform::Lifecycle, prelude::*};
 
 use crate::{
@@ -51,7 +51,8 @@ pub(crate) fn screen(
     back: impl Fn() + 'static,
 ) -> impl IntoElement {
     let i18n = i18n::current();
-    let navigation = use_context::<crate::sidebar::Navigation>().expect("Home provides navigation");
+    let navigation =
+        use_context::<crate::navigation::Navigation>().expect("Home provides navigation");
     let narrow = move || window().width.0 - navigation.width().0 < 620.0;
     let narrow_detail = move || {
         let content = window().width.0 - navigation.width().0;
@@ -105,15 +106,7 @@ pub(crate) fn screen(
     let operation_failed = signal(false);
     let quote = signal_with(None::<MessageListView>, SignalEquals::Never);
     mentions::MentionNames::mount(account.clone(), messages, Some(quote));
-    let media = use_context::<Stored<Option<Arc<MediaClient>>>>()
-        .expect("App provides media")
-        .with(|media| {
-            media
-                .as_ref()
-                .expect("Desktop media is initialized")
-                .as_ref()
-                .clone()
-        });
+    let media = crate::media_client().as_ref().clone();
     let playback = use_context::<crate::playback::Playback>()
         .expect("Home provides playback")
         .snapshot_signal();

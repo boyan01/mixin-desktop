@@ -2,7 +2,7 @@ use super::Handle;
 use crate::{
     i18n::{self, I18n, Key},
     navigation::ChatNavigation,
-    platform::notifications::{self as native, Permission},
+    notifications::native::{self, Permission},
     presentation, runtime,
 };
 use futures::StreamExt as _;

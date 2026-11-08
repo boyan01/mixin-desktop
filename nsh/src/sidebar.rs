@@ -15,76 +15,7 @@ mod preference;
 
 pub(crate) use circles::{Circles, add_to_circle_item, remove_from_circle_item};
 
-const DRAWER_MAX_WIDTH: f32 = 384.0;
-const COMPACT_MAX_WIDTH: f32 = 496.0;
-
-#[derive(Clone, Copy)]
-pub(crate) struct Navigation {
-    pub category: Signal<&'static str>,
-    pub circle: Signal<Option<String>>,
-    pub collapsed: Signal<bool>,
-    pub settings: Signal<bool>,
-    pub list_reset: Signal<u64>,
-    drawer_open: Signal<bool>,
-}
-
-impl Navigation {
-    pub fn new() -> Self {
-        Self {
-            category: signal("chats"),
-            circle: signal(None),
-            collapsed: signal(false),
-            settings: signal(false),
-            list_reset: signal(0),
-            drawer_open: signal(false),
-        }
-    }
-    pub fn drawer(self) -> bool {
-        window().width.0 <= DRAWER_MAX_WIDTH
-    }
-    fn forced_compact(self) -> bool {
-        window().width.0 < COMPACT_MAX_WIDTH
-    }
-    pub fn compact(self) -> bool {
-        !self.drawer() && (self.collapsed.get() || self.forced_compact())
-    }
-    pub fn width(self) -> Points {
-        if self.drawer() {
-            Points::ZERO
-        } else if self.compact() {
-            ui::navigation_compact_width()
-        } else {
-            ui::navigation_width()
-        }
-    }
-    /// The next width change eases every frame it moves, titles inside the panes included.
-    pub fn animate_width(self) {
-        if !reduce_motion() {
-            nsh_core::element::animate_layout(nsh_core::LayoutAnimation {
-                update: Some(crate::motion::PANEL_WIDTH),
-                ..Default::default()
-            });
-        }
-    }
-    pub fn open_drawer(self) {
-        if self.drawer() {
-            self.drawer_open.set(true);
-        }
-    }
-    pub fn close_drawer(self) {
-        self.drawer_open.set(false);
-    }
-    pub fn select(self, category: &'static str, circle: Option<String>) {
-        batch(|| {
-            self.category.set(category);
-            self.circle.set(circle);
-            self.settings.set(false);
-            self.list_reset
-                .update(|revision| *revision = revision.wrapping_add(1));
-            self.close_drawer();
-        });
-    }
-}
+use crate::navigation::Navigation;
 
 pub(crate) fn screen(
     account: Arc<AccountClient>,
@@ -227,7 +158,7 @@ struct Rail {
 impl Rail {
     fn drawer(self) -> impl IntoElement {
         let nav = self.nav;
-        let presence = crate::motion::Presence::panel(move || nav.drawer_open.get());
+        let presence = crate::motion::Presence::panel(move || nav.drawer_open());
         when(
             move || presence.mounted(),
             move || {

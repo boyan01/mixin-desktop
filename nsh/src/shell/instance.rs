@@ -20,10 +20,8 @@ use tokio::sync::mpsc;
 
 use super::Event;
 
-#[path = "instance/protocol.rs"]
 mod protocol;
 #[cfg(target_os = "windows")]
-#[path = "instance/windows.rs"]
 mod windows;
 
 #[cfg(unix)]
@@ -315,5 +313,4 @@ impl Drop for Instance {
 }
 
 #[cfg(all(test, unix))]
-#[path = "instance/tests.rs"]
 mod tests;

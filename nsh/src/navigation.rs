@@ -4,7 +4,90 @@ use mixin_desktop_api::{AccountClient, ConversationListData};
 use nsh_core::prelude::*;
 use std::sync::Arc;
 
-use crate::runtime;
+use crate::{runtime, ui};
+
+const DRAWER_MAX_WIDTH: f32 = 384.0;
+const COMPACT_MAX_WIDTH: f32 = 496.0;
+
+/// Category, circle and rail layout state shared by the account screen.
+#[derive(Clone, Copy)]
+pub(crate) struct Navigation {
+    pub category: Signal<&'static str>,
+    pub circle: Signal<Option<String>>,
+    pub collapsed: Signal<bool>,
+    pub settings: Signal<bool>,
+    pub list_reset: Signal<u64>,
+    drawer_open: Signal<bool>,
+}
+
+impl Navigation {
+    pub fn new() -> Self {
+        Self {
+            category: signal("chats"),
+            circle: signal(None),
+            collapsed: signal(false),
+            settings: signal(false),
+            list_reset: signal(0),
+            drawer_open: signal(false),
+        }
+    }
+    pub fn drawer(self) -> bool {
+        window().width.0 <= DRAWER_MAX_WIDTH
+    }
+    pub fn forced_compact(self) -> bool {
+        window().width.0 < COMPACT_MAX_WIDTH
+    }
+    pub fn compact(self) -> bool {
+        !self.drawer() && (self.collapsed.get() || self.forced_compact())
+    }
+    pub fn width(self) -> Points {
+        if self.drawer() {
+            Points::ZERO
+        } else if self.compact() {
+            ui::navigation_compact_width()
+        } else {
+            ui::navigation_width()
+        }
+    }
+    /// The next width change eases every frame it moves, titles inside the panes included.
+    pub fn animate_width(self) {
+        if !reduce_motion() {
+            nsh_core::element::animate_layout(nsh_core::LayoutAnimation {
+                update: Some(crate::motion::PANEL_WIDTH),
+                ..Default::default()
+            });
+        }
+    }
+    pub fn drawer_open(self) -> bool {
+        self.drawer_open.get()
+    }
+    pub fn open_drawer(self) {
+        if self.drawer() {
+            self.drawer_open.set(true);
+        }
+    }
+    pub fn close_drawer(self) {
+        self.drawer_open.set(false);
+    }
+    pub fn select(self, category: &'static str, circle: Option<String>) {
+        batch(|| {
+            self.category.set(category);
+            self.circle.set(circle);
+            self.settings.set(false);
+            self.list_reset
+                .update(|revision| *revision = revision.wrapping_add(1));
+            self.close_drawer();
+        });
+    }
+}
+
+/// The right-hand inspector destination for the open chat.
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum Panel {
+    Info,
+    Search,
+    Pinned,
+}
 
 #[derive(Clone, Copy)]
 pub(crate) struct ChatNavigation {
@@ -17,7 +100,7 @@ pub(crate) struct ChatNavigation {
     recent: Signal<Vec<String>>,
     search_highlight: Signal<Option<(String, String)>>,
     search_from_info: Signal<bool>,
-    pub panel: Signal<Option<crate::inspector::Mode>>,
+    pub panel: Signal<Option<Panel>>,
     pub return_target: Signal<Option<String>>,
 }
 
@@ -46,7 +129,7 @@ impl ChatNavigation {
             search_from_info.set(false);
         });
         effect(move || {
-            if panel.get() != Some(crate::inspector::Mode::Search) {
+            if panel.get() != Some(Panel::Search) {
                 search_from_info.set(false);
             }
         });
@@ -97,16 +180,16 @@ impl ChatNavigation {
     pub(crate) fn open_search_from_info(self) {
         batch(|| {
             self.search_from_info.set(true);
-            self.panel.set(Some(crate::inspector::Mode::Search));
+            self.panel.set(Some(Panel::Search));
         });
     }
 
     pub(crate) fn back_panel(self) {
         batch(|| {
-            let next = if self.panel.get_untracked() == Some(crate::inspector::Mode::Search)
+            let next = if self.panel.get_untracked() == Some(Panel::Search)
                 && self.search_from_info.get_untracked()
             {
-                Some(crate::inspector::Mode::Info)
+                Some(Panel::Info)
             } else {
                 None
             };
@@ -115,7 +198,7 @@ impl ChatNavigation {
         });
     }
 
-    pub(crate) fn toggle_panel(self, mode: crate::inspector::Mode) {
+    pub(crate) fn toggle_panel(self, mode: Panel) {
         if self.panel.get_untracked() == Some(mode) {
             self.back_panel();
         } else {
