@@ -508,8 +508,8 @@ impl Preview {
 
     fn tray(self) -> impl IntoElement {
         view()
-            .px_2()
-            .pt_2()
+            .px_3()
+            .pt_3()
             .gap_2()
             .style_when(
                 move || self.sources.with(Vec::is_empty),
@@ -555,13 +555,7 @@ impl Preview {
                             self.prepared.with(|_| ());
                             self.cache.with(|cache| cache.item(id))
                         };
-                        view()
-                            .relative()
-                            .size(cell())
-                            .flex_shrink_0()
-                            .rounded(ui::radius_thumb())
-                            .overflow_hidden()
-                            .bg(ui::surface_list)
+                        attachment_frame(move || item().is_some_and(|item| item.kind != "IMAGE"))
                             .child(
                                 ui::command()
                                     .absolute()
@@ -585,28 +579,7 @@ impl Preview {
                                                 .size_full()
                                                 .object_fit(ResizeMode::Cover)
                                                 .into_element(),
-                                            Some(item) => view()
-                                                .size_full()
-                                                .items_center()
-                                                .justify_center()
-                                                .p_1()
-                                                .gap_1()
-                                                .child(ui::icon(if item.kind == "VIDEO" {
-                                                    ui::Icon::Play
-                                                } else {
-                                                    ui::Icon::Save
-                                                }))
-                                                .child(
-                                                    text(item.name)
-                                                        .text_role(ui::TextRole::Caption)
-                                                        .number_of_lines(2),
-                                                )
-                                                .child(
-                                                    text(size_label(item.size))
-                                                        .text_role(ui::TextRole::Caption)
-                                                        .text_color(ui::fg_secondary),
-                                                )
-                                                .into_element(),
+                                            Some(item) => file_content(item).into_element(),
                                             None => ui::busy_indicator(
                                                 || true,
                                                 move || tr(i18n, "Preparing…", "准备中…").into(),
@@ -616,38 +589,29 @@ impl Preview {
                                     })),
                             )
                             .child(
-                                ui::icon_button()
-                                    .absolute()
-                                    .top_1()
-                                    .right_1()
-                                    .size_5()
-                                    .px_0()
-                                    .py_0()
-                                    .rounded_full()
-                                    .bg(ui::media_overlay)
-                                    .disabled(move || self.busy.get() || self.loading.get())
-                                    .accessibility_label(move || {
-                                        Some(tr(i18n, "Remove", "移除").into())
-                                    })
-                                    .on_press(move || {
-                                        if let Some(index) = index() {
-                                            self.remove_at(index);
-                                        }
-                                    })
-                                    .child(
-                                        ui::icon(ui::Icon::Close)
-                                            .size(ui::icon_sm())
-                                            .text_color(ui::media_overlay_foreground),
-                                    ),
+                                remove_button(move || {
+                                    item().is_some_and(|item| item.kind == "IMAGE")
+                                })
+                                .disabled(move || self.busy.get() || self.loading.get())
+                                .accessibility_label(move || {
+                                    Some(tr(i18n, "Remove", "移除").into())
+                                })
+                                .on_press(move || {
+                                    if let Some(index) = index() {
+                                        self.remove_at(index);
+                                    }
+                                }),
                             )
                     },
                 ))
                 .child(
                     ui::command()
                         .size(cell())
+                        .min_h_0()
+                        .p_0()
                         .flex_shrink_0()
                         .rounded(ui::radius_thumb())
-                        .bg(ui::surface_list)
+                        .bg(ui::input_fill)
                         .disabled(move || self.busy.get() || self.picking.get())
                         .accessibility_label(move || {
                             Some(tr(i18n, "Add files…", "添加文件…").into())
@@ -823,4 +787,86 @@ fn size_label(bytes: u64) -> String {
     } else {
         format!("{:.1} MB", bytes as f64 / MIB as f64)
     }
+}
+
+pub(crate) fn file_content(item: PreparedAttachment) -> View {
+    view()
+        .size_full()
+        .min_w_0()
+        .flex_row()
+        .items_center()
+        .gap_3()
+        .pl_3()
+        .pr_8()
+        .child(
+            ui::icon(if item.kind == "VIDEO" {
+                ui::Icon::Play
+            } else {
+                ui::Icon::File
+            })
+            .size(ui::icon_lg())
+            .text_color(ui::fg_secondary),
+        )
+        .child(
+            view()
+                .flex_1()
+                .min_w_0()
+                .gap_1()
+                .child(
+                    text(item.name)
+                        .text_role(ui::TextRole::Body)
+                        .number_of_lines(1),
+                )
+                .child(
+                    text(size_label(item.size))
+                        .text_role(ui::TextRole::Caption)
+                        .text_color(ui::fg_secondary),
+                ),
+        )
+}
+
+pub(crate) fn attachment_frame(file: impl Fn() -> bool + 'static) -> View {
+    view()
+        .relative()
+        .h(ui::thumbnail_grid_size())
+        .w(move || {
+            if file() {
+                ui::card_width()
+            } else {
+                ui::thumbnail_grid_size()
+            }
+        })
+        .flex_shrink_0()
+        .rounded(ui::radius_md())
+        .overflow_hidden()
+        .bg(ui::input_fill)
+}
+
+pub(crate) fn remove_button(media: impl Fn() -> bool + Copy + 'static) -> nsh_base::ButtonElement {
+    ui::icon_button()
+        .absolute()
+        .top_1()
+        .right_1()
+        .size_6()
+        .min_h_0()
+        .p_0()
+        .rounded_full()
+        .bg(move || {
+            if media() {
+                ui::media_overlay()
+            } else {
+                ui::input_fill()
+            }
+        })
+        .child(
+            ui::icon(ui::Icon::Close)
+                .size(ui::icon_sm())
+                .text_color(move || {
+                    if media() {
+                        ui::media_overlay_foreground()
+                    } else {
+                        ui::fg_secondary()
+                    }
+                }),
+        )
 }

@@ -9,7 +9,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
-mod surface;
+pub(crate) mod surface;
 
 use super::{clear_quote, quote_id, tr};
 use crate::media_client;

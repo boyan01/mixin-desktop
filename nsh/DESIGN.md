@@ -155,3 +155,10 @@ a component takes `.focus(ui::ring)`.
 | `error_text`, `placeholder`, `empty`, `busy_indicator` | Failure, empty pane, empty timeline or list, real pending work |
 
 `Primary` marks the one default commitment of a decision area, not the only button.
+
+The chat composer separates the growing editor from a compact bottom toolbar.
+Attachment, sticker and microphone commands use unframed icon buttons; Send is
+one accent-filled circle at the trailing edge. Recording and playback reuse the
+same 16pt composer frame, with status and duration above the icon-only commands.
+Document attachments use a horizontal filename/size layout; pictures retain
+square thumbnails. A tooltip and accessible name explain every hidden label.

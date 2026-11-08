@@ -14,13 +14,16 @@ impl Voice {
             .child(self.surface())
     }
 
-    pub(crate) fn button(self) -> impl IntoElement {
+    pub(crate) fn button(self, disabled: Memo<bool>) -> impl IntoElement {
         let i18n = i18n::current();
-        tool_button()
-            .disabled(move || self.busy.get() || self.open.get())
-            .accessibility_label(move || Some(i18n.text(Key::Record).into()))
-            .child(ui::icon(ui::Icon::Microphone))
-            .on_press(move || self.start())
+        super::super::surface::hinted(
+            tool_button()
+                .disabled(move || disabled.get() || self.busy.get() || self.open.get())
+                .accessibility_label(move || Some(i18n.text(Key::Record).into()))
+                .child(ui::icon(ui::Icon::Microphone))
+                .on_press(move || self.start()),
+            move || tr(i18n, "Record voice message", "录制语音消息").to_owned(),
+        )
     }
 
     fn surface(self) -> impl IntoElement {
@@ -110,129 +113,205 @@ impl Voice {
 }
 
 fn bar(voice: Voice) -> impl IntoElement {
-    let i18n = i18n::current();
-    let recording = move || {
-        voice
-            .snapshot
-            .with(|s| s.status == VoiceRecorderStatus::Recording)
-    };
-    view()
-        .min_h_14()
-        .px_4()
-        .py_2()
-        .gap_1()
-        .bg(ui::surface_pane)
-        .border_t_1()
-        .border_color(ui::border)
-        .child(
-            view()
-                .flex_row()
-                .items_center()
-                .gap_3()
+    RecordingPanel {
+        snapshot: voice.snapshot,
+        playing: computed(move || {
+            voice.playback.with(|p| {
+                p.status == AudioPlaybackStatus::Playing
+                    && voice.snapshot.with(|s| {
+                        s.recording
+                            .as_ref()
+                            .is_some_and(|r| p.item.as_ref().is_some_and(|i| i.id == r.path))
+                    })
+            })
+        }),
+        busy: voice.busy,
+        failed: voice.failed,
+        cancel: std::rc::Rc::new(move || voice.cancel()),
+        play: std::rc::Rc::new(move || voice.play()),
+        toggle: std::rc::Rc::new(move || {
+            if voice
+                .snapshot
+                .with_untracked(|s| s.status == VoiceRecorderStatus::Recording)
+            {
+                voice.stop(false);
+            } else {
+                voice.start();
+            }
+        }),
+        send: std::rc::Rc::new(move || {
+            if voice
+                .snapshot
+                .with_untracked(|s| s.status == VoiceRecorderStatus::Recording)
+            {
+                voice.stop(true);
+            } else {
+                voice.send();
+            }
+        }),
+    }
+    .view()
+}
+
+/// A recording's presentation. The recorder owns state and commands.
+pub(crate) struct RecordingPanel {
+    pub snapshot: Signal<VoiceRecorderSnapshot>,
+    pub playing: Memo<bool>,
+    pub busy: Signal<bool>,
+    pub failed: Signal<bool>,
+    pub cancel: std::rc::Rc<dyn Fn()>,
+    pub play: std::rc::Rc<dyn Fn()>,
+    pub toggle: std::rc::Rc<dyn Fn()>,
+    pub send: std::rc::Rc<dyn Fn()>,
+}
+
+impl RecordingPanel {
+    pub(crate) fn view(self) -> impl IntoElement {
+        use super::super::surface::{frame, hinted, send_button};
+        let Self {
+            snapshot,
+            playing,
+            busy,
+            failed,
+            cancel,
+            play,
+            toggle,
+            send,
+        } = self;
+        let i18n = i18n::current();
+        let recording = move || snapshot.with(|s| s.status == VoiceRecorderStatus::Recording);
+        let toggle_label = move || {
+            if recording() {
+                tr(i18n, "Stop and preview", "停止并试听")
+            } else {
+                tr(i18n, "Record again", "重新录音")
+            }
+        };
+        let cancel = hinted(
+            tool_button()
+                .disabled(busy)
+                .accessibility_label(move || Some(i18n.text(Key::Cancel).into()))
+                .on_press(move || cancel())
+                .child(ui::icon(ui::Icon::Close)),
+            move || tr(i18n, "Discard recording", "放弃录音").to_owned(),
+        );
+        let toggle = hinted(
+            tool_button()
+                .disabled(busy)
+                .accessibility_label(move || {
+                    Some(
+                        if recording() {
+                            i18n.text(Key::Stop)
+                        } else {
+                            toggle_label()
+                        }
+                        .into(),
+                    )
+                })
+                .on_press(move || toggle())
                 .child(
-                    tool_button()
-                        .disabled(voice.busy)
-                        .accessibility_label(move || Some(i18n.text(Key::Cancel).into()))
-                        .child(ui::icon(ui::Icon::Close))
-                        .on_press(move || voice.cancel()),
+                    when(recording, || ui::icon(ui::Icon::Stop))
+                        .otherwise(|| ui::icon(ui::Icon::Rotate)),
+                ),
+            move || toggle_label().to_owned(),
+        );
+        let send = hinted(
+            send_button()
+                .disabled(move || {
+                    busy.get() || snapshot.with(|s| s.status == VoiceRecorderStatus::Idle)
+                })
+                .accessibility_label(move || Some(i18n.text(Key::Send).into()))
+                .on_press(move || send())
+                .child(ui::icon(ui::Icon::Send).text_color(ui::fg_on_accent)),
+            move || tr(i18n, "Send voice message", "发送语音").to_owned(),
+        );
+        view().px_4().pt_2().pb_3().child(
+            frame()
+                .p_3()
+                .gap_2()
+                .child(
+                    view()
+                        .flex_row()
+                        .items_center()
+                        .gap_3()
+                        .min_h_10()
+                        .child(
+                            when(recording, move || {
+                                view().size_2().rounded_full().bg(ui::danger)
+                            })
+                            .otherwise(move || {
+                                let play = play.clone();
+                                let label = move || {
+                                    if playing.get() {
+                                        tr(i18n, "Pause", "暂停")
+                                    } else {
+                                        tr(i18n, "Listen to recording", "试听录音")
+                                    }
+                                };
+                                hinted(
+                                    tool_button()
+                                        .disabled(busy)
+                                        .accessibility_label(move || Some(label().into()))
+                                        .on_press(move || play())
+                                        .child(
+                                            when(playing, || ui::icon(ui::Icon::Pause))
+                                                .otherwise(|| ui::icon(ui::Icon::Play)),
+                                        ),
+                                    move || label().to_owned(),
+                                )
+                            }),
+                        )
+                        .child(
+                            view()
+                                .flex_shrink_0()
+                                .gap_1()
+                                .child(
+                                    text(move || {
+                                        if busy.get() {
+                                            tr(i18n, "Working…", "处理中…")
+                                        } else if recording() {
+                                            tr(i18n, "Recording", "正在录音")
+                                        } else {
+                                            tr(i18n, "Voice message", "语音消息")
+                                        }
+                                    })
+                                    .text_role(ui::TextRole::Body)
+                                    .text_emphasis(),
+                                )
+                                .child(
+                                    text(move || {
+                                        snapshot.with(|s| {
+                                            format!(
+                                                "{:02}:{:02}",
+                                                s.duration_millis / 60_000,
+                                                (s.duration_millis / 1000) % 60
+                                            )
+                                        })
+                                    })
+                                    .text_role(ui::TextRole::Caption)
+                                    .text_color(ui::fg_secondary),
+                                ),
+                        )
+                        .child(waveform(snapshot)),
                 )
                 .child(
                     view()
-                        .flex_1()
-                        .min_w_0()
                         .flex_row()
                         .items_center()
                         .gap_2()
-                        .child(when(recording, move || {
-                            view()
-                                .size(ui::space_sm())
-                                .rounded(ui::radius_full())
-                                .bg(ui::danger)
-                        }))
-                        .child(
-                            text(move || {
-                                voice.snapshot.with(|s| {
-                                    format!(
-                                        "{:02}:{:02}",
-                                        s.duration_millis / 60_000,
-                                        (s.duration_millis / 1000) % 60
-                                    )
-                                })
-                            })
-                            .text_role(ui::TextRole::Body),
-                        )
-                        .child(waveform(voice)),
+                        .child(cancel)
+                        .child(view().flex_1())
+                        .child(toggle)
+                        .child(send),
                 )
-                .child(when(
-                    move || voice.snapshot.with(|s| s.recording.is_some()),
-                    move || {
-                        ui::action(
-                            move || {
-                                let playing = voice.playback.with(|p| {
-                                    p.status == AudioPlaybackStatus::Playing
-                                        && voice.snapshot.with(|s| {
-                                            s.recording.as_ref().is_some_and(|r| {
-                                                p.item.as_ref().is_some_and(|i| i.id == r.path)
-                                            })
-                                        })
-                                });
-                                if playing {
-                                    tr(i18n, "Pause", "暂停")
-                                } else {
-                                    i18n.text(Key::Play)
-                                }
-                            },
-                            move || voice.play(),
-                        )
-                        .disabled(voice.busy)
-                    },
-                ))
-                .child(
-                    ui::action(
-                        move || {
-                            if voice.busy.get() {
-                                tr(i18n, "Working…", "处理中…")
-                            } else if recording() {
-                                i18n.text(Key::Stop)
-                            } else {
-                                tr(i18n, "Record again", "重录")
-                            }
-                        },
-                        move || {
-                            if recording() {
-                                voice.stop(false);
-                            } else {
-                                voice.start();
-                            }
-                        },
-                    )
-                    .disabled(voice.busy),
-                )
-                .child(
-                    ui::primary()
-                        .disabled(move || {
-                            voice.busy.get()
-                                || voice
-                                    .snapshot
-                                    .with(|s| s.status == VoiceRecorderStatus::Idle)
-                        })
-                        .accessibility_label(move || Some(i18n.text(Key::Send).into()))
-                        .on_press(move || {
-                            if recording() {
-                                voice.stop(true);
-                            } else {
-                                voice.send();
-                            }
-                        })
-                        .child(ui::icon(ui::Icon::Send)),
-                ),
+                .child(when(failed, move || {
+                    ui::error_text(move || i18n.text(Key::CommandFailed))
+                })),
         )
-        .child(when(voice.failed, move || {
-            ui::error_text(move || i18n.text(Key::CommandFailed))
-        }))
+    }
 }
 
-fn waveform(voice: Voice) -> impl IntoElement {
+fn waveform(snapshot: Signal<VoiceRecorderSnapshot>) -> impl IntoElement {
     view()
         .flex_1()
         .min_w_0()
@@ -249,7 +328,7 @@ fn waveform(voice: Voice) -> impl IntoElement {
                 .rounded(ui::radius_full())
                 .bg(ui::accent)
                 .h(move || {
-                    let amplitude = voice.snapshot.with(|s| {
+                    let amplitude = snapshot.with(|s| {
                         let start = index * s.waveform.len() / 32;
                         let end = ((index + 1) * s.waveform.len() / 32)
                             .max(start + 1)

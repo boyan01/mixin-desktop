@@ -332,114 +332,90 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
         .child(when(send_failed, move || {
             ui::error_text(move || i18n.text(Key::SendFailed))
         }))
-        .child(
-            // The outline holds the waiting files above the controls.
-            view()
-                .rounded(ui::radius_composer())
-                .bg(ui::bubble_in)
-                .border_1()
-                .border_color(ui::hairline)
-                .child(tray.view())
-                .child(
-                    // Inner controls are 4pt inside this outline and share its curvature.
-                    view()
-                        .flex_row()
-                        .items_end()
-                        .gap_1()
-                        .p_1()
-                        .child(composer::attachments(
-                            account.clone(),
-                            conversation_id.clone(),
-                            quote,
-                            tray,
-                        ))
-                        .child(composer::stickers(
-                            account,
-                            conversation_id,
-                            operation_failed,
-                            insert,
-                            quote,
-                        ))
-                        .child(input.view(
-                            move || {
-                                i18n.text(if encrypted.get() {
-                                    Key::EncryptedPlaceholder
-                                } else {
-                                    Key::MessagePlaceholder
+        .child(composer::surface::editor(
+            tray.view(),
+            input.view(
+                move || {
+                    i18n.text(if encrypted.get() {
+                        Key::EncryptedPlaceholder
+                    } else {
+                        Key::MessagePlaceholder
+                    })
+                    .to_owned()
+                },
+                busy,
+                input_focused,
+                Rc::new(move |event| {
+                    let paths = composer::local_sources(&event.uris);
+                    if !paths.is_empty() {
+                        incoming_files.set(paths);
+                    } else if !event.files.is_empty() {
+                        incoming_files.set(
+                            event
+                                .files
+                                .iter()
+                                .map(|file| composer::AttachmentSource::Clipboard {
+                                    name: file.name.clone(),
+                                    bytes: Arc::new(file.data.clone()),
                                 })
-                                .to_owned()
-                            },
-                            busy,
-                            input_focused,
-                            Rc::new(move |event| {
-                                let paths = composer::local_sources(&event.uris);
-                                if !paths.is_empty() {
-                                    incoming_files.set(paths);
-                                } else if !event.files.is_empty() {
-                                    incoming_files.set(
-                                        event
-                                            .files
-                                            .iter()
-                                            .map(|file| composer::AttachmentSource::Clipboard {
-                                                name: file.name.clone(),
-                                                bytes: Arc::new(file.data.clone()),
-                                            })
-                                            .collect(),
-                                    );
+                                .collect(),
+                        );
+                    }
+                }),
+                {
+                    let submit = submit.clone();
+                    Rc::new(move || submit(false))
+                },
+            ),
+            view()
+                .flex_row()
+                .child(composer::attachments(
+                    account.clone(),
+                    conversation_id.clone(),
+                    quote,
+                    tray,
+                ))
+                .child(composer::stickers(
+                    account,
+                    conversation_id,
+                    operation_failed,
+                    insert,
+                    quote,
+                ))
+                .child(voice.button(busy)),
+            {
+                let send = submit.clone();
+                let silent = submit.clone();
+                ui::native_context_menu(
+                    composer::surface::send_button()
+                        .disabled(move || {
+                            busy.get()
+                                || input.composing()
+                                || if tray.active() {
+                                    !tray.ready()
+                                } else {
+                                    draft.with(|s| s.trim().is_empty())
                                 }
-                            }),
-                            {
-                                let submit = submit.clone();
-                                Rc::new(move || submit(false))
-                            },
-                        ))
-                        .child(
-                            when(
-                                move || {
-                                    (!draft.with(|s| s.trim().is_empty()) || tray.active())
-                                        && !input.composing()
-                                },
-                                move || {
-                                    let send = submit.clone();
-                                    let silent = submit.clone();
-                                    ui::native_context_menu(
-                                        ui::primary()
-                                            .size_10()
-                                            .min_h_0()
-                                            .px_0()
-                                            .py_0()
-                                            .rounded(ui::radius_full())
-                                            .disabled(move || {
-                                                busy.get() || (tray.active() && !tray.ready())
-                                            })
-                                            .accessibility_label(move || {
-                                                Some(i18n.text(Key::Send).into())
-                                            })
-                                            .on_press(move || send(false))
-                                            .child(
-                                                ui::icon(ui::Icon::Send)
-                                                    .text_color(ui::fg_on_accent),
-                                            ),
-                                        move || {
-                                            let silent = silent.clone();
-                                            vec![
-                                                nsh_core::element::desktop::MenuItem::new(
-                                                    i18n.tr(
-                                                        "Send Without Notification",
-                                                        "静音发送",
-                                                    ),
-                                                )
-                                                .icon(ui::MenuIcon::Mute.src())
-                                                .on_select(move || silent(true)),
-                                            ]
-                                        },
-                                    )
-                                },
+                        })
+                        .accessibility_label(move || Some(i18n.text(Key::Send).into()))
+                        .on_press(move || send(false))
+                        .child(ui::icon(ui::Icon::Send).text_color(ui::fg_on_accent)),
+                    move || {
+                        let silent = silent.clone();
+                        vec![
+                            nsh_core::element::desktop::MenuItem::new(
+                                i18n.tr("Send Without Notification", "静音发送"),
                             )
-                            .otherwise(move || voice.button()),
-                        ),
-                ),
-        );
+                            .icon(ui::MenuIcon::Mute.src())
+                            .on_select(move || silent(true)),
+                        ]
+                    },
+                )
+                .tooltip(ui::hint(move || {
+                    i18n.tr("Send · Enter", "发送 · Enter").to_owned()
+                }))
+            },
+        ));
     view()
         .child(voice.composer(editor))
         .child(tray.editor())

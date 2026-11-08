@@ -43,8 +43,8 @@ pub(crate) use form::{
 pub(crate) use icon::{Icon, icon, logo, wallpaper};
 pub(crate) use menu_icon::MenuIcon;
 pub(crate) use overlay::{
-    context_menu_on, hint, menu, menu_groups, menu_row, menu_row_icon, native_context_menu,
-    popover_flush,
+    context_menu_on, hint, menu, menu_groups, menu_row, menu_row_icon, menu_row_symbol,
+    native_context_menu, popover_flush,
 };
 pub(crate) use owned::owned;
 pub(crate) use rows::{list_row, nav_row, option_row};

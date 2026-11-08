@@ -51,6 +51,25 @@ impl Input {
         selection: Signal<(u32, u32)>,
         write: Rc<dyn Fn(String)>,
     ) -> Self {
+        let input = Self::editor(draft, selection, write);
+        input.follow_draft(draft, selection, resolved_mentions(account, draft));
+        input
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn detached(draft: Signal<String>) -> Self {
+        let selection = signal((0, 0));
+        let value = computed(move || draft.get());
+        let input = Self::editor(value, selection, Rc::new(move |text| draft.set(text)));
+        input.follow_draft(value, selection, signal(HashMap::new()));
+        input
+    }
+
+    fn editor(
+        draft: Memo<String>,
+        selection: Signal<(u32, u32)>,
+        write: Rc<dyn Fn(String)>,
+    ) -> Self {
         let (commands, receive) = mpsc::unbounded_channel();
         let picker_open = Arc::new(AtomicBool::new(false));
         let session = editor_session(
@@ -74,7 +93,6 @@ impl Input {
             commands: stored(commands),
         };
         input.run_commands(receive, draft, selection, write);
-        input.follow_draft(draft, selection, resolved_mentions(account, draft));
         input
     }
 
@@ -193,7 +211,7 @@ impl Input {
         // document height. The bounded application scroll below is the only
         // region with a vertical range, as in the readonly message reader.
         classes.root = Some("grid".into());
-        classes.content = Some("px-3 py-2 text-sm text-foreground".into());
+        classes.content = Some("px-3 py-3 text-sm text-foreground".into());
         classes.caret = Some("bg-primary".into());
         classes.nodes = Some(BTreeMap::from([("mention".into(), "text-primary".into())]));
         let placeholder = stored(placeholder);
@@ -259,11 +277,11 @@ impl Input {
             .on_paste_files(
                 move |event: &nsh_base::rich_editor::view::RichEditorPastedFiles| pasted(event),
             );
-        view().flex_1().min_w_0().overflow_hidden().child(
+        view().min_w_0().overflow_hidden().child(
             scroll()
                 .element_ref(&scroll_ref)
-                .min_h_10()
-                .max_h_32()
+                .min_h_14()
+                .max_h_40()
                 .on_layout(move |bounds: &Bounds<Points>| {
                     if viewport.with(|size| *size != bounds.size) {
                         viewport.replace(bounds.size);

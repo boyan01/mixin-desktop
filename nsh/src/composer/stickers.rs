@@ -204,11 +204,17 @@ pub(crate) fn stickers(
         .offset(ui::space_sm())
         .trigger(
             view()
+                .tooltip(ui::hint(move || {
+                    tr(i18n, "Emoji and stickers", "表情与贴纸").to_owned()
+                }))
                 .on_mouse_enter(move |_: &MouseEvent| hover(true, over_button))
                 .on_mouse_leave(move |_: &MouseEvent| hover(false, over_button))
                 .child(
                     tool_button()
                         .accessibility_label(move || Some(i18n.text(Key::Emoji).into()))
+                        .style_when(state.open, |s| {
+                            s.bg(ui::state_selected).text_color(ui::fg_primary)
+                        })
                         .child(ui::icon(ui::Icon::Sticker)),
                 ),
         )

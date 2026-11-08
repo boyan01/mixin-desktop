@@ -70,6 +70,19 @@ pub(crate) fn menu_row_icon(
         .child(text(label).text_role(TextRole::Body))
 }
 
+/// A menu command with an icon from the app's toolbar family.
+pub(crate) fn menu_row_symbol(
+    icon: super::Icon,
+    label: impl Fn() -> &'static str + 'static,
+) -> MenuItemElement {
+    row()
+        .flex_row()
+        .items_center()
+        .gap(space_sm())
+        .child(super::icon(icon))
+        .child(text(label).text_role(TextRole::Body))
+}
+
 /// The short hint shown beside a control whose label is hidden.
 pub(crate) fn hint(label: impl Fn() -> String + 'static) -> TooltipElement {
     tooltip()

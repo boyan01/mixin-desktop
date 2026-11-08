@@ -3,6 +3,7 @@
 //! describes how to capture and compare them.
 
 mod components;
+mod composer;
 mod fixtures;
 mod loading;
 mod sidebar;
@@ -40,6 +41,11 @@ const SCENES: &[Scene] = &[
         name: "loading",
         actions: loading::ACTIONS,
         mount: loading::scene,
+    },
+    Scene {
+        name: "composer",
+        actions: composer::ACTIONS,
+        mount: composer::scene,
     },
 ];
 

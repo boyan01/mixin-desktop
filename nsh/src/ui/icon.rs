@@ -39,6 +39,12 @@ pub(crate) enum Icon {
     Add,
     Sticker,
     Microphone,
+    Attachment,
+    File,
+    Image,
+    Post,
+    Stop,
+    Pause,
     Menu,
     Play,
     Download,
@@ -86,6 +92,20 @@ pub(crate) fn icon(icon: Icon) -> Svg {
         Icon::Add => asset(include_str!("../../assets/ic_add.svg")),
         Icon::Search => asset(include_str!("../../assets/ic_search_small.svg")),
         Icon::Sticker => asset(include_str!("../../assets/ic_sticker.svg")),
+        Icon::Attachment => stroke(
+            "<path d='m21 11-8.5 8.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8L15 6'/>",
+        ),
+        Icon::File => stroke(
+            "<path d='M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z'/><path d='M14 3v6h6'/>",
+        ),
+        Icon::Image => stroke(
+            "<rect x='3' y='3' width='18' height='18' rx='3'/><circle cx='8.5' cy='8.5' r='1.5'/><path d='m21 15-5-5L5 21'/>",
+        ),
+        Icon::Post => stroke(
+            "<path d='M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z'/><path d='M14 3v6h6M8 13h8M8 17h5'/>",
+        ),
+        Icon::Stop => stroke("<rect x='6' y='6' width='12' height='12' rx='2'/>"),
+        Icon::Pause => stroke("<path d='M9 5v14M15 5v14'/>"),
         Icon::Microphone => asset(include_str!("../../assets/microphone.svg")),
         Icon::Share => asset(include_str!("../../assets/profile_share.svg")),
         Icon::Conversation => asset(include_str!("../../assets/profile_chat.svg")),
@@ -112,7 +132,11 @@ pub(crate) fn icon(icon: Icon) -> Svg {
         )),
         Icon::Backup => asset(include_str!("../../assets/ic_backup.svg")),
         Icon::Close => asset(include_str!("../../assets/ic_close.svg")),
-        Icon::Send => stroke("<path d='m22 2-7 20-4-9-9-4Z'/><path d='M22 2 11 13'/>"),
+        // Center the plane's visual mass, which otherwise reads high and right.
+        // The inset keeps the shifted strokes inside the icon's view box.
+        Icon::Send => stroke(
+            "<g transform='translate(-0.5 2.9) scale(0.9)'><path d='m22 2-7 20-4-9-9-4Z'/><path d='M22 2 11 13'/></g>",
+        ),
         Icon::Globe => asset(include_str!("../../assets/proxy.svg")),
         Icon::Lock => stroke(
             "<rect x='5' y='10' width='14' height='11' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/>",

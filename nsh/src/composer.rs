@@ -9,15 +9,22 @@ mod input;
 mod mentions;
 mod sticker_store;
 mod stickers;
+pub(crate) mod surface;
 mod voice;
 
+#[cfg(debug_assertions)]
+pub(crate) use attachments::attachment_menu;
 pub(crate) use attachments::attachments;
 pub(crate) use files::{Tray, mount as mount_tray, preparation::local_sources};
+#[cfg(debug_assertions)]
+pub(crate) use files::{attachment_frame, file_content, remove_button};
 pub(crate) use input::Input;
 pub(crate) use mentions::mentions;
 pub(crate) use sticker_store::detail as sticker_detail;
 pub(crate) use stickers::stickers;
 pub(crate) use voice::Voice;
+#[cfg(debug_assertions)]
+pub(crate) use voice::surface::RecordingPanel;
 
 use mixin_desktop_api::MessageListView;
 use nsh_base::ButtonElement;
@@ -50,7 +57,12 @@ fn clear_quote(quote: Signal<Option<MessageListView>>, sent: Option<String>) {
 }
 
 fn tool_button() -> ButtonElement {
-    ui::round_button().size(ui::field_height())
+    ui::icon_button()
+        .size(ui::button_height_small())
+        .min_h_0()
+        .p_0()
+        .rounded(ui::radius_md())
+        .text_color(ui::fg_secondary)
 }
 
 /// A dialog with room for a document: the file preview and the post editor.
