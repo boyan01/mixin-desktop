@@ -43,6 +43,7 @@
 - Fakes fail on unexpected calls and record meaningful arguments. Do not use permissive defaults that can make an unimplemented path pass.
 - Tests must not use logs, screenshots, or successful construction as their only oracle.
 - Keep tests hermetic and order-independent. Close subscriptions, tasks, timers, temporary files, platform handlers, and global overrides in teardown.
+- NSH UI changes: follow `.agents/skills/nsh-preview/SKILL.md` to capture before/after preview screenshots, plus close-ups of any visual defect found, and embed them in the final summary. Where no scene covers the change, add one or report the change as visually unverified.
 - Run a live runtime smoke test when the task concerns startup, protocol behavior, Blaze, Signal, real data flow, notifications, or files. Use non-UI runtime checks; visual interaction does not require an automated UI smoke test.
 
 ## Validation

@@ -41,9 +41,11 @@ pub(crate) fn screen(
         nav,
         profile,
         counts,
-        circles,
-        preference: preference::Preference::new(nav),
         labels: Labels::new(nav),
+        services: Some(Services {
+            circles,
+            preference: preference::Preference::new(nav),
+        }),
     };
     effect(move || {
         if !nav.drawer() {
@@ -145,17 +147,40 @@ impl Labels {
     }
 }
 
+/// The account's circles and persisted Collapse state.
 #[derive(Clone, Copy)]
-struct Rail {
+struct Services {
+    circles: Circles,
+    preference: preference::Preference,
+}
+
+/// Without services the rail lists no circles and Collapse is not persisted.
+#[derive(Clone, Copy)]
+pub(crate) struct Rail {
     nav: Navigation,
     profile: Signal<AccountProfile>,
     counts: Signal<Vec<ConversationUnseenCount>>,
-    circles: Circles,
-    preference: preference::Preference,
     labels: Labels,
+    services: Option<Services>,
 }
 
 impl Rail {
+    /// A rail over the given sources, without account services, for the preview.
+    #[cfg(debug_assertions)]
+    pub(crate) fn detached(
+        nav: Navigation,
+        profile: Signal<AccountProfile>,
+        counts: Signal<Vec<ConversationUnseenCount>>,
+    ) -> Self {
+        Self {
+            nav,
+            profile,
+            counts,
+            labels: Labels::new(nav),
+            services: None,
+        }
+    }
+
     fn drawer(self) -> impl IntoElement {
         let nav = self.nav;
         let presence = crate::motion::Presence::panel(move || nav.drawer_open());
@@ -181,7 +206,7 @@ impl Rail {
         )
     }
 
-    fn content(self) -> View {
+    pub(crate) fn content(self) -> View {
         let nav = self.nav;
         view()
             .w(move || {
@@ -207,10 +232,19 @@ impl Rail {
             .child(self.category(ui::Icon::Groups, Key::Groups, "groups"))
             .child(self.category(ui::Icon::Bot, Key::Bots, "bots"))
             .child(self.category(ui::Icon::Strangers, Key::Strangers, "strangers"))
-            .child(self.circles.list(self.counts, self.labels))
+            .child(match self.services {
+                Some(services) => services
+                    .circles
+                    .list(self.counts, self.labels)
+                    .into_element(),
+                None => view().flex_1().min_h_0().into_element(),
+            })
             .child(self.collapse_item())
-            .child(self.preference.feedback())
-            .child(self.circles.feedback())
+            .child(self.services.map(|services| {
+                view()
+                    .child(services.preference.feedback())
+                    .child(services.circles.feedback())
+            }))
     }
 
     fn account_item(self) -> impl IntoElement {
@@ -307,10 +341,11 @@ impl Rail {
         let i18n = i18n::current();
         let Self {
             nav,
-            preference,
+            services,
             labels,
             ..
         } = self;
+        let preference = services.map(|services| services.preference);
         ui::nav_row()
             .accessibility_label(move || {
                 Some(
@@ -322,9 +357,16 @@ impl Rail {
                     .into(),
                 )
             })
-            .disabled(move || preference.disabled())
+            .disabled(move || preference.is_some_and(|preference| preference.disabled()))
             .style_when(move || nav.forced_compact(), |style| style.hidden())
-            .on_press(move || preference.toggle())
+            .on_press(move || {
+                if let Some(preference) = preference {
+                    preference.toggle();
+                } else {
+                    nav.animate_width();
+                    nav.collapsed.update(|collapsed| *collapsed = !*collapsed);
+                }
+            })
             .child(dynamic(move || {
                 ui::icon(if nav.compact() {
                     ui::Icon::Expand

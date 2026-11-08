@@ -6,6 +6,7 @@ cd "$(dirname "$0")/.."
 
 find src -name '*.rs' \
   -not -path 'src/ui/*' \
+  -not -path 'src/preview/*' \
   -not -path 'src/shell/macos*' \
   -not -path 'src/shell/windows*' \
   -not -path 'src/shell/linux*' \

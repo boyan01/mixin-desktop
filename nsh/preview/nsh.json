@@ -1,0 +1,7 @@
+{
+  "name": "Mixin Preview",
+  "id": "one.mixin.messenger.preview",
+  "rust": "..",
+  "root": "Preview",
+  "theme": "../theme.json"
+}

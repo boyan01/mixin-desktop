@@ -1,0 +1,120 @@
+//! Development-only scene browser for checking UI changes without an account.
+//! Scenes place production components over fixtures; `.agents/skills/nsh-preview`
+//! describes how to capture and compare them.
+
+mod components;
+mod fixtures;
+mod sidebar;
+
+use std::time::Duration;
+
+use nsh_core::prelude::*;
+
+use crate::ui::{self, ButtonSize, ButtonTone};
+
+/// Actions start this long after their press, so a capture is already taking frames.
+/// `nsh/tool/preview.py` (`ACTION_LEAD_MS`) subtracts it from frame timestamps.
+const ACTION_LEAD: Duration = Duration::from_millis(800);
+/// `nsh/tool/preview.py` (`TOOLBAR_HEIGHT`) crops this band off captures.
+const TOOLBAR_HEIGHT: f32 = 40.0;
+
+struct Scene {
+    name: &'static str,
+    actions: &'static [&'static str],
+    mount: fn(Actions) -> View,
+}
+
+const SCENES: &[Scene] = &[
+    Scene {
+        name: "sidebar",
+        actions: sidebar::ACTIONS,
+        mount: sidebar::scene,
+    },
+    Scene {
+        name: "components",
+        actions: components::ACTIONS,
+        mount: components::scene,
+    },
+];
+
+/// The toolbar's requests to the open scene.
+#[derive(Clone, Copy)]
+struct Actions(Signal<Option<&'static str>>);
+
+impl Actions {
+    /// Runs `run` each time the toolbar plays `name`.
+    fn on(self, name: &'static str, run: impl Fn() + 'static) {
+        effect(move || {
+            if self.0.get() == Some(name) {
+                untracked(&run);
+            }
+        });
+    }
+}
+
+#[component]
+pub fn Preview() -> impl IntoElement {
+    provide_context(crate::i18n::I18n::new());
+    let current = signal(0_usize);
+    view()
+        .flex_1()
+        .bg(ui::surface_pane)
+        .text_color(ui::fg_primary)
+        .child(dynamic(move || {
+            let index = current.get();
+            untracked(|| scene(index, current))
+        }))
+}
+
+fn scene(index: usize, current: Signal<usize>) -> View {
+    let scene = &SCENES[index];
+    // Each mount has its own requests, so a new scene never replays the last action.
+    let requested = signal_with(None, SignalEquals::Never);
+    view()
+        .flex_1()
+        .child(toolbar(index, current, scene.actions, requested))
+        .child(
+            view()
+                .flex_1()
+                .min_h_0()
+                .child((scene.mount)(Actions(requested))),
+        )
+}
+
+fn toolbar(
+    index: usize,
+    current: Signal<usize>,
+    actions: &'static [&'static str],
+    requested: Signal<Option<&'static str>>,
+) -> View {
+    view()
+        .flex_row()
+        .flex_shrink_0()
+        .items_center()
+        .h(px(TOOLBAR_HEIGHT))
+        .gap(ui::space_sm())
+        .px(ui::space_md())
+        .border_b_1()
+        .border_color(ui::hairline)
+        .test_id("preview-toolbar")
+        .children(SCENES.iter().enumerate().map(move |(position, scene)| {
+            let tone = if position == index {
+                ButtonTone::Primary
+            } else {
+                ButtonTone::Ghost
+            };
+            ui::button(tone, ButtonSize::Small)
+                .accessibility_label(move || Some(format!("Scene {}", scene.name).into()))
+                .on_press(move || current.set(position))
+                .child(text(scene.name))
+        }))
+        .child(view().flex_1())
+        .children(actions.iter().map(move |&name| {
+            ui::button(ButtonTone::Secondary, ButtonSize::Small)
+                .accessibility_label(move || Some(format!("Action {name}").into()))
+                .on_press(move || {
+                    set_timeout(ACTION_LEAD, move || requested.set(Some(name)));
+                })
+                .child(text(name))
+        }))
+}

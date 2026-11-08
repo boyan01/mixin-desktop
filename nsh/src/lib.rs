@@ -20,6 +20,10 @@ mod navigation;
 mod notifications;
 mod playback;
 mod presentation;
+#[cfg(debug_assertions)]
+mod preview;
+#[cfg(debug_assertions)]
+pub use preview::Preview;
 mod qr;
 mod recipients;
 pub mod runtime;
@@ -44,6 +48,8 @@ use std::sync::Arc;
 #[native_module("mixin/native")]
 fn native(registry: &mut Registry) {
     registry.register::<App>();
+    #[cfg(debug_assertions)]
+    registry.register::<Preview>();
 }
 
 /// Process clients, set once the desktop runtime opens and before any account screen mounts.
