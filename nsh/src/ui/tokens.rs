@@ -125,6 +125,8 @@ lengths! {
     profile_bio_height = "profile-bio-height";
     sticker_panel_width = "sticker-panel-width";
     sticker_panel_height = "sticker-panel-height";
+    sticker_cell_size = "sticker-cell-size";
+    sticker_art_size = "sticker-art-size";
     /// The sticker panel's bottom tab bar, and one tab in it.
     sticker_tab_bar_height = "sticker-tab-bar-height";
     sticker_tab_size = "sticker-tab-size";

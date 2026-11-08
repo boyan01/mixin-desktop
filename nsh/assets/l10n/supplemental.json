@@ -1935,16 +1935,6 @@
     "zh-HK": "發送者",
     "zh-TW": "傳送者"
   },
-  "GIF search is unavailable.": {
-    "es": "La búsqueda de GIF no está disponible.",
-    "id": "Pencarian GIF tidak tersedia.",
-    "ja": "GIF 検索を利用できません。",
-    "ms": "Carian GIF tidak tersedia.",
-    "ru": "Поиск GIF недоступен.",
-    "zh-CN": "GIF 搜索暂不可用。",
-    "zh-HK": "GIF 搜索暫不可用。",
-    "zh-TW": "GIF 搜尋暫不可用。"
-  },
   "Generate QR Code": {
     "es": "Generar código QR",
     "id": "Buat kode QR",
@@ -2232,16 +2222,6 @@
   "Light": {
     "id": "Terang",
     "ms": "Cerah"
-  },
-  "Loading GIFs…": {
-    "es": "Cargando GIF…",
-    "id": "Memuat GIF…",
-    "ja": "GIF を読み込み中…",
-    "ms": "Memuatkan GIF…",
-    "ru": "Загрузка GIF…",
-    "zh-CN": "正在加载 GIF…",
-    "zh-HK": "正在加載 GIF…",
-    "zh-TW": "正在載入 GIF…"
   },
   "Loading contacts…": {
     "es": "Cargando contactos…",
@@ -2588,16 +2568,6 @@
     "zh-CN": "下一条未读提及",
     "zh-HK": "下一條未讀提及",
     "zh-TW": "下一條未讀提及"
-  },
-  "No GIFs found": {
-    "es": "No se encontraron GIF",
-    "id": "GIF tidak ditemukan",
-    "ja": "GIF が見つかりません",
-    "ms": "GIF tidak ditemui",
-    "ru": "GIF не найдены",
-    "zh-CN": "未找到 GIF",
-    "zh-HK": "找不到 GIF",
-    "zh-TW": "找不到 GIF"
   },
   "No app permission prompt is required on this system.": {
     "es": "Este sistema no requiere solicitar permiso de notificaciones para la aplicación.",
@@ -3798,26 +3768,6 @@
     "zh-HK": "此平台暫不支持鎖屏保護。",
     "zh-TW": "此平臺暫不支援鎖屏保護。"
   },
-  "Search GIFs": {
-    "es": "Buscar GIF",
-    "id": "Cari GIF",
-    "ja": "GIF を検索",
-    "ms": "Cari GIF",
-    "ru": "Искать GIF",
-    "zh-CN": "搜索 GIF",
-    "zh-HK": "搜索 GIF",
-    "zh-TW": "搜尋 GIF"
-  },
-  "Search GIPHY…": {
-    "es": "Buscar en GIPHY…",
-    "id": "Cari di GIPHY…",
-    "ja": "GIPHY を検索…",
-    "ms": "Cari GIPHY…",
-    "ru": "Искать в GIPHY…",
-    "zh-CN": "搜索 GIPHY…",
-    "zh-HK": "搜索 GIPHY…",
-    "zh-TW": "搜尋 GIPHY…"
-  },
   "Search Mixin ID": {
     "es": "Buscar Mixin ID",
     "id": "Cari Mixin ID",
@@ -3979,16 +3929,6 @@
     "zh-CN": "发送 1 个文件",
     "zh-HK": "傳送 1 個檔案",
     "zh-TW": "傳送 1 個檔案"
-  },
-  "Send GIF": {
-    "es": "Enviar GIF",
-    "id": "Kirim GIF",
-    "ja": "GIF を送信",
-    "ms": "Hantar GIF",
-    "ru": "Отправить GIF",
-    "zh-CN": "发送 GIF",
-    "zh-HK": "傳送 GIF",
-    "zh-TW": "傳送 GIF"
   },
   "Send a message to say hello.": {
     "es": "Envía un mensaje para saludar.",
@@ -4326,6 +4266,16 @@
     "zh-CN": "贴纸",
     "zh-HK": "貼紙",
     "zh-TW": "貼紙"
+  },
+  "Stickers you send appear here": {
+    "es": "Los stickers que envíes aparecerán aquí",
+    "id": "Stiker yang Anda kirim akan muncul di sini",
+    "ja": "送信したステッカーがここに表示されます",
+    "ms": "Pelekat yang anda hantar akan muncul di sini",
+    "ru": "Здесь появятся отправленные вами стикеры",
+    "zh-CN": "发送过的贴纸会显示在这里",
+    "zh-HK": "傳送過的貼圖會顯示在這裡",
+    "zh-TW": "傳送過的貼圖會顯示在這裡"
   },
   "Stop": {
     "es": "Detener",

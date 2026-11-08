@@ -43,7 +43,6 @@ mod bot;
 mod conversation;
 mod conversion;
 pub mod desktop;
-mod gif;
 mod inscription;
 mod lifecycle;
 pub mod logging;

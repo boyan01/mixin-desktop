@@ -48,19 +48,6 @@ impl DesktopClient {
         })
     }
 
-    pub fn gif_search_available(&self) -> bool {
-        self.runtime.gif_search_available()
-    }
-
-    pub async fn search_gifs(
-        &self,
-        query: String,
-        offset: u32,
-        limit: u32,
-    ) -> ClientResult<Vec<crate::GifItem>> {
-        Ok(self.runtime.search_gifs(query, offset, limit).await?)
-    }
-
     pub async fn restore_account(&self) -> ClientResult<AccountClient> {
         let runtime = self.runtime.restore_account().await?;
         let runtime = runtime.ok_or(mixin_desktop_core::CoreError::NotFound)?;

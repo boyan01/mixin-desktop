@@ -183,3 +183,8 @@ Voice previews keep the waveform and elapsed/total time together, with waveform
 width capped at `audio-wave-width`; the trailing action remains at the right edge.
 Played bars, pause/resume and seeking follow the account's shared playback client,
 which also owns the recorder within that account scope.
+
+The emoji/sticker popover gives its content the full area above one compact footer.
+Store, emoji, recent, personal and album shortcuts share that footer, following the
+Flutter reference. Personal stickers begin with a dashed import tile in the same
+virtual grid. GIF discovery is not part of the composer.

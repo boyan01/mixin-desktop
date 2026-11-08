@@ -111,7 +111,7 @@ Remaining work and priorities live in [nsh/ROADMAP.md](../nsh/ROADMAP.md).
 | C09 | Voice record, stop, preview, cancel, send | Partial | physical device check pending |
 | C10 | Share contact/send post entry | Done |  |
 
-## Emoji, stickers, GIF
+## Emoji and stickers
 
 | ID | Feature | Status | Note |
 | --- | --- | --- | --- |
@@ -119,7 +119,7 @@ Remaining work and priorities live in [nsh/ROADMAP.md](../nsh/ROADMAP.md).
 | E02 | Recent/personal sticker tabs | Done |  |
 | E03 | Sticker album tabs/details/add/remove/order | Done |  |
 | E04 | Import/remove personal stickers | Done |  |
-| E05 | GIF/Giphy search and send | Done |  |
+| E05 | GIF discovery | Removed | Removed from the desktop composer by product decision |
 
 ## Chat info and groups
 

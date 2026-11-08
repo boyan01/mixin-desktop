@@ -762,17 +762,6 @@ mod notification_tests {
     }
 }
 
-/// A GIF discovery result, with distinct preview and send representations.
-#[derive(Clone, Debug, Default)]
-#[non_exhaustive]
-pub struct GifItem {
-    pub id: String,
-    pub url: String,
-    pub preview_url: String,
-    pub width: i32,
-    pub height: i32,
-}
-
 /// A send accepted by the durable store. An upload error belongs to this
 /// existing message; retrying must use its ID rather than create another send.
 #[derive(Clone, Debug, Default)]

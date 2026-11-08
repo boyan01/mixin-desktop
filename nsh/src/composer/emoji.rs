@@ -415,6 +415,7 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
         .flex_1()
         .min_h_0()
         .gap_2()
+        .p_3()
         .child(dynamic(move || {
             let picked = picking.get();
             let search = searching.get();

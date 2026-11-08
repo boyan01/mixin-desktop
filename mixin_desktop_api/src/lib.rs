@@ -23,7 +23,7 @@ pub use desktop::{DesktopClient, SettingsClient};
 pub use dto::{
     BotContext, BotSignature, CircleConversationEdit, CircleItem, CodeResult,
     ConversationDetailItem, ConversationListData, ConversationParticipantItem,
-    ConversationStorageUsage, ConversationUnseenCount, GifItem, GroupAvatar, GroupConversationItem,
+    ConversationStorageUsage, ConversationUnseenCount, GroupAvatar, GroupConversationItem,
     ImageMessageView, MessageActions, MessageListView, MessageOrderInfoView, NotificationEvent,
     PinMessagePreviewItem, QuickSearchItem, ScreenLockState, SendReceipt, SharedAppItem,
     SnapshotDetailItem, StickerAlbumItem, StickerDetailItem, StickerItem, StorageCategoryUsage,

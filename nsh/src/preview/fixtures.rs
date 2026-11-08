@@ -669,3 +669,30 @@ pub(super) mod conversations {
             .collect()
     }
 }
+
+pub(super) fn sticker_albums() -> Vec<mixin_desktop_api::StickerAlbumItem> {
+    (0..12)
+        .map(|index| mixin_desktop_api::StickerAlbumItem {
+            album_id: format!("9d508cd6-1405-4bb7-a529-{index:012}"),
+            name: format!("Sticker album {}", index + 1),
+            icon_url: sticker_image(index),
+            category: "SYSTEM".into(),
+            description: String::new(),
+            banner: None,
+            added: true,
+            is_verified: false,
+        })
+        .collect()
+}
+
+pub(super) fn sticker_image(index: usize) -> String {
+    format!(
+        "{}/assets/{}",
+        env!("CARGO_MANIFEST_DIR"),
+        [
+            "logo.png",
+            "badges/plan_basic.png",
+            "badges/plan_standard.png"
+        ][index % 3]
+    )
+}

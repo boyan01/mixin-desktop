@@ -114,7 +114,15 @@ pub(crate) fn album_icon(
     url: impl Fn() -> String + 'static,
     size: f32,
 ) -> impl IntoElement {
-    asset(
+    framed_album_icon(Some(account), url, size)
+}
+
+pub(crate) fn framed_album_icon(
+    account: Option<Arc<AccountClient>>,
+    url: impl Fn() -> String + 'static,
+    size: f32,
+) -> impl IntoElement {
+    framed_asset(
         account,
         move || {
             let url = url();
@@ -124,7 +132,7 @@ pub(crate) fn album_icon(
                 .is_some_and(|path| path.to_ascii_lowercase().ends_with(".json"));
             (None, url, if json { "json".into() } else { String::new() })
         },
-        size,
+        (size, size),
     )
 }
 

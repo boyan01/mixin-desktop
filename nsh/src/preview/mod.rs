@@ -8,6 +8,7 @@ mod fixtures;
 mod loading;
 mod messages;
 mod sidebar;
+mod stickers;
 mod stress;
 
 use std::time::Duration;
@@ -29,6 +30,11 @@ struct Scene {
 }
 
 const SCENES: &[Scene] = &[
+    Scene {
+        name: "stickers",
+        actions: stickers::ACTIONS,
+        mount: stickers::scene,
+    },
     Scene {
         name: "messages",
         actions: messages::ACTIONS,

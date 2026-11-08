@@ -38,6 +38,7 @@ pub(super) fn panel(state: State) -> impl IntoElement {
         .flex_1()
         .min_h_0()
         .gap_2()
+        .p_3()
         .child(
             view()
                 .flex_row()

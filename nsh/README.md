@@ -40,12 +40,6 @@ The NSH CLI bypasses the native executable entry point. Prefer `cargo run` when
 validating startup, process ownership, native component registration and shutdown.
 macOS is the first validation target. Windows and Linux are unverified; see the roadmap.
 
-GIF discovery requires the distributor's Giphy client configuration, as the
-Flutter reference does. Set `MIXIN_GIPHY_API_KEY` in the build environment to
-embed that configuration in a packaged app; a runtime environment value can
-override it. An unconfigured build reports that GIF discovery is unavailable.
-Do not place client keys in source files, logs or acceptance reports.
-
 ## Layout
 
 The current Flutter desktop app defines the layout and interaction reference.
