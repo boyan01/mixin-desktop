@@ -5,7 +5,9 @@
   preview.py capture sidebar --action Collapse --label after
   preview.py compare sidebar before after
 
-Captures go to nsh/preview/output/<scene>/<label>/. See .agents/skills/nsh-preview/SKILL.md.
+Captures stay below normal application windows by default; --foreground shows
+one above them for manual inspection. Captures go to
+nsh/preview/output/<scene>/<label>/. See .agents/skills/nsh-preview/SKILL.md.
 """
 
 import argparse
@@ -148,6 +150,26 @@ def manifest(path, entries):
     return path
 
 
+def capture_entry(foreground):
+    """Apply capture-only window options before the native window is created."""
+    if foreground:
+        return PREVIEW
+    app = json.loads((PREVIEW / "nsh.json").read_text())
+    # Keep the same crate and theme from this separate, cached capture entry.
+    for key in ("rust", "theme"):
+        app[key] = str((PREVIEW / app[key]).resolve())
+    app.setdefault("window", {}).update({
+        "level": "desktopIcon", "activate": False, "taskbar": False,
+    })
+    entry = RUNS / "app"
+    entry.mkdir(exist_ok=True)
+    manifest = entry / "nsh.json"
+    content = json.dumps(app, indent=2) + "\n"
+    if not manifest.exists() or manifest.read_text() != content:
+        manifest.write_text(content)
+    return entry
+
+
 def shoot(args, raw):
     config = {
         "scene": args.scene, "action": args.action, "out": str(raw),
@@ -155,16 +177,19 @@ def shoot(args, raw):
         "scheme": args.scheme, "duration": args.duration,
     }
     with capture_lock():
-        run_dir = Path(tempfile.mkdtemp(prefix="run-", dir=RUNS))
+        entry = capture_entry(args.foreground)
+        # nsh discovers the app from the test file's ancestors, not only cwd.
+        run_dir = Path(tempfile.mkdtemp(prefix="run-", dir=RUNS if args.foreground else entry))
         try:
             test = run_dir / "capture.test.tsx"
-            entry = os.path.relpath(PREVIEW, run_dir)
             test.write_text(TEST.format(config=json.dumps(config, indent=2),
-                                        entry=json.dumps(entry)))
+                                        entry=json.dumps(os.path.relpath(entry, run_dir))))
             # Share the workspace target directory instead of building a second one.
             env = dict(os.environ, CARGO_TARGET_DIR=str(NSH.parent / "target"))
-            run(["nsh", "test", str(test.relative_to(PREVIEW)), "--target", "macos"],
-                cwd=PREVIEW, env=env)
+            command = ["nsh", "test", os.path.relpath(test, entry), "--target", "macos"]
+            if args.foreground:
+                command.append("--foreground")
+            run(command, cwd=entry, env=env)
         finally:
             shutil.rmtree(run_dir)
 
@@ -229,7 +254,8 @@ def capture(args):
         shutil.rmtree(raw)
 
         lines = [f"scene: {args.scene}", f"action: {args.action or '-'}",
-                 f"window: {args.width}x{args.height} pt, {args.locale}, {args.scheme}"]
+                 f"window: {args.width}x{args.height} pt, {args.locale}, {args.scheme}",
+                 f"presentation: {'foreground' if args.foreground else 'below application windows'}"]
         if args.action:
             frame_lines, picked, frames = timeline(out, args.keyframes)
             lines += frame_lines[:1]
@@ -293,6 +319,8 @@ def main():
     shot.add_argument("--height", type=int, default=650)
     shot.add_argument("--locale", default="en")
     shot.add_argument("--scheme", choices=("light", "dark"), default="light")
+    shot.add_argument("--foreground", action="store_true",
+                      help="show the capture window above other apps (default: below them)")
     shot.add_argument("--crop", help="x,y,w,h in points of the scene area below the toolbar")
     shot.set_defaults(handler=capture)
     diff = commands.add_parser("compare", help="stack two captures of one scene")
