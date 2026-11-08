@@ -23,6 +23,12 @@ mod message_quote;
 mod message_row;
 #[cfg(debug_assertions)]
 pub(crate) use message_row::detached as detached_messages;
+#[cfg(debug_assertions)]
+pub(crate) use message_row::{
+    Detached as DetachedMessages, detached_list as detached_message_list,
+};
+#[cfg(debug_assertions)]
+pub(crate) use timeline::{FOCUS, Motion, place as place_jump};
 mod message_selection;
 mod message_snapshot;
 mod message_system;
@@ -144,8 +150,7 @@ pub(crate) fn screen(
     });
     let unread = unread::Unread::mount(
         account.clone(),
-        conversation.conversation_id.clone(),
-        conversation.unseen_count,
+        &conversation,
         target,
         operation_failed,
         messages,
@@ -273,7 +278,11 @@ pub(crate) fn screen(
                         .relative()
                         .on_layout(media_viewport)
                         .child(
-                            virtual_list(move || messages.with(Vec::len), move |at| rows.row(at))
+                            timeline.reveal.surface(view().flex_1().min_h_0()).child(
+                                virtual_list(
+                                    move || messages.with(Vec::len),
+                                    move |at| rows.row(at),
+                                )
                                 .footer(when(
                                     move || {
                                         !loading.get()
@@ -304,6 +313,7 @@ pub(crate) fn screen(
                                 .estimated_item_size(ui::list_row_height())
                                 .flex_1()
                                 .min_h_0(),
+                            ),
                         )
                         .child(timeline.paging_indicator(i18n))
                         .child(pinned::banner(

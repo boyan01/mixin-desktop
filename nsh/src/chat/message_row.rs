@@ -392,17 +392,62 @@ pub(crate) fn detached(
     sender_names: bool,
     mention_names: std::collections::HashMap<String, String>,
 ) -> impl IntoElement {
+    detached_list(
+        account_id,
+        Detached::new(signal(messages)),
+        sender_names,
+        mention_names,
+    )
+}
+
+/// What a preview drives in a detached chat list: its rows, scroll position,
+/// jump highlight and reveal, as a timeline would.
+#[cfg(debug_assertions)]
+#[derive(Clone, Copy)]
+pub(crate) struct Detached {
+    pub messages: Signal<Vec<MessageListView>>,
+    pub history: ElementRef,
+    pub highlight: Signal<Option<String>>,
+    pub highlight_opacity: nsh_core::element::AnimatedValue,
+    pub reveal: super::timeline::Reveal,
+}
+
+#[cfg(debug_assertions)]
+impl Detached {
+    pub(crate) fn new(messages: Signal<Vec<MessageListView>>) -> Self {
+        Self {
+            messages,
+            history: element_ref(),
+            highlight: signal_with(None, SignalEquals::Never),
+            highlight_opacity: animated_value(0.0),
+            reveal: super::timeline::Reveal::new(),
+        }
+    }
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn detached_list(
+    account_id: &str,
+    list: Detached,
+    sender_names: bool,
+    mention_names: std::collections::HashMap<String, String>,
+) -> impl IntoElement {
     provide_context(super::mentions::MentionNames(signal(mention_names)));
     let media_viewport = super::message_media::viewport();
-    let messages = signal(messages);
+    let Detached {
+        messages,
+        history,
+        highlight,
+        highlight_opacity,
+        reveal,
+    } = list;
     let viewable = signal(None::<(usize, usize)>);
-    let history = element_ref();
     let rows = Rows {
         actions: message_actions::Actions::detached(account_id.to_owned()),
         messages,
         target: signal_with(None, SignalEquals::Never),
-        highlight: signal_with(None, SignalEquals::Never),
-        highlight_opacity: animated_value(0.0),
+        highlight,
+        highlight_opacity,
         unread: None,
         history,
         own_id: stored(account_id.to_owned()),
@@ -411,20 +456,22 @@ pub(crate) fn detached(
         unobstructed: computed(|| true),
     };
     view().flex_1().min_h_0().on_layout(media_viewport).child(
-        virtual_list(move || messages.with(Vec::len), move |at| rows.row(at))
-            .keys(move || {
-                messages.with(|rows| {
-                    rows.iter()
-                        .map(|row| row.message_id.clone())
-                        .collect::<Vec<_>>()
+        reveal.surface(view().flex_1().min_h_0()).child(
+            virtual_list(move || messages.with(Vec::len), move |at| rows.row(at))
+                .keys(move || {
+                    messages.with(|rows| {
+                        rows.iter()
+                            .map(|row| row.message_id.clone())
+                            .collect::<Vec<_>>()
+                    })
                 })
-            })
-            .element_ref(&history)
-            .on_viewable_items_change(move |event: &ViewableItems| viewable.set(event.viewable))
-            .inverted()
-            .estimated_item_size(ui::list_row_height())
-            .flex_1()
-            .min_h_0(),
+                .element_ref(&history)
+                .on_viewable_items_change(move |event: &ViewableItems| viewable.set(event.viewable))
+                .inverted()
+                .estimated_item_size(ui::list_row_height())
+                .flex_1()
+                .min_h_0(),
+        ),
     )
 }
 

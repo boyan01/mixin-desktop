@@ -8,6 +8,7 @@ mod fixtures;
 mod loading;
 mod messages;
 mod sidebar;
+mod stress;
 
 use std::time::Duration;
 
@@ -72,6 +73,16 @@ const SCENES: &[Scene] = &[
         name: "messages-system",
         actions: messages::ACTIONS,
         mount: messages::system,
+    },
+    Scene {
+        name: "messages-stress",
+        actions: stress::MESSAGE_ACTIONS,
+        mount: stress::messages,
+    },
+    Scene {
+        name: "conversations-stress",
+        actions: stress::CONVERSATION_ACTIONS,
+        mount: stress::conversations,
     },
     Scene {
         name: "sidebar",

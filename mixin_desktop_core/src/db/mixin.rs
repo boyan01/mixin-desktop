@@ -25,6 +25,8 @@ pub mod participant_session;
 pub mod pin_message;
 pub(crate) mod quick_search;
 pub mod safe_snapshot;
+#[cfg(test)]
+mod scale_tests;
 pub mod snapshot;
 pub mod sticker;
 pub mod transcript_message;

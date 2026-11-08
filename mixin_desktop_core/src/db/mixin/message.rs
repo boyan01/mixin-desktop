@@ -168,6 +168,151 @@ pub struct MessageOrderInfo {
     pub created_at: NaiveDateTime,
 }
 
+/// The rows on each side of an anchor (`?3` its time, `?4` its rowid), oldest first.
+pub(crate) const LIST_ITEMS_AROUND_QUERY: &str = r#"
+WITH message_window AS (
+    SELECT message_id FROM (
+        SELECT candidate.message_id
+        FROM messages candidate
+        WHERE candidate.conversation_id = ?1
+          AND (
+              candidate.created_at < ?3
+              OR (candidate.created_at = ?3 AND candidate.rowid < ?4)
+          )
+        ORDER BY candidate.created_at DESC, candidate.rowid DESC
+        LIMIT ?5
+    )
+    UNION ALL
+    SELECT ?2 AS message_id
+    UNION ALL
+    SELECT message_id FROM (
+        SELECT candidate.message_id
+        FROM messages candidate
+        WHERE candidate.conversation_id = ?1
+          AND (
+              candidate.created_at > ?3
+              OR (candidate.created_at = ?3 AND candidate.rowid > ?4)
+          )
+        ORDER BY candidate.created_at ASC, candidate.rowid ASC
+        LIMIT ?6
+    )
+)
+SELECT message.message_id,
+       message.conversation_id,
+       message.user_id,
+       COALESCE(sender.full_name, '') AS sender_name,
+       COALESCE(sender.identity_number, '') AS sender_identity_number,
+       COALESCE(sender.avatar_url, '') AS sender_avatar_url,
+       COALESCE(sender.is_verified, FALSE) AS sender_is_verified,
+       sender.membership AS sender_membership,
+       COALESCE(sender.relationship, '') AS sender_relationship,
+       sender.app_id AS sender_app_id,
+       COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
+       CASE WHEN COALESCE(sender.app_id, '') != '' THEN TRUE ELSE FALSE END AS sender_is_bot,
+       sender_participant.user_id AS sender_participant_id,
+       sender_participant.role AS sender_role,
+       message.category,
+       message.content,
+       message.status,
+       message.created_at,
+       message.media_url,
+       message.media_mime_type,
+       message.media_size,
+       message.media_duration,
+       message.media_width,
+       message.media_height,
+       message.thumb_image,
+       message.media_status,
+       message.quote_message_id,
+       CASE WHEN quote_sticker.sticker_id IS NOT NULL
+            THEN json_set(message.quote_content,
+                '$.asset_url', quote_sticker.asset_url,
+                '$.asset_type', quote_sticker.asset_type,
+                '$.asset_width', quote_sticker.asset_width,
+                '$.asset_height', quote_sticker.asset_height,
+                '$.asset_name', quote_sticker.name)
+            ELSE message.quote_content END AS quote_content,
+       quote_user.membership AS quote_user_membership,
+       message.caption,
+       message.action,
+       message.participant_id,
+       participant.full_name AS participant_full_name,
+       message.snapshot_id,
+       COALESCE(snapshot.type, safe_snapshot.type) AS snapshot_type,
+       COALESCE(snapshot.amount, safe_snapshot.amount) AS snapshot_amount,
+       COALESCE(snapshot.memo, safe_snapshot.memo) AS snapshot_memo,
+       COALESCE(snapshot.asset_id, safe_snapshot.asset_id) AS snapshot_asset_id,
+       COALESCE(asset.symbol, token.symbol) AS snapshot_asset_symbol,
+       COALESCE(asset.icon_url, token.icon_url) AS snapshot_asset_icon_url,
+       chain.icon_url AS snapshot_chain_icon_url,
+       COALESCE(snapshot.opponent_id, safe_snapshot.opponent_id) AS snapshot_opponent_id,
+       COALESCE(snapshot.transaction_hash, safe_snapshot.transaction_hash) AS snapshot_transaction_hash,
+       CAST(COALESCE(snapshot.created_at, safe_snapshot.created_at) AS TEXT) AS snapshot_created_at,
+       safe_snapshot.inscription_hash,
+       inscription_item.collection_hash AS inscription_collection_hash,
+       inscription_item.sequence AS inscription_sequence,
+       inscription_item.content_type AS inscription_content_type,
+       inscription_item.content_url AS inscription_content_url,
+       inscription_collection.name AS inscription_name,
+       inscription_collection.icon_url AS inscription_icon_url,
+       message.hyperlink,
+       message.name AS media_name,
+       message.album_id,
+       message.sticker_id,
+       message.shared_user_id,
+       message.media_waveform,
+       message.thumb_url,
+       conversation.owner_id AS conversation_owner_id,
+       conversation.category AS conversation_category,
+       shared_user.full_name AS shared_user_full_name,
+       shared_user.identity_number AS shared_user_identity_number,
+       shared_user.avatar_url AS shared_user_avatar_url,
+       COALESCE(shared_user.is_verified, FALSE) AS shared_user_is_verified,
+       shared_user.membership AS shared_user_membership,
+       shared_user.app_id AS shared_user_app_id,
+       sticker.asset_url AS sticker_asset_url,
+       sticker.asset_width AS sticker_asset_width,
+       sticker.asset_height AS sticker_asset_height,
+       sticker.name AS sticker_asset_name,
+       sticker.asset_type AS sticker_asset_type,
+       mention.has_read AS mention_read,
+       CASE WHEN pin.message_id IS NOT NULL THEN TRUE ELSE FALSE END AS pinned,
+       CASE
+           WHEN message.category = 'SYSTEM_CONVERSATION' AND message.action = 'EXPIRE'
+               THEN CAST(message.content AS INTEGER)
+           ELSE expired.expire_in
+       END AS expire_in
+FROM message_window
+INNER JOIN messages message ON message.message_id = message_window.message_id
+LEFT JOIN users sender ON sender.user_id = message.user_id
+LEFT JOIN participants sender_participant
+       ON sender_participant.conversation_id = message.conversation_id
+      AND sender_participant.user_id = message.user_id
+LEFT JOIN users participant ON participant.user_id = message.participant_id
+LEFT JOIN conversations conversation ON conversation.conversation_id = message.conversation_id
+LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
+LEFT JOIN users quote_user ON quote_user.user_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.user_id') END
+LEFT JOIN stickers sticker ON sticker.sticker_id = message.sticker_id
+LEFT JOIN stickers quote_sticker ON quote_sticker.sticker_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.sticker_id') END
+LEFT JOIN snapshots snapshot ON snapshot.snapshot_id = message.snapshot_id
+LEFT JOIN safe_snapshots safe_snapshot ON safe_snapshot.snapshot_id = message.snapshot_id
+LEFT JOIN assets asset ON asset.asset_id = snapshot.asset_id
+LEFT JOIN tokens token ON token.asset_id = safe_snapshot.asset_id
+LEFT JOIN chains chain ON chain.chain_id = COALESCE(asset.chain_id, token.chain_id)
+LEFT JOIN inscription_items inscription_item
+       ON inscription_item.inscription_hash = safe_snapshot.inscription_hash
+LEFT JOIN inscription_collections inscription_collection
+       ON inscription_collection.collection_hash = inscription_item.collection_hash
+LEFT JOIN message_mentions mention ON mention.message_id = message.message_id
+LEFT JOIN pin_messages pin ON pin.message_id = message.message_id
+LEFT JOIN expired_messages expired ON expired.message_id = message.message_id
+ORDER BY message.created_at ASC, message.rowid ASC
+"#;
+
+pub(crate) const FIRST_UNREAD_MESSAGE_QUERY: &str = "SELECT message_id FROM messages \
+     WHERE conversation_id = ? AND user_id != ? AND status IN ('SENT', 'DELIVERED') \
+     ORDER BY created_at ASC, rowid ASC LIMIT 1";
+
 const MESSAGE_LIST_QUERY_PREFIX: &str = r#"
 SELECT message.message_id,
        message.conversation_id,
@@ -499,14 +644,13 @@ LIMIT ?4
         conversation_id: &str,
         current_user_id: &str,
     ) -> Result<Option<String>, Error> {
-        Ok(crate::db::query_scalar::<String>(
-            "SELECT message_id FROM messages WHERE conversation_id = ? AND user_id != ? \
-             AND status IN ('SENT', 'DELIVERED') ORDER BY created_at ASC, rowid ASC LIMIT 1",
+        Ok(
+            crate::db::query_scalar::<String>(FIRST_UNREAD_MESSAGE_QUERY)
+                .bind(conversation_id)
+                .bind(current_user_id)
+                .fetch_optional(&self.0)
+                .await?,
         )
-        .bind(conversation_id)
-        .bind(current_user_id)
-        .fetch_optional(&self.0)
-        .await?)
     }
 
     pub async fn mark_conversation_read(
@@ -1177,155 +1321,15 @@ LIMIT ?2 OFFSET ?3
         else {
             return Ok(Vec::new());
         };
-        let result = crate::db::query_as::< MessageListItem>(
-            r#"
-WITH message_window AS (
-    SELECT message_id FROM (
-        SELECT candidate.message_id
-        FROM messages candidate
-        WHERE candidate.conversation_id = ?1
-          AND (
-              candidate.created_at < ?3
-              OR (candidate.created_at = ?3 AND candidate.rowid < ?4)
-          )
-        ORDER BY candidate.created_at DESC, candidate.rowid DESC
-        LIMIT ?5
-    )
-    UNION ALL
-    SELECT ?2 AS message_id
-    UNION ALL
-    SELECT message_id FROM (
-        SELECT candidate.message_id
-        FROM messages candidate
-        WHERE candidate.conversation_id = ?1
-          AND (
-              candidate.created_at > ?3
-              OR (candidate.created_at = ?3 AND candidate.rowid > ?4)
-          )
-        ORDER BY candidate.created_at ASC, candidate.rowid ASC
-        LIMIT ?6
-    )
-)
-SELECT message.message_id,
-       message.conversation_id,
-       message.user_id,
-       COALESCE(sender.full_name, '') AS sender_name,
-       COALESCE(sender.identity_number, '') AS sender_identity_number,
-       COALESCE(sender.avatar_url, '') AS sender_avatar_url,
-       COALESCE(sender.is_verified, FALSE) AS sender_is_verified,
-       sender.membership AS sender_membership,
-       COALESCE(sender.relationship, '') AS sender_relationship,
-       sender.app_id AS sender_app_id,
-       COALESCE(sender.is_scam, FALSE) AS sender_is_scam,
-       CASE WHEN COALESCE(sender.app_id, '') != '' THEN TRUE ELSE FALSE END AS sender_is_bot,
-       sender_participant.user_id AS sender_participant_id,
-       sender_participant.role AS sender_role,
-       message.category,
-       message.content,
-       message.status,
-       message.created_at,
-       message.media_url,
-       message.media_mime_type,
-       message.media_size,
-       message.media_duration,
-       message.media_width,
-       message.media_height,
-       message.thumb_image,
-       message.media_status,
-       message.quote_message_id,
-       CASE WHEN quote_sticker.sticker_id IS NOT NULL
-            THEN json_set(message.quote_content,
-                '$.asset_url', quote_sticker.asset_url,
-                '$.asset_type', quote_sticker.asset_type,
-                '$.asset_width', quote_sticker.asset_width,
-                '$.asset_height', quote_sticker.asset_height,
-                '$.asset_name', quote_sticker.name)
-            ELSE message.quote_content END AS quote_content,
-       quote_user.membership AS quote_user_membership,
-       message.caption,
-       message.action,
-       message.participant_id,
-       participant.full_name AS participant_full_name,
-       message.snapshot_id,
-       COALESCE(snapshot.type, safe_snapshot.type) AS snapshot_type,
-       COALESCE(snapshot.amount, safe_snapshot.amount) AS snapshot_amount,
-       COALESCE(snapshot.memo, safe_snapshot.memo) AS snapshot_memo,
-       COALESCE(snapshot.asset_id, safe_snapshot.asset_id) AS snapshot_asset_id,
-       COALESCE(asset.symbol, token.symbol) AS snapshot_asset_symbol,
-       COALESCE(asset.icon_url, token.icon_url) AS snapshot_asset_icon_url,
-       chain.icon_url AS snapshot_chain_icon_url,
-       COALESCE(snapshot.opponent_id, safe_snapshot.opponent_id) AS snapshot_opponent_id,
-       COALESCE(snapshot.transaction_hash, safe_snapshot.transaction_hash) AS snapshot_transaction_hash,
-       CAST(COALESCE(snapshot.created_at, safe_snapshot.created_at) AS TEXT) AS snapshot_created_at,
-       safe_snapshot.inscription_hash,
-       inscription_item.collection_hash AS inscription_collection_hash,
-       inscription_item.sequence AS inscription_sequence,
-       inscription_item.content_type AS inscription_content_type,
-       inscription_item.content_url AS inscription_content_url,
-       inscription_collection.name AS inscription_name,
-       inscription_collection.icon_url AS inscription_icon_url,
-       message.hyperlink,
-       message.name AS media_name,
-       message.album_id,
-       message.sticker_id,
-       message.shared_user_id,
-       message.media_waveform,
-       message.thumb_url,
-       conversation.owner_id AS conversation_owner_id,
-       conversation.category AS conversation_category,
-       shared_user.full_name AS shared_user_full_name,
-       shared_user.identity_number AS shared_user_identity_number,
-       shared_user.avatar_url AS shared_user_avatar_url,
-       COALESCE(shared_user.is_verified, FALSE) AS shared_user_is_verified,
-       shared_user.membership AS shared_user_membership,
-       shared_user.app_id AS shared_user_app_id,
-       sticker.asset_url AS sticker_asset_url,
-       sticker.asset_width AS sticker_asset_width,
-       sticker.asset_height AS sticker_asset_height,
-       sticker.name AS sticker_asset_name,
-       sticker.asset_type AS sticker_asset_type,
-       mention.has_read AS mention_read,
-       CASE WHEN pin.message_id IS NOT NULL THEN TRUE ELSE FALSE END AS pinned,
-       CASE
-           WHEN message.category = 'SYSTEM_CONVERSATION' AND message.action = 'EXPIRE'
-               THEN CAST(message.content AS INTEGER)
-           ELSE expired.expire_in
-       END AS expire_in
-FROM message_window
-INNER JOIN messages message ON message.message_id = message_window.message_id
-LEFT JOIN users sender ON sender.user_id = message.user_id
-LEFT JOIN participants sender_participant
-       ON sender_participant.conversation_id = message.conversation_id
-      AND sender_participant.user_id = message.user_id
-LEFT JOIN users participant ON participant.user_id = message.participant_id
-LEFT JOIN conversations conversation ON conversation.conversation_id = message.conversation_id
-LEFT JOIN users shared_user ON shared_user.user_id = message.shared_user_id
-LEFT JOIN users quote_user ON quote_user.user_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.user_id') END
-LEFT JOIN stickers sticker ON sticker.sticker_id = message.sticker_id
-LEFT JOIN stickers quote_sticker ON quote_sticker.sticker_id = CASE WHEN json_valid(message.quote_content) THEN json_extract(message.quote_content, '$.sticker_id') END
-LEFT JOIN snapshots snapshot ON snapshot.snapshot_id = message.snapshot_id
-LEFT JOIN safe_snapshots safe_snapshot ON safe_snapshot.snapshot_id = message.snapshot_id
-LEFT JOIN assets asset ON asset.asset_id = snapshot.asset_id
-LEFT JOIN tokens token ON token.asset_id = safe_snapshot.asset_id
-LEFT JOIN chains chain ON chain.chain_id = COALESCE(asset.chain_id, token.chain_id)
-LEFT JOIN inscription_items inscription_item
-       ON inscription_item.inscription_hash = safe_snapshot.inscription_hash
-LEFT JOIN inscription_collections inscription_collection
-       ON inscription_collection.collection_hash = inscription_item.collection_hash
-LEFT JOIN message_mentions mention ON mention.message_id = message.message_id
-LEFT JOIN pin_messages pin ON pin.message_id = message.message_id
-LEFT JOIN expired_messages expired ON expired.message_id = message.message_id
-ORDER BY message.created_at ASC, message.rowid ASC
-            "#,
-        )
-        .bind(conversation_id)
-        .bind(target_message_id)
-        .bind(anchor.created_at.and_utc().timestamp_millis())
-        .bind(anchor.row_id)
-        .bind(before.clamp(0, 100))
-        .bind(after.clamp(0, 100))
-        .fetch_all(&self.0)
-        .await?;
+        let result = crate::db::query_as::<MessageListItem>(LIST_ITEMS_AROUND_QUERY)
+            .bind(conversation_id)
+            .bind(target_message_id)
+            .bind(anchor.created_at.and_utc().timestamp_millis())
+            .bind(anchor.row_id)
+            .bind(before.clamp(0, 100))
+            .bind(after.clamp(0, 100))
+            .fetch_all(&self.0)
+            .await?;
         Ok(result)
     }
 

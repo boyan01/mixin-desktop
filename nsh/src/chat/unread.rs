@@ -1,5 +1,5 @@
 use futures::StreamExt as _;
-use mixin_desktop_api::{AccountClient, MessageListView};
+use mixin_desktop_api::{AccountClient, ConversationListData, MessageListView};
 use nsh_core::{element::desktop::MenuItem, prelude::*};
 use std::sync::Arc;
 
@@ -54,13 +54,14 @@ pub(super) struct Unread {
 impl Unread {
     pub fn mount(
         account: Arc<AccountClient>,
-        conversation: String,
-        unseen: i64,
+        conversation: &ConversationListData,
         target: Signal<Option<String>>,
         failed: Signal<bool>,
         messages: Signal<Vec<MessageListView>>,
         attentive: Memo<bool>,
     ) -> Self {
+        let unseen = conversation.unseen_count;
+        let last_read = conversation.last_read_message_id.clone();
         let latest_observed = signal(None::<String>);
         let state = Self {
             owner: Owner::current(),
@@ -80,7 +81,7 @@ impl Unread {
             marking: signal(false),
             retry: signal(0),
             account: stored(account),
-            conversation: stored(conversation),
+            conversation: stored(conversation.conversation_id.clone()),
             target,
             failed,
             attentive,
@@ -134,6 +135,22 @@ impl Unread {
                 }
             });
         });
+        // As in Flutter, the divider follows the last read row, so a chat opened
+        // at its unread rows shows it with them instead of after its own query.
+        if let Some(last_read) = last_read.filter(|_| unseen > 0) {
+            effect(move || {
+                if state.ready.get() || state.first.with(Option::is_some) {
+                    return;
+                }
+                let newer = messages.with(|rows| {
+                    let at = rows.iter().position(|row| row.message_id == last_read)?;
+                    Some(rows[at.checked_sub(1)?].message_id.clone())
+                });
+                if newer.is_some() {
+                    state.first.set(newer);
+                }
+            });
+        }
         effect(move || {
             if attentive.get() {
                 let (last, ids) = state.last_viewable.with(|last| last.clone());

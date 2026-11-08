@@ -27,7 +27,8 @@ struct Cells {
     selected: Signal<Option<ConversationListData>>,
     previews: Signal<HashMap<String, (String, String)>>,
     navigation: ChatNavigation,
-    commands: Commands,
+    /// Row menus; a detached preview has no account to run them.
+    commands: Option<Commands>,
 }
 
 pub(crate) fn screen(
@@ -44,36 +45,37 @@ pub(crate) fn screen(
         selected,
         previews: signal(HashMap::new()),
         navigation: use_context().expect("Home provides chat navigation"),
-        commands: use_context().expect("Home provides conversation commands"),
+        commands: Some(use_context().expect("Home provides conversation commands")),
     };
     resolve_mentions(account, rows, cells);
     view().flex_1().min_h_0().child(
-        virtual_list(
-            move || rows.with(Vec::len),
-            move |at| {
-                // Only the cell whose row changed rebinds when the window reloads.
-                cells.cell(computed(move || {
-                    rows.with(|rows| rows.get(at.index()).cloned())
-                }))
-            },
-        )
-        .keys(move || {
-            rows.with(|rows| {
-                rows.iter()
-                    .map(|row| row.conversation_id.clone())
-                    .collect::<Vec<_>>()
+        cells
+            .list(rows, window.list)
+            .on_viewable_items_change(move |items: &nsh_core::element::ViewableItems| {
+                window.viewable(items)
             })
-        })
-        .element_ref(&window.list)
-        .estimated_item_size(ui::list_row_height())
-        .flex_1()
-        .min_h_0()
-        .on_viewable_items_change(move |items: &nsh_core::element::ViewableItems| {
-            window.viewable(items)
-        })
-        .on_load_more(move || window.next())
-        .on_load_more_at_start(move || window.previous()),
+            .on_load_more(move || window.next())
+            .on_load_more_at_start(move || window.previous()),
     )
+}
+
+/// Fixed conversation rows, for the debug preview: no account, no row menus.
+#[cfg(debug_assertions)]
+pub(crate) fn detached(
+    account_id: &str,
+    rows: Signal<Vec<ConversationListData>>,
+    list: ElementRef,
+) -> View {
+    let cells = Cells {
+        i18n: i18n::current(),
+        account_id: stored(account_id.to_owned()),
+        drafts: signal(HashMap::new()),
+        selected: signal(None),
+        previews: signal(HashMap::new()),
+        navigation: use_context().expect("the preview provides chat navigation"),
+        commands: None,
+    };
+    view().flex_1().min_h_0().child(cells.list(rows, list))
 }
 
 /// Resolves only previews that can hold a mention; a cell shows a result while
@@ -119,6 +121,33 @@ fn resolve_mentions(
 }
 
 impl Cells {
+    fn list(
+        self,
+        rows: Signal<Vec<ConversationListData>>,
+        list: ElementRef,
+    ) -> nsh_core::element::VirtualList {
+        virtual_list(
+            move || rows.with(Vec::len),
+            move |at| {
+                // Only the cell whose row changed rebinds when the window reloads.
+                self.cell(computed(move || {
+                    rows.with(|rows| rows.get(at.index()).cloned())
+                }))
+            },
+        )
+        .keys(move || {
+            rows.with(|rows| {
+                rows.iter()
+                    .map(|row| row.conversation_id.clone())
+                    .collect::<Vec<_>>()
+            })
+        })
+        .element_ref(&list)
+        .estimated_item_size(ui::list_row_height())
+        .flex_1()
+        .min_h_0()
+    }
+
     fn cell(self, row: Row) -> impl IntoElement {
         let selected = move || {
             let id = read(row, |row| row.conversation_id.clone());
@@ -146,7 +175,12 @@ impl Cells {
                     .child(self.title_line(row))
                     .child(self.preview_line(row)),
             );
-        actions::wrap(self.commands, move || row.get_untracked(), content)
+        match self.commands {
+            Some(commands) => {
+                actions::wrap(commands, move || row.get_untracked(), content).into_element()
+            }
+            None => content.into_element(),
+        }
     }
 
     fn title_line(self, row: Row) -> impl IntoElement {

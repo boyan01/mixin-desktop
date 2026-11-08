@@ -536,4 +536,136 @@ pub(super) mod messages {
             row(person(2), "STRANGER", ""),
         ])
     }
+    /// Rows in the stress scene's history.
+    pub(in crate::preview) const STRESS_ROWS: usize = 10_000;
+    /// How far back, in rows, the newest message quotes.
+    pub(in crate::preview) const STRESS_FAR_QUOTE: usize = 9_000;
+
+    /// A long history, newest first: every sixth row a long text of several
+    /// paragraphs, every fortieth a reply to the row twenty earlier, and the
+    /// newest a reply to the row `STRESS_FAR_QUOTE` back.
+    pub(in crate::preview) fn stress_rows() -> Vec<MessageListView> {
+        let mut rows: Vec<MessageListView> = Vec::with_capacity(STRESS_ROWS);
+        for index in 0..STRESS_ROWS {
+            let sender = if index % 5 == 0 {
+                me()
+            } else {
+                person(index % 4)
+            };
+            let content = if index % 6 == 0 {
+                long_text(index)
+            } else {
+                format!("第 {index} 条消息 · message {index}")
+            };
+            let mut row = text(sender, &content);
+            row.message_id = id(index);
+            row.created_at_micros = START_MICROS + index as i64 * 60_000_000;
+            let quoted = if index == STRESS_ROWS - 1 {
+                Some(index - STRESS_FAR_QUOTE)
+            } else {
+                (index % 40 == 39).then(|| index - 20)
+            };
+            if let Some(quoted) = quoted {
+                row = reply(row, &rows[quoted]);
+            }
+            rows.push(row);
+        }
+        rows.reverse();
+        rows
+    }
+
+    fn long_text(index: usize) -> String {
+        let paragraph = "这是一段很长的消息，用来检查长文本在列表里的测量、换行和滚动。\
+             It mixes Chinese and English, a link https://mixin.one/messages and \
+             enough words to wrap across many lines in a narrow window.";
+        let paragraphs = 3 + index % 5;
+        let mut text = format!("#{index} ");
+        for at in 0..paragraphs {
+            if at > 0 {
+                text.push_str("\n\n");
+            }
+            text.push_str(paragraph);
+        }
+        text
+    }
+}
+
+/// Conversation rows for the conversation list stress scene.
+pub(super) mod conversations {
+    use mixin_desktop_api::ConversationListData;
+
+    use super::{PEOPLE, USER_ID};
+
+    pub(in crate::preview) const STRESS_ROWS: usize = 10_000;
+
+    /// Newest first: groups and contacts, every fifth unread, every seventh
+    /// with a long last message, every ninety-seventh pinned.
+    pub(in crate::preview) fn stress_rows() -> Vec<ConversationListData> {
+        (0..STRESS_ROWS)
+            .map(|index| {
+                let group = index % 3 == 0;
+                let (person_id, person_name) = PEOPLE[index % PEOPLE.len()];
+                let last_message = if index % 7 == 0 {
+                    format!(
+                        "第 {index} 个会话的最后一条消息很长，需要在一行里截断显示 \
+                         and keep its row height steady while scrolling"
+                    )
+                } else {
+                    format!("message {index}")
+                };
+                ConversationListData {
+                    conversation_id: format!("00000000-0000-4000-9000-{index:012}"),
+                    owner_id: person_id.into(),
+                    name: if group {
+                        format!("讨论组 {index}")
+                    } else {
+                        format!("{person_name} {index}")
+                    },
+                    avatar_url: String::new(),
+                    category: if group { "GROUP" } else { "CONTACT" }.into(),
+                    draft: String::new(),
+                    status: 2,
+                    last_read_message_id: None,
+                    last_message,
+                    last_message_category: Some("SIGNAL_TEXT".into()),
+                    last_message_status: Some("READ".into()),
+                    last_message_sender_id: Some(if index % 4 == 0 {
+                        USER_ID.into()
+                    } else {
+                        person_id.into()
+                    }),
+                    last_message_sender_name: Some(person_name.into()),
+                    last_message_action: None,
+                    last_message_participant_id: None,
+                    last_message_participant_name: None,
+                    // 2026-11-02 09:00 UTC, a minute apart going back.
+                    updated_at_millis: 1_793_610_000_000 - index as i64 * 60_000,
+                    unseen_count: if index % 5 == 0 {
+                        (index % 120) as i64 + 1
+                    } else {
+                        0
+                    },
+                    mention_count: i64::from(index % 50 == 0),
+                    is_muted: index % 11 == 0,
+                    is_verified: false,
+                    is_scam: false,
+                    is_bot: false,
+                    is_bot_group: false,
+                    membership: None,
+                    is_pinned: index % 97 == 0,
+                    pin_time_millis: 0,
+                    relationship: if group {
+                        String::new()
+                    } else {
+                        "FRIEND".into()
+                    },
+                    identity_number: String::new(),
+                    circle_ids: Vec::new(),
+                    participant_count: if group { 12 } else { 0 },
+                    group_avatars: Vec::new(),
+                    expire_in: 0,
+                }
+            })
+            .collect()
+    }
 }

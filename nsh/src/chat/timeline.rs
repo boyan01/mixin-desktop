@@ -22,6 +22,109 @@ use query::{Load, Window};
 
 /// Coalesces a sync burst into one window read; short enough to read as instant.
 const REFRESH_INTERVAL: Duration = Duration::from_millis(60);
+/// The most rows a jump scrolls through; past them a reader cannot follow the
+/// motion, so the target is placed at once and its rows ease in instead.
+const SCROLL_JUMP_ROWS: usize = 40;
+const REVEAL_MS: f32 = 220.0;
+const REVEAL_OFFSET: f32 = 24.0;
+/// Where a jump target lands. NSH mirrors view_position for an inverted list:
+/// 0.8 puts the target near Flutter's 0.2 focus anchor measured from the top.
+pub(crate) const FOCUS: f32 = 0.8;
+
+/// How a jump brings its target row into view.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Motion {
+    /// Scrolls there through the rows in between.
+    Scroll,
+    /// Shows the target at once; `reveal` eases the rows in when they replace
+    /// rows the reader was looking at.
+    Place { reveal: bool },
+}
+
+impl Motion {
+    /// `distance` is how many rows separate the target from the visible row,
+    /// `None` when the target is outside the rows the list holds.
+    pub(crate) fn for_jump(distance: Option<usize>, visible: bool) -> Self {
+        match distance {
+            Some(distance) if distance <= SCROLL_JUMP_ROWS => Self::Scroll,
+            _ => Self::Place { reveal: visible },
+        }
+    }
+}
+
+/// Hides the list while a jump places it, then shows it: at once, or easing in
+/// from the side its rows came from when they replace rows the reader saw.
+#[derive(Clone, Copy)]
+pub(crate) struct Reveal {
+    opacity: nsh_core::element::AnimatedValue,
+    offset: nsh_core::element::AnimatedValue,
+}
+
+impl Reveal {
+    pub(crate) fn new() -> Self {
+        Self {
+            opacity: animated_value(1.0),
+            offset: animated_value(0.0),
+        }
+    }
+
+    fn hide(self) {
+        self.opacity.set(0.0);
+    }
+
+    /// `older`: the rows came from above, as older messages sit in a chat.
+    fn show(self, from: Option<bool>) {
+        let Some(older) = from else {
+            self.offset.set(0.0);
+            self.opacity.set(1.0);
+            return;
+        };
+        let ms = crate::motion::duration(REVEAL_MS);
+        self.offset.set(if reduce_motion() {
+            0.0
+        } else if older {
+            -REVEAL_OFFSET
+        } else {
+            REVEAL_OFFSET
+        });
+        let _ = self
+            .opacity
+            .timing(1.0, ms, nsh_core::animation::Easing::EaseOut);
+        let _ = self
+            .offset
+            .timing(0.0, ms, nsh_core::animation::Easing::EaseOut);
+    }
+
+    pub(crate) fn surface(self, view: View) -> View {
+        view.bind_opacity(&self.opacity)
+            .bind_transform(nsh_core::TransformKind::TranslateY, &self.offset)
+    }
+}
+
+/// Shows row `index` of rows set in this turn without scrolling through the
+/// rows before it. A scroll command sent with the rows would apply to the
+/// rows they replace, so the list stays hidden for the commit that lays them
+/// out at their default position, is placed after it, and shows once placed.
+/// `position` is where in the viewport the row lands (`FOCUS` for a jump),
+/// `from` how it shows (`Reveal::show`), `current` whether the jump still
+/// stands when the rows are laid out.
+pub(crate) fn place(
+    history: ElementRef,
+    reveal: Reveal,
+    index: usize,
+    position: f32,
+    from: Option<bool>,
+    current: impl Fn() -> bool + 'static,
+) {
+    reveal.hide();
+    after_answer(move || {
+        if current() {
+            history.scroll_to_index(index as u32, percentage(position), Points::ZERO, false);
+        }
+        // Shown even when superseded: a later jump may not hide it again.
+        after_answer(move || reveal.show(from));
+    });
+}
 
 /// How a read's rows reach the list, across its splice phases.
 #[derive(Clone, Copy)]
@@ -30,6 +133,8 @@ struct Replacement {
     tail: bool,
     /// The position revision to scroll to the latest row under.
     scroll_latest: Option<u64>,
+    /// The reader asked for the latest rows: move there as a jump does.
+    animate: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -57,6 +162,7 @@ pub(super) struct Timeline {
     visible_anchor: Signal<Option<String>>,
     following_tail: Signal<bool>,
     show_latest: Signal<bool>,
+    pub reveal: Reveal,
 }
 
 impl Timeline {
@@ -95,6 +201,7 @@ impl Timeline {
             visible_anchor: signal(None),
             following_tail: signal(true),
             show_latest: signal(false),
+            reveal: Reveal::new(),
         };
         effect(move || {
             let Some((ticket, request)) = state.request.get() else {
@@ -288,12 +395,58 @@ impl Timeline {
             self.missing_target.set(window.missing);
         });
         if let Some(id) = scroll {
+            let (motion, older) = self.messages.with_untracked(|rows| {
+                let visible = self
+                    .visible_anchor
+                    .with_untracked(|anchor| {
+                        rows.iter()
+                            .position(|row| Some(&row.message_id) == anchor.as_ref())
+                    })
+                    .or((!rows.is_empty()).then_some(0));
+                let target = rows.iter().position(|row| row.message_id == id);
+                let distance = target
+                    .zip(visible)
+                    .map(|(target, visible)| target.abs_diff(visible));
+                // The list stays hidden until its first rows: nothing to reveal.
+                let motion = Motion::for_jump(distance, !self.loading.get_untracked());
+                // The list is newest first; across windows, compare times.
+                let older = match (target, visible) {
+                    (Some(target), Some(visible)) => target > visible,
+                    _ => {
+                        let at = |rows: &[MessageListView]| {
+                            rows.iter()
+                                .find(|row| row.message_id == id)
+                                .map(|row| row.created_at_micros)
+                        };
+                        let shown = visible.and_then(|visible| rows.get(visible));
+                        match (at(&window.rows), shown) {
+                            (Some(target), Some(shown)) => target <= shown.created_at_micros,
+                            _ => true,
+                        }
+                    }
+                };
+                (motion, older)
+            });
+            let index = window.rows.iter().position(|row| row.message_id == id);
             self.messages.set(window.rows);
             self.visible_anchor.set(Some(id.clone()));
             if highlight {
                 self.highlight.set(Some(id.clone()));
             }
-            self.scroll_to(id, position_revision);
+            match (motion, index) {
+                (Motion::Place { reveal }, Some(index)) => {
+                    let position = self.position_revision;
+                    place(
+                        self.history,
+                        self.reveal,
+                        index,
+                        FOCUS,
+                        reveal.then_some(older),
+                        move || position.get_untracked() == position_revision,
+                    );
+                }
+                _ => self.scroll_to(id, position_revision),
+            }
             return false;
         }
         // A status update must not pull a reader who is a few points up.
@@ -309,6 +462,7 @@ impl Timeline {
                 ticket,
                 tail,
                 scroll_latest: (tail && moved).then_some(position_revision),
+                animate: explicit && !self.loading.get_untracked(),
             },
         )
     }
@@ -348,14 +502,29 @@ impl Timeline {
             });
             return true;
         }
+        // How far the reader is from the newest row, if it is in these rows.
+        let distance = replacement.animate.then(|| {
+            self.visible_anchor.with_untracked(|anchor| {
+                rows.iter()
+                    .position(|row| Some(&row.message_id) == anchor.as_ref())
+            })
+        });
         self.messages.set(rows);
         if let Some(revision) = replacement.scroll_latest {
-            after_answer(move || {
-                if self.position_revision.get_untracked() == revision {
-                    self.history
-                        .scroll_to_index(0, percentage(0.0), Points::ZERO, false);
+            let current = move || self.position_revision.get_untracked() == revision;
+            match distance.map(|distance| Motion::for_jump(distance, true)) {
+                // Newer rows replace the ones in view: they come up from below.
+                Some(Motion::Place { .. }) => {
+                    place(self.history, self.reveal, 0, 0.0, Some(false), current);
                 }
-            });
+                motion => after_answer(move || {
+                    if current() {
+                        let animated = motion.is_some() && !reduce_motion();
+                        self.history
+                            .scroll_to_index(0, percentage(0.0), Points::ZERO, animated);
+                    }
+                }),
+            }
         }
         false
     }
@@ -392,11 +561,10 @@ impl Timeline {
                 .messages
                 .with_untracked(|rows| rows.iter().position(|row| row.message_id == id))
             {
-                // NSH mirrors view_position for an inverted list: 0.8 puts the
-                // target near Flutter's 0.2 focus anchor measured from the top.
+                // The anchor `place` uses.
                 self.history.scroll_to_index(
                     index as u32,
-                    percentage(0.8),
+                    percentage(FOCUS),
                     Points::ZERO,
                     !reduce_motion(),
                 );
@@ -551,5 +719,29 @@ impl Timeline {
                 )
             },
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Motion, SCROLL_JUMP_ROWS};
+
+    #[test]
+    fn jumps_scroll_only_through_a_few_rows_and_place_farther_targets() {
+        for (distance, visible, motion) in [
+            (Some(0), true, Motion::Scroll),
+            (Some(SCROLL_JUMP_ROWS), true, Motion::Scroll),
+            (
+                Some(SCROLL_JUMP_ROWS + 1),
+                true,
+                Motion::Place { reveal: true },
+            ),
+            // Outside the window: thousands of rows away.
+            (None, true, Motion::Place { reveal: true }),
+            // Opening a chat at its target: nothing on screen to replace.
+            (None, false, Motion::Place { reveal: false }),
+        ] {
+            assert_eq!(Motion::for_jump(distance, visible), motion, "{distance:?}");
+        }
     }
 }

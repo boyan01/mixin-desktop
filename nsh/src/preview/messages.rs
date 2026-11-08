@@ -54,6 +54,16 @@ pub(super) fn system(_: Actions) -> View {
 /// The chat background and its list, under the services `Home` provides a chat.
 fn timeline(rows: Vec<MessageListView>) -> View {
     provide_services();
+    timeline_view(chat::detached_messages(
+        fixtures::USER_ID,
+        rows,
+        true,
+        fixtures::messages::mention_names(),
+    ))
+}
+
+/// The chat background under `list`, built after `provide_services`.
+pub(super) fn timeline_view(list: impl IntoElement) -> View {
     view()
         .flex_1()
         .min_h_0()
@@ -67,16 +77,11 @@ fn timeline(rows: Vec<MessageListView>) -> View {
                 .object_fit(ResizeMode::Cover)
                 .opacity(ui::chat_pattern_opacity()),
         )
-        .child(chat::detached_messages(
-            fixtures::USER_ID,
-            rows,
-            true,
-            fixtures::messages::mention_names(),
-        ))
+        .child(list)
 }
 
 /// What `Home` provides a chat, without an account: defaults and idle state.
-fn provide_services() {
+pub(super) fn provide_services() {
     let media = Arc::new(MediaClient::new());
     provide_context(crate::Clients {
         settings: stored(None),
