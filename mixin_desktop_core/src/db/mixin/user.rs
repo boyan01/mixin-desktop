@@ -64,24 +64,6 @@ impl UserDao {
         Self(pool, MentionCache::default())
     }
 
-    pub(crate) async fn missing_referenced_user_ids(&self) -> Result<Vec<String>, Error> {
-        Ok(crate::db::query_scalar(
-            r#"SELECT DISTINCT refs.user_id FROM (
-                SELECT owner_id AS user_id FROM conversations
-                UNION ALL SELECT user_id FROM participants
-                UNION ALL SELECT user_id FROM messages
-                UNION ALL SELECT shared_user_id FROM messages
-                UNION ALL SELECT participant_id FROM messages
-                UNION ALL SELECT user_id FROM transcript_messages
-                UNION ALL SELECT shared_user_id FROM transcript_messages
-            ) refs
-            LEFT JOIN users ON users.user_id = refs.user_id
-            WHERE refs.user_id IS NOT NULL AND refs.user_id != '' AND users.user_id IS NULL"#,
-        )
-        .fetch_all(&self.0)
-        .await?)
-    }
-
     pub async fn selectable_users(&self, current_user_id: &str) -> Result<Vec<User>, Error> {
         self.selectable_users_window(current_user_id, "", 0, -1)
             .await

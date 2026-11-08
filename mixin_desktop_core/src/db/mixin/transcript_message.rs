@@ -202,12 +202,16 @@ pub struct TranscriptMessageListItem {
 
 impl TranscriptMessageDao {
     /// Runs before account services start, when no transfer from this process can be active.
+    /// Uses the same indexed conversation prefix as
+    /// `MessageDao::recover_interrupted_uploads`.
     pub(crate) async fn recover_interrupted_uploads(&self, account_id: &str) -> Result<(), Error> {
         let mut transaction = self.0.begin_with("BEGIN IMMEDIATE").await?;
         crate::db::query(
             "UPDATE transcript_messages SET media_status = 'CANCELED' \
              WHERE media_status = 'PENDING' AND transcript_id IN \
-             (SELECT message_id FROM messages WHERE user_id = ? AND status = 'SENDING' \
+             (SELECT message_id FROM messages \
+              WHERE conversation_id IN (SELECT conversation_id FROM conversations) \
+              AND status = 'SENDING' AND user_id = ? \
               AND category IN ('PLAIN_TRANSCRIPT', 'SIGNAL_TRANSCRIPT', 'ENCRYPTED_TRANSCRIPT') \
               AND media_status = 'PENDING')",
         )
@@ -216,7 +220,8 @@ impl TranscriptMessageDao {
         .await?;
         crate::db::query(
             "UPDATE messages SET media_status = 'CANCELED' \
-             WHERE user_id = ? AND status = 'SENDING' AND media_status = 'PENDING' \
+             WHERE conversation_id IN (SELECT conversation_id FROM conversations) \
+             AND status = 'SENDING' AND user_id = ? AND media_status = 'PENDING' \
              AND category IN ('PLAIN_TRANSCRIPT', 'SIGNAL_TRANSCRIPT', 'ENCRYPTED_TRANSCRIPT')",
         )
         .bind(account_id)

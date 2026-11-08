@@ -1638,10 +1638,14 @@ ORDER BY message.created_at ASC, message.rowid ASC
     }
 
     /// Account startup runs this before any attachment transfer can be active.
+    /// The conversation prefix lets SQLite use
+    /// `index_message_conversation_id_status_user_id` instead of scanning
+    /// every message.
     pub(crate) async fn recover_interrupted_uploads(&self, account_id: &str) -> Result<(), Error> {
         crate::db::query(
             "UPDATE messages SET media_status = 'CANCELED' \
-             WHERE user_id = ? AND status = 'SENDING' AND media_status = 'PENDING' \
+             WHERE conversation_id IN (SELECT conversation_id FROM conversations) \
+             AND status = 'SENDING' AND user_id = ? AND media_status = 'PENDING' \
              AND category IN ('PLAIN_IMAGE', 'SIGNAL_IMAGE', 'ENCRYPTED_IMAGE', \
               'PLAIN_VIDEO', 'SIGNAL_VIDEO', 'ENCRYPTED_VIDEO', \
               'PLAIN_AUDIO', 'SIGNAL_AUDIO', 'ENCRYPTED_AUDIO', \

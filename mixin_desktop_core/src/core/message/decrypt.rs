@@ -2095,13 +2095,6 @@ mod tests {
             service.app_service.conversation.pending_user_count().await,
             2
         );
-        let mut missing = database
-            .user_dao
-            .missing_referenced_user_ids()
-            .await
-            .unwrap();
-        missing.sort();
-        assert_eq!(missing, ["missing-contact", "missing-sender"]);
         let items = database
             .conversation_dao
             .list_items("chats", None, "", false, 10, 0)

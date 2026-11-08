@@ -30,6 +30,10 @@ the Flutter Hive boxes; `app.db` holds NSH-only preferences. While open, NSH hol
 the `hydrated_box` Hive lock, so it refuses to start while the Flutter app runs.
 Use `MIXIN_DESKTOP_DATA_DIR` to select an isolated test directory.
 
+On macOS, `cargo run` starts an unsandboxed process, which macOS asks to approve
+before it reads another app's container. The sandboxed bundle below opens the
+container directly, like a local Flutter build.
+
 The NSH CLI bypasses the native executable entry point. Prefer `cargo run` when
 validating startup, process ownership, native component registration and shutdown.
 macOS is the first validation target. Windows and Linux are unverified; see the roadmap.
@@ -131,6 +135,10 @@ python3 nsh/tool/package_macos.py
 
 The packager writes the app icon, microphone/local-network purpose strings and
 an alternate `mixin:` URL registration, then applies and verifies ad hoc signing.
+Like a local Flutter build, the bundle uses the Flutter bundle id
+`one.mixin.messenger.desktop` and the sandbox entitlements in
+`packaging/macos/Mixin.entitlements`, so macOS gives it the Flutter container.
+A sandboxed `MIXIN_DESKTOP_DATA_DIR` must point inside that container.
 It does not select a system-default protocol handler. Distribution signing,
 notarization, updates and other platform packages need separate validation.
 

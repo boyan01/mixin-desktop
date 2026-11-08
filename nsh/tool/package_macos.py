@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Build the app's native Rust entry point into an ad hoc signed macOS bundle."""
+"""Build the app's native Rust entry point into an ad hoc signed, sandboxed macOS bundle.
+
+The bundle uses the Flutter desktop app's bundle id and sandbox entitlements, so
+macOS gives it the same container and data directory as a local Flutter build.
+"""
 import argparse
 import json
 from pathlib import Path
@@ -9,6 +13,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+
+# The Flutter desktop app's bundle id, which owns its sandbox container.
+BUNDLE_ID = "one.mixin.messenger.desktop"
 
 
 def run(*args, **kwargs):
@@ -30,7 +37,7 @@ def main():
         raise SystemExit("--out must name a .app bundle")
     if output.exists():
         info = output / "Contents/Info.plist"
-        if not info.is_file() or plistlib.loads(info.read_bytes()).get("CFBundleIdentifier") != metadata["id"]:
+        if not info.is_file() or plistlib.loads(info.read_bytes()).get("CFBundleIdentifier") not in (BUNDLE_ID, metadata["id"]):
             raise SystemExit("Refusing to replace a bundle belonging to another application")
     command = ["cargo", "build", "-p", "mixin_desktop_ui", "--bin", "mixin_desktop_ui"]
     if args.release:
@@ -69,7 +76,7 @@ def main():
     info = {
         "CFBundlePackageType": "APPL",
         "CFBundleExecutable": executable.name,
-        "CFBundleIdentifier": metadata["id"],
+        "CFBundleIdentifier": BUNDLE_ID,
         "CFBundleName": metadata["name"],
         "CFBundleDisplayName": metadata["name"],
         "CFBundleShortVersionString": metadata["version"],
@@ -82,7 +89,7 @@ def main():
         "NSMicrophoneUsageDescription": "Record voice messages to send in your conversations.",
         "NSLocalNetworkUsageDescription": "Transfer your chat history between your own devices.",
         "CFBundleURLTypes": [{
-            "CFBundleURLName": metadata["id"],
+            "CFBundleURLName": BUNDLE_ID,
             "CFBundleURLSchemes": ["mixin"],
             "CFBundleTypeRole": "Viewer",
             "LSHandlerRank": "Alternate",
@@ -91,7 +98,8 @@ def main():
     (contents / "Info.plist").write_bytes(plistlib.dumps(info))
     (contents / "PkgInfo").write_bytes(b"APPL????")
     # Local development signing only; distribution signing/notarization is separate.
-    run("codesign", "--force", "--sign", "-", output)
+    run("codesign", "--force", "--sign", "-", "--entitlements",
+        project / "packaging/macos/Mixin.entitlements", output)
     run("codesign", "--verify", "--strict", output)
     print(f"Built and verified {output}")
 

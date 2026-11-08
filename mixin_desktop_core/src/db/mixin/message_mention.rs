@@ -84,10 +84,12 @@ impl MessageMentionDao {
         Ok(changed)
     }
 
+    /// `CROSS JOIN` keeps the conversation's few mentions as the outer loop;
+    /// otherwise SQLite walks every message of the conversation.
     pub async fn unread_message_ids(&self, conversation_id: &str) -> Result<Vec<String>, Error> {
         Ok(crate::db::query_scalar::<String>(
             "SELECT mention.message_id FROM message_mentions mention \
-             INNER JOIN messages message ON message.message_id = mention.message_id \
+             CROSS JOIN messages message ON message.message_id = mention.message_id \
              AND message.conversation_id = mention.conversation_id \
              WHERE mention.conversation_id = ? AND COALESCE(mention.has_read, FALSE) = FALSE \
              ORDER BY message.created_at ASC, message.rowid ASC",

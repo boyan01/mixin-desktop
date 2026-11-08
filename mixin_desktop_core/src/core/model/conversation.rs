@@ -90,11 +90,6 @@ impl ConversationService {
 
     /// Polled alongside the other account services; dropping the account cancels HTTP and retries.
     pub(crate) async fn run_user_refresh(&self, changes: ConversationChangeNotifier) {
-        // Reconstruct missing cache entries after restart, outside the startup readiness path.
-        match self.db.user_dao.missing_referenced_user_ids().await {
-            Ok(ids) => self.pending_users.lock().await.extend(ids),
-            Err(error) => log::warn!("failed to recover missing user profiles: {error}"),
-        }
         self.refresh_pending_users(changes, |ids| async move {
             self.client
                 .user_api

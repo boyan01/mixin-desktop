@@ -10,6 +10,12 @@ use nsh_platform_windows as platform;
 
 fn main() -> Result<std::process::ExitCode, Box<dyn std::error::Error>> {
     let directory = mixin_desktop_ui::data_directory()?;
+    // Bot web profiles, the notification preview and the shell namespace read
+    // the resolved directory from the environment.
+    // SAFETY: this entry point has not started threads or the NSH engine yet.
+    unsafe {
+        std::env::set_var("MIXIN_DESKTOP_DATA_DIR", &directory);
+    }
     #[cfg(target_os = "windows")]
     let notification = mixin_desktop_ui::prepare_notification_activation()?;
     #[cfg(not(target_os = "windows"))]
