@@ -64,37 +64,19 @@ pub(super) fn body(row: MessageListView, actions: Actions, placement: Placement)
     }
     let appearance = appearance();
     let transcript = placement.transcript.clone();
+    let in_transcript = transcript.is_some();
     let mine = row.sender_id == actions.account.with(|account| account.account_id());
     // A status at the end of the text needs room there, not just over it.
     let room = (framed && frame.stamp == Stamp::Inline)
         .then(|| message_appearance::stamp_reserve(&row, mine && frame.delivery));
-    let mut content = view()
-        .min_w_0()
-        .text_size(move || appearance.primary_size());
-    if !framed {
-        content = content.gap_2();
-    }
-    if row
+    let quoted = row
         .quote_message_id
         .as_ref()
-        .is_some_and(|id| !id.is_empty())
-    {
-        let quote = view().child(super::message_quote::quoted(
-            &row,
-            actions,
-            placement.target,
-            transcript.is_some(),
-        ));
-        // Flutter holds a quote to the picture under it.
-        content = content.child(if matches!(frame.inset, Inset::Flush | Inset::Caption) {
-            quote.w_0().min_w(relative(1.0))
-        } else {
-            quote.min_w_0()
-        });
-    }
+        .is_some_and(|id| !id.is_empty());
     let mut main = view()
         .min_w_0()
-        .child(kind_body(&row, actions, placement, room));
+        .text_size(move || appearance.primary_size())
+        .child(kind_body(&row, actions, placement.clone(), room));
     if !framed {
         main = main.gap_2();
     }
@@ -112,8 +94,31 @@ pub(super) fn body(row: MessageListView, actions: Actions, placement: Placement)
             view().min_w_0().child(caption)
         });
     }
+    let main = if framed { frame.padded(main) } else { main };
+    // Without a quote the main part is the whole body: no column to hold both.
+    if !quoted {
+        return main.into_element();
+    }
+    let quote = view().child(super::message_quote::quoted(
+        &row,
+        actions,
+        placement.target,
+        in_transcript,
+    ));
+    let mut content = view()
+        .min_w_0()
+        .text_size(move || appearance.primary_size());
+    if !framed {
+        content = content.gap_2();
+    }
+    // Flutter holds a quote to the picture under it.
     content
-        .child(if framed { frame.padded(main) } else { main })
+        .child(if matches!(frame.inset, Inset::Flush | Inset::Caption) {
+            quote.w_0().min_w(relative(1.0))
+        } else {
+            quote.min_w_0()
+        })
+        .child(main)
         .into_element()
 }
 

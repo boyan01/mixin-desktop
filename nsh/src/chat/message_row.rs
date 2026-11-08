@@ -310,15 +310,15 @@ impl Rows {
                                                         .shadow_xs()
                                                         .shadow_color(ui::bubble_shadow())
                                                 })
-                                                .child(
+                                                .child(message_actions::menu(
+                                                    message,
+                                                    actions,
                                                     view()
                                                         .min_w_0()
                                                         .rounded(ui::radius_md())
                                                         .overflow_hidden()
-                                                        .child(message_actions::menu(
-                                                            message, actions, body,
-                                                        )),
-                                                )
+                                                        .child(body),
+                                                ))
                                                 .child(when(highlighted, move || {
                                                     view()
                                                         .absolute()

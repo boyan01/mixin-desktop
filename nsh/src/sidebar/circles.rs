@@ -629,10 +629,10 @@ impl Circles {
     fn row_menu(
         self,
         circle: Memo<Option<CircleItem>>,
-        content: impl IntoElement + 'static,
+        content: impl Interactive,
     ) -> impl IntoElement {
         let nav = self.nav;
-        ui::native_context_menu(content, move || {
+        ui::context_menu_on(content, move || {
             let Some(circle) = circle.get_untracked() else {
                 return Vec::new();
             };

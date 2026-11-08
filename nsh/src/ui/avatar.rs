@@ -140,7 +140,7 @@ pub(crate) fn avatar_view(
 pub(crate) fn conversation_avatar(
     row: impl Fn() -> Option<mixin_desktop_api::ConversationListData> + 'static,
     size: AvatarSize,
-) -> View {
+) -> AnyElement {
     // A new message changes the row, not its picture; keep the loaded images.
     let identity = computed(move || {
         row().map(|row| {
@@ -153,64 +153,72 @@ pub(crate) fn conversation_avatar(
             (row.owner_id, row.name, row.avatar_url, avatars)
         })
     });
-    view()
-        .size(size.points())
-        .flex_shrink_0()
-        .rounded_full()
-        .overflow_hidden()
-        .child(dynamic(move || {
-            let identity = identity.get();
-            untracked(|| match identity {
-                None => view().into_element(),
-                Some((id, name, url, None)) => {
-                    let id = stored(id);
-                    let name = stored(name);
-                    let url = stored(url);
-                    avatar_view(
-                        move || id.with(|s| s.clone()),
-                        move || name.with(|s| s.clone().into()),
-                        move || url.with(|s| s.clone()),
-                        size,
-                    )
-                    .size_full()
-                    .into_element()
-                }
-                Some((_, _, _, Some(avatars))) => avatar_puzzle(avatars).into_element(),
-            })
-        }))
+    // A list builds one per row: the avatar is its own frame, and a puzzle's
+    // frame is its row of tiles.
+    let frame = move || {
+        view()
+            .size(size.points())
+            .flex_shrink_0()
+            .rounded_full()
+            .overflow_hidden()
+    };
+    dynamic(move || {
+        let identity = identity.get();
+        untracked(|| match identity {
+            None => frame().into_element(),
+            Some((id, name, url, None)) => {
+                let id = stored(id);
+                let name = stored(name);
+                let url = stored(url);
+                avatar_view(
+                    move || id.with(|s| s.clone()),
+                    move || name.with(|s| s.clone().into()),
+                    move || url.with(|s| s.clone()),
+                    size,
+                )
+                .into_element()
+            }
+            Some((_, _, _, Some(avatars))) => puzzle_in(frame(), avatars).into_element(),
+        })
+    })
 }
 
 /// One to four tiles filling their parent, which clips them.
 pub(crate) fn avatar_puzzle(avatars: Vec<GroupAvatar>) -> View {
+    puzzle_in(view().flex_1(), avatars)
+}
+
+/// The tiles in `frame`, laid out as Flutter's puzzle.
+fn puzzle_in(frame: View, avatars: Vec<GroupAvatar>) -> View {
     let tile = |at: usize| {
         let id = stored(avatars[at].user_id.clone());
         let name = stored(avatars[at].name.clone());
         let url = stored(avatars[at].avatar_url.clone());
-        view().flex_1().min_w_0().min_h_0().overflow_hidden().child(
-            avatar_view(
-                move || id.with(|s| s.clone()),
-                move || name.with(|s| s.clone().into()),
-                move || url.with(|s| s.clone()),
-                AvatarSize::Small,
-            )
-            .size_full()
-            .rounded_none()
-            .image_class("object-cover"),
+        avatar_view(
+            move || id.with(|s| s.clone()),
+            move || name.with(|s| s.clone().into()),
+            move || url.with(|s| s.clone()),
+            AvatarSize::Small,
         )
+        .size_full()
+        .flex_1()
+        .min_w_0()
+        .min_h_0()
+        .rounded_none()
+        .image_class("object-cover")
+    };
+    let column = |first: usize| {
+        view()
+            .flex_1()
+            .min_w_0()
+            .child(tile(first))
+            .child(tile(first + 1))
     };
     match avatars.len() {
-        1 => tile(0),
-        2 => view().flex_1().flex_row().child(tile(0)).child(tile(1)),
-        3 => view()
-            .flex_1()
-            .flex_row()
-            .child(tile(0))
-            .child(view().flex_1().min_w_0().child(tile(1)).child(tile(2))),
-        _ => view()
-            .flex_1()
-            .flex_row()
-            .child(view().flex_1().min_w_0().child(tile(0)).child(tile(1)))
-            .child(view().flex_1().min_w_0().child(tile(2)).child(tile(3))),
+        1 => frame.child(tile(0)),
+        2 => frame.flex_row().child(tile(0)).child(tile(1)),
+        3 => frame.flex_row().child(tile(0)).child(column(1)),
+        _ => frame.flex_row().child(column(0)).child(column(2)),
     }
 }
 

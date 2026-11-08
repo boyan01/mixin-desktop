@@ -6,7 +6,51 @@ use nsh_base::{
     },
     text_view::{Block, Document, Inline},
 };
+use nsh_core::prelude::*;
 use serde_json::{Value, json};
+
+pub(super) const LINK_CLASS: &str = "text-primary underline";
+pub(super) const HIGHLIGHT_CLASS: &str = "bg-highlight text-foreground";
+
+/// The editor's paragraph spans for `value`, without the editor: its text
+/// nodes with their marks' classes, then the status room's widget.
+pub(super) fn spans(value: &Value, room: Option<&str>) -> Vec<AnyElement> {
+    let nodes = value["content"][0]["content"].as_array();
+    let mut spans: Vec<AnyElement> = nodes
+        .into_iter()
+        .flatten()
+        .filter_map(|node| {
+            let text = node["text"].as_str()?.to_owned();
+            let classes = node["marks"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|mark| match mark["type"].as_str()? {
+                    "link" => Some(LINK_CLASS),
+                    "highlight" => Some(HIGHLIGHT_CLASS),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let span = nsh_core::prelude::text(text);
+            Some(if classes.is_empty() {
+                span.into_element()
+            } else {
+                span.app_class(SharedString::from(classes.join(" ")))
+                    .into_element()
+            })
+        })
+        .collect();
+    if spans.is_empty() {
+        // An empty paragraph keeps a line, as the editor's filler does.
+        spans.push(nsh_core::prelude::text("\u{200B}").into_element());
+    }
+    spans.extend(room.map(|class| {
+        view()
+            .app_class(SharedString::from(class.to_owned()))
+            .into_element()
+    }));
+    spans
+}
 
 pub(super) fn schema() -> Schema {
     let mut spec = SchemaSpec::default();

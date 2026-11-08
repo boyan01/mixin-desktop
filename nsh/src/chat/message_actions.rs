@@ -199,35 +199,36 @@ pub(super) fn item(title: &'static str, action: impl Fn() + 'static) -> MenuItem
     MenuItem::new(title).on_select(action)
 }
 
-pub(super) fn menu(
+/// `body` hosts the menu itself, so it is the view the menu opens over.
+pub(super) fn menu<E: Interactive>(
     message: impl Fn() -> Option<MessageListView> + Copy + 'static,
     actions: Actions,
-    body: impl IntoElement + 'static,
-) -> impl IntoElement {
+    body: E,
+) -> E {
     menu_with_context(message, actions, body, false, |_| {})
 }
 
-pub(super) fn pinned_menu(
+pub(super) fn pinned_menu<E: Interactive>(
     message: impl Fn() -> Option<MessageListView> + Copy + 'static,
     actions: Actions,
-    body: impl IntoElement + 'static,
+    body: E,
     locate: impl Fn(String) + Copy + 'static,
-) -> impl IntoElement {
+) -> E {
     menu_with_context(message, actions, body, true, locate)
 }
 
-fn menu_with_context(
+fn menu_with_context<E: Interactive>(
     message: impl Fn() -> Option<MessageListView> + Copy + 'static,
     actions: Actions,
-    body: impl IntoElement + 'static,
+    body: E,
     pinned_page: bool,
     locate: impl Fn(String) + Copy + 'static,
-) -> impl IntoElement {
+) -> E {
     let i18n = i18n::current();
     let reedit = use_context::<Reedit>().expect("Home provides recall editing");
     // The menu snapshots its object on opening. Recycled list cells must not
     // retarget an already open destructive command to another message.
-    ui::native_context_menu(body, move || {
+    ui::context_menu_on(body, move || {
         if actions.busy.get_untracked() || !actions.selected.with_untracked(Vec::is_empty) {
             return Vec::new();
         }

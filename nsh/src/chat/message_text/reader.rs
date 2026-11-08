@@ -5,13 +5,16 @@ use std::{
 };
 
 use mixin_desktop_api::MessageListView;
-use nsh_base::rich_editor::{
-    extensions::link::link_at,
-    state::{
-        ClickEvent, Decoration, DecorationSet, EditorState, EditorStateConfig, KeyEvent, Plugin,
-        PluginSpec, TextSelection, Transaction,
+use nsh_base::{
+    rich_editor::{
+        extensions::link::link_at,
+        state::{
+            ClickEvent, Decoration, DecorationSet, EditorState, EditorStateConfig, KeyEvent,
+            Plugin, PluginSpec, TextSelection, Transaction,
+        },
+        view::{EditorSession, NodeViews, RichEditorClasses, RichEditorSelection, rich_editor},
     },
-    view::{EditorSession, NodeViews, RichEditorClasses, RichEditorSelection, rich_editor},
+    text_view,
 };
 use nsh_core::{TouchEvent, TouchPhase, prelude::*};
 use tokio::sync::mpsc;
@@ -25,6 +28,8 @@ mod document;
 
 #[derive(Clone)]
 struct Current {
+    /// The message view that registered it ([`Selection::token`]).
+    token: u64,
     root: Option<String>,
     id: String,
     session: EditorSession,
@@ -35,6 +40,9 @@ struct Current {
 pub(in crate::chat) struct Selection {
     owner: Owner,
     current: Stored<Option<Current>>,
+    /// The token of the message view that registered `current` last.
+    active: Signal<Option<u64>>,
+    tokens: Stored<u64>,
 }
 
 impl Selection {
@@ -42,7 +50,33 @@ impl Selection {
         Self {
             owner: Owner::current(),
             current: stored(None),
+            active: signal(None),
+            tokens: stored(0),
         }
+    }
+
+    /// A new identity for a message view on this surface.
+    fn token(self) -> u64 {
+        self.tokens.with(|next| {
+            *next += 1;
+            *next
+        })
+    }
+
+    fn register(self, current: Current) {
+        let token = current.token;
+        self.current.replace(Some(current));
+        self.active.set(Some(token));
+    }
+
+    /// Whether the view `token` holds a non-empty current selection.
+    fn holds(self, token: u64) -> bool {
+        self.owner.is_live()
+            && self.current.with(|current| {
+                current.as_ref().is_some_and(|current| {
+                    current.token == token && !current.session.state().selection().empty()
+                })
+            })
     }
 
     pub(in crate::chat) fn selected(self, id: &str, root: Option<&str>) -> Option<String> {
@@ -138,6 +172,11 @@ impl PluginSpec for StatusRoom {
 }
 
 /// `room` is the width the status at the end of the text takes, where it has one.
+///
+/// The text is drawn as plain spans; the read-only editor mounts only while the
+/// pointer is over it or it holds the current selection. An editor carries a
+/// native input, a scroll view and its own state, which the timeline would
+/// otherwise build for every text row it scrolls past.
 pub(in crate::chat) fn read(
     row: &MessageListView,
     source: &str,
@@ -160,6 +199,79 @@ pub(in crate::chat) fn read(
             None => super::document(source, &Default::default(), &query),
         })
     });
+    let room = stored(room.map(|width| format!("w-[{width}px] h-px")));
+    let id = stored(row.message_id.clone());
+    let root = stored(root);
+    let selection = actions.text_selection;
+    let token = selection.token();
+    let hovered = signal(false);
+    let live = signal(false);
+    // Another message taking the selection releases this one once the pointer left.
+    effect(move || {
+        if selection.active.get() != Some(token) && !hovered.get_untracked() {
+            live.set(false);
+        }
+    });
+    view()
+        .min_w_0()
+        .on_mouse_enter(move |_: &MouseEvent| {
+            hovered.set(true);
+            live.set(true);
+        })
+        .on_mouse_leave(move |_: &MouseEvent| {
+            hovered.set(false);
+            if !selection.holds(token) {
+                live.set(false);
+            }
+        })
+        .child(
+            when(live, move || {
+                editor(Reader {
+                    token,
+                    id: id.get(),
+                    root: root.get(),
+                    conversation,
+                    mapped,
+                    room: room.get(),
+                    actions,
+                })
+            })
+            .otherwise(move || {
+                text("")
+                    .flex_none()
+                    .min_w_0()
+                    .text_size(move || appearance.primary_size())
+                    .text_color(move || nsh_base::theme().foreground)
+                    .child(dynamic(move || {
+                        let value = mapped.with(document::value);
+                        document::spans(&value, room.get().as_deref())
+                    }))
+            }),
+        )
+}
+
+struct Reader {
+    token: u64,
+    id: String,
+    root: Option<String>,
+    conversation: Stored<String>,
+    mapped: Memo<text_view::Document>,
+    room: Option<String>,
+    actions: Actions,
+}
+
+fn editor(reader: Reader) -> impl IntoElement {
+    let Reader {
+        token,
+        id,
+        root,
+        conversation,
+        mapped,
+        room,
+        actions,
+    } = reader;
+    let appearance =
+        use_context::<crate::appearance::Appearance>().expect("Home provides chat appearance");
     let schema = document::schema();
     let initial = document::value(&mapped.get_untracked());
     let initial = schema
@@ -170,7 +282,7 @@ pub(in crate::chat) fn read(
         candidate: Arc::new(Mutex::new(None)),
         open,
     };
-    let room = room.map(|width| Arc::new(StatusRoom(format!("w-[{width}px] h-px"))));
+    let room = room.map(|class| Arc::new(StatusRoom(class)));
     let plugins = {
         let links = links.clone();
         move || {
@@ -189,20 +301,17 @@ pub(in crate::chat) fn read(
     session.set_editable(false);
     let session = stored(session);
     let current = stored(Current {
+        token,
         root,
-        id: row.message_id.clone(),
+        id,
         session: session.with(|s| s.clone()),
     });
-    let register = move || {
-        actions
-            .text_selection
-            .current
-            .replace(Some(current.with(|value| value.clone())))
-    };
+    let selection = actions.text_selection;
+    let register = move || selection.register(current.with(|value| value.clone()));
     let cleanup_session = session.get();
     cleanup(move || {
-        if actions.text_selection.owner.is_live() {
-            actions.text_selection.current.with(|active| {
+        if selection.owner.is_live() {
+            selection.current.with(|active| {
                 if active
                     .as_ref()
                     .is_some_and(|active| active.session == cleanup_session)
@@ -265,8 +374,8 @@ pub(in crate::chat) fn read(
     // so the timeline remains the only region with a vertical scroll range.
     classes.root = Some("grid".into());
     classes.marks = Some(BTreeMap::from([
-        ("link".into(), "text-primary underline".into()),
-        ("highlight".into(), "bg-highlight text-foreground".into()),
+        ("link".into(), document::LINK_CLASS.into()),
+        ("highlight".into(), document::HIGHLIGHT_CLASS.into()),
     ]));
     let editor = rich_editor()
         .editor(session.with(|session| Some(session.clone())))
@@ -282,7 +391,7 @@ pub(in crate::chat) fn read(
             // A background display-name/highlight refresh must not take the
             // current selection away from a different message's view.
             if session.with(|session| session.is_focused())
-                || actions.text_selection.current.with(|active| {
+                || selection.current.with(|active| {
                     active
                         .as_ref()
                         .is_some_and(|active| session.with(|session| active.session == *session))

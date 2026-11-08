@@ -73,14 +73,20 @@ pub(crate) fn native_context_menu(
     content: impl IntoElement + 'static,
     items: impl Fn() -> Vec<MenuItem> + 'static,
 ) -> View {
-    view()
-        .on_context_menu(move |event: &ContextMenuEvent| {
-            let items = items();
-            if !items.is_empty() {
-                drop(popup_menu_at(items, event.page_position));
-            }
-        })
-        .child(content)
+    context_menu_on(view().child(content), items)
+}
+
+/// [`native_context_menu`] on `content` itself, without a view of its own.
+pub(crate) fn context_menu_on<E: Interactive>(
+    content: E,
+    items: impl Fn() -> Vec<MenuItem> + 'static,
+) -> E {
+    content.on_context_menu(move |event: &ContextMenuEvent| {
+        let items = items();
+        if !items.is_empty() {
+            drop(popup_menu_at(items, event.page_position));
+        }
+    })
 }
 
 /// Joins the non-empty `groups` with separators, so a hidden group leaves no
