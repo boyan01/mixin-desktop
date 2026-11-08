@@ -40,6 +40,33 @@ The NSH CLI bypasses the native executable entry point. Prefer `cargo run` when
 validating startup, process ownership, native component registration and shutdown.
 macOS is the first validation target. Windows and Linux are unverified; see the roadmap.
 
+## Markdown previews
+
+The debug-only preview browser renders production components over offline fixtures:
+
+```sh
+cd nsh/preview
+nsh run
+```
+
+Select `post-reader` for headings, mixed Chinese/English prose, lists, task lists
+and quotes, or `post-blocks` for highlighted code and tables. `Larger text`
+changes the real message font setting in memory; no account data is read or saved.
+The existing `messages-cards` scene includes the bounded Post bubble.
+
+From the repository root, capture the native macOS reader at a specific appearance
+and width with:
+
+```sh
+python3 nsh/tool/preview.py capture post-reader --label light --locale zh-CN
+python3 nsh/tool/preview.py capture post-blocks --label dark-narrow --scheme dark --width 480
+python3 nsh/tool/preview.py capture post-reader --action "Larger text" --label large
+```
+
+Posts and downloaded Markdown attachments share the reader in `src/ui/markdown.rs`.
+The reading column is capped at `post-reader-width`; its text scales with the chat
+font preference. Code and tables retain their native horizontal scroll views.
+
 ## Layout
 
 The current Flutter desktop app defines the layout and interaction reference.

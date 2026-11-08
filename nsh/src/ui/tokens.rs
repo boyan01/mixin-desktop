@@ -187,6 +187,8 @@ lengths! {
     snapshot_backdrop_width = "snapshot-backdrop-width";
     snapshot_backdrop_height = "snapshot-backdrop-height";
     post_max_width = "post-max-width";
+    /// The reading column, including its side insets.
+    post_reader_width = "post-reader-width";
     quote_min_height = "quote-min-height";
     quote_bar_width = "quote-bar-width";
     /// The bounds of a bot's button group, and the side inset of a button in it.

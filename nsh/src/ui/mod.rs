@@ -10,6 +10,7 @@ mod dialog;
 mod feedback;
 mod form;
 mod icon;
+mod markdown;
 mod menu_icon;
 mod overlay;
 mod owned;
@@ -41,6 +42,7 @@ pub(crate) use form::{
     slider_compact, slider_over_scale, slider_over_wave, tab, textarea,
 };
 pub(crate) use icon::{Icon, icon, logo, wallpaper};
+pub(crate) use markdown::{markdown, markdown_reader};
 pub(crate) use menu_icon::MenuIcon;
 pub(crate) use overlay::{
     context_menu_on, hint, menu, menu_groups, menu_row, menu_row_icon, menu_row_symbol,

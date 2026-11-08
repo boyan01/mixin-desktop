@@ -92,6 +92,7 @@
       "audio-wave-width": "238px",
       "audio-wave-height": "12px",
       "post-max-width": "400px",
+      "post-reader-width": "800px",
       "quote-min-height": "50px",
       "quote-bar-width": "6px",
       "action-group-min-width": "240px",

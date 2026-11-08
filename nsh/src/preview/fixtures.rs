@@ -8,6 +8,51 @@ pub(super) const USER_ID: &str = "3a8f2c61-7b4d-4e19-9c05-d2e7f1a64b38";
 pub(super) const NAME: &str = "Alex Chen";
 pub(super) const IDENTITY_NUMBER: &str = "70001001";
 
+pub(super) const POST_PROSE: &str = r#"# Markdown 阅读体验
+
+这是一篇包含中文、English 和 emoji 🦀 的文章。正文支持 **重点内容**、*斜体*、~~删除线~~ 和 `inline code`。
+
+## 清晰的内容层级
+
+文章应当留出舒适的边距。窗口变窄时，正文自然换行；调整消息字号后，行高和标题也应保持协调。
+
+### 列表与引用
+
+1. 标题、段落和列表保持一致的节奏。
+2. 长文章可以垂直滚动，代码和表格可以横向滚动。
+
+> 引用用于补充上下文。中文与 English 应当在同一个段落中自然换行。
+
+- [x] 支持标题、强调和引用
+- [ ] 检查深色模式与较大的字号
+
+访问 [Mixin](https://mixin.one) 查看更多信息。
+"#;
+
+pub(super) const POST_BLOCKS: &str = r#"# 代码与表格
+
+正文中的 `inline code` 应当清晰可辨。
+
+```rust
+fn main() {
+    let message = "A deliberately long code line: 中文与 English stay on one line while the code block scrolls horizontally.";
+    println!("{message}");
+}
+```
+
+## 支持情况
+
+| 类型 | Markdown 写法 | 展示方式 |
+| :--- | :--- | :--- |
+| 标题 | # Heading | 区分文章层级 |
+| 代码 | Fenced code block | 保留缩进、语法高亮、横向滚动 |
+| 表格 | GitHub Flavored Markdown | 较窄的窗口中仍可以阅读每一列的内容 |
+
+---
+
+最后一段用于检查滚动区域底部的留白。
+"#;
+
 pub(super) fn profile() -> AccountProfile {
     AccountProfile {
         // A UUID, as real ids are: the avatar placeholder color is picked from it.

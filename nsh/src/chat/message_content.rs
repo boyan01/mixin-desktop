@@ -12,7 +12,6 @@ use crate::{
     ui::{self, Typography},
 };
 use mixin_desktop_api::MessageListView;
-use nsh_base::text_view;
 use nsh_core::{LineHeight, element::ImageSrc, prelude::*};
 
 pub(super) fn is_attachment(row: &MessageListView) -> bool {
@@ -229,6 +228,7 @@ fn post(row: &MessageListView, actions: Actions, stamp: Option<View>) -> AnyElem
     let appearance = appearance();
     let preview = row.clone();
     let bound = ui::post_max_width();
+    let content = SharedString::from(post_preview(&row.content));
     let mut card = ui::command()
         .relative()
         .p_0()
@@ -250,15 +250,11 @@ fn post(row: &MessageListView, actions: Actions, stamp: Option<View>) -> AnyElem
                 .overflow_hidden()
                 .pointer_events(PointerEvents::None)
                 .child(
-                    text_view()
-                        .w_full()
-                        .min_w_0()
+                    ui::markdown(move || content.clone(), move || appearance.primary_size())
                         .max_w(relative(1.0))
-                        .markdown(Some(SharedString::from(post_preview(&row.content))))
                         .selectable(false)
                         .code_block_scrollbar(false)
-                        .table_scrollbar(false)
-                        .text_size(move || appearance.primary_size()),
+                        .table_scrollbar(false),
                 ),
         )
         .child(

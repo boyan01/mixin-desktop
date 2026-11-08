@@ -42,6 +42,8 @@ test("preview capture", async () => {{
     colorScheme: config.scheme,
   }});
   await app.press(`label:Scene ${{config.scene}}`);
+  // Let the native scene switch and deferred syntax colors reach the capture.
+  await app.wait(300);
   if (!config.action) {{
     await app.screenshot(`${{config.out}}/start.png`);
     return;

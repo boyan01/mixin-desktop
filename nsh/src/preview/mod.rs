@@ -7,6 +7,7 @@ mod composer;
 mod fixtures;
 mod loading;
 mod messages;
+mod posts;
 mod sidebar;
 mod stickers;
 mod stress;
@@ -64,6 +65,16 @@ const SCENES: &[Scene] = &[
         name: "messages-cards",
         actions: messages::ACTIONS,
         mount: messages::cards,
+    },
+    Scene {
+        name: "post-reader",
+        actions: posts::ACTIONS,
+        mount: posts::reader,
+    },
+    Scene {
+        name: "post-blocks",
+        actions: posts::ACTIONS,
+        mount: posts::blocks,
     },
     Scene {
         name: "messages-apps",

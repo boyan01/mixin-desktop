@@ -1,6 +1,5 @@
 //! One full reader for posts and downloaded Markdown attachments.
 use mixin_desktop_api::MessageListView;
-use nsh_base::{TextViewLinkPressEvent, text_view};
 use nsh_core::prelude::*;
 
 use super::{
@@ -20,18 +19,11 @@ pub(super) fn reader(
 ) -> impl IntoElement {
     let appearance =
         use_context::<crate::appearance::Appearance>().expect("Home provides chat appearance");
-    // A reading measure, not a surface size: long lines stop being readable.
-    let measure = px(800.0);
-    view().flex_1().min_h_0().w_full().items_center().child(
-        scroll().flex_1().min_h_0().w_full().max_w(measure).child(
-            text_view()
-                .markdown(Some(SharedString::from(content)))
-                .selectable(true)
-                .on_link_press(move |event: &TextViewLinkPressEvent| {
-                    message_links::open(actions, event.url.to_string(), conversation_id.clone())
-                })
-                .text_size(move || appearance.primary_size()),
-        ),
+    let content = SharedString::from(content);
+    ui::markdown_reader(
+        move || content.clone(),
+        move || appearance.primary_size(),
+        move |event| message_links::open(actions, event.url.to_string(), conversation_id.clone()),
     )
 }
 
