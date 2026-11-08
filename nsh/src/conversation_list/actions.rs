@@ -179,19 +179,34 @@ pub(crate) fn wrap(
         } else {
             i18n.tr("Mute", "静音")
         };
+        let pin_icon = if row.is_pinned {
+            ui::MenuIcon::UnPin
+        } else {
+            ui::MenuIcon::Pin
+        };
+        let mute_icon = if row.is_muted {
+            ui::MenuIcon::UnMute
+        } else {
+            ui::MenuIcon::Mute
+        };
         let pin = row.clone();
         let mute = row.clone();
         let add_to_circle = crate::sidebar::add_to_circle_item(state.circles, &row);
         let remove_from_circle = crate::sidebar::remove_from_circle_item(state.circles, &row);
         let mut delete = vec![
             MenuItem::new(i18n.tr("Delete Chat", "删除聊天"))
+                .icon(ui::MenuIcon::Delete.src())
                 .on_select(move || state.remove(row.clone())),
         ];
         delete.extend(remove_from_circle);
         ui::menu_groups([
             vec![
-                MenuItem::new(pin_title).on_select(move || state.toggle_pin(pin.clone())),
-                MenuItem::new(mute_title).on_select(move || state.toggle_mute(mute.clone())),
+                MenuItem::new(pin_title)
+                    .icon(pin_icon.src())
+                    .on_select(move || state.toggle_pin(pin.clone())),
+                MenuItem::new(mute_title)
+                    .icon(mute_icon.src())
+                    .on_select(move || state.toggle_mute(mute.clone())),
             ],
             add_to_circle.into_iter().collect(),
             delete,

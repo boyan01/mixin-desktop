@@ -195,8 +195,12 @@ pub(super) fn attachment_name(row: &MessageListView) -> String {
         })
 }
 
-pub(super) fn item(title: &'static str, action: impl Fn() + 'static) -> MenuItem {
-    MenuItem::new(title).on_select(action)
+pub(super) fn item(
+    icon: ui::MenuIcon,
+    title: &'static str,
+    action: impl Fn() + 'static,
+) -> MenuItem {
+    MenuItem::new(title).icon(icon.src()).on_select(action)
 }
 
 /// `body` hosts the menu itself, so it is the view the menu opens over.
@@ -241,43 +245,51 @@ fn menu_with_context<E: Interactive>(
         let mut reply = Vec::new();
         if !pinned_page && actions.can_send.get() && policy.as_ref().is_some_and(|p| p.can_reply) {
             let quoted = row.clone();
-            reply.push(item(i18n.tr("Reply", "回复"), move || {
-                if actions.can_send.get_untracked() {
-                    actions.quote.set(Some(quoted.clone()));
-                }
-            }));
+            reply.push(item(
+                ui::MenuIcon::Reply,
+                i18n.tr("Reply", "回复"),
+                move || {
+                    if actions.can_send.get_untracked() {
+                        actions.quote.set(Some(quoted.clone()));
+                    }
+                },
+            ));
         }
         let mut copy = Vec::new();
         if row.category.ends_with("_IMAGE") {
             let id = row.message_id.clone();
             copy.push(
-                item(i18n.tr("Copy Image", "复制图片"), move || {
-                    if actions.busy.get_untracked() {
-                        return;
-                    }
-                    let id = id.clone();
-                    let client = actions.account.with(|a| a.clone());
-                    actions.busy.set(true);
-                    actions.task(async move {
-                        match runtime::run(async move {
-                            client
-                                .attachment()
-                                .attachment_image_data_uri(id, None)
-                                .await
-                        })
-                        .await
-                        {
-                            Ok(uri) => {
-                                set_clipboard_image(uri);
-                                actions
-                                    .toasts
-                                    .success(i18n.tr("Image copied", "图片已复制"));
-                            }
-                            Err(_) => actions.finish(false),
+                item(
+                    ui::MenuIcon::Copy,
+                    i18n.tr("Copy Image", "复制图片"),
+                    move || {
+                        if actions.busy.get_untracked() {
+                            return;
                         }
-                        actions.busy.set(false);
-                    });
-                })
+                        let id = id.clone();
+                        let client = actions.account.with(|a| a.clone());
+                        actions.busy.set(true);
+                        actions.task(async move {
+                            match runtime::run(async move {
+                                client
+                                    .attachment()
+                                    .attachment_image_data_uri(id, None)
+                                    .await
+                            })
+                            .await
+                            {
+                                Ok(uri) => {
+                                    set_clipboard_image(uri);
+                                    actions
+                                        .toasts
+                                        .success(i18n.tr("Image copied", "图片已复制"));
+                                }
+                                Err(_) => actions.finish(false),
+                            }
+                            actions.busy.set(false);
+                        });
+                    },
+                )
                 .disabled(!available(&row)),
             );
         }
@@ -293,6 +305,7 @@ fn menu_with_context<E: Interactive>(
             let content = selected.unwrap_or_else(|| row.content.clone());
             let qr_content = content.clone();
             copy.push(item(
+                ui::MenuIcon::Copy,
                 if has_selection {
                     i18n.tr("Copy Selected Text", "复制已选择的文本")
                 } else {
@@ -305,6 +318,7 @@ fn menu_with_context<E: Interactive>(
             ));
             if row.category.ends_with("_TEXT") && !row.content.is_empty() {
                 copy.push(item(
+                    ui::MenuIcon::QrCode,
                     i18n.tr("Generate QR Code", "生成二维码"),
                     move || {
                         actions.open_text_qr(qr_content.clone());
@@ -316,6 +330,7 @@ fn menu_with_context<E: Interactive>(
             let has_selection = selected.is_some();
             let caption = selected.unwrap_or(caption);
             copy.push(item(
+                ui::MenuIcon::Copy,
                 if has_selection {
                     i18n.tr("Copy Selected Text", "复制已选择的文本")
                 } else {
@@ -330,30 +345,45 @@ fn menu_with_context<E: Interactive>(
         let mut message_group = Vec::new();
         if pinned_page {
             let id = row.message_id.clone();
-            message_group.push(item(i18n.tr("Locate in Chat", "前往聊天"), move || {
-                locate(id.clone())
-            }));
+            message_group.push(item(
+                ui::MenuIcon::PositionToChat,
+                i18n.tr("Locate in Chat", "前往聊天"),
+                move || locate(id.clone()),
+            ));
         }
         if policy.as_ref().is_some_and(|p| p.can_forward) {
             let id = row.message_id.clone();
-            message_group.push(item(i18n.tr("Forward", "转发"), move || {
-                actions.combine.set(false);
-                actions.forwarding.set(vec![id.clone()]);
-            }));
+            message_group.push(item(
+                ui::MenuIcon::Forward,
+                i18n.tr("Forward", "转发"),
+                move || {
+                    actions.combine.set(false);
+                    actions.forwarding.set(vec![id.clone()]);
+                },
+            ));
         }
         let id = row.message_id.clone();
-        message_group.push(item(i18n.tr("Select", "选择"), move || {
-            actions.selected.update(|ids| {
-                if !ids.contains(&id) {
-                    ids.push(id.clone());
-                }
-            })
-        }));
+        message_group.push(item(
+            ui::MenuIcon::Select,
+            i18n.tr("Select", "选择"),
+            move || {
+                actions.selected.update(|ids| {
+                    if !ids.contains(&id) {
+                        ids.push(id.clone());
+                    }
+                })
+            },
+        ));
         if policy.as_ref().is_some_and(|p| p.can_pin) {
             let message_id = row.message_id.clone();
             let conversation_id = row.conversation_id.clone();
             let pin = !row.pinned;
             message_group.push(item(
+                if pin {
+                    ui::MenuIcon::Pin
+                } else {
+                    ui::MenuIcon::UnPin
+                },
                 i18n.tr(
                     if pin { "Pin" } else { "Unpin" },
                     if pin { "置顶" } else { "取消置顶" },
@@ -376,48 +406,60 @@ fn menu_with_context<E: Interactive>(
             let account = actions.account;
             let id = row.message_id.clone();
             let name = attachment_name(&row);
-            save.push(item(i18n.tr("Save as", "另存为"), move || {
-                let id = id.clone();
-                let name = name.clone();
-                let client = account.with(|a| a.clone());
-                actions.task(async move {
-                    match pick_save_path(SaveDialog::new().file_name(name)).await {
-                        Ok(Some(path)) => actions.commit_with(
-                            async move {
-                                client
-                                    .attachment()
-                                    .save_attachment_as(id, path.to_string_lossy().into_owned())
-                                    .await
-                            },
-                            i18n.tr("Saved", "已保存"),
-                        ),
-                        Ok(None) => {}
-                        Err(_) => actions.finish(false),
-                    }
-                });
-            }));
+            save.push(item(
+                ui::MenuIcon::Download,
+                i18n.tr("Save as", "另存为"),
+                move || {
+                    let id = id.clone();
+                    let name = name.clone();
+                    let client = account.with(|a| a.clone());
+                    actions.task(async move {
+                        match pick_save_path(SaveDialog::new().file_name(name)).await {
+                            Ok(Some(path)) => actions.commit_with(
+                                async move {
+                                    client
+                                        .attachment()
+                                        .save_attachment_as(id, path.to_string_lossy().into_owned())
+                                        .await
+                                },
+                                i18n.tr("Saved", "已保存"),
+                            ),
+                            Ok(None) => {}
+                            Err(_) => actions.finish(false),
+                        }
+                    });
+                },
+            ));
         }
         let mut sticker = Vec::new();
         if row.category.ends_with("_STICKER")
             && let Some(id) = row.sticker_id.clone()
         {
-            sticker.push(item(i18n.tr("Add Sticker", "添加贴纸"), move || {
-                let client = actions.account.with(|a| a.clone());
-                let id = id.clone();
-                actions.commit_with(
-                    async move { client.sticker().add_sticker(id).await },
-                    i18n.tr("Sticker added", "已添加贴纸"),
-                );
-            }));
+            sticker.push(item(
+                ui::MenuIcon::Sticker,
+                i18n.tr("Add Sticker", "添加贴纸"),
+                move || {
+                    let client = actions.account.with(|a| a.clone());
+                    let id = id.clone();
+                    actions.commit_with(
+                        async move { client.sticker().add_sticker(id).await },
+                        i18n.tr("Sticker added", "已添加贴纸"),
+                    );
+                },
+            ));
         }
         if row.category.ends_with("_IMAGE")
             && available(&row)
             && policy.as_ref().is_some_and(|p| p.can_forward)
         {
             let image = row.clone();
-            sticker.push(item(i18n.tr("Add Sticker", "添加贴纸"), move || {
-                actions.add_image_sticker(image.clone());
-            }));
+            sticker.push(item(
+                ui::MenuIcon::Sticker,
+                i18n.tr("Add Sticker", "添加贴纸"),
+                move || {
+                    actions.add_image_sticker(image.clone());
+                },
+            ));
         }
         let mut delete = Vec::new();
         if policy.as_ref().is_some_and(|p| p.can_recall) {
@@ -425,28 +467,36 @@ fn menu_with_context<E: Interactive>(
             let recover = (row.category.ends_with("_TEXT")
                 && actions.account.with(|account| account.account_id()) == row.sender_id)
                 .then(|| row.content.clone());
-            delete.push(item(i18n.tr("Delete for Everyone", "撤回"), move || {
-                remove_with_reedit(
-                    actions,
-                    row.conversation_id.clone(),
-                    vec![row.message_id.clone()],
-                    true,
-                    recover
-                        .clone()
-                        .map(|text| (reedit, row.message_id.clone(), text)),
-                )
-            }));
+            delete.push(item(
+                ui::MenuIcon::Recall,
+                i18n.tr("Delete for Everyone", "撤回"),
+                move || {
+                    remove_with_reedit(
+                        actions,
+                        row.conversation_id.clone(),
+                        vec![row.message_id.clone()],
+                        true,
+                        recover
+                            .clone()
+                            .map(|text| (reedit, row.message_id.clone(), text)),
+                    )
+                },
+            ));
         }
         if !pinned_page {
             let row = row.clone();
-            delete.push(item(i18n.tr("Delete for me", "删除"), move || {
-                remove(
-                    actions,
-                    row.conversation_id.clone(),
-                    vec![row.message_id.clone()],
-                    false,
-                )
-            }));
+            delete.push(item(
+                ui::MenuIcon::Delete,
+                i18n.tr("Delete for me", "删除"),
+                move || {
+                    remove(
+                        actions,
+                        row.conversation_id.clone(),
+                        vec![row.message_id.clone()],
+                        false,
+                    )
+                },
+            ));
         }
         ui::menu_groups([reply, copy, message_group, save, sticker, delete])
     })

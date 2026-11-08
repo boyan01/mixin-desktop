@@ -341,36 +341,40 @@ fn attachment_menu(
             let root = root.with(|root| root.clone());
             let id = row.message_id.clone();
             copy_group.push(
-                item(i18n.tr("Copy Image", "复制图片"), move || {
-                    if busy.get_untracked() || !active() {
-                        return;
-                    }
-                    busy.set(true);
-                    let root = root.clone();
-                    let id = id.clone();
-                    let account = actions.account.with(|account| account.clone());
-                    owner.run(move || {
-                        spawn(async move {
-                            let result = runtime::run(async move {
-                                account
-                                    .attachment()
-                                    .attachment_image_data_uri(id, Some(root))
-                                    .await
-                            })
-                            .await;
-                            if owner.is_live() {
-                                match result {
-                                    Ok(uri) => {
-                                        set_clipboard_image(uri);
-                                        actions.failed.set(false);
+                item(
+                    ui::MenuIcon::Copy,
+                    i18n.tr("Copy Image", "复制图片"),
+                    move || {
+                        if busy.get_untracked() || !active() {
+                            return;
+                        }
+                        busy.set(true);
+                        let root = root.clone();
+                        let id = id.clone();
+                        let account = actions.account.with(|account| account.clone());
+                        owner.run(move || {
+                            spawn(async move {
+                                let result = runtime::run(async move {
+                                    account
+                                        .attachment()
+                                        .attachment_image_data_uri(id, Some(root))
+                                        .await
+                                })
+                                .await;
+                                if owner.is_live() {
+                                    match result {
+                                        Ok(uri) => {
+                                            set_clipboard_image(uri);
+                                            actions.failed.set(false);
+                                        }
+                                        Err(_) => actions.failed.set(true),
                                     }
-                                    Err(_) => actions.failed.set(true),
+                                    busy.set(false);
                                 }
-                                busy.set(false);
-                            }
-                        })
-                    });
-                })
+                            })
+                        });
+                    },
+                )
                 .disabled(!message_content::available(&row)),
             );
         }
@@ -394,6 +398,7 @@ fn attachment_menu(
         if !copy.is_empty() {
             let qr = is_text.then(|| copy.clone());
             copy_group.push(item(
+                ui::MenuIcon::Copy,
                 if has_selection {
                     i18n.tr("Copy Selected Text", "复制已选择的文本")
                 } else if is_text || is_post {
@@ -440,6 +445,7 @@ fn attachment_menu(
             ));
             if let Some(qr) = qr {
                 copy_group.push(item(
+                    ui::MenuIcon::QrCode,
                     i18n.tr("Generate QR Code", "生成二维码"),
                     move || {
                         if !busy.get_untracked() && active() {
@@ -454,56 +460,65 @@ fn attachment_menu(
             let root = root.with(|root| root.clone());
             let id = row.message_id.clone();
             let name = attachment_name(&row);
-            save.push(item(i18n.tr("Save as", "另存为"), move || {
-                if busy.get_untracked() || !active() {
-                    return;
-                }
-                busy.set(true);
-                let root = root.clone();
-                let id = id.clone();
-                let name = name.clone();
-                let account = actions.account.with(|account| account.clone());
-                owner.run(move || {
-                    spawn(async move {
-                        let result = match pick_save_path(SaveDialog::new().file_name(name)).await {
-                            Ok(Some(path)) => {
-                                runtime::commit(async move {
-                                    account
-                                        .attachment()
-                                        .save_transcript_attachment_as(
-                                            root,
-                                            id,
-                                            path.to_string_lossy().into_owned(),
-                                        )
+            save.push(item(
+                ui::MenuIcon::Download,
+                i18n.tr("Save as", "另存为"),
+                move || {
+                    if busy.get_untracked() || !active() {
+                        return;
+                    }
+                    busy.set(true);
+                    let root = root.clone();
+                    let id = id.clone();
+                    let name = name.clone();
+                    let account = actions.account.with(|account| account.clone());
+                    owner.run(move || {
+                        spawn(async move {
+                            let result =
+                                match pick_save_path(SaveDialog::new().file_name(name)).await {
+                                    Ok(Some(path)) => {
+                                        runtime::commit(async move {
+                                            account
+                                                .attachment()
+                                                .save_transcript_attachment_as(
+                                                    root,
+                                                    id,
+                                                    path.to_string_lossy().into_owned(),
+                                                )
+                                                .await
+                                        })
                                         .await
-                                })
-                                .await
+                                    }
+                                    Ok(None) => Ok(()),
+                                    Err(_) => Err(mixin_desktop_api::ClientError::Internal(
+                                        "Could not choose an attachment destination".into(),
+                                    )),
+                                };
+                            if owner.is_live() {
+                                actions.failed.set(result.is_err());
+                                busy.set(false);
                             }
-                            Ok(None) => Ok(()),
-                            Err(_) => Err(mixin_desktop_api::ClientError::Internal(
-                                "Could not choose an attachment destination".into(),
-                            )),
-                        };
-                        if owner.is_live() {
-                            actions.failed.set(result.is_err());
-                            busy.set(false);
-                        }
-                    })
-                });
-            }));
+                        })
+                    });
+                },
+            ));
         }
         let mut sticker = Vec::new();
         if row.category.ends_with("_STICKER")
             && let Some(id) = row.sticker_id.clone()
         {
-            sticker.push(item(i18n.tr("Add Sticker", "添加贴纸"), move || {
-                if busy.get_untracked() || !active() {
-                    return;
-                }
-                let client = actions.account.with(|account| account.clone());
-                let id = id.clone();
-                actions.commit(async move { client.sticker().add_sticker(id).await });
-            }));
+            sticker.push(item(
+                ui::MenuIcon::Sticker,
+                i18n.tr("Add Sticker", "添加贴纸"),
+                move || {
+                    if busy.get_untracked() || !active() {
+                        return;
+                    }
+                    let client = actions.account.with(|account| account.clone());
+                    let id = id.clone();
+                    actions.commit(async move { client.sticker().add_sticker(id).await });
+                },
+            ));
         }
         ui::menu_groups([copy_group, save, sticker])
     })

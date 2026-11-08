@@ -429,6 +429,7 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
                                                         "静音发送",
                                                     ),
                                                 )
+                                                .icon(ui::MenuIcon::Mute.src())
                                                 .on_select(move || silent(true)),
                                             ]
                                         },

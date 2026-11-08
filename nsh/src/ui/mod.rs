@@ -10,6 +10,7 @@ mod dialog;
 mod feedback;
 mod form;
 mod icon;
+mod menu_icon;
 mod overlay;
 mod owned;
 mod rows;
@@ -39,8 +40,10 @@ pub(crate) use form::{
     slider_compact, slider_over_scale, slider_over_wave, tab, textarea,
 };
 pub(crate) use icon::{Icon, icon, logo, wallpaper};
+pub(crate) use menu_icon::MenuIcon;
 pub(crate) use overlay::{
-    context_menu_on, hint, menu, menu_groups, menu_row, native_context_menu, popover_flush,
+    context_menu_on, hint, menu, menu_groups, menu_row, menu_row_icon, native_context_menu,
+    popover_flush,
 };
 pub(crate) use owned::owned;
 pub(crate) use rows::{list_row, nav_row, option_row};

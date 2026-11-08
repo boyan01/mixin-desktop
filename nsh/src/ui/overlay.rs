@@ -13,10 +13,11 @@ use nsh_core::{
 };
 
 use super::{
+    MenuIcon,
     state::feedback_transition,
     tokens::{
-        TextRole, Typography, border, fg_primary, opacity_disabled, radius_lg, radius_md, space_md,
-        space_sm, space_xs, state_hover, state_pressed, surface_popover,
+        TextRole, Typography, border, fg_primary, icon_md, opacity_disabled, radius_lg, radius_md,
+        space_md, space_sm, space_xs, state_hover, state_pressed, surface_popover,
     },
 };
 use crate::motion;
@@ -33,8 +34,7 @@ pub(super) fn popup(style: StyleRefinement) -> StyleRefinement {
         .shadow_lg()
 }
 
-/// A menu or context-menu command.
-pub(crate) fn menu_row(label: impl Fn() -> &'static str + 'static) -> MenuItemElement {
+fn row() -> MenuItemElement {
     feedback_transition(menu_item())
         .px(space_md())
         .py(space_sm())
@@ -43,6 +43,30 @@ pub(crate) fn menu_row(label: impl Fn() -> &'static str + 'static) -> MenuItemEl
         .focus(|s| s.bg(state_hover))
         .active(|s| s.bg(state_pressed))
         .disabled_style(|s| s.opacity(opacity_disabled()))
+}
+
+/// A menu or context-menu command.
+pub(crate) fn menu_row(label: impl Fn() -> &'static str + 'static) -> MenuItemElement {
+    row().child(text(label).text_role(TextRole::Body))
+}
+
+/// A [`menu_row`] with its glyph before the label. `None` keeps the glyph's
+/// room, so the labels of a menu with glyphs line up.
+pub(crate) fn menu_row_icon(
+    icon: Option<MenuIcon>,
+    label: impl Fn() -> &'static str + 'static,
+) -> MenuItemElement {
+    row()
+        .flex_row()
+        .items_center()
+        .gap(space_sm())
+        .child(match icon {
+            Some(icon) => svg(icon.src())
+                .size(icon_md())
+                .flex_shrink_0()
+                .into_element(),
+            None => view().size(icon_md()).flex_shrink_0().into_element(),
+        })
         .child(text(label).text_role(TextRole::Body))
 }
 

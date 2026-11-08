@@ -497,6 +497,7 @@ fn item_menu(
             let save = message.clone();
             file.push(
                 MenuItem::new(i18n.tr("Save as", "另存为"))
+                    .icon(ui::MenuIcon::Download.src())
                     .on_select(move || shared.preview.save(save.clone())),
             );
             if let Some(path) = message.media_url {
@@ -517,10 +518,12 @@ fn item_menu(
         }
         ui::menu_groups([
             vec![
-                MenuItem::new(i18n.tr("Locate in Chat", "前往聊天")).on_select(move || {
-                    target.set(Some(locate.clone()));
-                    state.close();
-                }),
+                MenuItem::new(i18n.tr("Locate in Chat", "前往聊天"))
+                    .icon(ui::MenuIcon::PositionToChat.src())
+                    .on_select(move || {
+                        target.set(Some(locate.clone()));
+                        state.close();
+                    }),
             ],
             file,
         ])

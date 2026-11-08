@@ -552,7 +552,12 @@ pub(super) fn grid_items(
                             } else {
                                 tr(i18n, "Add Sticker", "添加贴纸")
                             };
-                            vec![MenuItem::new(title).on_select(move || {
+                            let icon = if personal {
+                                ui::MenuIcon::Delete
+                            } else {
+                                ui::MenuIcon::Sticker
+                            };
+                            vec![MenuItem::new(title).icon(icon.src()).on_select(move || {
                                 let client = state.client();
                                 let id = sticker.sticker_id.clone();
                                 state.update(async move {

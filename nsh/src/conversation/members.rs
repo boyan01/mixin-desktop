@@ -114,31 +114,47 @@ fn member_row(
     ui::menu()
         .trigger(member_summary(member))
         .child(
-            ui::menu_row(move || tr("Profile", "个人资料"))
+            ui::menu_row_icon(None, move || tr("Profile", "个人资料"))
                 .on_select(move || profile.set(member())),
         )
         .child(
-            ui::menu_row(move || tr("Message", "发消息")).on_select(move || {
-                if let Some(member) = member() {
-                    navigation.open_user(state.client(), member.user_id, state.failed);
-                }
-            }),
+            ui::menu_row_icon(Some(ui::MenuIcon::Chat), move || tr("Message", "发消息")).on_select(
+                move || {
+                    if let Some(member) = member() {
+                        navigation.open_user(state.client(), member.user_id, state.failed);
+                    }
+                },
+            ),
         )
         .child(when(
             move || owner() && other(),
             move || {
-                ui::menu_row(move || {
-                    if member().is_some_and(|member| member.role.as_deref() == Some("ADMIN")) {
-                        tr("Dismiss as admin", "取消管理员")
-                    } else {
-                        tr("Make group admin", "设为管理员")
-                    }
-                })
-                .disabled(state.busy)
-                .on_select(move || {
-                    if let Some(member) = member() {
-                        toggle_admin(state, member);
-                    }
+                let admin =
+                    move || member().is_some_and(|member| member.role.as_deref() == Some("ADMIN"));
+                dynamic(move || {
+                    let admin = admin();
+                    untracked(|| {
+                        ui::menu_row_icon(
+                            Some(if admin {
+                                ui::MenuIcon::Stop
+                            } else {
+                                ui::MenuIcon::ManageUser
+                            }),
+                            move || {
+                                if admin {
+                                    tr("Dismiss as admin", "取消管理员")
+                                } else {
+                                    tr("Make group admin", "设为管理员")
+                                }
+                            },
+                        )
+                        .disabled(state.busy)
+                        .on_select(move || {
+                            if let Some(member) = member() {
+                                toggle_admin(state, member);
+                            }
+                        })
+                    })
                 })
             },
         ))
@@ -150,14 +166,16 @@ fn member_row(
                             && member().is_some_and(|member| member.role.is_none())))
             },
             move || {
-                ui::menu_row(move || tr("Remove from group…", "移出群组…"))
-                    .text_color(ui::danger)
-                    .disabled(state.busy)
-                    .on_select(move || {
-                        if let Some(member) = member() {
-                            remove_member(state, member);
-                        }
-                    })
+                ui::menu_row_icon(Some(ui::MenuIcon::Delete), move || {
+                    tr("Remove from group…", "移出群组…")
+                })
+                .text_color(ui::danger)
+                .disabled(state.busy)
+                .on_select(move || {
+                    if let Some(member) = member() {
+                        remove_member(state, member);
+                    }
+                })
             },
         ))
 }

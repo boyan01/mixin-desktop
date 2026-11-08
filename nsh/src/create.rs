@@ -22,6 +22,15 @@ pub(crate) enum Action {
 }
 
 impl Action {
+    fn icon(self) -> ui::MenuIcon {
+        match self {
+            Self::Search => ui::MenuIcon::SearchUser,
+            Self::Chat => ui::MenuIcon::CreateConversation,
+            Self::Group => ui::MenuIcon::CreateGroup,
+            Self::Circle => ui::MenuIcon::CircleOutline,
+        }
+    }
+
     fn title(self) -> Key {
         match self {
             Self::Search => Key::SearchContact,
@@ -56,7 +65,7 @@ pub(crate) fn trigger(action: Signal<Option<Action>>) -> impl IntoElement {
             [Action::Search, Action::Chat, Action::Group, Action::Circle]
                 .into_iter()
                 .map(move |value| {
-                    ui::menu_row(move || i18n.text(value.title()))
+                    ui::menu_row_icon(Some(value.icon()), move || i18n.text(value.title()))
                         .on_select(move || action.set(Some(value)))
                 }),
         )

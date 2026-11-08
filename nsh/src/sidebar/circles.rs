@@ -647,14 +647,17 @@ impl Circles {
             ui::menu_groups([
                 vec![
                     MenuItem::new(tr("Edit Circle Name", "编辑名称"))
+                        .icon(ui::MenuIcon::Edit.src())
                         .disabled(busy)
                         .on_select(edit(Editing::Rename)),
                     MenuItem::new(tr("Edit Conversations", "管理圈子"))
+                        .icon(ui::MenuIcon::ManageCircle.src())
                         .disabled(busy)
                         .on_select(edit(Editing::Manage)),
                 ],
                 vec![
                     MenuItem::new(tr("Delete Circle", "删除圈子"))
+                        .icon(ui::MenuIcon::Delete.src())
                         .disabled(busy)
                         .on_select(move || {
                             nav.close_drawer();
@@ -695,6 +698,7 @@ pub(crate) fn add_to_circle_item(state: Circles, row: &ConversationListData) -> 
     });
     (!items.is_empty()).then(|| {
         MenuItem::submenu(tr("Add to Circle", "添加到圈子"), items)
+            .icon(ui::MenuIcon::Circle.src())
             .disabled(state.busy.get_untracked())
     })
 }
@@ -708,6 +712,7 @@ pub(crate) fn remove_from_circle_item(
     let row = row.clone();
     Some(
         MenuItem::new(tr("Remove Chat from circle", "从圈子里移除对话"))
+            .icon(ui::MenuIcon::Delete.src())
             .disabled(state.busy.get_untracked())
             .on_select(move || state.edit_membership(id.clone(), &row, false)),
     )
