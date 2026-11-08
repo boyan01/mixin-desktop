@@ -666,6 +666,44 @@ mod tests {
     use crate::db::MixinDatabase;
 
     #[tokio::test]
+    async fn conversation_and_user_rows_never_muted_read_with_a_past_mute_deadline() {
+        let directory = tempfile::tempdir().unwrap();
+        let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
+            .await
+            .unwrap();
+        // As Flutter stores a bot contact never muted: no mute_until at all.
+        crate::db::query(
+            "INSERT INTO conversations (conversation_id, category, created_at, status) \
+             VALUES ('bot-chat', 'CONTACT', 1700000000000, 2)",
+        )
+        .execute(&database.conversation_dao.0)
+        .await
+        .unwrap();
+        crate::db::query(
+            "INSERT INTO users (user_id, identity_number, relationship, created_at) \
+             VALUES ('bot', '7000105366', 'FRIEND', 1700000000000)",
+        )
+        .execute(&database.conversation_dao.0)
+        .await
+        .unwrap();
+
+        let conversation = database
+            .conversation_dao
+            .find_conversation_by_id("bot-chat")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(conversation.mute_until, DateTime::UNIX_EPOCH);
+        let user = database
+            .user_dao
+            .find_user_by_id("bot")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(user.mute_until, DateTime::UNIX_EPOCH);
+    }
+
+    #[tokio::test]
     async fn refreshing_conversation_preserves_local_list_state() {
         let directory = tempfile::tempdir().unwrap();
         let database = MixinDatabase::connect_at(directory.path().join("mixin.db"))
@@ -1170,7 +1208,7 @@ crate::db::storage::row_mapping!(Conversation {
     code_url: "code_url",
     created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
     status: "status",
-    mute_until: "mute_until" => crate::db::datetime::DatabaseDateTime,
+    mute_until: "mute_until" => crate::db::datetime::MuteUntil,
     expire_in: "expire_in",
 });
 

@@ -164,20 +164,18 @@ impl Unread {
         state
     }
 
-    /// Marks the conversation read while its newest row is in front of the
-    /// person, and again only when that row or the rows awaiting a read change.
-    pub fn mark_read_while_visible(
+    /// Marks the conversation read once its rows are in front of the person,
+    /// as Flutter does on opening it, wherever they are scrolled to; again only
+    /// when the newest row or the rows awaiting a read change.
+    pub fn mark_read_while_open(
         self,
         messages: Signal<Vec<MessageListView>>,
-        caught_up: impl Fn() -> bool + 'static,
+        loaded: impl Fn() -> bool + 'static,
     ) {
         let own_id = self.account.with(|account| account.account_id());
         let reading = computed(move || {
-            let visible = self.attentive.get()
-                && self.ready.get()
-                && self.latest_visible.get()
-                && caught_up();
-            visible.then(|| {
+            let open = self.attentive.get() && self.ready.get() && loaded();
+            open.then(|| {
                 messages.with(|rows| {
                     let waiting = rows
                         .iter()
@@ -201,7 +199,7 @@ impl Unread {
                     runtime::run(async move { client.message().mark_conversation_read(id).await })
                         .await
                 {
-                    log::warn!("Could not mark the visible conversation read: {error}");
+                    log::warn!("Could not mark the open conversation read: {error}");
                 }
             });
         });

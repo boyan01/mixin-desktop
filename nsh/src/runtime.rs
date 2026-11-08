@@ -17,13 +17,38 @@ fn runtime() -> &'static Runtime {
     RUNTIME.get_or_init(|| Runtime::new().expect("create the business runtime"))
 }
 
-pub(crate) async fn run<T: Send + 'static>(
-    future: impl Future<Output = ClientResult<T>> + Send + 'static,
+/// Logs a failure where the UI asked for the work: views turn errors into a
+/// state such as "failed", which alone would leave nothing to diagnose.
+fn logged<T>(
+    caller: &'static std::panic::Location<'static>,
+    result: ClientResult<T>,
 ) -> ClientResult<T> {
+    if let Err(error) = &result {
+        log::warn!(
+            target: "ui",
+            "{}:{}: {error}",
+            caller.file(),
+            caller.line()
+        );
+    }
+    result
+}
+
+#[track_caller]
+pub(crate) fn run<T: Send + 'static>(
+    future: impl Future<Output = ClientResult<T>> + Send + 'static,
+) -> impl Future<Output = ClientResult<T>> {
+    let caller = std::panic::Location::caller();
     // Disposing the UI owner must cancel its background work too.
-    AbortOnDropHandle::new(runtime().spawn(future))
-        .await
-        .map_err(|error| ClientError::Internal(format!("Background task failed: {error}")))?
+    let task = AbortOnDropHandle::new(runtime().spawn(future));
+    async move {
+        logged(
+            caller,
+            task.await
+                .map_err(|error| ClientError::Internal(format!("Background task failed: {error}")))
+                .and_then(|result| result),
+        )
+    }
 }
 
 /// Polls business subscriptions on the business runtime, with bounded delivery.
@@ -68,15 +93,21 @@ where
 }
 
 // A user-committed write must finish even if navigation disposes its view.
+#[track_caller]
 pub(crate) fn commit<T: Send + 'static>(
     future: impl Future<Output = ClientResult<T>> + Send + 'static,
 ) -> impl Future<Output = ClientResult<T>> {
+    let caller = std::panic::Location::caller();
     let task = COMMITS
         .get_or_init(TaskTracker::new)
         .spawn_on(future, runtime().handle());
     async move {
-        task.await
-            .map_err(|error| ClientError::Internal(format!("Command failed: {error}")))?
+        logged(
+            caller,
+            task.await
+                .map_err(|error| ClientError::Internal(format!("Command failed: {error}")))
+                .and_then(|result| result),
+        )
     }
 }
 

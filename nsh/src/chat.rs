@@ -173,9 +173,7 @@ pub(crate) fn screen(
         }
     });
     let failed = timeline.failed;
-    unread.mark_read_while_visible(messages, move || {
-        !loading.get() && !failed.get() && !timeline.has_newer.get()
-    });
+    unread.mark_read_while_open(messages, move || !loading.get() && !failed.get());
     let rows = message_row::Rows {
         actions,
         messages,

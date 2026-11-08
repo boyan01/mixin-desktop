@@ -746,7 +746,7 @@ crate::db::storage::row_mapping!(User {
     phone: "phone",
     is_verified: "is_verified",
     created_at: "created_at" => crate::db::datetime::DatabaseDateTime,
-    mute_until: "mute_until" => crate::db::datetime::DatabaseDateTime,
+    mute_until: "mute_until" => crate::db::datetime::MuteUntil,
     has_pin: "has_pin",
     app_id: "app_id",
     biography: "biography",
