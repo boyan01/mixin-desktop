@@ -7,7 +7,6 @@ use super::{
     message_appearance::{self, Frame, Inset, Stamp, bubble_surface},
     message_content::{self, Placement},
     message_system,
-    timeline::Timeline,
     unread::Unread,
 };
 use crate::{appearance::Appearance, presentation, ui};
@@ -31,8 +30,11 @@ pub(super) struct Rows {
     pub actions: Actions,
     pub messages: Signal<Vec<MessageListView>>,
     pub target: Signal<Option<String>>,
-    pub timeline: Timeline,
-    pub unread: Unread,
+    /// The row a jump landed on, and the fading opacity of its highlight.
+    pub highlight: Signal<Option<String>>,
+    pub highlight_opacity: nsh_core::element::AnimatedValue,
+    /// Unread state, which only a conversation's own timeline has.
+    pub unread: Option<Unread>,
     pub history: ElementRef,
     pub own_id: Stored<String>,
     pub sender_names: Memo<bool>,
@@ -124,7 +126,9 @@ impl Rows {
                     .is_some_and(|(first, last)| (first..=last).contains(&at.index()))
         });
         let row_ref = element_ref();
-        unread.observe_row(id, move || at.index() == 0, row_ref, history);
+        if let Some(unread) = unread {
+            unread.observe_row(id, move || at.index() == 0, row_ref, history);
+        }
         let selected =
             move || id().is_some_and(|id| actions.selected.with(|selected| selected.contains(&id)));
         let follows_sender =
@@ -134,7 +138,7 @@ impl Rows {
             .rounded(ui::radius_md())
             .style_when(move || !follows_sender(), |style| style.pt_2())
             .style_when(selected, |style| style.bg(ui::state_selected))
-            .child(unread.divider(i18n, id))
+            .children(unread.map(|unread| unread.divider(i18n, id)))
             .child(when(
                 move || day.with(Option::is_some),
                 move || day_separator(day),
@@ -164,7 +168,8 @@ impl Rows {
         let Self {
             actions,
             target,
-            timeline,
+            highlight,
+            highlight_opacity,
             sender_names,
             ..
         } = self;
@@ -188,7 +193,7 @@ impl Rows {
                 && (mine() || !(sender_names.get() && appearance.show_avatar()))
         };
         let highlighted = move || {
-            timeline.highlight.with(|target| {
+            highlight.with(|target| {
                 target.is_some()
                     && line.with(|line| {
                         line.as_ref().map(|line| &line.message.message_id) == target.as_ref()
@@ -293,7 +298,7 @@ impl Rows {
                                                 mine,
                                                 neutral,
                                                 highlighted,
-                                                timeline.highlight_opacity,
+                                                highlight_opacity,
                                             )
                                         }))
                                         .child(
@@ -316,7 +321,10 @@ impl Rows {
                                                     view()
                                                         .min_w_0()
                                                         .rounded(ui::radius_md())
-                                                        .overflow_hidden()
+                                                        .style_when(
+                                                            move || !frame.get().own_bubble,
+                                                            |style| style.overflow_hidden(),
+                                                        )
                                                         .child(body),
                                                 ))
                                                 .child(when(highlighted, move || {
@@ -333,7 +341,7 @@ impl Rows {
                                                                 ui::bubble_highlight_in()
                                                             }
                                                         })
-                                                        .bind_opacity(&timeline.highlight_opacity)
+                                                        .bind_opacity(&highlight_opacity)
                                                         .pointer_events(PointerEvents::None)
                                                 }))
                                                 .child(when(
@@ -373,6 +381,51 @@ impl Rows {
                     ),
             )
     }
+}
+
+/// Fixed rows in a chat's own list, for the debug preview. `messages` is newest
+/// first, as a timeline holds them; `mention_names` maps identity numbers to names.
+#[cfg(debug_assertions)]
+pub(crate) fn detached(
+    account_id: &str,
+    messages: Vec<MessageListView>,
+    sender_names: bool,
+    mention_names: std::collections::HashMap<String, String>,
+) -> impl IntoElement {
+    provide_context(super::mentions::MentionNames(signal(mention_names)));
+    let media_viewport = super::message_media::viewport();
+    let messages = signal(messages);
+    let viewable = signal(None::<(usize, usize)>);
+    let history = element_ref();
+    let rows = Rows {
+        actions: message_actions::Actions::detached(account_id.to_owned()),
+        messages,
+        target: signal_with(None, SignalEquals::Never),
+        highlight: signal_with(None, SignalEquals::Never),
+        highlight_opacity: animated_value(0.0),
+        unread: None,
+        history,
+        own_id: stored(account_id.to_owned()),
+        sender_names: computed(move || sender_names),
+        viewable,
+        unobstructed: computed(|| true),
+    };
+    view().flex_1().min_h_0().on_layout(media_viewport).child(
+        virtual_list(move || messages.with(Vec::len), move |at| rows.row(at))
+            .keys(move || {
+                messages.with(|rows| {
+                    rows.iter()
+                        .map(|row| row.message_id.clone())
+                        .collect::<Vec<_>>()
+                })
+            })
+            .element_ref(&history)
+            .on_viewable_items_change(move |event: &ViewableItems| viewable.set(event.viewable))
+            .inverted()
+            .estimated_item_size(ui::list_row_height())
+            .flex_1()
+            .min_h_0(),
+    )
 }
 
 fn day_separator(day: Memo<Option<String>>) -> impl IntoElement {

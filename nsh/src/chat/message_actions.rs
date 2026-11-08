@@ -38,7 +38,7 @@ pub(super) enum Detail {
 #[derive(Clone, Copy)]
 pub(super) struct Actions {
     pub owner: Owner,
-    pub account: Stored<Arc<AccountClient>>,
+    pub account: Account,
     pub i18n: I18n,
     pub quote: Signal<Option<MessageListView>>,
     pub text_selection: super::message_text::Selection,
@@ -57,7 +57,75 @@ pub(super) struct Actions {
     pub toasts: ui::Toasts,
 }
 
+/// The account a surface's messages belong to. Rows read only its id while they
+/// render; commands take its client.
+#[derive(Clone, Copy)]
+pub(super) struct Account {
+    client: Stored<Option<Arc<AccountClient>>>,
+    id: Stored<String>,
+}
+
+impl Account {
+    pub fn new(client: Arc<AccountClient>) -> Self {
+        let id = client.account_id();
+        Self {
+            client: stored(Some(client)),
+            id: stored(id),
+        }
+    }
+
+    pub fn id(self) -> String {
+        self.id.with(|id| id.clone())
+    }
+
+    /// The client for a command. Only a detached preview has none.
+    pub fn with<T>(self, f: impl FnOnce(&Arc<AccountClient>) -> T) -> T {
+        self.client.with(|client| {
+            f(client
+                .as_ref()
+                .expect("a detached preview runs no account commands"))
+        })
+    }
+
+    /// For a view that renders without the account, as a sticker does: it
+    /// needs one only to animate or to refresh a failed asset.
+    pub fn client(self) -> Option<Arc<AccountClient>> {
+        self.client.with(|account| account.clone())
+    }
+}
+
 impl Actions {
+    /// Actions over fixed rows, for the debug preview. Rows render as in a chat;
+    /// a command that needs the account is not available.
+    #[cfg(debug_assertions)]
+    pub fn detached(account_id: String) -> Self {
+        let playback =
+            use_context::<crate::playback::Playback>().expect("Preview provides playback");
+        Self {
+            owner: Owner::current(),
+            account: Account {
+                client: stored(None),
+                id: stored(account_id),
+            },
+            i18n: i18n::current(),
+            quote: signal_with(None, SignalEquals::Never),
+            text_selection: super::message_text::Selection::new(),
+            can_send: signal(true),
+            selected: signal(Vec::new()),
+            forwarding: signal(Vec::new()),
+            combine: signal(false),
+            policies: signal_with(HashMap::new(), SignalEquals::Never),
+            failed: signal(false),
+            busy: signal(false),
+            pinned_page: false,
+            media: stored(crate::media_client().as_ref().clone()),
+            playback: playback.snapshot_signal(),
+            preview: signal_with(None, SignalEquals::Never),
+            preview_history: signal_with(Vec::new(), SignalEquals::Never),
+            toasts: use_context::<ui::Toasts>().expect("Preview provides toasts"),
+        }
+    }
+
     /// Runs under the surface, not the caller: a menu closes and a list cell is
     /// recycled before the command answers, and either would end the task with
     /// `busy` still set.
@@ -465,7 +533,7 @@ fn menu_with_context<E: Interactive>(
         if policy.as_ref().is_some_and(|p| p.can_recall) {
             let row = row.clone();
             let recover = (row.category.ends_with("_TEXT")
-                && actions.account.with(|account| account.account_id()) == row.sender_id)
+                && actions.account.id() == row.sender_id)
                 .then(|| row.content.clone());
             delete.push(item(
                 ui::MenuIcon::Recall,

@@ -28,7 +28,7 @@ pub(super) fn body(
     let appearance =
         use_context::<crate::appearance::Appearance>().expect("Home provides chat appearance");
     let playback = use_context::<crate::playback::Playback>().expect("Home provides playback");
-    let mine = message.sender_id == actions.account.with(|account| account.account_id());
+    let mine = message.sender_id == actions.account.id();
     // A voice message waits in the accent color until it is heard.
     let heard = mine || message.media_status == "READ";
     let playback_key = stored(

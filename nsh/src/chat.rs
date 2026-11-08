@@ -21,6 +21,8 @@ mod message_post;
 mod message_qr;
 mod message_quote;
 mod message_row;
+#[cfg(debug_assertions)]
+pub(crate) use message_row::detached as detached_messages;
 mod message_selection;
 mod message_snapshot;
 mod message_system;
@@ -113,7 +115,7 @@ pub(crate) fn screen(
     let actions = message_actions::Actions {
         owner: Owner::current(),
         text_selection: message_text::Selection::new(),
-        account: stored(account.clone()),
+        account: message_actions::Account::new(account.clone()),
         i18n,
         quote,
         can_send,
@@ -173,8 +175,9 @@ pub(crate) fn screen(
         actions,
         messages,
         target,
-        timeline,
-        unread,
+        highlight: timeline.highlight,
+        highlight_opacity: timeline.highlight_opacity,
+        unread: Some(unread),
         history,
         own_id: stored(account.account_id()),
         sender_names: computed(move || group || header.with(|row| row.is_bot_group)),

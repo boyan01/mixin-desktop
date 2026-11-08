@@ -65,7 +65,7 @@ pub(super) fn body(row: MessageListView, actions: Actions, placement: Placement)
     let appearance = appearance();
     let transcript = placement.transcript.clone();
     let in_transcript = transcript.is_some();
-    let mine = row.sender_id == actions.account.with(|account| account.account_id());
+    let mine = row.sender_id == actions.account.id();
     // A status at the end of the text needs room there, not just over it.
     let room = (framed && frame.stamp == Stamp::Inline)
         .then(|| message_appearance::stamp_reserve(&row, mine && frame.delivery));
@@ -135,7 +135,7 @@ fn kind_body(
         framed,
         ..
     } = placement;
-    let mine = row.sender_id == actions.account.with(|account| account.account_id());
+    let mine = row.sender_id == actions.account.id();
     let delivery = status.filter(|_| mine);
     if category.ends_with("_TEXT") {
         message_text::read(row, &row.content, actions, transcript, room).into_element()
@@ -172,7 +172,7 @@ fn kind_body(
         )
         .into_element()
     } else if category == "APP_CARD" || category == "APP_BUTTON_GROUP" {
-        message_detail::card(row, actions)
+        message_detail::card(row, actions, framed.then_some(delivery))
     } else if category.ends_with("_LOCATION") {
         super::message_location::location(row, actions)
     } else if category == "SYSTEM_SAFE_INSCRIPTION" {
@@ -189,7 +189,7 @@ fn kind_body(
 fn recalled(row: &MessageListView, actions: Actions) -> AnyElement {
     let i18n = actions.i18n;
     let reedit = use_context::<super::reedit::Reedit>().expect("Home provides recall editing");
-    let mine = actions.account.with(|account| account.account_id()) == row.sender_id;
+    let mine = actions.account.id() == row.sender_id;
     let id = stored(row.message_id.clone());
     view()
         .flex_row()
@@ -290,7 +290,7 @@ fn sticker(row: &MessageListView, actions: Actions) -> AnyElement {
         .accessibility_label(move || Some(i18n.text(Key::Sticker).into()))
         .on_press(move || actions.open_sticker(pressed.clone()))
         .child(crate::sticker::framed_asset(
-            actions.account.with(|value| value.clone()),
+            actions.account.client(),
             move || (id.clone(), url.clone(), kind.clone()),
             frame,
         ))
@@ -331,7 +331,7 @@ fn file(row: MessageListView, transcript: Option<String>, actions: Actions) -> A
     let done = available(&row);
     let transfer = Transfer::of(&row, transcript.clone());
     let retry = transcript.is_some()
-        || (row.sender_id == actions.account.with(|account| account.account_id())
+        || (row.sender_id == actions.account.id()
             && matches!(row.status.as_str(), "SENDING" | "FAILED"));
     let name = row
         .media_name
@@ -510,7 +510,7 @@ fn transcript_card(
     let retry = transcript.is_none()
         && row.media_status == "CANCELED"
         && matches!(row.status.as_str(), "SENDING" | "FAILED")
-        && row.sender_id == actions.account.with(|account| account.account_id());
+        && row.sender_id == actions.account.id();
     let id = row.message_id.clone();
     let opened = row.clone();
     let mut lines = view()

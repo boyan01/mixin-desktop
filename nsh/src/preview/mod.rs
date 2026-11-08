@@ -6,6 +6,7 @@ mod components;
 mod composer;
 mod fixtures;
 mod loading;
+mod messages;
 mod sidebar;
 
 use std::time::Duration;
@@ -27,6 +28,51 @@ struct Scene {
 }
 
 const SCENES: &[Scene] = &[
+    Scene {
+        name: "messages",
+        actions: messages::ACTIONS,
+        mount: messages::text,
+    },
+    Scene {
+        name: "messages-replies",
+        actions: messages::ACTIONS,
+        mount: messages::replies,
+    },
+    Scene {
+        name: "messages-photos",
+        actions: messages::ACTIONS,
+        mount: messages::photos,
+    },
+    Scene {
+        name: "messages-media",
+        actions: messages::ACTIONS,
+        mount: messages::media,
+    },
+    Scene {
+        name: "messages-files",
+        actions: messages::ACTIONS,
+        mount: messages::files,
+    },
+    Scene {
+        name: "messages-cards",
+        actions: messages::ACTIONS,
+        mount: messages::cards,
+    },
+    Scene {
+        name: "messages-apps",
+        actions: messages::ACTIONS,
+        mount: messages::apps,
+    },
+    Scene {
+        name: "messages-wallet",
+        actions: messages::ACTIONS,
+        mount: messages::wallet,
+    },
+    Scene {
+        name: "messages-system",
+        actions: messages::ACTIONS,
+        mount: messages::system,
+    },
     Scene {
         name: "sidebar",
         actions: sidebar::ACTIONS,
@@ -127,18 +173,33 @@ fn toolbar(
         .border_b_1()
         .border_color(ui::hairline)
         .test_id("preview-toolbar")
-        .children(SCENES.iter().enumerate().map(move |(position, scene)| {
-            let tone = if position == index {
-                ButtonTone::Primary
-            } else {
-                ButtonTone::Ghost
-            };
-            ui::button(tone, ButtonSize::Small)
-                .accessibility_label(move || Some(format!("Scene {}", scene.name).into()))
-                .on_press(move || current.set(position))
-                .child(text(scene.name))
-        }))
-        .child(view().flex_1())
+        // More scenes than a window's width scroll, and the actions stay in view.
+        .child(
+            scroll()
+                .horizontal()
+                .scrollbar(false)
+                .flex_1()
+                .min_w_0()
+                .child(
+                    view()
+                        .flex_row()
+                        .items_center()
+                        .gap(ui::space_sm())
+                        .children(SCENES.iter().enumerate().map(move |(position, scene)| {
+                            let tone = if position == index {
+                                ButtonTone::Primary
+                            } else {
+                                ButtonTone::Ghost
+                            };
+                            ui::button(tone, ButtonSize::Small)
+                                .accessibility_label(move || {
+                                    Some(format!("Scene {}", scene.name).into())
+                                })
+                                .on_press(move || current.set(position))
+                                .child(text(scene.name))
+                        })),
+                ),
+        )
         .children(actions.iter().map(move |&name| {
             ui::button(ButtonTone::Secondary, ButtonSize::Small)
                 .accessibility_label(move || Some(format!("Action {name}").into()))

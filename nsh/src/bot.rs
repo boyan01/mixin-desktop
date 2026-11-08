@@ -64,7 +64,8 @@ impl PartialEq for Page {
 pub(crate) struct BotWindows {
     owner: Owner,
     session: Stored<String>,
-    account: Stored<Arc<AccountClient>>,
+    /// `None` only in the debug preview, which opens no windows.
+    account: Stored<Option<Arc<AccountClient>>>,
     pages: Signal<Vec<Page>>,
     opening: Signal<Vec<String>>,
     next_id: Signal<u64>,
@@ -84,6 +85,16 @@ pub(crate) fn mount(account: Arc<AccountClient>) -> BotWindows {
         account.account_id(),
         NEXT_SESSION.fetch_add(1, Ordering::Relaxed)
     );
+    windows(session, Some(account))
+}
+
+/// Bot windows for the debug preview, which has no account to open them for.
+#[cfg(debug_assertions)]
+pub(crate) fn detached() -> BotWindows {
+    windows(String::new(), None)
+}
+
+fn windows(session: String, account: Option<Arc<AccountClient>>) -> BotWindows {
     BotWindows {
         session: stored(session),
         owner: Owner::current(),
@@ -140,7 +151,10 @@ impl BotWindows {
             return;
         }
         self.opening.update(|keys| keys.push(key.clone()));
-        let account = self.account.with(|account| account.clone());
+        let account = self
+            .account
+            .with(|account| account.clone())
+            .expect("the debug preview has no account");
         self.owner.run(|| {
             spawn(async move {
                 let currency = account.profile().fiat_currency;
@@ -372,7 +386,10 @@ impl BotWindows {
         let reload = body
             .get(1)
             .is_some_and(|value| value == true || value == "true");
-        let account = self.account.with(|account| account.clone());
+        let account = self
+            .account
+            .with(|account| account.clone())
+            .expect("the debug preview has no account");
         spawn(async move {
             let reply_url = page_url.clone();
             let result = runtime::run(async move {

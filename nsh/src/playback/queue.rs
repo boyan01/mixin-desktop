@@ -181,7 +181,7 @@ impl Playback {
         let Some((scope, anchor, request)) = continuation else {
             return;
         };
-        let account = self.account.with(|account| account.clone());
+        let account = self.account();
         self.owner.run(move || {
             spawn(async move {
                 let query_scope = scope.clone();

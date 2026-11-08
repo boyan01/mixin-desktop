@@ -22,6 +22,12 @@ impl AttachmentProgress {
         Self(progress)
     }
 
+    /// No transfers, for the debug preview.
+    #[cfg(debug_assertions)]
+    pub(crate) fn detached() -> Self {
+        Self(signal(Vec::new()))
+    }
+
     pub(crate) fn bytes(self, transcript_id: Option<&str>, message_id: &str) -> Option<(u64, u64)> {
         self.0.with(|values| {
             values

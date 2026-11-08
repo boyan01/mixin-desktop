@@ -38,7 +38,8 @@ impl Field {
 #[derive(Clone, Copy)]
 pub(crate) struct Appearance {
     owner: Owner,
-    client: Stored<SettingsClient>,
+    /// `None` only in the debug preview, which keeps the defaults.
+    client: Stored<Option<SettingsClient>>,
     avatar: Signal<bool>,
     identity: Signal<bool>,
     font: Signal<f64>,
@@ -52,27 +53,16 @@ pub(crate) struct Appearance {
 }
 
 pub(crate) fn mount() -> Appearance {
-    let client = crate::settings_client();
-    let state = Appearance {
-        owner: Owner::current(),
-        client: stored(client),
-        avatar: signal(true),
-        identity: signal(false),
-        font: signal(0.0),
-        confirmed: stored((true, false, 0.0)),
-        loaded: signal([false; 3]),
-        busy: signal(false),
-        failed: signal(false),
-        previewing: signal(false),
-        pending_font: stored(None),
-        revision: signal(0),
-    };
+    let state = Appearance::new(Some(crate::settings_client()));
     effect(move || {
         state.revision.get();
         state.loaded.set([false; 3]);
         state.failed.set(false);
         for field in [Field::Avatar, Field::Identity, Field::Font] {
-            let client = state.client.with(|client| client.clone());
+            let client = state
+                .client
+                .with(|client| client.clone())
+                .expect("mounted with a client");
             spawn(async move {
                 let mut changes = Box::pin(runtime::observe(
                     client.subscribe_setting(field.key().into()),
@@ -130,6 +120,31 @@ fn parse(field: Field, value: Option<&str>) -> Option<f64> {
 }
 
 impl Appearance {
+    /// The default chat appearance, for the debug preview: nothing is read or saved.
+    #[cfg(debug_assertions)]
+    pub(crate) fn detached() -> Self {
+        let state = Self::new(None);
+        state.loaded.set([true; 3]);
+        state
+    }
+
+    fn new(client: Option<SettingsClient>) -> Self {
+        Self {
+            owner: Owner::current(),
+            client: stored(client),
+            avatar: signal(true),
+            identity: signal(false),
+            font: signal(0.0),
+            confirmed: stored((true, false, 0.0)),
+            loaded: signal([false; 3]),
+            busy: signal(false),
+            failed: signal(false),
+            previewing: signal(false),
+            pending_font: stored(None),
+            revision: signal(0),
+        }
+    }
+
     pub(crate) fn ready(self) -> bool {
         self.loaded
             .with(|loaded| loaded.iter().all(|loaded| *loaded))
@@ -235,7 +250,10 @@ impl Appearance {
         }
         self.busy.set(true);
         self.failed.set(false);
-        let client = self.client.with(|client| client.clone());
+        let client = self
+            .client
+            .with(|client| client.clone())
+            .expect("the debug preview saves no settings");
         let encoded = if matches!(field, Field::Font) {
             value.to_string()
         } else {

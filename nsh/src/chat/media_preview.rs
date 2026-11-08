@@ -44,7 +44,7 @@ impl MediaPreview {
             actions: Actions {
                 owner: Owner::current(),
                 text_selection: super::message_text::Selection::new(),
-                account: stored(account),
+                account: super::message_actions::Account::new(account),
                 i18n: i18n::current(),
                 quote: signal_with(None, SignalEquals::Never),
                 can_send: signal(false),

@@ -127,12 +127,16 @@ fn preview(
         .on_layout(move |bounds: &Bounds<Points>| {
             width.set(bounds.size.width.0.clamp(1.0, ui::card_width().0));
         })
+        // Under the pin, for when the map does not load.
         .child(
             view()
                 .absolute()
-                .inset_0()
+                .left_0()
+                .right_0()
+                .bottom_0()
+                .h(relative(0.5))
                 .items_center()
-                .justify_center()
+                .pt_2()
                 .gap_1()
                 .child(text(move || actions.i18n.text(Key::Location)).text_role(ui::TextRole::Body))
                 .child(text(format!("{latitude:.5}, {longitude:.5}")).text_role(ui::TextRole::Caption))

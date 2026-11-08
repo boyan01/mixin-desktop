@@ -54,6 +54,8 @@ pub(super) struct Frame {
     pub stamp: Stamp,
     /// Whether an own message shows its delivery.
     pub delivery: bool,
+    /// The body draws its own bubble and nip, so the row leaves it unclipped.
+    pub own_bubble: bool,
 }
 
 impl Frame {
@@ -63,6 +65,7 @@ impl Frame {
         inset: Inset::Regular,
         stamp: Stamp::Inline,
         delivery: true,
+        own_bubble: false,
     };
 
     pub fn of(row: &MessageListView) -> Self {
@@ -133,11 +136,16 @@ impl Frame {
                 stamp: Stamp::Hidden,
                 ..Self::TEXT
             }
-        } else if category == "APP_BUTTON_GROUP"
-            || (category == "APP_CARD" && message_detail::actions_card(&row.content))
-        {
+        } else if category == "APP_BUTTON_GROUP" {
             Self {
                 stamp: Stamp::Hidden,
+                ..bare
+            }
+        } else if category == "APP_CARD" && message_detail::actions_card(&row.content) {
+            // The card draws its own surface, and its time at the end of its text.
+            Self {
+                stamp: Stamp::Over,
+                own_bubble: true,
                 ..bare
             }
         } else if category == "APP_CARD" {
@@ -165,6 +173,7 @@ impl Frame {
             .is_some_and(|id| !id.is_empty());
         Self {
             surface: frame.surface || quoted,
+            own_bubble: frame.own_bubble && !quoted,
             ..frame
         }
     }

@@ -23,12 +23,13 @@ pub(crate) fn asset(
     source: impl Fn() -> (Option<String>, String, String) + 'static,
     size: f32,
 ) -> impl IntoElement {
-    framed_asset(account, source, (size, size))
+    framed_asset(Some(account), source, (size, size))
 }
 
-/// A sticker in a frame of the caller's `(width, height)`.
+/// A sticker in a frame of the caller's `(width, height)`. Without an account, as
+/// in the debug preview, it shows raster assets and cannot refresh a failed one.
 pub(crate) fn framed_asset(
-    account: Arc<AccountClient>,
+    account: Option<Arc<AccountClient>>,
     source: impl Fn() -> (Option<String>, String, String) + 'static,
     frame: (f32, f32),
 ) -> impl IntoElement {
@@ -57,8 +58,10 @@ pub(crate) fn framed_asset(
                 if requested.with(|value| value.as_ref() == Some(&key)) {
                     return;
                 }
+                let Some(account) = account.with(|value| value.clone()) else {
+                    return;
+                };
                 requested.replace(Some(key));
-                let account = account.with(|value| value.clone());
                 let id = id.clone();
                 spawn(async move {
                     // The durable job may finish after this view is disposed.
@@ -67,19 +70,14 @@ pub(crate) fn framed_asset(
                             .await;
                 });
             });
-            let child = if url.is_empty() {
+            let client = account.with(|value| value.clone());
+            let animation = kind.eq_ignore_ascii_case("json");
+            let child = if url.is_empty() || (animation && client.is_none()) {
                 let fail = fail.clone();
                 effect(move || fail());
                 view().hidden().into_element()
-            } else if kind.eq_ignore_ascii_case("json") {
-                animated(
-                    account.with(|value| value.clone()),
-                    url,
-                    frame,
-                    failed,
-                    fail,
-                )
-                .into_element()
+            } else if let Some(client) = client.filter(|_| animation) {
+                animated(client, url, frame, failed, fail).into_element()
             } else {
                 let fail = fail.clone();
                 image(url)

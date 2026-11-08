@@ -22,7 +22,8 @@ pub(crate) const SPEEDS: [(f64, &str); 3] = [(1.0, "1×"), (1.5, "1.5×"), (2.0,
 
 #[derive(Clone, Copy)]
 pub(crate) struct Playback {
-    account: Stored<Arc<AccountClient>>,
+    /// `None` only in the debug preview, which plays nothing.
+    account: Stored<Option<Arc<AccountClient>>>,
     media: Stored<Arc<MediaClient>>,
     snapshot: Signal<AudioPlaybackSnapshot>,
     owner: Owner,
@@ -34,6 +35,32 @@ pub(crate) struct Playback {
 }
 
 impl Playback {
+    /// Idle playback over `media`, for the debug preview: no account, no queue.
+    #[cfg(debug_assertions)]
+    pub(crate) fn detached(media: Arc<MediaClient>) -> Self {
+        Self::new(None, media)
+    }
+
+    fn new(account: Option<Arc<AccountClient>>, media: Arc<MediaClient>) -> Self {
+        Self {
+            account: stored(account),
+            snapshot: signal_with(media.audio_playback_snapshot(), SignalEquals::Never),
+            media: stored(media),
+            owner: Owner::current(),
+            request: signal(0),
+            row: signal_with(None, SignalEquals::Never),
+            title: signal(String::new()),
+            failed: signal(false),
+            queue: signal_with(None, SignalEquals::Never),
+        }
+    }
+
+    fn account(self) -> Arc<AccountClient> {
+        self.account
+            .with(|account| account.clone())
+            .expect("the debug preview has no account")
+    }
+
     pub(crate) fn snapshot_signal(self) -> Signal<AudioPlaybackSnapshot> {
         self.snapshot
     }
@@ -72,7 +99,7 @@ impl Playback {
     ) -> impl std::future::Future<Output = ClientResult<()>> {
         self.cancel_pending();
         let request = self.request.get_untracked();
-        let client = self.account.with(|client| client.clone());
+        let client = self.account();
         let (sender, receiver) = tokio::sync::oneshot::channel();
         self.owner.run(move || {
             spawn(async move {
@@ -110,17 +137,7 @@ pub(crate) fn mount(account: Arc<AccountClient>) -> Playback {
     let media = Arc::new(MediaClient::new());
     // Descendant chat and composer controls share this account session only.
     provide_context(stored(Some(media.clone())));
-    let state = Playback {
-        account: stored(account.clone()),
-        snapshot: signal_with(media.audio_playback_snapshot(), SignalEquals::Never),
-        media: stored(media.clone()),
-        owner: Owner::current(),
-        request: signal(0),
-        row: signal_with(None, SignalEquals::Never),
-        title: signal(String::new()),
-        failed: signal(false),
-        queue: signal_with(None, SignalEquals::Never),
-    };
+    let state = Playback::new(Some(account.clone()), media.clone());
     let cleanup_media = media.clone();
     cleanup(move || {
         // Closing invalidates synchronously; device cleanup stays on the runtime.
@@ -286,7 +303,7 @@ pub(crate) fn bar(
                                 .on_press(move || {
                                     if let Some(row) = state.row.get_untracked() {
                                         navigation.open_conversation(
-                                            state.account.with(|value| value.clone()),
+                                            state.account(),
                                             row.conversation_id,
                                             Some(row.message_id),
                                             state.failed,

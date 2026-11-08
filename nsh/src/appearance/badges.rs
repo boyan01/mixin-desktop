@@ -74,7 +74,7 @@ pub(crate) fn identity_badge(
         return svg(ImageSrc::svg_markup(include_str!(
             "../../assets/badges/verified.svg"
         )))
-        .size_3p5()
+        .size_3()
         .label(tr("Verified", "已认证"))
         .into_element();
     }
@@ -82,8 +82,7 @@ pub(crate) fn identity_badge(
         return svg(ImageSrc::svg_markup(include_str!(
             "../../assets/badges/bot_fill.svg"
         )))
-        .size_3p5()
-        .text_color(ui::fg_secondary)
+        .size_3()
         .label(tr("Bot", "机器人"))
         .into_element();
     }

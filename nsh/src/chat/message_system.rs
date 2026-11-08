@@ -213,12 +213,7 @@ pub(super) fn encryption_notice(actions: Actions) -> impl IntoElement {
 }
 
 fn actor(i18n: I18n, id: &str, name: &str, actions: Actions) -> String {
-    presentation::system_message::actor(
-        i18n,
-        id,
-        name,
-        &actions.account.with(|account| account.account_id()),
-    )
+    presentation::system_message::actor(i18n, id, name, &actions.account.id())
 }
 
 fn system_text(row: &MessageListView, actions: Actions) -> String {

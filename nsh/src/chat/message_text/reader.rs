@@ -2,14 +2,16 @@
 //! is the one the platform reports, not a second message source of truth.
 use mixin_desktop_api::MessageListView;
 use nsh_base::text_view::{Block, Document, Inline};
-use nsh_core::{element::TextSelectionEvent, prelude::*};
+use nsh_core::{LineHeight, element::TextSelectionEvent, prelude::*};
 
 use crate::{
     chat::{mentions::MentionNames, message_actions::Actions, message_links},
     runtime,
 };
 
-const LINK_CLASS: &str = "text-primary underline";
+const LINK_CLASS: &str = "text-primary";
+/// Looser than the font's own lines, so that long messages read easily.
+const MESSAGE_LINE_HEIGHT: LineHeight = LineHeight::Multiple(1.4);
 const HIGHLIGHT_CLASS: &str = "bg-highlight text-foreground";
 
 struct Current {
@@ -108,6 +110,7 @@ pub(in crate::chat) fn read(
                 .flex_none()
                 .min_w_0()
                 .text_size(move || appearance.primary_size())
+                .line_height(MESSAGE_LINE_HEIGHT)
                 .text_color(move || nsh_base::theme().foreground)
                 .child(dynamic(move || {
                     let mut out = Vec::new();

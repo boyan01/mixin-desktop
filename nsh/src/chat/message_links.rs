@@ -33,6 +33,11 @@ impl CardAction {
     }
 }
 
+/// Whether a card action opens a web page outside Mixin.
+pub(super) fn external(raw: &str) -> bool {
+    matches!(CardAction::parse(raw.to_owned()), CardAction::Web(_))
+}
+
 /// Capture the message's origin while building the card, before navigation changes.
 pub(super) fn card_action(
     actions: Actions,

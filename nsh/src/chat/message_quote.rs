@@ -28,6 +28,7 @@ enum Artwork {
         kind: String,
     },
     Contact {
+        id: String,
         name: String,
         avatar: String,
     },
@@ -42,6 +43,7 @@ impl Quote {
             "media_url": row.media_url, "media_name": row.media_name,
             "asset_url": row.sticker_asset_url, "asset_type": row.sticker_asset_type,
             "sticker_id": row.sticker_id,
+            "shared_user_id": row.shared_user_id,
             "shared_user_full_name": row.shared_user_full_name,
             "shared_user_identity_number": row.shared_user_identity_number,
             "shared_user_avatar_url": row.shared_user_avatar_url,
@@ -104,6 +106,7 @@ impl Quote {
             })
         } else if category.ends_with("_CONTACT") {
             Some(Artwork::Contact {
+                id: string("shared_user_id"),
                 name: string("shared_user_full_name"),
                 avatar: string("shared_user_avatar_url"),
             })
@@ -396,15 +399,16 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
                 let source = source.clone();
                 let kind = kind.clone();
                 artwork(
-                    crate::sticker::asset(
-                        actions.account.with(|account| account.clone()),
+                    crate::sticker::framed_asset(
+                        actions.account.client(),
                         move || (id.clone(), source.clone(), kind.clone()),
-                        48.0,
+                        (48.0, 48.0),
                     )
                     .into_element(),
                 )
             }
-            Some(Artwork::Contact { name, avatar }) => {
+            Some(Artwork::Contact { id, name, avatar }) => {
+                let id = id.clone();
                 let name = name.clone();
                 let avatar = avatar.clone();
                 artwork(
@@ -413,7 +417,7 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
                         .items_center()
                         .justify_center()
                         .child(ui::avatar_view(
-                            String::new,
+                            move || id.clone(),
                             move || name.clone().into(),
                             move || avatar.clone(),
                             ui::AvatarSize::Bar,

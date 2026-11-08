@@ -1,10 +1,10 @@
 use mixin_desktop_api::MessageListView;
-use nsh_core::{LineHeight, prelude::*};
+use nsh_core::{LineHeight, element::ImageSrc, prelude::*};
 use serde_json::Value;
 
 use super::{
     message_actions::{Actions, Detail},
-    message_appearance::bubble_surface,
+    message_appearance::{self, bubble_surface},
     message_links,
 };
 use crate::{
@@ -24,7 +24,13 @@ pub(super) fn actions_card(content: &str) -> bool {
         .is_ok_and(|card| card["action"].as_str().is_none_or(str::is_empty))
 }
 
-pub(super) fn card(row: &MessageListView, actions: Actions) -> AnyElement {
+/// `stamp` is the time and delivery an actions card shows at the end of its
+/// description, as a text message does; only a timeline row passes one.
+pub(super) fn card(
+    row: &MessageListView,
+    actions: Actions,
+    stamp: Option<Option<Memo<String>>>,
+) -> AnyElement {
     let i18n = actions.i18n;
     let Ok(value) = serde_json::from_str::<Value>(&row.content) else {
         return text(move || i18n.tr("Invalid card", "无法读取卡片"))
@@ -33,13 +39,13 @@ pub(super) fn card(row: &MessageListView, actions: Actions) -> AnyElement {
     };
     if row.category == "APP_BUTTON_GROUP" {
         return commands(row, value.as_array().cloned().unwrap_or_default(), actions)
-            .min_w(ui::action_group_min_width())
-            .max_w(ui::action_group_max_width())
+            .w(ui::action_group_max_width())
+            .max_w(relative(1.0))
             .into_element();
     }
     match value["action"].as_str().filter(|action| !action.is_empty()) {
         Some(action) => app_card(row, action.to_owned(), &value, actions),
-        None => titled_card(row, &value, actions),
+        None => titled_card(row, &value, actions, stamp),
     }
 }
 
@@ -89,10 +95,15 @@ fn app_card(row: &MessageListView, action: String, value: &Value, actions: Actio
 }
 
 /// A card with its own surface, and its actions under it, outside the bubble.
-fn titled_card(row: &MessageListView, value: &Value, actions: Actions) -> AnyElement {
+fn titled_card(
+    row: &MessageListView,
+    value: &Value,
+    actions: Actions,
+    stamp: Option<Option<Memo<String>>>,
+) -> AnyElement {
     let appearance = appearance();
     let region = super::message_media::region();
-    let mine = row.sender_id == actions.account.with(|account| account.account_id());
+    let mine = row.sender_id == actions.account.id();
     let string = |key: &str| value[key].as_str().unwrap_or_default().to_owned();
     let cover = &value["cover"];
     let (source, aspect) = match cover["url"].as_str().filter(|url| !url.is_empty()) {
@@ -127,12 +138,19 @@ fn titled_card(row: &MessageListView, value: &Value, actions: Actions) -> AnyEle
                     .text_emphasis()
                     .select_text(),
             )
-            .child(
-                text(string("description"))
-                    .text_size(move || appearance.primary_size())
-                    .select_text(),
-            ),
+            // Read as a text message is: links, mentions and line spacing.
+            .child(super::message_text::read(
+                row,
+                &string("description"),
+                actions,
+                None,
+                stamp.map(|delivery| message_appearance::stamp_reserve(row, delivery.is_some())),
+            )),
     );
+    let buttons = value["actions"].as_array().cloned().unwrap_or_default();
+    // In a timeline row the card is the bubble: Flutter's nip sits at its foot, not
+    // under the buttons.
+    let nip = stamp.is_some() && message_appearance::Frame::of(row).own_bubble;
     let least = ui::actions_card_min_width().0;
     let most = ui::actions_card_max_width().0;
     view()
@@ -141,20 +159,35 @@ fn titled_card(row: &MessageListView, value: &Value, actions: Actions) -> AnyEle
         .gap_2()
         .child(
             view()
+                .relative()
                 .rounded(ui::radius_md())
                 .bg(move || bubble_surface(mine))
                 .shadow_xs()
                 .shadow_color(ui::bubble_shadow())
-                .child(surface),
+                .children(nip.then(|| {
+                    message_appearance::nip(
+                        move || mine,
+                        computed(|| false),
+                        || false,
+                        animated_value(0.0),
+                    )
+                }))
+                .child(surface)
+                .children(stamp.map(|delivery| {
+                    message_appearance::stamp(row, delivery, false)
+                        .absolute()
+                        .right(ui::space_md())
+                        .bottom(ui::chip_inset())
+                        .pointer_events(PointerEvents::None)
+                })),
         )
-        .child(commands(
-            row,
-            value["actions"].as_array().cloned().unwrap_or_default(),
-            actions,
-        ))
+        // Buttons under a card belong to it: the next message stands further off.
+        .children((!buttons.is_empty()).then(|| commands(row, buttons, actions).mb(ui::space_sm())))
         .into_element()
 }
 
+/// Flutter's action layout: a row holds up to three buttons, which share its width;
+/// a label wider than a third takes more of it, and a row holds less.
 fn commands(row: &MessageListView, commands: Vec<Value>, actions: Actions) -> View {
     let appearance = appearance();
     let mut group = view().flex_row().flex_wrap().gap_2();
@@ -171,30 +204,50 @@ fn commands(row: &MessageListView, commands: Vec<Value>, actions: Actions) -> Vi
             .and_then(|color| u32::from_str_radix(color, 16).ok())
             .map_or_else(ui::fg_primary, |color| rgb(color).into());
         let input = action.starts_with("input:");
+        let external = message_links::external(&action);
         let on_press = message_links::card_action(actions, row, action, None);
         // A state fill replaces a button's own, so the plate sits on a parent.
-        group = group.child(
-            view()
-                .rounded(ui::radius_md())
-                .bg(ui::surface_list)
-                .shadow_xs()
-                .shadow_color(ui::bubble_shadow())
-                .child(
-                    ui::command()
-                        .min_h_0()
-                        .px(ui::action_button_inset_x())
-                        .py_2()
-                        .rounded(ui::radius_md())
-                        .disabled(move || input && (!actions.can_send.get() || actions.busy.get()))
-                        .on_press(on_press)
-                        .child(
-                            text(title)
-                                .text_size(move || appearance.secondary_size())
-                                .line_height(LineHeight::Multiple(1.0))
-                                .text_color(move || color),
-                        ),
-                ),
-        );
+        let mut plate = view()
+            .relative()
+            .flex_grow(1.0)
+            .min_w(relative(0.3))
+            .rounded(ui::radius_md())
+            .bg(ui::surface_list)
+            .shadow_xs()
+            .shadow_color(ui::bubble_shadow())
+            .child(
+                ui::command()
+                    .w_full()
+                    .min_h_0()
+                    .px(ui::action_button_inset_x())
+                    .py_2()
+                    .rounded(ui::radius_md())
+                    .disabled(move || input && (!actions.can_send.get() || actions.busy.get()))
+                    .on_press(on_press)
+                    .child(
+                        text(title)
+                            .text_center()
+                            .text_size(move || appearance.secondary_size())
+                            .line_height(LineHeight::Multiple(1.0))
+                            .text_color(move || color),
+                    ),
+            );
+        if external {
+            // Says the button leaves for a web page.
+            plate = plate.child(
+                svg(ImageSrc::svg_markup(include_str!(
+                    "../../assets/message/external_link.svg"
+                )))
+                .absolute()
+                .top(ui::space_xs() + ui::space_2xs())
+                .right(ui::space_xs() + ui::space_2xs())
+                .size(ui::space_xs() + ui::space_2xs())
+                .text_color(ui::message_status)
+                .pointer_events(PointerEvents::None)
+                .accessibility_elements_hidden(true),
+            );
+        }
+        group = group.child(plate);
     }
     group
 }

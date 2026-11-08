@@ -38,7 +38,8 @@ type AppOpener = Rc<dyn Fn(AppLink)>;
 
 #[derive(Clone, Copy)]
 pub(crate) struct LinkNavigation {
-    account: Stored<Arc<AccountClient>>,
+    /// `None` only in the debug preview, which opens no links.
+    account: Stored<Option<Arc<AccountClient>>>,
     owner: Owner,
     navigation: ChatNavigation,
     panel: Signal<Option<Panel>>,
@@ -49,6 +50,16 @@ pub(crate) struct LinkNavigation {
 
 impl LinkNavigation {
     pub(crate) fn new(account: Arc<AccountClient>) -> Self {
+        Self::with_account(Some(account))
+    }
+
+    /// Link routing for the debug preview, which has no account to resolve links with.
+    #[cfg(debug_assertions)]
+    pub(crate) fn detached() -> Self {
+        Self::with_account(None)
+    }
+
+    fn with_account(account: Option<Arc<AccountClient>>) -> Self {
         let state = Self {
             account: stored(account),
             owner: Owner::current(),
@@ -73,7 +84,9 @@ impl LinkNavigation {
     }
 
     fn client(self) -> Arc<AccountClient> {
-        self.account.with(|account| account.clone())
+        self.account
+            .with(|account| account.clone())
+            .expect("the debug preview has no account")
     }
 
     fn close(self) {
