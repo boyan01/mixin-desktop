@@ -45,6 +45,7 @@ struct Cached {
     compress: bool,
     edited: Option<String>,
     item: PreparedAttachment,
+    preview: PreparedAttachment,
 }
 
 /// Rows survive a cancelled preparation, so adding a file or changing the mode
@@ -58,7 +59,7 @@ impl Cache {
     }
 
     pub fn item(&self, id: u64) -> Option<PreparedAttachment> {
-        self.entries().get(&id).map(|entry| entry.item.clone())
+        self.entries().get(&id).map(|entry| entry.preview.clone())
     }
 
     /// Forgets removed rows and returns the finished items in source order.
@@ -126,6 +127,17 @@ pub(super) async fn prepare_sources(
         };
         let item = prepared
             .map_err(|error| ClientError::Internal(format!("{}: {error}", source.name())))?;
+        // ZIP changes the send recipe, not the visible identity of each source.
+        let preview = cache
+            .entries()
+            .get(&source.id)
+            .and_then(|previous| {
+                (previous.edited == edited
+                    && (mode == Mode::Archive
+                        || (previous.preview.kind == "IMAGE" && item.kind == "IMAGE")))
+                    .then(|| previous.preview.clone())
+            })
+            .unwrap_or_else(|| item.clone());
         cache.entries().insert(
             source.id,
             Cached {
@@ -133,6 +145,7 @@ pub(super) async fn prepare_sources(
                 compress,
                 edited,
                 item: item.clone(),
+                preview,
             },
         );
         items.push(item);
@@ -193,4 +206,64 @@ fn decode_image(url: &str) -> Option<Vec<u8>> {
         return None;
     }
     base64::engine::general_purpose::STANDARD.decode(bytes).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn packaging_images_preserves_their_preview_and_archives_original_bytes() {
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image::RgbImage::from_pixel(32, 32, image::Rgb([45, 120, 210]))
+            .write_to(&mut bytes, image::ImageFormat::Png)
+            .unwrap();
+        let bytes = bytes.into_inner();
+        let source = Source::new(
+            0,
+            AttachmentSource::Clipboard {
+                name: "fixture.png".into(),
+                bytes: Arc::new(bytes.clone()),
+            },
+        );
+        let media = Arc::new(MediaClient::new());
+        let cache = Cache::default();
+        let pictures = prepare_sources(
+            media.clone(),
+            vec![source.clone()],
+            Mode::Media,
+            true,
+            cache.clone(),
+        )
+        .await
+        .unwrap();
+        let preview = cache.item(0).unwrap();
+        assert_eq!(preview.kind, "IMAGE");
+        assert_eq!(preview.path, pictures[0].path);
+        let archive = prepare_sources(
+            media.clone(),
+            vec![source.clone()],
+            Mode::Archive,
+            true,
+            cache.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(archive[0].kind, "DATA");
+        assert_eq!(std::fs::read(&archive[0].path).unwrap(), bytes);
+        assert_eq!(cache.item(0).unwrap().kind, "IMAGE");
+        assert_eq!(cache.item(0).unwrap().path, preview.path);
+        prepare_sources(
+            media.clone(),
+            vec![source],
+            Mode::Media,
+            true,
+            cache.clone(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(cache.item(0).unwrap().kind, "IMAGE");
+        assert_eq!(cache.item(0).unwrap().path, preview.path);
+        media.close().await.unwrap();
+    }
 }

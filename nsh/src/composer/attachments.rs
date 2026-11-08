@@ -2,7 +2,7 @@ use mixin_desktop_api::{AccountClient, MessageListView};
 use nsh_core::prelude::*;
 use std::sync::Arc;
 
-use super::{Tray, forms, tool_button, tr};
+use super::{Tray, forms, tr};
 use crate::{
     i18n::{self, Key},
     motion::Presence,
@@ -111,18 +111,16 @@ pub(crate) fn attachment_menu(
         })
         .offset(ui::space_sm())
         .trigger(
-            view()
+            super::surface::menu_trigger()
+                .test_id("composer-attachment-trigger")
                 .tooltip(ui::hint(move || {
                     tr(i18n, "Add attachment", "添加附件").to_owned()
                 }))
-                .child(
-                    tool_button()
-                        .style_when(open, |s| {
-                            s.bg(ui::state_selected).text_color(ui::fg_primary)
-                        })
-                        .accessibility_label(move || Some(i18n.text(Key::Attachment).into()))
-                        .child(ui::icon(ui::Icon::Attachment)),
-                ),
+                .style_when(open, |s| {
+                    s.bg(ui::state_selected).text_color(ui::fg_primary)
+                })
+                .optional_label(move || Some(i18n.text(Key::Attachment).into()))
+                .child(ui::icon(ui::Icon::Attachment)),
         )
         .child(
             ui::menu_row_symbol(ui::Icon::Image, move || {

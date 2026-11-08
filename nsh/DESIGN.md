@@ -160,5 +160,18 @@ The chat composer separates the growing editor from a compact bottom toolbar.
 Attachment, sticker and microphone commands use unframed icon buttons; Send is
 one accent-filled circle at the trailing edge. Recording and playback reuse the
 same 16pt composer frame, with status and duration above the icon-only commands.
-Document attachments use a horizontal filename/size layout; pictures retain
-square thumbnails. A tooltip and accessible name explain every hidden label.
+Document attachments fit their filename/size up to the card-width cap; pictures retain
+square thumbnails. Tooltips and accessible names explain hidden toolbar labels.
+The editor keeps a neutral border while focused; its caret indicates text focus,
+while individual keyboard controls retain their focus rings. Original-image and
+ZIP choices are conditional icon toggles in the existing bottom toolbar. Original
+images light the image control; ZIP appears for multiple attachments. ZIP keeps
+original files, temporarily locks image quality and folds the previews into one
+counted archive summary with a short native height/opacity animation. Both preview
+layers retain their own geometry, and packaging preserves the source thumbnails.
+Unfolding restores the previous image quality. The archive summary's lock opens
+the optional ZIP password. While attachments are present, the bottom toolbar hides
+attachment, emoji and microphone commands; the preview's plus adds more files.
+Reprocessing stays inside the attachment area without inserting a status row.
+Voice previews show elapsed and
+total time, played waveform bars, pause/resume and seeking.

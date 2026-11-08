@@ -44,7 +44,7 @@ fn editor(files: bool) -> View {
     let input = composer::Input::detached(draft);
     let tray = if files {
         let mut item = PreparedAttachment::default();
-        item.name = "Project proposal.pdf".into();
+        item.name = "2026-Q4-project-proposal-and-supporting-documentation-final.pdf".into();
         item.kind = "DATA".into();
         item.size = 1_572_864;
         view().px_3().pt_3().gap_2().child(
@@ -109,7 +109,14 @@ fn recording(recorded: bool) -> impl IntoElement {
     });
     composer::RecordingPanel {
         snapshot,
-        playing: computed(|| false),
+        playback: signal(mixin_desktop_api::AudioPlaybackSnapshot {
+            status: mixin_desktop_api::AudioPlaybackStatus::Idle,
+            item: None,
+            position_millis: 0,
+            duration_millis: 18_000,
+            speed: 1.0,
+        }),
+        seek: Rc::new(|_| {}),
         busy: signal(false),
         failed: signal(false),
         cancel: Rc::new(|| {}),
@@ -118,4 +125,320 @@ fn recording(recorded: bool) -> impl IntoElement {
         send: Rc::new(|| {}),
     }
     .view()
+}
+
+pub(super) const DETAIL_ACTIONS: &[&str] =
+    &["ZIP", "Unzip", "Original", "One", "Two", "Files", "Empty"];
+
+/// Production surfaces with bounded fixture state for each attachment combination.
+pub(super) fn details_scene(actions: Actions) -> View {
+    details(actions, false)
+}
+
+pub(super) fn fold_scene(actions: Actions) -> View {
+    details(actions, true)
+}
+
+fn details(actions: Actions, bottom: bool) -> View {
+    let i18n = i18n::current();
+    let draft = signal(String::new());
+    let input = composer::Input::detached(draft);
+    let compress = signal(true);
+    let archive = signal(false);
+    let images = signal(true);
+    let count = signal(2_usize);
+    let password = signal(String::new());
+    let busy = signal(false);
+    let last = signal(String::new());
+    let strip_revision = signal(0_u64);
+    for (name, total) in [("Empty", 0), ("One", 1), ("Two", 2)] {
+        actions.on(
+            name,
+            move || {
+                batch(|| {
+                    input.blur();
+                    compress.set(true);
+                    strip_revision.update(|value| *value = value.wrapping_add(1));
+                    count.set(2);
+                    images.set(true);
+                    archive.set(false);
+                })
+            },
+            move || {
+                batch(|| {
+                    count.set(total);
+                    images.set(true);
+                    archive.set(false);
+                })
+            },
+        );
+    }
+    actions.on(
+        "Original",
+        move || {
+            batch(|| {
+                input.blur();
+                strip_revision.update(|value| *value = value.wrapping_add(1));
+                count.set(2);
+                images.set(true);
+                archive.set(false);
+                compress.set(true);
+            })
+        },
+        move || compress.set(false),
+    );
+    actions.on(
+        "Files",
+        move || {
+            batch(|| {
+                input.blur();
+                compress.set(true);
+                strip_revision.update(|value| *value = value.wrapping_add(1));
+                count.set(2);
+                images.set(true);
+                archive.set(false);
+            })
+        },
+        move || images.set(false),
+    );
+    actions.on(
+        "ZIP",
+        move || {
+            batch(|| {
+                input.blur();
+                compress.set(true);
+                strip_revision.update(|value| *value = value.wrapping_add(1));
+                count.set(2);
+                images.set(true);
+                archive.set(false);
+            })
+        },
+        move || archive.set(true),
+    );
+    actions.on(
+        "Unzip",
+        move || {
+            batch(|| {
+                input.blur();
+                compress.set(true);
+                strip_revision.update(|value| *value = value.wrapping_add(1));
+                count.set(2);
+                images.set(true);
+                archive.set(true);
+            })
+        },
+        move || archive.set(false),
+    );
+    after_answer(move || input.focus());
+
+    view()
+        .flex_1()
+        .bg(ui::surface_chat)
+        .p_4()
+        .gap_4()
+        .when(bottom, |v| v.child(view().flex_1().min_h_0()))
+        .child(composer::surface::editor(
+            view()
+                .px_3()
+                .pt_3()
+                .style_when(move || count.get() == 0, |s| s.hidden())
+                .child(dynamic(move || {
+                    strip_revision.get();
+                    untracked(|| {
+                        composer::attachment_strip(
+                            move || archive.get(),
+                            move || count.get(),
+                            fixture_thumbnails(count, images, archive),
+                            composer::archive_password(password, busy),
+                        )
+                    })
+                })),
+            input.view(
+                move || i18n.text(Key::EncryptedPlaceholder).to_owned(),
+                computed(|| false),
+                signal(false),
+                Rc::new(|_| {}),
+                Rc::new(|| {}),
+            ),
+            view()
+                .flex_row()
+                .child(
+                    view()
+                        .flex_row()
+                        .style_when(move || count.get() > 0, |s| s.hidden())
+                        .child(composer::attachment_menu(
+                            move || last.set("Media selected".into()),
+                            move || last.set("Files selected".into()),
+                            move || last.set("Contact selected".into()),
+                            move || last.set("Post selected".into()),
+                        ))
+                        .child(tool(ui::Icon::Sticker, "Emoji and stickers"))
+                        .child(tool(ui::Icon::Microphone, "Record voice message")),
+                )
+                .child(when(
+                    move || images.get() && count.get() > 0,
+                    move || {
+                        composer::original_toggle(
+                            move || !compress.get() || archive.get(),
+                            move || busy.get() || archive.get(),
+                            move || archive.get(),
+                            move || compress.update(|value| *value = !*value),
+                        )
+                    },
+                ))
+                .child(when(
+                    move || count.get() >= 2,
+                    move || {
+                        composer::zip_toggle(
+                            move || archive.get(),
+                            move || busy.get(),
+                            move || count.get(),
+                            move || archive.update(|value| *value = !*value),
+                        )
+                    },
+                )),
+            composer::surface::send_button().child(ui::icon(ui::Icon::Send)),
+        ))
+        .when(!bottom, |v| {
+            v.child(text(move || last.get())).child(live_recording())
+        })
+}
+
+fn fixture_thumbnails(
+    count: Signal<usize>,
+    images: Signal<bool>,
+    archive: Signal<bool>,
+) -> impl IntoElement {
+    scroll().horizontal().scrollbar(false).child(
+        view()
+            .flex_row()
+            .gap_2()
+            .child(each(
+                move || (0..count.get()).collect::<Vec<_>>(),
+                |index| *index,
+                move |index, _| {
+                    let index = index.get_untracked();
+                    composer::attachment_frame(move || index != 0 || !images.get())
+                        .child(
+                            when(
+                                move || index == 0 && images.get(),
+                                || ui::logo().size_full(),
+                            )
+                            .otherwise(move || {
+                                let mut item = PreparedAttachment::default();
+                                item.name = if index == 0 {
+                                "2026-Q4-project-proposal-and-supporting-documentation-final.pdf"
+                            } else {
+                                "2.mp4"
+                            }
+                            .into();
+                                item.kind = if index == 0 { "DATA" } else { "VIDEO" }.into();
+                                item.size = 8_900_000;
+                                composer::file_content(item)
+                            }),
+                        )
+                        .child(
+                            composer::remove_button(move || index == 0 && images.get())
+                                .accessibility_label(move || {
+                                    Some(format!("Remove attachment {index}").into())
+                                })
+                                .on_press(move || {
+                                    batch(|| {
+                                        count.update(|total| *total = total.saturating_sub(1));
+                                        if count.get_untracked() < 2 {
+                                            archive.set(false);
+                                        }
+                                    })
+                                }),
+                        )
+                },
+            ))
+            .child(
+                ui::command()
+                    .size(ui::thumbnail_grid_size())
+                    .min_h_0()
+                    .p_0()
+                    .flex_shrink_0()
+                    .rounded(ui::radius_thumb())
+                    .bg(ui::input_fill)
+                    .accessibility_label(move || Some(i18n::tr("Add files…", "添加文件…").into()))
+                    .on_press(move || count.update(|total| *total += 1))
+                    .child(ui::icon(ui::Icon::Add).size(ui::icon_lg())),
+            ),
+    )
+}
+
+/// MIXIN_PREVIEW_AUDIO supplies a 2.4-second local fixture for the native player.
+fn live_recording() -> View {
+    use futures::StreamExt as _;
+    use mixin_desktop_api::{AudioPlaybackEvent, MediaClient};
+    let Ok(path) = std::env::var("MIXIN_PREVIEW_AUDIO") else {
+        return view().child(recording(true));
+    };
+    let media = std::sync::Arc::new(MediaClient::new());
+    let playback = signal(media.audio_playback_snapshot());
+    let observe = media.clone();
+    let failed = signal(false);
+    spawn(async move {
+        let mut events = Box::pin(crate::runtime::observe(observe.subscribe_audio_playback()));
+        while let Some(event) = events.next().await {
+            match event {
+                AudioPlaybackEvent::Changed(value) => playback.set(value),
+                AudioPlaybackEvent::Failed { .. } => failed.set(true),
+                _ => {}
+            }
+        }
+    });
+    let close = media.clone();
+    cleanup(move || drop(crate::runtime::commit(close.close())));
+    let mut recording = VoiceRecording::default();
+    recording.path = path;
+    recording.duration_millis = 2_400;
+    recording.waveform = (0..64).map(|i| ((i * 37 + 29) % 220 + 20) as u8).collect();
+    let snapshot = signal(VoiceRecorderSnapshot {
+        session_id: Some(1),
+        status: VoiceRecorderStatus::Recorded,
+        duration_millis: recording.duration_millis,
+        waveform: recording.waveform.clone(),
+        recording: Some(recording),
+    });
+    let busy = signal(false);
+    let owner = Owner::current();
+    let playing_media = media.clone();
+    view().child(
+        composer::RecordingPanel {
+            snapshot,
+            playback,
+            busy,
+            failed,
+            play: Rc::new(move || {
+                if busy.get_untracked() {
+                    return;
+                }
+                let media = playing_media.clone();
+                let recording = snapshot
+                    .with_untracked(|s| s.recording.clone())
+                    .expect("preview recording");
+                let current = playback.get_untracked();
+                busy.set(true);
+                owner.run(|| {
+                    spawn(async move {
+                        failed.set(
+                            crate::runtime::run(async move {
+                                composer::preview_playback(&media, &recording, &current).await
+                            })
+                            .await
+                            .is_err(),
+                        );
+                        busy.set(false);
+                    })
+                });
+            }),
+            seek: Rc::new(move |position| media.seek_audio(position)),
+            cancel: Rc::new(|| {}),
+            toggle: Rc::new(|| {}),
+            send: Rc::new(|| {}),
+        }
+        .view(),
+    )
 }

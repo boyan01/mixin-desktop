@@ -9,7 +9,6 @@ pub(crate) fn frame() -> View {
         .bg(ui::bubble_in)
         .border_1()
         .border_color(ui::input_border)
-        .focus_within(|s| s.border_color(ui::focus_ring))
 }
 
 pub(crate) fn editor(
@@ -53,4 +52,21 @@ pub(crate) fn hinted(content: impl IntoElement, label: impl Fn() -> String + 'st
         .flex_shrink_0()
         .tooltip(ui::hint(label))
         .child(content)
+}
+
+/// A single native menu target, without an inner button competing for presses.
+pub(crate) fn menu_trigger() -> View {
+    view()
+        .size(ui::button_height_small())
+        .flex_shrink_0()
+        .flex_row()
+        .items_center()
+        .justify_center()
+        .rounded(ui::radius_md())
+        .role(AccessibilityRole::Button)
+        .focusable(true)
+        .text_color(ui::fg_secondary)
+        .hover(|s| s.bg(ui::state_hover))
+        .active(|s| s.bg(ui::state_pressed))
+        .focus(ui::ring)
 }

@@ -17,12 +17,17 @@ pub(crate) use attachments::attachment_menu;
 pub(crate) use attachments::attachments;
 pub(crate) use files::{Tray, mount as mount_tray, preparation::local_sources};
 #[cfg(debug_assertions)]
-pub(crate) use files::{attachment_frame, file_content, remove_button};
+pub(crate) use files::{
+    archive_password, attachment_frame, attachment_strip, file_content, original_toggle,
+    remove_button, zip_toggle,
+};
 pub(crate) use input::Input;
 pub(crate) use mentions::mentions;
 pub(crate) use sticker_store::detail as sticker_detail;
 pub(crate) use stickers::stickers;
 pub(crate) use voice::Voice;
+#[cfg(debug_assertions)]
+pub(crate) use voice::preview_playback;
 #[cfg(debug_assertions)]
 pub(crate) use voice::surface::RecordingPanel;
 

@@ -115,15 +115,16 @@ impl Voice {
 fn bar(voice: Voice) -> impl IntoElement {
     RecordingPanel {
         snapshot: voice.snapshot,
-        playing: computed(move || {
-            voice.playback.with(|p| {
-                p.status == AudioPlaybackStatus::Playing
-                    && voice.snapshot.with(|s| {
-                        s.recording
-                            .as_ref()
-                            .is_some_and(|r| p.item.as_ref().is_some_and(|i| i.id == r.path))
-                    })
-            })
+        playback: voice.playback,
+        seek: std::rc::Rc::new(move |position| {
+            let current = voice.playback.get_untracked();
+            if voice.snapshot.with_untracked(|s| {
+                s.recording
+                    .as_ref()
+                    .is_some_and(|r| current.item.as_ref().is_some_and(|item| item.id == r.path))
+            }) {
+                voice.media.with(|media| media.seek_audio(position));
+            }
         }),
         busy: voice.busy,
         failed: voice.failed,
@@ -156,7 +157,8 @@ fn bar(voice: Voice) -> impl IntoElement {
 /// A recording's presentation. The recorder owns state and commands.
 pub(crate) struct RecordingPanel {
     pub snapshot: Signal<VoiceRecorderSnapshot>,
-    pub playing: Memo<bool>,
+    pub playback: Signal<AudioPlaybackSnapshot>,
+    pub seek: std::rc::Rc<dyn Fn(u64)>,
     pub busy: Signal<bool>,
     pub failed: Signal<bool>,
     pub cancel: std::rc::Rc<dyn Fn()>,
@@ -170,7 +172,8 @@ impl RecordingPanel {
         use super::super::surface::{frame, hinted, send_button};
         let Self {
             snapshot,
-            playing,
+            playback,
+            seek,
             busy,
             failed,
             cancel,
@@ -180,6 +183,26 @@ impl RecordingPanel {
         } = self;
         let i18n = i18n::current();
         let recording = move || snapshot.with(|s| s.status == VoiceRecorderStatus::Recording);
+        let active = computed(move || {
+            snapshot.with(|s| {
+                s.recording.as_ref().is_some_and(|r| {
+                    playback.with(|p| {
+                        p.item.as_ref().is_some_and(|item| item.id == r.path)
+                            && p.status != AudioPlaybackStatus::Idle
+                    })
+                })
+            })
+        });
+        let playing = computed(move || {
+            active.get() && playback.with(|p| p.status == AudioPlaybackStatus::Playing)
+        });
+        let position = computed(move || {
+            if active.get() {
+                playback.with(|p| p.position_millis)
+            } else {
+                0
+            }
+        });
         let toggle_label = move || {
             if recording() {
                 tr(i18n, "Stop and preview", "停止并试听")
@@ -281,18 +304,19 @@ impl RecordingPanel {
                                 .child(
                                     text(move || {
                                         snapshot.with(|s| {
-                                            format!(
-                                                "{:02}:{:02}",
-                                                s.duration_millis / 60_000,
-                                                (s.duration_millis / 1000) % 60
-                                            )
+                                            let total = time(s.duration_millis);
+                                            if s.status == VoiceRecorderStatus::Recording {
+                                                total
+                                            } else {
+                                                format!("{} / {total}", time(position.get()))
+                                            }
                                         })
                                     })
                                     .text_role(ui::TextRole::Caption)
                                     .text_color(ui::fg_secondary),
                                 ),
                         )
-                        .child(waveform(snapshot)),
+                        .child(waveform(snapshot, position, active, busy, seek)),
                 )
                 .child(
                     view()
@@ -311,36 +335,97 @@ impl RecordingPanel {
     }
 }
 
-fn waveform(snapshot: Signal<VoiceRecorderSnapshot>) -> impl IntoElement {
+fn time(millis: u64) -> String {
+    format!("{:02}:{:02}", millis / 60_000, (millis / 1000) % 60)
+}
+
+fn waveform(
+    snapshot: Signal<VoiceRecorderSnapshot>,
+    position: Memo<u64>,
+    active: Memo<bool>,
+    busy: Signal<bool>,
+    seek: std::rc::Rc<dyn Fn(u64)>,
+) -> impl IntoElement {
+    let i18n = i18n::current();
     view()
+        .relative()
         .flex_1()
         .min_w_0()
-        .flex_row()
-        .items_center()
-        .gap(ui::space_2xs())
+        .max_w(ui::audio_wave_width())
         .h_8()
-        .overflow_hidden()
-        .children((0..32).map(move |index| {
+        .child(
             view()
-                .flex_1()
-                .max_w(ui::space_xs())
-                .min_w(ui::hairline_width())
-                .rounded(ui::radius_full())
-                .bg(ui::accent)
-                .h(move || {
-                    let amplitude = snapshot.with(|s| {
-                        let start = index * s.waveform.len() / 32;
-                        let end = ((index + 1) * s.waveform.len() / 32)
-                            .max(start + 1)
-                            .min(s.waveform.len());
-                        s.waveform
-                            .get(start..end)
-                            .and_then(|values| values.iter().max())
-                            .copied()
-                            .unwrap_or_default()
-                    });
-                    // Measured data: the sample's amplitude, within the 32pt row.
-                    px(ui::space_2xs().0 + f32::from(amplitude) / 255.0 * 26.0)
+                .absolute()
+                .inset_0()
+                .flex_row()
+                .items_center()
+                .justify_between()
+                .gap(ui::space_2xs())
+                .overflow_hidden()
+                .children((0..32).map(move |index| {
+                    view()
+                        .flex_1()
+                        .min_w_0()
+                        .max_w(ui::space_xs())
+                        .rounded_full()
+                        .bg(move || {
+                            snapshot.with(|s| {
+                                if s.status == VoiceRecorderStatus::Recording
+                                    || (s.duration_millis > 0
+                                        && index
+                                            < (position.get().min(s.duration_millis) * 32
+                                                / s.duration_millis)
+                                                as usize)
+                                {
+                                    ui::accent()
+                                } else {
+                                    ui::fg_tertiary()
+                                }
+                            })
+                        })
+                        .h(move || {
+                            let amplitude = snapshot.with(|s| {
+                                let start = index * s.waveform.len() / 32;
+                                let end = ((index + 1) * s.waveform.len() / 32)
+                                    .max(start + 1)
+                                    .min(s.waveform.len());
+                                s.waveform
+                                    .get(start..end)
+                                    .and_then(|values| values.iter().max())
+                                    .copied()
+                                    .unwrap_or_default()
+                            });
+                            // The sample's measured amplitude within the 32pt strip.
+                            px(ui::space_2xs().0 + f32::from(amplitude) / 255.0 * 26.0)
+                        })
+                })),
+        )
+        .child(
+            ui::slider_over_wave()
+                .absolute()
+                .inset_0()
+                .track_class("h-8 justify-center disabled:opacity-40")
+                .min(0.0)
+                .max(move || snapshot.with(|s| s.duration_millis.max(1)) as f64)
+                .step(100.0)
+                .value(move || Some(nsh_base::SliderValue::Single(position.get() as f64)))
+                .disabled(move || busy.get() || !active.get())
+                .accessibility_label(move || {
+                    Some(
+                        i18n.tr("Recording playback position", "录音试听进度")
+                            .into(),
+                    )
                 })
-        }))
+                .on_change(move |value: &nsh_base::SliderValue| {
+                    if let nsh_base::SliderValue::Single(value) = *value
+                        && active.get()
+                        && !busy.get_untracked()
+                    {
+                        seek(
+                            (value.max(0.0) as u64)
+                                .min(snapshot.with_untracked(|s| s.duration_millis)),
+                        );
+                    }
+                }),
+        )
 }

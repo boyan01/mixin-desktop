@@ -13,6 +13,11 @@ pub(crate) const FEEDBACK_MS: f32 = 120.0;
 pub(crate) const PANEL_WIDTH: nsh_core::LayoutTransition =
     nsh_core::LayoutTransition::new(nsh_core::LayoutCurve::EaseOut, 220.0);
 
+/// Folding selected attachments into one ZIP summary.
+pub(crate) const ATTACHMENT_FOLD_MS: f32 = 180.0;
+pub(crate) const ATTACHMENT_FOLD: nsh_core::LayoutTransition =
+    nsh_core::LayoutTransition::new(nsh_core::LayoutCurve::EaseOut, ATTACHMENT_FOLD_MS);
+
 pub(crate) fn duration(ms: f32) -> f32 {
     if reduce_motion() { ms.min(80.0) } else { ms }
 }

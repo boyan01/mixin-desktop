@@ -64,6 +64,7 @@ struct Preview {
     editor: Presence,
     preparing_edit: Signal<bool>,
     mode: Signal<Mode>,
+    archive: Signal<bool>,
     compress: Signal<bool>,
     silent: Signal<bool>,
     // The composer's draft: it is the caption of the first picture.
@@ -109,6 +110,7 @@ pub(crate) fn mount(
         editor: Presence::fade(move || editing.with(Option::is_some)),
         preparing_edit: signal(false),
         mode: signal(Mode::Auto),
+        archive: signal(false),
         compress: signal(true),
         silent: signal(false),
         caption,
@@ -180,6 +182,41 @@ impl Tray {
         self.0.tray()
     }
 
+    pub fn controls(self) -> View {
+        let preview = self.0;
+        let archive = move || preview.mode_value() == Mode::Archive;
+        view()
+            .flex_row()
+            .child(when(
+                move || preview.has_images(),
+                move || {
+                    original_toggle(
+                        move || !preview.compress.get() || archive(),
+                        move || preview.busy.get() || archive(),
+                        archive,
+                        move || {
+                            preview.loading.set(true);
+                            preview.compress.update(|value| *value = !*value);
+                        },
+                    )
+                },
+            ))
+            .child(when(
+                move || preview.sources.with(Vec::len) >= 2,
+                move || {
+                    zip_toggle(
+                        archive,
+                        move || preview.busy.get(),
+                        move || preview.sources.with(Vec::len),
+                        move || {
+                            preview.loading.set(true);
+                            preview.archive.update(|value| *value = !*value);
+                        },
+                    )
+                },
+            ))
+    }
+
     /// The image editor, over the whole window while an image is edited.
     pub fn editor(self) -> impl IntoElement {
         let preview = self.0;
@@ -194,7 +231,17 @@ impl Preview {
     fn prepare(self) {
         effect(move || {
             let sources = self.sources.get();
-            let mode = self.mode.get();
+            let archive = self.archive.get();
+            if archive && sources.len() < 2 {
+                self.archive.set(false);
+                return;
+            }
+            // Packaging must not replace the media/file choice it temporarily hides.
+            let mode = if archive {
+                Mode::Archive
+            } else {
+                self.mode.get()
+            };
             let compress = self.compress.get();
             self.retry.get();
             let media = self.media.with(|media| media.clone());
@@ -215,6 +262,9 @@ impl Preview {
 
     /// `Auto` resolves from what was prepared. A ZIP needs at least two files.
     fn mode_value(self) -> Mode {
+        if self.archive.get() && self.sources.with(Vec::len) >= 2 {
+            return Mode::Archive;
+        }
         match self.mode.get() {
             Mode::Auto => {
                 if self.prepared.with(|items| {
@@ -227,7 +277,6 @@ impl Preview {
                     Mode::Files
                 }
             }
-            Mode::Archive if self.sources.with(Vec::len) < 2 => Mode::Files,
             mode => mode,
         }
     }
@@ -316,6 +365,7 @@ impl Preview {
             0 => batch(|| {
                 self.selected.set(0);
                 self.mode.set(Mode::Auto);
+                self.archive.set(false);
                 self.password.set(String::new());
                 self.silent.set(false);
             }),
@@ -483,6 +533,7 @@ impl Preview {
                             self.sources.set(Vec::new());
                             self.selected.set(0);
                             self.mode.set(Mode::Auto);
+                            self.archive.set(false);
                             self.password.set(String::new());
                             self.silent.set(false);
                         });
@@ -515,8 +566,12 @@ impl Preview {
                 move || self.sources.with(Vec::is_empty),
                 |style| style.hidden(),
             )
-            .child(self.thumbnails())
-            .child(self.options())
+            .child(attachment_strip(
+                move || self.mode_value() == Mode::Archive,
+                move || self.sources.with(Vec::len),
+                self.thumbnails(),
+                archive_password(self.password, self.busy),
+            ))
             .child(self.status())
     }
 
@@ -551,15 +606,24 @@ impl Preview {
                             self.sources
                                 .with(|rows| rows.iter().position(|source| source.id == id))
                         };
-                        let item = move || {
+                        let presentation = computed(move || {
                             self.prepared.with(|_| ());
+                            self.cache.with(|cache| {
+                                cache
+                                    .item(id)
+                                    .map(|item| (item.path, item.name, item.kind, item.size))
+                            })
+                        });
+                        let item = move || {
+                            presentation.get();
                             self.cache.with(|cache| cache.item(id))
                         };
                         attachment_frame(move || item().is_some_and(|item| item.kind != "IMAGE"))
                             .child(
                                 ui::command()
-                                    .absolute()
-                                    .inset_0()
+                                    .h_full()
+                                    .min_h_0()
+                                    .min_w_0()
                                     .p_0()
                                     .disabled(self.busy)
                                     .accessibility_label(move || {
@@ -576,7 +640,7 @@ impl Preview {
                                         let current = item();
                                         untracked(|| match current {
                                             Some(item) if item.kind == "IMAGE" => image(item.path)
-                                                .size_full()
+                                                .size(ui::thumbnail_grid_size())
                                                 .object_fit(ResizeMode::Cover)
                                                 .into_element(),
                                             Some(item) => file_content(item).into_element(),
@@ -622,75 +686,19 @@ impl Preview {
         )
     }
 
-    fn options(self) -> impl IntoElement {
-        let i18n = self.i18n;
-        let busy = move || self.busy.get();
-        view()
-            .gap_2()
-            .child(
-                view()
-                    .flex_row()
-                    .flex_wrap()
-                    .gap_3()
-                    .child(when(
-                        move || self.mode_value() == Mode::Media,
-                        move || {
-                            option(
-                                move || tr(i18n, "Compress images", "压缩图片"),
-                                self.compress,
-                                busy,
-                            )
-                        },
-                    ))
-                    .child(when(
-                        move || self.sources.with(Vec::len) >= 2,
-                        move || {
-                            ui::checkbox(
-                                Some(move || tr(i18n, "ZIP archive", "ZIP 压缩包")),
-                                move || self.mode.get() == Mode::Archive,
-                                busy,
-                                move |value| {
-                                    self.mode
-                                        .set(if value { Mode::Archive } else { Mode::Auto })
-                                },
-                            )
-                        },
-                    )),
-            )
-            .child(when(
-                move || self.mode_value() == Mode::Archive,
-                move || {
-                    ui::field()
-                        .masked(true)
-                        .label(move || tr(i18n, "Password (optional)", "密码（可选）"))
-                        .placeholder(move || {
-                            tr(i18n, "Password (optional)", "密码（可选）").to_owned()
-                        })
-                        .readonly(self.busy)
-                        .value(move || self.password.get())
-                        .on_change(move |value: &str| self.password.set(value.to_owned()))
-                },
-            ))
+    fn has_images(self) -> bool {
+        self.mode.get() != Mode::Files
+            && self.prepared.with(|items| {
+                items
+                    .iter()
+                    .any(|item| item.mime_type.starts_with("image/"))
+            })
     }
 
     fn status(self) -> impl IntoElement {
         let i18n = self.i18n;
         view()
             .gap_2()
-            .child(when(self.loading, move || {
-                view()
-                    .flex_row()
-                    .items_center()
-                    .gap_2()
-                    .child(ui::busy_indicator(
-                        move || self.loading.get(),
-                        move || tr(i18n, "Preparing files…", "正在准备文件…").into(),
-                    ))
-                    .child(
-                        text(move || tr(i18n, "Preparing files…", "正在准备文件…"))
-                            .text_role(ui::TextRole::Body),
-                    )
-            }))
             .child(when(self.input_rejected, move || {
                 ui::error_text(move || {
                     tr(
@@ -767,16 +775,221 @@ impl Preview {
     }
 }
 
-fn option(
-    title: impl Fn() -> &'static str + Copy + 'static,
-    checked: Signal<bool>,
+pub(crate) fn original_toggle(
+    selected: impl Fn() -> bool + Copy + 'static,
     disabled: impl Fn() -> bool + 'static,
-) -> impl IntoElement {
-    ui::checkbox(
-        Some(title),
-        move || checked.get(),
-        disabled,
-        move |value| checked.set(value),
+    archive: impl Fn() -> bool + 'static,
+    change: impl Fn() + 'static,
+) -> View {
+    let i18n = i18n::current();
+    super::surface::hinted(
+        super::tool_button()
+            .selected(selected)
+            .disabled(disabled)
+            .selected_style(|s| s.bg(ui::state_selected).text_color(ui::accent))
+            .accessibility_label(move || Some(tr(i18n, "Send original images", "发送原图").into()))
+            .on_press(change)
+            .child(ui::icon(ui::Icon::Original)),
+        move || {
+            if archive() {
+                tr(
+                    i18n,
+                    "ZIP keeps originals · Turn off ZIP to change quality",
+                    "ZIP 保留原文件，关闭打包后可切换画质",
+                )
+                .to_owned()
+            } else if selected() {
+                tr(
+                    i18n,
+                    "Original images · Click to compress",
+                    "原图发送已开启，点击改为压缩图片",
+                )
+                .to_owned()
+            } else {
+                tr(
+                    i18n,
+                    "Compressed images · Click to send originals",
+                    "当前压缩发送，点击发送原图",
+                )
+                .to_owned()
+            }
+        },
+    )
+}
+
+pub(crate) fn zip_toggle(
+    selected: impl Fn() -> bool + Copy + 'static,
+    disabled: impl Fn() -> bool + 'static,
+    count: impl Fn() -> usize + 'static,
+    change: impl Fn() + 'static,
+) -> View {
+    let i18n = i18n::current();
+    super::surface::hinted(
+        super::tool_button()
+            .selected(selected)
+            .disabled(disabled)
+            .selected_style(|s| s.bg(ui::state_selected).text_color(ui::accent))
+            .accessibility_label(move || Some(tr(i18n, "ZIP archive", "ZIP 打包").into()))
+            .on_press(change)
+            .child(ui::icon(ui::Icon::Archive)),
+        move || {
+            if selected() {
+                tr(
+                    i18n,
+                    "ZIP enabled · Click to send separately",
+                    "ZIP 打包已开启，点击分别发送",
+                )
+                .to_owned()
+            } else {
+                format!("{} · {}", tr(i18n, "Combine into ZIP", "打包 ZIP"), count())
+            }
+        },
+    )
+}
+
+/// Both surfaces keep their identity while the native frame and opacity animate.
+pub(crate) fn attachment_strip(
+    archived: impl Fn() -> bool + Copy + 'static,
+    count: impl Fn() -> usize + 'static,
+    expanded: impl IntoElement,
+    options: impl IntoElement,
+) -> View {
+    let i18n = i18n::current();
+    let folded = computed(archived);
+    let initial = folded.get_untracked();
+    let expanded_opacity = animated_value(if initial { 0.0 } else { 1.0 });
+    let zip_opacity = animated_value(if initial { 1.0 } else { 0.0 });
+    let frame = element_ref();
+    let first = stored(true);
+    effect(move || {
+        let archived = folded.get();
+        if first.replace(false) {
+            return;
+        }
+        if reduce_motion() {
+            expanded_opacity.set(if archived { 0.0 } else { 1.0 });
+            zip_opacity.set(if archived { 1.0 } else { 0.0 });
+        } else {
+            frame.animate_layout(crate::motion::ATTACHMENT_FOLD);
+            let _ = expanded_opacity.timing(
+                if archived { 0.0 } else { 1.0 },
+                crate::motion::ATTACHMENT_FOLD_MS,
+                nsh_core::animation::Easing::EaseOut,
+            );
+            let _ = zip_opacity.timing(
+                if archived { 1.0 } else { 0.0 },
+                crate::motion::ATTACHMENT_FOLD_MS,
+                nsh_core::animation::Easing::EaseOut,
+            );
+        }
+    });
+    view()
+        .relative()
+        .element_ref(&frame)
+        .w_full()
+        .max_w(relative(1.0))
+        .h(ui::thumbnail_grid_size())
+        .overflow_hidden()
+        .style_when(folded, |s| s.h_12())
+        .child(
+            view()
+                .absolute()
+                .top_0()
+                .left_0()
+                .w_full()
+                .h(ui::thumbnail_grid_size())
+                .bind_opacity(&expanded_opacity)
+                .pointer_events(move || {
+                    if folded.get() {
+                        nsh_core::PointerEvents::None
+                    } else {
+                        nsh_core::PointerEvents::Auto
+                    }
+                })
+                .accessibility_elements_hidden(folded)
+                .disabled(folded)
+                .child(expanded),
+        )
+        .child(
+            view()
+                .absolute()
+                .top_0()
+                .left_0()
+                .w(ui::card_width())
+                .max_w(relative(1.0))
+                .h_12()
+                .bind_opacity(&zip_opacity)
+                .accessibility_elements_hidden(move || !folded.get())
+                .disabled(move || !folded.get())
+                .pointer_events(move || {
+                    if folded.get() {
+                        nsh_core::PointerEvents::Auto
+                    } else {
+                        nsh_core::PointerEvents::None
+                    }
+                })
+                .flex_row()
+                .items_center()
+                .gap_3()
+                .px_3()
+                .rounded(ui::radius_md())
+                .bg(ui::input_fill)
+                .child(
+                    ui::icon(ui::Icon::Archive)
+                        .size(ui::icon_lg())
+                        .text_color(ui::accent),
+                )
+                .child(
+                    view()
+                        .flex_1()
+                        .min_w_0()
+                        .gap_1()
+                        .child(
+                            text(move || tr(i18n, "ZIP archive", "ZIP 压缩包"))
+                                .text_role(ui::TextRole::Body),
+                        )
+                        .child(
+                            text(move || {
+                                format!("{} {}", count(), tr(i18n, "attachments", "个附件"))
+                            })
+                            .text_role(ui::TextRole::Caption)
+                            .text_color(ui::fg_secondary),
+                        ),
+                )
+                .child(options),
+        )
+}
+
+pub(crate) fn archive_password(password: Signal<String>, busy: Signal<bool>) -> View {
+    let i18n = i18n::current();
+    view().child(
+        ui::popover_flush()
+            .trigger(
+                super::surface::menu_trigger()
+                    .optional_label(move || Some(tr(i18n, "ZIP password", "ZIP 密码").into()))
+                    .tooltip(ui::hint(move || {
+                        tr(i18n, "ZIP password", "ZIP 密码").into()
+                    }))
+                    .style_when(
+                        move || password.with(|s| !s.is_empty()),
+                        |s| s.text_color(ui::accent),
+                    )
+                    .disabled(busy)
+                    .child(ui::icon(ui::Icon::Lock)),
+            )
+            .child(
+                view().p_3().w(ui::card_width()).child(
+                    ui::field()
+                        .masked(true)
+                        .label(move || tr(i18n, "ZIP password (optional)", "ZIP 密码（可选）"))
+                        .placeholder(move || {
+                            tr(i18n, "ZIP password (optional)", "ZIP 密码（可选）").to_owned()
+                        })
+                        .readonly(busy)
+                        .value(move || password.get())
+                        .on_change(move |value: &str| password.set(value.to_owned())),
+                ),
+            ),
     )
 }
 
@@ -791,7 +1004,8 @@ fn size_label(bytes: u64) -> String {
 
 pub(crate) fn file_content(item: PreparedAttachment) -> View {
     view()
-        .size_full()
+        .h_full()
+        .max_w(ui::card_width())
         .min_w_0()
         .flex_row()
         .items_center()
@@ -805,12 +1019,14 @@ pub(crate) fn file_content(item: PreparedAttachment) -> View {
                 ui::Icon::File
             })
             .size(ui::icon_lg())
+            .flex_shrink_0()
             .text_color(ui::fg_secondary),
         )
         .child(
             view()
-                .flex_1()
                 .min_w_0()
+                .flex_shrink(1.0)
+                .overflow_hidden()
                 .gap_1()
                 .child(
                     text(item.name)
@@ -829,13 +1045,8 @@ pub(crate) fn attachment_frame(file: impl Fn() -> bool + 'static) -> View {
     view()
         .relative()
         .h(ui::thumbnail_grid_size())
-        .w(move || {
-            if file() {
-                ui::card_width()
-            } else {
-                ui::thumbnail_grid_size()
-            }
-        })
+        .max_w(ui::card_width())
+        .style_when(move || !file(), |s| s.w(ui::thumbnail_grid_size()))
         .flex_shrink_0()
         .rounded(ui::radius_md())
         .overflow_hidden()
@@ -857,6 +1068,24 @@ pub(crate) fn remove_button(media: impl Fn() -> bool + Copy + 'static) -> nsh_ba
             } else {
                 ui::input_fill()
             }
+        })
+        .hover(move |s| {
+            s.bg(move || {
+                if media() {
+                    ui::media_overlay()
+                } else {
+                    ui::state_selected()
+                }
+            })
+        })
+        .active(move |s| {
+            s.bg(move || {
+                if media() {
+                    ui::media_overlay()
+                } else {
+                    ui::state_pressed()
+                }
+            })
         })
         .child(
             ui::icon(ui::Icon::Close)

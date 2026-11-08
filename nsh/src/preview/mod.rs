@@ -33,6 +33,16 @@ const SCENES: &[Scene] = &[
         mount: sidebar::scene,
     },
     Scene {
+        name: "composer-details",
+        actions: composer::DETAIL_ACTIONS,
+        mount: composer::details_scene,
+    },
+    Scene {
+        name: "composer-fold",
+        actions: composer::DETAIL_ACTIONS,
+        mount: composer::fold_scene,
+    },
+    Scene {
         name: "components",
         actions: components::ACTIONS,
         mount: components::scene,

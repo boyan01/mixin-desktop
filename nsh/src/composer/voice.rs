@@ -238,6 +238,7 @@ impl Voice {
         let media = self.media.with(|m| m.clone());
         let current = self.playback.get_untracked();
         self.playback_context.cancel_pending();
+        self.busy.set(true);
         let disposed = self.disposed.with(|d| d.clone());
         self.task(async move {
             self.failed.set(
@@ -245,29 +246,7 @@ impl Voice {
                     if disposed.load(Ordering::Acquire) {
                         return Ok(());
                     }
-                    let result = if current
-                        .item
-                        .as_ref()
-                        .is_some_and(|item| item.id == recording.path)
-                        && current.status != AudioPlaybackStatus::Idle
-                    {
-                        if current.status == AudioPlaybackStatus::Playing {
-                            media.pause_audio().await
-                        } else {
-                            media.resume_audio().await
-                        }
-                    } else {
-                        media
-                            .play_audio(
-                                vec![AudioPlaybackItem {
-                                    id: recording.path.clone(),
-                                    path: recording.path.clone(),
-                                    duration_millis: recording.duration_millis,
-                                }],
-                                0,
-                            )
-                            .await
-                    };
+                    let result = preview_playback(&media, &recording, &current).await;
                     if disposed.load(Ordering::Acquire) {
                         stop_preview(&media, Some(&recording.path)).await?;
                     }
@@ -276,6 +255,7 @@ impl Voice {
                 .await
                 .is_err(),
             );
+            self.busy.set(false);
         });
     }
     fn send(self) {
@@ -432,5 +412,36 @@ impl Voice {
             true
         });
         voice
+    }
+}
+
+/// Toggle only this immutable recording; another item's playback never counts as it.
+pub(crate) async fn preview_playback(
+    media: &MediaClient,
+    recording: &mixin_desktop_api::VoiceRecording,
+    current: &AudioPlaybackSnapshot,
+) -> mixin_desktop_api::ClientResult<()> {
+    if current
+        .item
+        .as_ref()
+        .is_some_and(|item| item.id == recording.path)
+        && current.status != AudioPlaybackStatus::Idle
+    {
+        if current.status == AudioPlaybackStatus::Playing {
+            media.pause_audio().await
+        } else {
+            media.resume_audio().await
+        }
+    } else {
+        media
+            .play_audio(
+                vec![AudioPlaybackItem {
+                    id: recording.path.clone(),
+                    path: recording.path.clone(),
+                    duration_millis: recording.duration_millis,
+                }],
+                0,
+            )
+            .await
     }
 }

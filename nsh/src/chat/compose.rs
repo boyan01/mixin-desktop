@@ -369,20 +369,26 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
             ),
             view()
                 .flex_row()
-                .child(composer::attachments(
-                    account.clone(),
-                    conversation_id.clone(),
-                    quote,
-                    tray,
-                ))
-                .child(composer::stickers(
-                    account,
-                    conversation_id,
-                    operation_failed,
-                    insert,
-                    quote,
-                ))
-                .child(voice.button(busy)),
+                .child(
+                    view()
+                        .flex_row()
+                        .style_when(move || tray.active(), |s| s.hidden())
+                        .child(composer::attachments(
+                            account.clone(),
+                            conversation_id.clone(),
+                            quote,
+                            tray,
+                        ))
+                        .child(composer::stickers(
+                            account,
+                            conversation_id,
+                            operation_failed,
+                            insert,
+                            quote,
+                        ))
+                        .child(voice.button(busy)),
+                )
+                .child(tray.controls()),
             {
                 let send = submit.clone();
                 let silent = submit.clone();

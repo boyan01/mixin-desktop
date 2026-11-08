@@ -39,6 +39,8 @@ pub(crate) enum Icon {
     Add,
     Sticker,
     Microphone,
+    Original,
+    Archive,
     Attachment,
     File,
     Image,
@@ -92,6 +94,12 @@ pub(crate) fn icon(icon: Icon) -> Svg {
         Icon::Add => asset(include_str!("../../assets/ic_add.svg")),
         Icon::Search => asset(include_str!("../../assets/ic_search_small.svg")),
         Icon::Sticker => asset(include_str!("../../assets/ic_sticker.svg")),
+        Icon::Original => stroke(
+            "<path d='M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5'/><path d='m6 17 5-6 4 4 3-3'/><circle cx='8' cy='8' r='1'/>",
+        ),
+        Icon::Archive => stroke(
+            "<path d='M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z'/><path d='M14 3v6h6M10 3v2m2 0v2m-2 0v2m2 0v2m-2 0v2'/><rect x='9' y='15' width='4' height='3' rx='1'/>",
+        ),
         Icon::Attachment => stroke(
             "<path d='m21 11-8.5 8.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8L15 6'/>",
         ),
