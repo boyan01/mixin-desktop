@@ -215,10 +215,7 @@ async fn first_unread_message_is_the_oldest_unread_row_from_others() {
 async fn timeline_queries_search_indexes_at_scale() {
     let (_directory, database) = database().await;
     seed_messages(&database).await;
-    crate::db::query("ANALYZE")
-        .execute(&database.message_dao.0)
-        .await
-        .unwrap();
+    // Without ANALYZE: the app never runs it, so the planner has no statistics.
 
     let pool = &database.message_dao.0;
     let around = plan(super::message::LIST_ITEMS_AROUND_QUERY)
@@ -238,7 +235,18 @@ async fn timeline_queries_search_indexes_at_scale() {
         .fetch_all(pool)
         .await
         .unwrap();
-    assert_eq!(scans(unread), Vec::<String>::new());
+    // Searching the time index would still walk every read row before the
+    // first unread one: seconds in a long chat. Only the unread rows are read.
+    let details = unread
+        .into_iter()
+        .map(|(_, _, _, detail)| detail)
+        .collect::<Vec<_>>();
+    assert!(
+        details.iter().any(|detail| detail.starts_with(
+            "SEARCH messages USING INDEX index_message_conversation_id_status_user_id"
+        )),
+        "{details:?}"
+    );
     // The oracle sees a scan where there is one.
     let unindexed = plan("SELECT message_id FROM messages WHERE content = ?")
         .bind("x")

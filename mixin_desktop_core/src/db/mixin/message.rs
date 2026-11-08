@@ -309,9 +309,12 @@ LEFT JOIN expired_messages expired ON expired.message_id = message.message_id
 ORDER BY message.created_at ASC, message.rowid ASC
 "#;
 
+/// The unary `+` keeps the time index from serving the order: it would walk the
+/// chat's whole read history from its oldest row to reach the first unread one.
+/// The status index reads only the unread rows, which are few, and sorts them.
 pub(crate) const FIRST_UNREAD_MESSAGE_QUERY: &str = "SELECT message_id FROM messages \
      WHERE conversation_id = ? AND user_id != ? AND status IN ('SENT', 'DELIVERED') \
-     ORDER BY created_at ASC, rowid ASC LIMIT 1";
+     ORDER BY +created_at ASC, rowid ASC LIMIT 1";
 
 const MESSAGE_LIST_QUERY_PREFIX: &str = r#"
 SELECT message.message_id,
