@@ -307,7 +307,7 @@ impl BotWindows {
                         .get("title")
                         .and_then(Value::as_str)
                         .unwrap_or(&page.title);
-                    nsh_core::element::desktop::order_front();
+                    nsh_core::element::desktop::main_window().focus();
                     self.links.share_web_page(
                         url.to_owned(),
                         title.to_owned(),
@@ -512,7 +512,7 @@ pub(crate) fn surface(windows: BotWindows) -> impl IntoElement {
         if !windows.failed.get() {
             return;
         }
-        nsh_core::element::desktop::order_front();
+        nsh_core::element::desktop::main_window().focus();
         let answer = alert_dialog()
             .title(if NATIVE_WINDOWS {
                 i18n.tr("Couldn’t open the page", "无法打开页面")
@@ -538,7 +538,7 @@ pub(crate) fn surface(windows: BotWindows) -> impl IntoElement {
         let Some(url) = windows.external.get() else {
             return;
         };
-        nsh_core::element::desktop::order_front();
+        nsh_core::element::desktop::main_window().focus();
         let answer = alert_dialog()
             .title(i18n.tr("Open another app?", "打开其他应用？"))
             .description(url.clone())

@@ -57,10 +57,12 @@ pub(crate) enum Phase {
 /// The application surface. Business services remain outside the UI tree.
 #[component]
 pub fn App() -> impl IntoElement {
-    nsh_core::element::desktop::set_title_bar(
-        nsh_core::desktop::TitleBarStyle::Hidden,
-        Some(ui::title_bar_requested_height()),
-    );
+    let mut title_bar = nsh_core::desktop::TitleBarOptions::default();
+    title_bar.style = nsh_core::desktop::TitleBarStyle::Hidden;
+    title_bar.height = Some(ui::title_bar_requested_height());
+    let mut window = nsh_core::desktop::WindowAttributes::default();
+    window.title_bar = Some(title_bar);
+    nsh_core::element::desktop::current_window().set(window);
     let i18n = i18n::I18n::new();
     provide_context(i18n);
     let shell = shell::mount();

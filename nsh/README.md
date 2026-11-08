@@ -11,7 +11,9 @@ is in progress. See [docs/parity.md](../docs/parity.md) for per-feature status a
 
 ## Run
 
-Use NSH 0.4.0, Rust and the platform's native SDK. From the repository root:
+NSH comes from the `main` branch of `longbridge/nsh`; `Cargo.lock` pins the commit
+and `cargo update -p nsh-core` moves it to the latest. Use Rust and the platform's
+native SDK. From the repository root:
 
 ```sh
 cargo run -p mixin_desktop_ui

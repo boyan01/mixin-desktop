@@ -5,8 +5,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
-nsh-core = "0.4.0"
-nsh-base = "0.4.0"
+nsh-core = { git = "https://github.com/longbridge/nsh", branch = "main" }
+nsh-base = { git = "https://github.com/longbridge/nsh", branch = "main" }
 base64 = "0.22"
 chrono = { version = "0.4", features = ["unstable-locales"] }
 futures = "0.3"
@@ -24,7 +24,7 @@ unicode-segmentation = "1"
 emojis = "0.9.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-nsh-platform-linux = { version = "0.4.0", default-features = false }
+nsh-platform-linux = { git = "https://github.com/longbridge/nsh", branch = "main", default-features = false }
 webkit6 = "0.6"
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 
@@ -34,10 +34,10 @@ objc2-foundation = "0.3"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSOpenPanel", "NSSavePanel", "NSImageView", "NSPanel"] }
 objc2-user-notifications = "0.3"
 block2 = "0.6"
-nsh-platform-macos = { version = "0.4.0", default-features = false }
+nsh-platform-macos = { git = "https://github.com/longbridge/nsh", branch = "main", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-nsh-platform-windows = { version = "0.4.0", default-features = false }
+nsh-platform-windows = { git = "https://github.com/longbridge/nsh", branch = "main", default-features = false }
 webview2-com = "0.39"
 windows-core = "0.62"
 windows = { version = "0.62", features = [

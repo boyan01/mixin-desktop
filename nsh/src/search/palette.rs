@@ -187,6 +187,7 @@ impl Palette {
         let always = || KeyOptions {
             when: When::Always,
             repeat: true,
+            pass_through: false,
         };
         on_key_with("tab", always(), move |_| move_highlight(true));
         #[cfg(target_os = "macos")]
