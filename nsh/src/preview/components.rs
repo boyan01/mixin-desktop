@@ -1,5 +1,6 @@
 //! The shared `ui` components in their states, light or dark per `--scheme`.
 //! `Disable` and `Enable` switch every control between enabled and disabled.
+//! Spinners live in the `loading` scene: a scene with actions stays still once settled.
 
 use nsh_core::prelude::*;
 
@@ -10,8 +11,13 @@ pub(super) const ACTIONS: &[&str] = &["Disable", "Enable"];
 
 pub(super) fn scene(actions: Actions) -> View {
     let disabled = signal(false);
-    actions.on("Disable", move || disabled.set(true));
-    actions.on("Enable", move || disabled.set(false));
+    for (name, value) in [("Disable", true), ("Enable", false)] {
+        actions.on(
+            name,
+            move || disabled.set(!value),
+            move || disabled.set(value),
+        );
+    }
     let off = move || disabled.get();
     view().flex_1().min_h_0().child(
         scroll().flex_1().min_h_0().child(
@@ -157,8 +163,6 @@ fn feedback() -> View {
                 .child(ui::count_pill(|| "3".into(), || false))
                 .child(ui::count_pill(|| "128".into(), || true)),
         )
-        .child(ui::busy_indicator(|| true, || "Loading".into()))
-        .child(parts::status(|| "Loading…"))
         .child(ui::error_text(|| "Couldn’t save. Try again."))
         .child(parts::note(
             || "A note under a section explains its effect.",

@@ -4,6 +4,7 @@
 
 mod components;
 mod fixtures;
+mod loading;
 mod sidebar;
 
 use std::time::Duration;
@@ -12,8 +13,8 @@ use nsh_core::prelude::*;
 
 use crate::ui::{self, ButtonSize, ButtonTone};
 
-/// Actions start this long after their press, so a capture is already taking frames.
-/// `nsh/tool/preview.py` (`ACTION_LEAD_MS`) subtracts it from frame timestamps.
+/// An action prepares its start state at once on press, then runs this long after,
+/// so a capture has its start frame and is already taking frames when it moves.
 const ACTION_LEAD: Duration = Duration::from_millis(800);
 /// `nsh/tool/preview.py` (`TOOLBAR_HEIGHT`) crops this band off captures.
 const TOOLBAR_HEIGHT: f32 = 40.0;
@@ -35,19 +36,32 @@ const SCENES: &[Scene] = &[
         actions: components::ACTIONS,
         mount: components::scene,
     },
+    Scene {
+        name: "loading",
+        actions: loading::ACTIONS,
+        mount: loading::scene,
+    },
 ];
+
+#[derive(Clone, Copy, PartialEq)]
+enum Step {
+    Prepare,
+    Run,
+}
 
 /// The toolbar's requests to the open scene.
 #[derive(Clone, Copy)]
-struct Actions(Signal<Option<&'static str>>);
+struct Actions(Signal<Option<(&'static str, Step)>>);
 
 impl Actions {
-    /// Runs `run` each time the toolbar plays `name`.
-    fn on(self, name: &'static str, run: impl Fn() + 'static) {
-        effect(move || {
-            if self.0.get() == Some(name) {
-                untracked(&run);
-            }
+    /// Each time the toolbar plays `name`: `prepare` sets the state the action starts
+    /// from, without animation, so it always shows a change; `run` follows after
+    /// `ACTION_LEAD`.
+    fn on(self, name: &'static str, prepare: impl Fn() + 'static, run: impl Fn() + 'static) {
+        effect(move || match self.0.get() {
+            Some((played, Step::Prepare)) if played == name => untracked(&prepare),
+            Some((played, Step::Run)) if played == name => untracked(&run),
+            _ => {}
         });
     }
 }
@@ -85,7 +99,7 @@ fn toolbar(
     index: usize,
     current: Signal<usize>,
     actions: &'static [&'static str],
-    requested: Signal<Option<&'static str>>,
+    requested: Signal<Option<(&'static str, Step)>>,
 ) -> View {
     view()
         .flex_row()
@@ -113,7 +127,8 @@ fn toolbar(
             ui::button(ButtonTone::Secondary, ButtonSize::Small)
                 .accessibility_label(move || Some(format!("Action {name}").into()))
                 .on_press(move || {
-                    set_timeout(ACTION_LEAD, move || requested.set(Some(name)));
+                    requested.set(Some((name, Step::Prepare)));
+                    set_timeout(ACTION_LEAD, move || requested.set(Some((name, Step::Run))));
                 })
                 .child(text(name))
         }))

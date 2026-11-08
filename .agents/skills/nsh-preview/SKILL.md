@@ -48,11 +48,19 @@ paths in the PR body.
    give it a constructor over plain signals (as `sidebar::Rail::detached`), gated
    `#[cfg(debug_assertions)]`, rather than a preview branch inside the component.
 3. Fixed data lives in `fixtures.rs`. Ids are UUIDs: avatar and name colors hash them.
-4. Wire actions with `actions.on("<Action>", ..)`. Actions fire 800 ms after the press
-   so the capture is already running; `preview.py` subtracts that lead.
+4. Wire each action with `actions.on("<Action>", prepare, run)`. `prepare` sets the
+   state the action starts from, without animation, at the press; `run` follows 800 ms
+   later, so every capture of the action shows a change.
+5. Keep a scene with actions still once settled: put spinners and looping animations
+   in a scene without actions (as `loading`). A capture fails when its end keeps moving.
 
 ## Limits
 
+- `capture.txt` times frames from issuing the press and labels each `start`, `moving`
+  or `end` by pixels; `first change` brackets when the action began. A capture whose
+  start and end match fails as a no-op.
+- A failed capture or compare leaves the previous output in place. Scene and label
+  names are letters, digits, `-` and `_`. Concurrent captures queue on a lock.
 - Frames arrive about every 100 ms: they show an animation's start, end and path,
   not its frame rate. Smoothness needs a release build and `nsh run --fps`.
 - The toolbar (40 pt, `TOOLBAR_HEIGHT` in both `mod.rs` and `preview.py`) is cropped off.

@@ -16,10 +16,14 @@ pub(super) fn scene(actions: Actions) -> View {
         signal(fixtures::unseen_counts()),
     );
     for (name, collapsed) in [("Collapse", true), ("Expand", false)] {
-        actions.on(name, move || {
-            nav.animate_width();
-            nav.collapsed.set(collapsed);
-        });
+        actions.on(
+            name,
+            move || nav.collapsed.set(!collapsed),
+            move || {
+                nav.animate_width();
+                nav.collapsed.set(collapsed);
+            },
+        );
     }
     view()
         .flex_1()
