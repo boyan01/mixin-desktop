@@ -564,7 +564,7 @@ fn transcript_card(
         .min_w_0()
         .gap_2()
         .child(body)
-        .child(ui::action(
+        .child(ui::link(
             move || i18n.tr("Retry", "重试"),
             move || {
                 let client = actions.account.with(|account| account.clone());

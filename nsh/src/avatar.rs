@@ -109,3 +109,8 @@ impl Picker {
             ))
     }
 }
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_crop(source: PreparedAttachment) -> impl IntoElement {
+    crop::preview(source)
+}

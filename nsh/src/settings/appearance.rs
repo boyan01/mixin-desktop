@@ -9,7 +9,6 @@ use crate::{
 use nsh_base::{SelectItem, SliderValue};
 use nsh_core::prelude::*;
 pub(super) fn screen() -> impl IntoElement {
-    let i18n = i18n::current();
     let chat = use_context::<Appearance>().expect("Home provides chat appearance");
     cleanup(move || chat.cancel_font_preview());
     let value = signal(String::from("system"));
@@ -36,94 +35,7 @@ pub(super) fn screen() -> impl IntoElement {
             }
         });
     });
-    let theme_label = move |value: &str| match value {
-        "light" => i18n.tr("Light", "浅色"),
-        "dark" => i18n.tr("Dark", "深色"),
-        _ => i18n.tr("Follow system", "跟随系统"),
-    };
-    scroll().flex_1().min_h_0().child(
-        parts::page_body()
-            .child(
-                ui::card()
-                    .child(
-                        ui::static_row(move || i18n.tr("Theme", "主题")).child(
-                            view().w_40().child(
-                                ui::select()
-                                    .items(move || {
-                                        ["system", "light", "dark"]
-                                            .map(|value| SelectItem::new(value, theme_label(value)))
-                                            .to_vec()
-                                    })
-                                    .value(move || Some(SharedString::from(value.get())))
-                                    .disabled(move || !ready.get() || feedback.busy.get())
-                                    .accessibility_label(move || {
-                                        Some(i18n.tr("Theme", "主题").into())
-                                    })
-                                    .trigger(ui::select_trigger(move || {
-                                        value.with(|v| theme_label(v))
-                                    }))
-                                    .on_change(move |next: &Option<SharedString>| {
-                                        if let Some(next) = next.as_ref().map(ToString::to_string) {
-                                            save_theme(next, value, feedback);
-                                        }
-                                    }),
-                            ),
-                        ),
-                    )
-                    .child(
-                        ui::static_row(move || i18n.text(Key::Language))
-                            .child(view().w_40().child(i18n.setting_picker())),
-                    ),
-            )
-            .child(
-                ui::section(move || i18n.tr("Chat preferences", "聊天偏好")).child(
-                    ui::card()
-                        .child(ui::toggle_row(
-                            move || i18n.tr("Show avatar", "显示头像"),
-                            move || chat.show_avatar(),
-                            move || !chat.ready() || chat.busy(),
-                            move |value| chat.set_avatar(value),
-                        ))
-                        .child(ui::toggle_row(
-                            move || i18n.tr("Show Mixin ID", "显示 Mixin ID"),
-                            move || chat.show_identity(),
-                            move || !chat.ready() || chat.busy(),
-                            move |value| chat.set_identity(value),
-                        )),
-                ),
-            )
-            .child(
-                ui::section(move || i18n.tr("Chat text size", "聊天文字大小")).child(
-                    ui::card()
-                        .child(text_preview(i18n, chat))
-                        .child(text_size_slider(i18n, chat)),
-                ),
-            )
-            .child(when(
-                move || chat.failed(),
-                move || {
-                    parts::failure(
-                        move || {
-                            i18n.tr(
-                                "Couldn’t save or load chat preferences. Try again.",
-                                "无法保存或读取聊天偏好，请重试。",
-                            )
-                        },
-                        move || chat.retry(),
-                    )
-                },
-            ))
-            .child(feedback.view(move || i18n.tr("Saving…", "正在保存…")))
-            .child(when(
-                move || feedback.failed.get() && !ready.get(),
-                move || {
-                    ui::action(
-                        move || i18n.text(Key::Retry),
-                        move || retry.update(|r| *r += 1),
-                    )
-                },
-            )),
-    )
+    content(chat, value, ready, feedback, retry)
 }
 
 fn save_theme(next: String, value: Signal<String>, feedback: Feedback) {
@@ -223,4 +135,119 @@ fn apply(value: &str) {
         "dark" => nsh_core::platform::Appearance::Dark,
         _ => nsh_core::platform::Appearance::System,
     });
+}
+
+fn content(
+    chat: Appearance,
+    value: Signal<String>,
+    ready: Signal<bool>,
+    feedback: Feedback,
+    retry: Signal<u64>,
+) -> impl IntoElement {
+    let i18n = i18n::current();
+    let theme_label = move |value: &str| match value {
+        "light" => i18n.tr("Light", "浅色"),
+        "dark" => i18n.tr("Dark", "深色"),
+        _ => i18n.tr("Follow system", "跟随系统"),
+    };
+    scroll().flex_1().min_h_0().child(
+        parts::page_body()
+            .child(
+                ui::card()
+                    .child(
+                        ui::static_row(move || i18n.tr("Theme", "主题")).child(
+                            view().w_40().child(
+                                ui::select()
+                                    .items(move || {
+                                        ["system", "light", "dark"]
+                                            .map(|value| SelectItem::new(value, theme_label(value)))
+                                            .to_vec()
+                                    })
+                                    .value(move || Some(SharedString::from(value.get())))
+                                    .disabled(move || !ready.get() || feedback.busy.get())
+                                    .accessibility_label(move || {
+                                        Some(i18n.tr("Theme", "主题").into())
+                                    })
+                                    .trigger(ui::select_trigger(move || {
+                                        value.with(|v| theme_label(v))
+                                    }))
+                                    .on_change(move |next: &Option<SharedString>| {
+                                        if let Some(next) = next.as_ref().map(ToString::to_string) {
+                                            save_theme(next, value, feedback);
+                                        }
+                                    }),
+                            ),
+                        ),
+                    )
+                    .child(
+                        ui::static_row(move || i18n.text(Key::Language))
+                            .child(view().w_40().child(i18n.setting_picker())),
+                    ),
+            )
+            .child(
+                ui::section(move || i18n.tr("Chat preferences", "聊天偏好")).child(
+                    ui::card()
+                        .child(ui::toggle_row(
+                            move || i18n.tr("Show avatar", "显示头像"),
+                            move || chat.show_avatar(),
+                            move || !chat.ready() || chat.busy(),
+                            move |value| chat.set_avatar(value),
+                        ))
+                        .child(ui::toggle_row(
+                            move || i18n.tr("Show Mixin ID", "显示 Mixin ID"),
+                            move || chat.show_identity(),
+                            move || !chat.ready() || chat.busy(),
+                            move |value| chat.set_identity(value),
+                        )),
+                ),
+            )
+            .child(
+                ui::section(move || i18n.tr("Chat text size", "聊天文字大小")).child(
+                    ui::card()
+                        .child(text_preview(i18n, chat))
+                        .child(text_size_slider(i18n, chat)),
+                ),
+            )
+            .child(when(
+                move || chat.failed(),
+                move || {
+                    parts::failure(
+                        move || {
+                            i18n.tr(
+                                "Couldn’t save or load chat preferences. Try again.",
+                                "无法保存或读取聊天偏好，请重试。",
+                            )
+                        },
+                        move || chat.retry(),
+                    )
+                },
+            ))
+            .child(feedback.view(move || i18n.tr("Saving…", "正在保存…")))
+            .child(when(
+                move || feedback.failed.get() && !ready.get(),
+                move || {
+                    ui::link(
+                        move || i18n.text(Key::Retry),
+                        move || retry.update(|r| *r += 1),
+                    )
+                },
+            )),
+    )
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_settings(failed: Signal<bool>) -> impl IntoElement {
+    let feedback = Feedback::new();
+    let ready = signal(true);
+    effect(move || {
+        feedback.failed.set(failed.get());
+        ready.set(!failed.get());
+    });
+    content(
+        Appearance::detached(),
+        signal("system".into()),
+        ready,
+        feedback,
+        signal(0),
+    )
 }

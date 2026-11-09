@@ -79,19 +79,18 @@ impl Preference {
 
     pub(super) fn feedback(self) -> impl IntoElement {
         when(self.failed, move || {
-            view()
-                .p(ui::space_sm())
-                .gap(ui::space_xs())
-                .child(
-                    ui::error_text(move || {
-                        i18n::tr("Couldn’t save sidebar settings", "侧栏设置保存失败")
-                    })
-                    .text_role(ui::TextRole::Caption),
-                )
-                .child(ui::action(
-                    move || i18n::current().text(Key::Retry),
-                    move || self.revision.update(|revision| *revision += 1),
-                ))
+            preference_error(move || self.revision.update(|revision| *revision += 1))
         })
     }
+}
+
+pub(crate) fn preference_error(retry: impl Fn() + 'static) -> View {
+    view()
+        .p(ui::space_sm())
+        .gap(ui::space_xs())
+        .child(
+            ui::error_text(move || i18n::tr("Couldn’t save sidebar settings", "侧栏设置保存失败"))
+                .text_role(ui::TextRole::Caption),
+        )
+        .child(ui::link(move || i18n::current().text(Key::Retry), retry))
 }

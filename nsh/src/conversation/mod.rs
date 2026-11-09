@@ -63,7 +63,8 @@ impl Page {
 #[derive(Clone, Copy)]
 struct State {
     owner: Owner,
-    account: Stored<Arc<AccountClient>>,
+    account: Stored<Option<Arc<AccountClient>>>,
+    own_id: Stored<String>,
     id: Stored<String>,
     close: Stored<Rc<dyn Fn()>>,
     row: Signal<Option<ConversationListData>>,
@@ -83,7 +84,11 @@ struct State {
 
 impl State {
     fn client(self) -> Arc<AccountClient> {
-        self.account.with(|account| account.clone())
+        self.account.with(|account| {
+            account
+                .clone()
+                .expect("a detached preview runs no account commands")
+        })
     }
 
     fn id(self) -> String {
@@ -91,7 +96,7 @@ impl State {
     }
 
     fn own_id(self) -> String {
-        self.account.with(|account| account.account_id())
+        self.own_id.get()
     }
 
     fn owner_id(self) -> String {
@@ -229,7 +234,8 @@ pub(crate) fn screen(
 ) -> impl IntoElement {
     let state = State {
         owner: Owner::current(),
-        account: stored(account.clone()),
+        own_id: stored(account.account_id()),
+        account: stored(Some(account.clone())),
         id: stored(id.clone()),
         close: stored(Rc::new(close) as Rc<dyn Fn()>),
         row: signal_with(None, SignalEquals::Never),
@@ -306,45 +312,9 @@ pub(crate) fn screen(
             }
         }
     });
-    view()
-        .flex_1()
-        .min_h_0()
-        .child(
-            parts::page_header(
-                move || state.page.get().title(),
-                Some(
-                    parts::back_button(move || state.page.set(Page::Info)).style_when(
-                        move || state.page.get() == Page::Info,
-                        |style| style.hidden(),
-                    ),
-                ),
-                Some(parts::close_button(move || state.close()).style_when(
-                    move || state.page.get() != Page::Info,
-                    |style| style.hidden(),
-                )),
-            )
-            .style_when(
-                move || state.page.get().profile_flow(),
-                |style| style.hidden(),
-            ),
-        )
-        .child(when(
-            move || state.loading.get() && state.row.with(Option::is_none),
-            || {
-                parts::status(move || tr("Loading…", "加载中…"))
-                    .px(ui::space_lg())
-                    .py(ui::space_sm())
-            },
-        ))
-        .child(when(state.failed, move || {
-            parts::failure(
-                move || tr("Couldn’t update. Try again.", "更新失败，请重试。"),
-                move || state.refresh_from_server(),
-            )
-            .px(ui::space_lg())
-            .py(ui::space_sm())
-        }))
-        .child(when(
+    frame(
+        state,
+        when(
             move || state.row.with(Option::is_some),
             move || {
                 dynamic(move || {
@@ -352,7 +322,8 @@ pub(crate) fn screen(
                     untracked(|| page_body(state, page, target))
                 })
             },
-        ))
+        ),
+    )
 }
 
 fn page_body(state: State, page: Page, target: Signal<Option<String>>) -> AnyElement {
@@ -389,3 +360,117 @@ fn page_body(state: State, page: Page, target: Signal<Option<String>>) -> AnyEle
         .into_element(),
     }
 }
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_page(
+    kind: &str,
+    own_id: String,
+    row: ConversationListData,
+    members: Vec<ConversationParticipantItem>,
+    users: Vec<mixin_desktop_api::UserProfileItem>,
+    failed: Signal<bool>,
+    media: Vec<mixin_desktop_api::MessageListView>,
+) -> impl IntoElement {
+    let state = State {
+        owner: Owner::current(),
+        account: stored(None),
+        own_id: stored(own_id),
+        id: stored(row.conversation_id.clone()),
+        close: stored(Rc::new(|| {}) as Rc<dyn Fn()>),
+        row: signal_with(Some(row.clone()), SignalEquals::Never),
+        detail: signal_with(
+            Some(ConversationDetailItem {
+                conversation_id: row.conversation_id,
+                name: row.name,
+                announcement: "Design review and release planning".into(),
+                code_url: "https://mixin.one/codes/preview-invitation".into(),
+                created_at_millis: 1_793_610_000_000,
+                mute_until_millis: 0,
+                expire_in: 0,
+            }),
+            SignalEquals::Never,
+        ),
+        biography: signal(String::new()),
+        shared_apps_preview: signal_with(Vec::new(), SignalEquals::Never),
+        members: signal_with(members, SignalEquals::Never),
+        page: signal(Page::Info),
+        refresh: signal(0),
+        busy: signal(false),
+        loading: signal(false),
+        refreshing: signal(false),
+        failed,
+        edit_draft: stored(None),
+    };
+    if kind == "shared" {
+        state.page.set(Page::Shared);
+        return frame(
+            State {
+                failed: signal(false),
+                ..state
+            },
+            shared::preview(state, media, failed),
+        )
+        .into_element();
+    }
+    if kind == "circles" {
+        state.page.set(Page::Circles);
+        return frame(state, circles::detached(state)).into_element();
+    }
+    if kind == "add-members" {
+        return members::preview_add(state, users).into_element();
+    }
+    let page = match kind {
+        "edit" => Page::Edit,
+        "expiry" => Page::Expiry,
+        "members" => Page::Members,
+        "info" => Page::Info,
+        _ => Page::Invite,
+    };
+    state.page.set(page);
+    frame(state, page_body(state, page, signal(None))).into_element()
+}
+
+#[cfg(debug_assertions)]
+pub(crate) use user::preview_name;
+
+fn frame(state: State, content: impl IntoElement) -> View {
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(
+            parts::page_header(
+                move || state.page.get().title(),
+                Some(
+                    parts::back_button(move || state.page.set(Page::Info)).style_when(
+                        move || state.page.get() == Page::Info,
+                        |style| style.hidden(),
+                    ),
+                ),
+                Some(parts::close_button(move || state.close()).style_when(
+                    move || state.page.get() != Page::Info,
+                    |style| style.hidden(),
+                )),
+            )
+            .style_when(
+                move || state.page.get().profile_flow(),
+                |style| style.hidden(),
+            ),
+        )
+        .child(when(
+            move || state.loading.get() && state.row.with(Option::is_none),
+            || {
+                parts::status(move || tr("Loading…", "加载中…"))
+                    .px(ui::space_lg())
+                    .py(ui::space_sm())
+            },
+        ))
+        .child(when(state.failed, move || {
+            user::update_error(move || state.refresh_from_server())
+                .px(ui::space_lg())
+                .py(ui::space_sm())
+        }))
+        .child(content)
+}
+
+#[cfg(debug_assertions)]
+pub(crate) use user::{preview_apps, preview_groups, preview_profile};

@@ -40,3 +40,6 @@ pub(crate) fn screen(
         .child(pinned::screen(account, id, close, target))
         .into_element()
 }
+
+#[cfg(debug_assertions)]
+pub(crate) use {pinned::preview as preview_pinned, search::preview as preview_search};

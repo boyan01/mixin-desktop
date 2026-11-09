@@ -45,7 +45,7 @@ enum Action {
 #[derive(Clone, Copy)]
 struct Page {
     owner: Owner,
-    account: Stored<Arc<AccountClient>>,
+    account: Stored<Option<Arc<AccountClient>>>,
     own_id: Stored<String>,
     id: Signal<String>,
     profile: Signal<Option<UserProfileItem>>,
@@ -63,7 +63,7 @@ impl Page {
         Self {
             owner: Owner::current(),
             own_id: stored(account.account_id()),
-            account: stored(account),
+            account: stored(Some(account)),
             id: signal(user_id),
             profile: signal_with(None, SignalEquals::Never),
             creator: signal(None),
@@ -77,7 +77,11 @@ impl Page {
     }
 
     fn client(self) -> Arc<AccountClient> {
-        self.account.with(|account| account.clone())
+        self.account.with(|account| {
+            account
+                .clone()
+                .expect("live profile commands have an account")
+        })
     }
 
     fn is(self, test: impl Fn(&UserProfileItem) -> bool) -> bool {
@@ -145,31 +149,7 @@ pub(crate) fn profile_with_opened(
         }
     };
     effect(move || load(page, Destination::Profile));
-    view()
-        .flex_shrink(1.0)
-        .min_h_0()
-        .child(ui::dialog_close(close).disabled(page.busy))
-        .child(when(
-            move || page.loading.get() && page.profile.with(Option::is_none),
-            || {
-                parts::status(move || tr("Loading…", "加载中…"))
-                    .justify_center()
-                    .pt(ui::space_sm())
-                    .pb(ui::space_xl())
-            },
-        ))
-        .child(when(page.failed, move || {
-            parts::failure(
-                move || tr("Couldn’t update. Try again.", "更新失败，请重试。"),
-                move || page.revision.update(|revision| *revision += 1),
-            )
-            .px(ui::space_lg())
-            .pb(ui::space_sm())
-        }))
-        .child(when(
-            move || page.profile.with(Option::is_some),
-            move || dialog_body(page, opened),
-        ))
+    dialog_view(page, close, opened)
 }
 
 fn dialog_body(page: Page, opened: impl Fn() + Copy + 'static) -> impl IntoElement {
@@ -453,12 +433,9 @@ pub(super) fn profile_at(
             },
         ))
         .child(when(page.failed, move || {
-            parts::failure(
-                move || tr("Couldn’t update. Try again.", "更新失败，请重试。"),
-                move || page.revision.update(|revision| *revision += 1),
-            )
-            .px(ui::space_lg())
-            .py(ui::space_sm())
+            update_error(move || page.revision.update(|revision| *revision += 1))
+                .px(ui::space_lg())
+                .py(ui::space_sm())
         }))
         .child(dynamic(move || {
             let destination = page.destination.get();
@@ -553,33 +530,13 @@ fn name_form(
     destination: Destination,
     apply: impl Fn(Action, String) + Copy + 'static,
 ) -> impl IntoElement {
-    let name = signal(page.text(|profile| profile.full_name.clone()));
-    let editing = destination == Destination::EditName;
-    parts::page_body()
-        .child(
-            ui::field()
-                .label(move || tr("Name", "名称"))
-                .max_length(if editing { 40 } else { 64 })
-                .readonly(page.busy)
-                .auto_focus(true)
-                .value(move || name.get())
-                .on_change(move |text: &str| name.set(text.into())),
-        )
-        .child(
-            ui::primary()
-                .disabled(move || {
-                    page.busy.get()
-                        || name.with(|name| name.trim().is_empty())
-                        || page.missing_or(|profile| profile.is_deactivated)
-                })
-                .on_press(move || {
-                    apply(
-                        if editing { Action::Rename } else { Action::Add },
-                        name.get_untracked().trim().into(),
-                    )
-                })
-                .child(text(move || tr("Save", "保存"))),
-        )
+    name_fields(
+        page.text(|profile| profile.full_name.clone()),
+        destination == Destination::EditName,
+        page.busy,
+        move || page.missing_or(|profile| profile.is_deactivated),
+        apply,
+    )
 }
 
 fn details(page: Page, apply: impl Fn(Action, String) + Copy + 'static) -> impl IntoElement {
@@ -884,68 +841,9 @@ fn groups(account: Arc<AccountClient>, user_id: String, failed: Signal<bool>) ->
     let navigation =
         use_context::<ChatNavigation>().expect("The signed-in session provides navigation");
     let account = stored(account);
-    view()
-        .flex_1()
-        .min_h_0()
-        .child(when(loading, || {
-            parts::status(move || tr("Loading…", "加载中…"))
-                .px(ui::space_lg())
-                .py(ui::space_sm())
-        }))
-        .child(when(query_failed, move || {
-            parts::failure(
-                move || tr("Couldn’t load. Try again.", "加载失败，请重试。"),
-                move || revision.update(|value| *value = value.wrapping_add(1)),
-            )
-            .p(ui::space_lg())
-        }))
-        .child(
-            virtual_list(
-                move || values.with(Vec::len),
-                move |at| {
-                    let value = move || values.with(|rows| rows.get(at.index()).cloned());
-                    parts::entity_row(
-                        move || {
-                            value()
-                                .map(|value| value.conversation_id)
-                                .unwrap_or_default()
-                        },
-                        move || value().map(|value| value.name).unwrap_or_default(),
-                        move || value().map(|value| value.avatar_url).unwrap_or_default(),
-                        move || {
-                            value()
-                                .map(|value| i18n::current().members(value.participant_count))
-                                .unwrap_or_default()
-                        },
-                        || false,
-                    )
-                    .on_press(move || {
-                        if let Some(group) = value() {
-                            navigation.open_conversation(
-                                account.with(|account| account.clone()),
-                                group.conversation_id,
-                                None,
-                                failed,
-                            );
-                        }
-                    })
-                },
-            )
-            .keys(move || {
-                values.with(|rows| {
-                    rows.iter()
-                        .map(|group| group.conversation_id.clone())
-                        .collect::<Vec<_>>()
-                })
-            })
-            .estimated_item_size(parts::row_height())
-            .flex_1()
-            .min_h_0(),
-        )
-        .child(when(
-            move || !loading.get() && !query_failed.get() && values.with(Vec::is_empty),
-            || ui::placeholder(move || tr("No groups in common", "没有共同群组")),
-        ))
+    groups_view(values, loading, query_failed, revision, move |id| {
+        navigation.open_conversation(account.with(|account| account.clone()), id, None, failed)
+    })
 }
 
 fn apps(
@@ -971,6 +869,174 @@ fn apps(
             loading.set(false);
         });
     });
+    apps_view(values, loading, failed, revision, open)
+}
+
+fn name_fields(
+    initial_name: String,
+    editing: bool,
+    busy: Signal<bool>,
+    unavailable: impl Fn() -> bool + 'static,
+    apply: impl Fn(Action, String) + Copy + 'static,
+) -> View {
+    let name = signal(initial_name);
+    parts::page_body()
+        .child(
+            ui::field()
+                .label(move || tr("Name", "名称"))
+                .max_length(if editing { 40 } else { 64 })
+                .readonly(busy)
+                .auto_focus(true)
+                .value(move || name.get())
+                .on_change(move |text: &str| name.set(text.into())),
+        )
+        .child(
+            ui::primary()
+                .disabled(move || {
+                    busy.get() || name.with(|name| name.trim().is_empty()) || unavailable()
+                })
+                .on_press(move || {
+                    apply(
+                        if editing { Action::Rename } else { Action::Add },
+                        name.get_untracked().trim().into(),
+                    )
+                })
+                .child(text(move || tr("Save", "保存"))),
+        )
+}
+#[cfg(debug_assertions)]
+pub(crate) fn preview_name(user: UserProfileItem, editing: bool) -> View {
+    let destination = if editing {
+        Destination::EditName
+    } else {
+        Destination::AddContact
+    };
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(parts::page_header(move || destination.title(), None, None))
+        .child(name_fields(
+            user.full_name,
+            editing,
+            signal(false),
+            || false,
+            |_, _| {},
+        ))
+}
+
+pub(crate) fn update_error(retry: impl Fn() + 'static) -> View {
+    parts::failure(
+        move || tr("Couldn’t update. Try again.", "更新失败，请重试。"),
+        retry,
+    )
+}
+
+pub(crate) fn list_error(retry: impl Fn() + 'static) -> View {
+    parts::failure(
+        move || tr("Couldn’t load. Try again.", "加载失败，请重试。"),
+        retry,
+    )
+}
+
+fn dialog_view(
+    page: Page,
+    close: impl Fn() + Copy + 'static,
+    opened: impl Fn() + Copy + 'static,
+) -> View {
+    view()
+        .flex_shrink(1.0)
+        .min_h_0()
+        .child(ui::dialog_close(close).disabled(page.busy))
+        .child(when(
+            move || page.loading.get() && page.profile.with(Option::is_none),
+            || {
+                parts::status(move || tr("Loading…", "加载中…"))
+                    .justify_center()
+                    .pt(ui::space_sm())
+                    .pb(ui::space_xl())
+            },
+        ))
+        .child(when(page.failed, move || {
+            update_error(move || page.revision.update(|revision| *revision += 1))
+                .px(ui::space_lg())
+                .pb(ui::space_sm())
+        }))
+        .child(when(
+            move || page.profile.with(Option::is_some),
+            move || dialog_body(page, opened),
+        ))
+}
+
+fn groups_view(
+    values: Signal<Vec<GroupConversationItem>>,
+    loading: Signal<bool>,
+    query_failed: Signal<bool>,
+    revision: Signal<u64>,
+    open: impl Fn(String) + Copy + 'static,
+) -> View {
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(when(loading, || {
+            parts::status(move || tr("Loading…", "加载中…"))
+                .px(ui::space_lg())
+                .py(ui::space_sm())
+        }))
+        .child(when(query_failed, move || {
+            list_error(move || revision.update(|value| *value = value.wrapping_add(1)))
+                .p(ui::space_lg())
+        }))
+        .child(
+            virtual_list(
+                move || values.with(Vec::len),
+                move |at| {
+                    let value = move || values.with(|rows| rows.get(at.index()).cloned());
+                    parts::entity_row(
+                        move || {
+                            value()
+                                .map(|value| value.conversation_id)
+                                .unwrap_or_default()
+                        },
+                        move || value().map(|value| value.name).unwrap_or_default(),
+                        move || value().map(|value| value.avatar_url).unwrap_or_default(),
+                        move || {
+                            value()
+                                .map(|value| i18n::current().members(value.participant_count))
+                                .unwrap_or_default()
+                        },
+                        || false,
+                    )
+                    .on_press(move || {
+                        if let Some(group) = value() {
+                            open(group.conversation_id);
+                        }
+                    })
+                },
+            )
+            .keys(move || {
+                values.with(|rows| {
+                    rows.iter()
+                        .map(|group| group.conversation_id.clone())
+                        .collect::<Vec<_>>()
+                })
+            })
+            .estimated_item_size(parts::row_height())
+            .flex_1()
+            .min_h_0(),
+        )
+        .child(when(
+            move || !loading.get() && !query_failed.get() && values.with(Vec::is_empty),
+            || ui::placeholder(move || tr("No groups in common", "没有共同群组")),
+        ))
+}
+
+fn apps_view(
+    values: Signal<Vec<SharedAppItem>>,
+    loading: Signal<bool>,
+    failed: Signal<bool>,
+    revision: Signal<u64>,
+    open: impl Fn(String) + Copy + 'static,
+) -> View {
     view()
         .flex_1()
         .min_h_0()
@@ -980,11 +1046,7 @@ fn apps(
                 .py(ui::space_sm())
         }))
         .child(when(failed, move || {
-            parts::failure(
-                move || tr("Couldn’t load. Try again.", "加载失败，请重试。"),
-                move || revision.update(|revision| *revision += 1),
-            )
-            .p(ui::space_lg())
+            list_error(move || revision.update(|revision| *revision += 1)).p(ui::space_lg())
         }))
         .child(
             virtual_list(
@@ -1019,5 +1081,60 @@ fn apps(
         .child(when(
             move || !loading.get() && !failed.get() && values.with(Vec::is_empty),
             || ui::placeholder(move || tr("No shared apps", "暂无共享应用")),
+        ))
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_profile(user: UserProfileItem, failed: Signal<bool>) -> View {
+    let page = Page {
+        owner: Owner::current(),
+        account: stored(None),
+        own_id: stored("preview-owner".into()),
+        id: signal(user.user_id.clone()),
+        profile: signal_with(Some(user), SignalEquals::Never),
+        creator: signal(None),
+        destination: signal(Destination::Profile),
+        history: signal(Vec::new()),
+        revision: signal(0),
+        loading: signal(false),
+        busy: signal(false),
+        failed,
+    };
+    dialog_view(page, || {}, || {})
+}
+#[cfg(debug_assertions)]
+pub(crate) fn preview_groups(values: Vec<GroupConversationItem>, failed: Signal<bool>) -> View {
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(parts::page_header(
+            move || Destination::Groups.title(),
+            Some(parts::back_button(|| {})),
+            None,
+        ))
+        .child(groups_view(
+            signal_with(values, SignalEquals::Never),
+            signal(false),
+            failed,
+            signal(0),
+            |_| {},
+        ))
+}
+#[cfg(debug_assertions)]
+pub(crate) fn preview_apps(values: Vec<SharedAppItem>, failed: Signal<bool>) -> View {
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(parts::page_header(
+            move || Destination::Apps.title(),
+            Some(parts::back_button(|| {})),
+            None,
+        ))
+        .child(apps_view(
+            signal_with(values, SignalEquals::Never),
+            signal(false),
+            failed,
+            signal(0),
+            |_| {},
         ))
 }

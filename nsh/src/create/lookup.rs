@@ -11,7 +11,6 @@ pub(super) fn screen(
     let profile = signal(None::<String>);
     let busy = signal(false);
     let failed = signal(false);
-    let i18n = i18n::current();
     let presence =
         use_context::<crate::motion::Presence>().expect("Creation surface provides motion");
     let cancel = move || {
@@ -63,69 +62,91 @@ pub(super) fn screen(
                         close,
                     )
                     .into_element(),
-                    None => view()
-                        .flex_shrink(1.0)
-                        .min_h_0()
-                        .gap_4()
-                        .child(ui::dialog_title(move || i18n.text(Key::SearchContact)))
-                        .child(
-                            scroll().flex_shrink(1.0).min_h_0().child(
-                                view()
-                                    .gap_3()
-                                    .child(
-                                        ui::search_pill().flex_none().child(
-                                            ui::search_input()
-                                                .label(move || i18n.text(Key::SearchContact))
-                                                .placeholder(move || {
-                                                    i18n.text(Key::SearchUserHint).to_owned()
-                                                })
-                                                .auto_focus(true)
-                                                .readonly(busy)
-                                                .value(move || query.get())
-                                                .on_key_press(move |key: &str| {
-                                                    if key == "Escape" {
-                                                        cancel();
-                                                    }
-                                                })
-                                                .on_change(move |value: &str| {
-                                                    query.set(value.into());
-                                                    failed.set(false);
-                                                })
-                                                .on_composition_change(
-                                                    move |event: &Composition| {
-                                                        composing.set(event.composing)
-                                                    },
-                                                )
-                                                .on_submit(move |_: &str| search()),
-                                        ),
-                                    )
-                                    .child(when(failed, move || {
-                                        ui::error_text(move || i18n.text(Key::SearchFailed))
-                                    }))
-                                    .child(when(busy, || {
-                                        parts::status(move || tr("Searching…", "正在搜索…"))
-                                    })),
-                            ),
-                        )
-                        .child(
-                            parts::dialog_actions()
-                                .child(
-                                    ui::action(move || i18n.text(Key::Cancel), cancel)
-                                        .disabled(move || busy.get() || composing.get()),
-                                )
-                                .child(
-                                    ui::primary()
-                                        .disabled(move || {
-                                            busy.get()
-                                                || composing.get()
-                                                || query.with(|query| query.trim().is_empty())
-                                        })
-                                        .on_press(search)
-                                        .child(text(move || i18n.text(Key::Search))),
-                                ),
-                        )
-                        .into_element(),
+                    None => {
+                        form(query, composing, busy, failed, cancel, search, true).into_element()
+                    }
                 })
             })),
     )
+}
+
+fn form(
+    query: Signal<String>,
+    composing: Signal<bool>,
+    busy: Signal<bool>,
+    failed: Signal<bool>,
+    cancel: impl Fn() + Copy + 'static,
+    search: impl Fn() + Copy + 'static,
+    focus: bool,
+) -> impl IntoElement {
+    let i18n = i18n::current();
+    view()
+        .flex_shrink(1.0)
+        .min_h_0()
+        .gap_4()
+        .child(ui::dialog_title(move || i18n.text(Key::SearchContact)))
+        .child(
+            scroll().flex_shrink(1.0).min_h_0().child(
+                view()
+                    .gap_3()
+                    .child(
+                        ui::search_pill().flex_none().child(
+                            ui::search_input()
+                                .label(move || i18n.text(Key::SearchContact))
+                                .placeholder(move || i18n.text(Key::SearchUserHint).to_owned())
+                                .auto_focus(focus)
+                                .readonly(busy)
+                                .value(move || query.get())
+                                .on_key_press(move |key: &str| {
+                                    if key == "Escape" {
+                                        cancel();
+                                    }
+                                })
+                                .on_change(move |value: &str| {
+                                    query.set(value.into());
+                                    failed.set(false);
+                                })
+                                .on_composition_change(move |event: &Composition| {
+                                    composing.set(event.composing)
+                                })
+                                .on_submit(move |_: &str| search()),
+                        ),
+                    )
+                    .child(when(failed, move || {
+                        ui::error_text(move || i18n.text(Key::SearchFailed))
+                    }))
+                    .child(when(busy, || {
+                        parts::status(move || tr("Searching…", "正在搜索…"))
+                    })),
+            ),
+        )
+        .child(
+            parts::dialog_actions()
+                .child(
+                    ui::action(move || i18n.text(Key::Cancel), cancel)
+                        .disabled(move || busy.get() || composing.get()),
+                )
+                .child(
+                    ui::primary()
+                        .disabled(move || {
+                            busy.get()
+                                || composing.get()
+                                || query.with(|query| query.trim().is_empty())
+                        })
+                        .on_press(search)
+                        .child(text(move || i18n.text(Key::Search))),
+                ),
+        )
+}
+#[cfg(debug_assertions)]
+pub(crate) fn preview(failed: Signal<bool>) -> impl IntoElement {
+    panel().child(form(
+        signal(String::new()),
+        signal(false),
+        signal(false),
+        failed,
+        || {},
+        || {},
+        false,
+    ))
 }

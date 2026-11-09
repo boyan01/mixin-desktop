@@ -58,7 +58,7 @@ impl Default for Job {
 #[derive(Clone, Copy)]
 pub(crate) struct Handle {
     owner: Owner,
-    account: Stored<Arc<AccountClient>>,
+    account: Stored<Option<Arc<AccountClient>>>,
     restore: Signal<Job>,
     backup: Signal<Job>,
     restore_request: Signal<Option<u64>>,
@@ -73,7 +73,7 @@ pub(crate) struct Handle {
 pub(crate) fn mount(account: Arc<AccountClient>) -> Handle {
     let handle = Handle {
         owner: Owner::current(),
-        account: stored(account.clone()),
+        account: stored(Some(account.clone())),
         restore: signal(Job::default()),
         backup: signal(Job::default()),
         restore_request: signal(None),
@@ -158,10 +158,12 @@ impl Handle {
         if self.busy(direction).get_untracked() {
             return;
         }
+        let Some(account) = self.account.get() else {
+            return;
+        };
         self.busy(direction).set(true);
         self.response_error(direction).set(None);
         let operation_id = self.job(direction).get_untracked().operation_id;
-        let account = self.account.with(|a| a.clone());
         self.owner.run(|| {
             spawn(async move {
                 let result = runtime::commit(async move {
@@ -225,5 +227,49 @@ impl From<DeviceTransferOperation> for Job {
             progress: operation.progress,
             speed: operation.bytes_per_second,
         }
+    }
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview(kind: &str, state: Signal<&'static str>) -> impl IntoElement {
+    let handle = Handle {
+        owner: Owner::current(),
+        account: stored(None),
+        restore: signal(Job {
+            status: Status::Transferring,
+            progress: 42.5,
+            speed: 262144.0,
+            ..Job::default()
+        }),
+        backup: signal(Job::default()),
+        restore_request: signal(None),
+        backup_request: signal(None),
+        restore_response_error: signal(None),
+        backup_response_error: signal(None),
+        restore_busy: signal(false),
+        backup_busy: signal(false),
+        visible: signal(Some(Direction::Restore)),
+    };
+    effect(move || {
+        handle.restore.update(|job| {
+            job.status = match state.get() {
+                "Complete" => Status::Completed,
+                "Error" => Status::Failed,
+                _ => Status::Transferring,
+            }
+        })
+    });
+    match kind {
+        "approval" => view::preview_approval(handle).into_element(),
+        "complete" => {
+            handle.restore.update(|j| j.status = Status::Completed);
+            view::preview_progress(handle).into_element()
+        }
+        "failed" => {
+            handle.restore.update(|j| j.status = Status::Failed);
+            view::preview_progress(handle).into_element()
+        }
+        "page" => screen(handle).into_element(),
+        _ => view::preview_progress(handle).into_element(),
     }
 }

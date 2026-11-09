@@ -15,7 +15,6 @@ pub(super) fn screen(
     transcript: Option<String>,
     actions: Actions,
 ) -> impl IntoElement {
-    let i18n = actions.i18n;
     let owner = Owner::current();
     let current = signal(initial.message_id.clone());
     let conversation = stored(initial.conversation_id.clone());
@@ -118,6 +117,72 @@ pub(super) fn screen(
             }
         });
     });
+    viewer(
+        actions,
+        rows,
+        current,
+        loading,
+        failed,
+        busy,
+        retry,
+        zoom,
+        rotation,
+        forward_allowed,
+        image_failed,
+        source,
+    )
+}
+
+/// A round icon command over the picture, on the dark overlay in either appearance.
+fn viewer_button(
+    icon: ui::Icon,
+    label: impl Fn() -> &'static str + 'static,
+    on_press: impl Fn() + 'static,
+    disabled: impl Fn() -> bool + 'static,
+) -> nsh_base::ButtonElement {
+    ui::round_button()
+        .size_9()
+        .pointer_events(PointerEvents::Auto)
+        .text_color(ui::media_overlay_foreground)
+        .hover(|style| style.bg(|| ui::media_overlay_foreground().opacity(0.18)))
+        .disabled(disabled)
+        .accessibility_label(move || Some(label().into()))
+        .on_press(on_press)
+        .child(ui::icon(icon))
+}
+
+pub(crate) fn photo_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .gap_2()
+        .items_center()
+        .pointer_events(PointerEvents::Auto)
+        .child(
+            text(move || i18n.tr("Couldn’t display this photo.", "无法显示此图片。"))
+                .text_role(ui::TextRole::Body)
+                .text_color(ui::media_overlay_foreground),
+        )
+        .child(
+            ui::link(move || i18n.text(Key::Retry), retry).text_color(ui::media_overlay_foreground),
+        )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn viewer(
+    actions: Actions,
+    rows: Signal<Vec<MessageListView>>,
+    current: Signal<String>,
+    loading: Signal<bool>,
+    failed: Signal<bool>,
+    busy: Signal<bool>,
+    retry: Signal<u64>,
+    zoom: Signal<f32>,
+    rotation: Signal<u8>,
+    forward_allowed: Signal<bool>,
+    image_failed: Signal<bool>,
+    source: Stored<Option<String>>,
+) -> View {
+    let i18n = actions.i18n;
     let selected = move || {
         rows.with(|rows| {
             rows.iter()
@@ -399,24 +464,10 @@ pub(super) fn screen(
                 .child(when(
                     move || failed.get() || image_failed.get(),
                     move || {
-                        view()
-                            .gap_2()
-                            .items_center()
-                            .pointer_events(PointerEvents::Auto)
-                            .child(
-                                text(move || {
-                                    i18n.tr("Couldn’t display this photo.", "无法显示此图片。")
-                                })
-                                .text_role(ui::TextRole::Body)
-                                .text_color(ui::media_overlay_foreground),
-                            )
-                            .child(ui::action(
-                                move || i18n.text(Key::Retry),
-                                move || {
-                                    image_failed.set(false);
-                                    retry.update(|v| *v += 1);
-                                },
-                            ))
+                        photo_error(move || {
+                            image_failed.set(false);
+                            retry.update(|v| *v += 1);
+                        })
                     },
                 )),
         )
@@ -578,20 +629,24 @@ pub(super) fn screen(
         )
 }
 
-/// A round icon command over the picture, on the dark overlay in either appearance.
-fn viewer_button(
-    icon: ui::Icon,
-    label: impl Fn() -> &'static str + 'static,
-    on_press: impl Fn() + 'static,
-    disabled: impl Fn() -> bool + 'static,
-) -> nsh_base::ButtonElement {
-    ui::round_button()
-        .size_9()
-        .pointer_events(PointerEvents::Auto)
-        .text_color(ui::media_overlay_foreground)
-        .hover(|style| style.bg(|| ui::media_overlay_foreground().opacity(0.18)))
-        .disabled(disabled)
-        .accessibility_label(move || Some(label().into()))
-        .on_press(on_press)
-        .child(ui::icon(icon))
+#[cfg(debug_assertions)]
+pub(crate) fn detached(rows: Vec<MessageListView>, own_id: String, failed: Signal<bool>) -> View {
+    let current = rows
+        .first()
+        .map(|row| row.message_id.clone())
+        .unwrap_or_default();
+    viewer(
+        Actions::detached(own_id),
+        signal_with(rows, SignalEquals::Never),
+        signal(current),
+        signal(false),
+        failed,
+        signal(false),
+        signal(0),
+        signal(1.0),
+        signal(0),
+        signal(false),
+        signal(false),
+        stored(None),
+    )
 }

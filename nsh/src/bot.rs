@@ -514,7 +514,7 @@ pub(crate) fn ending_surface(windows: BotWindows) -> impl IntoElement {
             .text_role(ui::TextRole::Headline),
         )
         .child(when(windows.purge_failed, move || {
-            ui::action(
+            ui::link(
                 move || i18n.tr("Retry", "重试"),
                 move || {
                     if windows.ending.get_untracked() && windows.purge_failed.get_untracked() {
@@ -584,4 +584,12 @@ pub(crate) fn surface(windows: BotWindows) -> impl IntoElement {
         |page| page.id,
         move |page, _index| window::host(windows, page),
     ))
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_ending(failed: Signal<bool>) -> impl IntoElement {
+    let windows = detached();
+    windows.ending.set(true);
+    effect(move || windows.purge_failed.set(failed.get()));
+    ending_surface(windows)
 }

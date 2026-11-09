@@ -118,12 +118,12 @@ fn title(i18n: I18n, direction: Direction) -> &'static str {
     }
 }
 
-fn approval(
+fn approval_card(
     handle: Handle,
     direction: Direction,
     request_id: u64,
     presence: crate::motion::Presence,
-) -> impl IntoElement {
+) -> View {
     let i18n = i18n::current();
     let reject = move || {
         if !presence.interactive() {
@@ -139,114 +139,98 @@ fn approval(
         )
     };
     // Only the buttons answer: a stray press outside must not refuse the request.
-    ui::dialog(
-        presence,
-        || {},
-        ui::dialog_card(ui::DialogWidth::Regular)
-            .child(ui::dialog_title(move || title(i18n, direction)))
-            .child(
-                text(move || match direction {
-                    Direction::Restore => i18n.tr(
-                        "Allow your phone to send chat history to this device?",
-                        "允许手机向此设备同步聊天记录吗？",
-                    ),
-                    Direction::Backup => i18n.tr(
-                        "Allow this device to send chat history to your phone?",
-                        "允许此设备向手机同步聊天记录吗？",
-                    ),
-                })
-                .text_role(ui::TextRole::Body),
-            )
-            .child(
-                parts::dialog_actions()
-                    .child(
-                        ui::action(move || i18n.text(Key::Cancel), reject)
-                            .disabled(handle.busy(direction)),
+    ui::dialog_card(ui::DialogWidth::Regular)
+        .child(ui::dialog_title(move || title(i18n, direction)))
+        .child(
+            text(move || match direction {
+                Direction::Restore => i18n.tr(
+                    "Allow your phone to send chat history to this device?",
+                    "允许手机向此设备同步聊天记录吗？",
+                ),
+                Direction::Backup => i18n.tr(
+                    "Allow this device to send chat history to your phone?",
+                    "允许此设备向手机同步聊天记录吗？",
+                ),
+            })
+            .text_role(ui::TextRole::Body),
+        )
+        .child(
+            parts::dialog_actions()
+                .child(
+                    ui::action(move || i18n.text(Key::Cancel), reject)
+                        .disabled(handle.busy(direction)),
+                )
+                .child(
+                    ui::primary()
+                        .disabled(handle.busy(direction))
+                        .child(text(move || i18n.tr("Allow", "允许")))
+                        .on_press(move || {
+                            if !presence.interactive() {
+                                return;
+                            }
+                            handle.send_request(
+                                direction,
+                                match direction {
+                                    Direction::Restore => Command::ConfirmRestore,
+                                    Direction::Backup => Command::ConfirmBackup,
+                                },
+                                request_id,
+                            )
+                        }),
+                ),
+        )
+        .child(when(
+            move || handle.response_error(direction).get() == Some(request_id),
+            move || {
+                ui::error_text(move || {
+                    i18n.tr(
+                        "Couldn’t respond to the transfer request. Try again.",
+                        "无法回应同步请求，请重试。",
                     )
-                    .child(
-                        ui::primary()
-                            .disabled(handle.busy(direction))
-                            .child(text(move || i18n.tr("Allow", "允许")))
-                            .on_press(move || {
-                                if !presence.interactive() {
-                                    return;
-                                }
-                                handle.send_request(
-                                    direction,
-                                    match direction {
-                                        Direction::Restore => Command::ConfirmRestore,
-                                        Direction::Backup => Command::ConfirmBackup,
-                                    },
-                                    request_id,
-                                )
-                            }),
-                    ),
-            )
-            .child(when(
-                move || handle.response_error(direction).get() == Some(request_id),
-                move || {
-                    ui::error_text(move || {
-                        i18n.tr(
-                            "Couldn’t respond to the transfer request. Try again.",
-                            "无法回应同步请求，请重试。",
-                        )
-                    })
-                },
-            )),
-    )
+                })
+            },
+        ))
 }
 
-fn progress(
-    handle: Handle,
-    direction: Direction,
-    presence: crate::motion::Presence,
-) -> impl IntoElement {
+fn progress_card(handle: Handle, direction: Direction) -> View {
     let i18n = i18n::current();
     let job = handle.job(direction);
-    ui::dialog(
-        presence,
-        move || {
-            if !job.get_untracked().status.active() {
-                handle.visible.set(None);
-            }
-        },
-        ui::dialog_card(ui::DialogWidth::Regular)
-            .child(ui::dialog_title(move || title(i18n, direction)))
-            .child(status(handle, direction))
-            .child(when(
-                move || job.get().status.active(),
-                move || {
-                    view()
-                        .gap(ui::space_lg())
-                        .child(
-                            text(move || {
-                                i18n.tr(
-                                    "Keep both devices connected until the transfer finishes.",
-                                    "同步完成前请保持两台设备联网。",
-                                )
-                            })
-                            .text_role(ui::TextRole::Body)
-                            .text_color(ui::fg_secondary),
-                        )
-                        .child(
-                            ui::action(
-                                move || i18n.text(Key::Cancel),
-                                move || handle.cancel(direction),
+    ui::dialog_card(ui::DialogWidth::Regular)
+        .child(ui::dialog_title(move || title(i18n, direction)))
+        .child(status(handle, direction))
+        .child(when(
+            move || job.get().status.active(),
+            move || {
+                view()
+                    .gap(ui::space_lg())
+                    .child(
+                        text(move || {
+                            i18n.tr(
+                                "Keep both devices connected until the transfer finishes.",
+                                "同步完成前请保持两台设备联网。",
                             )
-                            .disabled(handle.busy(direction)),
-                        )
-                },
-            ))
-            .child(when(
-                move || !job.get().status.active(),
-                move || {
-                    ui::action(
-                        move || i18n.tr("Done", "完成"),
-                        move || handle.visible.set(None),
+                        })
+                        .text_role(ui::TextRole::Body)
+                        .text_color(ui::fg_secondary),
                     )
-                },
-            )),
-    )
+                    .child(
+                        ui::action(
+                            move || i18n.text(Key::Cancel),
+                            move || handle.cancel(direction),
+                        )
+                        .disabled(handle.busy(direction)),
+                    )
+            },
+        ))
+        .child(when(
+            move || !job.get().status.active(),
+            move || {
+                ui::action(
+                    move || i18n.tr("Done", "完成"),
+                    move || handle.visible.set(None),
+                )
+            },
+        ))
 }
 
 fn status(handle: Handle, direction: Direction) -> impl IntoElement {
@@ -287,4 +271,47 @@ fn status(handle: Handle, direction: Direction) -> impl IntoElement {
                 .text_color(ui::fg_secondary)
             },
         ))
+}
+
+#[cfg(debug_assertions)]
+pub(super) fn preview_approval(handle: Handle) -> impl IntoElement {
+    approval_card(
+        handle,
+        Direction::Restore,
+        1,
+        crate::motion::Presence::modal(|| true),
+    )
+}
+
+fn approval(
+    handle: Handle,
+    direction: Direction,
+    request_id: u64,
+    presence: crate::motion::Presence,
+) -> impl IntoElement {
+    ui::dialog(
+        presence,
+        || {},
+        approval_card(handle, direction, request_id, presence),
+    )
+}
+fn progress(
+    handle: Handle,
+    direction: Direction,
+    presence: crate::motion::Presence,
+) -> impl IntoElement {
+    let job = handle.job(direction);
+    ui::dialog(
+        presence,
+        move || {
+            if !job.get_untracked().status.active() {
+                handle.visible.set(None);
+            }
+        },
+        progress_card(handle, direction),
+    )
+}
+#[cfg(debug_assertions)]
+pub(super) fn preview_progress(handle: Handle) -> impl IntoElement {
+    progress_card(handle, Direction::Restore)
 }

@@ -12,6 +12,7 @@ nsh/preview/output/<scene>/<label>/. See .agents/skills/nsh-preview/SKILL.md.
 
 import argparse
 import fcntl
+import html
 import json
 import os
 import re
@@ -41,7 +42,8 @@ test("preview capture", async () => {{
     locale: config.locale,
     colorScheme: config.scheme,
   }});
-  await app.press(`label:Scene ${{config.scene}}`);
+  // The root selects this scene before mounting its native controls.
+  if (config.focus) await app.type(config.focus, "");
   // Let the native scene switch and deferred syntax colors reach the capture.
   await app.wait(300);
   if (!config.action) {{
@@ -50,8 +52,10 @@ test("preview capture", async () => {{
   }}
   // The press prepares the action's start state at once and runs it later, so the
   // start frame follows the press. Times count from issuing the press.
+  await app.press("label:Preview action");
+  await app.press(`role:option[${{config.action}}]`);
   const pressed = Date.now();
-  await app.press(`label:Action ${{config.action}}`);
+  await app.press("label:Play action");
   await app.screenshot(`${{config.out}}/start.png`);
   for (let frame = 0; ; frame++) {{
     const elapsed = Date.now() - pressed;
@@ -65,6 +69,58 @@ test("preview capture", async () => {{
   await app.screenshot(`${{config.out}}/settled.png`);
 }}, 120_000);
 """
+
+
+CATALOG_TEST = """import {{ open, test }} from "nsh/test";
+const config = {config};
+test("preview catalog", async () => {{
+  const app = await open({entry}, {{ width: config.width, height: config.height,
+    locale: config.locale, colorScheme: config.scheme }});
+  for (const [index, scene] of config.scenes.entries()) {{
+    if (config.filtered && index > 0) {{
+      await app.press("label:Preview scene");
+      await app.press(`role:option[${{scene.name}}]`);
+    }}
+    await app.wait(300);
+    await app.screenshot(`${{config.out}}/${{scene.name}}.png`);
+    for (const state of scene.states) {{
+      await app.press("label:Preview action");
+      await app.press(`role:option[${{state.action}}]`);
+      await app.press("label:Play action");
+      await app.wait(1150);
+      await app.screenshot(`${{config.out}}/${{scene.name}}--${{state.key}}.png`);
+    }}
+    if (!config.filtered) await app.press("label:Next scene");
+  }}
+}}, 600_000);
+"""
+
+
+def scene_catalog():
+    source = (NSH / "src/preview/mod.rs").read_text()
+    entries = re.findall(r'name:\s*"([A-Za-z0-9_-]+)"\s*,\s*actions:\s*(\w+)::(\w+)', source)
+    result = []
+    for name, module, constant in entries:
+        module_source = (NSH / f"src/preview/{module}.rs").read_text()
+        definition = re.search(rf'const {constant}:.*?=\s*&\[(.*?)\];', module_source, re.S)
+        if not definition:
+            sys.exit(f"Cannot find actions for {name}")
+        actions = re.findall(r'"([^"]+)"', definition[1])
+        states = [{"action": action, "key": re.sub(r"[^a-z0-9]+", "-", action.lower()).strip("-")}
+                  for action in actions if action != "Reset"]
+        result.append({"name": name, "states": states})
+    return result
+
+
+def scenes():
+    return [scene["name"] for scene in scene_catalog()]
+
+
+def checked_scene(name):
+    checked_name("scene", name)
+    if name not in scenes():
+        sys.exit(f"Unknown scene {name!r}; run preview.py list")
+    return name
 
 
 def run(command, **kwargs):
@@ -177,6 +233,7 @@ def shoot(args, raw):
         "scene": args.scene, "action": args.action, "out": str(raw),
         "width": args.width, "height": args.height, "locale": args.locale,
         "scheme": args.scheme, "duration": args.duration,
+        "focus": getattr(args, "focus", None),
     }
     with capture_lock():
         entry = capture_entry(args.foreground)
@@ -184,10 +241,15 @@ def shoot(args, raw):
         run_dir = Path(tempfile.mkdtemp(prefix="run-", dir=RUNS if args.foreground else entry))
         try:
             test = run_dir / "capture.test.tsx"
-            test.write_text(TEST.format(config=json.dumps(config, indent=2),
+            if getattr(args, "scenes", None):
+                config["scenes"] = args.scenes
+                config["filtered"] = bool(getattr(args, "scene_names", None))
+            template = CATALOG_TEST if "scenes" in config else TEST
+            test.write_text(template.format(config=json.dumps(config, indent=2),
                                         entry=json.dumps(os.path.relpath(entry, run_dir))))
             # Share the workspace target directory instead of building a second one.
-            env = dict(os.environ, CARGO_TARGET_DIR=str(NSH.parent / "target"))
+            env = dict(os.environ, CARGO_TARGET_DIR=str(NSH.parent / "target"),
+                       MIXIN_PREVIEW_SCENE=args.scene)
             command = ["nsh", "test", os.path.relpath(test, entry), "--target", "macos"]
             if args.foreground:
                 command.append("--foreground")
@@ -236,7 +298,7 @@ def timeline(out, keyframes):
 
 
 def capture(args):
-    checked_name("scene", args.scene)
+    checked_scene(args.scene)
     checked_name("label", args.label)
     for tool in ("nsh", "ffmpeg", "ffprobe"):
         if not shutil.which(tool):
@@ -285,6 +347,69 @@ def capture(args):
     print("\n".join(line for line in lines if not line.startswith("  ") or "keyframe" in line))
 
 
+def catalog(args):
+    """Capture the scene browser in one native run and make a local review gallery."""
+    checked_name("label", args.label)
+    available = scene_catalog()
+    if args.scene_names:
+        by_name = {scene["name"]: scene for scene in available}
+        args.scenes = [by_name[checked_scene(name)] for name in dict.fromkeys(args.scene_names)]
+    else:
+        args.scenes = available
+    args.scene = args.scenes[0]["name"]
+    args.action = None
+    args.duration = 0
+    final = output_dir("button-review", args.label)
+    with staged(final) as out:
+        raw = out / "raw"
+        raw.mkdir()
+        shoot(args, raw)
+        cards = []
+        previous = None
+        total_states = 0
+        for scene in args.scenes:
+            name = scene["name"]
+            variants = [("Normal", name + ".png")] + [(state["action"], f"{name}--{state['key']}.png") for state in scene["states"]]
+            options = []
+            for label, filename in variants:
+                shot = raw / filename
+                if not shot.exists():
+                    sys.exit(f"Missing capture for {name}: {label}")
+                ffmpeg("-i", str(shot), "-vf", crop_filter(shot, args.width, None), str(out / filename))
+                digest = pixels(out / filename)
+                if label == "Normal":
+                    if previous and previous[1] == digest:
+                        sys.exit(f"Identical captures for {previous[0]} and {name}; scene switching may be obscured")
+                    previous = (name, digest)
+                options.append(f'<option value="{filename}">{html.escape(label)}</option>')
+            total_states += len(variants)
+            cards.append(f'<article id="{name}"><div class="title"><h2>{name}</h2>'
+                         f'<select aria-label="{name} state" onchange="changeState(this)">{"".join(options)}</select></div>'
+                         f'<a href="{name}.png"><img loading="lazy" src="{name}.png" alt="{name}: Normal"></a></article>')
+        shutil.rmtree(raw)
+        options = "".join(f'<option value="#{scene["name"]}">{scene["name"]}</option>' for scene in args.scenes)
+        title = html.escape(f"Button design review · {args.scheme} · {args.locale}")
+        (out / "index.html").write_text(
+            '<!doctype html><html lang="en"><meta charset="utf-8">'
+            f'<title>{title}</title><style>'
+            'body{margin:0;background:#202328;color:#eee;font:15px system-ui}'
+            'header{position:sticky;top:0;padding:16px;background:#292d33;z-index:1}'
+            'select{font:inherit;padding:8px;margin-left:16px;max-width:70%}'
+            'main{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:24px;padding:24px}'
+            'article{scroll-margin-top:90px}.title{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}'
+            'h2{font-size:16px;font-weight:500}img{display:block;width:100%;border:1px solid #555;border-radius:8px}'
+            '</style><script>function changeState(select){const card=select.closest("article");'
+            'const file=select.value;card.querySelector("img").src=file;card.querySelector("a").href=file;'
+            'card.querySelector("img").alt=card.id+": "+select.selectedOptions[0].text}</script>'
+            f'<header>{title}<select aria-label="Scene" onchange="location.hash=this.value">{options}</select></header>'
+            f'<main>{"".join(cards)}</main></html>')
+        (out / "capture.txt").write_text(
+            f"window: {args.width}x{args.height} pt, {args.locale}, {args.scheme}\n"
+            + "\n".join(scene["name"] for scene in args.scenes) + "\n")
+        (out / "scenes.json").write_text(json.dumps(args.scenes, indent=2) + "\n")
+    print(f"{final / 'index.html'} ({len(args.scenes)} scenes, {total_states} states)")
+
+
 def compare(args):
     for kind, value in (("scene", args.scene), ("label", args.before), ("label", args.after)):
         checked_name(kind, value)
@@ -312,6 +437,7 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     shot = commands.add_parser("capture", help="screenshot a scene, optionally through an action")
     shot.add_argument("scene")
+    shot.add_argument("--focus", help="focus an input selector before a static capture")
     shot.add_argument("--action", help="toolbar action to record, e.g. Collapse")
     shot.add_argument("--label", default="current", help="capture name (default: current)")
     shot.add_argument("--duration", type=int, default=1500,
@@ -325,6 +451,17 @@ def main():
                       help="show the capture window above other apps (default: below them)")
     shot.add_argument("--crop", help="x,y,w,h in points of the scene area below the toolbar")
     shot.set_defaults(handler=capture)
+    listing = commands.add_parser("list", help="list registered native scenes")
+    listing.set_defaults(handler=lambda _: print("\n".join(scenes())))
+    gallery = commands.add_parser("catalog", help="capture all scenes as a local HTML review gallery")
+    gallery.add_argument("--label", default="current")
+    gallery.add_argument("--scenes", dest="scene_names", nargs="+", help="capture only these scenes in the given order")
+    gallery.add_argument("--width", type=int, default=980)
+    gallery.add_argument("--height", type=int, default=820)
+    gallery.add_argument("--locale", default="zh-CN")
+    gallery.add_argument("--scheme", choices=("light", "dark"), default="dark")
+    gallery.add_argument("--foreground", action="store_true")
+    gallery.set_defaults(handler=catalog)
     diff = commands.add_parser("compare", help="stack two captures of one scene")
     diff.add_argument("scene")
     diff.add_argument("before")

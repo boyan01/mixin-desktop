@@ -10,6 +10,8 @@ use mixin_desktop_api::{ImageEdit, PreparedAttachment};
 use nsh_base::SliderValue;
 use nsh_core::prelude::*;
 
+type Drag = ((f32, f32), (f32, f32));
+
 #[derive(Clone, Copy)]
 struct Crop {
     width: f32,
@@ -72,7 +74,7 @@ pub(super) fn screen(
         zoom: signal(1.0),
         viewport: signal(320.0),
     };
-    let drag = signal(None::<((f32, f32), (f32, f32))>);
+    let drag = signal(None::<Drag>);
     let focused = signal(false);
     let saving = signal(false);
     let failed = signal(false);
@@ -134,138 +136,183 @@ pub(super) fn screen(
         .child(ui::dialog(
             picker.presence,
             cancel,
-            ui::dialog_card(ui::DialogWidth::Regular)
-                .max_h(relative(1.0))
-                .child(ui::dialog_title(move || tr("Crop photo", "裁剪头像")))
-                .child(
-                    text(move || {
-                        tr(
-                            "Drag to move. Use the slider to zoom. Images up to 10 MB.",
-                            "拖动调整位置，使用滑块缩放。图片最大 10 MB。",
-                        )
-                    })
-                    .text_role(ui::TextRole::Body)
-                    .text_color(ui::fg_secondary),
-                )
-                .child(
-                    view()
-                        .w_full()
-                        .aspect_ratio(1.0)
-                        .overflow_hidden()
-                        .rounded(ui::radius_md())
-                        .on_layout(move |bounds: &Bounds<Points>| {
-                            crop.viewport.set(bounds.size.width.0.max(1.0))
-                        })
-                        .child(
-                            canvas(move || {
-                                let (x, y, side) = crop.bounds();
-                                let scale = crop.viewport.get() / side;
-                                let path = source.with(|source| source.path.clone());
-                                let extent = crop.viewport.get();
-                                let mut painter = Painter::new().draw_image(
-                                    &path,
-                                    Bounds::new(
-                                        point(px(-x * scale), px(-y * scale)),
-                                        size(px(width * scale), px(height * scale)),
-                                    ),
-                                );
-                                painter = painter
-                                    .stroke_color(color(ui::surface_pane()))
-                                    .line_width(1.0);
-                                for third in [1.0 / 3.0, 2.0 / 3.0] {
-                                    painter = painter
-                                        .begin_path()
-                                        .move_to(extent * third, 0.0)
-                                        .line_to(extent * third, extent)
-                                        .move_to(0.0, extent * third)
-                                        .line_to(extent, extent * third)
-                                        .stroke();
-                                }
-                                painter
-                            })
-                            .w_full()
-                            .h_full()
-                            .focusable(true)
-                            .label(move || {
-                                tr(
-                                    "Crop preview. Drag or use arrow keys to move the photo.",
-                                    "头像裁剪预览。拖动或使用方向键移动图片。",
-                                )
-                            })
-                            .focus(ui::ring)
-                            .on_focus(move || focused.set(true))
-                            .on_blur(move || focused.set(false))
-                            .claim_touches(TouchClaim::on_start())
-                            .keep_touches(true)
-                            .on_responder_grant(move |event: &ResponderEvent| {
-                                if !saving.get_untracked() {
-                                    drag.set(Some((
-                                        (event.location.x.0, event.location.y.0),
-                                        crop.center.get_untracked(),
-                                    )));
-                                }
-                            })
-                            .on_responder_move(move |event: &ResponderEvent| {
-                                if saving.get_untracked() {
-                                    return;
-                                }
-                                if let Some((origin, center)) = drag.get_untracked() {
-                                    let scale = crop.side() / crop.viewport.get();
-                                    crop.move_to(
-                                        center.0 - (event.location.x.0 - origin.0) * scale,
-                                        center.1 - (event.location.y.0 - origin.1) * scale,
-                                    );
-                                }
-                            })
-                            .on_responder_release(move |_: &ResponderEvent| drag.set(None))
-                            .on_responder_terminate(move |_: &ResponderEvent| drag.set(None)),
-                        ),
-                )
-                .child(
-                    ui::slider()
-                        .w_full()
-                        .min(1.0)
-                        .max(8.0)
-                        .step(0.01)
-                        .value(move || Some(SliderValue::Single(crop.zoom.get())))
-                        .disabled(saving)
-                        .accessibility_label(move || Some(tr("Photo zoom", "头像缩放").into()))
-                        .on_change(move |value: &SliderValue| {
-                            if let SliderValue::Single(zoom) = value {
-                                crop.set_zoom(*zoom);
-                            }
-                        }),
-                )
-                .child(when(failed, move || {
-                    ui::error_text(move || {
-                        tr(
-                            "Couldn’t prepare the photo. Try again.",
-                            "无法处理头像，请重试。",
-                        )
-                    })
-                }))
-                .child(
-                    parts::dialog_actions()
-                        .child(
-                            ui::action(
-                                move || tr("Reset", "重置"),
-                                move || {
-                                    crop.zoom.set(1.0);
-                                    crop.center.set((width / 2.0, height / 2.0));
-                                },
-                            )
-                            .disabled(saving),
-                        )
-                        .child(ui::action(move || tr("Cancel", "取消"), cancel))
-                        .child(ui::primary().disabled(saving).on_press(done).child(text(
-                            move || {
-                                if saving.get() {
-                                    tr("Preparing…", "正在处理…")
-                                } else {
-                                    tr("Save", "保存")
-                                }
-                            },
-                        ))),
-                ),
+            card(
+                source, crop, drag, focused, saving, failed, width, height, cancel, done,
+            ),
         ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn card(
+    source: Stored<PreparedAttachment>,
+    crop: Crop,
+    drag: Signal<Option<Drag>>,
+    focused: Signal<bool>,
+    saving: Signal<bool>,
+    failed: Signal<bool>,
+    width: f32,
+    height: f32,
+    cancel: impl Fn() + Copy + 'static,
+    done: impl Fn() + Copy + 'static,
+) -> View {
+    ui::dialog_card(ui::DialogWidth::Regular)
+        .max_h(relative(1.0))
+        .child(ui::dialog_title(move || tr("Crop photo", "裁剪头像")))
+        .child(
+            text(move || {
+                tr(
+                    "Drag to move. Use the slider to zoom. Images up to 10 MB.",
+                    "拖动调整位置，使用滑块缩放。图片最大 10 MB。",
+                )
+            })
+            .text_role(ui::TextRole::Body)
+            .text_color(ui::fg_secondary),
+        )
+        .child(
+            view()
+                .w_full()
+                .aspect_ratio(1.0)
+                .overflow_hidden()
+                .rounded(ui::radius_md())
+                .on_layout(move |bounds: &Bounds<Points>| {
+                    crop.viewport.set(bounds.size.width.0.max(1.0))
+                })
+                .child(
+                    canvas(move || {
+                        let (x, y, side) = crop.bounds();
+                        let scale = crop.viewport.get() / side;
+                        let path = source.with(|source| source.path.clone());
+                        let extent = crop.viewport.get();
+                        let mut painter = Painter::new().draw_image(
+                            &path,
+                            Bounds::new(
+                                point(px(-x * scale), px(-y * scale)),
+                                size(px(width * scale), px(height * scale)),
+                            ),
+                        );
+                        painter = painter
+                            .stroke_color(color(ui::surface_pane()))
+                            .line_width(1.0);
+                        for third in [1.0 / 3.0, 2.0 / 3.0] {
+                            painter = painter
+                                .begin_path()
+                                .move_to(extent * third, 0.0)
+                                .line_to(extent * third, extent)
+                                .move_to(0.0, extent * third)
+                                .line_to(extent, extent * third)
+                                .stroke();
+                        }
+                        painter
+                    })
+                    .w_full()
+                    .h_full()
+                    .focusable(true)
+                    .label(move || {
+                        tr(
+                            "Crop preview. Drag or use arrow keys to move the photo.",
+                            "头像裁剪预览。拖动或使用方向键移动图片。",
+                        )
+                    })
+                    .focus(ui::ring)
+                    .on_focus(move || focused.set(true))
+                    .on_blur(move || focused.set(false))
+                    .claim_touches(TouchClaim::on_start())
+                    .keep_touches(true)
+                    .on_responder_grant(move |event: &ResponderEvent| {
+                        if !saving.get_untracked() {
+                            drag.set(Some((
+                                (event.location.x.0, event.location.y.0),
+                                crop.center.get_untracked(),
+                            )));
+                        }
+                    })
+                    .on_responder_move(move |event: &ResponderEvent| {
+                        if saving.get_untracked() {
+                            return;
+                        }
+                        if let Some((origin, center)) = drag.get_untracked() {
+                            let scale = crop.side() / crop.viewport.get();
+                            crop.move_to(
+                                center.0 - (event.location.x.0 - origin.0) * scale,
+                                center.1 - (event.location.y.0 - origin.1) * scale,
+                            );
+                        }
+                    })
+                    .on_responder_release(move |_: &ResponderEvent| drag.set(None))
+                    .on_responder_terminate(move |_: &ResponderEvent| drag.set(None)),
+                ),
+        )
+        .child(
+            ui::slider()
+                .w_full()
+                .min(1.0)
+                .max(8.0)
+                .step(0.01)
+                .value(move || Some(SliderValue::Single(crop.zoom.get())))
+                .disabled(saving)
+                .accessibility_label(move || Some(tr("Photo zoom", "头像缩放").into()))
+                .on_change(move |value: &SliderValue| {
+                    if let SliderValue::Single(zoom) = value {
+                        crop.set_zoom(*zoom);
+                    }
+                }),
+        )
+        .child(when(failed, move || {
+            ui::error_text(move || {
+                tr(
+                    "Couldn’t prepare the photo. Try again.",
+                    "无法处理头像，请重试。",
+                )
+            })
+        }))
+        .child(
+            parts::dialog_actions()
+                .child(
+                    ui::action(
+                        move || tr("Reset", "重置"),
+                        move || {
+                            crop.zoom.set(1.0);
+                            crop.center.set((width / 2.0, height / 2.0));
+                        },
+                    )
+                    .disabled(saving),
+                )
+                .child(ui::action(move || tr("Cancel", "取消"), cancel))
+                .child(
+                    ui::primary()
+                        .disabled(saving)
+                        .on_press(done)
+                        .child(text(move || {
+                            if saving.get() {
+                                tr("Preparing…", "正在处理…")
+                            } else {
+                                tr("Save", "保存")
+                            }
+                        })),
+                ),
+        )
+}
+#[cfg(debug_assertions)]
+pub(super) fn preview(source: PreparedAttachment) -> View {
+    let width = source.width.unwrap_or(1).max(1) as f32;
+    let height = source.height.unwrap_or(1).max(1) as f32;
+    let crop = Crop {
+        width,
+        height,
+        center: signal((width / 2.0, height / 2.0)),
+        zoom: signal(1.0),
+        viewport: signal(320.0),
+    };
+    card(
+        stored(source),
+        crop,
+        signal(None),
+        signal(false),
+        signal(false),
+        signal(false),
+        width,
+        height,
+        || {},
+        || {},
+    )
 }

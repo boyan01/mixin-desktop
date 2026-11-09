@@ -246,15 +246,17 @@ pub(super) fn banner(
         .child(when(
             move || failed.get() || preference_failed.get(),
             move || {
-                view()
-                    .flex_row()
-                    .items_center()
-                    .gap_2()
-                    .child(ui::error_text(move || i18n.text(Key::CommandFailed)))
-                    .child(ui::action(
-                        move || i18n.text(Key::Retry),
-                        move || retry.update(|revision| *revision = revision.wrapping_add(1)),
-                    ))
+                load_error(move || retry.update(|revision| *revision = revision.wrapping_add(1)))
             },
         ))
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .flex_row()
+        .items_center()
+        .gap_2()
+        .child(ui::error_text(move || i18n.text(Key::CommandFailed)))
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
 }

@@ -344,7 +344,20 @@ fn add_form(state: State, open: Signal<bool>, presence: Presence) -> impl IntoEl
                 Ok(mut rows) => batch(|| {
                     has_next.set(rows.len() > PAGE_SIZE as usize);
                     rows.truncate(PAGE_SIZE as usize);
-                    users.set(rows);
+                    if offset == 0 {
+                        users.set(rows);
+                    } else {
+                        users.update(|users| {
+                            let known = users
+                                .iter()
+                                .map(|user| user.user_id.clone())
+                                .collect::<HashSet<_>>();
+                            users.extend(
+                                rows.into_iter()
+                                    .filter(|user| !known.contains(&user.user_id)),
+                            );
+                        });
+                    }
                 }),
                 Err(_) => failed.set(true),
             }
@@ -359,121 +372,166 @@ fn add_form(state: State, open: Signal<bool>, presence: Presence) -> impl IntoEl
     ui::dialog(
         presence,
         close,
-        parts::tall_dialog_card()
-            .gap(ui::space_md())
-            .child(ui::dialog_title(move || {
-                tr("Add participants", "添加群成员")
-            }))
-            .child(
-                ui::search_pill().flex_none().child(
-                    ui::search_input()
-                        .label(move || tr("Search contacts", "搜索联系人"))
-                        .placeholder(move || tr("Search contacts", "搜索联系人").to_owned())
-                        .value(move || query.get())
-                        .on_change(move |text: &str| {
-                            batch(|| {
-                                page.set(0);
-                                query.set(text.into());
-                            })
-                        }),
-                ),
-            )
-            .child(when(
-                move || loading.get() && users.with(Vec::is_empty),
-                || parts::status(move || tr("Loading…", "加载中…")),
-            ))
-            .child(when(failed, move || {
-                parts::failure(
-                    move || tr("Couldn’t load. Try again.", "加载失败，请重试。"),
-                    move || revision.update(|value| *value += 1),
-                )
-            }))
-            .child(
-                virtual_list(
-                    move || users.with(Vec::len),
-                    move |at| {
-                        let user = move || users.with(|users| users.get(at.index()).cloned());
-                        let chosen = move || {
-                            user().is_some_and(|user| {
-                                selected.with(|ids| ids.contains(&user.user_id))
-                            })
-                        };
-                        parts::entity_row(
-                            move || user().map(|user| user.user_id).unwrap_or_default(),
-                            move || user().map(|user| user.full_name).unwrap_or_default(),
-                            move || user().map(|user| user.avatar_url).unwrap_or_default(),
-                            move || user().map(|user| user.identity_number).unwrap_or_default(),
-                            chosen,
-                        )
-                        .disabled(state.busy)
-                        .on_press(move || {
-                            if let Some(user) = user() {
-                                selected.update(|ids| {
-                                    if !ids.remove(&user.user_id)
-                                        && ids.len() + state.members.with_untracked(Vec::len)
-                                            < MAX_MEMBERS
-                                    {
-                                        ids.insert(user.user_id);
-                                    }
-                                });
-                            }
+        add_view(
+            state, presence, users, selected, query, loading, failed, revision, page, has_next,
+            close,
+        ),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn add_view(
+    state: State,
+    presence: Presence,
+    users: Signal<Vec<UserProfileItem>>,
+    selected: Signal<HashSet<String>>,
+    query: Signal<String>,
+    loading: Signal<bool>,
+    failed: Signal<bool>,
+    revision: Signal<u64>,
+    page: Signal<i64>,
+    has_next: Signal<bool>,
+    close: impl Fn() + Copy + 'static,
+) -> View {
+    parts::tall_dialog_card()
+        .gap(ui::space_md())
+        .child(ui::dialog_title(move || {
+            tr("Add participants", "添加群成员")
+        }))
+        .child(
+            ui::search_pill().flex_none().child(
+                ui::search_input()
+                    .label(move || tr("Search contacts", "搜索联系人"))
+                    .placeholder(move || tr("Search contacts", "搜索联系人").to_owned())
+                    .value(move || query.get())
+                    .on_change(move |text: &str| {
+                        if query.with_untracked(|query| query == text) {
+                            return;
+                        }
+                        batch(|| {
+                            page.set(0);
+                            query.set(text.into());
+                            users.set(Vec::new());
+                            loading.set(true);
                         })
-                    },
-                )
-                .keys(move || {
-                    users.with(|users| {
-                        users
-                            .iter()
-                            .map(|user| user.user_id.clone())
-                            .collect::<Vec<_>>()
-                    })
-                })
-                .estimated_item_size(parts::row_height())
-                .flex_1()
-                .min_h_0()
-                .style_when(move || users.with(Vec::is_empty), |style| style.hidden()),
-            )
-            .child(when(
-                move || !loading.get() && !failed.get() && users.with(Vec::is_empty),
-                || ui::placeholder(move || tr("No available contacts", "没有可添加的联系人")),
-            ))
-            .child(parts::pager(
-                page,
-                move || has_next.get(),
-                move || loading.get() || state.busy.get(),
-            ))
-            .child(
-                parts::dialog_actions()
-                    .child(ui::action(move || tr("Cancel", "取消"), close).disabled(state.busy))
-                    .child(
-                        ui::primary()
-                            .disabled(move || {
-                                state.busy.get()
-                                    || selected.with(HashSet::is_empty)
-                                    || !state.can_manage()
-                            })
-                            .on_press(move || {
-                                if !presence.interactive() {
-                                    return;
-                                }
-                                let ids = selected
-                                    .with_untracked(|ids| ids.iter().cloned().collect::<Vec<_>>());
-                                let client = state.client();
-                                let id = state.id();
-                                state.submit(
-                                    async move {
-                                        client
-                                            .conversation()
-                                            .update_participants(id, "ADD".into(), ids, None)
-                                            .await
-                                    },
-                                    move || open.set(false),
-                                );
-                            })
-                            .child(text(move || {
-                                format!("{} ({})", tr("Add", "添加"), selected.with(HashSet::len))
-                            })),
-                    ),
+                    }),
             ),
+        )
+        .child(when(
+            move || loading.get() && users.with(Vec::is_empty),
+            || parts::status(move || tr("Loading…", "加载中…")),
+        ))
+        .child(when(failed, move || {
+            parts::failure(
+                move || tr("Couldn’t load. Try again.", "加载失败，请重试。"),
+                move || revision.update(|value| *value += 1),
+            )
+        }))
+        .child(
+            virtual_list(
+                move || users.with(Vec::len),
+                move |at| {
+                    let user = move || users.with(|users| users.get(at.index()).cloned());
+                    let chosen = move || {
+                        user().is_some_and(|user| selected.with(|ids| ids.contains(&user.user_id)))
+                    };
+                    parts::entity_row(
+                        move || user().map(|user| user.user_id).unwrap_or_default(),
+                        move || user().map(|user| user.full_name).unwrap_or_default(),
+                        move || user().map(|user| user.avatar_url).unwrap_or_default(),
+                        move || user().map(|user| user.identity_number).unwrap_or_default(),
+                        chosen,
+                    )
+                    .disabled(state.busy)
+                    .on_press(move || {
+                        if let Some(user) = user() {
+                            selected.update(|ids| {
+                                if !ids.remove(&user.user_id)
+                                    && ids.len() + state.members.with_untracked(Vec::len)
+                                        < MAX_MEMBERS
+                                {
+                                    ids.insert(user.user_id);
+                                }
+                            });
+                        }
+                    })
+                },
+            )
+            .keys(move || {
+                users.with(|users| {
+                    users
+                        .iter()
+                        .map(|user| user.user_id.clone())
+                        .collect::<Vec<_>>()
+                })
+            })
+            .on_load_more(move || {
+                if !loading.get_untracked()
+                    && !failed.get_untracked()
+                    && has_next.get_untracked()
+                    && !state.busy.get_untracked()
+                {
+                    loading.set(true);
+                    page.update(|page| *page += 1);
+                }
+            })
+            .load_more_threshold(0.5)
+            .estimated_item_size(parts::row_height())
+            .flex_1()
+            .min_h_0()
+            .style_when(move || users.with(Vec::is_empty), |style| style.hidden()),
+        )
+        .child(when(
+            move || !loading.get() && !failed.get() && users.with(Vec::is_empty),
+            || ui::placeholder(move || tr("No available contacts", "没有可添加的联系人")),
+        ))
+        .child(
+            parts::dialog_actions()
+                .child(ui::action(move || tr("Cancel", "取消"), close).disabled(state.busy))
+                .child(
+                    ui::primary()
+                        .disabled(move || {
+                            state.busy.get()
+                                || selected.with(HashSet::is_empty)
+                                || !state.can_manage()
+                        })
+                        .on_press(move || {
+                            if !presence.interactive() {
+                                return;
+                            }
+                            let ids = selected
+                                .with_untracked(|ids| ids.iter().cloned().collect::<Vec<_>>());
+                            let client = state.client();
+                            let id = state.id();
+                            state.submit(
+                                async move {
+                                    client
+                                        .conversation()
+                                        .update_participants(id, "ADD".into(), ids, None)
+                                        .await
+                                },
+                                close,
+                            );
+                        })
+                        .child(text(move || {
+                            format!("{} ({})", tr("Add", "添加"), selected.with(HashSet::len))
+                        })),
+                ),
+        )
+}
+#[cfg(debug_assertions)]
+pub(super) fn preview_add(state: State, users: Vec<UserProfileItem>) -> impl IntoElement {
+    add_view(
+        state,
+        Presence::modal(|| true),
+        signal_with(users, SignalEquals::Never),
+        signal(HashSet::new()),
+        signal(String::new()),
+        signal(false),
+        signal(false),
+        signal(0),
+        signal(0),
+        signal(false),
+        || {},
     )
 }

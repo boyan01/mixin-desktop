@@ -39,59 +39,12 @@ struct Editor {
 pub(super) fn screen(
     media: Arc<MediaClient>,
     source: PreparedAttachment,
-    mut edits: Vec<ImageEdit>,
+    edits: Vec<ImageEdit>,
     presence: crate::motion::Presence,
     save: impl Fn(Vec<ImageEdit>, PreparedAttachment) + Copy + 'static,
     close: impl Fn() + Copy + 'static,
 ) -> impl IntoElement {
-    let dimensions = (
-        source.width.unwrap_or(1).max(1) as u32,
-        source.height.unwrap_or(1).max(1) as u32,
-    );
-    let crop = if let Some(ImageEdit::Crop {
-        x,
-        y,
-        width,
-        height,
-    }) = edits.last()
-    {
-        let crop = Crop {
-            x: *x as f32,
-            y: *y as f32,
-            width: *width as f32,
-            height: *height as f32,
-        };
-        edits.pop();
-        crop
-    } else {
-        let edited = geometry::transforms(&edits, dimensions.0, dimensions.1)
-            .last()
-            .expect("initial transform")
-            .1;
-        Crop::full(edited.0, edited.1)
-    };
-    let edits = signal(edits);
-    let transforms = computed(move || {
-        edits.with(|edits| geometry::transforms(edits, dimensions.0, dimensions.1))
-    });
-    let editor = Editor {
-        source: stored(source),
-        media: stored(media),
-        edits,
-        transforms,
-        redo: signal(Vec::new()),
-        drawing_backup: stored(Vec::new()),
-        crop: signal(crop),
-        ratio: signal(None),
-        tool: signal(Tool::Crop),
-        color: signal([232, 77, 61, 255]),
-        stroke: signal(Vec::new()),
-        drag: signal(None),
-        viewport: signal((1.0, 1.0)),
-        focused: signal(false),
-        loading: signal(false),
-        failed: signal(false),
-    };
+    let editor = new_editor(media, source, edits);
     let done = move || {
         if !presence.interactive() || editor.loading.get_untracked() {
             return;
@@ -136,7 +89,7 @@ pub(super) fn screen(
         });
     };
     let i18n = crate::i18n::current();
-    let initial = stored((editor.edits.get_untracked(), crop));
+    let initial = stored((editor.edits.get_untracked(), editor.crop.get_untracked()));
     let discarding = signal(false);
     let cancel = move || {
         if !presence.interactive() {
@@ -441,4 +394,63 @@ fn raster_color(color: [u8; 4]) -> nsh_core::color::Rgba {
         b: f32::from(color[2]) / 255.0,
         a: f32::from(color[3]) / 255.0,
     }
+}
+
+fn new_editor(
+    media: Arc<MediaClient>,
+    source: PreparedAttachment,
+    mut edits: Vec<ImageEdit>,
+) -> Editor {
+    let dimensions = (
+        source.width.unwrap_or(1).max(1) as u32,
+        source.height.unwrap_or(1).max(1) as u32,
+    );
+    let crop = if let Some(ImageEdit::Crop {
+        x,
+        y,
+        width,
+        height,
+    }) = edits.last()
+    {
+        let crop = Crop {
+            x: *x as f32,
+            y: *y as f32,
+            width: *width as f32,
+            height: *height as f32,
+        };
+        edits.pop();
+        crop
+    } else {
+        let edited = geometry::transforms(&edits, dimensions.0, dimensions.1)
+            .last()
+            .expect("initial transform")
+            .1;
+        Crop::full(edited.0, edited.1)
+    };
+    let edits = signal(edits);
+    let transforms = computed(move || {
+        edits.with(|edits| geometry::transforms(edits, dimensions.0, dimensions.1))
+    });
+    Editor {
+        source: stored(source),
+        media: stored(media),
+        edits,
+        transforms,
+        redo: signal(Vec::new()),
+        drawing_backup: stored(Vec::new()),
+        crop: signal(crop),
+        ratio: signal(None),
+        tool: signal(Tool::Crop),
+        color: signal([232, 77, 61, 255]),
+        stroke: signal(Vec::new()),
+        drag: signal(None),
+        viewport: signal((1.0, 1.0)),
+        focused: signal(false),
+        loading: signal(false),
+        failed: signal(false),
+    }
+}
+#[cfg(debug_assertions)]
+pub(crate) fn detached(media: Arc<MediaClient>, source: PreparedAttachment) -> View {
+    surface::body(new_editor(media, source, Vec::new()), || {}, || {})
 }

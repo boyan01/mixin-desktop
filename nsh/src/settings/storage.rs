@@ -74,7 +74,6 @@ fn overview(
     selected: Signal<Option<(String, String)>>,
     revision: Signal<u64>,
 ) -> impl IntoElement {
-    let i18n = i18n::current();
     let rows = signal_with(Vec::<ConversationStorageUsage>::new(), SignalEquals::Never);
     let loading = signal(true);
     let failed = signal(false);
@@ -92,93 +91,17 @@ fn overview(
             loading.set(false);
         });
     });
-    parts::page_body()
-        .flex_1()
-        .min_h_0()
-        .child(
-            ui::section(move || i18n.tr("Automatic media download", "自动下载媒体"))
-                .child(
-                    ui::card()
-                        .child(download_toggle(Download::Photos))
-                        .child(download_toggle(Download::Videos))
-                        .child(download_toggle(Download::Files)),
-                )
-                .child(parts::note(move || {
-                    i18n.tr(
-                        "Automatically download media when messages arrive.",
-                        "收到消息时自动下载媒体文件。",
-                    )
-                })),
-        )
-        .child(
-            view()
-                .flex_1()
-                .min_h_0()
-                .gap(ui::space_sm())
-                .child(
-                    view()
-                        .flex_row()
-                        .items_center()
-                        .gap(ui::space_md())
-                        .child(
-                            ui::section_label(move || i18n.tr("Storage usage", "存储用量"))
-                                .flex_1(),
-                        )
-                        .child(
-                            text(move || {
-                                bytes(rows.with(|rows| rows.iter().map(|r| r.size_bytes).sum()))
-                            })
-                            .text_role(ui::TextRole::Body)
-                            .text_color(ui::fg_secondary),
-                        )
-                        .child(
-                            ui::command()
-                                .disabled(loading)
-                                .on_press(move || revision.update(|v| *v += 1))
-                                .child(text(move || i18n.tr("Refresh", "刷新"))),
-                        ),
-                )
-                .child(when(
-                    move || loading.get() && rows.with(Vec::is_empty),
-                    move || {
-                        parts::status(move || i18n.tr("Calculating storage…", "正在计算存储用量…"))
-                    },
-                ))
-                .child(when(failed, move || {
-                    parts::failure(
-                        move || i18n.text(Key::CommandFailed),
-                        move || revision.update(|r| *r += 1),
-                    )
-                }))
-                .child(when(
-                    move || !loading.get() && !failed.get() && rows.with(Vec::is_empty),
-                    move || parts::note(move || i18n.tr("No stored media", "暂无媒体缓存")),
-                ))
-                .child(
-                    // Hugs its rows, and shrinks to scroll them when they outgrow the page.
-                    ui::card()
-                        .flex_shrink(1.0)
-                        .min_h_0()
-                        .style_when(move || rows.with(Vec::is_empty), |s| s.hidden())
-                        .child(
-                            virtual_list(
-                                move || rows.with(Vec::len),
-                                move |at| storage_row(rows, selected, at),
-                            )
-                            .keys(move || {
-                                rows.with(|r| {
-                                    r.iter()
-                                        .map(|r| r.conversation.conversation_id.clone())
-                                        .collect::<Vec<_>>()
-                                })
-                            })
-                            .estimated_item_size(ui::row_height())
-                            .h(move || px(rows.with(Vec::len) as f32 * ui::row_height().0))
-                            .flex_shrink(1.0)
-                            .min_h_0(),
-                        ),
-                ),
-        )
+    overview_view(
+        rows,
+        loading,
+        failed,
+        revision,
+        selected,
+        view()
+            .child(download_toggle(Download::Photos))
+            .child(download_toggle(Download::Videos))
+            .child(download_toggle(Download::Files)),
+    )
 }
 
 fn storage_row(
@@ -231,7 +154,6 @@ fn storage_row(
 }
 
 fn download_toggle(kind: Download) -> impl IntoElement {
-    let i18n = i18n::current();
     let checked = signal(false);
     let ready = signal(false);
     let failed = signal(false);
@@ -268,38 +190,28 @@ fn download_toggle(kind: Download) -> impl IntoElement {
             }
         });
     });
-    view()
-        .child(ui::toggle_row(
-            move || match kind {
-                Download::Photos => i18n.tr("Photos", "图片"),
-                Download::Videos => i18n.tr("Videos", "视频"),
-                Download::Files => i18n.tr("Files", "文件"),
-            },
-            move || checked.get(),
-            move || !ready.get() || busy.get(),
-            move |value| {
-                let previous = checked.get_untracked();
-                checked.set(value);
-                busy.set(true);
-                failed.set(false);
-                let task = runtime::commit(async move { kind.save(client().await?, value).await });
-                spawn(async move {
-                    if task.await.is_err() {
-                        checked.set(previous);
-                        failed.set(true);
-                    }
-                    busy.set(false);
-                });
-            },
-        ))
-        .child(when(failed, move || {
-            parts::failure(
-                move || i18n.text(Key::CommandFailed),
-                move || retry.update(|r| *r += 1),
-            )
-            .px(ui::space_lg())
-            .pb(ui::space_sm())
-        }))
+    download_row(
+        kind,
+        checked,
+        ready,
+        busy,
+        failed,
+        move |value| {
+            let previous = checked.get_untracked();
+            checked.set(value);
+            busy.set(true);
+            failed.set(false);
+            let task = runtime::commit(async move { kind.save(client().await?, value).await });
+            spawn(async move {
+                if task.await.is_err() {
+                    checked.set(previous);
+                    failed.set(true);
+                }
+                busy.set(false);
+            });
+        },
+        move || retry.update(|r| *r += 1),
+    )
 }
 
 fn detail(
@@ -393,10 +305,7 @@ fn detail(
                         },
                     ))
                     .child(when(load_failed, move || {
-                        parts::failure(
-                            move || i18n.text(Key::CommandFailed),
-                            move || revision.update(|v| *v += 1),
-                        )
+                        load_error(move || revision.update(|v| *v += 1))
                     }))
                     .child(ui::card().children(["photos", "videos", "audio", "files"].into_iter().map(
                         move |category| {
@@ -486,7 +395,6 @@ fn clear_dialog(
     disabled: impl Fn() -> bool + 'static,
     clear: impl Fn() + 'static,
 ) -> impl IntoElement {
-    let i18n = i18n::current();
     ui::dialog(
         presence,
         move || {
@@ -494,35 +402,7 @@ fn clear_dialog(
                 confirming.set(false);
             }
         },
-        ui::dialog_card(ui::DialogWidth::Regular)
-            .child(ui::dialog_title(move || {
-                i18n.tr("Clear the selected media cache?", "清除选中的媒体缓存？")
-            }))
-            .child(
-                text(move || {
-                    i18n.tr(
-                        "Files saved only on this device may not be downloadable again.",
-                        "仅保存在此设备上的文件可能无法再次下载。",
-                    )
-                })
-                .text_role(ui::TextRole::Body),
-            )
-            .child(
-                parts::dialog_actions()
-                    .child(
-                        ui::action(
-                            move || i18n.text(Key::Cancel),
-                            move || confirming.set(false),
-                        )
-                        .disabled(feedback.busy),
-                    )
-                    .child(
-                        ui::button(ui::ButtonTone::Danger, ui::ButtonSize::Regular)
-                            .disabled(disabled)
-                            .child(text(move || i18n.tr("Clear cache", "清除缓存")))
-                            .on_press(clear),
-                    ),
-            ),
+        clear_card(confirming, feedback, disabled, clear),
     )
 }
 
@@ -537,4 +417,204 @@ fn bytes(value: i64) -> String {
     } else {
         format!("{value:.0} B")
     }
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_clear() -> impl IntoElement {
+    clear_card(signal(true), Feedback::new(), || false, || {})
+}
+
+fn clear_card(
+    confirming: Signal<bool>,
+    feedback: Feedback,
+    disabled: impl Fn() -> bool + 'static,
+    clear: impl Fn() + 'static,
+) -> View {
+    let i18n = i18n::current();
+    ui::dialog_card(ui::DialogWidth::Regular)
+        .child(ui::dialog_title(move || {
+            i18n.tr("Clear the selected media cache?", "清除选中的媒体缓存？")
+        }))
+        .child(
+            text(move || {
+                i18n.tr(
+                    "Files saved only on this device may not be downloadable again.",
+                    "仅保存在此设备上的文件可能无法再次下载。",
+                )
+            })
+            .text_role(ui::TextRole::Body),
+        )
+        .child(
+            parts::dialog_actions()
+                .child(
+                    ui::action(
+                        move || i18n.text(Key::Cancel),
+                        move || confirming.set(false),
+                    )
+                    .disabled(feedback.busy),
+                )
+                .child(
+                    ui::button(ui::ButtonTone::Danger, ui::ButtonSize::Regular)
+                        .disabled(disabled)
+                        .child(text(move || i18n.tr("Clear cache", "清除缓存")))
+                        .on_press(clear),
+                ),
+        )
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    parts::failure(move || i18n.text(Key::CommandFailed), retry)
+}
+
+fn overview_view(
+    rows: Signal<Vec<ConversationStorageUsage>>,
+    loading: Signal<bool>,
+    failed: Signal<bool>,
+    revision: Signal<u64>,
+    selected: Signal<Option<(String, String)>>,
+    downloads: impl IntoElement,
+) -> View {
+    let i18n = i18n::current();
+    parts::page_body()
+        .flex_1()
+        .min_h_0()
+        .child(
+            ui::section(move || i18n.tr("Automatic media download", "自动下载媒体"))
+                .child(ui::card().child(downloads))
+                .child(parts::note(move || {
+                    i18n.tr(
+                        "Automatically download media when messages arrive.",
+                        "收到消息时自动下载媒体文件。",
+                    )
+                })),
+        )
+        .child(
+            view()
+                .flex_1()
+                .min_h_0()
+                .gap(ui::space_sm())
+                .child(
+                    view()
+                        .flex_row()
+                        .items_center()
+                        .gap(ui::space_md())
+                        .child(
+                            ui::section_label(move || i18n.tr("Storage usage", "存储用量"))
+                                .flex_1(),
+                        )
+                        .child(
+                            text(move || {
+                                bytes(rows.with(|rows| rows.iter().map(|r| r.size_bytes).sum()))
+                            })
+                            .text_role(ui::TextRole::Body)
+                            .text_color(ui::fg_secondary),
+                        )
+                        .child(
+                            ui::command()
+                                .disabled(loading)
+                                .on_press(move || revision.update(|v| *v += 1))
+                                .child(text(move || i18n.tr("Refresh", "刷新"))),
+                        ),
+                )
+                .child(when(
+                    move || loading.get() && rows.with(Vec::is_empty),
+                    move || {
+                        parts::status(move || i18n.tr("Calculating storage…", "正在计算存储用量…"))
+                    },
+                ))
+                .child(when(failed, move || {
+                    load_error(move || revision.update(|r| *r += 1))
+                }))
+                .child(when(
+                    move || !loading.get() && !failed.get() && rows.with(Vec::is_empty),
+                    move || parts::note(move || i18n.tr("No stored media", "暂无媒体缓存")),
+                ))
+                .child(
+                    // Hugs its rows, and shrinks to scroll them when they outgrow the page.
+                    ui::card()
+                        .flex_shrink(1.0)
+                        .min_h_0()
+                        .style_when(move || rows.with(Vec::is_empty), |s| s.hidden())
+                        .child(
+                            virtual_list(
+                                move || rows.with(Vec::len),
+                                move |at| storage_row(rows, selected, at),
+                            )
+                            .keys(move || {
+                                rows.with(|r| {
+                                    r.iter()
+                                        .map(|r| r.conversation.conversation_id.clone())
+                                        .collect::<Vec<_>>()
+                                })
+                            })
+                            .estimated_item_size(ui::row_height())
+                            .h(move || px(rows.with(Vec::len) as f32 * ui::row_height().0))
+                            .flex_shrink(1.0)
+                            .min_h_0(),
+                        ),
+                ),
+        )
+}
+
+fn download_row(
+    kind: Download,
+    checked: Signal<bool>,
+    ready: Signal<bool>,
+    busy: Signal<bool>,
+    failed: Signal<bool>,
+    save: impl Fn(bool) + 'static,
+    retry: impl Fn() + Copy + 'static,
+) -> View {
+    let i18n = i18n::current();
+    view()
+        .child(ui::toggle_row(
+            move || match kind {
+                Download::Photos => i18n.tr("Photos", "图片"),
+                Download::Videos => i18n.tr("Videos", "视频"),
+                Download::Files => i18n.tr("Files", "文件"),
+            },
+            move || checked.get(),
+            move || !ready.get() || busy.get(),
+            save,
+        ))
+        .child(when(failed, move || {
+            load_error(retry).px(ui::space_lg()).pb(ui::space_sm())
+        }))
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview(rows: Vec<ConversationStorageUsage>, failed: Signal<bool>) -> View {
+    let downloads = view().children(
+        [Download::Photos, Download::Videos, Download::Files]
+            .into_iter()
+            .map(|kind| {
+                let checked = signal(true);
+                download_row(
+                    kind,
+                    checked,
+                    signal(true),
+                    signal(false),
+                    signal(false),
+                    move |value| checked.set(value),
+                    || {},
+                )
+            }),
+    );
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(parts::page_header(
+            move || i18n::current().tr("Storage", "存储"),
+            Some(parts::back_button(|| {})),
+            None,
+        ))
+        .child(overview_view(
+            signal_with(rows, SignalEquals::Never),
+            signal(false),
+            failed,
+            signal(0),
+            signal(None),
+            downloads,
+        ))
 }

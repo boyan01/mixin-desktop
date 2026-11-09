@@ -20,7 +20,7 @@ const WINDOW_SIZE: usize = PAGE_SIZE * 3;
 
 #[derive(Clone, Copy)]
 struct Pinned {
-    account: Stored<Arc<AccountClient>>,
+    account: Stored<Option<Arc<AccountClient>>>,
     conversation: Stored<String>,
     rows: Signal<Vec<MessageListView>>,
     offset: Signal<usize>,
@@ -41,6 +41,9 @@ struct Pinned {
 
 impl Pinned {
     fn load(self, refresh: bool, close: impl Fn() + Copy + 'static) {
+        if self.account.with(|account| account.is_none()) {
+            return;
+        }
         if self.loading.get_untracked() {
             self.dirty.replace(true);
             return;
@@ -49,7 +52,11 @@ impl Pinned {
         self.request.set(ticket);
         self.loading.set(true);
         self.failed.set(false);
-        let account = self.account.with(|account| account.clone());
+        let account = self.account.with(|account| {
+            account
+                .clone()
+                .expect("live pinned commands have an account")
+        });
         let conversation = self.conversation.with(|id| id.clone());
         let previous_offset = self.offset.get_untracked();
         let count = self.count.get_untracked();
@@ -192,7 +199,11 @@ impl Pinned {
                 .show()
                 .await;
             if matches!(result, Ok(answer) if answer.action.as_deref() == Some("unpin")) {
-                let account = self.account.with(|account| account.clone());
+                let account = self.account.with(|account| {
+                    account
+                        .clone()
+                        .expect("live pinned commands have an account")
+                });
                 let conversation = self.conversation.with(|id| id.clone());
                 let command = runtime::commit(async move {
                     account.message().unpin_all_messages(conversation).await
@@ -226,10 +237,9 @@ fn reader(
     close: impl Fn() + Copy + 'static,
     target: Signal<Option<String>>,
 ) -> impl IntoElement {
-    let i18n = i18n::current();
     let media_viewport = crate::chat::message_media::viewport();
     let state = Pinned {
-        account: stored(account.clone()),
+        account: stored(Some(account.clone())),
         conversation: stored(conversation.clone()),
         rows: signal_with(Vec::new(), SignalEquals::Never),
         offset: signal(0),
@@ -261,95 +271,7 @@ fn reader(
             }
         }
     });
-    view()
-        .flex_1()
-        .min_h_0()
-        .child(parts::page_header(
-            move || format!("{} ({})", i18n.text(Key::Pinned), state.total.get()),
-            None,
-            Some(parts::close_button(close)),
-        ))
-        .child(when(
-            move || state.loading.get() && state.rows.with(Vec::is_empty),
-            move || {
-                parts::status(move || i18n.text(Key::LoadingMessages))
-                    .px_4()
-                    .py_2()
-            },
-        ))
-        .child(when(
-            move || state.failed.get() || state.preview.failed.get(),
-            move || {
-                parts::failure(
-                    move || i18n.text(Key::CommandFailed),
-                    move || {
-                        state.preview.failed.set(false);
-                        state.load(true, close);
-                    },
-                )
-                .px_4()
-                .py_2()
-            },
-        ))
-        .child(
-            virtual_list(
-                move || state.rows.with(Vec::len),
-                move |at| {
-                    crate::sticker::visibility(move || {
-                        state
-                            .visible_range
-                            .get()
-                            .is_some_and(|(first, last)| (first..=last).contains(&at.index()))
-                            && state.preview.animation_visible()
-                            && !state.mutating.get()
-                    });
-                    let row = move || state.rows.with(|rows| rows.get(at.index()).cloned());
-                    state.preview.pinned_row(
-                        row,
-                        row_body(state, move || at.index(), row, locate),
-                        locate,
-                    )
-                },
-            )
-            .on_layout(media_viewport)
-            .keys(move || {
-                state.rows.with(|rows| {
-                    rows.iter()
-                        .map(|row| row.message_id.clone())
-                        .collect::<Vec<_>>()
-                })
-            })
-            .on_viewable_items_change(move |items: &ViewableItems| {
-                state.visible_range.set(items.viewable);
-                state.visible.replace(items.viewable.and_then(|(first, _)| {
-                    state
-                        .rows
-                        .with(|rows| rows.get(first).map(|row| row.message_id.clone()))
-                }));
-            })
-            .on_load_more(move || state.page(true, close))
-            .on_load_more_at_start(move || state.page(false, close))
-            .inverted()
-            .estimated_item_size(ui::list_row_height())
-            .flex_1()
-            .min_h_0(),
-        )
-        .child(state.preview.pinned_selection(state.conversation))
-        .child(
-            ui::card_row()
-                .justify_center()
-                .border_t_1()
-                .border_color(ui::border)
-                .disabled(move || {
-                    state.mutating.get() || state.total.get() == 0 || !state.can_unpin.get()
-                })
-                .on_press(move || state.unpin_all(close))
-                .child(
-                    text(move || i18n.tr("Unpin All Messages", "取消所有置顶消息"))
-                        .text_color(ui::accent),
-                ),
-        )
-        .child(state.preview.surface())
+    reader_view(state, close, locate, media_viewport)
 }
 
 fn row_body(
@@ -359,9 +281,7 @@ fn row_body(
     locate: impl Fn(String) + Copy + 'static,
 ) -> View {
     let i18n = i18n::current();
-    let mine = move || {
-        row().is_some_and(|row| state.account.with(|account| account.account_id()) == row.sender_id)
-    };
+    let mine = move || row().is_some_and(|row| state.preview.own_id() == row.sender_id);
     let inline_media =
         move || row().is_some_and(|row| crate::chat::message_media::inline_metadata(&row));
     view()
@@ -455,4 +375,129 @@ fn bubble(
             }
         })
         .child(state.preview.content(row))
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    parts::failure(move || i18n.text(Key::CommandFailed), retry)
+}
+
+fn reader_view(
+    state: Pinned,
+    close: impl Fn() + Copy + 'static,
+    locate: impl Fn(String) + Copy + 'static,
+    media_viewport: impl Fn(&Bounds<Points>) + 'static,
+) -> View {
+    let i18n = i18n::current();
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(parts::page_header(
+            move || format!("{} ({})", i18n.text(Key::Pinned), state.total.get()),
+            None,
+            Some(parts::close_button(close)),
+        ))
+        .child(when(
+            move || state.loading.get() && state.rows.with(Vec::is_empty),
+            move || {
+                parts::status(move || i18n.text(Key::LoadingMessages))
+                    .px_4()
+                    .py_2()
+            },
+        ))
+        .child(when(
+            move || state.failed.get() || state.preview.failed.get(),
+            move || {
+                load_error(move || {
+                    state.preview.failed.set(false);
+                    state.load(true, close);
+                })
+                .px_4()
+                .py_2()
+            },
+        ))
+        .child(
+            virtual_list(
+                move || state.rows.with(Vec::len),
+                move |at| {
+                    crate::sticker::visibility(move || {
+                        state
+                            .visible_range
+                            .get()
+                            .is_some_and(|(first, last)| (first..=last).contains(&at.index()))
+                            && state.preview.animation_visible()
+                            && !state.mutating.get()
+                    });
+                    let row = move || state.rows.with(|rows| rows.get(at.index()).cloned());
+                    state.preview.pinned_row(
+                        row,
+                        row_body(state, move || at.index(), row, locate),
+                        locate,
+                    )
+                },
+            )
+            .on_layout(media_viewport)
+            .keys(move || {
+                state.rows.with(|rows| {
+                    rows.iter()
+                        .map(|row| row.message_id.clone())
+                        .collect::<Vec<_>>()
+                })
+            })
+            .on_viewable_items_change(move |items: &ViewableItems| {
+                state.visible_range.set(items.viewable);
+                state.visible.replace(items.viewable.and_then(|(first, _)| {
+                    state
+                        .rows
+                        .with(|rows| rows.get(first).map(|row| row.message_id.clone()))
+                }));
+            })
+            .on_load_more(move || state.page(true, close))
+            .on_load_more_at_start(move || state.page(false, close))
+            .inverted()
+            .estimated_item_size(ui::list_row_height())
+            .flex_1()
+            .min_h_0(),
+        )
+        .child(state.preview.pinned_selection(state.conversation))
+        .child(
+            ui::card_row()
+                .justify_center()
+                .border_t_1()
+                .border_color(ui::border)
+                .disabled(move || {
+                    state.mutating.get() || state.total.get() == 0 || !state.can_unpin.get()
+                })
+                .on_press(move || state.unpin_all(close))
+                .child(
+                    text(move || i18n.tr("Unpin All Messages", "取消所有置顶消息"))
+                        .text_color(ui::accent),
+                ),
+        )
+        .child(state.preview.surface())
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview(rows: Vec<MessageListView>, own_id: String, failed: Signal<bool>) -> View {
+    let total = rows.len();
+    let state = Pinned {
+        account: stored(None),
+        conversation: stored("preview-group".into()),
+        rows: signal_with(rows, SignalEquals::Never),
+        offset: signal(0),
+        count: signal(PAGE_SIZE),
+        total: signal(total),
+        loading: signal(false),
+        failed,
+        mutating: signal(false),
+        can_unpin: signal(false),
+        request: signal(0),
+        dirty: stored(false),
+        deferred: stored(None),
+        visible: stored(None),
+        visible_range: signal(None),
+        preview: MediaPreview::detached(own_id),
+        owner: Owner::current(),
+    };
+    reader_view(state, || {}, |_| {}, crate::chat::message_media::viewport())
 }

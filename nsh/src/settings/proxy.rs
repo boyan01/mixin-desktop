@@ -12,7 +12,6 @@ use crate::{
 const VISIBLE_ROWS: usize = 3;
 
 pub(super) fn screen() -> impl IntoElement {
-    let i18n = i18n::current();
     let settings = signal_with(
         ProxySettingsItem {
             enabled: false,
@@ -40,89 +39,7 @@ pub(super) fn screen() -> impl IntoElement {
     });
     let adding = signal(false);
     let presence = crate::motion::Presence::modal(move || adding.get());
-    scroll().flex_1().min_h_0().child(
-        parts::page_body()
-            .child(
-                view()
-                    .gap(ui::space_sm())
-                    .child(ui::card().child(ui::toggle_row(
-                        move || i18n.tr("Proxy", "代理"),
-                        move || settings.with(|s| s.enabled),
-                        move || {
-                            !ready.get()
-                                || feedback.busy.get()
-                                || settings.with(|s| s.proxies.is_empty())
-                        },
-                        move |enabled| {
-                            let mut next = settings.get_untracked();
-                            if enabled && next.selected_proxy_id.is_none() {
-                                next.selected_proxy_id = next.proxies.first().map(|p| p.id.clone());
-                            }
-                            next.enabled = enabled;
-                            save(next, settings, feedback);
-                        },
-                    )))
-                    .child(when(
-                        move || ready.get() && settings.with(|s| s.proxies.is_empty()),
-                        move || {
-                            parts::note(move || {
-                                i18n.tr(
-                                    "Add a proxy before enabling it.",
-                                    "请先添加代理，再开启代理连接。",
-                                )
-                            })
-                        },
-                    )),
-            )
-            .child(when(
-                move || !ready.get() && !feedback.failed.get(),
-                move || parts::status(move || i18n.tr("Loading proxies…", "正在加载代理…")),
-            ))
-            .child(
-                ui::card()
-                    .child(
-                        virtual_list(
-                            move || settings.with(|s| s.proxies.len()),
-                            move |at| proxy_row(settings, feedback, move || at.index()),
-                        )
-                        .keys(move || {
-                            settings.with(|s| {
-                                s.proxies.iter().map(|p| p.id.clone()).collect::<Vec<_>>()
-                            })
-                        })
-                        .estimated_item_size(ui::row_height())
-                        .h(move || {
-                            px(settings.with(|s| s.proxies.len().min(VISIBLE_ROWS)) as f32
-                                * ui::row_height().0)
-                        })
-                        .style_when(
-                            move || settings.with(|s| s.proxies.is_empty()),
-                            |style| style.hidden(),
-                        ),
-                    )
-                    .child(
-                        ui::settings_row(Some(ui::Icon::Add), move || {
-                            i18n.tr("Add proxy…", "添加代理…")
-                        })
-                        .disabled(move || !ready.get() || feedback.busy.get())
-                        .on_press(move || adding.set(true)),
-                    ),
-            )
-            .child(feedback.view(move || i18n.tr("Saving…", "正在保存…")))
-            .child(when(
-                move || feedback.failed.get() && !ready.get(),
-                move || {
-                    ui::action(
-                        move || i18n.text(Key::Retry),
-                        move || refresh.update(|r| *r += 1),
-                    )
-                },
-            ))
-            .child(when(
-                move || presence.mounted(),
-                move || form(settings, feedback, adding, presence),
-            )),
-    )
+    content(settings, ready, refresh, feedback, adding, presence)
 }
 
 fn proxy_row(
@@ -240,7 +157,6 @@ fn form(
     adding: Signal<bool>,
     presence: crate::motion::Presence,
 ) -> impl IntoElement {
-    let i18n = i18n::current();
     let host = signal(String::new());
     let port = signal(String::new());
     let username = signal(String::new());
@@ -251,12 +167,6 @@ fn form(
             adding.set(false);
         }
     };
-    let cancel_key = move |key: &str| {
-        if key == "Escape" {
-            cancel();
-        }
-    };
-    let composition = move |event: &Composition| composing.set(event.composing);
     let add = move || {
         let port = port.get_untracked().parse::<u16>().unwrap_or_default();
         if !presence.interactive() || port == 0 {
@@ -289,13 +199,41 @@ fn form(
             })
         });
     };
+    ui::dialog(
+        presence,
+        cancel,
+        form_view(
+            host, port, username, password, composing, feedback, cancel, add, true,
+        ),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn form_view(
+    host: Signal<String>,
+    port: Signal<String>,
+    username: Signal<String>,
+    password: Signal<String>,
+    composing: Signal<bool>,
+    feedback: Feedback,
+    cancel: impl Fn() + Copy + 'static,
+    add: impl Fn() + Copy + 'static,
+    focus: bool,
+) -> View {
+    let i18n = i18n::current();
+    let cancel_key = move |key: &str| {
+        if key == "Escape" {
+            cancel();
+        }
+    };
+    let composition = move |event: &Composition| composing.set(event.composing);
     let fields = view()
         .gap(ui::space_lg())
         .child(
             parts::labeled(move || i18n.tr("Host", "主机")).child(
                 ui::field()
                     .label(move || i18n.tr("Host", "主机"))
-                    .auto_focus(true)
+                    .auto_focus(focus)
                     .value(move || host.get())
                     .readonly(feedback.busy)
                     .on_key_press(cancel_key)
@@ -337,33 +275,162 @@ fn form(
                     .on_change(move |value: &str| password.set(value.into())),
             ),
         );
-    ui::dialog(
-        presence,
-        cancel,
-        ui::dialog_card(ui::DialogWidth::Regular)
-            .overflow_hidden()
-            .child(ui::dialog_title(move || {
-                i18n.tr("Add HTTP proxy", "添加 HTTP 代理")
-            }))
-            .child(scroll().min_h_0().flex_shrink(1.0).child(fields))
-            .child(when(feedback.failed, move || {
-                ui::error_text(move || i18n.text(Key::CommandFailed))
-            }))
+    ui::dialog_card(ui::DialogWidth::Regular)
+        .overflow_hidden()
+        .child(ui::dialog_title(move || {
+            i18n.tr("Add HTTP proxy", "添加 HTTP 代理")
+        }))
+        .child(scroll().min_h_0().flex_shrink(1.0).child(fields))
+        .child(when(feedback.failed, move || {
+            ui::error_text(move || i18n.text(Key::CommandFailed))
+        }))
+        .child(
+            parts::dialog_actions()
+                .child(ui::action(move || i18n.text(Key::Cancel), cancel).disabled(feedback.busy))
+                .child(
+                    ui::primary()
+                        .disabled(move || {
+                            feedback.busy.get()
+                                || host.with(|h| h.trim().is_empty())
+                                || port.with(|p| !p.parse::<u16>().is_ok_and(|port| port > 0))
+                        })
+                        .child(text(move || i18n.tr("Add", "添加")))
+                        .on_press(add),
+                ),
+        )
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview(failed: Signal<bool>) -> impl IntoElement {
+    let feedback = Feedback::new();
+    feedback.failed.set(failed.get_untracked());
+    effect(move || feedback.failed.set(failed.get()));
+    form_view(
+        signal(String::new()),
+        signal(String::new()),
+        signal(String::new()),
+        signal(String::new()),
+        signal(false),
+        feedback,
+        || {},
+        || {},
+        false,
+    )
+}
+
+fn content(
+    settings: Signal<ProxySettingsItem>,
+    ready: Signal<bool>,
+    refresh: Signal<u64>,
+    feedback: Feedback,
+    adding: Signal<bool>,
+    presence: crate::motion::Presence,
+) -> impl IntoElement {
+    let i18n = i18n::current();
+    scroll().flex_1().min_h_0().child(
+        parts::page_body()
             .child(
-                parts::dialog_actions()
+                view()
+                    .gap(ui::space_sm())
+                    .child(ui::card().child(ui::toggle_row(
+                        move || i18n.tr("Proxy", "代理"),
+                        move || settings.with(|s| s.enabled),
+                        move || {
+                            !ready.get()
+                                || feedback.busy.get()
+                                || settings.with(|s| s.proxies.is_empty())
+                        },
+                        move |enabled| {
+                            let mut next = settings.get_untracked();
+                            if enabled && next.selected_proxy_id.is_none() {
+                                next.selected_proxy_id = next.proxies.first().map(|p| p.id.clone());
+                            }
+                            next.enabled = enabled;
+                            save(next, settings, feedback);
+                        },
+                    )))
+                    .child(when(
+                        move || ready.get() && settings.with(|s| s.proxies.is_empty()),
+                        move || {
+                            parts::note(move || {
+                                i18n.tr(
+                                    "Add a proxy before enabling it.",
+                                    "请先添加代理，再开启代理连接。",
+                                )
+                            })
+                        },
+                    )),
+            )
+            .child(when(
+                move || !ready.get() && !feedback.failed.get(),
+                move || parts::status(move || i18n.tr("Loading proxies…", "正在加载代理…")),
+            ))
+            .child(
+                ui::card()
                     .child(
-                        ui::action(move || i18n.text(Key::Cancel), cancel).disabled(feedback.busy),
+                        virtual_list(
+                            move || settings.with(|s| s.proxies.len()),
+                            move |at| proxy_row(settings, feedback, move || at.index()),
+                        )
+                        .keys(move || {
+                            settings.with(|s| {
+                                s.proxies.iter().map(|p| p.id.clone()).collect::<Vec<_>>()
+                            })
+                        })
+                        .estimated_item_size(ui::row_height())
+                        .h(move || {
+                            px(settings.with(|s| s.proxies.len().min(VISIBLE_ROWS)) as f32
+                                * ui::row_height().0)
+                        })
+                        .style_when(
+                            move || settings.with(|s| s.proxies.is_empty()),
+                            |style| style.hidden(),
+                        ),
                     )
                     .child(
-                        ui::primary()
-                            .disabled(move || {
-                                feedback.busy.get()
-                                    || host.with(|h| h.trim().is_empty())
-                                    || port.with(|p| !p.parse::<u16>().is_ok_and(|port| port > 0))
-                            })
-                            .child(text(move || i18n.tr("Add", "添加")))
-                            .on_press(add),
+                        ui::settings_row(Some(ui::Icon::Add), move || {
+                            i18n.tr("Add proxy…", "添加代理…")
+                        })
+                        .disabled(move || !ready.get() || feedback.busy.get())
+                        .on_press(move || adding.set(true)),
                     ),
-            ),
+            )
+            .child(feedback.view(move || i18n.tr("Saving…", "正在保存…")))
+            .child(when(
+                move || feedback.failed.get() && !ready.get(),
+                move || {
+                    ui::link(
+                        move || i18n.text(Key::Retry),
+                        move || refresh.update(|r| *r += 1),
+                    )
+                },
+            ))
+            .child(when(
+                move || presence.mounted(),
+                move || form(settings, feedback, adding, presence),
+            )),
+    )
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_settings(failed: Signal<bool>) -> impl IntoElement {
+    let feedback = Feedback::new();
+    effect(move || feedback.failed.set(failed.get()));
+    let ready = signal(true);
+    effect(move || ready.set(!failed.get()));
+    content(
+        signal_with(
+            ProxySettingsItem {
+                enabled: false,
+                selected_proxy_id: None,
+                proxies: Vec::new(),
+            },
+            SignalEquals::Never,
+        ),
+        ready,
+        signal(0),
+        feedback,
+        signal(false),
+        crate::motion::Presence::modal(|| false),
     )
 }

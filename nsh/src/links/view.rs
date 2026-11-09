@@ -26,77 +26,8 @@ pub(super) fn surface(router: LinkNavigation) -> impl IntoElement {
                 untracked(|| match panel {
                     None => view().hidden().into_element(),
                     Some(panel) => {
-                        let send = matches!(&panel, Panel::Send(_));
-                        let profile = matches!(&panel, Panel::Profile(_));
-                        let compact = send
-                            || profile
-                            || matches!(
-                                &panel,
-                                Panel::Loading | Panel::Error | Panel::Unsupported(_)
-                            );
-                        let content = match panel {
-                            Panel::Loading => parts::status(move || tr("Loading…", "加载中…"))
-                                .justify_center()
-                                .py_4()
-                                .into_element(),
-                            Panel::Error => view()
-                                .gap_3()
-                                .p_4()
-                                .child(ui::dialog_title(move || {
-                                    tr("Couldn’t open this link", "无法打开此链接")
-                                }))
-                                .child(
-                                    text(move || {
-                                        tr(
-                                            "Check the link and your connection, then try again.",
-                                            "请检查链接和网络连接后重试。",
-                                        )
-                                    })
-                                    .text_role(ui::TextRole::Body),
-                                )
-                                .into_element(),
-                            Panel::Profile(id) => {
-                                crate::conversation::profile(router.client(), id, move || {
-                                    router.close()
-                                })
-                                .into_element()
-                            }
-                            Panel::Snapshot(reference) => {
-                                crate::snapshot::screen(router.client(), reference).into_element()
-                            }
-                            Panel::Send(request) => {
-                                super::send::screen(router, request).into_element()
-                            }
-                            Panel::Code(code, value) => {
-                                code_panel(router, code, *value).into_element()
-                            }
-                            Panel::Unsupported(raw) => unsupported(raw).into_element(),
-                        };
-                        let mut body = view().flex_1().min_h_0();
-                        if compact {
-                            body = body.flex_auto().flex_grow(0.0);
-                        }
-                        let mut card = if profile {
-                            ui::dialog_card(ui::DialogWidth::Compact)
-                                .p_0()
-                                .gap_0()
-                                .overflow_hidden()
-                        } else {
-                            parts::tall_dialog_card()
-                                .p(ui::space_lg())
-                                .gap(ui::space_md())
-                        }
-                        .child(body.child(content));
-                        if compact {
-                            card = card.h(auto()).min_h_0();
-                        }
-                        if !send && !profile {
-                            card = card.child(parts::dialog_actions().child(ui::action(
-                                move || tr("Close", "关闭"),
-                                move || router.close(),
-                            )));
-                        }
-                        ui::dialog(presence, move || router.close(), card).into_element()
+                        ui::dialog(presence, move || router.close(), panel_card(router, panel))
+                            .into_element()
                     }
                 })
             })
@@ -305,4 +236,72 @@ fn unsupported(raw: String) -> impl IntoElement {
                 move || set_clipboard(raw.with(|raw| raw.clone())),
             )),
     )
+}
+
+pub(super) fn panel_card(router: LinkNavigation, panel: Panel) -> View {
+    let send = matches!(&panel, Panel::Send(_));
+    let profile = matches!(&panel, Panel::Profile(_));
+    let compact = send
+        || profile
+        || matches!(
+            &panel,
+            Panel::Loading | Panel::Error | Panel::Unsupported(_)
+        );
+    let content = match panel {
+        Panel::Loading => parts::status(move || tr("Loading…", "加载中…"))
+            .justify_center()
+            .py_4()
+            .into_element(),
+        Panel::Error => view()
+            .gap_3()
+            .p_4()
+            .child(ui::dialog_title(move || {
+                tr("Couldn’t open this link", "无法打开此链接")
+            }))
+            .child(
+                text(move || {
+                    tr(
+                        "Check the link and your connection, then try again.",
+                        "请检查链接和网络连接后重试。",
+                    )
+                })
+                .text_role(ui::TextRole::Body),
+            )
+            .into_element(),
+        Panel::Profile(id) => {
+            crate::conversation::profile(router.client(), id, move || router.close()).into_element()
+        }
+        Panel::Snapshot(reference) => {
+            crate::snapshot::screen(router.client(), reference).into_element()
+        }
+        Panel::Send(request) => super::send::screen(router, request).into_element(),
+        Panel::Code(code, value) => code_panel(router, code, *value).into_element(),
+        Panel::Unsupported(raw) => unsupported(raw).into_element(),
+    };
+    let mut body = view().flex_1().min_h_0();
+    if compact {
+        body = body.flex_auto().flex_grow(0.0);
+    }
+    let mut card = if profile {
+        ui::dialog_card(ui::DialogWidth::Compact)
+            .p_0()
+            .gap_0()
+            .overflow_hidden()
+    } else {
+        parts::tall_dialog_card()
+            .p(ui::space_lg())
+            .gap(ui::space_md())
+    }
+    .child(body.child(content));
+    if compact {
+        card = card.h(auto()).min_h_0();
+    }
+    if !send && !profile {
+        card = card.child(parts::dialog_actions().child(ui::action(
+            move || tr("Close", "关闭"),
+            move || router.close(),
+        )));
+    }
+
+    card
 }

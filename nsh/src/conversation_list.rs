@@ -366,3 +366,9 @@ fn shows_delivery(row: &ConversationListData, account_id: &str) -> bool {
                     || category == "MESSAGE_PIN"
             })
 }
+
+#[cfg(debug_assertions)]
+pub(crate) use actions::preview_mute;
+
+#[cfg(debug_assertions)]
+pub(crate) use actions::command_error;

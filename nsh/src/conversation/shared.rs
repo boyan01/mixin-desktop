@@ -81,61 +81,17 @@ impl Shared {
 }
 
 pub(super) fn screen(state: State, target: Signal<Option<String>>) -> impl IntoElement {
-    let i18n = i18n::current();
     let selected = signal("media");
     let shown = signal(vec!["media"]);
     let preview = MediaPreview::new(state.client());
-    view()
-        .flex_1()
-        .min_w_0()
-        .min_h_0()
-        .children(["media", "post", "file"].into_iter().map(move |kind| {
-            when(
-                move || shown.with(|shown| shown.contains(&kind)),
-                move || {
-                    view()
-                        .flex_1()
-                        .min_w_0()
-                        .min_h_0()
-                        .style_when(
-                            move || selected.get() != kind,
-                            |style| style.hidden().invisible(),
-                        )
-                        .child(panel(state, target, kind, preview))
-                },
-            )
-        }))
-        .child(
-            tabs()
-                .flex_row()
-                .flex_shrink_0()
-                .min_h(ui::row_height())
-                .border_t_1()
-                .border_color(ui::border)
-                .children(
-                    [
-                        ("media", "Media", "媒体"),
-                        ("post", "Posts", "文章"),
-                        ("file", "Files", "文件"),
-                    ]
-                    .into_iter()
-                    .map(move |(value, en, zh)| {
-                        ui::tab(move || i18n.tr(en, zh), move || selected.get() == value).on_press(
-                            move || {
-                                batch(|| {
-                                    shown.update(|shown| {
-                                        if !shown.contains(&value) {
-                                            shown.push(value);
-                                        }
-                                    });
-                                    selected.set(value);
-                                });
-                            },
-                        )
-                    }),
-                ),
-        )
-        .child(preview.surface())
+    screen_view(
+        state,
+        target,
+        selected,
+        shown,
+        preview,
+        move |state, target, kind, preview| panel(state, target, kind, preview).into_element(),
+    )
 }
 
 fn panel(
@@ -144,7 +100,6 @@ fn panel(
     kind: &'static str,
     preview: MediaPreview,
 ) -> impl IntoElement {
-    let i18n = i18n::current();
     let shared = Shared {
         owner: Owner::current(),
         kind,
@@ -208,168 +163,7 @@ fn panel(
         )
         .await;
     });
-    let navigation =
-        use_context::<crate::navigation::Navigation>().expect("Home provides navigation");
-    // A memo, so resizing the window rebuilds the list only when the count changes.
-    let columns = computed(move || {
-        let content = window().width.0 - navigation.width().0;
-        let panel = if content < 620.0 {
-            content
-        } else {
-            content - ui::sidebar_width().0
-        };
-        if panel < 620.0 { 4 } else { 3 }
-    });
-    view()
-        .flex_1()
-        .min_w_0()
-        .min_h_0()
-        .child(when(
-            move || shared.loading.get() && shared.rows.with(Vec::is_empty),
-            move || {
-                parts::status(move || i18n.tr("Loading…", "加载中…"))
-                    .px(ui::space_lg())
-                    .py(ui::space_sm())
-            },
-        ))
-        .child(when(
-            move || shared.failed.get() || shared.preview.failed.get(),
-            move || {
-                parts::failure(
-                    move || i18n.text(crate::i18n::Key::CommandFailed),
-                    move || {
-                        shared.preview.failed.set(false);
-                        shared.revision.update(|revision| *revision += 1);
-                    },
-                )
-                .px(ui::space_lg())
-                .py(ui::space_sm())
-            },
-        ))
-        .child(when(
-            move || {
-                !shared.loading.get() && !shared.failed.get() && shared.rows.with(Vec::is_empty)
-            },
-            move || {
-                ui::placeholder(move || match kind {
-                    "post" => i18n.tr("No posts", "暂无文章"),
-                    "file" => i18n.tr("No files", "暂无文件"),
-                    _ => i18n.tr("No shared media", "暂无共享媒体"),
-                })
-            },
-        ))
-        .child(when(
-            move || !shared.rows.with(Vec::is_empty),
-            move || {
-                dynamic(move || {
-                    let kind = shared.kind;
-                    let columns = if kind == "media" { columns.get() } else { 1 };
-                    untracked(move || {
-                        let first = shared
-                            .first
-                            .with(|anchor| {
-                                anchor.as_ref().and_then(|anchor| {
-                                    shared.rows.with(|rows| {
-                                        rows.iter().position(|row| &row.message_id == anchor)
-                                    })
-                                })
-                            })
-                            .unwrap_or_default();
-                        virtual_list(
-                            move || shared.rows.with(Vec::len),
-                            move |at| {
-                                let message =
-                                    move || shared.rows.with(|rows| rows.get(at.index()).cloned());
-                                item_menu(
-                                    message,
-                                    state,
-                                    shared,
-                                    target,
-                                    if kind == "media" {
-                                        media(message, shared).into_element()
-                                    } else {
-                                        view()
-                                            .min_w_0()
-                                            .w_full()
-                                            .px(ui::space_md())
-                                            .py(ui::space_sm())
-                                            .gap(ui::space_sm())
-                                            .child(dynamic(move || {
-                                                let message = message();
-                                                untracked(move || match message {
-                                                    Some(message) => view()
-                                                        .p(ui::space_sm())
-                                                        .min_w_0()
-                                                        .style_when(
-                                                            move || kind == "post",
-                                                            |style| {
-                                                                style
-                                                                    .bg(ui::surface_card)
-                                                                    .rounded(ui::radius_md())
-                                                                    .max_h_80()
-                                                                    .overflow_hidden()
-                                                            },
-                                                        )
-                                                        .child(shared.preview.content(message))
-                                                        .into_element(),
-                                                    None => view().hidden().into_element(),
-                                                })
-                                            }))
-                                            .child(
-                                                text(move || {
-                                                    message()
-                                                        .map(|row| {
-                                                            format!(
-                                                                "{} · {}",
-                                                                row.sender_name,
-                                                                presentation::time(
-                                                                    i18n,
-                                                                    row.created_at_micros / 1000
-                                                                )
-                                                            )
-                                                        })
-                                                        .unwrap_or_default()
-                                                })
-                                                .text_role(ui::TextRole::Caption)
-                                                .number_of_lines(1)
-                                                .text_color(ui::fg_secondary),
-                                            )
-                                            .into_element()
-                                    },
-                                )
-                            },
-                        )
-                        .keys(move || {
-                            shared.rows.with(|rows| {
-                                rows.iter()
-                                    .map(|row| row.message_id.clone())
-                                    .collect::<Vec<_>>()
-                            })
-                        })
-                        .columns(columns)
-                        .row_gap(ui::space_xs())
-                        .column_gap(ui::space_xs())
-                        .estimated_item_size(ui::list_row_height())
-                        .on_viewable_items_change(move |items: &ViewableItems| {
-                            shared.first.replace(items.viewable.and_then(|(first, _)| {
-                                shared
-                                    .rows
-                                    .with(|rows| rows.get(first).map(|row| row.message_id.clone()))
-                            }));
-                        })
-                        .on_load_more(move || shared.page(true))
-                        .on_load_more_at_start(move || shared.page(false))
-                        .load_more_threshold(0.5)
-                        .load_more_at_start_threshold(0.5)
-                        .element_ref(&shared.list)
-                        .initial_scroll_index(first)
-                        .flex_1()
-                        .min_w_0()
-                        .min_h_0()
-                    })
-                })
-            },
-        ))
+    panel_view(state, target, shared)
 }
 
 fn media(
@@ -529,4 +323,283 @@ fn item_menu(
             file,
         ])
     })
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    parts::failure(move || i18n.text(crate::i18n::Key::CommandFailed), retry)
+}
+
+fn screen_view(
+    state: State,
+    target: Signal<Option<String>>,
+    selected: Signal<&'static str>,
+    shown: Signal<Vec<&'static str>>,
+    preview: MediaPreview,
+    panel: impl Fn(State, Signal<Option<String>>, &'static str, MediaPreview) -> AnyElement
+    + Copy
+    + 'static,
+) -> View {
+    let i18n = i18n::current();
+    view()
+        .flex_1()
+        .min_w_0()
+        .min_h_0()
+        .children(["media", "post", "file"].into_iter().map(move |kind| {
+            when(
+                move || shown.with(|shown| shown.contains(&kind)),
+                move || {
+                    view()
+                        .flex_1()
+                        .min_w_0()
+                        .min_h_0()
+                        .style_when(
+                            move || selected.get() != kind,
+                            |style| style.hidden().invisible(),
+                        )
+                        .child(panel(state, target, kind, preview))
+                },
+            )
+        }))
+        .child(
+            tabs()
+                .flex_row()
+                .flex_shrink_0()
+                .min_h(ui::row_height())
+                .border_t_1()
+                .border_color(ui::border)
+                .children(
+                    [
+                        ("media", "Media", "媒体"),
+                        ("post", "Posts", "文章"),
+                        ("file", "Files", "文件"),
+                    ]
+                    .into_iter()
+                    .map(move |(value, en, zh)| {
+                        ui::tab(move || i18n.tr(en, zh), move || selected.get() == value).on_press(
+                            move || {
+                                batch(|| {
+                                    shown.update(|shown| {
+                                        if !shown.contains(&value) {
+                                            shown.push(value);
+                                        }
+                                    });
+                                    selected.set(value);
+                                });
+                            },
+                        )
+                    }),
+                ),
+        )
+        .child(preview.surface())
+}
+
+fn panel_view(state: State, target: Signal<Option<String>>, shared: Shared) -> View {
+    let i18n = i18n::current();
+    let kind = shared.kind;
+    let navigation =
+        use_context::<crate::navigation::Navigation>().expect("Home provides navigation");
+    // A memo, so resizing the window rebuilds the list only when the count changes.
+    let columns = computed(move || {
+        let content = window().width.0 - navigation.width().0;
+        let panel = if content < 620.0 {
+            content
+        } else {
+            content - ui::sidebar_width().0
+        };
+        if panel < 620.0 { 4 } else { 3 }
+    });
+    view()
+        .flex_1()
+        .min_w_0()
+        .min_h_0()
+        .child(when(
+            move || shared.loading.get() && shared.rows.with(Vec::is_empty),
+            move || {
+                parts::status(move || i18n.tr("Loading…", "加载中…"))
+                    .px(ui::space_lg())
+                    .py(ui::space_sm())
+            },
+        ))
+        .child(when(
+            move || shared.failed.get() || shared.preview.failed.get(),
+            move || {
+                load_error(move || {
+                    shared.preview.failed.set(false);
+                    shared.revision.update(|revision| *revision += 1);
+                })
+                .px(ui::space_lg())
+                .py(ui::space_sm())
+            },
+        ))
+        .child(when(
+            move || {
+                !shared.loading.get() && !shared.failed.get() && shared.rows.with(Vec::is_empty)
+            },
+            move || {
+                ui::placeholder(move || match kind {
+                    "post" => i18n.tr("No posts", "暂无文章"),
+                    "file" => i18n.tr("No files", "暂无文件"),
+                    _ => i18n.tr("No shared media", "暂无共享媒体"),
+                })
+            },
+        ))
+        .child(when(
+            move || !shared.rows.with(Vec::is_empty),
+            move || {
+                dynamic(move || {
+                    let kind = shared.kind;
+                    let columns = if kind == "media" { columns.get() } else { 1 };
+                    untracked(move || {
+                        let first = shared
+                            .first
+                            .with(|anchor| {
+                                anchor.as_ref().and_then(|anchor| {
+                                    shared.rows.with(|rows| {
+                                        rows.iter().position(|row| &row.message_id == anchor)
+                                    })
+                                })
+                            })
+                            .unwrap_or_default();
+                        virtual_list(
+                            move || shared.rows.with(Vec::len),
+                            move |at| {
+                                let message =
+                                    move || shared.rows.with(|rows| rows.get(at.index()).cloned());
+                                item_menu(
+                                    message,
+                                    state,
+                                    shared,
+                                    target,
+                                    if kind == "media" {
+                                        media(message, shared).into_element()
+                                    } else {
+                                        view()
+                                            .min_w_0()
+                                            .w_full()
+                                            .px(ui::space_md())
+                                            .py(ui::space_sm())
+                                            .gap(ui::space_sm())
+                                            .child(dynamic(move || {
+                                                let message = message();
+                                                untracked(move || match message {
+                                                    Some(message) => view()
+                                                        .p(ui::space_sm())
+                                                        .min_w_0()
+                                                        .style_when(
+                                                            move || kind == "post",
+                                                            |style| {
+                                                                style
+                                                                    .bg(ui::surface_card)
+                                                                    .rounded(ui::radius_md())
+                                                                    .max_h_80()
+                                                                    .overflow_hidden()
+                                                            },
+                                                        )
+                                                        .child(shared.preview.content(message))
+                                                        .into_element(),
+                                                    None => view().hidden().into_element(),
+                                                })
+                                            }))
+                                            .child(
+                                                text(move || {
+                                                    message()
+                                                        .map(|row| {
+                                                            format!(
+                                                                "{} · {}",
+                                                                row.sender_name,
+                                                                presentation::time(
+                                                                    i18n,
+                                                                    row.created_at_micros / 1000
+                                                                )
+                                                            )
+                                                        })
+                                                        .unwrap_or_default()
+                                                })
+                                                .text_role(ui::TextRole::Caption)
+                                                .number_of_lines(1)
+                                                .text_color(ui::fg_secondary),
+                                            )
+                                            .into_element()
+                                    },
+                                )
+                            },
+                        )
+                        .keys(move || {
+                            shared.rows.with(|rows| {
+                                rows.iter()
+                                    .map(|row| row.message_id.clone())
+                                    .collect::<Vec<_>>()
+                            })
+                        })
+                        .columns(columns)
+                        .row_gap(ui::space_xs())
+                        .column_gap(ui::space_xs())
+                        .estimated_item_size(ui::list_row_height())
+                        .on_viewable_items_change(move |items: &ViewableItems| {
+                            shared.first.replace(items.viewable.and_then(|(first, _)| {
+                                shared
+                                    .rows
+                                    .with(|rows| rows.get(first).map(|row| row.message_id.clone()))
+                            }));
+                        })
+                        .on_load_more(move || shared.page(true))
+                        .on_load_more_at_start(move || shared.page(false))
+                        .load_more_threshold(0.5)
+                        .load_more_at_start_threshold(0.5)
+                        .element_ref(&shared.list)
+                        .initial_scroll_index(first)
+                        .flex_1()
+                        .min_w_0()
+                        .min_h_0()
+                    })
+                })
+            },
+        ))
+}
+
+#[cfg(debug_assertions)]
+pub(super) fn preview(state: State, rows: Vec<MessageListView>, failed: Signal<bool>) -> View {
+    let rows = stored(rows);
+    let preview = MediaPreview::detached(state.own_id.with(|id| id.clone()));
+    screen_view(
+        state,
+        signal(None),
+        signal("media"),
+        signal(vec!["media"]),
+        preview,
+        move |state, target, kind, preview| {
+            let rows = rows.with(|rows| {
+                rows.iter()
+                    .filter(|row| match kind {
+                        "post" => row.category.ends_with("_POST"),
+                        "file" => row.category.ends_with("_DATA"),
+                        _ => row.category.ends_with("_IMAGE") || row.category.ends_with("_VIDEO"),
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>()
+            });
+            panel_view(
+                state,
+                target,
+                Shared {
+                    owner: Owner::current(),
+                    kind,
+                    rows: signal_with(rows, SignalEquals::Never),
+                    offset: signal(0),
+                    count: signal(PAGE_SIZE),
+                    loading: signal(false),
+                    failed,
+                    more: signal(false),
+                    revision: signal(0),
+                    request: signal(0),
+                    first: stored(None),
+                    deferred: stored(None),
+                    list: element_ref(),
+                    preview,
+                },
+            )
+            .into_element()
+        },
+    )
 }

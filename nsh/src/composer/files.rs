@@ -727,24 +727,9 @@ impl Preview {
             .child(when(
                 move || self.prepare_error.with(Option::is_some),
                 move || {
-                    view()
-                        .gap_2()
-                        .child(ui::error_text(move || {
-                            tr(
-                                i18n,
-                                "Couldn’t prepare this file. Remove it or send as files.",
-                                "无法准备此文件。可以将其移除，或改为文件发送。",
-                            )
-                        }))
-                        .child(
-                            text(move || self.prepare_error.get().unwrap_or_default())
-                                .text_role(ui::TextRole::Caption)
-                                .text_color(ui::fg_secondary),
-                        )
-                        .child(ui::action(
-                            move || i18n.text(Key::Retry),
-                            move || self.retry.update(|value| *value += 1),
-                        ))
+                    preparation_error(self.prepare_error, move || {
+                        self.retry.update(|value| *value += 1)
+                    })
                 },
             ))
             .child(when(self.send_failed, move || {
@@ -1114,4 +1099,26 @@ pub(crate) fn remove_button(media: impl Fn() -> bool + Copy + 'static) -> nsh_ba
                     }
                 }),
         )
+}
+
+pub(crate) fn preparation_error(
+    problem: Signal<Option<String>>,
+    retry: impl Fn() + 'static,
+) -> View {
+    let i18n = i18n::current();
+    view()
+        .gap_2()
+        .child(ui::error_text(move || {
+            tr(
+                i18n,
+                "Couldn’t prepare this file. Remove it or send as files.",
+                "无法准备此文件。可以将其移除，或改为文件发送。",
+            )
+        }))
+        .child(
+            text(move || problem.get().unwrap_or_default())
+                .text_role(ui::TextRole::Caption)
+                .text_color(ui::fg_secondary),
+        )
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
 }

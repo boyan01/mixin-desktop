@@ -11,7 +11,16 @@ use mixin_desktop_api::{
 use nsh_core::prelude::*;
 use std::rc::Rc;
 
-pub(super) const ACTIONS: &[&str] = &["Text", "Lines", "Clear", "Record", "Preview", "Cancel"];
+pub(super) const ACTIONS: &[&str] = &[
+    "Text",
+    "Lines",
+    "Clear",
+    "Record",
+    "Preview",
+    "Cancel",
+    "File error",
+    "Reset",
+];
 
 pub(super) fn scene(actions: Actions) -> View {
     view().flex_1().min_h_0().bg(ui::surface_chat).child(
@@ -34,7 +43,14 @@ fn example(label: &'static str, content: impl IntoElement) -> View {
         .child(content)
 }
 
-fn editor(files: bool, actions: Actions) -> View {
+pub(super) fn editor(files: bool, actions: Actions) -> View {
+    let failed = signal(false);
+    actions.on(
+        "File error",
+        move || failed.set(false),
+        move || failed.set(true),
+    );
+    actions.on("Reset", move || failed.set(true), move || failed.set(false));
     let i18n = i18n::current();
     let draft = signal(if files {
         "Here are the files for tomorrow’s review.".to_owned()
@@ -105,31 +121,41 @@ fn editor(files: bool, actions: Actions) -> View {
     } else {
         view().hidden()
     };
-    let editor = view().px_4().pt_2().pb_3().child(composer::surface::editor(
-        tray,
-        input.view(
-            move || i18n.text(Key::EncryptedPlaceholder).to_owned(),
-            computed(|| false),
-            signal(false),
-            Rc::new(|_| {}),
-            Rc::new(|| {}),
-        ),
-        view()
-            .flex_row()
-            .child(composer::attachment_menu(|| {}, || {}, || {}, || {}))
-            .child(tool(ui::Icon::Sticker, "Emoji and stickers"))
-            .style_when(move || files, |s| s.hidden()),
-        composer::surface::primary_action(
-            computed(move || files || draft.with(|s| !s.trim().is_empty())),
-            composer::surface::send_button()
-                .accessibility_label(move || Some(i18n.text(Key::Send).into()))
-                .child(ui::icon(ui::Icon::Send)),
-            tool(ui::Icon::Microphone, "Record voice message").on_press(move || {
-                snapshot.set(voice_snapshot(false));
-                open.set(true);
-            }),
-        ),
-    ));
+    let editor = view()
+        .px_4()
+        .pt_2()
+        .pb_3()
+        .child(when(
+            move || files && failed.get(),
+            move || {
+                composer::preparation_error(signal(Some("Unsupported media format".into())), || {})
+            },
+        ))
+        .child(composer::surface::editor(
+            tray,
+            input.view(
+                move || i18n.text(Key::EncryptedPlaceholder).to_owned(),
+                computed(|| false),
+                signal(false),
+                Rc::new(|_| {}),
+                Rc::new(|| {}),
+            ),
+            view()
+                .flex_row()
+                .child(composer::attachment_menu(|| {}, || {}, || {}, || {}))
+                .child(tool(ui::Icon::Sticker, "Emoji and stickers"))
+                .style_when(move || files, |s| s.hidden()),
+            composer::surface::primary_action(
+                computed(move || files || draft.with(|s| !s.trim().is_empty())),
+                composer::surface::send_button()
+                    .accessibility_label(move || Some(i18n.text(Key::Send).into()))
+                    .child(ui::icon(ui::Icon::Send)),
+                tool(ui::Icon::Microphone, "Record voice message").on_press(move || {
+                    snapshot.set(voice_snapshot(false));
+                    open.set(true);
+                }),
+            ),
+        ));
     let presence = crate::motion::Presence::fade(move || open.get());
     view()
         .relative()

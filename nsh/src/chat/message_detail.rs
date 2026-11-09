@@ -253,7 +253,6 @@ fn commands(row: &MessageListView, commands: Vec<Value>, actions: Actions) -> Vi
 }
 
 pub(super) fn preview(actions: Actions) -> impl IntoElement {
-    let i18n = actions.i18n;
     let presence = crate::motion::Presence::modal(move || actions.preview.with(Option::is_some));
     let shown = signal_with(actions.preview.get_untracked(), SignalEquals::Never);
     effect(move || {
@@ -261,192 +260,13 @@ pub(super) fn preview(actions: Actions) -> impl IntoElement {
             shown.set(Some(detail));
         }
     });
-    let qr = move || shown.with(|detail| matches!(detail, Some(Detail::Qr(_))));
-    let user_profile = move || shown.with(|detail| matches!(detail, Some(Detail::User(_))));
-    let photo = move || shown.with(|detail| matches!(detail, Some(Detail::Image { .. })));
     when(
         move || presence.mounted(),
         move || {
             ui::dialog(
                 presence,
                 move || actions.close_preview(),
-                view()
-                    .bg(ui::surface_pane)
-                    .flex_1()
-                    .w_full()
-                    .min_h_0()
-                    .gap_3()
-                    .style_when(qr, |style| {
-                        style
-                            .flex_auto()
-                            .flex_grow(0.0)
-                            .w_96()
-                            .max_w(relative(1.0))
-                            .max_h(relative(0.9))
-                            .p_4()
-                            .rounded(ui::radius_lg())
-                            .shadow_lg()
-                    })
-                    .style_when(photo, |style| {
-                        style
-                            .bg(ui::viewer_background)
-                            .p_0()
-                            .gap_0()
-                            .rounded(ui::radius_lg())
-                            .overflow_hidden()
-                    })
-                    .style_when(user_profile, |style| {
-                        ui::dialog_surface(style, ui::DialogWidth::Compact)
-                            .flex_auto()
-                            .flex_grow(0.0)
-                            .p_0()
-                            .gap_0()
-                            .overflow_hidden()
-                    })
-                    .child(
-                        view()
-                            .flex_row()
-                            .justify_end()
-                            .gap_2()
-                            .style_when(qr, |style| style.items_center())
-                            .style_when(move || user_profile() || photo(), |style| style.hidden())
-                            .child(when(qr, move || {
-                                ui::dialog_title(move || i18n.tr("QR code", "二维码"))
-                                    .flex_1()
-                                    .min_w_0()
-                            }))
-                            .child(when(
-                                move || !actions.preview_history.with(Vec::is_empty),
-                                move || {
-                                    ui::action(
-                                        move || i18n.text(Key::Back),
-                                        move || actions.back_preview(),
-                                    )
-                                },
-                            ))
-                            .child(ui::action(
-                                move || i18n.tr("Close", "关闭"),
-                                move || actions.close_preview(),
-                            )),
-                    )
-                    .child(dynamic(move || {
-                        let row = shown.get();
-                        untracked(|| match row {
-                            Some(Detail::Qr(content)) => {
-                                super::message_qr::screen(content).into_element()
-                            }
-                            Some(Detail::Message(row)) if row.category.ends_with("_TRANSCRIPT") => {
-                                super::message_transcript::screen(row.message_id, actions)
-                                    .into_element()
-                            }
-                            Some(Detail::TranscriptSummary {
-                                transcript_id,
-                                child_message_id,
-                            }) => super::message_transcript::summary(
-                                transcript_id,
-                                child_message_id,
-                                actions,
-                            )
-                            .into_element(),
-                            Some(Detail::Message(row)) if row.category.ends_with("_POST") => {
-                                super::message_post::reader(
-                                    row.content,
-                                    row.conversation_id,
-                                    actions,
-                                )
-                                .into_element()
-                            }
-                            Some(Detail::Markdown {
-                                message,
-                                transcript,
-                            }) => super::message_post::attachment(*message, transcript, actions)
-                                .into_element(),
-                            Some(Detail::Message(row))
-                                if row.category.ends_with("_VIDEO")
-                                    || row.category.ends_with("_LIVE") =>
-                            {
-                                let source = if row.category.ends_with("_LIVE") {
-                                    serde_json::from_str::<Value>(&row.content)
-                                        .ok()
-                                        .and_then(|v| {
-                                            v.get("url").and_then(Value::as_str).map(str::to_owned)
-                                        })
-                                        .unwrap_or_default()
-                                } else {
-                                    row.media_url.unwrap_or_default()
-                                };
-                                video(source)
-                                    .paused(move || !presence.interactive())
-                                    .controls(true)
-                                    .flex_1()
-                                    .w_full()
-                                    .min_h_0()
-                                    .on_error(move |_: &str| actions.failed.set(true))
-                                    .into_element()
-                            }
-                            Some(Detail::Image {
-                                message,
-                                transcript,
-                            }) => {
-                                super::gallery::screen(*message, transcript, actions).into_element()
-                            }
-                            Some(Detail::AddSticker(row)) => {
-                                add_image_sticker(*row, actions).into_element()
-                            }
-                            Some(Detail::Sticker(sticker_id)) => crate::composer::sticker_detail(
-                                actions.account.with(|value| value.clone()),
-                                sticker_id,
-                            )
-                            .into_element(),
-                            Some(Detail::User(id)) => crate::conversation::profile(
-                                actions.account.with(|a| a.clone()),
-                                id,
-                                move || {
-                                    if actions.preview_history.with_untracked(Vec::is_empty) {
-                                        actions.close_preview();
-                                    } else {
-                                        actions.back_preview();
-                                    }
-                                },
-                            )
-                            .into_element(),
-                            Some(Detail::Message(row)) if row.snapshot_id.is_some() => {
-                                super::message_snapshot::screen(*row, actions).into_element()
-                            }
-                            Some(Detail::Message(row)) => image(row.media_url.unwrap_or_default())
-                                .flex_1()
-                                .min_h_0()
-                                .w_full()
-                                .object_fit(ResizeMode::Contain)
-                                .label(move || i18n.text(Key::Photo))
-                                .into_element(),
-                            None => view().hidden().into_element(),
-                        })
-                    }))
-                    .child(when(actions.failed, move || {
-                        ui::error_text(move || i18n.text(Key::CommandFailed))
-                    }))
-                    .child(
-                        text(move || {
-                            shown.with(|m| {
-                                m.as_ref()
-                                    .and_then(|detail| match detail {
-                                        Detail::Message(m) => m.caption.clone(),
-                                        Detail::User(_)
-                                        | Detail::Qr(_)
-                                        | Detail::AddSticker(_)
-                                        | Detail::Sticker(_)
-                                        | Detail::Markdown { .. }
-                                        | Detail::TranscriptSummary { .. } => None,
-                                        Detail::Image { .. } => None,
-                                    })
-                                    .unwrap_or_default()
-                            })
-                        })
-                        .text_role(ui::TextRole::Body)
-                        .select_text()
-                        .style_when(move || user_profile() || photo(), |style| style.hidden()),
-                    ),
+                detail_card(actions, shown, presence),
             )
         },
     )
@@ -511,4 +331,179 @@ fn add_image_sticker(row: MessageListView, actions: Actions) -> impl IntoElement
                 move || i18n.tr("Saving…", "正在保存…").into(),
             )),
         )
+}
+
+fn detail_card(
+    actions: Actions,
+    shown: Signal<Option<Detail>>,
+    presence: crate::motion::Presence,
+) -> View {
+    let i18n = actions.i18n;
+    let qr = move || shown.with(|detail| matches!(detail, Some(Detail::Qr(_))));
+    let user_profile = move || shown.with(|detail| matches!(detail, Some(Detail::User(_))));
+    let photo = move || shown.with(|detail| matches!(detail, Some(Detail::Image { .. })));
+
+    view()
+        .bg(ui::surface_pane)
+        .flex_1()
+        .w_full()
+        .min_h_0()
+        .gap_3()
+        .style_when(qr, |style| {
+            style
+                .flex_auto()
+                .flex_grow(0.0)
+                .w_96()
+                .max_w(relative(1.0))
+                .max_h(relative(0.9))
+                .p_4()
+                .rounded(ui::radius_lg())
+                .shadow_lg()
+        })
+        .style_when(photo, |style| {
+            style
+                .bg(ui::viewer_background)
+                .p_0()
+                .gap_0()
+                .rounded(ui::radius_lg())
+                .overflow_hidden()
+        })
+        .style_when(user_profile, |style| {
+            ui::dialog_surface(style, ui::DialogWidth::Compact)
+                .flex_auto()
+                .flex_grow(0.0)
+                .p_0()
+                .gap_0()
+                .overflow_hidden()
+        })
+        .child(
+            view()
+                .flex_row()
+                .justify_end()
+                .gap_2()
+                .style_when(qr, |style| style.items_center())
+                .style_when(move || user_profile() || photo(), |style| style.hidden())
+                .child(when(qr, move || {
+                    ui::dialog_title(move || i18n.tr("QR code", "二维码"))
+                        .flex_1()
+                        .min_w_0()
+                }))
+                .child(when(
+                    move || !actions.preview_history.with(Vec::is_empty),
+                    move || {
+                        ui::action(move || i18n.text(Key::Back), move || actions.back_preview())
+                    },
+                ))
+                .child(ui::action(
+                    move || i18n.tr("Close", "关闭"),
+                    move || actions.close_preview(),
+                )),
+        )
+        .child(dynamic(move || {
+            let row = shown.get();
+            untracked(|| match row {
+                Some(Detail::Qr(content)) => super::message_qr::screen(content).into_element(),
+                Some(Detail::Message(row)) if row.category.ends_with("_TRANSCRIPT") => {
+                    super::message_transcript::screen(row.message_id, actions).into_element()
+                }
+                Some(Detail::TranscriptSummary {
+                    transcript_id,
+                    child_message_id,
+                }) => super::message_transcript::summary(transcript_id, child_message_id, actions)
+                    .into_element(),
+                Some(Detail::Message(row)) if row.category.ends_with("_POST") => {
+                    super::message_post::reader(row.content, row.conversation_id, actions)
+                        .into_element()
+                }
+                Some(Detail::Markdown {
+                    message,
+                    transcript,
+                }) => super::message_post::attachment(*message, transcript, actions).into_element(),
+                Some(Detail::Message(row))
+                    if row.category.ends_with("_VIDEO") || row.category.ends_with("_LIVE") =>
+                {
+                    let source = if row.category.ends_with("_LIVE") {
+                        serde_json::from_str::<Value>(&row.content)
+                            .ok()
+                            .and_then(|v| v.get("url").and_then(Value::as_str).map(str::to_owned))
+                            .unwrap_or_default()
+                    } else {
+                        row.media_url.unwrap_or_default()
+                    };
+                    video(source)
+                        .paused(move || !presence.interactive())
+                        .controls(true)
+                        .flex_1()
+                        .w_full()
+                        .min_h_0()
+                        .on_error(move |_: &str| actions.failed.set(true))
+                        .into_element()
+                }
+                Some(Detail::Image {
+                    message,
+                    transcript,
+                }) => super::gallery::screen(*message, transcript, actions).into_element(),
+                Some(Detail::AddSticker(row)) => add_image_sticker(*row, actions).into_element(),
+                Some(Detail::Sticker(sticker_id)) => crate::composer::sticker_detail(
+                    actions.account.with(|value| value.clone()),
+                    sticker_id,
+                )
+                .into_element(),
+                Some(Detail::User(id)) => crate::conversation::profile(
+                    actions.account.with(|a| a.clone()),
+                    id,
+                    move || {
+                        if actions.preview_history.with_untracked(Vec::is_empty) {
+                            actions.close_preview();
+                        } else {
+                            actions.back_preview();
+                        }
+                    },
+                )
+                .into_element(),
+                Some(Detail::Message(row)) if row.snapshot_id.is_some() => {
+                    super::message_snapshot::screen(*row, actions).into_element()
+                }
+                Some(Detail::Message(row)) => image(row.media_url.unwrap_or_default())
+                    .flex_1()
+                    .min_h_0()
+                    .w_full()
+                    .object_fit(ResizeMode::Contain)
+                    .label(move || i18n.text(Key::Photo))
+                    .into_element(),
+                None => view().hidden().into_element(),
+            })
+        }))
+        .child(when(actions.failed, move || {
+            ui::error_text(move || i18n.text(Key::CommandFailed))
+        }))
+        .child(
+            text(move || {
+                shown.with(|m| {
+                    m.as_ref()
+                        .and_then(|detail| match detail {
+                            Detail::Message(m) => m.caption.clone(),
+                            Detail::User(_)
+                            | Detail::Qr(_)
+                            | Detail::AddSticker(_)
+                            | Detail::Sticker(_)
+                            | Detail::Markdown { .. }
+                            | Detail::TranscriptSummary { .. } => None,
+                            Detail::Image { .. } => None,
+                        })
+                        .unwrap_or_default()
+                })
+            })
+            .text_role(ui::TextRole::Body)
+            .select_text()
+            .style_when(move || user_profile() || photo(), |style| style.hidden()),
+        )
+}
+#[cfg(debug_assertions)]
+pub(super) fn detached(actions: Actions) -> View {
+    detail_card(
+        actions,
+        signal_with(actions.preview.get_untracked(), SignalEquals::Never),
+        crate::motion::Presence::modal(|| true),
+    )
 }

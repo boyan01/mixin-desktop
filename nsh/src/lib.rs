@@ -184,26 +184,10 @@ pub fn App() -> impl IntoElement {
                     home::screen(account.clone(), move || retry.update(|value| *value += 1))
                 })
                 .into_element(),
-                Phase::Failed => status_screen(
-                    view()
-                        .gap_3()
-                        .items_center()
-                        .child(
-                            text(move || i18n.text(i18n::Key::OpenFailed))
-                                .text_role(ui::TextRole::Headline),
-                        )
-                        .child(
-                            text(move || i18n.text(i18n::Key::OpenFailedBody))
-                                .text_role(ui::TextRole::Body)
-                                .text_center()
-                                .text_color(ui::fg_secondary),
-                        )
-                        .child(ui::action(
-                            move || i18n.text(i18n::Key::Retry),
-                            move || retry.update(|value| *value += 1),
-                        )),
-                )
-                .into_element(),
+                Phase::Failed => {
+                    status_screen(launch_error(move || retry.update(|value| *value += 1)))
+                        .into_element()
+                }
             })
         }))
 }
@@ -311,4 +295,24 @@ pub fn prepare_notification_activation()
 pub fn register_native_components(components: &nsh_platform_linux::Components) {
     bot::register_native_components(components);
     shell::register_native_components(components);
+}
+
+pub(crate) fn launch_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .gap_3()
+        .items_center()
+        .child(text(move || i18n.text(i18n::Key::OpenFailed)).text_role(ui::TextRole::Headline))
+        .child(
+            text(move || i18n.text(i18n::Key::OpenFailedBody))
+                .text_role(ui::TextRole::Body)
+                .text_center()
+                .text_color(ui::fg_secondary),
+        )
+        .child(ui::link(move || i18n.text(i18n::Key::Retry), retry))
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_launch_error() -> View {
+    status_screen(launch_error(|| {}))
 }

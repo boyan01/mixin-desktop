@@ -17,7 +17,6 @@ enum LoginPhase {
 }
 
 pub(crate) fn screen(desktop: DesktopClient, phase: Signal<Phase>) -> impl IntoElement {
-    let i18n = i18n::current();
     let state = signal(LoginPhase::Creating);
     let retry = signal(0_u64);
     let active = Rc::new(RefCell::new(None::<Arc<LoginClient>>));
@@ -39,6 +38,54 @@ pub(crate) fn screen(desktop: DesktopClient, phase: Signal<Phase>) -> impl IntoE
             }
         });
     });
+    content(state, retry)
+}
+
+async fn authorize(
+    desktop: DesktopClient,
+    state: Signal<LoginPhase>,
+    phase: Signal<Phase>,
+    active: Rc<RefCell<Option<Arc<LoginClient>>>>,
+) -> ClientResult<()> {
+    loop {
+        let start = desktop.clone();
+        let login = runtime::run(async move { start.begin_login().await.map(Arc::new) }).await?;
+        if let Some(previous) = active.replace(Some(login.clone())) {
+            previous.cancel();
+        }
+        let url = login.auth_url();
+        let source = runtime::run(async move {
+            qr::source(&url, 256)
+                .ok_or_else(|| ClientError::Internal("Could not render the sign-in code".into()))
+        })
+        .await?;
+        state.set(LoginPhase::Waiting(source.into()));
+        log::info!("NSH sign-in QR code ready");
+        match runtime::run(async move {
+            let account = Arc::new(login.wait().await?);
+            runtime::retain_account(account.clone());
+            Ok(account)
+        })
+        .await
+        {
+            Ok(account) => {
+                log::info!("NSH sign-in completed");
+                phase.set(Phase::SignedIn(account));
+                return Ok(());
+            }
+            Err(mixin_desktop_api::ClientError::TimedOut) => continue,
+            Err(error) => {
+                if error.to_string().contains("login_provisioning_error:") {
+                    runtime::run(async move { desktop.abort_saved_login().await }).await?;
+                }
+                return Err(error);
+            }
+        }
+    }
+}
+
+fn content(state: Signal<LoginPhase>, retry: Signal<u64>) -> impl IntoElement {
+    let i18n = i18n::current();
     view()
         .flex_1()
         .bg(ui::surface_landing)
@@ -93,7 +140,7 @@ pub(crate) fn screen(desktop: DesktopClient, phase: Signal<Phase>) -> impl IntoE
                                         ui::error_text(move || i18n.text(Key::LoginFailed))
                                             .text_center(),
                                     )
-                                    .child(ui::action(
+                                    .child(ui::link(
                                         move || i18n.text(Key::Retry),
                                         move || retry.update(|v| *v += 1),
                                     ))
@@ -134,45 +181,19 @@ pub(crate) fn screen(desktop: DesktopClient, phase: Signal<Phase>) -> impl IntoE
         )
 }
 
-async fn authorize(
-    desktop: DesktopClient,
-    state: Signal<LoginPhase>,
-    phase: Signal<Phase>,
-    active: Rc<RefCell<Option<Arc<LoginClient>>>>,
-) -> ClientResult<()> {
-    loop {
-        let start = desktop.clone();
-        let login = runtime::run(async move { start.begin_login().await.map(Arc::new) }).await?;
-        if let Some(previous) = active.replace(Some(login.clone())) {
-            previous.cancel();
-        }
-        let url = login.auth_url();
-        let source = runtime::run(async move {
-            qr::source(&url, 256)
-                .ok_or_else(|| ClientError::Internal("Could not render the sign-in code".into()))
+#[cfg(debug_assertions)]
+pub(crate) fn preview(failed: Signal<bool>) -> impl IntoElement {
+    let state = signal(LoginPhase::Failed);
+    effect(move || {
+        state.set(if failed.get() {
+            LoginPhase::Failed
+        } else {
+            LoginPhase::Waiting(
+                crate::qr::source("https://example.com/preview-login", 320)
+                    .expect("fixture QR")
+                    .into(),
+            )
         })
-        .await?;
-        state.set(LoginPhase::Waiting(source.into()));
-        log::info!("NSH sign-in QR code ready");
-        match runtime::run(async move {
-            let account = Arc::new(login.wait().await?);
-            runtime::retain_account(account.clone());
-            Ok(account)
-        })
-        .await
-        {
-            Ok(account) => {
-                log::info!("NSH sign-in completed");
-                phase.set(Phase::SignedIn(account));
-                return Ok(());
-            }
-            Err(mixin_desktop_api::ClientError::TimedOut) => continue,
-            Err(error) => {
-                if error.to_string().contains("login_provisioning_error:") {
-                    runtime::run(async move { desktop.abort_saved_login().await }).await?;
-                }
-                return Err(error);
-            }
-        }
-    }
+    });
+    content(state, signal(0))
 }

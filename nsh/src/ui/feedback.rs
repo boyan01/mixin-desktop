@@ -5,9 +5,9 @@ use nsh_core::{element::ImageSrc, prelude::*};
 use super::{
     icon::logo,
     tokens::{
-        TextRole, Typography, accent, badge_height, badge_min_width, badge_quiet, danger,
-        fg_on_accent, fg_primary, fg_secondary, hairline, hairline_width, icon_sm, space_md,
-        space_sm, space_xl, space_xs, state_selected,
+        TextRole, Typography, accent, badge_height, badge_min_width, badge_quiet, fg_on_accent,
+        fg_primary, fg_secondary, hairline, hairline_width, icon_sm, space_md, space_sm, space_xl,
+        space_xs, state_selected,
     },
 };
 
@@ -68,9 +68,11 @@ pub(crate) fn divider() -> View {
         .bg(hairline)
 }
 
-/// A recoverable failure, stated next to what it affects.
+/// A recoverable failure, stated quietly next to what it affects.
 pub(crate) fn error_text(message: impl Fn() -> &'static str + 'static) -> Text {
-    text(message).text_role(TextRole::Body).text_color(danger)
+    text(message)
+        .text_role(TextRole::Body)
+        .text_color(fg_secondary)
 }
 
 /// A quiet message that fills an empty pane.

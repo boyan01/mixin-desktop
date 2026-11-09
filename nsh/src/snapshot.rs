@@ -16,7 +16,6 @@ pub(crate) enum Reference {
 }
 
 pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl IntoElement {
-    let i18n = i18n::current();
     let detail = signal_with(None::<SnapshotDetailItem>, SignalEquals::Never);
     let loading = signal(true);
     let failed = signal(false);
@@ -45,6 +44,100 @@ pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl 
             loading.set(false);
         });
     });
+    let inscription =
+        stored(
+            Box::new(move |hash| text_content(preview_account.clone(), hash).into_element())
+                as Box<dyn Fn(String) -> AnyElement>,
+        );
+    content(detail, loading, failed, retry, inscription)
+}
+
+fn decode_memo(raw: &str) -> String {
+    if !raw.len().is_multiple_of(2) {
+        return raw.to_owned();
+    }
+    let bytes = raw
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let hi = char::from(pair[0]).to_digit(16)?;
+            let lo = char::from(pair[1]).to_digit(16)?;
+            Some(((hi << 4) | lo) as u8)
+        })
+        .collect::<Option<Vec<_>>>();
+    bytes
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .unwrap_or_else(|| raw.to_owned())
+}
+
+/// Inscription documents are rendered as selectable plain text, including HTML.
+fn text_content(account: Arc<AccountClient>, hash: String) -> impl IntoElement {
+    let content = signal(None::<SharedString>);
+    let loading = signal(true);
+    let failed = signal(false);
+    let truncated = signal(false);
+    let retry = signal(0_u64);
+    let hash = stored(hash);
+    effect(move || {
+        retry.get();
+        let account = account.clone();
+        let hash = hash.with(|hash| hash.clone());
+        loading.set(true);
+        failed.set(false);
+        truncated.set(false);
+        spawn(async move {
+            match runtime::run(async move { account.inscription_content(hash).await }).await {
+                Ok(value) => {
+                    let value = value.map(|value| {
+                        let mut characters = value.chars();
+                        let preview = characters.by_ref().take(8192).collect::<String>();
+                        truncated.set(characters.next().is_some());
+                        inscription_display_content(&preview).into()
+                    });
+                    content.set(value);
+                }
+                Err(_) => failed.set(true),
+            }
+            loading.set(false);
+        });
+    });
+    text_view(content, loading, failed, truncated, retry)
+}
+
+fn inscription_display_content(content: &str) -> String {
+    static INVISIBLE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"[\s\p{Other}]").expect("valid inscription display pattern")
+    });
+    // Preserve Flutter's visible placeholder for whitespace and Unicode Other.
+    INVISIBLE.replace_all(content, "■").into_owned()
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .gap_2()
+        .child(ui::error_text(move || i18n.text(Key::CommandFailed)))
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
+}
+
+pub(crate) fn content_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .gap_2()
+        .child(ui::error_text(move || {
+            i18n.tr("Couldn’t load content", "无法加载内容")
+        }))
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
+}
+
+fn content(
+    detail: Signal<Option<SnapshotDetailItem>>,
+    loading: Signal<bool>,
+    failed: Signal<bool>,
+    retry: Signal<u64>,
+    inscription: Stored<Box<dyn Fn(String) -> AnyElement>>,
+) -> impl IntoElement {
+    let i18n = i18n::current();
     scroll().flex_1().min_h_0().child(
         view()
             .w_full()
@@ -68,13 +161,7 @@ pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl 
                 text(move || i18n.tr("Loading transfer…", "正在加载转账…"))
             }))
             .child(when(failed, move || {
-                view()
-                    .gap_2()
-                    .child(ui::error_text(move || i18n.text(Key::CommandFailed)))
-                    .child(ui::action(
-                        move || i18n.text(Key::Retry),
-                        move || retry.update(|v| *v += 1),
-                    ))
+                load_error(move || retry.update(|v| *v += 1))
             }))
             .child(dynamic(move || {
                 let value = detail.get();
@@ -166,7 +253,7 @@ pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl 
                     }
                     let mut content = view().gap_4();
                     if let Some(hash) = inscription_text {
-                        content = content.child(text_content(preview_account.clone(), hash));
+                        content = content.child(inscription.with(|render| render(hash)));
                     }
                     if let Some(url) = inscription_image {
                         content = content.child(
@@ -212,57 +299,47 @@ pub(crate) fn screen(account: Arc<AccountClient>, reference: Reference) -> impl 
             })),
     )
 }
+#[cfg(debug_assertions)]
+pub(crate) fn preview(detail: SnapshotDetailItem, state: Signal<&'static str>) -> impl IntoElement {
+    let failed = signal(false);
+    let content_failed = signal(false);
+    let details = signal_with(Some(detail.clone()), SignalEquals::Never);
+    effect(move || {
+        let mut value = detail.clone();
+        if matches!(state.get(), "Text" | "Content error") {
+            value.inscription_content_type = Some("text/plain".into());
+        }
+        details.set(Some(value));
+        failed.set(state.get() == "Error");
+        content_failed.set(state.get() == "Content error");
+    });
 
-fn decode_memo(raw: &str) -> String {
-    if !raw.len().is_multiple_of(2) {
-        return raw.to_owned();
-    }
-    let bytes = raw
-        .as_bytes()
-        .chunks_exact(2)
-        .map(|pair| {
-            let hi = char::from(pair[0]).to_digit(16)?;
-            let lo = char::from(pair[1]).to_digit(16)?;
-            Some(((hi << 4) | lo) as u8)
-        })
-        .collect::<Option<Vec<_>>>();
-    bytes
-        .and_then(|bytes| String::from_utf8(bytes).ok())
-        .unwrap_or_else(|| raw.to_owned())
+    content(
+        details,
+        signal(false),
+        failed,
+        signal(0),
+        stored(Box::new(move |_| {
+            text_view(
+                signal(Some("Design review inscription".into())),
+                signal(false),
+                content_failed,
+                signal(false),
+                signal(0),
+            )
+            .into_element()
+        }) as Box<dyn Fn(String) -> AnyElement>),
+    )
 }
 
-/// Inscription documents are rendered as selectable plain text, including HTML.
-fn text_content(account: Arc<AccountClient>, hash: String) -> impl IntoElement {
+fn text_view(
+    content: Signal<Option<SharedString>>,
+    loading: Signal<bool>,
+    failed: Signal<bool>,
+    truncated: Signal<bool>,
+    retry: Signal<u64>,
+) -> View {
     let i18n = i18n::current();
-    let content = signal(None::<SharedString>);
-    let loading = signal(true);
-    let failed = signal(false);
-    let truncated = signal(false);
-    let retry = signal(0_u64);
-    let hash = stored(hash);
-    effect(move || {
-        retry.get();
-        let account = account.clone();
-        let hash = hash.with(|hash| hash.clone());
-        loading.set(true);
-        failed.set(false);
-        truncated.set(false);
-        spawn(async move {
-            match runtime::run(async move { account.inscription_content(hash).await }).await {
-                Ok(value) => {
-                    let value = value.map(|value| {
-                        let mut characters = value.chars();
-                        let preview = characters.by_ref().take(8192).collect::<String>();
-                        truncated.set(characters.next().is_some());
-                        inscription_display_content(&preview).into()
-                    });
-                    content.set(value);
-                }
-                Err(_) => failed.set(true),
-            }
-            loading.set(false);
-        });
-    });
     view()
         .gap_2()
         .child(
@@ -276,15 +353,7 @@ fn text_content(account: Arc<AccountClient>, hash: String) -> impl IntoElement {
                 .text_color(ui::fg_secondary)
         }))
         .child(when(failed, move || {
-            view()
-                .gap_2()
-                .child(ui::error_text(move || {
-                    i18n.tr("Couldn’t load content", "无法加载内容")
-                }))
-                .child(ui::action(
-                    move || i18n.text(Key::Retry),
-                    move || retry.update(|value| *value += 1),
-                ))
+            content_error(move || retry.update(|value| *value += 1))
         }))
         .child(when(
             move || !loading.get() && !failed.get(),
@@ -312,12 +381,4 @@ fn text_content(account: Arc<AccountClient>, hash: String) -> impl IntoElement {
                     }))
             },
         ))
-}
-
-fn inscription_display_content(content: &str) -> String {
-    static INVISIBLE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-        regex::Regex::new(r"[\s\p{Other}]").expect("valid inscription display pattern")
-    });
-    // Preserve Flutter's visible placeholder for whitespace and Unicode Other.
-    INVISIBLE.replace_all(content, "■").into_owned()
 }

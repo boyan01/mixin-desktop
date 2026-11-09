@@ -73,3 +73,22 @@ fn tool_button() -> ButtonElement {
 fn wide_dialog() -> View {
     ui::dialog_card(ui::DialogWidth::Wide)
 }
+
+#[cfg(debug_assertions)]
+pub(crate) use forms::{preview_contact, preview_post};
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_image_editor(
+    source: mixin_desktop_api::PreparedAttachment,
+) -> impl IntoElement {
+    image_editor::detached(crate::media_client(), source)
+}
+
+#[cfg(debug_assertions)]
+pub(crate) use emoji::detached as preview_emoji;
+
+#[cfg(debug_assertions)]
+pub(crate) use files::preparation_error;
+
+#[cfg(debug_assertions)]
+pub(crate) use sticker_store::preview_detail as preview_sticker_detail;

@@ -1,0 +1,126 @@
+# Button design review previews
+
+The inventory covers the framed `Secondary` buttons in `src/ui/button.rs` and
+related primary commitments, pagination, disabled actions, forms and retry actions.
+Ghost commands, pill actions, bot-defined custom button colors and native OS alerts
+use different treatments.
+
+There are 82 native scenes, including the original 21 scenes. Each scene represents
+a page, dialog or existing component showcase. Errors belong to their owning scene;
+there are no separate `*-error` scenes or invented title-plus-error page frames.
+The full catalog contains 187 captures, grouped by scene and state. `--scenes`
+selects a smaller review set, without rendering the rest of the application.
+
+```text
+[<] [create-group                 v] [>] [Select           v] [Play]
++----------------------------------------------------------------+
+| Close                      New group                     Next  |
+|                            2 selected                          |
+| Search                                                         |
+| Selected avatars (removable)                                   |
+| Contacts                                                       |
+| Selection mark, avatar, name; scroll to load more               |
++----------------------------------------------------------------+
+```
+
+## Open and capture
+
+Run from the repository root:
+
+```sh
+# Native scene browser; select a scene, select a state/action, then Play.
+cd nsh/preview
+nsh run
+```
+
+The initial scene is `create-group`, following the reference's centered title,
+leading close command and conditional header Next action. An empty selection has
+no Next action or selected-avatar strip. Forwarding shares the visual parts but
+stays immediate and single-select, with no selection marks or confirmation. Open another scene directly with:
+
+```sh
+cd nsh/preview
+MIXIN_PREVIEW_SCENE=profile-settings nsh run
+```
+
+Stateful fixture forms suppress explicit auto-focus where possible. Live screens
+keep their original focus behavior. Click an input manually to inspect its focus
+treatment.
+
+The capture helper resolves the entry itself. From the repository root:
+
+```sh
+python3 nsh/tool/preview.py list
+python3 nsh/tool/preview.py capture profile-settings --action Error --label error --scheme dark --locale zh-CN --width 980 --height 820
+python3 nsh/tool/preview.py capture create-group --action Next --label naming-dark --scheme dark --locale zh-CN --width 980 --height 820
+python3 nsh/tool/preview.py catalog --label review-dark --scheme dark --locale zh-CN
+python3 nsh/tool/preview.py catalog --label review-light --scheme light --locale zh-CN
+python3 nsh/tool/preview.py catalog --scenes create-group message-forward --label picker-review-dark --scheme dark --locale zh-CN
+```
+
+`catalog` captures normal and available action states in one native run. It writes
+`output/button-review/<label>/index.html`. Each page/dialog has one card with a
+state selector. Changing it replaces the screenshot in that card. Click the image
+to inspect it at full size. `scenes.json` records the captured states. `Reset` is
+available in the native browser but is omitted from the catalog because it returns
+to the normal state. Captures are ignored by Git; a failed run preserves the
+previous completed gallery.
+
+## Scene ownership
+
+Paths are relative to `nsh/src/`. Fixtures reuse the production page/card builders.
+Account queries and subscriptions stay in live entry points. Modal cards render
+inline so the native scene toolbar remains accessible. These fixtures support
+design review; service-backed save/send/download commands require a live account.
+
+| Production surfaces | Owning scenes | Included states |
+| --- | --- | --- |
+| `create/contacts.rs`, `create/circle.rs`, `create/lookup.rs` | `create-group`, `create-chat`, `create-circle`, `create-lookup` | Selection, naming, infinite scrolling, command failure |
+| `conversation/user.rs` | `contact-add`, `contact-rename`, `contact-profile`, `contact-groups`, `contact-apps` | Full forms/profile/lists and their failures |
+| `sidebar/`, `conversation/circles.rs` | `sidebar`, `circle-rename`, `circle-conversations`, `conversation-circles` | Collapse/expand, rename, membership, retry |
+| `conversation/info.rs`, `conversation/members.rs` | `conversation-info`, `group-edit`, `group-members`, `group-add-members`, `group-invite`, `group-expiry` | Full conversation panels, update failure, scrolling, Add/Save/Copy/Reset |
+| `conversation/shared.rs` | `shared-media` | Media/posts/files tabs with loaded content and load failure |
+| `conversation_list/`, `home.rs` | `conversations`, `mute`, `empty-filtered` | Loaded conversation list, load failure, command failure, mute and filter actions |
+| `chat/` | `messages`, `message-selection`, `message-reply`, `message-qr` | Timeline and composer context, draft/history/unread/pinned failures, send restriction |
+| `chat/message_transcript.rs`, `chat/message_content.rs` | `transcript`, `transcript-summary`, `messages-cards` | Reader/summary failures and failed outgoing forward inside the message list |
+| `chat/gallery.rs`, `chat/message_post.rs` | `photo-viewer`, `markdown-attachment` | Actual viewer/reader chrome and failed content |
+| `chat/message_detail.rs`, `composer/sticker_store.rs` | `sticker-save`, `sticker-detail`, `sticker-store` | Save sticker, details/retry, subscriptions and store failures |
+| `composer/` | `composer`, `composer-details`, `composer-fold`, `emoji`, `stickers`, `write-post`, `share-contact`, `image-editor` | Attachment preparation failure in editor, picker failures, send/cancel and media controls |
+| `avatar/crop.rs` | `avatar-crop` | Crop/rotate/reset/cancel/done |
+| `links/` | `link-invite`, `link-send`, `link-unsupported` | Link resolution failure, text/sticker/contact payloads, payload failure, recipient and send failure |
+| `settings/` | `profile-settings`, `notifications-settings`, `storage-settings`, `appearance-settings`, `proxy-settings`, `proxy-add`, `clear-cache`, `sign-out` | Full settings pages with their own failures and confirmation dialogs |
+| `inspector/`, `search/` | `pinned-messages`, `message-search`, `global-search`, `quick-search` | Loaded results, senders, result/sender load failure |
+| `security/` | `screen-lock`, `passcode-setup` | Locked screen, privacy load failure, passcode form |
+| `transfer/` | `transfer-settings`, `transfer-approval`, `transfer-progress` | Transfer progress, completion and failure in the same dialog |
+| `login.rs`, `lib.rs`, `bot.rs` | `login`, `bot-ending` | QR sign-in, sign-in/startup failure, browser cleanup failure |
+| `snapshot.rs` | `snapshot-inscription` | Full detail, document/text content, detail/content failure |
+| Existing component/message showcases | Remaining original scenes | Shared button variants and message-level context |
+
+## Review limits and observations
+
+The generated gallery uses macOS native rendering, dark mode, Chinese, 980×820 pt.
+Windows/Linux rendering, service-backed commands and interaction smoothness are
+unverified. The capture toolbar and native title bar are cropped from gallery
+screenshots. Some action recordings fail the strict end-frame stability check;
+the static catalog and targeted static recaptures succeeded. Animation stability
+has not been established.
+
+The following baseline observations remain available. The redesigned contact/chat
+pickers now use an explicit-height pill search field; live-account focus behavior
+is unverified:
+
+- The previous contact search displayed a horizontal blue focus line.
+  [Close-up](output/create-group/issue-search-focus/start.png).
+- The `create-lookup` fixture does not show its search input area.
+  [Close-up](output/create-lookup/issue-search-field/start.png).
+
+The old gallery is preserved locally under `output/button-review/before-grouping/`
+for comparing the removed empty error frames with the corresponding full scenes.
+The baseline before the quieter failure styling is preserved under
+`output/button-review/before-quiet-errors/`.
+
+Picker review captures cover dark and light appearances, plus a 480pt-wide native
+window. Group creation exposes `Next` only after selection. Forwarding has no
+selection marks or confirmation action. Both lists scroll vertically without page
+controls. Recoverable failures use secondary text; load retries are inline text
+links rather than framed buttons.

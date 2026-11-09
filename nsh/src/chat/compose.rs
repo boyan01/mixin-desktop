@@ -315,19 +315,7 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
             ui::error_text(move || i18n.text(Key::CommandFailed))
         }))
         .child(when(draft_writer.failed, move || {
-            view()
-                .flex_row()
-                .gap_2()
-                .child(ui::error_text(move || {
-                    i18n.tr(
-                        "Couldn’t save your draft. Try again.",
-                        "无法保存草稿，请重试。",
-                    )
-                }))
-                .child(ui::action(
-                    move || i18n.text(Key::Retry),
-                    move || draft_writer.retry(),
-                ))
+            draft_error(move || draft_writer.retry())
         }))
         .child(when(send_failed, move || {
             ui::error_text(move || i18n.text(Key::SendFailed))
@@ -567,9 +555,36 @@ fn unavailable(eligibility: Eligibility, i18n: I18n) -> impl IntoElement {
             .text_color(ui::fg_secondary),
         )
         .child(when(eligibility.failed, move || {
-            ui::action(
+            ui::link(
                 move || i18n.text(Key::Retry),
                 move || eligibility.retry.update(|revision| *revision += 1),
             )
         }))
+}
+
+pub(crate) fn draft_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .flex_row()
+        .gap_2()
+        .child(ui::error_text(move || {
+            i18n.tr(
+                "Couldn’t save your draft. Try again.",
+                "无法保存草稿，请重试。",
+            )
+        }))
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_unavailable() -> impl IntoElement {
+    unavailable(
+        Eligibility {
+            can_send: signal(false),
+            loaded: signal(false),
+            failed: signal(true),
+            retry: signal(0),
+        },
+        i18n::current(),
+    )
 }

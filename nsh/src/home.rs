@@ -355,15 +355,7 @@ impl Home {
                 move || ui::placeholder(move || i18n.text(Key::LoadingChats)),
             ))
             .child(when(window.failed, move || {
-                view()
-                    .p_4()
-                    .gap_3()
-                    .style_when(move || rows.with(Vec::is_empty), |s| s.flex_1())
-                    .child(ui::error_text(move || i18n.text(Key::ChatsFailed)))
-                    .child(ui::action(
-                        move || i18n.text(Key::Retry),
-                        move || window.retry(),
-                    ))
+                load_error(move || window.retry(), move || rows.with(Vec::is_empty))
             }))
             .child(when(
                 move || {
@@ -528,26 +520,7 @@ impl Home {
         let Self {
             i18n, nav, unread, ..
         } = self;
-        let scope = move || {
-            let circle = nav.circle.with(Option::is_some) || nav.category.get() == "circle";
-            (nav.category.get(), circle)
-        };
-        ui::empty(
-            move || {
-                let (category, circle) = scope();
-                empty_title(i18n, category, circle, unread.get())
-            },
-            move || {
-                let (category, circle) = scope();
-                empty_body(i18n, category, circle, unread.get())
-            },
-        )
-        .child(when(unread, move || {
-            ui::action(
-                move || i18n.text(Key::ClearFilters),
-                move || unread.set(false),
-            )
-        }))
+        empty_filtered(i18n, nav, unread)
     }
 
     fn detail_pane(self, on_account_ended: impl Fn() + Copy + 'static) -> impl IntoElement {
@@ -690,4 +663,41 @@ fn empty_body(i18n: I18n, category: &str, circle: bool, unread: bool) -> &'stati
         ),
         (false, false, _) => i18n.text(Key::NoChatsBody),
     }
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static, empty: impl Fn() -> bool + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .p_4()
+        .gap_3()
+        .style_when(empty, |s| s.flex_1())
+        .child(ui::error_text(move || i18n.text(Key::ChatsFailed)))
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
+}
+
+fn empty_filtered(i18n: I18n, nav: Navigation, unread: Signal<bool>) -> impl IntoElement {
+    let scope = move || {
+        let circle = nav.circle.with(Option::is_some) || nav.category.get() == "circle";
+        (nav.category.get(), circle)
+    };
+    ui::empty(
+        move || {
+            let (category, circle) = scope();
+            empty_title(i18n, category, circle, unread.get())
+        },
+        move || {
+            let (category, circle) = scope();
+            empty_body(i18n, category, circle, unread.get())
+        },
+    )
+    .child(when(unread, move || {
+        ui::action(
+            move || i18n.text(Key::ClearFilters),
+            move || unread.set(false),
+        )
+    }))
+}
+#[cfg(debug_assertions)]
+pub(crate) fn preview_empty_filtered() -> impl IntoElement {
+    empty_filtered(i18n::current(), Navigation::new(), signal(true))
 }

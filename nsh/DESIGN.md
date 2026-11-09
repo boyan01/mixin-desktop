@@ -192,3 +192,32 @@ Its catalog offers inline add/remove commands, with an unframed subscription
 management command and a close icon in the header. Subscription ordering and
 removal occupy a separate page in that dialog, with back navigation to the catalog.
 GIF discovery is not part of the composer.
+
+
+## Contact and chat pickers
+
+Contact selection and immediate destination selection share `ui::picker` chrome:
+a 480pt-wide dialog, a centered title, a leading close/back command, a pill search
+field, and avatar/name rows. The list owns vertical scrolling. Contacts/chats load
+in batches near the end of the list; there are no visible page controls. Search
+resets the loaded result range and retains the flow's chosen identities.
+
+Group creation is multi-select. With no choice, show only the title, search and
+contact list. Once contacts are chosen, show the selected count beneath the title,
+a removable horizontal avatar strip below search, and `Next` at the header's
+trailing edge. The naming step retains the same header and uses `Create` there.
+Keep names out of dense identity-number columns when the task is choosing people.
+
+Message forwarding is single-select and immediate: pressing one chat/contact runs
+the original forward command. It has no selection marks, selected-avatar strip,
+Next action or extra confirmation step. Busy state prevents another send while the
+command is running. Failures stay in the same dialog.
+
+Recoverable failures use secondary text beside the affected content, without a red
+warning block. Loading failures have one inline `Retry` text link, rather than a
+separate framed button. Submission failures retain the original action and input;
+retry creation from `Create`, and retry forwarding by choosing the destination.
+
+The shared functions own appearance and geometry. Each flow still owns its query,
+selection, cancellation and command; do not introduce a generic workflow controller
+or give single-select destinations a multi-select presentation.

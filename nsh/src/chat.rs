@@ -424,3 +424,83 @@ pub(crate) fn screen(
                 )),
         )
 }
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_buttons(
+    kind: &str,
+    account_id: String,
+    rows: Vec<MessageListView>,
+    failed: Signal<bool>,
+) -> impl IntoElement {
+    let actions = message_actions::Actions::detached(account_id);
+    let conversation = stored(String::new());
+    match kind {
+        "transcript" => message_transcript::detached(actions, rows, failed).into_element(),
+        "summary" => message_transcript::preview_summary(actions, rows, failed).into_element(),
+        "selection" => {
+            actions
+                .selected
+                .set(rows.iter().take(2).map(|r| r.message_id.clone()).collect());
+            for row in &rows {
+                actions.policies.update(|p| {
+                    p.insert(row.message_id.clone(), {
+                        let mut policy = mixin_desktop_api::MessageActions::default();
+                        policy.can_forward = true;
+                        policy.can_combine_forward = true;
+                        policy
+                    });
+                });
+            }
+            view()
+                .flex_1()
+                .justify_end()
+                .child(message_selection::selection_bar(actions, conversation))
+                .into_element()
+        }
+        "reply" => {
+            actions.quote.set(rows.first().cloned());
+            view()
+                .flex_1()
+                .justify_end()
+                .child(message_quote::reply_bar(actions))
+                .into_element()
+        }
+        "markdown-error" => {
+            message_post::attachment_error(stored(rows[0].clone()), actions, signal(0))
+                .into_element()
+        }
+        "add-sticker" => {
+            actions
+                .preview
+                .set(Some(message_actions::Detail::AddSticker(Box::new(
+                    rows[0].clone(),
+                ))));
+            message_detail::detached(actions).into_element()
+        }
+        "qr" => {
+            actions.preview.set(Some(message_actions::Detail::Qr(
+                "https://mixin.one".into(),
+            )));
+            message_detail::detached(actions).into_element()
+        }
+        _ => view().hidden().into_element(),
+    }
+}
+
+#[cfg(debug_assertions)]
+pub(crate) use {
+    compose::draft_error, pinned::load_error as pinned_error,
+    timeline::load_error as timeline_error, unread::load_error as unread_error,
+};
+
+#[cfg(debug_assertions)]
+pub(crate) use message_forward::detached as preview_forward;
+
+#[cfg(debug_assertions)]
+pub(crate) use gallery::detached as preview_photos;
+
+#[cfg(debug_assertions)]
+pub(crate) use compose::preview_unavailable;
+
+#[cfg(debug_assertions)]
+pub(crate) use message_post::detached as preview_markdown;

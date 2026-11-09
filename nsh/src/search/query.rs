@@ -248,3 +248,24 @@ pub(super) fn new(
     });
     state
 }
+
+#[cfg(debug_assertions)]
+pub(super) fn detached(
+    users: Vec<UserProfileItem>,
+    messages: Vec<MessageListView>,
+    failed: Signal<bool>,
+) -> State {
+    let rows = Results::new(users, Vec::new(), messages, 3);
+    State {
+        section: signal(Section::All),
+        pages: signal(1),
+        more: signal(false),
+        extending: signal(false),
+        rows: signal_with(rows.rows, SignalEquals::Never),
+        users_empty: signal(false),
+        loading: signal(false),
+        failed,
+        revision: signal(0),
+        list: element_ref(),
+    }
+}

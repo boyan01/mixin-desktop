@@ -32,7 +32,6 @@ pub(super) fn attachment(
     transcript: Option<String>,
     actions: Actions,
 ) -> impl IntoElement {
-    let i18n = actions.i18n;
     let owner = Owner::current();
     let row = stored(row);
     let transcript = stored(transcript);
@@ -75,6 +74,62 @@ pub(super) fn attachment(
             });
         });
     });
+    attachment_view(row, actions, loading, failed, content, retry)
+}
+
+pub(super) fn attachment_error(
+    row: Stored<MessageListView>,
+    actions: Actions,
+    retry: Signal<u64>,
+) -> View {
+    let i18n = actions.i18n;
+    view()
+        .gap_3()
+        .child(
+            text(move || {
+                i18n.format(
+                    "Unable to open file: {arg0}",
+                    "无法打开文件：{arg0}",
+                    &[(
+                        "arg0",
+                        &row.with(|row| super::message_actions::attachment_name(row)),
+                    )],
+                )
+            })
+            .text_role(ui::TextRole::Body)
+            .text_color(ui::fg_secondary),
+        )
+        .child(
+            view()
+                .flex_row()
+                .gap_2()
+                .child(ui::link(
+                    move || i18n.text(Key::Retry),
+                    move || retry.update(|value| *value = value.wrapping_add(1)),
+                ))
+                .child(ui::action(
+                    move || i18n.tr("Open with default app", "使用默认应用打开"),
+                    move || {
+                        let path = row.with(|row| row.media_url.clone());
+                        spawn(async move {
+                            if let Some(path) = path {
+                                actions.failed.set(open_path(path).await.is_err());
+                            }
+                        });
+                    },
+                )),
+        )
+}
+
+fn attachment_view(
+    row: Stored<MessageListView>,
+    actions: Actions,
+    loading: Signal<bool>,
+    failed: Signal<bool>,
+    content: Signal<Option<String>>,
+    retry: Signal<u64>,
+) -> View {
+    let i18n = actions.i18n;
     view()
         .flex_1()
         .min_h_0()
@@ -89,44 +144,7 @@ pub(super) fn attachment(
         .child(when(loading, move || {
             text(move || i18n.tr("Loading...", "加载中...")).text_role(ui::TextRole::Body)
         }))
-        .child(when(failed, move || {
-            view()
-                .gap_3()
-                .child(
-                    text(move || {
-                        i18n.format(
-                            "Unable to open file: {arg0}",
-                            "无法打开文件：{arg0}",
-                            &[(
-                                "arg0",
-                                &row.with(|row| super::message_actions::attachment_name(row)),
-                            )],
-                        )
-                    })
-                    .text_role(ui::TextRole::Body)
-                    .text_color(ui::danger),
-                )
-                .child(
-                    view()
-                        .flex_row()
-                        .gap_2()
-                        .child(ui::action(
-                            move || i18n.text(Key::Retry),
-                            move || retry.update(|value| *value = value.wrapping_add(1)),
-                        ))
-                        .child(ui::action(
-                            move || i18n.tr("Open with default app", "使用默认应用打开"),
-                            move || {
-                                let path = row.with(|row| row.media_url.clone());
-                                spawn(async move {
-                                    if let Some(path) = path {
-                                        actions.failed.set(open_path(path).await.is_err());
-                                    }
-                                });
-                            },
-                        )),
-                )
-        }))
+        .child(when(failed, move || attachment_error(row, actions, retry)))
         .child(dynamic(move || {
             content.with(|content| match content {
                 Some(content) => reader(
@@ -138,4 +156,23 @@ pub(super) fn attachment(
                 None => view().hidden().into_element(),
             })
         }))
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn detached(
+    row: MessageListView,
+    own_id: String,
+    markdown: String,
+    failed: Signal<bool>,
+) -> View {
+    let content = signal(Some(markdown.clone()));
+    effect(move || content.set((!failed.get()).then(|| markdown.clone())));
+    attachment_view(
+        stored(row),
+        Actions::detached(own_id),
+        signal(false),
+        failed,
+        content,
+        signal(0),
+    )
 }

@@ -345,6 +345,7 @@ pub(crate) fn detached(
     store: Signal<Vec<StickerAlbumItem>>,
     albums: Signal<Vec<StickerAlbumItem>>,
     managing: Signal<bool>,
+    failed: Signal<bool>,
 ) -> View {
     let busy = signal(false);
     let toggle = move |id: String, added: bool| {
@@ -372,7 +373,7 @@ pub(crate) fn detached(
     .render(
         toggle,
         || {},
-        feedback(store, signal(false), signal(false), managing, || {}),
+        feedback(store, signal(false), failed, managing, || {}),
         album_order::list(
             albums,
             busy,
@@ -422,29 +423,14 @@ pub(crate) fn detail(account: Arc<AccountClient>, sticker_id: String) -> impl In
             loading.set(false);
         });
     });
-    view()
-        .flex_1()
-        .min_h_0()
-        .w_full()
-        .gap_3()
-        .child(
-            text(move || {
-                details.with(|detail| {
-                    detail
-                        .as_ref()
-                        .map(|detail| {
-                            detail.album.as_ref().map_or_else(
-                                || detail.sticker.name.clone(),
-                                |album| album.name.clone(),
-                            )
-                        })
-                        .unwrap_or_default()
-                })
-            })
-            .text_role(ui::TextRole::Body)
-            .text_emphasis(),
-        )
-        .child(view().items_center().child(crate::sticker::asset(
+    detail_view(
+        details,
+        state.failed,
+        move || {
+            state.failed.set(false);
+            state.reload();
+        },
+        view().items_center().child(crate::sticker::asset(
             state.client(),
             move || {
                 details.with(|detail| {
@@ -461,8 +447,8 @@ pub(crate) fn detail(account: Arc<AccountClient>, sticker_id: String) -> impl In
                 })
             },
             256.0,
-        )))
-        .child(dynamic(move || {
+        )),
+        dynamic(move || {
             let detail = details.get();
             untracked(|| match detail {
                 Some(StickerDetailItem {
@@ -487,14 +473,82 @@ pub(crate) fn detail(account: Arc<AccountClient>, sticker_id: String) -> impl In
                 .text_role(ui::TextRole::Body)
                 .into_element(),
             })
-        }))
-        .child(when(state.failed, move || {
-            ui::action(
-                move || i18n.text(Key::Retry),
-                move || {
-                    state.failed.set(false);
-                    state.reload();
-                },
-            )
-        }))
+        }),
+    )
+}
+
+pub(crate) fn detail_retry(retry: impl Fn() + 'static) -> nsh_base::ButtonElement {
+    let i18n = i18n::current();
+    ui::link(move || i18n.text(Key::Retry), retry)
+}
+
+fn detail_view(
+    details: Signal<Option<StickerDetailItem>>,
+    failed: Signal<bool>,
+    retry: impl Fn() + Copy + 'static,
+    artwork: impl IntoElement,
+    items: impl IntoElement,
+) -> View {
+    view()
+        .flex_1()
+        .min_h_0()
+        .w_full()
+        .gap_3()
+        .child(
+            text(move || {
+                details.with(|detail| {
+                    detail
+                        .as_ref()
+                        .map(|detail| {
+                            detail.album.as_ref().map_or_else(
+                                || detail.sticker.name.clone(),
+                                |album| album.name.clone(),
+                            )
+                        })
+                        .unwrap_or_default()
+                })
+            })
+            .text_role(ui::TextRole::Body)
+            .text_emphasis(),
+        )
+        .child(artwork)
+        .child(items)
+        .child(when(failed, move || detail_retry(retry)))
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_detail(sticker: StickerItem, failed: Signal<bool>) -> View {
+    let source = stored(sticker.clone());
+    let detail = signal_with(
+        Some(StickerDetailItem {
+            sticker,
+            album: None,
+            album_stickers: Vec::new(),
+            is_personal: false,
+        }),
+        SignalEquals::Never,
+    );
+    let saved = detail.get_untracked();
+    effect(move || detail.set(if failed.get() { None } else { saved.clone() }));
+    detail_view(
+        detail,
+        failed,
+        || {},
+        view().items_center().child(crate::sticker::framed_asset(
+            None,
+            move || {
+                source.with(|item| {
+                    (
+                        Some(item.sticker_id.clone()),
+                        item.asset_url.clone(),
+                        item.asset_type.clone(),
+                    )
+                })
+            },
+            (256.0, 256.0),
+        )),
+        when(failed, || {
+            ui::error_text(move || i18n::current().text(Key::CommandFailed))
+        }),
+    )
 }

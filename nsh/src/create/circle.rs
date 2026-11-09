@@ -96,117 +96,184 @@ pub(super) fn screen(
             }
         });
     };
-    modal(
-        cancel,
-        panel()
-            .child(ui::dialog_title(move || tr("New circle", "新建圈子")))
-            .child(when(
-                move || !selecting.get(),
-                move || {
-                    ui::field()
-                        .flex_none()
-                        .label(move || tr("Circle name", "圈子名称"))
-                        .placeholder(move || tr("Circle name", "圈子名称").to_owned())
-                        .auto_focus(true)
-                        .max_length(64)
-                        .value(move || name.get())
-                        .on_key_press(move |key: &str| {
-                            if key == "Escape" {
-                                cancel();
-                            }
-                        })
-                        .on_change(move |value: &str| name.set(value.into()))
-                        .on_composition_change(move |event: &Composition| {
-                            composing.set(event.composing)
-                        })
-                },
-            ))
-            .child(when(selecting, move || {
-                view()
-                    .flex_shrink(1.0)
-                    .min_h_0()
-                    .gap_3()
-                    .child(
-                        text(move || name.get())
-                            .flex_none()
-                            .text_role(ui::TextRole::Body)
-                            .number_of_lines(1),
-                    )
-                    .child(recipients::picker(
-                        account.with(|account| account.clone()),
-                        move || busy.get() || created.with(Option::is_some),
-                        move |choice| selected.with(|chosen| chosen.contains_key(&choice.key())),
-                        cancel,
-                        move |choice| {
-                            selected.update(|chosen| {
-                                let key = choice.key();
-                                if chosen.remove(&key).is_none() {
-                                    chosen.insert(key, choice);
-                                }
-                            })
-                        },
-                    ))
-            }))
-            .child(when(failed, move || {
-                ui::error_text(move || {
-                    if created.with(Option::is_some) {
-                        tr(
-                            "The circle was created. Retry adding the remaining chats.",
-                            "圈子已创建，请重试添加剩余聊天。",
-                        )
-                    } else {
-                        tr(
-                            "Couldn’t create the circle. Try again.",
-                            "无法创建圈子，请重试。",
-                        )
+    let picker = stored(Box::new(move || {
+        recipients::picker(
+            account.with(|account| account.clone()),
+            move || busy.get() || created.with(Option::is_some),
+            move |choice| selected.with(|chosen| chosen.contains_key(&choice.key())),
+            cancel,
+            move |choice| {
+                selected.update(|chosen| {
+                    let key = choice.key();
+                    if chosen.remove(&key).is_none() {
+                        chosen.insert(key, choice);
                     }
                 })
-            }))
-            .child(
-                view()
+            },
+        )
+        .into_element()
+    }) as Box<dyn Fn() -> AnyElement>);
+    modal(
+        cancel,
+        form(
+            name, selecting, composing, selected, failed, busy, created, picker, cancel, create,
+            true,
+        ),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn form(
+    name: Signal<String>,
+    selecting: Signal<bool>,
+    composing: Signal<bool>,
+    selected: Signal<BTreeMap<String, Recipient>>,
+    failed: Signal<bool>,
+    busy: Signal<bool>,
+    created: Signal<Option<String>>,
+    picker: Stored<Box<dyn Fn() -> AnyElement>>,
+    cancel: impl Fn() + Copy + 'static,
+    create: impl Fn() + Copy + 'static,
+    focus: bool,
+) -> View {
+    panel()
+        .child(ui::dialog_title(move || tr("New circle", "新建圈子")))
+        .child(when(
+            move || !selecting.get(),
+            move || {
+                ui::field()
                     .flex_none()
-                    .flex_row()
-                    .items_center()
-                    .gap_2()
-                    .child(view().flex_1().min_w_0().child(when(selecting, move || {
-                        text(move || {
-                            i18n::current().format(
-                                "{count} chats",
-                                "{count} 个聊天",
-                                &[("count", &selected.with(BTreeMap::len).to_string())],
-                            )
+                    .label(move || tr("Circle name", "圈子名称"))
+                    .placeholder(move || tr("Circle name", "圈子名称").to_owned())
+                    .auto_focus(focus)
+                    .max_length(64)
+                    .value(move || name.get())
+                    .on_key_press(move |key: &str| {
+                        if key == "Escape" {
+                            cancel();
+                        }
+                    })
+                    .on_change(move |value: &str| name.set(value.into()))
+                    .on_composition_change(move |event: &Composition| {
+                        composing.set(event.composing)
+                    })
+            },
+        ))
+        .child(when(selecting, move || {
+            view()
+                .flex_shrink(1.0)
+                .min_h_0()
+                .gap_3()
+                .child(
+                    text(move || name.get())
+                        .flex_none()
+                        .text_role(ui::TextRole::Body)
+                        .number_of_lines(1),
+                )
+                .child(picker.with(|picker| picker()))
+        }))
+        .child(when(failed, move || {
+            ui::error_text(move || {
+                if created.with(Option::is_some) {
+                    tr(
+                        "The circle was created. Retry adding the remaining chats.",
+                        "圈子已创建，请重试添加剩余聊天。",
+                    )
+                } else {
+                    tr(
+                        "Couldn’t create the circle. Try again.",
+                        "无法创建圈子，请重试。",
+                    )
+                }
+            })
+        }))
+        .child(
+            view()
+                .flex_none()
+                .flex_row()
+                .items_center()
+                .gap_2()
+                .child(view().flex_1().min_w_0().child(when(selecting, move || {
+                    text(move || {
+                        i18n::current().format(
+                            "{count} chats",
+                            "{count} 个聊天",
+                            &[("count", &selected.with(BTreeMap::len).to_string())],
+                        )
+                    })
+                    .text_role(ui::TextRole::Caption)
+                    .number_of_lines(1)
+                    .text_color(ui::fg_secondary)
+                })))
+                .child(ui::action(move || tr("Cancel", "取消"), cancel).disabled(busy))
+                .child(when(selecting, move || {
+                    ui::action(move || tr("Back", "返回"), move || selecting.set(false))
+                        .disabled(move || busy.get() || created.with(Option::is_some))
+                }))
+                .child(
+                    ui::primary()
+                        .disabled(move || busy.get() || name.with(|name| name.trim().is_empty()))
+                        .on_press(move || {
+                            if selecting.get_untracked() {
+                                create();
+                            } else {
+                                selecting.set(true);
+                            }
                         })
-                        .text_role(ui::TextRole::Caption)
-                        .number_of_lines(1)
-                        .text_color(ui::fg_secondary)
-                    })))
-                    .child(ui::action(move || tr("Cancel", "取消"), cancel).disabled(busy))
-                    .child(when(selecting, move || {
-                        ui::action(move || tr("Back", "返回"), move || selecting.set(false))
-                            .disabled(move || busy.get() || created.with(Option::is_some))
-                    }))
-                    .child(
-                        ui::primary()
-                            .disabled(move || {
-                                busy.get() || name.with(|name| name.trim().is_empty())
-                            })
-                            .on_press(move || {
-                                if selecting.get_untracked() {
-                                    create();
-                                } else {
-                                    selecting.set(true);
-                                }
-                            })
-                            .child(text(move || {
-                                if created.with(Option::is_some) {
-                                    tr("Retry", "重试")
-                                } else if selecting.get() {
-                                    tr("Create", "创建")
-                                } else {
-                                    tr("Next", "下一步")
-                                }
-                            })),
-                    ),
-            ),
+                        .child(text(move || {
+                            if created.with(Option::is_some) {
+                                tr("Retry", "重试")
+                            } else if selecting.get() {
+                                tr("Create", "创建")
+                            } else {
+                                tr("Next", "下一步")
+                            }
+                        })),
+                ),
+        )
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview(
+    users: Vec<mixin_desktop_api::UserProfileItem>,
+    selecting: Signal<bool>,
+    failed: Signal<bool>,
+) -> impl IntoElement {
+    let users = stored(users);
+    let selected = signal_with(BTreeMap::<String, Recipient>::new(), SignalEquals::Never);
+    let picker = stored(Box::new(move || {
+        recipients::detached(
+            users.get(),
+            move |choice| selected.with(|s| s.contains_key(&choice.key())),
+            move |choice| {
+                selected.update(|s| {
+                    let key = choice.key();
+                    if s.remove(&key).is_none() {
+                        s.insert(key, choice);
+                    }
+                });
+            },
+            true,
+        )
+        .into_element()
+    }) as Box<dyn Fn() -> AnyElement>);
+    let name = signal(String::new());
+    effect(move || {
+        if selecting.get() && name.with(|name| name.is_empty()) {
+            name.set("Design review".into());
+        }
+    });
+    form(
+        name,
+        selecting,
+        signal(false),
+        selected,
+        failed,
+        signal(false),
+        signal(None),
+        picker,
+        || {},
+        || {},
+        false,
     )
 }

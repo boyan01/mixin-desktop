@@ -18,6 +18,19 @@ pub(crate) struct MediaPreview {
 }
 
 impl MediaPreview {
+    #[cfg(debug_assertions)]
+    pub(crate) fn detached(own_id: String) -> Self {
+        let actions = Actions::detached(own_id);
+        Self {
+            failed: actions.failed,
+            actions,
+        }
+    }
+
+    pub(crate) fn own_id(self) -> String {
+        self.actions.account.id()
+    }
+
     pub fn mount_mentions(self, rows: Signal<Vec<MessageListView>>) {
         super::mentions::MentionNames::mount(
             self.actions.account.with(|account| account.clone()),

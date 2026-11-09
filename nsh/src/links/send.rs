@@ -152,6 +152,57 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
             }
         });
     };
+    let payload_view = stored(Box::new(move || {
+        super::preview::render(
+            router.client(),
+            payload.with(|payload| payload.clone()),
+            content_ready,
+        )
+        .into_element()
+    }) as Box<dyn Fn() -> AnyElement>);
+    let picker = stored(Box::new(move || {
+        super::recipient::screen(router.client(), cancel_choosing, move |value| {
+            recipient.set(value);
+            cancel_choosing();
+        })
+        .into_element()
+    }) as Box<dyn Fn() -> AnyElement>);
+    content(
+        choosing,
+        busy,
+        name,
+        loading,
+        load_failed,
+        revision,
+        ready,
+        content_ready,
+        failed,
+        cancel_button,
+        cancel_choosing,
+        send,
+        move || router.close(),
+        payload_view,
+        picker,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+fn content(
+    choosing: Signal<bool>,
+    busy: Signal<bool>,
+    name: Signal<String>,
+    loading: Signal<bool>,
+    load_failed: Signal<bool>,
+    revision: Signal<u64>,
+    ready: Signal<bool>,
+    content_ready: Signal<bool>,
+    failed: Signal<bool>,
+    cancel_button: ElementRef,
+    cancel_choosing: impl Fn() + Copy + 'static,
+    send: impl Fn() + Copy + 'static,
+    close: impl Fn() + Copy + 'static,
+    payload_view: Stored<Box<dyn Fn() -> AnyElement>>,
+    picker: Stored<Box<dyn Fn() -> AnyElement>>,
+) -> impl IntoElement {
     view()
         .flex_shrink(1.0)
         .min_h_0()
@@ -183,7 +234,7 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                     ui::icon_button()
                         .accessibility_label(move || Some(tr("Close", "关闭").into()))
                         .disabled(busy)
-                        .on_press(move || router.close())
+                        .on_press(close)
                         .child(ui::icon(ui::Icon::Close)),
                 ),
         )
@@ -218,11 +269,7 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                             .bg(ui::surface_card)
                             .rounded(ui::radius_md())
                             .p_4()
-                            .child(super::preview::render(
-                                router.client(),
-                                payload.with(|payload| payload.clone()),
-                                content_ready,
-                            )),
+                            .child(payload_view.with(|render| render())),
                     )
                     .child(
                         ui::action(
@@ -234,12 +281,7 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                     )
             },
         ))
-        .child(when(choosing, move || {
-            super::recipient::screen(router.client(), cancel_choosing, move |value| {
-                recipient.set(value);
-                cancel_choosing();
-            })
-        }))
+        .child(when(choosing, move || picker.with(|render| render())))
         .child(when(failed, move || {
             ui::error_text(move || {
                 tr(
@@ -257,7 +299,7 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                             if choosing.get_untracked() {
                                 cancel_choosing();
                             } else if !busy.get_untracked() {
-                                router.close();
+                                close();
                             }
                         },
                     )
@@ -282,4 +324,63 @@ pub(super) fn screen(router: LinkNavigation, request: Send) -> impl IntoElement 
                     },
                 )),
         )
+}
+#[cfg(debug_assertions)]
+pub(crate) fn detached(
+    users: Vec<mixin_desktop_api::UserProfileItem>,
+    state: Signal<&'static str>,
+    sticker: String,
+    contact: mixin_desktop_api::UserProfileItem,
+) -> impl IntoElement {
+    let choosing = signal(false);
+    let failed = signal(false);
+    effect(move || failed.set(state.get() == "Error"));
+    let sticker = stored(sticker);
+    let contact = stored(contact);
+    let users = stored(users);
+    content(
+        choosing,
+        signal(false),
+        signal("Design review".into()),
+        signal(false),
+        signal(false),
+        signal(0),
+        signal(true),
+        signal(true),
+        failed,
+        element_ref(),
+        move || choosing.set(false),
+        || {},
+        || {},
+        stored(Box::new(move || {
+            dynamic(move || {
+                let mode = state.get();
+                untracked(move || match mode {
+                    "Sticker" | "Sticker error" => {
+                        let failed = signal(false);
+                        effect(move || failed.set(state.get() == "Sticker error"));
+                        super::preview::sticker_view(signal(sticker.get()), failed, || {})
+                            .into_element()
+                    }
+                    "Contact" | "Contact error" => {
+                        let failed = signal(false);
+                        effect(move || failed.set(state.get() == "Contact error"));
+                        super::preview::contact_view(
+                            signal_with(Some(contact.get()), SignalEquals::Never),
+                            failed,
+                            || {},
+                        )
+                        .into_element()
+                    }
+                    _ => super::preview::text_payload("Please review these button styles.".into())
+                        .into_element(),
+                })
+            })
+            .into_element()
+        }) as Box<dyn Fn() -> AnyElement>),
+        stored(Box::new(move || {
+            crate::recipients::detached(users.get(), |_| false, move |_| choosing.set(false), false)
+                .into_element()
+        }) as Box<dyn Fn() -> AnyElement>),
+    )
 }

@@ -282,21 +282,10 @@ pub(crate) fn stickers(
                             .min_h_0()
                             .gap_2()
                             .child(when(state.failed, move || {
-                                view()
-                                    .flex_row()
-                                    .items_center()
-                                    .gap_2()
-                                    .child(
-                                        ui::error_text(move || i18n.text(Key::CommandFailed))
-                                            .flex_1(),
-                                    )
-                                    .child(ui::action(
-                                        move || i18n.text(Key::Retry),
-                                        move || {
-                                            state.failed.set(false);
-                                            state.reload();
-                                        },
-                                    ))
+                                load_error(move || {
+                                    state.failed.set(false);
+                                    state.reload();
+                                })
                             }))
                             .child(dynamic(move || {
                                 let tab = state.tab.get();
@@ -724,4 +713,14 @@ pub(crate) fn empty_stickers(tab: impl Fn() -> Tab + 'static) -> View {
             .text_role(ui::TextRole::Caption)
             .text_color(ui::fg_secondary),
         )
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .flex_row()
+        .items_center()
+        .gap_2()
+        .child(ui::error_text(move || i18n.text(Key::CommandFailed)).flex_1())
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
 }

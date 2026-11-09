@@ -65,17 +65,14 @@ fn unavailable(handle: Handle) -> impl IntoElement {
             .text_center(),
         )
         .child(when(handle.load_failed, move || {
-            ui::action(move || i18n.text(Key::Retry), move || handle.retry())
+            ui::link(move || i18n.text(Key::Retry), move || handle.retry())
         }))
 }
 
-fn lock_screen(handle: Handle) -> impl IntoElement {
+fn lock_body(handle: Handle) -> impl IntoElement {
     let i18n = i18n::current();
     let passcode = signal(String::new());
-    dialog()
-        .animation(nsh_core::ModalAnimation::None)
-        .close_on_escape(false)
-        .close_on_backdrop_press(false)
+    view()
         .flex_1()
         .p_8()
         .items_center()
@@ -149,4 +146,24 @@ fn lock_screen(handle: Handle) -> impl IntoElement {
                     },
                 )),
         )
+}
+
+fn lock_screen(handle: Handle) -> impl IntoElement {
+    dialog()
+        .animation(nsh_core::ModalAnimation::None)
+        .close_on_escape(false)
+        .close_on_backdrop_press(false)
+        .flex_1()
+        .child(lock_body(handle))
+}
+
+#[cfg(debug_assertions)]
+pub(super) fn preview_inline(handle: Handle) -> impl IntoElement {
+    dynamic(move || {
+        if handle.load_failed.get() {
+            unavailable(handle).into_element()
+        } else {
+            lock_body(handle).into_element()
+        }
+    })
 }

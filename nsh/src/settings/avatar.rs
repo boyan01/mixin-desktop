@@ -10,24 +10,20 @@ pub(super) fn picker(
     feedback: Feedback,
     signing_out: Signal<bool>,
 ) -> impl IntoElement {
-    let i18n = i18n::current();
     let picker = crate::avatar::Picker::new();
     let account = stored(account);
     view()
-        .child(
-            ui::command()
-                .text_color(ui::accent)
-                .disabled(move || feedback.busy.get() || signing_out.get() || picker.busy())
-                .child(text(move || i18n.tr("Change avatar…", "更换头像…")))
-                .on_press(move || {
-                    feedback.failed.set(false);
-                    spawn(async move {
-                        if picker.pick().await.is_err() {
-                            feedback.finish(false);
-                        }
-                    });
-                }),
-        )
+        .child(command(
+            move || feedback.busy.get() || signing_out.get() || picker.busy(),
+            move || {
+                feedback.failed.set(false);
+                spawn(async move {
+                    if picker.pick().await.is_err() {
+                        feedback.finish(false);
+                    }
+                });
+            },
+        ))
         .child(picker.surface(false, move |encoded| {
             feedback.start();
             let account = account.with(|account| account.clone());
@@ -42,4 +38,22 @@ pub(super) fn picker(
                 }
             });
         }))
+}
+
+fn command(
+    disabled: impl Fn() -> bool + 'static,
+    press: impl Fn() + 'static,
+) -> nsh_base::ButtonElement {
+    let i18n = i18n::current();
+    ui::command()
+        .text_color(ui::accent)
+        .disabled(disabled)
+        .child(text(move || i18n.tr("Change avatar…", "更换头像…")))
+        .on_press(press)
+}
+#[cfg(debug_assertions)]
+pub(super) fn preview() -> impl IntoElement {
+    view()
+        .child(command(|| false, || {}))
+        .child(crate::avatar::Picker::new().surface(false, |_| {}))
 }

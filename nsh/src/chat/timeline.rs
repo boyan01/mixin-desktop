@@ -630,21 +630,14 @@ impl Timeline {
                     .text_color(ui::fg_secondary)
             }))
             .child(when(self.failed, move || {
-                view()
-                    .flex_row()
-                    .gap_2()
-                    .child(ui::error_text(move || i18n.text(Key::MessagesFailed)))
-                    .child(ui::action(
-                        move || i18n.text(Key::Retry),
-                        move || {
-                            let load = self.last_load.with(|load| load.clone());
-                            if matches!(load, Load::Refresh { .. }) {
-                                self.refresh();
-                            } else {
-                                self.schedule(load, true);
-                            }
-                        },
-                    ))
+                load_error(move || {
+                    let load = self.last_load.with(|load| load.clone());
+                    if matches!(load, Load::Refresh { .. }) {
+                        self.refresh();
+                    } else {
+                        self.schedule(load, true);
+                    }
+                })
             }))
     }
 
@@ -720,6 +713,15 @@ impl Timeline {
             },
         )
     }
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .flex_row()
+        .gap_2()
+        .child(ui::error_text(move || i18n.text(Key::MessagesFailed)))
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
 }
 
 #[cfg(test)]

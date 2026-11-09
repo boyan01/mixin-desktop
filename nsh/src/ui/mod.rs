@@ -15,6 +15,7 @@ mod menu_icon;
 mod overlay;
 mod owned;
 pub(crate) mod parts;
+pub(crate) mod picker;
 mod rows;
 mod state;
 mod toast;

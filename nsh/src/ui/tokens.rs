@@ -115,6 +115,9 @@ lengths! {
     dialog_width_wide = "dialog-width-wide";
     /// A dialog that holds a page or a long list.
     dialog_height_tall = "dialog-height-tall";
+    picker_width = "picker-width";
+    picker_height = "picker-height";
+    picker_form_height = "picker-form-height";
     dialog_close_size = "dialog-close-size";
     /// One command of a `profile_actions` row, and the icon in it.
     profile_action_size = "profile-action-size";
@@ -289,6 +292,7 @@ colors! {
     border = "border";
     /// The fill of a field and of the search pill.
     input_fill = "input-background";
+    picker_search_fill = "picker-search-background";
     /// The frame of a field at rest.
     input_border = "input";
     /// The dimming layer behind modal surfaces, dark in either appearance.

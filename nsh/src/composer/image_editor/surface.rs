@@ -16,7 +16,9 @@ pub(super) fn screen(
 ) -> impl IntoElement {
     view()
         .child(when(
-            move || presence.interactive() && editor.focused.get() && editor.tool.get() == Tool::Crop,
+            move || {
+                presence.interactive() && editor.focused.get() && editor.tool.get() == Tool::Crop
+            },
             move || {
                 for (key, dx, dy) in [
                     ("left", -1.0, 0.0),
@@ -39,197 +41,7 @@ pub(super) fn screen(
                 .close_on_escape(false)
                 .close_on_backdrop_press(false)
                 .flex_1()
-                .child(presence.surface(view().flex_1()
-                .px(ui::space_xl())
-                .gap_0()
-                .bg(move || ui::surface_pane().opacity(0.96))
-                .child(view().h_14())
-                .child(
-                    view()
-                        .flex_1()
-                        .min_h_0()
-                        .min_w_0()
-                        .items_center()
-                        .justify_center()
-                        .on_layout(move |bounds: &Bounds<Points>| {
-                            editor
-                                .viewport
-                                .set((bounds.size.width.0.max(1.0), bounds.size.height.0.max(1.0)))
-                        })
-                        .child(
-                            view()
-                                .relative()
-                                // The image's own size, scaled to the viewport.
-                                .w(move || px(editor.dimensions().0 as f32 * editor.scale()))
-                                .h(move || px(editor.dimensions().1 as f32 * editor.scale()))
-                                .child(
-                                    canvas(move || super::preview::image(editor))
-                                        .w_full()
-                                        .h_full()
-                                        .label(move || tr("Image preview", "图片预览")),
-                                )
-                                .child(
-                                    canvas(move || super::preview::foreground(editor))
-                                        .absolute()
-                                        .top_0()
-                                        .left_0()
-                                        .w_full()
-                                        .h_full()
-                                        .focusable(true)
-                                        .focus(ui::ring)
-                                        .on_focus(move || editor.focused.set(true))
-                                        .on_blur(move || editor.focused.set(false))
-                                        .label(move || {
-                                            if editor.tool.get() == Tool::Crop {
-                                                tr(
-                                                    "Drag crop corners or move the crop",
-                                                    "拖动裁剪角点或移动裁剪框",
-                                                )
-                                            } else {
-                                                tr("Draw on the image", "在图片上绘画")
-                                            }
-                                        })
-                                        .claim_touches(TouchClaim::on_start())
-                                        .keep_touches(true)
-                                        .on_responder_grant(move |event: &ResponderEvent| {
-                                            editor.start(event)
-                                        })
-                                        .on_responder_move(move |event: &ResponderEvent| {
-                                            editor.moved(event)
-                                        })
-                                        .on_responder_release(move |_: &ResponderEvent| {
-                                            editor.end()
-                                        })
-                                        .on_responder_terminate(move |_: &ResponderEvent| {
-                                            editor.stroke.set(Vec::new());
-                                            editor.drag.set(None);
-                                        }),
-                                ),
-                        ),
-                )
-                .child(when(editor.loading, || {
-                    text(move || tr("Preparing image…", "正在准备图片…"))
-                        .text_role(ui::TextRole::Body)
-                        .text_center()
-                        .text_color(ui::fg_secondary)
-                }))
-                .child(when(editor.failed, move || {
-                    view()
-                        .items_center()
-                        .gap_2()
-                        .child(ui::error_text(move || {
-                            tr(
-                                "Couldn’t edit this image. Undo the last edit or try again.",
-                                "无法编辑此图片，请撤销上一步或重试。",
-                            )
-                        }))
-                        .child(ui::action(move || tr("Retry", "重试"), done))
-                }))
-                .child(when(
-                    move || editor.tool.get() == Tool::Crop,
-                    move || {
-                        view().items_center().mt(ui::space_xl()).child(
-                            ui::action(move || tr("Reset", "重置"), move || editor.reset())
-                                .disabled(editor.loading),
-                        )
-                    },
-                ))
-                .child(when(
-                    move || editor.tool.get() != Tool::Crop,
-                    move || view().mt(ui::space_xl()).child(colors(editor)),
-                ))
-                .child(
-                    view()
-                        .flex_row()
-                        .flex_wrap()
-                        .items_center()
-                        .justify_center()
-                        .mt_2()
-                        .gap_2()
-                        .child(ui::action(move || tr("Cancel", "取消"), cancel))
-                        .child(when(
-                            move || editor.tool.get() == Tool::Crop,
-                            move || {
-                                view()
-                                    .flex_row()
-                                    .flex_wrap()
-                                    .gap_2()
-                                    .child(
-                                        ui::action(
-                                            move || tr("Rotate", "旋转"),
-                                            move || editor.edit(ImageEdit::RotateCounterClockwise),
-                                        )
-                                        .disabled(editor.loading),
-                                    )
-                                    .child(
-                                        ui::action(
-                                            move || tr("Flip", "翻转"),
-                                            move || editor.edit(ImageEdit::FlipHorizontal),
-                                        )
-                                        .disabled(editor.loading),
-                                    )
-                                    .child(ratios(editor))
-                                    .child(
-                                        ui::action(
-                                            move || tr("Draw", "画笔"),
-                                            move || editor.enter_drawing(),
-                                        )
-                                        .disabled(editor.loading),
-                                    )
-                            },
-                        ))
-                        .child(when(
-                            move || editor.tool.get() != Tool::Crop,
-                            move || {
-                                view()
-                                    .flex_row()
-                                    .flex_wrap()
-                                    .gap_2()
-                                    .child(
-                                        ui::command()
-                                            .selected(move || editor.tool.get() == Tool::Brush)
-                                            .disabled(editor.loading)
-                                            .on_press(move || editor.tool.set(Tool::Brush))
-                                            .child(text(move || tr("Brush", "画笔"))),
-                                    )
-                                    .child(
-                                        ui::command()
-                                            .selected(move || editor.tool.get() == Tool::Eraser)
-                                            .disabled(editor.loading)
-                                            .on_press(move || editor.tool.set(Tool::Eraser))
-                                            .child(text(move || tr("Eraser", "橡皮"))),
-                                    )
-                                    .child(
-                                        ui::action(
-                                            move || tr("Undo", "撤销"),
-                                            move || editor.undo(),
-                                        )
-                                        .disabled(
-                                            move || editor.loading.get() || !editor.has_drawing(),
-                                        ),
-                                    )
-                                    .child(
-                                        ui::action(
-                                            move || tr("Redo", "重做"),
-                                            move || editor.redo(),
-                                        )
-                                        .disabled(
-                                            move || {
-                                                editor.loading.get()
-                                                    || editor.redo.with(Vec::is_empty)
-                                            },
-                                        ),
-                                    )
-                            },
-                        ))
-                        .child(
-                            ui::primary()
-                                .on_press(done)
-                                .disabled(editor.loading)
-                                .child(text(move || tr("Done", "完成"))),
-                        ),
-                )
-                .child(view().h_14()))),
+                .child(presence.surface(body(editor, done, cancel))),
         )
 }
 
@@ -421,4 +233,192 @@ fn colors(editor: Editor) -> impl IntoElement {
                         }),
                 )
         }))
+}
+
+pub(super) fn body(
+    editor: Editor,
+    done: impl Fn() + Copy + 'static,
+    cancel: impl Fn() + Copy + 'static,
+) -> View {
+    view()
+        .flex_1()
+        .px(ui::space_xl())
+        .gap_0()
+        .bg(move || ui::surface_pane().opacity(0.96))
+        .child(view().h_14())
+        .child(
+            view()
+                .flex_1()
+                .min_h_0()
+                .min_w_0()
+                .items_center()
+                .justify_center()
+                .on_layout(move |bounds: &Bounds<Points>| {
+                    editor
+                        .viewport
+                        .set((bounds.size.width.0.max(1.0), bounds.size.height.0.max(1.0)))
+                })
+                .child(
+                    view()
+                        .relative()
+                        // The image's own size, scaled to the viewport.
+                        .w(move || px(editor.dimensions().0 as f32 * editor.scale()))
+                        .h(move || px(editor.dimensions().1 as f32 * editor.scale()))
+                        .child(
+                            canvas(move || super::preview::image(editor))
+                                .w_full()
+                                .h_full()
+                                .label(move || tr("Image preview", "图片预览")),
+                        )
+                        .child(
+                            canvas(move || super::preview::foreground(editor))
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .w_full()
+                                .h_full()
+                                .focusable(true)
+                                .focus(ui::ring)
+                                .on_focus(move || editor.focused.set(true))
+                                .on_blur(move || editor.focused.set(false))
+                                .label(move || {
+                                    if editor.tool.get() == Tool::Crop {
+                                        tr(
+                                            "Drag crop corners or move the crop",
+                                            "拖动裁剪角点或移动裁剪框",
+                                        )
+                                    } else {
+                                        tr("Draw on the image", "在图片上绘画")
+                                    }
+                                })
+                                .claim_touches(TouchClaim::on_start())
+                                .keep_touches(true)
+                                .on_responder_grant(move |event: &ResponderEvent| {
+                                    editor.start(event)
+                                })
+                                .on_responder_move(move |event: &ResponderEvent| {
+                                    editor.moved(event)
+                                })
+                                .on_responder_release(move |_: &ResponderEvent| editor.end())
+                                .on_responder_terminate(move |_: &ResponderEvent| {
+                                    editor.stroke.set(Vec::new());
+                                    editor.drag.set(None);
+                                }),
+                        ),
+                ),
+        )
+        .child(when(editor.loading, || {
+            text(move || tr("Preparing image…", "正在准备图片…"))
+                .text_role(ui::TextRole::Body)
+                .text_center()
+                .text_color(ui::fg_secondary)
+        }))
+        .child(when(editor.failed, move || {
+            view()
+                .items_center()
+                .gap_2()
+                .child(ui::error_text(move || {
+                    tr(
+                        "Couldn’t edit this image. Undo the last edit or try again.",
+                        "无法编辑此图片，请撤销上一步或重试。",
+                    )
+                }))
+                .child(ui::link(move || tr("Retry", "重试"), done))
+        }))
+        .child(when(
+            move || editor.tool.get() == Tool::Crop,
+            move || {
+                view().items_center().mt(ui::space_xl()).child(
+                    ui::action(move || tr("Reset", "重置"), move || editor.reset())
+                        .disabled(editor.loading),
+                )
+            },
+        ))
+        .child(when(
+            move || editor.tool.get() != Tool::Crop,
+            move || view().mt(ui::space_xl()).child(colors(editor)),
+        ))
+        .child(
+            view()
+                .flex_row()
+                .flex_wrap()
+                .items_center()
+                .justify_center()
+                .mt_2()
+                .gap_2()
+                .child(ui::action(move || tr("Cancel", "取消"), cancel))
+                .child(when(
+                    move || editor.tool.get() == Tool::Crop,
+                    move || {
+                        view()
+                            .flex_row()
+                            .flex_wrap()
+                            .gap_2()
+                            .child(
+                                ui::action(
+                                    move || tr("Rotate", "旋转"),
+                                    move || editor.edit(ImageEdit::RotateCounterClockwise),
+                                )
+                                .disabled(editor.loading),
+                            )
+                            .child(
+                                ui::action(
+                                    move || tr("Flip", "翻转"),
+                                    move || editor.edit(ImageEdit::FlipHorizontal),
+                                )
+                                .disabled(editor.loading),
+                            )
+                            .child(ratios(editor))
+                            .child(
+                                ui::action(
+                                    move || tr("Draw", "画笔"),
+                                    move || editor.enter_drawing(),
+                                )
+                                .disabled(editor.loading),
+                            )
+                    },
+                ))
+                .child(when(
+                    move || editor.tool.get() != Tool::Crop,
+                    move || {
+                        view()
+                            .flex_row()
+                            .flex_wrap()
+                            .gap_2()
+                            .child(
+                                ui::command()
+                                    .selected(move || editor.tool.get() == Tool::Brush)
+                                    .disabled(editor.loading)
+                                    .on_press(move || editor.tool.set(Tool::Brush))
+                                    .child(text(move || tr("Brush", "画笔"))),
+                            )
+                            .child(
+                                ui::command()
+                                    .selected(move || editor.tool.get() == Tool::Eraser)
+                                    .disabled(editor.loading)
+                                    .on_press(move || editor.tool.set(Tool::Eraser))
+                                    .child(text(move || tr("Eraser", "橡皮"))),
+                            )
+                            .child(
+                                ui::action(move || tr("Undo", "撤销"), move || editor.undo())
+                                    .disabled(move || {
+                                        editor.loading.get() || !editor.has_drawing()
+                                    }),
+                            )
+                            .child(
+                                ui::action(move || tr("Redo", "重做"), move || editor.redo())
+                                    .disabled(move || {
+                                        editor.loading.get() || editor.redo.with(Vec::is_empty)
+                                    }),
+                            )
+                    },
+                ))
+                .child(
+                    ui::primary()
+                        .on_press(done)
+                        .disabled(editor.loading)
+                        .child(text(move || tr("Done", "完成"))),
+                ),
+        )
+        .child(view().h_14())
 }

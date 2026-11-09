@@ -88,20 +88,12 @@ pub(crate) fn screen(
     selected: Signal<Option<ConversationListData>>,
     unread: Signal<bool>,
 ) -> impl IntoElement {
-    let i18n = i18n::current();
     let nav = use_context::<Navigation>().expect("Home provides category navigation");
     let navigation = use_context::<ChatNavigation>().expect("Home provides chat navigation");
     let owner = Owner::current();
     let account = stored(account);
     let state = query::new(account, query, composing, nav.category, nav.circle, unread);
-    let query::State {
-        section,
-        rows,
-        users_empty,
-        loading,
-        failed,
-        ..
-    } = state;
+    let query::State { users_empty, .. } = state;
     // An open is in flight; a second press must not race it.
     let pending = signal(false);
     let open_failed = signal(false);
@@ -168,6 +160,71 @@ pub(crate) fn screen(
             }
         }
     };
+    content(
+        state,
+        pending,
+        open,
+        open_failed,
+        remote::banner(
+            account.with(|account| account.clone()),
+            query,
+            composing,
+            users_empty,
+            profile,
+        ),
+        when(
+            move || profile_presence.mounted(),
+            move || {
+                let id = profile.get_untracked().unwrap_or_default();
+                ui::dialog(
+                    profile_presence,
+                    move || profile.set(None),
+                    ui::dialog_card(ui::DialogWidth::Compact)
+                        .p_0()
+                        .gap_0()
+                        .overflow_hidden()
+                        .child(crate::conversation::profile(
+                            account.with(|account| account.clone()),
+                            id,
+                            move || profile.set(None),
+                        )),
+                )
+            },
+        ),
+    )
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .px_4()
+        .py_2()
+        .gap_2()
+        .child(ui::error_text(move || {
+            tr(
+                "Some results could not be loaded. Try again.",
+                "部分搜索结果加载失败，请重试。",
+            )
+        }))
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
+}
+
+fn content(
+    state: query::State,
+    pending: Signal<bool>,
+    open: impl Fn(Row) + Copy + 'static,
+    open_failed: Signal<bool>,
+    remote: impl IntoElement,
+    profile_view: impl IntoElement,
+) -> View {
+    let i18n = i18n::current();
+    let query::State {
+        section,
+        rows,
+        loading,
+        failed,
+        ..
+    } = state;
     view()
         .flex_1()
         .min_h_0()
@@ -189,13 +246,7 @@ pub(crate) fn screen(
                 }),
             ),
         )
-        .child(remote::banner(
-            account.with(|account| account.clone()),
-            query,
-            composing,
-            users_empty,
-            profile,
-        ))
+        .child(remote)
         .child(when(open_failed, move || {
             ui::error_text(move || {
                 tr(
@@ -215,22 +266,7 @@ pub(crate) fn screen(
                     .py_2()
             },
         ))
-        .child(when(failed, move || {
-            view()
-                .px_4()
-                .py_2()
-                .gap_2()
-                .child(ui::error_text(move || {
-                    tr(
-                        "Some results could not be loaded. Try again.",
-                        "部分搜索结果加载失败，请重试。",
-                    )
-                }))
-                .child(ui::action(
-                    move || i18n.text(Key::Retry),
-                    move || state.retry(),
-                ))
-        }))
+        .child(when(failed, move || load_error(move || state.retry())))
         .child(when(
             move || !loading.get() && !failed.get() && rows.with(Vec::is_empty),
             move || {
@@ -246,23 +282,36 @@ pub(crate) fn screen(
             move || !rows.with(Vec::is_empty),
             move || results::list(state, pending, open),
         ))
-        .child(when(
-            move || profile_presence.mounted(),
-            move || {
-                let id = profile.get_untracked().unwrap_or_default();
-                ui::dialog(
-                    profile_presence,
-                    move || profile.set(None),
-                    ui::dialog_card(ui::DialogWidth::Compact)
-                        .p_0()
-                        .gap_0()
-                        .overflow_hidden()
-                        .child(crate::conversation::profile(
-                            account.with(|account| account.clone()),
-                            id,
-                            move || profile.set(None),
-                        )),
-                )
-            },
+        .child(profile_view)
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview(
+    users: Vec<UserProfileItem>,
+    messages: Vec<MessageListView>,
+    failed: Signal<bool>,
+) -> View {
+    let state = query::detached(users, messages, failed);
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(
+            view()
+                .flex_row()
+                .flex_shrink_0()
+                .h(ui::row_height())
+                .px(ui::space_md())
+                .child(ui::search_input().value(|| "design").placeholder("Search")),
+        )
+        .child(content(
+            state,
+            signal(false),
+            |_| {},
+            signal(false),
+            view().hidden(),
+            view().hidden(),
         ))
 }
+
+#[cfg(debug_assertions)]
+pub(crate) use palette::preview as preview_palette;

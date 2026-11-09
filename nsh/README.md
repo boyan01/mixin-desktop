@@ -40,6 +40,16 @@ The NSH CLI bypasses the native executable entry point. Prefer `cargo run` when
 validating startup, process ownership, native component registration and shutdown.
 macOS is the first validation target. Windows and Linux are unverified; see the roadmap.
 
+## Button design previews
+
+The native preview browser includes a workflow selector, previous/next controls,
+and offline page/dialog scenes for framed buttons. See
+[the surface inventory and capture commands](preview/README.md).
+`create-group` shows the contact list, then exposes the selected-avatar strip and
+header Next action only after a choice. `message-forward` uses the same visual
+parts with immediate single-target sending. Both lists scroll without page controls.
+The `Select`, `Next` and `Error` preview actions expose the group states.
+
 ## Markdown previews
 
 The debug-only preview browser renders production components over offline fixtures:

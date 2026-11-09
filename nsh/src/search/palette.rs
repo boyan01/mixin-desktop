@@ -40,7 +40,7 @@ pub(crate) fn surface(account: Arc<AccountClient>, open: Signal<bool>) -> impl I
 struct Palette {
     open: Signal<bool>,
     open_failed: Signal<bool>,
-    account: Stored<Arc<AccountClient>>,
+    account: Stored<Option<Arc<AccountClient>>>,
     navigation: ChatNavigation,
     query: Signal<String>,
     page: Signal<i64>,
@@ -61,7 +61,7 @@ fn content(
     let palette = Palette {
         open,
         open_failed,
-        account: stored(account),
+        account: stored(Some(account)),
         navigation: use_context().expect("Home provides navigation"),
         query: signal(String::new()),
         page: signal(0),
@@ -90,27 +90,29 @@ fn content(
                 .items_center()
                 .justify_center()
                 .child(presence.backdrop(ui::scrim().on_press(close)))
-                .child(
-                    presence.surface(
-                        ui::dialog_card(ui::DialogWidth::Regular)
-                            .p_0()
-                            .gap_0()
-                            .overflow_hidden()
-                            .child(palette.command(control))
-                            .child(palette.failure()),
-                    ),
-                ),
+                .child(presence.surface(palette.card(control, true))),
         )
 }
 
 impl Palette {
+    fn card(self, control: ComponentRef<Command>, focus: bool) -> View {
+        ui::dialog_card(ui::DialogWidth::Regular)
+            .p_0()
+            .gap_0()
+            .overflow_hidden()
+            .child(self.command(control, focus))
+            .child(self.failure())
+    }
+
     fn close(self) {
         dismiss_keyboard();
         self.open.set(false);
     }
 
     fn observe_changes(self) {
-        let account = self.account.with(|account| account.clone());
+        let account = self
+            .account
+            .with(|account| account.clone().expect("live quick search has an account"));
         spawn(async move {
             let mut changes = Box::pin(runtime::throttled(
                 account.conversation_changes(),
@@ -139,7 +141,9 @@ impl Palette {
                 self.loading.set(true);
                 self.failed.set(false);
             }
-            let client = self.account.with(|account| account.clone());
+            let client = self
+                .account
+                .with(|account| account.clone().expect("live quick search has an account"));
             // Rerunning this effect cancels the previous task and its business call.
             spawn(async move {
                 if !background {
@@ -264,7 +268,9 @@ impl Palette {
                 Some(Row::User(user)) => {
                     self.close();
                     self.navigation.open_user(
-                        self.account.with(|account| account.clone()),
+                        self.account.with(|account| {
+                            account.clone().expect("live quick search has an account")
+                        }),
                         user.user_id,
                         self.open_failed,
                     );
@@ -274,13 +280,13 @@ impl Palette {
         }
     }
 
-    fn command(self, control: ComponentRef<Command>) -> impl IntoElement {
+    fn command(self, control: ComponentRef<Command>, focus: bool) -> impl IntoElement {
         let close = move || self.close();
         command()
             .component_ref(&control)
             .flex_shrink(1.0)
             .min_h_0()
-            .auto_focus(true)
+            .auto_focus(focus)
             .filterable(false)
             .loading(self.loading)
             .query(move || Some(self.query.get().into()))
@@ -367,18 +373,8 @@ impl Palette {
     }
 
     fn failure(self) -> impl IntoElement {
-        let i18n = i18n::current();
         when(self.failed, move || {
-            view()
-                .p_3()
-                .gap_2()
-                .child(ui::error_text(move || {
-                    tr("Couldn’t load quick search", "快速搜索加载失败")
-                }))
-                .child(ui::action(
-                    move || i18n.text(Key::Retry),
-                    move || self.revision.update(|revision| *revision += 1),
-                ))
+            load_error(move || self.revision.update(|revision| *revision += 1))
         })
     }
 }
@@ -417,4 +413,37 @@ async fn search(
         })
         .collect();
     Ok((rows, more))
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .p_3()
+        .gap_2()
+        .child(ui::error_text(move || {
+            tr("Couldn’t load quick search", "快速搜索加载失败")
+        }))
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview(users: Vec<UserProfileItem>, failed: Signal<bool>) -> View {
+    let palette = Palette {
+        open: signal(true),
+        open_failed: signal(false),
+        account: stored(None),
+        navigation: use_context().expect("Preview provides navigation"),
+        query: signal("design".into()),
+        page: signal(0),
+        rows: signal_with(
+            users.into_iter().map(Row::User).collect(),
+            SignalEquals::Never,
+        ),
+        more: signal(false),
+        loading: signal(false),
+        failed,
+        revision: signal(0),
+        highlighted: signal(None),
+    };
+    palette.card(component_ref::<Command>(), false)
 }

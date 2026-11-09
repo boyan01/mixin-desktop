@@ -6,16 +6,18 @@ use crate::{
 };
 use nsh_core::prelude::*;
 
-pub(super) const ACTIONS: &[&str] = &["Personal", "Albums", "Empty"];
+pub(super) const ACTIONS: &[&str] = &["Personal", "Albums", "Empty", "Error", "Reset"];
 
 pub(super) fn scene(actions: Actions) -> View {
     let tab = signal(Tab::Recent);
     let albums = signal_with(Vec::new(), SignalEquals::Never);
     let empty = signal(false);
+    let failed = signal(false);
     for name in ACTIONS {
         actions.on(
             name,
             move || {
+                failed.set(false);
                 tab.set(Tab::Recent);
                 albums.set(Vec::new());
                 empty.set(false);
@@ -28,6 +30,7 @@ pub(super) fn scene(actions: Actions) -> View {
                     albums.set(fixtures);
                 }
                 "Empty" => empty.set(true),
+                "Error" => failed.set(true),
                 _ => {}
             },
         );
@@ -52,6 +55,7 @@ pub(super) fn scene(actions: Actions) -> View {
                     view()
                         .flex_1()
                         .min_h_0()
+                        .child(when(failed, || stickers::load_error(|| {})))
                         .child(when(empty, move || {
                             stickers::empty_stickers(move || tab.get())
                         }))

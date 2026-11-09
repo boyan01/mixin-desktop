@@ -207,6 +207,10 @@ impl Rail {
     }
 
     pub(crate) fn content(self) -> View {
+        self.content_with_feedback(view().hidden())
+    }
+
+    pub(crate) fn content_with_feedback(self, feedback: impl IntoElement) -> View {
         let nav = self.nav;
         view()
             .w(move || {
@@ -245,6 +249,7 @@ impl Rail {
                     .child(services.preference.feedback())
                     .child(services.circles.feedback())
             }))
+            .child(feedback)
     }
 
     fn account_item(self) -> impl IntoElement {
@@ -410,3 +415,9 @@ fn navigation_icon(
             },
         ))
 }
+
+#[cfg(debug_assertions)]
+pub(crate) use {circle_editor::preview as preview_circle_editor, circles::preview_rename};
+
+#[cfg(debug_assertions)]
+pub(crate) use preference::preference_error;

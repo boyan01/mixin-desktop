@@ -115,10 +115,7 @@ fn preview_setting(handle: Handle) -> impl IntoElement {
             )
         }))
         .child(when(handle.preview_failed, move || {
-            parts::failure(
-                move || i18n.text(Key::CommandFailed),
-                move || handle.refresh_preview(),
-            )
+            load_error(move || handle.refresh_preview())
         }))
 }
 
@@ -140,4 +137,15 @@ fn system_settings(failed: Signal<bool>) -> impl IntoElement {
             );
         });
     })
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    parts::failure(move || i18n.text(Key::CommandFailed), retry)
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview(failed: Signal<bool>) -> impl IntoElement {
+    provide_context(crate::notifications::detached(failed));
+    screen()
 }

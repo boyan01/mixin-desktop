@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    sync::Arc,
+};
 
 use futures::StreamExt as _;
 use mixin_desktop_api::{AccountClient, CircleConversationEdit, CircleItem, ConversationListData};
@@ -71,9 +74,8 @@ pub(super) fn screen(
         let page = page.get();
         let revision = refresh.get();
         // A live update replaces the rows quietly; only a new query shows loading.
-        let background = seen_refresh.replace(revision) != revision
-            && !load_failed.get_untracked()
-            && !loading.get_untracked();
+        let refreshed = seen_refresh.replace(revision) != revision;
+        let background = refreshed && !load_failed.get_untracked() && !loading.get_untracked();
         let client = account.with(|account| account.clone());
         if !background {
             loading.set(true);
@@ -85,24 +87,51 @@ pub(super) fn screen(
                 timer(std::time::Duration::from_millis(150)).await;
             }
             let result = runtime::run(async move {
-                client
-                    .conversation()
-                    .conversations(
-                        "chats".into(),
-                        None,
-                        keyword,
-                        false,
-                        PAGE_SIZE + 1,
-                        page * PAGE_SIZE,
-                    )
-                    .await
+                let mut result = Vec::new();
+                let first = if refreshed { 0 } else { page };
+                let mut more = false;
+                for index in first..=page {
+                    let mut values = client
+                        .conversation()
+                        .conversations(
+                            "chats".into(),
+                            None,
+                            keyword.clone(),
+                            false,
+                            PAGE_SIZE + 1,
+                            index * PAGE_SIZE,
+                        )
+                        .await?;
+                    more = values.len() > PAGE_SIZE as usize;
+                    values.truncate(PAGE_SIZE as usize);
+                    result.extend(values);
+                    if !more {
+                        break;
+                    }
+                }
+                Ok((result, more))
             })
             .await;
             match result {
-                Ok(mut values) => {
-                    more.set(values.len() > PAGE_SIZE as usize);
-                    values.truncate(PAGE_SIZE as usize);
-                    rows.set(values);
+                Ok((mut values, has_more)) => {
+                    more.set(has_more);
+                    let mut seen = HashSet::new();
+                    values.retain(|row| seen.insert(row.conversation_id.clone()));
+                    if refreshed || page == 0 {
+                        rows.set(values);
+                    } else {
+                        rows.update(|rows| {
+                            let known = rows
+                                .iter()
+                                .map(|row| row.conversation_id.clone())
+                                .collect::<HashSet<_>>();
+                            rows.extend(
+                                values
+                                    .into_iter()
+                                    .filter(|row| !known.contains(&row.conversation_id)),
+                            );
+                        });
+                    }
                 }
                 Err(_) => load_failed.set(true),
             }
@@ -205,7 +234,56 @@ pub(super) fn screen(
             }
         });
     };
-    let card = parts::tall_dialog_card()
+    ui::dialog(
+        presence,
+        move || {
+            if !busy.get_untracked() {
+                close();
+            }
+        },
+        form(
+            circle_id,
+            title,
+            rows,
+            changes,
+            query,
+            composing,
+            page,
+            more,
+            loading,
+            busy,
+            failed,
+            load_failed,
+            reconcile,
+            refresh,
+            close,
+            reload_choices,
+            save,
+        ),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn form(
+    circle_id: Stored<String>,
+    title: Stored<String>,
+    rows: Signal<Vec<ConversationListData>>,
+    changes: Signal<Changes>,
+    query: Signal<String>,
+    composing: Signal<bool>,
+    page: Signal<i64>,
+    more: Signal<bool>,
+    loading: Signal<bool>,
+    busy: Signal<bool>,
+    failed: Signal<bool>,
+    load_failed: Signal<bool>,
+    reconcile: Signal<bool>,
+    refresh: Signal<u64>,
+    close: impl Fn() + Copy + 'static,
+    reload_choices: impl Fn() + Copy + 'static,
+    save: impl Fn() + Copy + 'static,
+) -> View {
+    parts::tall_dialog_card()
         .child(ui::dialog_title(move || {
             tr("Edit conversations", "编辑聊天")
         }))
@@ -217,9 +295,14 @@ pub(super) fn screen(
                     .placeholder(move || tr("Search chats", "搜索聊天").to_owned())
                     .value(move || query.get())
                     .on_change(move |text: &str| {
+                        if query.with_untracked(|query| query == text) {
+                            return;
+                        }
                         batch(|| {
                             query.set(text.into());
                             page.set(0);
+                            rows.set(Vec::new());
+                            loading.set(true);
                         })
                     })
                     .on_composition_change(move |event: &Composition| {
@@ -307,15 +390,22 @@ pub(super) fn screen(
                         .collect::<Vec<_>>()
                 })
             })
+            .on_load_more(move || {
+                if !loading.get_untracked()
+                    && !load_failed.get_untracked()
+                    && more.get_untracked()
+                    && !busy.get_untracked()
+                    && !composing.get_untracked()
+                {
+                    loading.set(true);
+                    page.update(|page| *page += 1);
+                }
+            })
+            .load_more_threshold(0.5)
             .estimated_item_size(parts::row_height())
             .flex_1()
             .min_h_0(),
         )
-        .child(parts::pager(
-            page,
-            move || more.get(),
-            move || busy.get() || loading.get(),
-        ))
         .child(
             parts::dialog_actions()
                 .child(ui::action(move || tr("Cancel", "取消"), close).disabled(busy))
@@ -329,14 +419,27 @@ pub(super) fn screen(
                             format!("{} ({})", tr("Save", "保存"), changes.with(BTreeMap::len))
                         })),
                 ),
-        );
-    ui::dialog(
-        presence,
-        move || {
-            if !busy.get_untracked() {
-                close();
-            }
-        },
-        card,
+        )
+}
+#[cfg(debug_assertions)]
+pub(crate) fn preview(rows: Vec<ConversationListData>, failed: Signal<bool>) -> impl IntoElement {
+    form(
+        stored("preview-circle".into()),
+        stored("Design review".into()),
+        signal_with(rows, SignalEquals::Never),
+        signal_with(BTreeMap::new(), SignalEquals::Never),
+        signal(String::new()),
+        signal(false),
+        signal(0),
+        signal(false),
+        signal(false),
+        signal(false),
+        failed,
+        signal(false),
+        signal(false),
+        signal(0),
+        || {},
+        || {},
+        || {},
     )
 }

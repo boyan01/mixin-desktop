@@ -2,6 +2,7 @@
 //! Scenes place production components over fixtures; `.agents/skills/nsh-preview`
 //! describes how to capture and compare them.
 
+mod button_pages;
 mod components;
 mod composer;
 mod fixtures;
@@ -33,6 +34,226 @@ struct Scene {
 
 const SCENES: &[Scene] = &[
     Scene {
+        name: "snapshot-inscription",
+        actions: button_pages::SNAPSHOT_ACTIONS,
+        mount: button_pages::snapshot_inscription,
+    },
+    Scene {
+        name: "create-group",
+        actions: button_pages::ACTIONS,
+        mount: button_pages::group,
+    },
+    Scene {
+        name: "create-chat",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::chat,
+    },
+    Scene {
+        name: "create-lookup",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::lookup,
+    },
+    Scene {
+        name: "contact-add",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::contact_add,
+    },
+    Scene {
+        name: "contact-rename",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::contact_rename,
+    },
+    Scene {
+        name: "create-circle",
+        actions: button_pages::CIRCLE_ACTIONS,
+        mount: button_pages::circle,
+    },
+    Scene {
+        name: "circle-rename",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::circle_rename,
+    },
+    Scene {
+        name: "circle-conversations",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::circle_editor,
+    },
+    Scene {
+        name: "conversation-circles",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::conversation_circles,
+    },
+    Scene {
+        name: "group-edit",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::edit_group,
+    },
+    Scene {
+        name: "group-members",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::members,
+    },
+    Scene {
+        name: "group-add-members",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::add_members,
+    },
+    Scene {
+        name: "group-invite",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::invite,
+    },
+    Scene {
+        name: "group-expiry",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::expiry,
+    },
+    Scene {
+        name: "mute",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::mute,
+    },
+    Scene {
+        name: "message-forward",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::forward,
+    },
+    Scene {
+        name: "recipients",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::recipients,
+    },
+    Scene {
+        name: "message-selection",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::selection,
+    },
+    Scene {
+        name: "message-reply",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::reply,
+    },
+    Scene {
+        name: "message-qr",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::qr,
+    },
+    Scene {
+        name: "transcript",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::transcript,
+    },
+    Scene {
+        name: "sticker-save",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::sticker_save,
+    },
+    Scene {
+        name: "write-post",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::write_post,
+    },
+    Scene {
+        name: "share-contact",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::share_contact,
+    },
+    Scene {
+        name: "image-editor",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::image_editor,
+    },
+    Scene {
+        name: "avatar-crop",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::avatar_crop,
+    },
+    Scene {
+        name: "link-invite",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::link_invite,
+    },
+    Scene {
+        name: "link-send",
+        actions: button_pages::LINK_ACTIONS,
+        mount: button_pages::link_send,
+    },
+    Scene {
+        name: "link-unsupported",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::link_unsupported,
+    },
+    Scene {
+        name: "profile-settings",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::profile_settings,
+    },
+    Scene {
+        name: "proxy-add",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::proxy,
+    },
+    Scene {
+        name: "proxy-settings",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::proxies,
+    },
+    Scene {
+        name: "appearance-settings",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::appearance,
+    },
+    Scene {
+        name: "clear-cache",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::clear_cache,
+    },
+    Scene {
+        name: "sign-out",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::sign_out,
+    },
+    Scene {
+        name: "screen-lock",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::lock,
+    },
+    Scene {
+        name: "passcode-setup",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::passcode,
+    },
+    Scene {
+        name: "transfer-settings",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::transfer_page,
+    },
+    Scene {
+        name: "transfer-approval",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::transfer_approval,
+    },
+    Scene {
+        name: "transfer-progress",
+        actions: button_pages::TRANSFER_ACTIONS,
+        mount: button_pages::transfer_progress,
+    },
+    Scene {
+        name: "login",
+        actions: button_pages::LOGIN_ACTIONS,
+        mount: button_pages::login,
+    },
+    Scene {
+        name: "bot-ending",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::bot_ending,
+    },
+    Scene {
+        name: "empty-filtered",
+        actions: button_pages::STATIC_ACTIONS,
+        mount: button_pages::empty_filtered,
+    },
+    Scene {
         name: "sticker-store",
         actions: sticker_store::ACTIONS,
         mount: sticker_store::scene,
@@ -44,8 +265,8 @@ const SCENES: &[Scene] = &[
     },
     Scene {
         name: "messages",
-        actions: messages::ACTIONS,
-        mount: messages::text,
+        actions: button_pages::CHAT_ACTIONS,
+        mount: button_pages::messages,
     },
     Scene {
         name: "messages-replies",
@@ -69,7 +290,7 @@ const SCENES: &[Scene] = &[
     },
     Scene {
         name: "messages-cards",
-        actions: messages::ACTIONS,
+        actions: messages::CARD_ACTIONS,
         mount: messages::cards,
     },
     Scene {
@@ -137,6 +358,91 @@ const SCENES: &[Scene] = &[
         actions: composer::ACTIONS,
         mount: composer::scene,
     },
+    Scene {
+        name: "notifications-settings",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::notifications,
+    },
+    Scene {
+        name: "storage-settings",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::storage,
+    },
+    Scene {
+        name: "shared-media",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::shared_media,
+    },
+    Scene {
+        name: "conversation-info",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::info,
+    },
+    Scene {
+        name: "contact-profile",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::contact_profile,
+    },
+    Scene {
+        name: "contact-groups",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::contact_groups,
+    },
+    Scene {
+        name: "contact-apps",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::contact_apps,
+    },
+    Scene {
+        name: "pinned-messages",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::pinned_messages,
+    },
+    Scene {
+        name: "message-search",
+        actions: button_pages::SEARCH_ACTIONS,
+        mount: button_pages::message_search,
+    },
+    Scene {
+        name: "global-search",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::global_search,
+    },
+    Scene {
+        name: "quick-search",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::quick_search,
+    },
+    Scene {
+        name: "conversations",
+        actions: button_pages::LIST_ACTIONS,
+        mount: button_pages::conversations,
+    },
+    Scene {
+        name: "transcript-summary",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::summary,
+    },
+    Scene {
+        name: "photo-viewer",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::photo_viewer,
+    },
+    Scene {
+        name: "emoji",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::emoji,
+    },
+    Scene {
+        name: "sticker-detail",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::sticker_detail,
+    },
+    Scene {
+        name: "markdown-attachment",
+        actions: button_pages::ERROR_ACTIONS,
+        mount: button_pages::markdown_attachment,
+    },
 ];
 
 #[derive(Clone, Copy, PartialEq)]
@@ -165,7 +471,16 @@ impl Actions {
 #[component]
 pub fn Preview() -> impl IntoElement {
     provide_context(crate::i18n::I18n::new());
-    let current = signal(0_usize);
+    let initial = std::env::var("MIXIN_PREVIEW_SCENE")
+        .ok()
+        .and_then(|name| SCENES.iter().position(|scene| scene.name == name))
+        .unwrap_or_else(|| {
+            SCENES
+                .iter()
+                .position(|scene| scene.name == "create-group")
+                .unwrap_or(0)
+        });
+    let current = signal(initial);
     view()
         .flex_1()
         .bg(ui::surface_pane)
@@ -197,6 +512,7 @@ fn toolbar(
     actions: &'static [&'static str],
     requested: Signal<Option<(&'static str, Step)>>,
 ) -> View {
+    let selected = signal(actions.first().copied());
     view()
         .flex_row()
         .flex_shrink_0()
@@ -207,40 +523,84 @@ fn toolbar(
         .border_b_1()
         .border_color(ui::hairline)
         .test_id("preview-toolbar")
-        // More scenes than a window's width scroll, and the actions stay in view.
         .child(
-            scroll()
-                .horizontal()
-                .scrollbar(false)
-                .flex_1()
-                .min_w_0()
-                .child(
-                    view()
-                        .flex_row()
-                        .items_center()
-                        .gap(ui::space_sm())
-                        .children(SCENES.iter().enumerate().map(move |(position, scene)| {
-                            let tone = if position == index {
-                                ButtonTone::Primary
-                            } else {
-                                ButtonTone::Ghost
-                            };
-                            ui::button(tone, ButtonSize::Small)
-                                .accessibility_label(move || {
-                                    Some(format!("Scene {}", scene.name).into())
-                                })
-                                .on_press(move || current.set(position))
-                                .child(text(scene.name))
-                        })),
-                ),
+            ui::button(ButtonTone::Ghost, ButtonSize::Small)
+                .accessibility_label(|| Some("Previous scene".into()))
+                .on_press(move || current.set((index + SCENES.len() - 1) % SCENES.len()))
+                .child(text("‹")),
         )
-        .children(actions.iter().map(move |&name| {
-            ui::button(ButtonTone::Secondary, ButtonSize::Small)
-                .accessibility_label(move || Some(format!("Action {name}").into()))
-                .on_press(move || {
-                    requested.set(Some((name, Step::Prepare)));
-                    set_timeout(ACTION_LEAD, move || requested.set(Some((name, Step::Run))));
-                })
-                .child(text(name))
-        }))
+        .child(
+            view().flex_1().min_w_0().child(
+                ui::select()
+                    .items(|| {
+                        SCENES
+                            .iter()
+                            .map(|scene| nsh_base::SelectItem::new(scene.name, scene.name))
+                            .collect::<Vec<_>>()
+                    })
+                    .value(move || Some(SharedString::from(SCENES[index].name)))
+                    .accessibility_label(|| Some("Preview scene".into()))
+                    .trigger(ui::select_trigger(move || SCENES[index].name))
+                    .on_change(move |value: &Option<SharedString>| {
+                        if let Some(index) = value.as_ref().and_then(|name| {
+                            SCENES.iter().position(|scene| scene.name == name.as_str())
+                        }) {
+                            current.set(index);
+                        }
+                    }),
+            ),
+        )
+        .child(
+            ui::button(ButtonTone::Ghost, ButtonSize::Small)
+                .accessibility_label(|| Some("Next scene".into()))
+                .on_press(move || current.set((index + 1) % SCENES.len()))
+                .child(text("›")),
+        )
+        .child(when(
+            move || !actions.is_empty(),
+            move || {
+                view()
+                    .flex_row()
+                    .items_center()
+                    .gap(ui::space_sm())
+                    .w(px(290.0))
+                    .child(
+                        view().flex_1().min_w_0().child(
+                            ui::select()
+                                .items(move || {
+                                    actions
+                                        .iter()
+                                        .map(|name| nsh_base::SelectItem::new(*name, *name))
+                                        .collect::<Vec<_>>()
+                                })
+                                .value(move || selected.get().map(SharedString::from))
+                                .accessibility_label(|| Some("Preview action".into()))
+                                .trigger(ui::select_trigger(move || {
+                                    selected.get().unwrap_or("State")
+                                }))
+                                .on_change(move |value: &Option<SharedString>| {
+                                    selected.set(value.as_ref().and_then(|value| {
+                                        actions
+                                            .iter()
+                                            .find(|name| **name == value.as_str())
+                                            .copied()
+                                    }))
+                                }),
+                        ),
+                    )
+                    .child(
+                        ui::button(ButtonTone::Secondary, ButtonSize::Small)
+                            .accessibility_label(|| Some("Play action".into()))
+                            .on_press(move || {
+                                if let Some(name) = selected.get_untracked() {
+                                    requested.set(Some((name, Step::Prepare)));
+                                    set_timeout(ACTION_LEAD, move || {
+                                        requested.set(Some((name, Step::Run)))
+                                    });
+                                }
+                            })
+                            .child(text("Play")),
+                    )
+            },
+        ))
 }

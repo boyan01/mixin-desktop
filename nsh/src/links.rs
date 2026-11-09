@@ -329,3 +329,28 @@ impl LinkNavigation {
         view::surface(self)
     }
 }
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_panel(
+    kind: &str,
+    value: CodeResult,
+    failed: Signal<bool>,
+) -> impl IntoElement {
+    let router = LinkNavigation::detached();
+    let normal = match kind {
+        "invite" => Panel::Code("preview".into(), Box::new(value)),
+        "error" => Panel::Error,
+        _ => Panel::Unsupported("mixin://preview/design-review".into()),
+    };
+    dynamic(move || {
+        let panel = if failed.get() {
+            Panel::Error
+        } else {
+            normal.clone()
+        };
+        untracked(|| view::panel_card(router, panel))
+    })
+}
+
+#[cfg(debug_assertions)]
+pub(crate) use send::detached as preview_send;

@@ -68,6 +68,20 @@ pub(super) fn screen(state: State) -> impl IntoElement {
             }
         });
     };
+    content(state, circles, loaded, name, created, busy, failed, create)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn content(
+    state: State,
+    circles: Signal<Vec<CircleItem>>,
+    loaded: Signal<bool>,
+    name: Signal<String>,
+    created: Signal<Option<String>>,
+    busy: Signal<bool>,
+    failed: Signal<bool>,
+    create: impl Fn() + Copy + 'static,
+) -> impl IntoElement {
     view()
         .flex_1()
         .min_h_0()
@@ -205,4 +219,21 @@ pub(super) fn screen(state: State) -> impl IntoElement {
             move || loaded.get() && circles.with(Vec::is_empty),
             || ui::placeholder(move || tr("No circles yet", "暂无圈子")),
         ))
+}
+#[cfg(debug_assertions)]
+pub(super) fn detached(state: State) -> impl IntoElement {
+    content(
+        state,
+        signal(vec![CircleItem {
+            circle_id: "preview-circle".into(),
+            name: "Design review".into(),
+            conversation_count: 12,
+        }]),
+        signal(true),
+        signal(String::new()),
+        signal(None),
+        signal(false),
+        signal(false),
+        || {},
+    )
 }

@@ -330,6 +330,15 @@ impl Circles {
     fn rename(self, circle: CircleItem, presence: crate::motion::Presence) -> impl IntoElement {
         let name = signal(circle.name);
         let id = stored(circle.circle_id);
+        let save = move || {
+            if !presence.interactive() {
+                return;
+            }
+            let account = self.client();
+            let id = id.with(|id| id.clone());
+            let name = name.get_untracked().trim().to_owned();
+            self.execute(async move { account.conversation().update_circle(id, name).await });
+        };
         ui::dialog(
             presence,
             move || {
@@ -337,49 +346,13 @@ impl Circles {
                     self.editing.set(None);
                 }
             },
-            ui::dialog_card(ui::DialogWidth::Compact)
-                .child(ui::dialog_title(move || tr("Rename circle", "重命名圈子")))
-                .child(when(self.failed, || {
-                    ui::error_text(move || tr("Couldn’t save. Try again.", "保存失败，请重试。"))
-                }))
-                .child(
-                    ui::field()
-                        .label(move || tr("Name", "名称"))
-                        .max_length(64)
-                        .value(move || name.get())
-                        .on_change(move |value: &str| name.set(value.into())),
-                )
-                .child(
-                    view()
-                        .flex_row()
-                        .justify_end()
-                        .gap_2()
-                        .child(
-                            ui::action(
-                                move || tr("Cancel", "取消"),
-                                move || self.editing.set(None),
-                            )
-                            .disabled(self.busy),
-                        )
-                        .child(
-                            ui::primary()
-                                .disabled(move || {
-                                    self.busy.get() || name.with(|name| name.trim().is_empty())
-                                })
-                                .on_press(move || {
-                                    if !presence.interactive() {
-                                        return;
-                                    }
-                                    let account = self.client();
-                                    let id = id.with(|id| id.clone());
-                                    let name = name.get_untracked().trim().to_owned();
-                                    self.execute(async move {
-                                        account.conversation().update_circle(id, name).await
-                                    });
-                                })
-                                .child(text(move || tr("Save", "保存"))),
-                        ),
-                ),
+            rename_view(
+                name,
+                self.busy,
+                self.failed,
+                move || self.editing.set(None),
+                save,
+            ),
         )
     }
 }
@@ -715,5 +688,49 @@ pub(crate) fn remove_from_circle_item(
             .icon(ui::MenuIcon::Delete.src())
             .disabled(state.busy.get_untracked())
             .on_select(move || state.edit_membership(id.clone(), &row, false)),
+    )
+}
+
+fn rename_view(
+    name: Signal<String>,
+    busy: Signal<bool>,
+    failed: Signal<bool>,
+    close: impl Fn() + Copy + 'static,
+    save: impl Fn() + 'static,
+) -> View {
+    ui::dialog_card(ui::DialogWidth::Compact)
+        .child(ui::dialog_title(move || tr("Rename circle", "重命名圈子")))
+        .child(when(failed, || {
+            ui::error_text(move || tr("Couldn’t save. Try again.", "保存失败，请重试。"))
+        }))
+        .child(
+            ui::field()
+                .label(move || tr("Name", "名称"))
+                .max_length(64)
+                .value(move || name.get())
+                .on_change(move |value: &str| name.set(value.into())),
+        )
+        .child(
+            view()
+                .flex_row()
+                .justify_end()
+                .gap_2()
+                .child(ui::action(move || tr("Cancel", "取消"), close).disabled(busy))
+                .child(
+                    ui::primary()
+                        .disabled(move || busy.get() || name.with(|name| name.trim().is_empty()))
+                        .on_press(save)
+                        .child(text(move || tr("Save", "保存"))),
+                ),
+        )
+}
+#[cfg(debug_assertions)]
+pub(crate) fn preview_rename(failed: Signal<bool>) -> impl IntoElement {
+    rename_view(
+        signal("Design review".into()),
+        signal(false),
+        failed,
+        || {},
+        || {},
     )
 }

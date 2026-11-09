@@ -152,3 +152,9 @@ pub(crate) fn surface(
         },
     )
 }
+
+#[cfg(debug_assertions)]
+pub(crate) use {
+    circle::preview as preview_circle, contacts::preview as preview_contacts,
+    lookup::preview as preview_lookup,
+};

@@ -485,6 +485,18 @@ pub(super) mod messages {
         timeline(vec![contact(person(0)), post, transcript, live])
     }
 
+    pub(in crate::preview) fn retry_transcript_rows() -> Vec<MessageListView> {
+        let mut transcript = card_rows()
+            .into_iter()
+            .find(|row| row.category == "SIGNAL_TRANSCRIPT")
+            .expect("fixture transcript");
+        transcript.sender_id = USER_ID.into();
+        transcript.sender_name = NAME.into();
+        transcript.status = "SENDING".into();
+        transcript.media_status = "CANCELED".into();
+        vec![transcript]
+    }
+
     /// A bot's cards: one with its own action, actions cards with and without a
     /// cover, and buttons.
     pub(in crate::preview) fn app_rows() -> Vec<MessageListView> {
@@ -768,4 +780,141 @@ pub(super) fn sticker_store_albums() -> Vec<mixin_desktop_api::StickerAlbumItem>
             album
         })
         .collect()
+}
+
+/// Contacts shared by creation and recipient review scenes.
+pub(super) fn users() -> Vec<mixin_desktop_api::UserProfileItem> {
+    PEOPLE
+        .iter()
+        .enumerate()
+        .map(|(index, &(id, name))| mixin_desktop_api::UserProfileItem {
+            user_id: id.into(),
+            identity_number: format!("7000200{index}"),
+            full_name: name.into(),
+            avatar_url: String::new(),
+            biography: "Design and engineering".into(),
+            is_verified: false,
+            is_deactivated: false,
+            is_bot: false,
+            relationship: "FRIEND".into(),
+            code_url: String::new(),
+            membership: None,
+        })
+        .collect()
+}
+
+pub(super) fn participants() -> Vec<mixin_desktop_api::ConversationParticipantItem> {
+    let mut users = users();
+    users.insert(
+        0,
+        mixin_desktop_api::UserProfileItem {
+            user_id: USER_ID.into(),
+            identity_number: IDENTITY_NUMBER.into(),
+            full_name: NAME.into(),
+            avatar_url: String::new(),
+            biography: String::new(),
+            is_verified: false,
+            is_deactivated: false,
+            is_bot: false,
+            relationship: "ME".into(),
+            code_url: String::new(),
+            membership: None,
+        },
+    );
+    users
+        .into_iter()
+        .enumerate()
+        .map(
+            |(index, user)| mixin_desktop_api::ConversationParticipantItem {
+                user_id: user.user_id,
+                role: Some(if index == 0 { "OWNER" } else { "MEMBER" }.into()),
+                created_at_millis: 1_793_610_000_000,
+                identity_number: user.identity_number,
+                full_name: user.full_name,
+                avatar_url: user.avatar_url,
+                biography: user.biography,
+                is_verified: user.is_verified,
+                is_bot: user.is_bot,
+                relationship: user.relationship,
+                membership: None,
+            },
+        )
+        .collect()
+}
+
+pub(super) fn photo_attachment() -> mixin_desktop_api::PreparedAttachment {
+    let mut photo = mixin_desktop_api::PreparedAttachment::default();
+    photo.path = concat!(env!("CARGO_MANIFEST_DIR"), "/preview/fixtures/photo.jpg").into();
+    photo.name = "photo.jpg".into();
+    photo.mime_type = "image/jpeg".into();
+    photo.kind = "IMAGE".into();
+    photo.width = Some(1200);
+    photo.height = Some(800);
+    photo
+}
+
+pub(super) fn snapshot() -> mixin_desktop_api::SnapshotDetailItem {
+    mixin_desktop_api::SnapshotDetailItem {
+        snapshot_id: "ba0ce05a-607f-498e-bfe5-fbbf9583ac35".into(),
+        trace_id: None,
+        snapshot_type: "transfer".into(),
+        asset_id: USER_ID.into(),
+        amount: "1".into(),
+        created_at_millis: 1_793_610_000_000,
+        opponent_id: Some(PEOPLE[0].0.into()),
+        opponent_name: Some(PEOPLE[0].1.into()),
+        transaction_hash: None,
+        sender: Some(NAME.into()),
+        receiver: Some(PEOPLE[0].1.into()),
+        memo: Some("Design review".into()),
+        confirmations: Some(12),
+        snapshot_hash: None,
+        opening_balance: None,
+        closing_balance: None,
+        symbol: "MIX".into(),
+        asset_name: "Mixin".into(),
+        asset_icon_url: String::new(),
+        chain_icon_url: String::new(),
+        asset_confirmations: 1,
+        asset_tag: None,
+        current_user_name: NAME.into(),
+        is_safe: true,
+        price_usd: None,
+        fiat_rate: None,
+        ticker_price_usd: None,
+        deposit_hash: None,
+        withdrawal_hash: None,
+        withdrawal_receiver: None,
+        inscription_hash: Some("preview-inscription".into()),
+        inscription_collection_hash: None,
+        inscription_sequence: Some(12),
+        inscription_content_type: Some("application/pdf".into()),
+        inscription_content_url: Some("https://example.com/design-review.pdf".into()),
+        inscription_name: Some("Design review".into()),
+        inscription_icon_url: None,
+    }
+}
+
+pub(super) fn picker_users() -> Vec<mixin_desktop_api::UserProfileItem> {
+    let mut rows = users();
+    for (index, name) in [
+        "Eva Lin",
+        "周亦然",
+        "Daniel Park",
+        "Sofia Chen",
+        "林子涵",
+        "Chris Wang",
+        "Mia Johnson",
+        "Alex Morgan",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut user = rows[0].clone();
+        user.user_id = format!("9b73a424-4e30-4896-8ac0-{:012x}", index + 1);
+        user.full_name = name.into();
+        user.identity_number = format!("700030{index:02}");
+        rows.push(user);
+    }
+    rows
 }

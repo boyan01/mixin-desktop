@@ -14,10 +14,7 @@ pub(super) fn render(
     ready: Signal<bool>,
 ) -> AnyElement {
     match payload {
-        Payload::Text(content) => text(content)
-            .text_role(ui::TextRole::Body)
-            .select_text()
-            .into_element(),
+        Payload::Text(content) => text_payload(content).into_element(),
         Payload::Post(content) => text_view()
             .markdown(Some(SharedString::from(content)))
             .selectable(true)
@@ -91,27 +88,7 @@ pub(super) fn render(
                     }
                 });
             });
-            view()
-                .gap_2()
-                .child(
-                    image(move || asset.get())
-                        .size_40()
-                        .object_fit(ResizeMode::Contain)
-                        .label("Sticker to send"),
-                )
-                .child(when(failed, move || {
-                    view()
-                        .gap_2()
-                        .child(
-                            text(move || tr("Sticker preview unavailable", "无法预览贴纸"))
-                                .text_role(ui::TextRole::Body),
-                        )
-                        .child(ui::action(
-                            move || tr("Retry preview", "重试预览"),
-                            move || retry.update(|retry| *retry += 1),
-                        ))
-                }))
-                .into_element()
+            sticker_view(asset, failed, move || retry.update(|retry| *retry += 1)).into_element()
         }
         Payload::Contact(id) => {
             let profile = signal_with(
@@ -140,37 +117,73 @@ pub(super) fn render(
                     }
                 });
             });
-            let read = move |field: fn(&UserProfileItem) -> &String| {
-                profile.with(|profile| profile.as_ref().map(field).cloned().unwrap_or_default())
-            };
-            ui::profile_card(
-                ui::AvatarSize::Medium,
-                move || read(|profile| &profile.user_id),
-                move || {
-                    profile.with(|profile| {
-                        profile
-                            .as_ref()
-                            .map(|profile| profile.full_name.clone())
-                            .unwrap_or_else(|| tr("Contact", "联系人").into())
-                    })
-                },
-                move || read(|profile| &profile.avatar_url),
-                move || read(|profile| &profile.identity_number),
-                view().hidden(),
-            )
-            .child(when(failed, move || {
-                view()
-                    .gap_2()
-                    .child(
-                        text(move || tr("Contact preview unavailable", "无法预览联系人"))
-                            .text_role(ui::TextRole::Body),
-                    )
-                    .child(ui::action(
-                        move || tr("Retry preview", "重试预览"),
-                        move || retry.update(|retry| *retry += 1),
-                    ))
-            }))
-            .into_element()
+            contact_view(profile, failed, move || retry.update(|retry| *retry += 1)).into_element()
         }
     }
+}
+
+pub(crate) fn sticker_error(retry: impl Fn() + 'static) -> View {
+    view()
+        .gap_2()
+        .child(
+            text(move || tr("Sticker preview unavailable", "无法预览贴纸"))
+                .text_role(ui::TextRole::Body),
+        )
+        .child(ui::link(move || tr("Retry preview", "重试预览"), retry))
+}
+
+pub(crate) fn contact_error(retry: impl Fn() + 'static) -> View {
+    view()
+        .gap_2()
+        .child(
+            text(move || tr("Contact preview unavailable", "无法预览联系人"))
+                .text_role(ui::TextRole::Body),
+        )
+        .child(ui::link(move || tr("Retry preview", "重试预览"), retry))
+}
+
+pub(super) fn text_payload(content: String) -> impl IntoElement {
+    text(content).text_role(ui::TextRole::Body).select_text()
+}
+
+pub(super) fn sticker_view(
+    asset: Signal<String>,
+    failed: Signal<bool>,
+    retry: impl Fn() + Copy + 'static,
+) -> View {
+    view()
+        .gap_2()
+        .child(
+            image(move || asset.get())
+                .size_40()
+                .object_fit(ResizeMode::Contain)
+                .label("Sticker to send"),
+        )
+        .child(when(failed, move || sticker_error(retry)))
+}
+
+pub(super) fn contact_view(
+    profile: Signal<Option<UserProfileItem>>,
+    failed: Signal<bool>,
+    retry: impl Fn() + Copy + 'static,
+) -> View {
+    let read = move |field: fn(&UserProfileItem) -> &String| {
+        profile.with(|profile| profile.as_ref().map(field).cloned().unwrap_or_default())
+    };
+    ui::profile_card(
+        ui::AvatarSize::Medium,
+        move || read(|profile| &profile.user_id),
+        move || {
+            profile.with(|profile| {
+                profile
+                    .as_ref()
+                    .map(|profile| profile.full_name.clone())
+                    .unwrap_or_else(|| tr("Contact", "联系人").into())
+            })
+        },
+        move || read(|profile| &profile.avatar_url),
+        move || read(|profile| &profile.identity_number),
+        view().hidden(),
+    )
+    .child(when(failed, move || contact_error(retry)))
 }

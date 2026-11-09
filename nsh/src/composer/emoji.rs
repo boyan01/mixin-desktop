@@ -192,10 +192,33 @@ fn writer(settings: SettingsClient, key: String) -> watch::Sender<Option<String>
 }
 
 pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl IntoElement {
-    let i18n = i18n::current();
     let settings = crate::settings_client();
     let preferences =
         Preferences::mount(settings, format!("desktop_emoji_preferences_{account_id}"));
+    panel_view(insert, preferences)
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .flex_row()
+        .items_center()
+        .gap_2()
+        .child(
+            ui::error_text(move || {
+                tr(
+                    i18n,
+                    "Couldn’t load recent emoji.",
+                    "无法加载最近使用的表情。",
+                )
+            })
+            .flex_1(),
+        )
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
+}
+
+fn panel_view(insert: Rc<dyn Fn(String)>, preferences: Preferences) -> View {
+    let i18n = i18n::current();
     let query = signal(String::new());
     let searching = signal(false);
     // The emoji whose skin tones the top bar offers.
@@ -426,24 +449,7 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
             })
         }))
         .child(when(preferences.failed, move || {
-            view()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .child(
-                    ui::error_text(move || {
-                        tr(
-                            i18n,
-                            "Couldn’t load recent emoji.",
-                            "无法加载最近使用的表情。",
-                        )
-                    })
-                    .flex_1(),
-                )
-                .child(ui::action(
-                    move || i18n.text(Key::Retry),
-                    move || preferences.retry.update(|value| *value += 1),
-                ))
+            load_error(move || preferences.retry.update(|value| *value += 1))
         }))
         .child(
             virtual_list(
@@ -507,4 +513,20 @@ pub(super) fn panel(insert: Rc<dyn Fn(String)>, account_id: String) -> impl Into
             move || rows.with(Vec::is_empty),
             move || ui::placeholder(move || tr(i18n, "No emoji found", "未找到表情")),
         ))
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn detached(failed: Signal<bool>) -> View {
+    let (writes, _receiver) = watch::channel(None);
+    panel_view(
+        Rc::new(|_| {}),
+        Preferences {
+            recent: signal(vec!["😀".into(), "👍".into()]),
+            skins: signal(HashMap::new()),
+            loaded: signal(true),
+            failed,
+            retry: signal(0),
+            writes: stored(writes),
+        },
+    )
 }

@@ -216,30 +216,10 @@ pub(crate) fn wrap(
 
 pub(crate) fn surface(state: State) -> impl IntoElement {
     let presence = crate::motion::Presence::modal(move || state.muting.with(Option::is_some));
-    let i18n = i18n::current();
     view()
         .child(when(state.failed, move || {
             // Over the panes: this surface is a sibling of the home columns.
-            view()
-                .absolute()
-                .right_4()
-                .bottom_4()
-                .max_w_80()
-                .px_4()
-                .py_2()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .rounded(ui::radius_md())
-                .bg(ui::surface_popover)
-                .border_1()
-                .border_color(ui::border)
-                .shadow_lg()
-                .child(ui::error_text(move || i18n.text(Key::CommandFailed)).flex_1())
-                .child(ui::action(
-                    move || i18n.tr("Dismiss", "关闭"),
-                    move || state.failed.set(false),
-                ))
+            command_error(move || state.failed.set(false))
         }))
         .child(when(
             move || presence.mounted(),
@@ -248,7 +228,6 @@ pub(crate) fn surface(state: State) -> impl IntoElement {
 }
 
 fn mute_dialog(state: State, presence: crate::motion::Presence) -> impl IntoElement {
-    let i18n = i18n::current();
     let duration = signal(None::<i64>);
     let confirm = move || {
         let (Some(row), Some(seconds)) = (state.muting.get_untracked(), duration.get_untracked())
@@ -279,42 +258,76 @@ fn mute_dialog(state: State, presence: crate::motion::Presence) -> impl IntoElem
                 state.muting.set(None);
             }
         },
-        ui::dialog_card(ui::DialogWidth::Compact)
-            .child(ui::dialog_title(move || {
-                i18n.tr("Mute notifications", "通知静音")
-            }))
-            .child(
-                ui::card().children(
-                    [
-                        (3600, "1 hour", "1 小时"),
-                        (28800, "8 hours", "8 小时"),
-                        (604800, "1 week", "1 周"),
-                        (31536000, "1 year", "1 年"),
-                    ]
-                    .into_iter()
-                    .map(move |(seconds, en, zh)| {
-                        ui::settings_row(None, move || i18n.tr(en, zh))
-                            .selected(move || duration.get() == Some(seconds))
-                            .disabled(state.busy)
-                            .on_press(move || duration.set(Some(seconds)))
-                    }),
-                ),
-            )
-            .child(
-                parts::dialog_actions()
-                    .child(
-                        ui::action(
-                            move || i18n.text(Key::Cancel),
-                            move || state.muting.set(None),
-                        )
-                        .disabled(state.busy),
-                    )
-                    .child(
-                        ui::primary()
-                            .disabled(move || duration.get().is_none() || state.busy.get())
-                            .child(text(move || i18n.tr("Mute", "静音")))
-                            .on_press(confirm),
-                    ),
-            ),
+        mute_view(
+            duration,
+            state.busy,
+            move || state.muting.set(None),
+            confirm,
+        ),
     )
+}
+
+fn mute_view(
+    duration: Signal<Option<i64>>,
+    busy: Signal<bool>,
+    close: impl Fn() + Copy + 'static,
+    confirm: impl Fn() + 'static,
+) -> View {
+    let i18n = i18n::current();
+    ui::dialog_card(ui::DialogWidth::Compact)
+        .child(ui::dialog_title(move || {
+            i18n.tr("Mute notifications", "通知静音")
+        }))
+        .child(
+            ui::card().children(
+                [
+                    (3600, "1 hour", "1 小时"),
+                    (28800, "8 hours", "8 小时"),
+                    (604800, "1 week", "1 周"),
+                    (31536000, "1 year", "1 年"),
+                ]
+                .into_iter()
+                .map(move |(seconds, en, zh)| {
+                    ui::settings_row(None, move || i18n.tr(en, zh))
+                        .selected(move || duration.get() == Some(seconds))
+                        .disabled(busy)
+                        .on_press(move || duration.set(Some(seconds)))
+                }),
+            ),
+        )
+        .child(
+            parts::dialog_actions()
+                .child(ui::action(move || i18n.text(Key::Cancel), close).disabled(busy))
+                .child(
+                    ui::primary()
+                        .disabled(move || duration.get().is_none() || busy.get())
+                        .child(text(move || i18n.tr("Mute", "静音")))
+                        .on_press(confirm),
+                ),
+        )
+}
+#[cfg(debug_assertions)]
+pub(crate) fn preview_mute() -> impl IntoElement {
+    mute_view(signal(None), signal(false), || {}, || {})
+}
+
+pub(crate) fn command_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .absolute()
+        .right_4()
+        .bottom_4()
+        .max_w_80()
+        .px_4()
+        .py_2()
+        .flex_row()
+        .items_center()
+        .gap_2()
+        .rounded(ui::radius_md())
+        .bg(ui::surface_popover)
+        .border_1()
+        .border_color(ui::border)
+        .shadow_lg()
+        .child(ui::error_text(move || i18n.text(Key::CommandFailed)).flex_1())
+        .child(ui::action(move || i18n.tr("Dismiss", "关闭"), retry))
 }

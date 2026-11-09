@@ -14,7 +14,6 @@ use crate::{
 };
 
 pub(super) fn summary(root: String, child: String, actions: Actions) -> impl IntoElement {
-    let i18n = actions.i18n;
     let identity = stored((root, child));
     let rows = signal_with(Vec::<TranscriptSummaryItem>::new(), SignalEquals::Never);
     let loading = signal(true);
@@ -53,22 +52,7 @@ pub(super) fn summary(root: String, child: String, actions: Actions) -> impl Int
             }
         });
     });
-    view().flex_1().w_full().min_h_0().gap_3()
-        .child(ui::dialog_title(move || i18n.text(Key::Transcript)))
-        .child(text(move || i18n.tr("This forwarded message contains a summary only. Original messages and attachments are unavailable.", "这条转发消息只保留了摘要，无法查看原始消息和附件。"))
-            .text_role(ui::TextRole::Body).text_color(ui::fg_secondary))
-        .child(when(loading, move || text(move || i18n.text(Key::LoadingMessages))))
-        .child(when(failed, move || view().gap_2()
-            .child(text(move || i18n.tr("This forwarded summary is unavailable.", "无法读取这条转发摘要。")))
-            .child(ui::action(move || i18n.text(Key::Retry), move || retry.update(|retry| *retry += 1)))))
-        .child(virtual_list(move || rows.with(Vec::len), move |at| {
-            view().px_4().py_2().gap_1()
-                .child(text(move || rows.with(|rows| rows.get(at.index()).map(|row| row.sender_name.clone()).unwrap_or_default()))
-                    .text_role(ui::TextRole::Body).text_color(ui::accent))
-                .child(text(move || rows.with(|rows| rows.get(at.index())
-                    .map(|row| presentation::preview(i18n, &row.category, &row.content)).unwrap_or_default()))
-                    .text_role(ui::TextRole::Body).select_text())
-        }).flex_1().min_h_0().estimated_item_size(ui::list_row_height()))
+    summary_view(actions, rows, loading, failed, retry)
 }
 
 pub(super) fn screen(id: String, actions: Actions) -> impl IntoElement {
@@ -76,8 +60,6 @@ pub(super) fn screen(id: String, actions: Actions) -> impl IntoElement {
 }
 
 fn reader(id: String, actions: Actions) -> impl IntoElement {
-    let i18n = actions.i18n;
-    let media_viewport = super::message_media::viewport();
     let id = stored(id);
     let rows = signal(Vec::<MessageListView>::new());
     super::mentions::MentionNames::mount(
@@ -144,177 +126,9 @@ fn reader(id: String, actions: Actions) -> impl IntoElement {
             }
         });
     });
-    view()
-        .flex_1()
-        .w_full()
-        .min_h_0()
-        .gap_3()
-        .child(
-            view()
-                .flex_row()
-                .items_center()
-                .gap_2()
-                .child(ui::dialog_title(move || i18n.text(Key::Transcript)).flex_1())
-                .child(ui::busy_indicator(
-                    move || busy.get(),
-                    move || i18n.tr("Loading…", "加载中…").into(),
-                )),
-        )
-        .child(when(loading, move || {
-            text(move || i18n.text(Key::LoadingMessages))
-        }))
-        .child(when(failed, move || {
-            view()
-                .gap_2()
-                .child(text(move || i18n.text(Key::MessagesFailed)))
-                .child(ui::action(
-                    move || i18n.text(Key::Retry),
-                    move || retry.update(|v| *v += 1),
-                ))
-        }))
-        .child(
-            virtual_list(
-                move || rows.with(Vec::len),
-                move |at| {
-                    crate::sticker::visibility(move || {
-                        active()
-                            && actions.forwarding.with(Vec::is_empty)
-                            && visible
-                                .get()
-                                .is_some_and(|(first, last)| (first..=last).contains(&at.index()))
-                    });
-                    view()
-                        .px_4()
-                        .py_2()
-                        .gap_1()
-                        .child(when(
-                            move || {
-                                rows.with(|rows| {
-                                    rows.get(at.index()).is_some_and(|row| {
-                                        at.index() == 0
-                                            || rows.get(at.index() - 1).is_none_or(|previous| {
-                                                presentation::day(i18n, previous.created_at_micros)
-                                                    != presentation::day(
-                                                        i18n,
-                                                        row.created_at_micros,
-                                                    )
-                                            })
-                                    })
-                                })
-                            },
-                            move || {
-                                view().items_center().py_2().child(
-                                    text(move || {
-                                        rows.with(|rows| {
-                                            rows.get(at.index())
-                                                .map(|row| {
-                                                    presentation::day(i18n, row.created_at_micros)
-                                                })
-                                                .unwrap_or_default()
-                                        })
-                                    })
-                                    .text_role(ui::TextRole::Caption)
-                                    .text_color(ui::fg_secondary),
-                                )
-                            },
-                        ))
-                        .child(
-                            view()
-                                .flex_row()
-                                .items_center()
-                                .justify_between()
-                                .gap_2()
-                                .child(
-                                    text(move || {
-                                        rows.with(|rows| {
-                                            rows.get(at.index())
-                                                .map(|m| m.sender_name.clone())
-                                                .unwrap_or_default()
-                                        })
-                                    })
-                                    .flex_1()
-                                    .min_w_0()
-                                    .number_of_lines(1)
-                                    .text_role(ui::TextRole::Body)
-                                    .text_color(ui::accent),
-                                )
-                                .child(
-                                    text(move || {
-                                        rows.with(|rows| {
-                                            rows.get(at.index())
-                                                .map(|row| {
-                                                    presentation::time(
-                                                        i18n,
-                                                        row.created_at_micros / 1000,
-                                                    )
-                                                })
-                                                .unwrap_or_default()
-                                        })
-                                    })
-                                    .text_role(ui::TextRole::Caption)
-                                    .text_color(ui::fg_secondary),
-                                ),
-                        )
-                        .child(dynamic(move || {
-                            let row = rows.with(|rows| rows.get(at.index()).cloned());
-                            untracked(|| match row {
-                                Some(row) => {
-                                    let root = id.with(|id| id.clone());
-                                    attachment_menu(
-                                        row.clone(),
-                                        id,
-                                        actions,
-                                        busy,
-                                        owner,
-                                        message_content::body(
-                                            row,
-                                            actions,
-                                            message_content::Placement {
-                                                transcript: Some(root),
-                                                ..Default::default()
-                                            },
-                                        ),
-                                    )
-                                    .into_element()
-                                }
-                                None => view().hidden().into_element(),
-                            })
-                        }))
-                },
-            )
-            .keys(move || {
-                rows.with(|rows| {
-                    rows.iter()
-                        .map(|m| m.message_id.clone())
-                        .collect::<Vec<_>>()
-                })
-            })
-            .flex_1()
-            .min_h_0()
-            .estimated_item_size(ui::list_row_height())
-            .on_viewable_items_change(move |items: &ViewableItems| visible.set(items.viewable))
-            .on_layout(media_viewport),
-        )
-        .child(
-            view()
-                .flex_row()
-                .justify_end()
-                .gap_2()
-                .child(
-                    ui::action(
-                        move || i18n.tr("Previous", "上一页"),
-                        move || offset.update(|v| *v = (*v - 100).max(0)),
-                    )
-                    .disabled(move || offset.get() == 0 || loading.get()),
-                )
-                .child(
-                    ui::action(
-                        move || i18n.tr("Next", "下一页"),
-                        move || offset.update(|v| *v += 100),
-                    )
-                    .disabled(move || !more.get() || loading.get()),
-                ),
-        )
+    reader_view(
+        actions, id, rows, offset, more, loading, failed, retry, visible, busy, active,
+    )
 }
 
 fn attachment_menu(
@@ -522,4 +336,274 @@ fn attachment_menu(
         }
         ui::menu_groups([copy_group, save, sticker])
     })
+}
+
+pub(crate) fn summary_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .gap_2()
+        .child(text(move || {
+            i18n.tr(
+                "This forwarded summary is unavailable.",
+                "无法读取这条转发摘要。",
+            )
+        }))
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .gap_2()
+        .child(text(move || i18n.text(Key::MessagesFailed)))
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn reader_view(
+    actions: Actions,
+    id: Stored<String>,
+    rows: Signal<Vec<MessageListView>>,
+    offset: Signal<i64>,
+    more: Signal<bool>,
+    loading: Signal<bool>,
+    failed: Signal<bool>,
+    retry: Signal<u64>,
+    visible: Signal<Option<(usize, usize)>>,
+    busy: Signal<bool>,
+    active: impl Fn() -> bool + Copy + 'static,
+) -> View {
+    let i18n = actions.i18n;
+    let owner = Owner::current();
+    let media_viewport = super::message_media::viewport();
+    view()
+        .flex_1()
+        .w_full()
+        .min_h_0()
+        .gap_3()
+        .child(
+            view()
+                .flex_row()
+                .items_center()
+                .gap_2()
+                .child(ui::dialog_title(move || i18n.text(Key::Transcript)).flex_1())
+                .child(ui::busy_indicator(
+                    move || busy.get(),
+                    move || i18n.tr("Loading…", "加载中…").into(),
+                )),
+        )
+        .child(when(loading, move || {
+            text(move || i18n.text(Key::LoadingMessages))
+        }))
+        .child(when(failed, move || {
+            load_error(move || retry.update(|v| *v += 1))
+        }))
+        .child(
+            virtual_list(
+                move || rows.with(Vec::len),
+                move |at| {
+                    crate::sticker::visibility(move || {
+                        active()
+                            && actions.forwarding.with(Vec::is_empty)
+                            && visible
+                                .get()
+                                .is_some_and(|(first, last)| (first..=last).contains(&at.index()))
+                    });
+                    view()
+                        .px_4()
+                        .py_2()
+                        .gap_1()
+                        .child(when(
+                            move || {
+                                rows.with(|rows| {
+                                    rows.get(at.index()).is_some_and(|row| {
+                                        at.index() == 0
+                                            || rows.get(at.index() - 1).is_none_or(|previous| {
+                                                presentation::day(i18n, previous.created_at_micros)
+                                                    != presentation::day(
+                                                        i18n,
+                                                        row.created_at_micros,
+                                                    )
+                                            })
+                                    })
+                                })
+                            },
+                            move || {
+                                view().items_center().py_2().child(
+                                    text(move || {
+                                        rows.with(|rows| {
+                                            rows.get(at.index())
+                                                .map(|row| {
+                                                    presentation::day(i18n, row.created_at_micros)
+                                                })
+                                                .unwrap_or_default()
+                                        })
+                                    })
+                                    .text_role(ui::TextRole::Caption)
+                                    .text_color(ui::fg_secondary),
+                                )
+                            },
+                        ))
+                        .child(
+                            view()
+                                .flex_row()
+                                .items_center()
+                                .justify_between()
+                                .gap_2()
+                                .child(
+                                    text(move || {
+                                        rows.with(|rows| {
+                                            rows.get(at.index())
+                                                .map(|m| m.sender_name.clone())
+                                                .unwrap_or_default()
+                                        })
+                                    })
+                                    .flex_1()
+                                    .min_w_0()
+                                    .number_of_lines(1)
+                                    .text_role(ui::TextRole::Body)
+                                    .text_color(ui::accent),
+                                )
+                                .child(
+                                    text(move || {
+                                        rows.with(|rows| {
+                                            rows.get(at.index())
+                                                .map(|row| {
+                                                    presentation::time(
+                                                        i18n,
+                                                        row.created_at_micros / 1000,
+                                                    )
+                                                })
+                                                .unwrap_or_default()
+                                        })
+                                    })
+                                    .text_role(ui::TextRole::Caption)
+                                    .text_color(ui::fg_secondary),
+                                ),
+                        )
+                        .child(dynamic(move || {
+                            let row = rows.with(|rows| rows.get(at.index()).cloned());
+                            untracked(|| match row {
+                                Some(row) => {
+                                    let root = id.with(|id| id.clone());
+                                    attachment_menu(
+                                        row.clone(),
+                                        id,
+                                        actions,
+                                        busy,
+                                        owner,
+                                        message_content::body(
+                                            row,
+                                            actions,
+                                            message_content::Placement {
+                                                transcript: Some(root),
+                                                ..Default::default()
+                                            },
+                                        ),
+                                    )
+                                    .into_element()
+                                }
+                                None => view().hidden().into_element(),
+                            })
+                        }))
+                },
+            )
+            .keys(move || {
+                rows.with(|rows| {
+                    rows.iter()
+                        .map(|m| m.message_id.clone())
+                        .collect::<Vec<_>>()
+                })
+            })
+            .flex_1()
+            .min_h_0()
+            .estimated_item_size(ui::list_row_height())
+            .on_viewable_items_change(move |items: &ViewableItems| visible.set(items.viewable))
+            .on_layout(media_viewport),
+        )
+        .child(
+            view()
+                .flex_row()
+                .justify_end()
+                .gap_2()
+                .child(
+                    ui::action(
+                        move || i18n.tr("Previous", "上一页"),
+                        move || offset.update(|v| *v = (*v - 100).max(0)),
+                    )
+                    .disabled(move || offset.get() == 0 || loading.get()),
+                )
+                .child(
+                    ui::action(
+                        move || i18n.tr("Next", "下一页"),
+                        move || offset.update(|v| *v += 100),
+                    )
+                    .disabled(move || !more.get() || loading.get()),
+                ),
+        )
+}
+#[cfg(debug_assertions)]
+pub(super) fn detached(actions: Actions, rows: Vec<MessageListView>, failed: Signal<bool>) -> View {
+    reader_view(
+        actions,
+        stored("preview-transcript".into()),
+        signal(rows),
+        signal(0),
+        signal(true),
+        signal(false),
+        failed,
+        signal(0),
+        signal(None),
+        signal(false),
+        || true,
+    )
+}
+
+fn summary_view(
+    actions: Actions,
+    rows: Signal<Vec<TranscriptSummaryItem>>,
+    loading: Signal<bool>,
+    failed: Signal<bool>,
+    retry: Signal<u64>,
+) -> View {
+    let i18n = actions.i18n;
+    view().flex_1().w_full().min_h_0().gap_3()
+        .child(ui::dialog_title(move || i18n.text(Key::Transcript)))
+        .child(text(move || i18n.tr("This forwarded message contains a summary only. Original messages and attachments are unavailable.", "这条转发消息只保留了摘要，无法查看原始消息和附件。"))
+            .text_role(ui::TextRole::Body).text_color(ui::fg_secondary))
+        .child(when(loading, move || text(move || i18n.text(Key::LoadingMessages))))
+        .child(when(failed, move || summary_error(move || retry.update(|retry| *retry += 1))))
+        .child(virtual_list(move || rows.with(Vec::len), move |at| {
+            view().px_4().py_2().gap_1()
+                .child(text(move || rows.with(|rows| rows.get(at.index()).map(|row| row.sender_name.clone()).unwrap_or_default()))
+                    .text_role(ui::TextRole::Body).text_color(ui::accent))
+                .child(text(move || rows.with(|rows| rows.get(at.index())
+                    .map(|row| presentation::preview(i18n, &row.category, &row.content)).unwrap_or_default()))
+                    .text_role(ui::TextRole::Body).select_text())
+        }).flex_1().min_h_0().estimated_item_size(ui::list_row_height()))
+}
+
+#[cfg(debug_assertions)]
+pub(super) fn preview_summary(
+    actions: Actions,
+    rows: Vec<MessageListView>,
+    failed: Signal<bool>,
+) -> View {
+    let rows = rows
+        .into_iter()
+        .map(|row| {
+            let mut item = TranscriptSummaryItem::default();
+            item.sender_name = row.sender_name;
+            item.category = row.category;
+            item.content = row.content;
+            item
+        })
+        .collect();
+    summary_view(
+        actions,
+        signal_with(rows, SignalEquals::Never),
+        signal(false),
+        failed,
+        signal(0),
+    )
 }

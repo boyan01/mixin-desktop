@@ -236,3 +236,26 @@ pub(crate) fn screen(
             })
         }))
 }
+
+#[cfg(debug_assertions)]
+pub(crate) use proxy::preview as preview_proxy;
+
+#[cfg(debug_assertions)]
+pub(crate) use storage::preview_clear;
+
+#[cfg(debug_assertions)]
+pub(crate) use profile::preview_sign_out;
+
+#[cfg(debug_assertions)]
+pub(crate) use {
+    appearance::preview_settings as preview_appearance, proxy::preview_settings as preview_proxies,
+};
+
+#[cfg(debug_assertions)]
+pub(crate) use profile::preview as preview_profile;
+
+#[cfg(debug_assertions)]
+pub(crate) use notifications::preview as preview_notifications;
+
+#[cfg(debug_assertions)]
+pub(crate) use storage::preview as preview_storage;

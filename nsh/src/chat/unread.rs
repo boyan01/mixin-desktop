@@ -313,7 +313,7 @@ impl Unread {
             })
         });
     }
-    pub fn controls(self, i18n: I18n) -> impl IntoElement {
+    pub fn controls(self, _i18n: I18n) -> impl IntoElement {
         view()
             .flex_row()
             .flex_wrap()
@@ -321,16 +321,7 @@ impl Unread {
             .justify_center()
             .gap_2()
             .child(when(self.loading_failed, move || {
-                view()
-                    .flex_row()
-                    .gap_2()
-                    .child(ui::error_text(move || {
-                        i18n.tr("Couldn’t load unread messages.", "无法加载未读消息。")
-                    }))
-                    .child(ui::action(
-                        move || i18n.text(Key::Retry),
-                        move || self.retry.update(|v| *v += 1),
-                    ))
+                load_error(move || self.retry.update(|v| *v += 1))
             }))
     }
 
@@ -449,4 +440,15 @@ impl Unread {
             },
         )
     }
+}
+
+pub(crate) fn load_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    view()
+        .flex_row()
+        .gap_2()
+        .child(ui::error_text(move || {
+            i18n.tr("Couldn’t load unread messages.", "无法加载未读消息。")
+        }))
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
 }

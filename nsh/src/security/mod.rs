@@ -17,7 +17,7 @@ pub(crate) use surface::surface;
 #[derive(Clone, Copy)]
 pub(crate) struct Handle {
     owner: Owner,
-    client: Stored<ScreenLockClient>,
+    client: Stored<Option<ScreenLockClient>>,
     state: Signal<Option<ScreenLockState>>,
     revision: Signal<u64>,
     load_failed: Signal<bool>,
@@ -30,7 +30,7 @@ pub(crate) struct Handle {
 pub(crate) fn mount(account: Arc<AccountClient>) -> Handle {
     let handle = Handle {
         owner: Owner::current(),
-        client: stored(account.screen_lock()),
+        client: stored(Some(account.screen_lock())),
         state: signal(None),
         revision: signal(0),
         load_failed: signal(false),
@@ -136,7 +136,11 @@ impl Handle {
         });
     }
     fn client(self) -> ScreenLockClient {
-        self.client.with(|client| client.clone())
+        self.client.with(|client| {
+            client
+                .clone()
+                .expect("a detached preview runs no security commands")
+        })
     }
     fn retry(self) {
         if self.lock_pending.get_untracked() {
@@ -197,5 +201,45 @@ impl Handle {
         }
         self.failed.set(result.is_err());
         self.busy.set(false);
+    }
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview(kind: &str, failed: Signal<bool>) -> impl IntoElement {
+    let handle = Handle {
+        owner: Owner::current(),
+        client: stored(None),
+        state: signal(Some({
+            let mut state = ScreenLockState::default();
+            state.available = true;
+            state.enabled = true;
+            state.locked = true;
+            state.auto_lock_minutes = 5;
+            state.biometrics_available = true;
+            state.biometric_enabled = true;
+            state
+        })),
+        revision: signal(0),
+        load_failed: signal(false),
+        lock_pending: signal(false),
+        busy: signal(false),
+        failed: signal(false),
+        cooldown_seconds: signal(0),
+    };
+    let locked = handle.state.get_untracked();
+    effect(move || {
+        handle.load_failed.set(failed.get());
+        handle
+            .state
+            .set(if failed.get() { None } else { locked.clone() });
+    });
+    match kind {
+        "unavailable" => {
+            handle.state.set(None);
+            handle.load_failed.set(true);
+            surface(handle).into_element()
+        }
+        "setup" => settings::preview_setup(handle).into_element(),
+        _ => surface::preview_inline(handle).into_element(),
     }
 }

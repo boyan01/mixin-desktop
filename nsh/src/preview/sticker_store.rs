@@ -3,7 +3,7 @@ use super::{Actions, fixtures};
 use crate::{composer::sticker_store, ui};
 use nsh_core::prelude::*;
 
-pub(super) const ACTIONS: &[&str] = &["Manage", "Empty", "NoAlbums"];
+pub(super) const ACTIONS: &[&str] = &["Manage", "Empty", "NoAlbums", "Error"];
 
 pub(super) fn scene(actions: Actions) -> View {
     let store = signal_with(fixtures::sticker_store_albums(), SignalEquals::Never);
@@ -15,10 +15,12 @@ pub(super) fn scene(actions: Actions) -> View {
         SignalEquals::Never,
     );
     let managing = signal(false);
+    let failed = signal(false);
     for name in ACTIONS {
         actions.on(
             name,
             move || {
+                failed.set(false);
                 managing.set(false);
                 store.set(fixtures::sticker_store_albums());
                 albums.set(
@@ -29,6 +31,7 @@ pub(super) fn scene(actions: Actions) -> View {
                 );
             },
             move || match *name {
+                "Error" => failed.set(true),
                 "Manage" => managing.set(true),
                 "Empty" => {
                     store.set(Vec::new());
@@ -50,5 +53,5 @@ pub(super) fn scene(actions: Actions) -> View {
         .bg(ui::surface_chat)
         .relative()
         .child(ui::scrim())
-        .child(sticker_store::detached(store, albums, managing))
+        .child(sticker_store::detached(store, albums, managing, failed))
 }

@@ -38,7 +38,7 @@ struct Page {
 
 #[derive(Clone, Copy)]
 struct Results {
-    account: Stored<Arc<AccountClient>>,
+    account: Stored<Option<Arc<AccountClient>>>,
     conversation: Stored<String>,
     query: Signal<String>,
     sender: Signal<Option<String>>,
@@ -332,7 +332,6 @@ pub(super) fn screen(
     close: impl Fn() + Copy + 'static,
     target: Signal<Option<String>>,
 ) -> impl IntoElement {
-    let i18n = i18n::current();
     let senders = Senders {
         open: signal(false),
         query: signal(String::new()),
@@ -344,7 +343,7 @@ pub(super) fn screen(
     };
     let input = element_ref();
     let results = Results {
-        account: stored(account.clone()),
+        account: stored(Some(account.clone())),
         conversation: stored(id.clone()),
         query: signal(String::new()),
         sender: signal(None),
@@ -374,7 +373,9 @@ pub(super) fn screen(
             return;
         };
         let search = Search {
-            account: results.account.with(|account| account.clone()),
+            account: results
+                .account
+                .with(|account| account.clone().expect("live search has an account")),
             id: results.conversation.with(|id| id.clone()),
             query: results.query.get_untracked().trim().to_owned(),
             sender: results.sender.get_untracked(),
@@ -438,31 +439,7 @@ pub(super) fn screen(
             close();
         }
     };
-    view()
-        .flex_1()
-        .min_h_0()
-        .child(parts::page_header(
-            move || {
-                if senders.open.get() {
-                    tr("Choose a sender", "选择发送者")
-                } else {
-                    i18n.text(Key::SearchMessages)
-                }
-            },
-            Some(
-                parts::back_button(back)
-                    .style_when(move || !senders.open.get(), |style| style.hidden()),
-            ),
-            Some(
-                parts::close_button(back)
-                    .style_when(move || senders.open.get(), |style| style.hidden()),
-            ),
-        ))
-        .child(filters(results, senders, input, back))
-        .child(
-            when(senders.open, move || sender_list(results, senders))
-                .otherwise(move || result_list(results, target)),
-        )
+    content(results, senders, input, back, target)
 }
 
 fn load_senders(account: Arc<AccountClient>, id: String, senders: Senders) {
@@ -522,7 +499,7 @@ fn filters(
         .gap(ui::space_sm())
         .child(when(
             move || !picker.get() && senders.selected.with(Option::is_some),
-            move || sender_chip(results, senders, input),
+            move || sender_chip(results.sender, senders.selected, input),
         ))
         .child(
             view()
@@ -558,20 +535,28 @@ fn filters(
                 view()
                     .flex_row()
                     .gap_2()
-                    .child(category_button(results, "TEXT", move || tr("Text", "文字")))
-                    .child(category_button(results, "POST", move || tr("Post", "长文")))
+                    .child(category_button(results.category, "TEXT", move || {
+                        tr("Text", "文字")
+                    }))
+                    .child(category_button(results.category, "POST", move || {
+                        tr("Post", "长文")
+                    }))
             },
         ))
 }
 
-fn sender_chip(results: Results, senders: Senders, input: ElementRef) -> impl IntoElement {
+fn sender_chip(
+    sender: Signal<Option<String>>,
+    selected: Signal<Option<ConversationParticipantItem>>,
+    input: ElementRef,
+) -> impl IntoElement {
     ui::button(ui::ButtonTone::Secondary, ui::ButtonSize::Regular)
         .justify_start()
         .w_full()
         .accessibility_label(move || Some(tr("Clear sender", "清除发送者").into()))
         .on_press(move || {
-            senders.selected.set(None);
-            results.sender.set(None);
+            selected.set(None);
+            sender.set(None);
             input.focus();
         })
         .child(
@@ -579,7 +564,7 @@ fn sender_chip(results: Results, senders: Senders, input: ElementRef) -> impl In
                 format!(
                     "{}: {}",
                     tr("From", "发送者"),
-                    senders.selected.with(|sender| sender
+                    selected.with(|sender| sender
                         .as_ref()
                         .map(|sender| sender.full_name.clone())
                         .unwrap_or_default())
@@ -669,12 +654,7 @@ fn sender_list(results: Results, senders: Senders) -> impl IntoElement {
             },
         ))
         .child(when(senders.failed, move || {
-            parts::failure(
-                move || tr("Couldn’t load senders", "无法加载发送者"),
-                move || senders.reload(),
-            )
-            .px_4()
-            .py_2()
+            sender_error(move || senders.reload()).px_4().py_2()
         }))
         .child(when(
             move || !senders.busy.get() && !senders.failed.get() && rows.with(Vec::is_empty),
@@ -736,12 +716,9 @@ fn result_list(results: Results, target: Signal<Option<String>>) -> impl IntoEle
             },
         ))
         .child(when(results.failed, move || {
-            parts::failure(
-                move || i18n.text(Key::MessagesFailed),
-                move || results.schedule(results.last.with(|load| *load)),
-            )
-            .px_4()
-            .py_2()
+            results_error(move || results.schedule(results.last.with(|load| *load)))
+                .px_4()
+                .py_2()
         }))
         .child(when(
             move || !results.busy.get() && !results.failed.get() && rows.with(Vec::is_empty),
@@ -846,15 +823,15 @@ fn result_list(results: Results, target: Signal<Option<String>>) -> impl IntoEle
 }
 
 fn category_button(
-    results: Results,
+    category: Signal<Option<&'static str>>,
     kind: &'static str,
     label: impl Fn() -> &'static str + 'static,
 ) -> impl IntoElement {
     ui::button(ui::ButtonTone::Secondary, ui::ButtonSize::Small)
         .rounded(ui::radius_full())
-        .selected(move || results.category.get() == Some(kind))
+        .selected(move || category.get() == Some(kind))
         .on_press(move || {
-            results.category.update(|category| {
+            category.update(|category| {
                 *category = if *category == Some(kind) {
                     None
                 } else {
@@ -863,4 +840,95 @@ fn category_button(
             })
         })
         .child(text(label).text_role(ui::TextRole::Body))
+}
+
+pub(crate) fn sender_error(retry: impl Fn() + 'static) -> View {
+    parts::failure(move || tr("Couldn’t load senders", "无法加载发送者"), retry)
+}
+
+pub(crate) fn results_error(retry: impl Fn() + 'static) -> View {
+    let i18n = crate::i18n::current();
+    parts::failure(move || i18n.text(Key::MessagesFailed), retry)
+}
+
+fn content(
+    results: Results,
+    senders: Senders,
+    input: ElementRef,
+    back: impl Fn() + Copy + 'static,
+    target: Signal<Option<String>>,
+) -> View {
+    let i18n = i18n::current();
+    view()
+        .flex_1()
+        .min_h_0()
+        .child(parts::page_header(
+            move || {
+                if senders.open.get() {
+                    tr("Choose a sender", "选择发送者")
+                } else {
+                    i18n.text(Key::SearchMessages)
+                }
+            },
+            Some(
+                parts::back_button(back)
+                    .style_when(move || !senders.open.get(), |style| style.hidden()),
+            ),
+            Some(
+                parts::close_button(back)
+                    .style_when(move || senders.open.get(), |style| style.hidden()),
+            ),
+        ))
+        .child(filters(results, senders, input, back))
+        .child(
+            when(senders.open, move || sender_list(results, senders))
+                .otherwise(move || result_list(results, target)),
+        )
+}
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview(
+    rows: Vec<MessageListView>,
+    members: Vec<ConversationParticipantItem>,
+    state: Signal<&'static str>,
+) -> View {
+    let failed = signal(false);
+    let sender_failed = signal(false);
+    let senders = Senders {
+        open: signal(false),
+        query: signal(String::new()),
+        selected: signal_with(None, SignalEquals::Never),
+        rows: signal_with(members, SignalEquals::Never),
+        busy: signal(false),
+        failed: sender_failed,
+        retry: signal(0),
+    };
+    let results = Results {
+        account: stored(None),
+        conversation: stored("preview-group".into()),
+        query: signal("design".into()),
+        sender: signal(None),
+        category: signal(None),
+        rows: signal_with(rows, SignalEquals::Never),
+        pages: stored(Vec::new()),
+        cursors: stored(vec![None]),
+        request: signal_with(None, SignalEquals::Never),
+        revision: signal(0),
+        busy: signal(false),
+        failed,
+        older: signal(false),
+        newer: signal(false),
+        visible: stored(None),
+        dirty: stored(false),
+        deferred: stored(None),
+        last: stored(Load::Reset),
+    };
+    effect(move || {
+        failed.set(state.get() == "Error");
+        sender_failed.set(state.get() == "Sender error");
+        senders
+            .open
+            .set(matches!(state.get(), "Senders" | "Sender error"));
+    });
+    content(results, senders, element_ref(), || {}, signal(None))
 }

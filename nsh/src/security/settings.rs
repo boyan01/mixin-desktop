@@ -179,11 +179,7 @@ fn duration(i18n: i18n::I18n, minutes: u32) -> String {
     }
 }
 
-fn setup_dialog(
-    handle: Handle,
-    setup: Signal<bool>,
-    presence: crate::motion::Presence,
-) -> impl IntoElement {
+fn setup_card(handle: Handle, setup: Signal<bool>, presence: crate::motion::Presence) -> View {
     let i18n = i18n::current();
     let first = signal(None::<String>);
     let draft = signal(String::new());
@@ -216,41 +212,61 @@ fn setup_dialog(
             setup.set(false);
         }
     };
+    ui::dialog_card(ui::DialogWidth::Compact)
+        .child(ui::dialog_title(move || {
+            if first.with(Option::is_some) {
+                i18n.tr("Confirm your passcode", "确认锁屏密码")
+            } else {
+                i18n.tr("Set a six-digit passcode", "设置六位锁屏密码")
+            }
+        }))
+        .child(passcode::input(
+            draft,
+            move || handle.busy.get(),
+            move || {
+                mismatch.set(false);
+                handle.failed.set(false);
+            },
+            move |_| submit(),
+        ))
+        .child(when(mismatch, move || {
+            ui::error_text(move || {
+                i18n.tr(
+                    "The passcodes didn’t match. Try again.",
+                    "两次输入的密码不一致，请重试。",
+                )
+            })
+        }))
+        .child(when(handle.failed, move || {
+            ui::error_text(move || i18n.text(Key::CommandFailed))
+        }))
+        .child(
+            parts::dialog_actions()
+                .child(ui::action(move || i18n.text(Key::Cancel), cancel).disabled(handle.busy)),
+        )
+}
+
+#[cfg(debug_assertions)]
+pub(super) fn preview_setup(handle: Handle) -> impl IntoElement {
+    setup_card(
+        handle,
+        signal(true),
+        crate::motion::Presence::modal(|| true),
+    )
+}
+
+fn setup_dialog(
+    handle: Handle,
+    setup: Signal<bool>,
+    presence: crate::motion::Presence,
+) -> impl IntoElement {
     ui::dialog(
         presence,
-        cancel,
-        ui::dialog_card(ui::DialogWidth::Compact)
-            .child(ui::dialog_title(move || {
-                if first.with(Option::is_some) {
-                    i18n.tr("Confirm your passcode", "确认锁屏密码")
-                } else {
-                    i18n.tr("Set a six-digit passcode", "设置六位锁屏密码")
-                }
-            }))
-            .child(passcode::input(
-                draft,
-                move || handle.busy.get(),
-                move || {
-                    mismatch.set(false);
-                    handle.failed.set(false);
-                },
-                move |_| submit(),
-            ))
-            .child(when(mismatch, move || {
-                ui::error_text(move || {
-                    i18n.tr(
-                        "The passcodes didn’t match. Try again.",
-                        "两次输入的密码不一致，请重试。",
-                    )
-                })
-            }))
-            .child(when(handle.failed, move || {
-                ui::error_text(move || i18n.text(Key::CommandFailed))
-            }))
-            .child(
-                parts::dialog_actions().child(
-                    ui::action(move || i18n.text(Key::Cancel), cancel).disabled(handle.busy),
-                ),
-            ),
+        move || {
+            if !handle.busy.get_untracked() {
+                setup.set(false);
+            }
+        },
+        setup_card(handle, setup, presence),
     )
 }

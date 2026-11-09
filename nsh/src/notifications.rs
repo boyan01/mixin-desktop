@@ -257,3 +257,21 @@ impl Handle {
         }
     }
 }
+
+#[cfg(debug_assertions)]
+pub(crate) fn detached(failed: Signal<bool>) -> Handle {
+    Handle {
+        owner: Owner::current(),
+        native: stored(None),
+        clicks: signal(VecDeque::new()),
+        availability: Availability::Available,
+        permission: signal(Some(Permission::Authorized)),
+        busy: signal(false),
+        failed: signal(false),
+        preview_retry: signal(0),
+        preview: signal(true),
+        preview_ready: signal(true),
+        preview_busy: signal(false),
+        preview_failed: failed,
+    }
+}

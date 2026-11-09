@@ -15,10 +15,6 @@ use crate::{chat, navigation, ui};
 
 pub(super) const ACTIONS: &[&str] = &[];
 
-pub(super) fn text(_: Actions) -> View {
-    timeline(fixtures::messages::text_rows())
-}
-
 pub(super) fn replies(_: Actions) -> View {
     timeline(fixtures::messages::reply_rows())
 }
@@ -35,8 +31,25 @@ pub(super) fn files(_: Actions) -> View {
     timeline(fixtures::messages::file_rows())
 }
 
-pub(super) fn cards(_: Actions) -> View {
-    timeline(fixtures::messages::card_rows())
+pub(super) const CARD_ACTIONS: &[&str] = &["Forward failed", "Reset"];
+pub(super) fn cards(actions: Actions) -> View {
+    let mode = super::button_pages::mode(actions, CARD_ACTIONS);
+    provide_services();
+    timeline_view(dynamic(move || {
+        let rows = if mode.get() == "Forward failed" {
+            fixtures::messages::retry_transcript_rows()
+        } else {
+            fixtures::messages::card_rows()
+        };
+        untracked(|| {
+            chat::detached_messages(
+                fixtures::USER_ID,
+                rows,
+                true,
+                fixtures::messages::mention_names(),
+            )
+        })
+    }))
 }
 
 pub(super) fn apps(_: Actions) -> View {

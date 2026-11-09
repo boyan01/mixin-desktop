@@ -15,7 +15,6 @@ pub(super) fn screen(
     on_signed_out: impl Fn() + 'static,
     session_owner: Owner,
 ) -> impl IntoElement {
-    let i18n = i18n::current();
     let initial = account.profile();
     let (initial_name, initial_biography) = draft
         .get_untracked()
@@ -59,6 +58,184 @@ pub(super) fn screen(
     let confirming = signal(false);
     let signing_out = signal(false);
     let presence = crate::motion::Presence::modal(move || confirming.get());
+    let save = move || {
+        let client = save_account.clone();
+        let next_name = name.get_untracked().trim().to_owned();
+        let next_biography = biography.get_untracked().trim().to_owned();
+        feedback.start();
+        let task =
+            runtime::commit(async move { client.update_profile(next_name, next_biography).await });
+        spawn(async move {
+            match task.await {
+                Ok(next) => {
+                    name.set(next.full_name.clone());
+                    biography.set(next.biography.clone());
+                    profile.set(next);
+                    draft.set(None);
+                    feedback.finish(true);
+                }
+                Err(_) => feedback.finish(false),
+            }
+        });
+    };
+    let avatar_picker = super::avatar::picker(avatar_account, profile, feedback, signing_out);
+    let sign_out_surface = move || {
+        sign_out_dialog(
+            sign_out_account.clone(),
+            sign_out.clone(),
+            SignOut {
+                presence,
+                confirming,
+                signing_out,
+                feedback,
+                session_owner,
+                profile_owner,
+            },
+        )
+        .into_element()
+    };
+    content(
+        profile,
+        name,
+        biography,
+        draft,
+        feedback,
+        refresh_failed,
+        refresh,
+        signing_out,
+        confirming,
+        presence,
+        keep_draft,
+        save,
+        avatar_picker,
+        sign_out_surface,
+    )
+}
+
+/// A read-only row of the account's facts.
+fn fact(
+    label: impl Fn() -> &'static str + 'static,
+    value: impl Fn() -> String + 'static,
+) -> impl IntoElement {
+    ui::static_row(label).child(
+        text(value)
+            .text_role(ui::TextRole::Body)
+            .selectable(true)
+            .text_color(ui::fg_secondary),
+    )
+}
+
+#[derive(Clone, Copy)]
+struct SignOut {
+    presence: crate::motion::Presence,
+    confirming: Signal<bool>,
+    signing_out: Signal<bool>,
+    feedback: Feedback,
+    session_owner: Owner,
+    profile_owner: Owner,
+}
+
+fn sign_out_dialog(
+    account: Arc<AccountClient>,
+    on_signed_out: Arc<impl Fn() + 'static>,
+    state: SignOut,
+) -> impl IntoElement {
+    let SignOut {
+        presence,
+        confirming,
+        signing_out,
+        feedback,
+        session_owner,
+        profile_owner,
+    } = state;
+    let confirm = move || {
+        if !presence.interactive() {
+            return;
+        }
+        let client = account.clone();
+        signing_out.set(true);
+        feedback.failed.set(false);
+        let on_signed_out = on_signed_out.clone();
+        session_owner.run(|| {
+            spawn(async move {
+                let result = runtime::commit(async move { client.sign_out().await }).await;
+                match result {
+                    Ok(()) => on_signed_out(),
+                    // The failure shows on the page beneath this dialog.
+                    Err(_) if profile_owner.is_live() => {
+                        signing_out.set(false);
+                        confirming.set(false);
+                        feedback.failed.set(true);
+                    }
+                    Err(_) => {}
+                }
+            })
+        });
+    };
+    ui::dialog(
+        presence,
+        move || {
+            if !signing_out.get_untracked() {
+                confirming.set(false);
+            }
+        },
+        sign_out_view(confirming, signing_out, confirm),
+    )
+}
+
+fn sign_out_view(
+    confirming: Signal<bool>,
+    signing_out: Signal<bool>,
+    confirm: impl Fn() + 'static,
+) -> View {
+    let i18n = i18n::current();
+    ui::dialog_card(ui::DialogWidth::Regular)
+        .child(ui::dialog_title(move || {
+            i18n.tr(
+                "Sign out and remove this account’s local data?",
+                "退出登录并移除此账号的本地数据？",
+            )
+        }))
+        .child(
+            parts::dialog_actions()
+                .child(
+                    ui::action(
+                        move || i18n.text(Key::Cancel),
+                        move || confirming.set(false),
+                    )
+                    .disabled(signing_out),
+                )
+                .child(
+                    ui::button(ui::ButtonTone::Danger, ui::ButtonSize::Regular)
+                        .disabled(signing_out)
+                        .child(text(move || i18n.tr("Sign out", "退出登录")))
+                        .on_press(confirm),
+                ),
+        )
+}
+#[cfg(debug_assertions)]
+pub(crate) fn preview_sign_out() -> impl IntoElement {
+    sign_out_view(signal(true), signal(false), || {})
+}
+
+#[allow(clippy::too_many_arguments)]
+fn content<E: IntoElement>(
+    profile: Signal<mixin_desktop_api::AccountProfile>,
+    name: Signal<String>,
+    biography: Signal<String>,
+    draft: Signal<Option<(String, String)>>,
+    feedback: Feedback,
+    refresh_failed: Signal<bool>,
+    refresh: Signal<u64>,
+    signing_out: Signal<bool>,
+    confirming: Signal<bool>,
+    presence: crate::motion::Presence,
+    keep_draft: impl Fn() + Copy + 'static,
+    save: impl Fn() + 'static,
+    avatar_picker: E,
+    sign_out_surface: impl Fn() -> AnyElement + 'static,
+) -> impl IntoElement {
+    let i18n = i18n::current();
     scroll().flex_1().min_h_0().child(
         parts::page_body()
             .child(
@@ -74,12 +251,7 @@ pub(super) fn screen(
                         )
                         .size_20(),
                     )
-                    .child(super::avatar::picker(
-                        avatar_account,
-                        profile,
-                        feedback,
-                        signing_out,
-                    )),
+                    .child(avatar_picker),
             )
             .child(when(refresh_failed, move || {
                 parts::failure(
@@ -137,27 +309,7 @@ pub(super) fn screen(
                                     || name.with(|n| n.trim().is_empty())
                             })
                             .child(text(move || i18n.tr("Save", "保存")))
-                            .on_press(move || {
-                                let client = save_account.clone();
-                                let next_name = name.get_untracked().trim().to_owned();
-                                let next_biography = biography.get_untracked().trim().to_owned();
-                                feedback.start();
-                                let task = runtime::commit(async move {
-                                    client.update_profile(next_name, next_biography).await
-                                });
-                                spawn(async move {
-                                    match task.await {
-                                        Ok(next) => {
-                                            name.set(next.full_name.clone());
-                                            biography.set(next.biography.clone());
-                                            profile.set(next);
-                                            draft.set(None);
-                                            feedback.finish(true);
-                                        }
-                                        Err(_) => feedback.finish(false),
-                                    }
-                                });
-                            }),
+                            .on_press(save),
                     )
                     .child(feedback.view(move || i18n.tr("Saving…", "正在保存…"))),
             )
@@ -194,117 +346,31 @@ pub(super) fn screen(
                         .on_press(move || confirming.set(true)),
                 ),
             )
-            .child(when(
-                move || presence.mounted(),
-                move || {
-                    sign_out_dialog(
-                        sign_out_account.clone(),
-                        sign_out.clone(),
-                        SignOut {
-                            presence,
-                            confirming,
-                            signing_out,
-                            feedback,
-                            session_owner,
-                            profile_owner,
-                        },
-                    )
-                },
-            )),
+            .child(when(move || presence.mounted(), sign_out_surface)),
     )
 }
-
-/// A read-only row of the account's facts.
-fn fact(
-    label: impl Fn() -> &'static str + 'static,
-    value: impl Fn() -> String + 'static,
+#[cfg(debug_assertions)]
+pub(crate) fn preview(
+    profile: mixin_desktop_api::AccountProfile,
+    failed: Signal<bool>,
 ) -> impl IntoElement {
-    ui::static_row(label).child(
-        text(value)
-            .text_role(ui::TextRole::Body)
-            .selectable(true)
-            .text_color(ui::fg_secondary),
-    )
-}
-
-#[derive(Clone, Copy)]
-struct SignOut {
-    presence: crate::motion::Presence,
-    confirming: Signal<bool>,
-    signing_out: Signal<bool>,
-    feedback: Feedback,
-    session_owner: Owner,
-    profile_owner: Owner,
-}
-
-fn sign_out_dialog(
-    account: Arc<AccountClient>,
-    on_signed_out: Arc<impl Fn() + 'static>,
-    state: SignOut,
-) -> impl IntoElement {
-    let i18n = i18n::current();
-    let SignOut {
-        presence,
-        confirming,
-        signing_out,
-        feedback,
-        session_owner,
-        profile_owner,
-    } = state;
-    ui::dialog(
-        presence,
-        move || {
-            if !signing_out.get_untracked() {
-                confirming.set(false);
-            }
-        },
-        ui::dialog_card(ui::DialogWidth::Regular)
-            .child(ui::dialog_title(move || {
-                i18n.tr(
-                    "Sign out and remove this account’s local data?",
-                    "退出登录并移除此账号的本地数据？",
-                )
-            }))
-            .child(
-                parts::dialog_actions()
-                    .child(
-                        ui::action(
-                            move || i18n.text(Key::Cancel),
-                            move || confirming.set(false),
-                        )
-                        .disabled(signing_out),
-                    )
-                    .child(
-                        ui::button(ui::ButtonTone::Danger, ui::ButtonSize::Regular)
-                            .disabled(signing_out)
-                            .child(text(move || i18n.tr("Sign out", "退出登录")))
-                            .on_press(move || {
-                                if !presence.interactive() {
-                                    return;
-                                }
-                                let client = account.clone();
-                                signing_out.set(true);
-                                feedback.failed.set(false);
-                                let on_signed_out = on_signed_out.clone();
-                                session_owner.run(|| {
-                                    spawn(async move {
-                                        let result =
-                                            runtime::commit(async move { client.sign_out().await })
-                                                .await;
-                                        match result {
-                                            Ok(()) => on_signed_out(),
-                                            // The failure shows on the page beneath this dialog.
-                                            Err(_) if profile_owner.is_live() => {
-                                                signing_out.set(false);
-                                                confirming.set(false);
-                                                feedback.failed.set(true);
-                                            }
-                                            Err(_) => {}
-                                        }
-                                    })
-                                });
-                            }),
-                    ),
-            ),
+    let name = signal(profile.full_name.clone());
+    let biography = signal(profile.biography.clone());
+    let draft = signal(None);
+    content(
+        signal_with(profile, SignalEquals::Never),
+        name,
+        biography,
+        draft,
+        Feedback::new(),
+        failed,
+        signal(0),
+        signal(false),
+        signal(false),
+        crate::motion::Presence::modal(|| false),
+        move || draft.set(Some((name.get_untracked(), biography.get_untracked()))),
+        || {},
+        super::avatar::preview(),
+        || view().hidden().into_element(),
     )
 }

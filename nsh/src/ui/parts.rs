@@ -16,7 +16,6 @@ use crate::{
 /// Search fields wait this long so typing does not start a query per keystroke.
 pub(crate) const SEARCH_DELAY: Duration = Duration::from_millis(150);
 const CHANGE_DELAY: Duration = Duration::from_millis(300);
-const VISIBLE_ROWS: usize = 5;
 
 pub(crate) fn back_button(on_press: impl Fn() + 'static) -> ButtonElement {
     let i18n = i18n::current();
@@ -127,10 +126,11 @@ pub(crate) fn failure(
 ) -> View {
     let i18n = i18n::current();
     view()
+        .flex_row()
         .gap(ui::space_sm())
-        .items_start()
-        .child(ui::error_text(message))
-        .child(ui::action(move || i18n.text(Key::Retry), retry))
+        .items_center()
+        .child(ui::error_text(message).flex_1().min_w_0())
+        .child(ui::link(move || i18n.text(Key::Retry), retry))
 }
 
 /// A `Regular` dialog card that holds a page or a long list.
@@ -188,45 +188,6 @@ pub(crate) fn entity_row(
                 ),
         )
         .child(when(selected, || ui::icon(ui::Icon::Check)))
-}
-
-/// Applies to a list inside a content-sized dialog: it shows up to five rows.
-pub(crate) fn dialog_list_height(rows: usize) -> Points {
-    px(rows.min(VISIBLE_ROWS) as f32 * row_height().0)
-}
-
-pub(crate) fn pager(
-    page: Signal<i64>,
-    more: impl Fn() -> bool + Copy + 'static,
-    disabled: impl Fn() -> bool + Copy + 'static,
-) -> impl IntoElement {
-    let i18n = i18n::current();
-    when(
-        move || page.get() > 0 || more(),
-        move || {
-            view()
-                .flex_none()
-                .flex_row()
-                .items_center()
-                .justify_between()
-                .gap(ui::space_sm())
-                .child(
-                    ui::action(
-                        move || i18n.tr("Previous page", "上一页"),
-                        move || page.update(|page| *page = page.saturating_sub(1)),
-                    )
-                    .disabled(move || disabled() || page.get() == 0),
-                )
-                .child(text(move || (page.get() + 1).to_string()).text_role(ui::TextRole::Body))
-                .child(
-                    ui::action(
-                        move || i18n.tr("Next page", "下一页"),
-                        move || page.update(|page| *page += 1),
-                    )
-                    .disabled(move || disabled() || !more()),
-                )
-        },
-    )
 }
 
 pub(crate) struct Prompt {
