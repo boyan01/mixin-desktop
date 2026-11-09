@@ -29,8 +29,7 @@ Run from the repository root:
 
 ```sh
 # Native scene browser; select a scene, select a state/action, then Play.
-cd nsh/preview
-nsh run
+python3 nsh/tool/preview.py run
 ```
 
 The initial scene is `create-group`, following the reference's centered title,
@@ -39,13 +38,19 @@ no Next action or selected-avatar strip. Forwarding shares the visual parts but
 stays immediate and single-select, with no selection marks or confirmation. Open another scene directly with:
 
 ```sh
-cd nsh/preview
-MIXIN_PREVIEW_SCENE=profile-settings nsh run
+MIXIN_PREVIEW_SCENE=profile-settings python3 nsh/tool/preview.py run
 ```
 
 Stateful fixture forms suppress explicit auto-focus where possible. Live screens
 keep their original focus behavior. Click an input manually to inspect its focus
 treatment.
+
+The interactive command and capture helper share the root `target/` with normal
+Cargo tests and inherit the same development profile from `.cargo/config.toml`.
+Generated lockfiles start with the repository's pinned dependency versions.
+Use these helpers to avoid NSH's default entry-local target directories. Explicit
+`CARGO_TARGET_DIR` overrides are respected. See [shared development builds](../README.md#shared-development-builds)
+for the remaining source/feature differences that can require separate artifacts.
 
 The capture helper resolves the entry itself. From the repository root:
 

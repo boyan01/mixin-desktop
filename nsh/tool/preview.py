@@ -4,6 +4,7 @@
   preview.py capture sidebar --action Collapse --label before
   preview.py capture sidebar --action Collapse --label after
   preview.py compare sidebar before after
+  preview.py run
 
 Captures stay below normal application windows by default; --foreground shows
 one above them for manual inspection. Captures go to
@@ -12,6 +13,7 @@ nsh/preview/output/<scene>/<label>/. See .agents/skills/nsh-preview/SKILL.md.
 
 import argparse
 import fcntl
+import hashlib
 import html
 import json
 import os
@@ -228,6 +230,36 @@ def capture_entry(foreground):
     return entry
 
 
+def build_env():
+    # NSH selects its own target directory instead of Cargo's configured default.
+    # Resolve caller overrides before changing to the preview entry directory.
+    env = dict(os.environ)
+    target = env.get("CARGO_TARGET_DIR")
+    env["CARGO_TARGET_DIR"] = str(Path(target).resolve() if target else NSH.parent / "target")
+    return env
+
+
+def seed_lockfile(entry):
+    # Generated hosts need extra packages, but should start with the application's
+    # pinned versions rather than resolving all shared dependencies independently.
+    source = (NSH.parent / "Cargo.lock").read_bytes()
+    digest = hashlib.sha256(source).hexdigest()
+    workspace = entry / ".nsh/rust"
+    lock = workspace / "Cargo.lock"
+    stamp = workspace / ".mixin-source-lock"
+    if lock.exists() and stamp.exists() and stamp.read_text() == digest:
+        return
+    workspace.mkdir(parents=True, exist_ok=True)
+    lock.write_bytes(source)
+    stamp.write_text(digest)
+
+
+def open_preview(_):
+    with capture_lock():
+        seed_lockfile(PREVIEW)
+    run(["nsh", "run"], cwd=PREVIEW, env=build_env())
+
+
 def shoot(args, raw):
     config = {
         "scene": args.scene, "action": args.action, "out": str(raw),
@@ -237,6 +269,7 @@ def shoot(args, raw):
     }
     with capture_lock():
         entry = capture_entry(args.foreground)
+        seed_lockfile(entry)
         # nsh discovers the app from the test file's ancestors, not only cwd.
         run_dir = Path(tempfile.mkdtemp(prefix="run-", dir=RUNS if args.foreground else entry))
         try:
@@ -247,9 +280,8 @@ def shoot(args, raw):
             template = CATALOG_TEST if "scenes" in config else TEST
             test.write_text(template.format(config=json.dumps(config, indent=2),
                                         entry=json.dumps(os.path.relpath(entry, run_dir))))
-            # Share the workspace target directory instead of building a second one.
-            env = dict(os.environ, CARGO_TARGET_DIR=str(NSH.parent / "target"),
-                       MIXIN_PREVIEW_SCENE=args.scene)
+            env = build_env()
+            env["MIXIN_PREVIEW_SCENE"] = args.scene
             command = ["nsh", "test", os.path.relpath(test, entry), "--target", "macos"]
             if args.foreground:
                 command.append("--foreground")
@@ -435,6 +467,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
+    interactive = commands.add_parser("run", help="open the native browser using the shared build cache")
+    interactive.set_defaults(handler=open_preview)
     shot = commands.add_parser("capture", help="screenshot a scene, optionally through an action")
     shot.add_argument("scene")
     shot.add_argument("--focus", help="focus an input selector before a static capture")

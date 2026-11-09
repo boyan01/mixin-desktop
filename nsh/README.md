@@ -40,6 +40,39 @@ The NSH CLI bypasses the native executable entry point. Prefer `cargo run` when
 validating startup, process ownership, native component registration and shutdown.
 macOS is the first validation target. Windows and Linux are unverified; see the roadmap.
 
+## Shared development builds
+
+The repository's `.cargo/config.toml` owns the native development profile for
+ordinary `cargo test` and the preview helper's generated NSH workspaces. Both use
+the root `target/` by default. Project crates retain line-table debugging and
+incremental compilation, even when NSH treats them as dependencies. Third-party
+crates omit debugging information and incremental caches. The four optimized
+dependencies match NSH's generated native profile. The test profile inherits
+these settings; release profiles are unchanged.
+`quickjs-jit-macro` keeps its symbols because stripping its embedded native code
+can produce a Mach-O library that the macOS loader rejects. Its Rust debugging
+information remains disabled.
+
+The helper also seeds each generated workspace's lockfile from the repository's
+`Cargo.lock`. Cargo retains compatible pinned versions and adds the host-only
+dependencies. It reseeds only when the source lockfile changes or the generated
+lockfile is missing, so repeated previews retain their host dependency versions.
+This avoids independently upgrading the preview's shared dependencies.
+
+The capture helper passes the shared target directory because this NSH CLI
+otherwise selects a target directory below the preview entry. A caller's
+`CARGO_TARGET_DIR` override is respected and relative overrides are resolved from
+the caller's directory. Use `python3 nsh/tool/preview.py run` from the repository
+root for an interactive preview with this same cache. Calling `nsh run` directly
+still uses the CLI's entry-local target directory unless `CARGO_TARGET_DIR` is set.
+
+Sharing a directory and profile avoids duplicate artifacts when the resolved
+crate, version and features agree. NSH currently turns its pinned Git checkout
+into path dependencies for generated hosts; ordinary tests still use the Git
+source. Those NSH artifacts, test executables and different feature combinations
+can remain separate. Do not edit generated `.nsh/rust/Cargo.toml` files or change
+the pinned NSH source just to remove those differences.
+
 ## Button design previews
 
 The native preview browser includes a workflow selector, previous/next controls,
@@ -55,8 +88,7 @@ The `Select`, `Next` and `Error` preview actions expose the group states.
 The debug-only preview browser renders production components over offline fixtures:
 
 ```sh
-cd nsh/preview
-nsh run
+python3 nsh/tool/preview.py run
 ```
 
 Select `post-reader` for headings, mixed Chinese/English prose, lists, task lists

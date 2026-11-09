@@ -8,11 +8,3 @@ members = [
     "mixin_desktop_headless",
     "nsh",
 ]
-
-[profile.dev]
-# Keep file:line in panics and backtraces without full variable debuginfo.
-debug = "line-tables-only"
-
-[profile.dev.package."*"]
-# Third-party crates are rarely stepped through; their debuginfo dominates target size.
-debug = false
