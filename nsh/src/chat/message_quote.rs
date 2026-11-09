@@ -214,7 +214,10 @@ pub(super) fn quoted(
         .into_element()
 }
 
-pub(super) fn reply_bar(actions: Actions) -> impl IntoElement {
+pub(super) fn reply_bar(
+    actions: Actions,
+    focus_input: impl Fn() + Copy + 'static,
+) -> impl IntoElement {
     when(
         move || actions.quote.with(Option::is_some),
         move || {
@@ -222,10 +225,10 @@ pub(super) fn reply_bar(actions: Actions) -> impl IntoElement {
                 .flex_row()
                 .items_center()
                 .gap_2()
-                .px_3()
+                .mx_3()
                 .py_2()
-                .rounded(ui::radius_lg())
-                .bg(ui::bubble_in)
+                .border_b_1()
+                .border_color(ui::hairline)
                 .child(dynamic(move || {
                     actions.quote.with(|row| {
                         row.as_ref()
@@ -261,9 +264,27 @@ pub(super) fn reply_bar(actions: Actions) -> impl IntoElement {
                             .unwrap_or_else(|| view().hidden().into_element())
                     })
                 }))
-                .child(ui::action(
-                    move || actions.i18n.text(Key::Cancel),
-                    move || actions.quote.set(None),
+                .child(crate::composer::surface::hinted(
+                    ui::round_button()
+                        .size_8()
+                        .accessibility_label(move || {
+                            Some(actions.i18n.tr("Cancel reply", "取消回复").into())
+                        })
+                        .on_press(move || {
+                            actions.quote.set(None);
+                            focus_input();
+                        })
+                        .child(
+                            ui::icon(ui::Icon::Close)
+                                .size(ui::icon_md())
+                                .text_color(ui::fg_secondary),
+                        ),
+                    move || {
+                        actions
+                            .i18n
+                            .tr("Cancel reply · Esc", "取消回复 · Esc")
+                            .to_owned()
+                    },
                 ))
         },
     )
@@ -279,6 +300,7 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
     let inset = ui::quote_bar_width();
     view()
         .min_h(ui::quote_min_height())
+        .style_when(move || input, |style| style.min_h_0())
         .min_w_0()
         .flex_1()
         .flex_row()
@@ -288,7 +310,13 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
             |style| style.rounded(ui::radius_md()).bg(ui::quote_background),
         )
         .overflow_hidden()
-        .child(view().w(ui::quote_bar_width()).flex_shrink_0().bg(color))
+        .child(
+            view()
+                .w(ui::quote_bar_width())
+                .flex_shrink_0()
+                .bg(color)
+                .style_when(move || input, |style| style.w_1().rounded_full()),
+        )
         .child(
             view()
                 .flex_1()
@@ -385,8 +413,20 @@ fn card(quote: Quote, actions: Actions, input: bool) -> View {
                             .min_w_0()
                             .flex_1()
                             .number_of_lines(1)
-                            .text_size(move || appearance.tertiary_size())
-                            .text_color(ui::message_secondary),
+                            .text_size(move || {
+                                if input {
+                                    appearance.secondary_size()
+                                } else {
+                                    appearance.tertiary_size()
+                                }
+                            })
+                            .text_color(move || {
+                                if input {
+                                    ui::fg_secondary()
+                                } else {
+                                    ui::message_secondary()
+                                }
+                            }),
                         ),
                 ),
         )

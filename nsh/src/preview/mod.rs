@@ -130,8 +130,8 @@ const SCENES: &[Scene] = &[
     },
     Scene {
         name: "message-reply",
-        actions: button_pages::STATIC_ACTIONS,
-        mount: button_pages::reply,
+        actions: composer::REPLY_ACTIONS,
+        mount: composer::reply_scene,
     },
     Scene {
         name: "message-qr",

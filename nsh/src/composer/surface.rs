@@ -12,19 +12,29 @@ pub(crate) fn frame() -> View {
 }
 
 pub(crate) fn editor(
+    has_files: impl Fn() -> bool + Copy + 'static,
+    reply: impl IntoElement,
     files: impl IntoElement,
     input: impl IntoElement,
     tools: impl IntoElement,
     submit: impl IntoElement,
 ) -> View {
-    frame().child(files).child(
+    frame().child(reply).child(files).child(
         view()
             .flex_row()
             .items_end()
             .p_2()
             .gap_2()
             .child(tools)
-            .child(view().flex_1().min_w_0().child(input))
+            // Tools disappear for file captions. Align their text with the
+            // attachment strip's 12pt inset instead of the toolbar's 8pt inset.
+            .child(
+                view()
+                    .flex_1()
+                    .min_w_0()
+                    .style_when(has_files, |style| style.ps_1())
+                    .child(input),
+            )
             .child(submit),
     )
 }

@@ -132,6 +132,8 @@ pub(super) fn editor(files: bool, actions: Actions) -> View {
             },
         ))
         .child(composer::surface::editor(
+            move || files,
+            view().hidden(),
             tray,
             input.view(
                 move || i18n.text(Key::EncryptedPlaceholder).to_owned(),
@@ -234,6 +236,120 @@ fn recording_panel(
 
 pub(super) const DETAIL_ACTIONS: &[&str] =
     &["ZIP", "Unzip", "Original", "One", "Two", "Files", "Empty"];
+
+pub(super) const REPLY_ACTIONS: &[&str] = &[
+    "Long",
+    "Image",
+    "Attachments",
+    "Text",
+    "Cancel reply",
+    "Reset",
+];
+
+/// The real pending reply and editor share one persistent draft in a chat layout.
+pub(super) fn reply_scene(actions: Actions) -> View {
+    use super::{fixtures, messages};
+    messages::provide_services();
+    let rows = fixtures::messages::text_rows()
+        .into_iter()
+        .filter(|row| row.status != "SENDING")
+        .collect::<Vec<_>>();
+    let initial = rows.last().cloned();
+    let long = rows.iter().max_by_key(|row| row.content.len()).cloned();
+    let image = fixtures::messages::photo_rows()
+        .into_iter()
+        .find(|row| row.media_status == "DONE");
+    let quote = signal(initial.clone());
+    let files = signal(false);
+    let draft = signal(String::new());
+    let input = composer::Input::detached(draft);
+    on_key("escape", move |_| quote.set(None));
+    for &name in REPLY_ACTIONS {
+        let initial = initial.clone();
+        let selected = match name {
+            "Long" => long.clone(),
+            "Image" => image.clone(),
+            _ => initial.clone(),
+        };
+        actions.on(
+            name,
+            move || {
+                quote.set(initial.clone());
+                files.set(false);
+                draft.set(if name == "Cancel reply" {
+                    "输入的回复不会丢失。".into()
+                } else {
+                    String::new()
+                });
+            },
+            move || {
+                if name == "Cancel reply" {
+                    quote.set(None);
+                } else {
+                    quote.set(selected.clone());
+                }
+                files.set(name == "Attachments");
+                if matches!(name, "Text" | "Attachments") {
+                    draft.set("我看到了，稍后确认。".into());
+                }
+            },
+        );
+    }
+    let i18n = i18n::current();
+    let mut item = PreparedAttachment::default();
+    item.name = "design-review.pdf".into();
+    item.kind = "DATA".into();
+    item.size = 1_572_864;
+    let item = stored(item);
+    let tray = when(files, move || {
+        view().px_3().pt_3().child(
+            composer::attachment_frame(|| true)
+                .child(composer::file_content(item.with(|item| item.clone())))
+                .child(composer::remove_button(|| false).on_press(move || files.set(false))),
+        )
+    });
+    view()
+        .flex_1()
+        .min_h_0()
+        .bg(ui::surface_chat)
+        .child(messages::timeline_view(crate::chat::detached_messages(
+            fixtures::USER_ID,
+            rows,
+            true,
+            fixtures::messages::mention_names(),
+        )))
+        .child(
+            view()
+                .px_4()
+                .pt_2()
+                .pb_3()
+                .gap_2()
+                .child(composer::surface::editor(
+                    move || files.get(),
+                    crate::chat::preview_reply(fixtures::USER_ID.into(), quote, input),
+                    tray,
+                    input.view(
+                        move || i18n.text(Key::MessagePlaceholder).to_owned(),
+                        computed(|| false),
+                        signal(false),
+                        Rc::new(|_| {}),
+                        Rc::new(|| {}),
+                    ),
+                    view()
+                        .flex_row()
+                        .style_when(files, |s| s.hidden())
+                        .child(composer::attachment_menu(|| {}, || {}, || {}, || {}))
+                        .child(tool(ui::Icon::Sticker, "Emoji and stickers")),
+                    composer::surface::primary_action(
+                        computed(move || files.get() || draft.with(|s| !s.trim().is_empty())),
+                        composer::surface::send_button()
+                            .accessibility_label(move || Some(i18n.text(Key::Send).into()))
+                            .child(ui::icon(ui::Icon::Send)),
+                        tool(ui::Icon::Microphone, "Record voice message"),
+                    ),
+                )),
+        )
+}
 
 /// Production surfaces with bounded fixture state for each attachment combination.
 pub(super) fn details_scene(actions: Actions) -> View {
@@ -369,6 +485,8 @@ fn details(actions: Actions, bottom: bool) -> View {
         .gap_4()
         .when(bottom, |v| v.child(view().flex_1().min_h_0()))
         .child(composer::surface::editor(
+            move || count.get() > 0,
+            view().hidden(),
             view()
                 .px_3()
                 .pt_3()

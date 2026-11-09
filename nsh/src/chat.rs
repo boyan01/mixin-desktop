@@ -460,14 +460,6 @@ pub(crate) fn preview_buttons(
                 .child(message_selection::selection_bar(actions, conversation))
                 .into_element()
         }
-        "reply" => {
-            actions.quote.set(rows.first().cloned());
-            view()
-                .flex_1()
-                .justify_end()
-                .child(message_quote::reply_bar(actions))
-                .into_element()
-        }
         "markdown-error" => {
             message_post::attachment_error(stored(rows[0].clone()), actions, signal(0))
                 .into_element()
@@ -513,3 +505,14 @@ pub(crate) use gallery::input::register as register_image_input;
 
 #[cfg(debug_assertions)]
 pub(crate) use message_detail::preview_video_detail;
+
+#[cfg(debug_assertions)]
+pub(crate) fn preview_reply(
+    account_id: String,
+    quote: Signal<Option<MessageListView>>,
+    input: composer::Input,
+) -> impl IntoElement {
+    let mut actions = message_actions::Actions::detached(account_id);
+    actions.quote = quote;
+    message_quote::reply_bar(actions, move || input.focus())
+}

@@ -8,7 +8,7 @@ use different treatments.
 There are 83 native scenes, including the original 21 scenes. Each scene represents
 a page, dialog or existing component showcase. Errors belong to their owning scene;
 there are no separate `*-error` scenes or invented title-plus-error page frames.
-The full catalog contains 198 captures, grouped by scene and state. `--scenes`
+The full catalog contains 203 captures, grouped by scene and state. `--scenes`
 selects a smaller review set, without rendering the rest of the application.
 
 ```text
@@ -200,3 +200,22 @@ The local review gallery is `output/transcript-review/index.html`. It includes
 before/after comparisons, dark/light and narrow captures, media/error states, and
 close-ups of the text-wrapping and anonymous-avatar contrast fixes found during
 this review.
+
+## Composer reply review
+
+`message-reply` now includes the real pending-reply preview and the production
+composer frame below a chat timeline, sharing one persistent fixture input.
+`Long`, `Image`, `Attachments`, `Text` and `Cancel reply` cover truncation,
+thumbnails, file/caption composition, send presentation and removing the reply
+without clearing the draft. Close and Escape also work directly in this fixture.
+The account-free fixture does not send messages or perform a live history jump.
+
+Review `composer`, `composer-details` and `composer-fold` after changing the shared
+frame. The first scene stacks text, files, recording and recorded-preview states;
+capture it at 1000pt height so the lower states stay visible.
+
+The local gallery is `output/composer-reply-review/index.html`, with before/after
+close-ups, light/narrow, long, image, attachment and cancellation states. The file
+caption inset follow-up is in `output/caption-inset-review/index.html`: captions
+align with the attachment strip while ordinary input keeps its tool spacing.
+Real account sends, history jumps and recording remain unverified.

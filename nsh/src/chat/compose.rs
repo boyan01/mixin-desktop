@@ -292,7 +292,6 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
         .pb_3()
         .gap_2()
         .style_when(move || !can_send.get(), |style| style.hidden())
-        .child(message_quote::reply_bar(actions))
         .child(when(
             move || {
                 (group || header.with(|row| row.is_bot))
@@ -321,6 +320,8 @@ pub(super) fn bar(props: Props) -> impl IntoElement {
             ui::error_text(move || i18n.text(Key::SendFailed))
         }))
         .child(composer::surface::editor(
+            move || tray.active(),
+            message_quote::reply_bar(actions, move || input.focus()),
             tray.view(),
             input.view(
                 move || {

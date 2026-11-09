@@ -199,9 +199,6 @@ fn chat_controls(kind: &str, actions: Actions) -> View {
 pub(super) fn selection(actions: Actions) -> View {
     chat_controls("selection", actions)
 }
-pub(super) fn reply(actions: Actions) -> View {
-    chat_controls("reply", actions)
-}
 pub(super) fn qr(actions: Actions) -> View {
     chat_controls("qr", actions)
 }

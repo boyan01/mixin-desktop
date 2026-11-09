@@ -184,6 +184,18 @@ width capped at `audio-wave-width`; the trailing action remains at the right edg
 Played bars, pause/resume and seeking follow the account's shared playback client,
 which also owns the recorder within that account scope.
 
+File captions align with the attachment strip's 12pt leading inset. When the
+tools hide for pending files, the shared editor adds the missing 4pt to its text
+lane; plain message input keeps its tool spacing.
+
+Pending replies sit inside the composer's rounded frame, above its attachment
+tray and input row. A slim sender-colored marker, sender name and one-line preview
+identify the reply; image/contact/sticker artwork uses the existing quote renderer.
+An inset hairline separates it from the editor. The trailing close icon cancels
+only the reply and returns focus to the existing editor. Escape retains its
+composition-aware cancellation behavior. Draft text and pending files survive
+reply changes; selecting the preview still locates the original message.
+
 The emoji/sticker popover gives its content the full area above one compact footer.
 Store, emoji, recent, personal and album shortcuts share that footer, following the
 Flutter reference. Personal stickers begin with a dashed import tile in the same
